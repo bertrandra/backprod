@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use Laminas\Diactoros\ServerRequest;
+use Laminas\Diactoros\Stream;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -55,20 +56,29 @@ abstract class ApiTestCase extends TestCase
         $query = [];
         parse_str((string) parse_url($uri, PHP_URL_QUERY), $query);
 
+        // The body is built before the request rather than written into it
+        // afterwards: a ServerRequest defaults to php://input, which is
+        // read-only, so writing to the stream it already has throws.
+        $stream = new Stream('php://temp', 'wb+');
+
+        if ($body !== null) {
+            $stream->write($body);
+            $stream->rewind();
+        }
+
         $request = new ServerRequest(
             uri: $uri,
             method: $method,
+            body: $stream,
             queryParams: $query,
         );
 
-        foreach ($headers as $name => $value) {
-            $request = $request->withHeader($name, $value);
+        if ($body !== null) {
+            $request = $request->withHeader('Content-Type', 'application/json');
         }
 
-        if ($body !== null) {
-            $request->getBody()->write($body);
-            $request->getBody()->rewind();
-            $request = $request->withHeader('Content-Type', 'application/json');
+        foreach ($headers as $name => $value) {
+            $request = $request->withHeader($name, $value);
         }
 
         return $this->app()->handle($request);
