@@ -397,7 +397,13 @@ final class ProjectEndpointsTest extends ApiTestCase
         $response = $this->patch($project, ['description' => null]);
 
         self::assertSame(200, $response->getStatusCode());
-        self::assertNull($this->decode($response)['description'] ?? 'unset');
+
+        // Both halves matter, and `?? 'unset'` would defeat them: it replaces
+        // the null this is testing for with a string, so the assertion could
+        // never hold. The key must be present, and its value must be null.
+        $body = $this->decode($response);
+        self::assertArrayHasKey('description', $body);
+        self::assertNull($body['description']);
     }
 
     public function testAPatchThatChangesNothingIsRefused(): void
