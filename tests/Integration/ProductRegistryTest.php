@@ -106,6 +106,11 @@ final class ProductRegistryTest extends DatabaseTestCase
     /**
      * Configuration is JSONB, so structure must survive the round trip rather
      * than arriving as a string.
+     *
+     * Asserted value by value rather than against a whole literal, because
+     * JSONB does not preserve key order — it stores keys sorted. Comparing
+     * shapes would be testing PostgreSQL's storage order, which is not a
+     * promise anything should rely on, clients included.
      */
     public function testConfigurationDecodesToStructuredValues(): void
     {
@@ -113,12 +118,20 @@ final class ProductRegistryTest extends DatabaseTestCase
 
         $this->connection->executeStatement(
             "INSERT INTO product_configuration (product_id, key, value) VALUES (:id, 'limits', :value)",
-            ['id' => $atlas, 'value' => '{"max_projects": 10, "beta": true}'],
+            ['id' => $atlas, 'value' => '{"max_projects": 10, "beta": true, "tiers": ["free", "pro"]}'],
         );
 
         $configuration = (new PostgresProductRegistry($this->connection))->configuration($atlas);
 
-        self::assertSame(['limits' => ['max_projects' => 10, 'beta' => true]], $configuration);
+        self::assertArrayHasKey('limits', $configuration);
+        $limits = $configuration['limits'];
+        self::assertIsArray($limits);
+
+        // Types, not just values: a number that came back as "10" would mean
+        // the column was being read as text.
+        self::assertSame(10, $limits['max_projects'] ?? null);
+        self::assertTrue($limits['beta'] ?? null);
+        self::assertSame(['free', 'pro'], $limits['tiers'] ?? null);
     }
 
     private function productIdFor(string $code): string
