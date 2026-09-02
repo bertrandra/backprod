@@ -63,11 +63,15 @@ final class RequestContextMiddleware implements MiddlewareInterface
             $request->getHeaderLine(TenantResolver::SELECTION_HEADER),
         );
 
+        // Roles say who they are in the tenant; permissions say what that
+        // allows; capabilities say what the tenant has bought. All three are
+        // resolved before the handler runs, and they fail in different ways.
         $context = new RequestContext(
             $user->id,
             $product->id,
             $membership->tenantId,
             $membership->roles,
+            $membership->permissions,
             $this->entitlements->capabilitiesFor($membership->tenantId, $product->id),
         );
 

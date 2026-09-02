@@ -6,6 +6,7 @@ namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthenticatedIdentity;
 use App\Product\Infrastructure\PostgresProductRepository;
+use App\Tenant\Infrastructure\PostgresTenantMemberRepository;
 use App\Tenant\Infrastructure\PostgresTenantMembershipRepository;
 use App\User\Infrastructure\PostgresUserDirectory;
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -178,17 +179,7 @@ final class PostgresAdaptersTest extends DatabaseTestCase
      */
     private function seedMembership(string $tenantId, string $userId, string $productId, array $roles): void
     {
-        $this->connection->executeStatement(
-            <<<'SQL'
-                INSERT INTO tenant_members (tenant_id, user_id, product_id, roles)
-                VALUES (:tenant, :user, :product, CAST(:roles AS TEXT[]))
-                SQL,
-            [
-                'tenant' => $tenantId,
-                'user' => $userId,
-                'product' => $productId,
-                'roles' => '{' . implode(',', $roles) . '}',
-            ],
-        );
+        (new PostgresTenantMemberRepository($this->connection))
+            ->addMember($tenantId, $productId, $userId, $roles);
     }
 }

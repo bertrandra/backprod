@@ -23,6 +23,20 @@ final class ForbiddenException extends HttpException
     }
 
     /**
+     * The caller's role does not allow this. Distinct from an entitlement
+     * failure: this is about who they are in the tenant, not what the tenant
+     * has bought, and the two are fixed in completely different places.
+     */
+    public static function permissionDenied(string $permission): self
+    {
+        return new self(
+            'PERMISSION_DENIED',
+            'Your role does not allow this action.',
+            ['permission' => $permission],
+        );
+    }
+
+    /**
      * The capability name is safe to return: it tells the caller what to buy
      * or request, and discloses nothing about other tenants.
      */

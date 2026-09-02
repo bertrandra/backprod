@@ -14,8 +14,11 @@ use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
+use App\User\Domain\PlatformUser;
 use App\User\Domain\UserDirectory;
+use App\User\Domain\UserRepository;
 use App\User\Infrastructure\InMemoryUserDirectory;
+use App\User\Infrastructure\InMemoryUserRepository;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -40,6 +43,11 @@ final class ContextResolutionTest extends ApiTestCase
             // Provisioned ids are the subjects, so fixtures stay readable.
             UserDirectory::class => new InMemoryUserDirectory(),
 
+            UserRepository::class => new InMemoryUserRepository([
+                new PlatformUser(self::ALICE, self::ALICE, 'alice@example.test'),
+                new PlatformUser(self::BOB, self::BOB, 'bob@example.test'),
+            ]),
+
             AuthProvider::class => new FakeAuthProvider([
                 'alice-token' => self::ALICE,
                 'bob-token' => self::BOB,
@@ -51,8 +59,8 @@ final class ContextResolutionTest extends ApiTestCase
             ]),
 
             TenantMembershipRepository::class => new InMemoryTenantMembershipRepository([
-                new TenantMembership('tenant-acme', self::ALICE, 'prod-atlas', ['TENANT_ADMIN']),
-                new TenantMembership('tenant-globex', self::BOB, 'prod-atlas', ['USER']),
+                new TenantMembership('tenant-acme', self::ALICE, 'prod-atlas', ['TENANT_ADMIN'], ['members.manage']),
+                new TenantMembership('tenant-globex', self::BOB, 'prod-atlas', ['USER'], ['members.read']),
             ]),
 
             EntitlementRepository::class => new InMemoryEntitlementRepository([
@@ -72,9 +80,12 @@ final class ContextResolutionTest extends ApiTestCase
         self::assertSame(200, $response->getStatusCode());
         self::assertSame([
             'user_id' => self::ALICE,
+            'email' => 'alice@example.test',
+            'display_name' => null,
             'product_id' => 'prod-atlas',
             'tenant_id' => 'tenant-acme',
             'roles' => ['TENANT_ADMIN'],
+            'permissions' => ['members.manage'],
             'capabilities' => ['projects.read', 'projects.write'],
         ], $this->decode($response));
     }

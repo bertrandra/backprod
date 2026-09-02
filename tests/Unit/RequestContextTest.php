@@ -49,12 +49,51 @@ final class RequestContextTest extends TestCase
         self::assertFalse($context->hasRole('tenant_admin'));
     }
 
+    public function testPermissionsAnswerAuthorisationRatherThanRoleNames(): void
+    {
+        $context = $this->context([], ['USER'], ['members.read']);
+
+        self::assertTrue($context->can('members.read'));
+        self::assertFalse($context->can('members.manage'));
+    }
+
+    /**
+     * A permission failure and an entitlement failure are different problems
+     * with different remedies — one is a role change, the other a
+     * subscription — so they must not share an error code.
+     */
+    public function testPermissionDenialIsDistinctFromAnEntitlementFailure(): void
+    {
+        try {
+            $this->context([], ['USER'], ['members.read'])->requirePermission('members.manage');
+            self::fail('Expected the permission to be required.');
+        } catch (ForbiddenException $e) {
+            self::assertSame(403, $e->statusCode());
+            self::assertSame('PERMISSION_DENIED', $e->errorCode());
+            self::assertSame(['permission' => 'members.manage'], $e->details());
+        }
+    }
+
+    /**
+     * Holding a permission is not the same as the tenant having bought the
+     * feature: an administrator with every permission is still refused a
+     * capability the subscription does not include.
+     */
+    public function testPermissionsDoNotGrantCapabilities(): void
+    {
+        $context = $this->context([], ['TENANT_ADMIN'], ['members.manage', 'tenant.manage']);
+
+        self::assertTrue($context->can('tenant.manage'));
+        self::assertFalse($context->allows('advanced_3d'));
+    }
+
     /**
      * @param list<string> $capabilities
      * @param list<string> $roles
+     * @param list<string> $permissions
      */
-    private function context(array $capabilities, array $roles = ['USER']): RequestContext
+    private function context(array $capabilities, array $roles = ['USER'], array $permissions = []): RequestContext
     {
-        return new RequestContext('u1', 'p1', 't1', $roles, $capabilities);
+        return new RequestContext('u1', 'p1', 't1', $roles, $permissions, $capabilities);
     }
 }
