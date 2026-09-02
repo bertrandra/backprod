@@ -1,0 +1,29 @@
+# Proof configuration — NOT the project's architecture check.
+#
+# deptrac.yaml guards ./src and must always pass. This file points the same
+# tool at tools/architecture-gate-fixture, which contains a deliberate
+# Domain → SQL violation, and is therefore expected to FAIL.
+#
+# tools/prove-architecture-gate.php runs it and asserts the failure, so CI
+# demonstrates the gate works rather than assuming it does.
+#
+# Intentionally narrow: it declares only the two layers involved in the edge
+# under test, so it cannot drift out of step with the real ruleset.
+deptrac:
+  paths:
+    - ./tools/architecture-gate-fixture
+
+  layers:
+    - name: Domain
+      collectors:
+        - type: classLike
+          value: '^App\\[A-Za-z0-9]+\\Domain\\.*'
+
+    - name: Sql
+      collectors:
+        - type: classLike
+          value: '^(PDO|PDOStatement|Doctrine\\DBAL\\.*)$'
+
+  ruleset:
+    # Domain may depend on nothing — reaching SQL is a violation.
+    Domain: ~

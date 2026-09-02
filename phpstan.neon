@@ -1,0 +1,10 @@
+parameters:
+    level: max
+    paths:
+        - src
+        - config
+        - public
+        - tests
+    excludePaths:
+        - tools/architecture-gate-fixture
+    treatPhpDocTypesAsCertain: false

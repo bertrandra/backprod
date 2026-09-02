@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Architecture V2 §37.13 lists the full gate chain for the platform. The
+# frontend steps (ESLint, Prettier, dependency-cruiser, Vitest, Playwright)
+# are not represented here because this repository currently holds only the
+# PHP backend; they join this workflow when the frontend lands.
+#
+# §37.13 is explicit that a failing step means "PR = NOT READY", so nothing
+# below is allowed to continue-on-error.
+
+jobs:
+  quality-gates:
+    name: Quality gates
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: json, mbstring, pdo, pdo_pgsql
+          coverage: xdebug
+          tools: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Coding standards
+        run: composer run cs
+
+      - name: Static analysis
+        run: composer run stan
+
+      - name: Architecture rules
+        run: composer run deptrac
+
+      # Proves the architecture gate actually rejects a violation, rather
+      # than passing because it silently stopped inspecting anything.
+      - name: Architecture gate is enforced
+        run: composer run gate:proof
+
+      - name: Tests
+        run: composer run test

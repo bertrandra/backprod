@@ -1,0 +1,92 @@
+deptrac:
+  paths:
+    - ./src
+
+  layers:
+    # Module layers, matched across every module: App\<Module>\<Layer>\...
+    - name: Controller
+      collectors:
+        - type: classLike
+          value: '^App\\[A-Za-z0-9]+\\Controller\\.*'
+
+    - name: Application
+      collectors:
+        - type: classLike
+          value: '^App\\[A-Za-z0-9]+\\Service\\.*'
+
+    - name: Domain
+      collectors:
+        - type: classLike
+          value: '^App\\[A-Za-z0-9]+\\Domain\\.*'
+
+    - name: Repository
+      collectors:
+        - type: classLike
+          value: '^App\\[A-Za-z0-9]+\\Repository\\.*'
+
+    - name: Infrastructure
+      collectors:
+        - type: classLike
+          value: '^App\\[A-Za-z0-9]+\\Infrastructure\\.*'
+
+    # Shared platform code.
+    - name: SharedHttp
+      collectors:
+        - type: classLike
+          value: '^App\\Shared\\Http\\.*'
+
+    - name: SharedKernel
+      collectors:
+        - type: classLike
+          value: '^App\\Shared\\(Exceptions|Logging|Validation)\\.*'
+
+    # External concerns, so the forbidden edges of §37.6 are expressible.
+    - name: Sql
+      collectors:
+        - type: classLike
+          value: '^(PDO|PDOStatement|Doctrine\\DBAL\\.*)$'
+
+    - name: Http
+      collectors:
+        - type: classLike
+          value: '^(Psr\\Http\\.*|Laminas\\Diactoros\\.*|Laminas\\HttpHandlerRunner\\.*)$'
+
+  ruleset:
+    # Controllers are thin: HTTP in, application service out. Never SQL.
+    Controller:
+      - Application
+      - SharedHttp
+      - SharedKernel
+      - Http
+
+    # Application services orchestrate use cases.
+    Application:
+      - Domain
+      - Repository
+      - SharedKernel
+
+    # Domain holds business invariants and depends on nothing technical.
+    # No Http and no Sql here — those are the two explicit bans in §37.6.
+    Domain:
+      - SharedKernel
+
+    # Repositories map the domain onto storage.
+    Repository:
+      - Domain
+      - Infrastructure
+      - SharedKernel
+      - Sql
+
+    # Infrastructure adapts external providers; may speak HTTP and SQL.
+    Infrastructure:
+      - Domain
+      - SharedKernel
+      - Sql
+      - Http
+
+    SharedHttp:
+      - SharedKernel
+      - Http
+
+    # The kernel is the bottom of the graph.
+    SharedKernel: ~
