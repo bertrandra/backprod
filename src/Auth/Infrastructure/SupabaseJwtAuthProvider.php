@@ -45,6 +45,7 @@ final class SupabaseJwtAuthProvider implements AuthProvider
             throw new UnauthenticatedException();
         }
 
+        /** @var array<string, mixed> $claims object properties are always string-keyed */
         $claims = get_object_vars($decoded);
 
         $this->assertClaim($claims, 'iss', $this->expectedIssuer);

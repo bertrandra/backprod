@@ -71,16 +71,12 @@ final class RequestContextMiddleware implements MiddlewareInterface
     {
         $header = $request->getHeaderLine('Authorization');
 
+        // \S+ guarantees a non-empty capture, so a successful match needs no
+        // further checking of the group.
         if (preg_match('/^Bearer[ ]+(?<token>\S+)$/i', $header, $matches) !== 1) {
             throw new UnauthenticatedException();
         }
 
-        $token = $matches['token'] ?? null;
-
-        if (!is_string($token) || $token === '') {
-            throw new UnauthenticatedException();
-        }
-
-        return $token;
+        return $matches['token'];
     }
 }
