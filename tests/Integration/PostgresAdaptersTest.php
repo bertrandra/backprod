@@ -140,7 +140,13 @@ final class PostgresAdaptersTest extends DatabaseTestCase
 
     private function countUsers(): int
     {
-        return (int) $this->connection->fetchOne('SELECT count(*) FROM users');
+        $count = $this->connection->fetchOne('SELECT count(*) FROM users');
+
+        if (!is_numeric($count)) {
+            self::fail('count(*) did not return a number.');
+        }
+
+        return (int) $count;
     }
 
     private function seedProduct(string $code, bool $active = true): string

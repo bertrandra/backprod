@@ -32,32 +32,51 @@ final class ConnectionFactory
         'pgsql' => 'pdo_pgsql',
     ];
 
+    public static function fromDsn(#[SensitiveParameter] string $dsn): Connection
+    {
+        self::assertConfigured($dsn);
+
+        try {
+            // Parsed inline rather than through paramsFromDsn(): DriverManager
+            // requires a precise parameter shape, and returning that shape
+            // from a method would widen it to array<string, mixed>.
+            return DriverManager::getConnection((new DsnParser(self::SCHEMES))->parse($dsn));
+        } catch (Throwable $e) {
+            throw self::unusable($e);
+        }
+    }
+
     /**
+     * The same parameters, for the Doctrine Migrations CLI, which runs
+     * without the application container and takes an array rather than a
+     * connection.
+     *
      * @return array<string, mixed>
      */
     public static function paramsFromDsn(#[SensitiveParameter] string $dsn): array
     {
-        if ($dsn === '') {
-            throw new RuntimeException('DATABASE_DSN is not configured.');
-        }
+        self::assertConfigured($dsn);
 
         try {
             return (new DsnParser(self::SCHEMES))->parse($dsn);
         } catch (Throwable $e) {
-            // The DSN carries credentials, so the original message — which
-            // may quote it — is not propagated (§31).
-            throw new RuntimeException('DATABASE_DSN is not a usable connection string.', 0, $e);
+            throw self::unusable($e);
         }
     }
 
-    public static function fromDsn(#[SensitiveParameter] string $dsn): Connection
+    private static function assertConfigured(#[SensitiveParameter] string $dsn): void
     {
-        $params = self::paramsFromDsn($dsn);
-
-        try {
-            return DriverManager::getConnection($params);
-        } catch (Throwable $e) {
-            throw new RuntimeException('The configured DATABASE_DSN could not be used.', 0, $e);
+        if ($dsn === '') {
+            throw new RuntimeException('DATABASE_DSN is not configured.');
         }
+    }
+
+    /**
+     * The DSN carries credentials, so the original message — which may quote
+     * it — is kept as a previous exception rather than surfaced (§31).
+     */
+    private static function unusable(Throwable $cause): RuntimeException
+    {
+        return new RuntimeException('DATABASE_DSN is not a usable connection string.', 0, $cause);
     }
 }
