@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tenant\Infrastructure;
 
+use App\Shared\Database\JsonArray;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use Doctrine\DBAL\Connection;
