@@ -35,20 +35,51 @@ abstract class ApiTestCase extends TestCase
     }
 
     /**
+     * A $body is sent as JSON, which is the only content type the API reads.
+     *
+     * Query parameters are parsed from the path rather than passed
+     * separately, because that is what a real server does: PSR-7 does not
+     * derive them from the URI, so a test that set them by hand would be
+     * proving the handler works on input the server never produces.
+     *
      * @param array<string, string> $headers
      */
-    protected function request(string $method, string $path, array $headers = []): ResponseInterface
-    {
+    protected function request(
+        string $method,
+        string $path,
+        array $headers = [],
+        ?string $body = null,
+    ): ResponseInterface {
+        $uri = 'https://api.test' . $path;
+
+        $query = [];
+        parse_str((string) parse_url($uri, PHP_URL_QUERY), $query);
+
         $request = new ServerRequest(
-            uri: 'https://api.test' . $path,
+            uri: $uri,
             method: $method,
+            queryParams: $query,
         );
 
         foreach ($headers as $name => $value) {
             $request = $request->withHeader($name, $value);
         }
 
+        if ($body !== null) {
+            $request->getBody()->write($body);
+            $request->getBody()->rewind();
+            $request = $request->withHeader('Content-Type', 'application/json');
+        }
+
         return $this->app()->handle($request);
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     */
+    protected function json(array $body): string
+    {
+        return json_encode($body, JSON_THROW_ON_ERROR);
     }
 
     /**

@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 $finder = PhpCsFixer\Finder::create()
     ->in([__DIR__ . '/src', __DIR__ . '/tests', __DIR__ . '/config', __DIR__ . '/public'])
-    ->append([__DIR__ . '/tools/prove-architecture-gate.php']);
+    ->append([
+        __DIR__ . '/tools/prove-architecture-gate.php',
+        __DIR__ . '/tools/prove-no-product-branching.php',
+    ]);
 
 return (new PhpCsFixer\Config())
     ->setRiskyAllowed(true)

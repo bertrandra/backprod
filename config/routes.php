@@ -11,6 +11,16 @@ use App\Product\Controller\ProductCatalogueController;
 use App\Product\Controller\ProductConfigurationController;
 use App\Product\Controller\ProductFeaturesController;
 use App\Product\Controller\ShowProductController;
+use App\Project\Controller\CreateProjectController;
+use App\Project\Controller\CreateProjectVersionController;
+use App\Project\Controller\DeleteProjectController;
+use App\Project\Controller\DuplicateProjectController;
+use App\Project\Controller\ListProjectsController;
+use App\Project\Controller\ListProjectVersionsController;
+use App\Project\Controller\RestoreProjectController;
+use App\Project\Controller\ShowProjectController;
+use App\Project\Controller\ShowProjectVersionController;
+use App\Project\Controller\UpdateProjectController;
 use App\Tenant\Controller\AddMemberController;
 use App\Tenant\Controller\CurrentTenantController;
 use App\Tenant\Controller\ListMembersController;
@@ -45,6 +55,25 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/products/{productId}/catalog', ProductCatalogueController::class);
     $routes->addRoute('GET', '/api/v1/products/{productId}/features', ProductFeaturesController::class);
     $routes->addRoute('GET', '/api/v1/products/{productId}/configuration', ProductConfigurationController::class);
+
+    // Projects take the full context chain: unlike discovery, they are
+    // tenant data, and every one of these resolves product *and* tenant
+    // before a handler sees the request.
+    $routes->addRoute('GET', '/api/v1/projects', ListProjectsController::class);
+    $routes->addRoute('POST', '/api/v1/projects', CreateProjectController::class);
+    $routes->addRoute('GET', '/api/v1/projects/{projectId}', ShowProjectController::class);
+    $routes->addRoute('PATCH', '/api/v1/projects/{projectId}', UpdateProjectController::class);
+    $routes->addRoute('DELETE', '/api/v1/projects/{projectId}', DeleteProjectController::class);
+
+    $routes->addRoute('GET', '/api/v1/projects/{projectId}/versions', ListProjectVersionsController::class);
+    $routes->addRoute('POST', '/api/v1/projects/{projectId}/versions', CreateProjectVersionController::class);
+    $routes->addRoute(
+        'GET',
+        '/api/v1/projects/{projectId}/versions/{versionId}',
+        ShowProjectVersionController::class,
+    );
+    $routes->addRoute('POST', '/api/v1/projects/{projectId}/duplicate', DuplicateProjectController::class);
+    $routes->addRoute('POST', '/api/v1/projects/{projectId}/restore', RestoreProjectController::class);
 
     $routes->addRoute('GET', '/api/v1/tenants/current', CurrentTenantController::class);
     $routes->addRoute('PATCH', '/api/v1/tenants/current', UpdateCurrentTenantController::class);
