@@ -29,6 +29,13 @@ deptrac:
         - type: classLike
           value: '^App\\[A-Za-z0-9]+\\Infrastructure\\.*'
 
+    # The §10.6 request context chain. It orchestrates modules, so it is its
+    # own layer rather than part of SharedHttp, which must stay transport-only.
+    - name: Context
+      collectors:
+        - type: classLike
+          value: '^App\\Shared\\Context\\.*'
+
     # Shared platform code.
     - name: SharedHttp
       collectors:
@@ -53,9 +60,20 @@ deptrac:
 
   ruleset:
     # Controllers are thin: HTTP in, application service out. Never SQL.
+    # They may read the resolved context, which is the only sanctioned source
+    # of tenant and product identity.
     Controller:
       - Application
+      - Context
       - SharedHttp
+      - SharedKernel
+      - Http
+
+    # The context chain composes modules to resolve who is asking, as what.
+    # Nothing depends on it except controllers, so the direction stays one-way.
+    Context:
+      - Application
+      - Domain
       - SharedKernel
       - Http
 

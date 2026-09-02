@@ -14,11 +14,26 @@ use RuntimeException;
 /**
  * Drives the real middleware pipeline in-process — no web server.
  *
- * Integration tests exercise the same container wiring production uses, so a
- * mistake in middleware ordering is caught here rather than in staging.
+ * Integration tests exercise the production container wiring, so a mistake in
+ * middleware ordering is caught here rather than in staging. Only the leaf
+ * dependencies (identity provider, repositories) are replaced, which is the
+ * point: the security chain under test is the real one.
  */
 abstract class ApiTestCase extends TestCase
 {
+    /** @var array<string, mixed> */
+    private array $overrides = [];
+
+    /**
+     * Replace container definitions for this test.
+     *
+     * @param array<string, mixed> $definitions
+     */
+    protected function override(array $definitions): void
+    {
+        $this->overrides = $definitions + $this->overrides;
+    }
+
     /**
      * @param array<string, string> $headers
      */
@@ -79,7 +94,7 @@ abstract class ApiTestCase extends TestCase
             throw new RuntimeException('config/container.php must return a callable.');
         }
 
-        $container = $factory();
+        $container = $factory($this->overrides);
 
         if (!$container instanceof ContainerInterface) {
             throw new RuntimeException('Container factory must return a PSR-11 container.');

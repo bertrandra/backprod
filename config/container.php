@@ -2,11 +2,24 @@
 
 declare(strict_types=1);
 
+use App\Auth\Domain\AuthProvider;
+use App\Auth\Infrastructure\NullSigningKeySource;
+use App\Auth\Infrastructure\SigningKeySource;
+use App\Auth\Infrastructure\StaticSigningKeySource;
+use App\Auth\Infrastructure\SupabaseJwtAuthProvider;
+use App\Entitlement\Domain\EntitlementRepository;
+use App\Entitlement\Infrastructure\InMemoryEntitlementRepository;
+use App\Product\Domain\ProductRepository;
+use App\Product\Infrastructure\InMemoryProductRepository;
+use App\Shared\Context\PublicRoutes;
+use App\Shared\Context\RequestContextMiddleware;
 use App\Shared\Http\Middleware\ErrorHandlerMiddleware;
 use App\Shared\Http\Middleware\RequestIdMiddleware;
 use App\Shared\Http\MiddlewarePipeline;
 use App\Shared\Http\Router;
 use App\Shared\Logging\ErrorLogLogger;
+use App\Tenant\Domain\TenantMembershipRepository;
+use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use DI\ContainerBuilder;
 use FastRoute\Dispatcher;
 use FastRoute\RouteCollector;
@@ -22,17 +35,63 @@ use function FastRoute\simpleDispatcher;
 /**
  * Container definitions.
  *
- * Note the middleware order: RequestId runs before ErrorHandler so that a
- * failure anywhere downstream still carries a correlation id into the §10.4
- * envelope. From M1, the context chain of §10.6 is appended after these two
- * and before the Router — that ordering is the security boundary, so it is
- * declared here in one place rather than assembled per route.
+ * Middleware order is the security boundary and is declared here, once:
+ * RequestId first so every failure downstream carries a correlation id, then
+ * the error handler, then the §10.6 context chain, then routing. A route
+ * cannot opt out of the chain — only the public-routes list can exempt a
+ * path, and it is deliberately tiny.
+ *
+ * @param array<string, mixed> $overrides definitions replacing the defaults,
+ *                                        used by tests to supply doubles
  */
-return static function (): ContainerInterface {
+return static function (array $overrides = []): ContainerInterface {
+    // Reads $_ENV first so a .env loaded immutably is visible, then falls back
+    // to the real environment for container and CI deployments.
+    $env = static function (string $key, string $default = ''): string {
+        $value = $_ENV[$key] ?? getenv($key);
+
+        return is_string($value) && $value !== '' ? $value : $default;
+    };
+
     $builder = new ContainerBuilder();
 
     $builder->addDefinitions([
         LoggerInterface::class => autowire(ErrorLogLogger::class),
+
+        // --- Identity -------------------------------------------------------
+        // Without configured keys this yields an empty key set, so every token
+        // fails and the API authenticates nobody (see NullSigningKeySource).
+        SigningKeySource::class => factory(static function () use ($env): SigningKeySource {
+            $jwks = $env('SUPABASE_JWKS');
+
+            return $jwks === '' ? new NullSigningKeySource() : StaticSigningKeySource::fromJson($jwks);
+        }),
+
+        AuthProvider::class => autowire(SupabaseJwtAuthProvider::class)
+            ->constructorParameter('keys', get(SigningKeySource::class))
+            ->constructorParameter('expectedIssuer', $env('SUPABASE_ISSUER'))
+            ->constructorParameter('expectedAudience', $env('SUPABASE_AUDIENCE', 'authenticated')),
+
+        // --- Platform data --------------------------------------------------
+        // In-memory placeholders. The real PostgreSQL adapters arrive with the
+        // milestone that owns each table: tenants in M2, products in M3,
+        // entitlements in M5. Seeded empty, so nothing is silently granted.
+        ProductRepository::class => factory(
+            static fn (): ProductRepository => new InMemoryProductRepository([]),
+        ),
+
+        TenantMembershipRepository::class => factory(
+            static fn (): TenantMembershipRepository => new InMemoryTenantMembershipRepository([]),
+        ),
+
+        EntitlementRepository::class => factory(
+            static fn (): EntitlementRepository => new InMemoryEntitlementRepository([]),
+        ),
+
+        // --- HTTP -----------------------------------------------------------
+        PublicRoutes::class => factory(
+            static fn (): PublicRoutes => new PublicRoutes(['/api/v1/health']),
+        ),
 
         Dispatcher::class => factory(static function (): Dispatcher {
             $routes = require __DIR__ . '/routes.php';
@@ -50,11 +109,14 @@ return static function (): ContainerInterface {
             ->constructorParameter('middleware', [
                 get(RequestIdMiddleware::class),
                 get(ErrorHandlerMiddleware::class),
+                get(RequestContextMiddleware::class),
             ])
             ->constructorParameter('finalHandler', get(Router::class)),
 
         RequestHandlerInterface::class => get(MiddlewarePipeline::class),
     ]);
+
+    $builder->addDefinitions($overrides);
 
     return $builder->build();
 };

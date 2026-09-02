@@ -84,10 +84,25 @@ as they gain those layers; small modules stay lighter (§41.1).
 
 ## Status
 
-M0 of [`docs/backend-roadmap.md`](docs/backend-roadmap.md): skeleton and
-quality gates. The only route is `GET /api/v1/health`.
+M1 of [`docs/backend-roadmap.md`](docs/backend-roadmap.md): the request
+context chain. Routes are `GET /api/v1/health` (public) and `GET /api/v1/me`.
 
-The request context pipeline — authentication → product → tenant → role →
-entitlement → resource authorization — is **M1 and not yet implemented**.
-Until it exists, no endpoint may read tenant or product identity, and no
-endpoint beyond the liveness probe should be added.
+Every request to a non-public path resolves, in this order (§10.6):
+
+```text
+authentication → product → tenant → roles → entitlements
+```
+
+The result is a `RequestContext`, and it is the **only** sanctioned source of
+tenant and product identity. A handler that reads a tenant id from a header,
+query or body is reading a claim, not a decision — see
+[ADR-015](docs/adr/ADR-015-tenant-resolution.md).
+
+Routes are protected by omission: only paths in the public-routes list skip
+the chain, so a new route is secure unless someone deliberately exempts it.
+
+**Persistence is not implemented.** Products, tenant memberships and
+entitlements are served by in-memory adapters behind their ports, seeded
+empty in production wiring. The PostgreSQL adapters arrive with the milestone
+that owns each table — tenants in M2, products in M3, entitlements in M5 —
+and swapping them changes no caller.
