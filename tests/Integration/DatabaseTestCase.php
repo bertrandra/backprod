@@ -42,8 +42,12 @@ abstract class DatabaseTestCase extends TestCase
         // roles and permissions are deliberately absent: they are reference
         // data created by the migration, not fixtures, and clearing them
         // would leave the platform unable to authorise anything.
+        // projects and project_versions would be reached anyway through
+        // CASCADE, but naming them says so: a truncate list that relies on
+        // something implicit is one nobody can read for what it clears.
         $this->connection->executeStatement(
-            'TRUNCATE tenant_member_roles, tenant_members, tenants, products, users RESTART IDENTITY CASCADE',
+            'TRUNCATE project_versions, projects, tenant_member_roles, tenant_members, '
+            . 'tenants, products, users RESTART IDENTITY CASCADE',
         );
     }
 }

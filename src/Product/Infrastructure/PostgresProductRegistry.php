@@ -7,6 +7,7 @@ namespace App\Product\Infrastructure;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductFeature;
 use App\Product\Domain\ProductRegistry;
+use App\Shared\Database\Uuid;
 use Doctrine\DBAL\Connection;
 
 final class PostgresProductRegistry implements ProductRegistry
@@ -46,6 +47,13 @@ final class PostgresProductRegistry implements ProductRegistry
 
     public function reachableProduct(string $userId, string $productId): ?Product
     {
+        // A malformed id is unreachable, not an error. PostgreSQL raises on
+        // `= 'banana'` against a UUID column, which would turn a typo in a
+        // URL into a 500 — and make the shape of an id observable.
+        if (!Uuid::isValid($productId)) {
+            return null;
+        }
+
         $row = $this->connection->fetchAssociative(
             <<<'SQL'
                 SELECT p.id, p.code, p.name, p.active

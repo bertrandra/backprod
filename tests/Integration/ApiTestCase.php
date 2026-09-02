@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use Laminas\Diactoros\ServerRequest;
+use Laminas\Diactoros\Stream;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -35,20 +36,60 @@ abstract class ApiTestCase extends TestCase
     }
 
     /**
+     * A $body is sent as JSON, which is the only content type the API reads.
+     *
+     * Query parameters are parsed from the path rather than passed
+     * separately, because that is what a real server does: PSR-7 does not
+     * derive them from the URI, so a test that set them by hand would be
+     * proving the handler works on input the server never produces.
+     *
      * @param array<string, string> $headers
      */
-    protected function request(string $method, string $path, array $headers = []): ResponseInterface
-    {
+    protected function request(
+        string $method,
+        string $path,
+        array $headers = [],
+        ?string $body = null,
+    ): ResponseInterface {
+        $uri = 'https://api.test' . $path;
+
+        $query = [];
+        parse_str((string) parse_url($uri, PHP_URL_QUERY), $query);
+
+        // The body is built before the request rather than written into it
+        // afterwards: a ServerRequest defaults to php://input, which is
+        // read-only, so writing to the stream it already has throws.
+        $stream = new Stream('php://temp', 'wb+');
+
+        if ($body !== null) {
+            $stream->write($body);
+            $stream->rewind();
+        }
+
         $request = new ServerRequest(
-            uri: 'https://api.test' . $path,
+            uri: $uri,
             method: $method,
+            body: $stream,
+            queryParams: $query,
         );
+
+        if ($body !== null) {
+            $request = $request->withHeader('Content-Type', 'application/json');
+        }
 
         foreach ($headers as $name => $value) {
             $request = $request->withHeader($name, $value);
         }
 
         return $this->app()->handle($request);
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     */
+    protected function json(array $body): string
+    {
+        return json_encode($body, JSON_THROW_ON_ERROR);
     }
 
     /**

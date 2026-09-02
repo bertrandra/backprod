@@ -6,6 +6,7 @@ namespace App\Shared\Http;
 
 use App\Shared\Exceptions\BadRequestException;
 use Psr\Http\Message\ServerRequestInterface;
+use stdClass;
 
 /**
  * Reads and validates a JSON request body.
@@ -14,13 +15,16 @@ use Psr\Http\Message\ServerRequestInterface;
  * (§10.4), so handlers work with values that are already the right type.
  * §9 requires validation on both sides — Zod in the browser is a convenience,
  * this is the one that counts.
+ *
+ * The body is decoded into objects rather than associative arrays. A PHP
+ * array cannot represent the difference between {"0":"a"} and ["a"], so
+ * decoding a document into one and encoding it back changes its shape: a
+ * project whose layers are keyed by numeric ids would be silently rewritten
+ * into a list. Scalars read the same either way; nested structure does not.
  */
 final class JsonBody
 {
-    /**
-     * @param array<string, mixed> $fields
-     */
-    private function __construct(private readonly array $fields)
+    private function __construct(private readonly stdClass $fields)
     {
     }
 
@@ -29,22 +33,21 @@ final class JsonBody
         $raw = (string) $request->getBody();
 
         if (trim($raw) === '') {
-            return new self([]);
+            return new self(new stdClass());
         }
 
-        $decoded = json_decode($raw, true);
+        $decoded = json_decode($raw, false);
 
-        if (!is_array($decoded) || array_is_list($decoded)) {
+        if (!$decoded instanceof stdClass) {
             throw new BadRequestException('INVALID_BODY', 'The request body must be a JSON object.');
         }
 
-        /** @var array<string, mixed> $decoded */
         return new self($decoded);
     }
 
     public function has(string $field): bool
     {
-        return array_key_exists($field, $this->fields);
+        return property_exists($this->fields, $field);
     }
 
     /**
@@ -53,7 +56,7 @@ final class JsonBody
      */
     public function requiredString(string $field, int $maxLength = 255): string
     {
-        $value = $this->fields[$field] ?? null;
+        $value = $this->value($field);
 
         if (!is_string($value)) {
             throw $this->invalid($field, 'must be a string');
@@ -78,7 +81,7 @@ final class JsonBody
      */
     public function optionalNullableString(string $field, int $maxLength = 255): ?string
     {
-        $value = $this->fields[$field] ?? null;
+        $value = $this->value($field);
 
         if ($value === null) {
             return null;
@@ -102,13 +105,50 @@ final class JsonBody
     }
 
     /**
+     * A whole number at or above $minimum.
+     *
+     * Rejects "2" and 2.0 rather than coercing them: a client that sends a
+     * schema version as a string has a serialisation bug, and quietly
+     * accepting it means the bug ships.
+     */
+    public function requiredInt(string $field, int $minimum = 1): int
+    {
+        $value = $this->value($field);
+
+        if (!is_int($value)) {
+            throw $this->invalid($field, 'must be an integer');
+        }
+
+        if ($value < $minimum) {
+            throw $this->invalid($field, sprintf('must be at least %d', $minimum));
+        }
+
+        return $value;
+    }
+
+    /**
+     * A JSON object. Arrays and scalars are refused: the caller was asked for
+     * a structure with named fields, and a list is not one.
+     */
+    public function requiredObject(string $field): stdClass
+    {
+        $value = $this->value($field);
+
+        if (!$value instanceof stdClass) {
+            throw $this->invalid($field, 'must be a JSON object');
+        }
+
+        return $value;
+    }
+
+    /**
      * A non-empty list of unique non-blank strings.
      *
      * @return list<string>
      */
     public function requiredStringList(string $field): array
     {
-        $value = $this->fields[$field] ?? null;
+        $value = $this->value($field);
 
         if (!is_array($value) || !array_is_list($value)) {
             throw $this->invalid($field, 'must be an array');
@@ -133,6 +173,15 @@ final class JsonBody
         }
 
         return $values;
+    }
+
+    /**
+     * Absent and null both read as null here; callers that need to tell them
+     * apart ask has() first.
+     */
+    private function value(string $field): mixed
+    {
+        return $this->has($field) ? $this->fields->{$field} : null;
     }
 
     private function invalid(string $field, string $requirement): BadRequestException

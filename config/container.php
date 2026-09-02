@@ -13,6 +13,8 @@ use App\Product\Domain\ProductRegistry;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\PostgresProductRegistry;
 use App\Product\Infrastructure\PostgresProductRepository;
+use App\Project\Domain\ProjectRepository;
+use App\Project\Infrastructure\PostgresProjectRepository;
 use App\Shared\Context\RequestContextMiddleware;
 use App\Shared\Context\RoutePolicy;
 use App\Shared\Database\ConnectionFactory;
@@ -96,6 +98,7 @@ return static function (array $overrides = []): ContainerInterface {
         UserRepository::class => autowire(PostgresUserRepository::class),
         ProductRepository::class => autowire(PostgresProductRepository::class),
         ProductRegistry::class => autowire(PostgresProductRegistry::class),
+        ProjectRepository::class => autowire(PostgresProjectRepository::class),
         TenantRepository::class => autowire(PostgresTenantRepository::class),
         TenantMemberRepository::class => autowire(PostgresTenantMemberRepository::class),
         TenantMembershipRepository::class => autowire(PostgresTenantMembershipRepository::class),
