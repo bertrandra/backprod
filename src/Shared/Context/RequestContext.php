@@ -24,6 +24,7 @@ final class RequestContext
 
     /**
      * @param list<string> $roles
+     * @param list<string> $permissions
      * @param list<string> $capabilities
      */
     public function __construct(
@@ -31,6 +32,7 @@ final class RequestContext
         public readonly string $productId,
         public readonly string $tenantId,
         public readonly array $roles,
+        public readonly array $permissions,
         public readonly array $capabilities,
     ) {
     }
@@ -38,6 +40,24 @@ final class RequestContext
     public function hasRole(string $role): bool
     {
         return in_array($role, $this->roles, true);
+    }
+
+    /**
+     * What this member may do, derived from their roles (§13).
+     *
+     * Handlers ask this rather than checking role names, so adding a role or
+     * moving a permission between roles changes no call site.
+     */
+    public function can(string $permission): bool
+    {
+        return in_array($permission, $this->permissions, true);
+    }
+
+    public function requirePermission(string $permission): void
+    {
+        if (!$this->can($permission)) {
+            throw ForbiddenException::permissionDenied($permission);
+        }
     }
 
     /**

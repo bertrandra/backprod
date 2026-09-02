@@ -47,6 +47,14 @@ deptrac:
         - type: classLike
           value: '^App\\Shared\\(Exceptions|Logging|Validation)\\.*'
 
+    # Persistence helpers. Its own layer so the domain cannot reach it: an
+    # unassigned namespace is governed by no rule at all, which is how a
+    # Domain -> SQL dependency would sneak back in through a helper.
+    - name: SharedDatabase
+      collectors:
+        - type: classLike
+          value: '^App\\Shared\\Database\\.*'
+
     # External concerns, so the forbidden edges of §37.6 are expressible.
     - name: Sql
       collectors:
@@ -62,9 +70,13 @@ deptrac:
     # Controllers are thin: HTTP in, application service out. Never SQL.
     # They may read the resolved context, which is the only sanctioned source
     # of tenant and product identity.
+    # Domain is allowed for the types a presenter turns into JSON. Behaviour
+    # still goes through Application: a controller that reached a Repository
+    # directly would be orchestrating, which is the service layer's job.
     Controller:
       - Application
       - Context
+      - Domain
       - SharedHttp
       - SharedKernel
       - Http
@@ -93,18 +105,24 @@ deptrac:
       - Domain
       - Infrastructure
       - SharedKernel
+      - SharedDatabase
       - Sql
 
     # Infrastructure adapts external providers; may speak HTTP and SQL.
     Infrastructure:
       - Domain
       - SharedKernel
+      - SharedDatabase
       - Sql
       - Http
 
     SharedHttp:
       - SharedKernel
       - Http
+
+    SharedDatabase:
+      - SharedKernel
+      - Sql
 
     # The kernel is the bottom of the graph.
     SharedKernel: ~

@@ -84,10 +84,30 @@ as they gain those layers; small modules stay lighter (§41.1).
 
 ## Status
 
-M2 (persistence foundation) of
-[`docs/backend-roadmap.md`](docs/backend-roadmap.md), on top of the M1 request
-context chain. Routes are `GET /api/v1/health` (public) and `GET /api/v1/me`;
-tenant and user management endpoints are the next increment.
+M2 of [`docs/backend-roadmap.md`](docs/backend-roadmap.md) — platform
+identity — on top of the M1 request context chain.
+
+| Route | Permission |
+|---|---|
+| `GET /api/v1/health` | public |
+| `GET /api/v1/me` | — |
+| `PATCH /api/v1/me` | `account.manage` |
+| `GET /api/v1/me/permissions` | — |
+| `GET /api/v1/tenants/current` | `tenant.read` |
+| `PATCH /api/v1/tenants/current` | `tenant.manage` |
+| `GET /api/v1/tenants/current/members` | `members.read` |
+| `POST /api/v1/tenants/current/members` | `members.manage` |
+| `PATCH /api/v1/tenants/current/members/{userId}` | `members.manage` |
+| `DELETE /api/v1/tenants/current/members/{userId}` | `members.manage` |
+
+Authorisation asks about **permissions**, never role names (§13). Roles map
+to permissions in the database, so moving a permission between roles changes
+no code. Three refusals mean three different things and are fixed in three
+different places: `PERMISSION_DENIED` is a role change, `ENTITLEMENT_REQUIRED`
+is a subscription change, `NO_TENANT_ACCESS` is an invitation.
+
+There is deliberately no `/tenants/{id}` — the tenant is whichever one the
+context chain resolved.
 
 Every request to a non-public path resolves, in this order (§10.6):
 

@@ -38,8 +38,12 @@ abstract class DatabaseTestCase extends TestCase
         // Each test starts from a known state. Truncating rather than
         // recreating keeps the migrated schema — including the constraints
         // that are half the point of these tests.
+        //
+        // roles and permissions are deliberately absent: they are reference
+        // data created by the migration, not fixtures, and clearing them
+        // would leave the platform unable to authorise anything.
         $this->connection->executeStatement(
-            'TRUNCATE tenant_members, tenants, products, users RESTART IDENTITY CASCADE',
+            'TRUNCATE tenant_member_roles, tenant_members, tenants, products, users RESTART IDENTITY CASCADE',
         );
     }
 }

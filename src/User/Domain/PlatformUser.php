@@ -16,6 +16,7 @@ final class PlatformUser
         public readonly string $id,
         public readonly string $authSubject,
         public readonly ?string $email = null,
+        public readonly ?string $displayName = null,
     ) {
     }
 }

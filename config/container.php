@@ -19,10 +19,16 @@ use App\Shared\Http\Middleware\RequestIdMiddleware;
 use App\Shared\Http\MiddlewarePipeline;
 use App\Shared\Http\Router;
 use App\Shared\Logging\ErrorLogLogger;
+use App\Tenant\Domain\TenantMemberRepository;
 use App\Tenant\Domain\TenantMembershipRepository;
+use App\Tenant\Domain\TenantRepository;
+use App\Tenant\Infrastructure\PostgresTenantMemberRepository;
 use App\Tenant\Infrastructure\PostgresTenantMembershipRepository;
+use App\Tenant\Infrastructure\PostgresTenantRepository;
 use App\User\Domain\UserDirectory;
+use App\User\Domain\UserRepository;
 use App\User\Infrastructure\PostgresUserDirectory;
+use App\User\Infrastructure\PostgresUserRepository;
 use DI\ContainerBuilder;
 use Doctrine\DBAL\Connection;
 use FastRoute\Dispatcher;
@@ -85,7 +91,10 @@ return static function (array $overrides = []): ContainerInterface {
 
         // --- Platform data --------------------------------------------------
         UserDirectory::class => autowire(PostgresUserDirectory::class),
+        UserRepository::class => autowire(PostgresUserRepository::class),
         ProductRepository::class => autowire(PostgresProductRepository::class),
+        TenantRepository::class => autowire(PostgresTenantRepository::class),
+        TenantMemberRepository::class => autowire(PostgresTenantMemberRepository::class),
         TenantMembershipRepository::class => autowire(PostgresTenantMembershipRepository::class),
 
         // Still in memory and seeded empty: offers and subscriptions are M5,

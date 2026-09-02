@@ -32,7 +32,7 @@ final class PostgresUserDirectory implements UserDirectory
                 ON CONFLICT (auth_subject) DO UPDATE
                     SET email = EXCLUDED.email,
                         updated_at = now()
-                RETURNING id, auth_subject, email
+                RETURNING id, auth_subject, email, display_name
                 SQL,
             [
                 'subject' => $identity->userId,
@@ -47,11 +47,17 @@ final class PostgresUserDirectory implements UserDirectory
         $id = $row['id'] ?? null;
         $subject = $row['auth_subject'] ?? null;
         $email = $row['email'] ?? null;
+        $displayName = $row['display_name'] ?? null;
 
         if (!is_string($id) || !is_string($subject)) {
             throw new RuntimeException('The users table returned an unexpected row shape.');
         }
 
-        return new PlatformUser($id, $subject, is_string($email) ? $email : null);
+        return new PlatformUser(
+            $id,
+            $subject,
+            is_string($email) ? $email : null,
+            is_string($displayName) ? $displayName : null,
+        );
     }
 }
