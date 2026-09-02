@@ -6,8 +6,8 @@ namespace App\Identity\Controller;
 
 use App\Identity\Service\Profile;
 use App\Shared\Context\RequestContextReader;
+use App\Shared\Http\JsonBody;
 use App\Shared\Http\RouteHandler;
-use App\Shared\Validation\JsonBody;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;

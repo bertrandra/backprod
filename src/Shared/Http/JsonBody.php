@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Shared\Validation;
+namespace App\Shared\Http;
 
 use App\Shared\Exceptions\BadRequestException;
 use Psr\Http\Message\ServerRequestInterface;

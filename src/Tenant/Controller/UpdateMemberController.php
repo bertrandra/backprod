@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Tenant\Controller;
 
 use App\Shared\Context\RequestContextReader;
+use App\Shared\Http\JsonBody;
 use App\Shared\Http\RouteHandler;
-use App\Shared\Validation\JsonBody;
 use App\Tenant\Service\MemberAdministration;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
