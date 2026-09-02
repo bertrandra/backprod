@@ -1,0 +1,3857 @@
+
+# 1. Nature et statut du document
+
+## 1.1 Nature
+
+Ce document est avant tout une **Spécification Non Fonctionnelle (NFR)** et un **document de Décisions d'Architecture**.
+
+Il définit :
+
+- les contraintes techniques ;
+- les exigences de qualité ;
+- les exigences de sécurité ;
+- les exigences de performance ;
+- les exigences de scalabilité ;
+- les exigences de disponibilité ;
+- les exigences de maintenabilité ;
+- les règles d'architecture ;
+- les choix technologiques ;
+- les principes de séparation des responsabilités ;
+- les quality gates ;
+- les règles d'observabilité ;
+- les règles de gouvernance technique.
+
+## 1.2 Ce que ce document n'est pas
+
+Ce document **n'est pas la spécification fonctionnelle détaillée du produit**.
+
+Il ne définit pas exhaustivement :
+
+- les écrans ;
+- les parcours UX détaillés ;
+- les règles métier fonctionnelles complètes ;
+- les maquettes ;
+- les textes UI ;
+- les user stories ;
+- les critères d'acceptation fonctionnels détaillés.
+
+Ces éléments feront l'objet d'une **Functional Specification / UX Specification** séparée.
+
+## 1.3 Décisions d'architecte
+
+Les choix explicitement identifiés comme décisions d'architecture constituent les références techniques de la V2.
+
+Exemples :
+
+```text
+React + TypeScript + Vite
+Core métier TypeScript indépendant de React
+Zustand pour le client state
+TanStack Query pour le server state
+PHP 8.3+ + Composer sans framework applicatif
+PostgreSQL + JSONB
+REST + OpenAPI
+Vitest / PHPUnit / Playwright
+ESLint / PHPStan
+dependency-cruiser / Deptrac
+PostHog / Sentry / OpenTelemetry
+```
+
+Une modification de ces choix doit faire l'objet d'une nouvelle décision d'architecture documentée.
+
+## 1.4 Exigences vs décisions
+
+Le document distingue :
+
+```text
+NFR
+ │
+ ├── Requirement
+ │      └── Ce que le système doit garantir
+ │
+ └── Architecture Decision
+        └── Comment l'architecture choisie permet de le garantir
+```
+
+Une technologie n'est donc pas une exigence fonctionnelle.
+
+Exemple :
+
+```text
+NFR:
+Le système doit isoler les données de chaque tenant.
+
+Decision:
+Utiliser tenant_id + contrôles d'autorisation centralisés.
+```
+
+
+# Architecture V2 — React / TypeScript / PHP SaaS
+
+**Version:** 1.1  
+**Statut:** Architecture cible  
+**Date:** 2026-09-02
+
+---
+
+# 1. Vision
+
+La V2 doit être une refonte architecturale, pas simplement une nouvelle interface.
+
+Objectifs :
+
+- remplacer progressivement l'IHM historique par une UX React moderne ;
+- conserver et consolider le moteur métier en TypeScript pur ;
+- séparer strictement UI, état client, état serveur et métier ;
+- fournir une API PHP robuste pour le SaaS ;
+- supporter B2C, B2B et multi-tenant ;
+- permettre l'évolution vers des traitements 3D, géométriques et data plus importants ;
+- déployer initialement sur SiteGround lorsque ses capacités couvrent le besoin ;
+- éviter de recréer un nouveau `legacy.ts`.
+
+Principe fondamental :
+
+> **React est la couche d'expérience utilisateur. Le Core TypeScript est le moteur métier. PHP est la couche backend/SaaS. PostgreSQL est la source de vérité des données persistantes.**
+
+---
+
+# 2. Architecture globale
+
+```text
+                         USER
+                          │
+                          ▼
+                 ┌─────────────────┐
+                 │ React + Vite    │
+                 │ TypeScript      │
+                 └────────┬────────┘
+                          │
+             ┌────────────┼────────────┐
+             │            │            │
+          Zustand    TanStack Query   Forms
+             │            │         RHF + Zod
+             │            │            │
+             └────────────┼────────────┘
+                          │
+                    Core TypeScript
+                ┌─────────┼─────────┐
+                │         │         │
+              Model    Geometry    Rules
+                │         │         │
+                └─────────┼─────────┘
+                          │
+                     REST / JSON
+                          │
+                          ▼
+                 ┌─────────────────┐
+                 │ PHP Backend     │
+                 │ PHP natif modulaire         │
+                 └────────┬────────┘
+                          │
+          ┌───────────────┼────────────────┐
+          │               │                │
+       PostgreSQL     Object Storage   External APIs
+        + JSONB       media / GLB       IGN / PSP
+          │
+       PostgreSQL
+       optionnel
+```
+
+---
+
+# 3. Architecture en couches
+
+## 3.1 Frontend
+
+Responsabilités :
+
+- rendu UI ;
+- navigation ;
+- interactions ;
+- édition ;
+- rendu 2D/3D ;
+- appels API ;
+- feedback utilisateur.
+
+Technologies :
+
+- React ;
+- TypeScript ;
+- Vite ;
+- shadcn/ui ;
+- Tailwind CSS ;
+- Zustand ;
+- TanStack Query ;
+- React Hook Form ;
+- Zod ;
+- Three.js ;
+- React Three Fiber.
+
+## 3.2 Core
+
+Le Core est **indépendant de React et du navigateur**.
+
+```text
+core/
+├── model/
+├── geometry/
+├── rules/
+├── calculations/
+├── commands/
+└── serialization/
+```
+
+Il ne doit importer :
+
+- React ;
+- Zustand ;
+- TanStack Query ;
+- Three.js ;
+- DOM APIs.
+
+Il peut être exécuté/testé avec Node.js.
+
+---
+
+# 4. Règle React / Core
+
+Interdit :
+
+```text
+Core → React
+Core → Zustand
+Core → TanStack Query
+```
+
+Autorisé :
+
+```text
+React → Core
+Zustand → Core
+API adapter → Core
+Tests → Core
+```
+
+Le Core expose des fonctions/classes/commandes métier.
+
+Exemple :
+
+```ts
+const result = resizeTerrace(terrace, command);
+```
+
+React se contente de déclencher l'opération et d'afficher le résultat.
+
+---
+
+# 5. Architecture du Core TypeScript
+
+```text
+core/
+├── model/
+│   ├── Project
+│   ├── Parcel
+│   ├── Building
+│   ├── Terrace
+│   ├── ObjectPlan
+│   └── Measurement
+│
+├── geometry/
+│   ├── Point
+│   ├── Polygon
+│   ├── Segment
+│   ├── area
+│   ├── distance
+│   ├── intersection
+│   └── transform
+│
+├── rules/
+│   ├── projectRules
+│   ├── geometryRules
+│   ├── terraceRules
+│   └── constraints
+│
+├── calculations/
+│   ├── shadows
+│   ├── surfaces
+│   ├── distances
+│   └── optimization
+│
+├── commands/
+│   ├── AddObject
+│   ├── MoveObject
+│   ├── RotateObject
+│   ├── ResizeObject
+│   ├── DeleteObject
+│   └── UpdateProperty
+│
+└── serialization/
+    ├── ProjectSchema
+    └── VersionMigration
+```
+
+---
+
+# 6. Command model
+
+Les modifications métier passent par des commandes.
+
+```text
+User action
+    ↓
+React
+    ↓
+Command
+    ↓
+Core
+    ↓
+New model state
+```
+
+Exemples :
+
+```text
+AddTerrace
+MoveObject
+ResizeTerrace
+RotateObject
+DeleteObject
+SetMaterial
+```
+
+Cette architecture prépare :
+
+- Undo ;
+- Redo ;
+- historique ;
+- autosave ;
+- collaboration future ;
+- replay ;
+- audit métier.
+
+---
+
+# 7. Zustand
+
+Zustand gère le **client state**.
+
+Exemples :
+
+```text
+activeTool
+selectedObjectId
+viewMode
+panelState
+cameraMode
+localEditorState
+preferences
+```
+
+Zustand ne doit pas devenir le backend local de toute l'application.
+
+À éviter :
+
+```text
+Zustand
+ ├── API cache complet
+ ├── toutes les factures
+ ├── toutes les listes projets
+ ├── calculs métier
+ └── règles PLU
+```
+
+---
+
+# 8. TanStack Query
+
+TanStack Query gère le **server state**.
+
+```text
+React
+  ↓
+TanStack Query
+  ↓
+PHP API
+  ↓
+PostgreSQL
+```
+
+Utilisation :
+
+- projets ;
+- versions ;
+- tenants ;
+- utilisateurs ;
+- abonnement ;
+- factures ;
+- jobs ;
+- données serveur ;
+- informations IGN fournies par le backend.
+
+Fonctions exploitées :
+
+- cache ;
+- stale time ;
+- refetch ;
+- mutations ;
+- invalidation ;
+- retry ;
+- loading/error state.
+
+Règle :
+
+> **Zustand = état local/client. TanStack Query = état serveur.**
+
+---
+
+# 9. Forms et validation
+
+## React Hook Form
+
+Pour :
+
+- profil ;
+- projet ;
+- propriétés d'objet ;
+- abonnement ;
+- facturation ;
+- paramètres.
+
+## Zod
+
+Zod valide les données aux frontières.
+
+```text
+API response
+    ↓
+Zod
+    ↓
+Typed data
+    ↓
+Application
+```
+
+Zod ne remplace pas la validation PHP.
+
+La validation doit exister des deux côtés.
+
+---
+
+# 10. Contrat API
+
+L'API est REST et versionnée :
+
+```text
+/api/v1/
+```
+
+Le contrat est décrit avec **OpenAPI 3.1**. OpenAPI constitue la source de vérité du contrat HTTP et permet de générer la documentation, les types TypeScript, les clients et les tests de contrat.
+
+## 10.1 Catalogue API
+
+Le backend expose un catalogue complet, organisé par domaines métier. Les endpoints sont regroupés par tags OpenAPI et suivent les conventions REST.
+
+```text
+API ROOT
+├── /api/v1/health
+├── /api/v1/me
+│
+├── Products / Product Context
+│   ├── GET    /products
+│   ├── GET    /products/{productId}
+│   ├── GET    /products/{productId}/catalog
+│   ├── GET    /products/{productId}/features
+│   └── GET    /products/{productId}/configuration
+│
+├── Authentication / Identity
+│   ├── GET    /me
+│   └── POST   /auth/logout
+│
+├── Tenants
+│   ├── GET    /tenants/current
+│   ├── PATCH  /tenants/current
+│   ├── GET    /tenants/current/members
+│   ├── POST   /tenants/current/members
+│   ├── PATCH  /tenants/current/members/{userId}
+│   └── DELETE /tenants/current/members/{userId}
+│
+├── Users / Profile
+│   ├── GET    /me
+│   ├── PATCH  /me
+│   └── GET    /me/permissions
+│
+├── Offers / Catalogue commercial
+│   ├── GET    /offers
+│   ├── GET    /offers/{id}
+│   ├── GET    /offers/{id}/versions
+│   ├── POST   /offers
+│   ├── POST   /offers/{id}/versions
+│   ├── PATCH  /offers/{id}
+│   └── POST   /offers/{id}/publish
+│
+├── Plans / Features / Entitlements
+│   ├── GET    /plans
+│   ├── GET    /plans/{id}
+│   ├── GET    /features
+│   ├── GET    /entitlements
+│   ├── GET    /me/entitlements
+│   └── GET    /tenants/current/usage
+│
+├── Subscriptions
+│   ├── GET    /subscription
+│   ├── POST   /subscriptions
+│   ├── GET    /subscriptions/{id}
+│   ├── PATCH  /subscriptions/{id}
+│   ├── POST   /subscriptions/{id}/change-offer
+│   ├── POST   /subscriptions/{id}/cancel
+│   └── POST   /subscriptions/{id}/resume
+│
+├── Projects
+│   ├── GET    /projects
+│   ├── POST   /projects
+│   ├── GET    /projects/{id}
+│   ├── PATCH  /projects/{id}
+│   ├── DELETE /projects/{id}
+│   ├── GET    /projects/{id}/versions
+│   ├── POST   /projects/{id}/versions
+│   ├── GET    /projects/{id}/versions/{versionId}
+│   ├── POST   /projects/{id}/duplicate
+│   └── POST   /projects/{id}/restore
+│
+├── Project data / Assets
+│   ├── GET    /projects/{id}/assets
+│   ├── POST   /projects/{id}/assets
+│   ├── DELETE /projects/{id}/assets/{assetId}
+│   ├── POST   /projects/{id}/exports
+│   └── GET    /projects/{id}/exports/{exportId}
+│
+├── Geometry / GIS / Cadastre
+│   ├── GET    /projects/{id}/parcel
+│   ├── POST   /projects/{id}/parcel/resolve
+│   ├── POST   /geometry/intersections
+│   ├── POST   /geometry/buffer
+│   └── POST   /geometry/measure
+│
+├── Photogrammetry / 3D
+│   ├── POST   /projects/{id}/photogrammetry/jobs
+│   ├── GET    /projects/{id}/photogrammetry/jobs/{jobId}
+│   ├── POST   /projects/{id}/3d/exports
+│   └── GET    /projects/{id}/3d/exports/{exportId}
+│
+├── Skins / White label
+│   ├── GET    /tenant/skin
+│   ├── PATCH  /tenant/skin
+│   ├── POST   /tenant/skin/logo
+│   └── DELETE /tenant/skin/logo
+│
+├── Billing
+│   ├── GET    /billing/profile
+│   ├── PATCH  /billing/profile
+│   ├── GET    /invoices
+│   ├── GET    /invoices/{id}
+│   ├── GET    /invoices/{id}/pdf
+│   └── GET    /payments
+│
+├── Checkout / Payments
+│   ├── POST   /checkout/sessions
+│   ├── GET    /checkout/sessions/{id}
+│   └── POST   /payments/{id}/retry
+│
+├── E-invoicing / PDP
+│   ├── POST   /invoices/{id}/electronic
+│   ├── GET    /invoices/{id}/electronic
+│   └── GET    /invoices/{id}/electronic/status
+│
+├── Webhooks
+│   └── POST   /webhooks/{provider}
+│
+├── Jobs / Async operations
+│   ├── GET    /jobs/{id}
+│   └── POST   /jobs/{id}/cancel
+│
+└── Admin / Operations
+    ├── GET    /admin/tenants
+    ├── GET    /admin/users
+    ├── GET    /admin/subscriptions
+    ├── GET    /admin/invoices
+    ├── GET    /admin/jobs
+    ├── GET    /admin/audit
+    └── GET    /admin/metrics
+```
+
+## 10.2 Matrice de responsabilité API
+
+| Domaine | API | Autorité métier | Product scope | Tenant scope | Entitlement typique |
+|---|---|---|---|---|---|
+| Product | `/products/*` | PHP Product Registry | Oui | Selon ressource | `product.access` |
+| Identity | `/me`, auth | Auth provider + PHP context | Contextual | Oui | `account.read` |
+| Tenant | `/tenants/*` | PHP | Contextual | Oui | `tenant.admin` |
+| Offers | `/offers/*` | PHP | Oui | Selon offre | `catalog.manage` |
+| Plans/features | `/plans`, `/features` | PHP | Oui | Oui | `catalog.read` |
+| Entitlements | `/entitlements/*` | PHP PDP | Oui | Oui | `entitlements.read` |
+| Subscription | `/subscription*` | PHP | Oui | Oui | `subscription.manage` |
+| Projects | `/projects*` | Core + PHP | Oui | Oui | `projects.read/write` |
+| GIS | `/geometry/*`, `/parcel*` | Core/Geo service | Oui | Oui | `gis.access` |
+| 3D | `/3d/*`, `/photogrammetry/*` | Job/Core services | Oui | Oui | `advanced_3d` / `photogrammetry` |
+| Billing | `/billing/*`, `/invoices*` | PHP | Oui | Oui | `billing.read/manage` |
+| Payment | `/checkout/*`, `/payments/*` | PSP + PHP | Oui | Oui | `billing.manage` |
+| E-invoice | `/invoices/*/electronic` | EInvoice/PDP adapter | Oui | Oui | `einvoice.access` |
+| Webhooks | `/webhooks/*` | PHP | Provider-scoped | Provider-scoped | Signature required |
+| Admin | `/admin/*` | PHP | Global | Global | `admin.*` |
+
+## 10.3 Règles du catalogue
+
+- Toute API publique est versionnée sous `/api/v1`.
+- Toute API est décrite dans OpenAPI avant son implémentation.
+- Les réponses utilisent JSON sauf téléchargement explicitement documenté.
+- Les ressources sont toujours filtrées par le tenant authentifié lorsqu'elles sont tenant-scoped.
+- L'identité est authentifiée par le provider d'authentification ; l'autorisation métier reste sous contrôle du backend PHP.
+- Les entitlements sont contrôlés côté backend et ne doivent jamais dépendre uniquement de React.
+- Les opérations longues retournent un `job` ou un identifiant d'opération asynchrone plutôt que de bloquer la requête HTTP.
+- Les endpoints d'écriture sont idempotents lorsque cela est nécessaire, notamment paiement, facturation et webhooks.
+- Les webhooks vérifient systématiquement la signature du provider et sont rejouables sans effet de bord.
+- Les erreurs suivent un format commun et documenté.
+- Pagination, filtrage, tri et recherche sont standardisés pour les collections.
+
+## 10.4 Format d'erreur
+
+```json
+{
+  "error": {
+    "code": "ENTITLEMENT_REQUIRED",
+    "message": "This feature is not enabled for the tenant.",
+    "details": {},
+    "request_id": "..."
+  }
+}
+```
+
+## 10.5 Publication du catalogue
+
+Le catalogue doit être exposé sous forme de :
+
+```text
+/api/openapi.json
+/api/openapi.yaml
+/api/docs
+```
+
+La documentation interactive est générée à partir du même contrat OpenAPI que celui utilisé par les tests et la génération éventuelle des clients.
+
+Le catalogue distingue au minimum :
+
+```text
+Public API
+Tenant API
+Admin API
+Internal API
+Webhook endpoints
+```
+
+Aucune route interne ne doit être publiée dans le catalogue public.
+
+## 10.6 Product Context
+
+Le `product_id` est un contexte de premier niveau du backend. Il permet au même backend de servir plusieurs produits.
+
+```text
+Request
+ ├── product_id
+ ├── tenant_id
+ ├── user_id
+ └── authorization context
+```
+
+Le backend résout et valide le contexte dans cet ordre :
+
+```text
+Authentication
+      ↓
+Product resolution
+      ↓
+Tenant resolution
+      ↓
+Role / permissions
+      ↓
+Entitlements
+      ↓
+Resource authorization
+```
+
+Les fonctionnalités spécifiques à un produit doivent être encapsulées dans des modules, configurations, capabilities ou entitlements. Il est interdit de multiplier les conditions métier basées sur des noms de produits :
+
+```php
+// Interdit
+if ($product === 'product-a') { ... }
+```
+
+Le backend partagé doit pouvoir accueillir un nouveau produit sans duplication du backend complet. Les services transverses — Auth, Tenant, Billing, Payment, Invoice, Storage, Jobs, Audit et Webhooks — restent mutualisés lorsque leur comportement est commun.
+
+Le frontend doit transmettre ou établir le contexte produit de manière explicite ; le backend reste l'autorité finale pour déterminer si l'utilisateur et son tenant ont accès au produit et à ses fonctionnalités.
+
+---
+
+## 10.6 Génération TypeScript
+
+Le contrat OpenAPI peut générer les types et clients TypeScript consommés par React. Le frontend ne doit pas recopier manuellement les DTO de l'API.
+
+```text
+OpenAPI
+   │
+   ├── PHP API contract tests
+   ├── Swagger / Redoc
+   ├── TypeScript types
+   └── TypeScript API client
+```
+
+# 11. Backend PHP
+
+## Choix
+
+PHP 8.3+ lorsque disponible.
+
+Framework recommandé :
+
+**PHP natif modulaire**
+
+Pourquoi :
+
+- architecture modulaire ;
+- sécurité ;
+- dependency injection ;
+- validation ;
+- Doctrine ;
+- Messenger ;
+- console ;
+- tests ;
+- évolutivité B2B.
+
+Architecture :
+
+```text
+backend/
+├── src/
+│   ├── Auth/
+│   ├── User/
+│   ├── Tenant/
+│   ├── Project/
+│   ├── Billing/
+│   ├── Sales/
+│   ├── Quote/
+│   ├── Order/
+│   ├── Payment/
+│   ├── Subscription/
+│   ├── Entitlement/
+│   ├── Invoice/
+│   ├── Skin/
+│   ├── Data/
+│   └── Job/
+│
+├── public/
+├── config/
+├── migrations/
+└── tests/
+```
+
+---
+
+# 12. SaaS multi-tenant
+
+Modèle :
+
+```text
+Tenant
+├── Users
+├── Roles
+├── Offers
+├── Subscription
+├── Entitlements
+└── Projects
+
+Offer
+├── id
+├── code
+├── name
+├── type                  # FREE / PRO / BUSINESS / ENTERPRISE
+├── billing_period        # MONTHLY / YEARLY / CUSTOM
+├── price
+├── currency
+├── max_projects
+├── max_users
+├── max_storage
+├── feature_set
+├── version
+├── valid_from            # début de validité commerciale
+├── valid_until           # fin de validité commerciale
+└── status                # DRAFT / ACTIVE / EXPIRED / ARCHIVED
+
+Offer → Subscription → Entitlements → Tenant
+
+Les dates valid_from et valid_until définissent la période de commercialisation de l'offre.
+La validité commerciale de l'offre est distincte de la période de l'abonnement du tenant.
+
+Une offre expirée n'est pas supprimée : elle reste historisée afin de préserver l'historique commercial et financier.
+
+Les offres sont versionnées. Une modification importante du prix, des quotas ou des fonctionnalités crée une nouvelle version plutôt que de réécrire l'historique.
+
+Principe :
+- Offer = ce qui est vendu
+- Subscription = ce qui est souscrit
+- Entitlements = ce que le tenant peut réellement utiliser
+
+Le backend est l'autorité pour le contrôle des entitlements.
+```
+
+B2C :
+
+```text
+Tenant
+└── User
+```
+
+B2B :
+
+```text
+Tenant
+├── Admin
+├── Members
+├── Projects
+└── Subscription
+```
+
+Toutes les données métier importantes portent un `tenant_id`.
+
+Le backend doit toujours déterminer le tenant depuis le contexte authentifié et contrôler l'accès avant toute opération.
+
+---
+
+# 12.1 Product Layer / Backend multi-produit
+
+Le backend est une **Shared SaaS Platform**, pas le backend d'un seul produit.
+
+```text
+                    Backend Platform
+                           │
+          ┌────────────────┼────────────────┐
+          │                │                │
+       Product A        Product B        Product C
+          │                │                │
+          └────────────────┼────────────────┘
+                           │
+                    Shared Services
+
+Auth · Tenant · User · Billing · Payment · Invoice
+Entitlement · Storage · Jobs · Audit · Webhooks
+```
+
+### Product context
+
+Le contexte d'une requête est conceptuellement :
+
+```text
+Request
+ ├── product_id
+ ├── tenant_id
+ ├── user_id
+ └── authorization context
+```
+
+Ordre de résolution :
+
+```text
+Authentication
+      ↓
+Product resolution
+      ↓
+Tenant resolution
+      ↓
+Role / permissions
+      ↓
+Entitlements
+      ↓
+Resource authorization
+```
+
+### Isolation
+
+Une ressource doit être rattachée au produit lorsqu'elle est spécifique à un produit. Les ressources strictement plateforme peuvent être partagées.
+
+Exemples :
+
+```text
+Platform-level
+├── User identity
+├── Payment provider
+├── Invoice engine
+├── Audit
+└── Storage service
+
+Product-level
+├── Product catalog
+├── Features
+├── Offers
+├── Entitlements
+├── Project types
+└── Domain modules
+```
+
+### Règle fondamentale
+
+Un nouveau produit doit pouvoir être ajouté au backend avec **configuration + modules**, sans dupliquer le backend complet.
+
+Le backend ne doit pas être couplé au frontend d'un produit particulier.
+
+---
+
+# 13. Plans / features / quotas
+
+Le système utilise des entitlements.
+
+```text
+Plan
+  ↓
+Features
+  ↓
+Entitlements
+  ↓
+Usage
+```
+
+Exemples :
+
+```text
+max_projects
+max_users
+max_storage
+max_photos
+max_3d_exports
+photogrammetry
+advanced_3d
+api_access
+white_label
+```
+
+Ne pas coder les droits avec des conditions dispersées :
+
+```php
+if ($plan === 'PRO') ...
+```
+
+Les règles d'accès doivent être centralisées.
+
+---
+
+# 14. PostgreSQL
+
+PostgreSQL est la base principale.
+
+Utilisations :
+
+- utilisateurs ;
+- tenants ;
+- projets ;
+- versions ;
+- abonnements ;
+- factures ;
+- paiements ;
+- entitlements ;
+- audit ;
+- JSONB ;
+- métadonnées géographiques.
+
+---
+
+# 15. Stockage des projets
+
+## Décision
+
+Architecture hybride.
+
+### PostgreSQL
+
+Stocke :
+
+```text
+project metadata
+project JSONB
+versions
+tenant ownership
+permissions
+searchable properties
+```
+
+### Object Storage
+
+Stocke :
+
+```text
+photos
+GLB / GLTF
+textures
+PDF
+exports
+large snapshots
+```
+
+Ne pas mettre de base64 de photos/GLB dans JSONB.
+
+---
+
+# 16. Format du projet
+
+Exemple :
+
+```json
+{
+  "schemaVersion": 1,
+  "project": {
+    "id": "...",
+    "name": "Projet maison"
+  },
+  "parcel": {
+    "id": "AE101",
+    "geometry": {}
+  },
+  "objects": [],
+  "scene": {},
+  "settings": {}
+}
+```
+
+Le `schemaVersion` est obligatoire.
+
+Il permettra :
+
+```text
+V1
+ ↓ migration
+V2
+ ↓ migration
+V3
+```
+
+---
+
+# 17. Versioning
+
+MVP :
+
+```text
+Project
+├── Version 1
+├── Version 2
+├── Version 3
+└── Version N
+```
+
+Chaque version peut être un snapshot JSONB complet.
+
+Évolution possible :
+
+```text
+snapshot + deltas/events
+```
+
+Uniquement lorsque le volume le justifie.
+
+---
+
+# 18. IndexedDB
+
+IndexedDB est utilisé comme cache/draft local.
+
+```text
+Server
+  ↓
+TanStack Query
+  ↓
+Editor
+  ↓
+IndexedDB
+```
+
+Objectif :
+
+- autosave local ;
+- restauration après crash ;
+- expérience offline partielle ;
+- édition rapide.
+
+IndexedDB n'est pas la source de vérité du SaaS.
+
+---
+
+# 19. Géospatial
+
+PostgreSQL n'est **pas une dépendance initiale**.
+
+Phase 1 :
+
+```text
+PostgreSQL
+   +
+GeoJSON
+   +
+Core TypeScript
+```
+
+Les calculs du projet courant restent dans le Core.
+
+Phase 2 :
+
+```text
+PHP
+  ├── PostgreSQL
+  │
+  └── Geo Service
+        └── PostgreSQL + PostgreSQL
+```
+
+PostgreSQL devient pertinent pour :
+
+- intersections ;
+- buffers ;
+- proximité ;
+- containment ;
+- recherches spatiales massives ;
+- analyses de parcelles.
+
+Cette architecture évite de dépendre d'une extension non confirmée sur SiteGround.
+
+---
+
+# 20. 2D / 3D
+
+Le modèle métier est indépendant du rendu.
+
+```text
+Core Model
+    │
+    ├── 2D Renderer
+    │      └── SVG / Canvas
+    │
+    └── 3D Renderer
+           └── React Three Fiber
+                  └── Three.js
+```
+
+Three.js ne doit pas devenir la source de vérité du projet.
+
+Le Core contient la géométrie.
+
+Three.js la représente.
+
+---
+
+# 21. Design System
+
+Construire d'abord un système UI cohérent.
+
+```text
+ui/
+├── Button
+├── Input
+├── Select
+├── Slider
+├── Tabs
+├── Dialog
+├── Drawer
+├── Tooltip
+├── Toolbar
+├── PropertyPanel
+├── Card
+└── Toast
+```
+
+Technologies :
+
+- shadcn/ui ;
+- Tailwind CSS ;
+- design tokens ;
+- CSS variables.
+
+Le design system doit supporter le skin tenant.
+
+---
+
+# 22. App Shell
+
+L'application est conçue comme un workspace.
+
+```text
+┌──────────────────────────────────────────────────────┐
+│ TopBar                                                │
+├─────────────┬──────────────────────────┬─────────────┤
+│ Tools       │                          │ Properties  │
+│             │          Canvas          │             │
+│ Parcel      │          2D / 3D         │ Object      │
+│ House       │                          │ Position    │
+│ Terrace     │                          │ Dimensions  │
+│ Objects     │                          │ Material    │
+├─────────────┴──────────────────────────┴─────────────┤
+│ Status / Measurements / Zoom                         │
+└──────────────────────────────────────────────────────┘
+```
+
+Les objets métier sont des features/outils, pas des pages.
+
+---
+
+# 23. Skin / White Label
+
+Chaque tenant peut avoir :
+
+```text
+logo
+favicon
+colors
+font
+application name
+customization
+```
+
+Les couleurs sont exposées par CSS variables.
+
+```css
+:root {
+  --brand-primary: ...;
+  --brand-secondary: ...;
+}
+```
+
+Pas de build React différent par client.
+
+---
+
+# 24. Paiement
+
+Le PSP externe gère les moyens de paiement.
+
+Selon le PSP et le pays :
+
+- carte ;
+- Apple Pay ;
+- Google Pay ;
+- SEPA ;
+- virement.
+
+Ne jamais stocker les données carte dans PostgreSQL.
+
+Activation :
+
+```text
+Checkout
+  ↓
+PSP
+  ↓
+Webhook PHP
+  ↓
+Payment confirmed
+  ↓
+Subscription active
+  ↓
+Entitlements activated
+```
+
+Le webhook serveur est la source de vérité.
+
+---
+
+# 25. Facturation / TVA
+
+Tables :
+
+```text
+billing_profiles
+invoices
+invoice_lines
+payments
+tax_records
+```
+
+Une facture doit conserver son propre snapshot :
+
+```text
+customer
+address
+VAT
+lines
+prices
+tax
+currency
+```
+
+Une facture historique ne doit pas dépendre des valeurs actuelles du plan.
+
+---
+
+
+# 25.1 Facturation électronique — conformité France
+
+La plateforme doit intégrer dès la conception la réforme française de la facturation électronique.
+
+À partir du **1er septembre 2026**, toutes les entreprises devront être capables de recevoir des factures électroniques. Les grandes entreprises et ETI devront également les émettre électroniquement à cette date. Les microentreprises et PME devront émettre électroniquement au plus tard le **1er septembre 2027**. citeturn0search0turn0search25
+
+La réforme concerne également l'**e-reporting** selon la nature des opérations et le calendrier applicable. citeturn0search1
+
+## Architecture
+
+Ne pas construire directement une passerelle fiscale propriétaire dans le SaaS.
+
+Prévoir une abstraction :
+
+```text
+Invoice
+   ↓
+EInvoice Service
+   ↓
+Approved Platform / PDP
+   ↓
+Customer / Administration
+```
+
+La transmission des factures et données réglementaires doit passer par une **plateforme agréée / immatriculée** conformément au dispositif en vigueur. citeturn0search4turn0search10
+
+## Modèle de facture
+
+Une facture doit conserver :
+
+```text
+invoice_id
+invoice_number
+issue_date
+supplier
+customer
+customer_siren
+billing_address
+lines
+quantity
+unit_price
+discount
+net_amount
+vat_rate
+vat_amount
+gross_amount
+currency
+payment_terms
+payment_status
+credit_note_reference
+```
+
+Pour les clients professionnels français, prévoir les données structurées nécessaires au dispositif.
+
+Un simple PDF envoyé par email ne constitue pas, à lui seul, une facture électronique au sens de la réforme. citeturn0search28
+
+## E-invoicing / e-reporting
+
+Séparer les concepts :
+
+```text
+B2B France
+   → e-invoicing
+
+B2C
+   → e-reporting selon opération
+
+B2B international
+   → e-reporting selon opération et règles applicables
+
+Payment data
+   → e-reporting de paiement lorsque requis
+```
+
+Le cas exact doit être déterminé par la nature de l'opération, le statut TVA et le pays du client. citeturn0search12
+
+## Statuts
+
+```text
+DRAFT
+ISSUED
+READY_FOR_EINVOICE
+SUBMITTED
+ACCEPTED
+REJECTED
+PAID
+CANCELLED
+CREDITED
+```
+
+Conserver les identifiants et statuts de transmission fournis par la plateforme.
+
+## Architecture technique
+
+```text
+Billing Service
+      ↓
+Invoice Service
+      ↓
+EInvoice Adapter
+      ↓
+PDP / plateforme agréée
+      ↓
+Webhooks / status
+      ↓
+Billing database
+```
+
+Le choix de la plateforme agréée doit rester interchangeable.
+
+## Archivage
+
+Les factures et pièces comptables doivent être conservées selon les obligations légales applicables, indépendamment de la politique RGPD de suppression des données utilisateur.
+
+Le service de rétention doit donc distinguer :
+
+```text
+RGPD deletion
+       ≠
+Legal accounting retention
+```
+
+
+
+# 25.2 Tableau de bord financier / Administration
+
+La plateforme doit disposer d'un **Financial & Sales Dashboard** réservé aux administrateurs autorisés.
+
+Objectif :
+
+> Donner une vision consolidée de l'activité commerciale, des offres, devis, ventes, abonnements, revenus, paiements et tenants.
+
+Le dashboard ne doit pas être uniquement un écran de reporting : il doit s'appuyer sur des données financières historisées et auditables.
+
+## Vue globale
+
+```text
+ADMIN FINANCE / SALES
+        │
+        ▼
+Financial Dashboard
+        │
+ ┌──────┼────────┬──────────┬──────────┐
+ │      │        │          │          │
+Ventes  Devis   Offres   Abonnements Paiements
+ │      │        │          │          │
+ └──────┴────────┴──────────┴──────────┘
+                    │
+                  Tenants
+```
+
+## KPI principaux
+
+Afficher au minimum :
+
+```text
+Revenue
+MRR
+ARR
+New MRR
+Expansion MRR
+Churn MRR
+ARPU
+Nombre de clients
+Nombre de tenants
+Nombre de projets
+Nombre de ventes
+Panier moyen
+Taux de conversion devis → vente
+Taux de renouvellement
+Factures impayées
+Montant des créances
+TVA collectée
+```
+
+Les montants doivent pouvoir être affichés :
+
+- HT ;
+- TVA ;
+- TTC ;
+- par devise ;
+- par période.
+
+## Filtres
+
+```text
+Période
+Plan / Offre
+B2C / B2B
+Tenant
+Pays
+Devise
+Statut abonnement
+Statut facture
+Canal de vente
+```
+
+## Vue ventes
+
+```text
+Sales
+├── Orders
+├── Subscriptions
+├── One-shot purchases
+├── Renewals
+├── Upgrades
+├── Downgrades
+└── Cancellations
+```
+
+Indicateurs :
+
+- ventes par jour/semaine/mois ;
+- CA HT/TTC ;
+- évolution ;
+- ventes par offre ;
+- ventes par pays ;
+- ventes par canal ;
+- nouveaux vs existants.
+
+## Vue offres
+
+Chaque offre doit avoir son propre reporting :
+
+```text
+Offer
+├── price
+├── billing_period
+├── active_subscriptions
+├── new_sales
+├── renewals
+├── upgrades
+├── downgrades
+├── churn
+├── revenue
+└── conversion_rate
+```
+
+Exemple :
+
+```text
+FREE
+PRO
+BUSINESS
+ENTERPRISE
+```
+
+Les offres doivent être versionnées : une modification tarifaire ne doit pas réécrire l'historique financier.
+
+## Vue devis
+
+Ajouter un véritable pipeline commercial :
+
+```text
+DRAFT
+   ↓
+SENT
+   ↓
+VIEWED
+   ↓
+ACCEPTED
+   ↓
+CONVERTED
+   ↓
+INVOICED
+   ↓
+PAID
+```
+
+Autres statuts :
+
+```text
+EXPIRED
+REJECTED
+CANCELLED
+```
+
+KPI :
+
+- nombre de devis ;
+- valeur totale des devis ;
+- valeur pondérée ;
+- taux d'acceptation ;
+- délai moyen de conversion ;
+- devis expirés ;
+- devis par offre ;
+- devis par commercial ;
+- devis par tenant/client.
+
+## Vue tenant
+
+Chaque tenant dispose d'une fiche commerciale et financière :
+
+```text
+Tenant
+├── Company / Customer
+├── Contacts
+├── Plan
+├── Subscription
+├── MRR / ARR
+├── Projects
+├── Quotes
+├── Orders
+├── Invoices
+├── Payments
+├── Credits
+└── Usage
+```
+
+Le dashboard tenant doit permettre de passer rapidement :
+
+```text
+Tenant
+  ↓
+Quote
+  ↓
+Order
+  ↓
+Subscription
+  ↓
+Invoice
+  ↓
+Payment
+```
+
+## Vue devis → vente
+
+Le système doit conserver la relation :
+
+```text
+Quote
+   ↓
+Order
+   ↓
+Subscription / Purchase
+   ↓
+Invoice
+   ↓
+Payment
+```
+
+Cela permet de mesurer précisément le funnel commercial.
+
+Exemple :
+
+```text
+100 devis
+   ↓
+65 acceptés
+   ↓
+60 commandes
+   ↓
+55 activations
+   ↓
+50 paiements complets
+```
+
+## Revenus récurrents
+
+Pour les abonnements :
+
+```text
+MRR
+ARR
+New MRR
+Expansion MRR
+Contraction MRR
+Churn MRR
+Net New MRR
+```
+
+Les métriques doivent être calculées à partir d'événements financiers historisés, et non uniquement à partir de l'état courant des abonnements.
+
+## Encaissements
+
+Vue :
+
+```text
+Payments
+├── Paid
+├── Pending
+├── Failed
+├── Refunded
+├── Partially refunded
+└── Chargeback
+```
+
+Avec :
+
+- moyen de paiement ;
+- date ;
+- montant ;
+- devise ;
+- tenant ;
+- facture ;
+- commande ;
+- transaction PSP.
+
+## TVA
+
+Dashboard :
+
+```text
+VAT
+├── TVA collectée
+├── TVA par pays
+├── TVA par taux
+├── TVA par période
+└── opérations concernées par e-reporting
+```
+
+Ces données servent au pilotage et à la préparation des flux réglementaires ; elles ne remplacent pas les traitements comptables/fiscaux requis.
+
+## Facturation électronique
+
+Le dashboard doit exposer les statuts :
+
+```text
+Invoice
+   ↓
+E-invoice
+   ├── READY
+   ├── SUBMITTED
+   ├── ACCEPTED
+   ├── REJECTED
+   └── ERROR
+```
+
+Les entreprises doivent recourir à une plateforme agréée pour les flux concernés par la réforme française de facturation électronique et d'e-reporting. citeturn0search0turn0search7
+
+Le dashboard doit donc permettre de détecter :
+
+- factures non transmises ;
+- rejets ;
+- erreurs de données ;
+- données de paiement à transmettre ;
+- anomalies de TVA ;
+- absence d'identifiants réglementaires.
+
+## Architecture technique
+
+```text
+Admin React
+    │
+    ▼
+TanStack Query
+    │
+    ▼
+PHP Financial API
+    │
+    ├── Sales Service
+    ├── Quote Service
+    ├── Billing Service
+    ├── Subscription Service
+    ├── Payment Service
+    ├── Tax Service
+    └── Reporting Service
+             │
+             ▼
+        PostgreSQL
+```
+
+Pour les gros volumes, les KPI sont calculés à partir de tables d'événements / agrégats plutôt que de recalculer toutes les transactions à chaque affichage.
+
+## Modèle de données
+
+Ajouter notamment :
+
+```text
+quotes
+quote_lines
+orders
+order_lines
+subscriptions
+subscription_events
+invoices
+invoice_lines
+payments
+payment_events
+refunds
+credits
+financial_events
+sales_metrics
+```
+
+Relations :
+
+```text
+Tenant
+  │
+  ├── Quote
+  │      ↓
+  │    Order
+  │      ↓
+  │ Subscription
+  │      ↓
+  │   Invoice
+  │      ↓
+  │   Payment
+  │
+  └── Financial Events
+```
+
+## Sécurité
+
+Le Financial Dashboard est strictement séparé du dashboard utilisateur.
+
+Rôles possibles :
+
+```text
+SUPER_ADMIN
+FINANCE_ADMIN
+SALES_ADMIN
+SUPPORT_ADMIN
+TENANT_ADMIN
+USER
+```
+
+Un `TENANT_ADMIN` ne peut voir que les données de son tenant.
+
+Un `FINANCE_ADMIN` peut voir les données financières globales selon ses permissions.
+
+Toutes les opérations sensibles sont auditées.
+
+
+# 26. Rétention
+
+Cycle :
+
+```text
+ACTIVE
+ ↓
+CANCELLED
+ ↓
+RETENTION
+ ↓
+DELETION_SCHEDULED
+ ↓
+DELETED
+```
+
+La politique est configurable.
+
+```text
+retention_policy
+- project_data
+- media_data
+- account_data
+- billing_data
+```
+
+Les obligations légales de conservation sont traitées séparément.
+
+---
+
+
+# 26.1 RGPD / Protection des données personnelles
+
+La plateforme doit être conçue **RGPD by design et by default**. La CNIL rappelle notamment les principes de minimisation, protection dès la conception et responsabilité démontrable. citeturn0search3
+
+## Données concernées
+
+Le système peut traiter :
+
+- identité et coordonnées des utilisateurs ;
+- comptes et authentification ;
+- données de facturation ;
+- données de paiement limitées aux informations nécessaires ;
+- données de projets ;
+- adresses et données géographiques ;
+- photos/imports ;
+- logs et données techniques ;
+- données de support.
+
+## Principes
+
+- minimisation ;
+- finalité documentée ;
+- durée de conservation définie par catégorie ;
+- droit d'accès ;
+- rectification ;
+- suppression lorsque légalement possible ;
+- portabilité lorsque applicable ;
+- opposition/restriction lorsque applicable ;
+- sécurité ;
+- traçabilité ;
+- privacy by design.
+
+## Registre des traitements
+
+Prévoir un registre des traitements couvrant au minimum :
+
+```text
+Account
+Authentication
+Project
+Billing
+Payment
+Marketing
+Support
+Analytics
+Security logs
+```
+
+Chaque traitement doit définir :
+
+```text
+purpose
+legal_basis
+data_categories
+retention_period
+recipients
+subprocessors
+transfer_location
+security_measures
+```
+
+## Responsable de traitement / sous-traitant
+
+Pour les données traitées pour le compte d'un client B2B, le service peut agir comme sous-traitant. Les contrats doivent encadrer les obligations de l'article 28 du RGPD, notamment sécurité, assistance, traçabilité et sous-traitants ultérieurs. citeturn0search5turn0search11
+
+Prévoir :
+
+- DPA / accord de traitement des données ;
+- liste des sous-traitants ;
+- localisation des données ;
+- mécanisme de gestion des transferts hors UE ;
+- procédure de violation de données ;
+- procédure de demande d'exercice des droits.
+
+## Conservation
+
+La suppression utilisateur et la suppression projet ne doivent pas supprimer aveuglément les données soumises à une obligation légale de conservation.
+
+Architecture :
+
+```text
+User deletion request
+        ↓
+Privacy Service
+        ├── personal data eligible for deletion
+        ├── project data according to contract
+        ├── security logs according to retention
+        └── accounting records kept where legally required
+```
+
+## Sécurité
+
+Prévoir :
+
+- chiffrement TLS ;
+- chiffrement au repos lorsque disponible ;
+- hash sécurisé des mots de passe ;
+- MFA éventuellement ;
+- contrôle d'accès par tenant ;
+- journaux d'audit ;
+- sauvegardes sécurisées ;
+- accès administrateur tracé ;
+- suppression sécurisée ;
+- procédure de gestion des incidents.
+
+Les sous-traitants cloud doivent être évalués et contractuellement encadrés, notamment sur sécurité et localisation des données. citeturn0search6
+
+## Cookies / analytics
+
+Séparer :
+
+```text
+Essential
+Analytics
+Marketing
+```
+
+Les traceurs non nécessaires doivent être gérés selon les règles applicables, avec mécanisme de consentement lorsque requis.
+
+## Privacy Center
+
+Prévoir dans le compte utilisateur :
+
+```text
+Privacy
+├── Personal data
+├── Download my data
+├── Delete account
+├── Consent management
+└── Privacy policy
+```
+
+
+# 27. Jobs
+
+Les traitements longs sont asynchrones.
+
+Exemples :
+
+- photogrammétrie ;
+- génération 3D ;
+- export ;
+- PDF ;
+- import ;
+- suppression ;
+- emails.
+
+API :
+
+```text
+POST /api/v1/jobs
+GET  /api/v1/jobs/{id}
+```
+
+Statuts :
+
+```text
+QUEUED
+RUNNING
+SUCCEEDED
+FAILED
+CANCELLED
+```
+
+---
+
+# 28. Qualité du code
+
+La qualité est intégrée au build.
+
+```text
+ESLint
+   ↓
+Typecheck
+   ↓
+Unit tests
+   ↓
+Build
+```
+
+## ESLint
+
+Contrôle :
+
+- erreurs JS/TS ;
+- hooks React ;
+- imports ;
+- code inutilisé ;
+- règles d'architecture ;
+- qualité.
+
+## TypeScript
+
+Commande :
+
+```text
+tsc --noEmit
+```
+
+Le build ne doit pas passer si le typecheck échoue.
+
+## Prettier
+
+Responsable du formatage.
+
+## Vitest
+
+Tests unitaires du Core en priorité.
+
+---
+
+# 29. Tests
+
+## Unit tests
+
+Priorité :
+
+```text
+Core
+├── geometry
+├── calculations
+├── rules
+├── commands
+└── serialization
+```
+
+## Integration tests
+
+```text
+API
+Database
+Authentication
+Tenant isolation
+Billing
+```
+
+## End-to-end
+
+Playwright :
+
+```text
+login
+ ↓
+create project
+ ↓
+load parcel
+ ↓
+create terrace
+ ↓
+edit
+ ↓
+3D
+ ↓
+save
+```
+
+---
+
+# 30. Observabilité
+
+Prévoir :
+
+```text
+logs
+error tracking
+audit logs
+request IDs
+job logs
+payment events
+```
+
+Les événements importants doivent pouvoir être corrélés avec :
+
+```text
+tenant_id
+user_id
+project_id
+request_id
+```
+
+Sentry ou équivalent peut être utilisé côté frontend/backend.
+
+---
+
+# 31. Sécurité
+
+Minimum :
+
+- HTTPS ;
+- Argon2id ;
+- validation serveur ;
+- Zod côté frontend ;
+- CORS strict ;
+- rate limiting ;
+- contrôle tenant ;
+- contrôle entitlement ;
+- audit ;
+- secrets hors Git ;
+- sauvegardes ;
+- validation uploads ;
+- accès privé aux assets ;
+- URLs signées si Object Storage privé.
+
+---
+
+# 32. CI/CD
+
+Pipeline recommandé :
+
+```text
+commit
+  ↓
+install
+  ↓
+lint
+  ↓
+typecheck
+  ↓
+unit tests
+  ↓
+integration tests
+  ↓
+build
+  ↓
+E2E
+  ↓
+deploy
+```
+
+Le frontend produit :
+
+```text
+dist/
+```
+
+Le backend PHP est déployé séparément.
+
+---
+
+# 33. Déploiement initial
+
+## SiteGround
+
+Possible pour :
+
+```text
+React/Vite static build
+PHP API
+PostgreSQL
+```
+
+Architecture :
+
+```text
+SiteGround
+├── React dist/
+├── PHP API
+└── PostgreSQL
+```
+
+Les capacités exactes de PostgreSQL, PHP et des jobs doivent être vérifiées sur l'offre choisie.
+
+## Évolution
+
+```text
+Phase 1
+SiteGround
+       ↓
+Phase 2
+Backend / DB séparés
+       ↓
+Phase 3
+Workers + Geo Service + Object Storage managé
+```
+
+Ne pas commencer par des microservices.
+
+---
+
+# 34. Structure frontend finale
+
+```text
+frontend/
+├── public/
+├── src/
+│   ├── app/
+│   │   ├── router/
+│   │   └── providers/
+│   │
+│   ├── core/
+│   │   ├── model/
+│   │   ├── geometry/
+│   │   ├── rules/
+│   │   ├── calculations/
+│   │   ├── commands/
+│   │   └── serialization/
+│   │
+│   ├── features/
+│   │   ├── project/
+│   │   ├── parcel/
+│   │   ├── house/
+│   │   ├── terrace/
+│   │   ├── objects/
+│   │   ├── measurements/
+│   │   └── photogrammetry/
+│   │
+│   ├── ui/
+│   ├── state/
+│   ├── queries/
+│   ├── api/
+│   ├── 3d/
+│   └── utils/
+│
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+└── eslint.config.js
+```
+
+---
+
+# 35. Scripts npm
+
+```json
+{
+  "scripts": {
+    "dev": "vite",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test",
+    "build": "npm run lint && npm run typecheck && npm run test && vite build",
+    "preview": "vite preview"
+  }
+}
+```
+
+---
+
+
+
+# Developer Experience & AI-Assisted Engineering
+
+## Objectif
+
+Le projet est conçu pour être développé et maintenu avec une approche **AI-assisted engineering**, notamment avec Claude Code. Claude Code est un **outil de développement** et ne constitue jamais une dépendance runtime de l'application.
+
+Les règles importantes du projet doivent être persistées dans le repository, les tests, les contrôles d'architecture et la CI. Elles ne doivent pas dépendre uniquement du contexte d'une conversation.
+
+## Environnement Claude Code
+
+```text
+CLAUDE.md
+.claude/
+├── settings.json
+├── commands/
+├── skills/
+└── agents/
+
+scripts/
+├── setup
+├── dev
+├── test
+├── test-unit
+├── test-integration
+├── test-e2e
+├── lint
+├── typecheck
+├── architecture
+├── quality
+└── build
+```
+
+## CLAUDE.md
+
+`CLAUDE.md` constitue le guide permanent du projet pour l'agent. Il doit documenter notamment les règles d'architecture, les contraintes techniques, les commandes de validation et les interdictions structurantes.
+
+Règles minimales :
+
+```text
+React + TypeScript + Vite
+Core métier indépendant de React
+Zustand = client state
+TanStack Query = server state
+PHP = backend/API
+PostgreSQL = persistence
+No Symfony
+No PostGIS
+TypeScript strict
+No business logic in React
+No SQL direct dans les controllers
+Tenant isolation obligatoire
+Business rules covered by tests
+```
+
+## Skills et agents
+
+Prévoir des skills spécialisés :
+
+```text
+.claude/skills/
+├── architecture/
+├── typescript/
+├── react/
+├── php/
+├── testing/
+├── database/
+├── security/
+├── billing/
+└── legacy-migration/
+```
+
+Limiter les agents spécialisés à quelques responsabilités claires : Architecture, Core/TypeScript, React, PHP/API, Test/Quality et Security.
+
+## Commands, hooks et MCP
+
+Les commandes reproductibles doivent couvrir `/test`, `/quality`, `/architecture`, `/migrate`, `/review` et `/build`. Les hooks peuvent déclencher typecheck, lint, architecture checks et tests ciblés, sans remplacer la CI.
+
+MCP peut connecter Claude Code à Git, Browser/Playwright, PostgreSQL et la documentation. Les accès suivent le principe du moindre privilège : lecture par défaut, écriture seulement lorsque nécessaire et opérations destructrices protégées.
+
+## Boucle AI-assisted engineering
+
+```text
+Requirement
+    ↓
+Repository investigation
+    ↓
+Architecture impact analysis
+    ↓
+Test / characterization test
+    ↓
+Implementation
+    ↓
+Typecheck + Lint + Architecture checks
+    ↓
+Tests
+    ↓
+Review
+    ↓
+Build
+```
+
+Pour la migration de `legacy.ts`, les characterization tests capturent le comportement existant avant extraction.
+
+## Source of truth et garde-fous
+
+Une règle importante ne doit pas exister uniquement dans un prompt conversationnel. Claude Code doit inspecter le code avant une modification importante, rechercher les usages avant suppression, respecter les règles d'architecture, ne pas contourner les tests et ajouter les tests lorsque le comportement change.
+
+## Principe directeur
+
+> **Claude Code accélère l'ingénierie ; il ne remplace ni l'architecture, ni les tests, ni les quality gates.**
+
+# 37. Quality Engineering & Architecture Governance
+
+La qualité est un **quality gate obligatoire** de la V2. Le code ne doit pas être considéré comme livrable uniquement parce qu'il compile.
+
+La stratégie combine :
+
+```text
+Static Analysis
+      +
+Type Safety
+      +
+Architecture Rules
+      +
+Unit Tests
+      +
+Integration Tests
+      +
+E2E
+      +
+Coverage
+      +
+Build
+```
+
+## 37.1 Outillage
+
+### Frontend / Core TypeScript
+
+| Besoin | Outil |
+|---|---|
+| Type checking | TypeScript (`tsc --noEmit`) |
+| Lint | ESLint |
+| Formatting | Prettier |
+| Unit tests | Vitest |
+| React tests | React Testing Library |
+| E2E | Playwright |
+| Architecture dependencies | dependency-cruiser |
+| Coverage | Vitest coverage + CI reporting |
+
+### Backend PHP
+
+| Besoin | Outil |
+|---|---|
+| Tests | PHPUnit |
+| Static analysis | PHPStan |
+| Coding standards | PHP-CS-Fixer |
+| Architecture | Deptrac |
+| Coverage | PHPUnit / PCOV ou Xdebug |
+| API contract | OpenAPI |
+
+### Reporting qualité
+
+Selon l'infrastructure retenue :
+
+```text
+Codecov
+ou
+SonarQube / SonarCloud
+```
+
+Le reporting doit conserver l'historique de :
+
+- couverture ;
+- bugs ;
+- code smells ;
+- duplications ;
+- dette technique ;
+- violations d'architecture.
+
+---
+
+# 37.2 Pyramide de tests
+
+```text
+                    E2E
+                 Playwright
+                    ▲
+                    │
+             Integration
+          API / PostgreSQL
+                    ▲
+                    │
+              Component
+        React Testing Library
+                    ▲
+                    │
+                 Unit
+          Vitest / PHPUnit
+                    ▲
+                    │
+            Static Analysis
+ ESLint / TypeScript / PHPStan
+```
+
+La majorité des tests doit être constituée de tests unitaires rapides.
+
+Les E2E sont réservés aux parcours métier critiques.
+
+---
+
+# 37.3 Priorité de couverture
+
+Les seuils sont différenciés selon le risque.
+
+```text
+Core Geometry / Rules / Calculations     ≥ 90 %
+Core Commands                            ≥ 90 %
+Serialization / migrations               ≥ 90 %
+API application services                 ≥ 80 %
+Repositories                             ≥ 80 %
+Billing / Payment / Entitlements         ≥ 90 %
+Tenant isolation / Security              ≥ 90 %
+React components                          ≥ 70 %
+E2E parcours critiques                    100 %
+```
+
+Ces seuils sont des **quality gates minimaux** et peuvent être augmentés.
+
+Une baisse de couverture sur une Pull Request doit être détectée par le CI.
+
+## Coverage différentielle
+
+Le CI doit également contrôler la couverture du code nouvellement modifié.
+
+Principe :
+
+```text
+Existing code
+      +
+New / changed code
+      ↓
+Coverage threshold
+```
+
+Une nouvelle fonctionnalité ne doit pas diminuer progressivement la qualité globale.
+
+---
+
+# 37.4 Ce qui doit obligatoirement être testé
+
+## Core métier
+
+Tester systématiquement :
+
+- géométrie ;
+- intersections ;
+- surfaces ;
+- distances ;
+- transformations ;
+- contraintes ;
+- règles PLU lorsqu'elles sont implémentées ;
+- calculs d'ombres ;
+- optimisation ;
+- commandes ;
+- undo/redo ;
+- sérialisation ;
+- migration de versions.
+
+Exemple :
+
+```text
+Terrace
+   ↓
+Resize
+   ↓
+Geometry recalculation
+   ↓
+Constraint validation
+   ↓
+Expected result
+```
+
+## SaaS
+
+Tester :
+
+- création tenant ;
+- isolation tenant ;
+- rôles ;
+- permissions ;
+- quotas ;
+- features ;
+- abonnement ;
+- activation ;
+- expiration ;
+- renouvellement ;
+- upgrade ;
+- downgrade ;
+- annulation.
+
+## Billing
+
+Tester :
+
+```text
+Quote
+ ↓
+Order
+ ↓
+Invoice
+ ↓
+Payment
+ ↓
+Activation
+```
+
+et les cas d'échec :
+
+```text
+Payment failed
+Webhook duplicated
+Webhook delayed
+Refund
+Chargeback
+Invoice rejected
+```
+
+---
+
+# 37.5 Tests d'architecture TypeScript
+
+`dependency-cruiser` doit contrôler les dépendances entre couches.
+
+Architecture autorisée :
+
+```text
+app
+ ↓
+features
+ ↓
+core
+```
+
+et :
+
+```text
+features
+ ↓
+api / queries
+```
+
+Interdictions :
+
+```text
+core → React             ❌
+core → Zustand           ❌
+core → TanStack Query    ❌
+core → Three.js          ❌
+
+model → UI               ❌
+geometry → UI            ❌
+rules → UI               ❌
+```
+
+Les règles sont exécutées automatiquement en CI.
+
+---
+
+# 37.6 Tests d'architecture PHP
+
+`Deptrac` contrôle les dépendances entre modules.
+
+Architecture :
+
+```text
+HTTP / Controllers
+        ↓
+Application Services
+        ↓
+Domain
+        ↓
+Repositories
+        ↓
+Infrastructure / Database
+```
+
+Interdictions :
+
+```text
+Repository → Controller       ❌
+Domain → HTTP                 ❌
+Domain → SQL                  ❌
+Controller → SQL direct       ❌
+```
+
+Les modules doivent également respecter l'isolation tenant.
+
+---
+
+# 37.7 Tests React
+
+Utiliser React Testing Library pour tester le comportement utilisateur plutôt que les détails internes.
+
+Tester par exemple :
+
+```text
+select object
+      ↓
+property panel opens
+      ↓
+change dimension
+      ↓
+Core command
+      ↓
+UI updates
+```
+
+Éviter les tests excessivement couplés à :
+
+- structure HTML exacte ;
+- classes CSS ;
+- détails internes des hooks ;
+- implementation details.
+
+---
+
+# 37.8 Tests E2E Playwright
+
+Les parcours critiques doivent être automatisés.
+
+### Parcours utilisateur
+
+```text
+Login
+ ↓
+Create project
+ ↓
+Load parcel
+ ↓
+Create terrace
+ ↓
+Edit dimensions
+ ↓
+Switch 2D / 3D
+ ↓
+Save
+ ↓
+Reload
+ ↓
+Verify project
+```
+
+### Parcours SaaS
+
+```text
+Signup
+ ↓
+Choose offer
+ ↓
+Checkout
+ ↓
+Payment confirmation
+ ↓
+Activation
+ ↓
+Feature entitlement
+```
+
+### Parcours B2B
+
+```text
+Create tenant
+ ↓
+Invite user
+ ↓
+Assign role
+ ↓
+Create project
+ ↓
+Verify tenant isolation
+```
+
+Les tests E2E doivent couvrir les scénarios critiques, pas toutes les combinaisons possibles.
+
+---
+
+# 37.9 Tests API
+
+Les contrats OpenAPI servent de référence.
+
+Tester :
+
+```text
+Request
+ ↓
+Authentication
+ ↓
+Authorization
+ ↓
+Validation
+ ↓
+Service
+ ↓
+Database
+ ↓
+Response
+```
+
+Cas obligatoires :
+
+- 200/201 ;
+- 400 ;
+- 401 ;
+- 403 ;
+- 404 ;
+- 409 ;
+- 422 ;
+- 429 ;
+- 500 contrôlé.
+
+Les réponses doivent respecter le contrat OpenAPI.
+
+---
+
+# 37.10 Tests de sécurité
+
+Tester automatiquement :
+
+### Tenant isolation
+
+```text
+Tenant A
+   X
+   ↓
+Project Tenant B
+```
+
+Résultat attendu :
+
+```text
+403 / 404
+```
+
+jamais accès aux données.
+
+### Authorization
+
+Tester chaque rôle :
+
+```text
+SUPER_ADMIN
+FINANCE_ADMIN
+SALES_ADMIN
+TENANT_ADMIN
+USER
+```
+
+### Authentication
+
+Tester :
+
+- session expirée ;
+- token invalide ;
+- brute force / rate limiting ;
+- reset password ;
+- changement de mot de passe ;
+- logout.
+
+---
+
+# 37.11 Tests de régression
+
+Chaque bug métier corrigé doit produire un test de régression.
+
+Principe :
+
+```text
+Bug
+ ↓
+Reproduction
+ ↓
+Test failing
+ ↓
+Fix
+ ↓
+Test passing
+```
+
+Le test reste ensuite dans la suite permanente.
+
+Cela est particulièrement important pendant la migration de `legacy.ts`.
+
+---
+
+# 37.12 Contract tests frontend / backend
+
+Le contrat API est partagé.
+
+```text
+OpenAPI
+   ↓
+PHP API
+   +
+TypeScript client/types
+```
+
+Objectif :
+
+> empêcher qu'une modification PHP casse silencieusement React.
+
+Les changements incompatibles d'API doivent être détectés avant déploiement.
+
+---
+
+# 37.13 CI Quality Gates
+
+Une Pull Request doit passer :
+
+```text
+1. Install dependencies
+2. ESLint
+3. Prettier check
+4. Typecheck
+5. dependency-cruiser
+6. PHPStan
+7. PHP-CS-Fixer check
+8. Deptrac
+9. Vitest
+10. PHPUnit
+11. Coverage
+12. Integration tests
+13. Playwright
+14. Build
+```
+
+Si une étape échoue :
+
+```text
+PR = NOT READY
+```
+
+Le déploiement automatique est bloqué.
+
+---
+
+# 37.14 Build de production
+
+Le build final est :
+
+```text
+lint
+ ↓
+typecheck
+ ↓
+architecture checks
+ ↓
+unit tests
+ ↓
+integration tests
+ ↓
+coverage
+ ↓
+E2E
+ ↓
+build
+ ↓
+deploy
+```
+
+Le `dist/` React ne doit être généré comme artefact de production qu'après validation des quality gates.
+
+---
+
+# 37.15 Branch / PR strategy
+
+Chaque fonctionnalité doit être développée dans une branche courte.
+
+```text
+feature/terrace-editor
+feature/billing
+fix/geometry-intersection
+```
+
+Une Pull Request doit contenir :
+
+```text
+Code
++
+Tests
++
+Impact architecture
++
+Migration éventuelle
+```
+
+Une modification du Core métier sans test associé doit être considérée comme exceptionnelle.
+
+---
+
+# 37.16 Definition of Done
+
+Une fonctionnalité est terminée uniquement si :
+
+- code TypeScript/PHP typé ;
+- ESLint sans erreur ;
+- formatage validé ;
+- architecture respectée ;
+- tests unitaires ajoutés ;
+- tests d'intégration ajoutés si nécessaire ;
+- E2E ajouté si parcours critique ;
+- couverture respectée ;
+- API OpenAPI mise à jour ;
+- migrations documentées ;
+- sécurité/tenant isolation vérifiée ;
+- documentation mise à jour.
+
+---
+
+# 37.17 Suivi de la dette technique
+
+Le CI et le reporting doivent permettre de suivre :
+
+```text
+Technical Debt
+├── TypeScript errors
+├── ESLint violations
+├── PHPStan issues
+├── Architecture violations
+├── Test coverage
+├── Duplications
+├── TODO/FIXME
+└── Legacy dependencies
+```
+
+Objectif :
+
+> La dette technique doit être mesurée et visible, pas seulement ressentie.
+
+---
+
+# 37.18 Quality Dashboard
+
+Le dashboard technique peut exposer :
+
+```text
+Build status             ✓
+Typecheck                ✓
+Architecture             ✓
+Unit tests               1,248
+Coverage                 88 %
+E2E                      142
+Critical failures        0
+Architecture violations  0
+Security alerts          0
+Technical debt           ...
+```
+
+Pour l'administration produit, ces métriques sont séparées du dashboard financier.
+
+---
+
+# 37.19 Stratégie de migration du legacy
+
+La migration ne doit pas être un "big bang".
+
+```text
+legacy.ts
+   ↓
+Identify domain
+   ↓
+Extract Core TS
+   ↓
+Write characterization tests
+   ↓
+Move logic
+   ↓
+Typecheck
+   ↓
+Architecture check
+   ↓
+Remove legacy dependency
+```
+
+Avant de déplacer une logique complexe du legacy, créer des **characterization tests** afin de capturer le comportement existant.
+
+Puis :
+
+```text
+Legacy behavior
+       ↓
+Tests
+       ↓
+New Core implementation
+       ↓
+Same expected results
+```
+
+Cette stratégie réduit fortement le risque de régression fonctionnelle.
+
+---
+
+# 37.20 Principe directeur
+
+> **Chaque règle métier importante doit être testable sans React, chaque dépendance d'architecture doit être vérifiable automatiquement, et chaque régression corrigée doit devenir un test permanent.**
+
+
+# 38. Product Usage, Observability & Performance
+
+## 38.1 Objectifs
+
+L'observabilité doit permettre de répondre à quatre questions :
+
+```text
+1. Qui utilise le produit ?
+2. Quelles fonctionnalités sont utilisées ?
+3. Le produit est-il performant ?
+4. Où se trouvent les problèmes ?
+```
+
+La mesure d'usage et la mesure technique sont volontairement séparées.
+
+```text
+Product Analytics
+      +
+Technical Observability
+      +
+Business / SaaS Metrics
+```
+
+## 38.2 Outillage cible
+
+| Domaine | Outil recommandé | Usage |
+|---|---|---|
+| Product analytics | PostHog | événements, funnels, adoption, features |
+| Frontend monitoring | Sentry | erreurs, Web Vitals, traces |
+| Distributed tracing | OpenTelemetry | traces frontend/backend et corrélation |
+| Backend | PHP metrics + logs | latence, erreurs, throughput |
+| Database | PostgreSQL metrics | requêtes, connexions, taille, performance |
+| Business | PostgreSQL | ventes, abonnements, tenants, quotas |
+| Reporting | Admin React | dashboard consolidé |
+
+Les outils externes ne doivent pas devenir la source de vérité des données métier.
+
+## 38.3 Product Usage
+
+Les événements d'usage doivent permettre de mesurer :
+
+```text
+sessions
+active users
+active tenants
+projects created
+projects opened
+projects modified
+exports
+3D views
+calculations
+optimizations
+photogrammetry jobs
+API usage
+storage usage
+```
+
+Mesurer également l'adoption par offre :
+
+```text
+FREE
+PRO
+BUSINESS
+ENTERPRISE
+```
+
+## 38.4 Usage par tenant
+
+Le système doit permettre une vue :
+
+```text
+Tenant
+├── users
+├── active users
+├── projects
+├── active projects
+├── storage
+├── API calls
+├── feature usage
+├── calculations
+├── exports
+├── last activity
+└── subscription
+```
+
+Cette vue sert notamment à :
+
+- suivre l'adoption ;
+- contrôler les quotas ;
+- détecter les anomalies ;
+- identifier les fonctionnalités à forte valeur ;
+- préparer les évolutions d'offres ;
+- déclencher des alertes d'usage ou d'upsell.
+
+## 38.5 Usage Events
+
+Ajouter un modèle d'événements :
+
+```text
+usage_events
+----------------
+id
+tenant_id
+user_id
+project_id
+event_type
+feature
+timestamp
+duration_ms
+application_version
+metadata
+```
+
+Exemples :
+
+```text
+PROJECT_OPENED
+TERRACE_CREATED
+GEOMETRY_CALCULATED
+3D_VIEW_OPENED
+PHOTOGRAMMETRY_STARTED
+EXPORT_GENERATED
+QUOTE_CREATED
+SUBSCRIPTION_ACTIVATED
+```
+
+Les événements doivent rester minimaux et ne pas contenir de données personnelles ou métier inutiles.
+
+## 38.6 Performance
+
+Mesurer séparément :
+
+### Frontend
+
+```text
+FCP
+LCP
+INP
+CLS
+JS errors
+bundle size
+route load time
+API latency
+```
+
+### Core métier
+
+```text
+geometry calculation
+constraint validation
+3D preparation
+optimization
+photogrammetry
+export
+serialization
+```
+
+Chaque opération lourde doit pouvoir être chronométrée.
+
+Exemple :
+
+```text
+GEOMETRY_CALCULATION
+duration_ms = 184
+```
+
+### Backend
+
+```text
+request latency
+p50
+p95
+p99
+throughput
+error rate
+PHP execution time
+database latency
+```
+
+### Infrastructure
+
+Suivre lorsque disponible :
+
+```text
+CPU
+memory
+disk
+network
+HTTP errors
+database connections
+storage
+```
+
+## 38.7 Performance Budgets
+
+Définir des objectifs mesurables, à confirmer par benchmark :
+
+```text
+API p95                 < 500 ms
+API p99                 < 1.5 s
+
+Core calculation        < 100 ms
+Interactive UI          < 100 ms
+
+Project load            < 2 s
+Initial application     < 3 s
+
+Critical E2E            < 5 s
+```
+
+Les budgets sont suivis dans le temps et peuvent devenir des quality gates.
+
+## 38.8 Sentry
+
+Sentry est utilisé pour :
+
+- exceptions frontend ;
+- exceptions backend ;
+- erreurs API ;
+- traces ;
+- Web Vitals ;
+- régressions de performance ;
+- corrélation avec la version applicative.
+
+Chaque erreur doit pouvoir être reliée à :
+
+```text
+application version
+environment
+route
+request ID
+tenant pseudonymisé
+user pseudonymisé lorsque nécessaire
+```
+
+Ne jamais envoyer le contenu complet d'un projet dans les événements Sentry.
+
+## 38.9 OpenTelemetry
+
+OpenTelemetry fournit une instrumentation standardisée pour les traces.
+
+Exemple :
+
+```text
+User action
+   ↓
+React
+   ↓
+HTTP request
+   ↓
+PHP Controller
+   ↓
+Service
+   ↓
+PostgreSQL
+```
+
+Une trace permet alors d'identifier :
+
+```text
+Frontend       120 ms
+API             80 ms
+Service         20 ms
+PostgreSQL      45 ms
+Serialization   15 ms
+```
+
+L'objectif est d'identifier rapidement le composant responsable d'une dégradation.
+
+## 38.10 Product Analytics et confidentialité
+
+La télémétrie doit respecter le principe de minimisation.
+
+À envoyer :
+
+```text
+✓ feature
+✓ action
+✓ durée
+✓ version
+✓ événement technique
+✓ identifiant tenant pseudonymisé
+```
+
+À ne pas envoyer inutilement :
+
+```text
+✗ adresse client
+✗ géométrie complète
+✗ photos
+✗ projet JSON complet
+✗ données personnelles non nécessaires
+```
+
+Les données métier restent dans les systèmes de données de la plateforme.
+
+## 38.11 Quotas et entitlements
+
+L'usage doit être comparé aux droits de l'offre :
+
+```text
+Usage
+  ↓
+Entitlement
+  ↓
+Quota
+  ├── < 80 % → normal
+  ├── ≥ 80 % → warning
+  ├── ≥ 90 % → notification / upsell
+  └── ≥ 100 % → limitation selon règle d'offre
+```
+
+Le contrôle des quotas est réalisé côté backend.
+
+React ne doit jamais être la seule autorité pour autoriser une fonctionnalité.
+
+## 38.12 Alerting
+
+Définir des alertes sur :
+
+```text
+API error rate
+API p95
+API p99
+database latency
+payment failures
+e-invoice failures
+queue/job failures
+storage limits
+quota anomalies
+security events
+```
+
+Les alertes critiques doivent être indépendantes du navigateur de l'administrateur.
+
+## 38.13 Dashboard Admin
+
+Ajouter une section :
+
+```text
+ADMIN
+├── Financial
+├── Sales
+├── Tenants
+├── Usage
+├── Performance
+├── Errors
+├── Jobs
+└── Security
+```
+
+### Usage dashboard
+
+```text
+DAU
+WAU
+MAU
+Active Tenants
+Projects / tenant
+Feature adoption
+API usage
+Storage
+Exports
+Calculations
+```
+
+### Performance dashboard
+
+```text
+API p50 / p95 / p99
+Core calculation time
+Page load
+Web Vitals
+Error rate
+Database latency
+Slow endpoints
+```
+
+## 38.14 Corrélation usage / performance
+
+Le système doit permettre de rechercher une dégradation par :
+
+```text
+tenant
+feature
+version
+endpoint
+project size
+operation
+time period
+```
+
+Exemple :
+
+```text
+Photogrammetry
+    ↓
+Project > 200 MB
+    ↓
+Duration p95 = 8.2 s
+    ↓
+Version 2.4.0
+```
+
+Cette corrélation est essentielle pour optimiser le produit sans se limiter à des moyennes globales.
+
+
+# 40. Architecture Decision Records
+
+## ADR-000 — PHP sans framework
+
+**Décision:** PHP 8.3+ + Composer, sans framework applicatif monolithique (Laravel/Symfony full-stack). Le backend est un **modular monolith** utilisant des composants open source indépendants lorsque nécessaire.
+
+**Raison:** conserver un backend léger, maîtrisé et portable sans réimplémenter les briques d'infrastructure éprouvées.
+
+Composants de référence :
+
+- FastRoute pour le routing ;
+- PSR-7 / PSR-15 pour les contrats HTTP et middleware ;
+- PHP-DI ou équivalent pour l'injection de dépendances ;
+- Doctrine DBAL et Doctrine ORM lorsque l'ORM est justifié ;
+- Symfony Validator / Serializer / Cache / Console lorsque leurs composants sont pertinents ;
+- Monolog pour les logs ;
+- PHPUnit pour les tests ;
+- PHPStan pour l'analyse statique.
+
+La règle est de **réutiliser des composants éprouvés plutôt que de développer une plomberie propriétaire**. Aucun composant ne doit imposer une dépendance au domaine métier.
+
+**Raison:** conserver un backend léger, maîtrisé et adapté à l'hébergement PHP, tout en structurant le code par modules, services, repositories et middleware.
+
+Le backend est un modular monolith et non un ensemble de scripts PHP.
+
+---
+
+## ADR-001 — React
+
+**Décision:** React.
+
+**Raison:** excellente capacité à construire une UX riche et modulaire, adaptée au workspace 2D/3D.
+
+---
+
+## ADR-002 — TypeScript
+
+**Décision:** TypeScript strict.
+
+**Raison:** modèle métier complexe, géométrie, API et nombreuses structures de données.
+
+---
+
+## ADR-003 — Vite
+
+**Décision:** Vite.
+
+**Raison:** build rapide, configuration simple, adapté à une SPA React.
+
+---
+
+## ADR-004 — Core indépendant
+
+**Décision:** Core TypeScript sans dépendance React.
+
+**Raison:** réutilisabilité, testabilité et protection contre un nouveau monolithe frontend.
+
+---
+
+## ADR-005 — Zustand
+
+**Décision:** Zustand pour client state.
+
+**Raison:** simple, léger, adapté aux interactions d'un workspace.
+
+---
+
+## ADR-006 — TanStack Query
+
+**Décision:** TanStack Query pour server state.
+
+**Raison:** cache, mutations, synchronisation et gestion du cycle de vie des données API.
+
+---
+
+## ADR-007 — Zod
+
+**Décision:** Zod aux frontières API.
+
+**Raison:** validation runtime des données externes.
+
+---
+
+## ADR-008 — OpenAPI
+
+**Décision:** API documentée par OpenAPI.
+
+**Raison:** contrat explicite frontend/backend.
+
+---
+
+## ADR-009 — PostgreSQL JSONB
+
+**Décision:** projet JSON versionné en JSONB.
+
+**Raison:** transactions, versioning, recherche et cohérence.
+
+---
+
+## ADR-010 — Object Storage
+
+**Décision:** fichiers lourds hors PostgreSQL.
+
+**Raison:** photos, GLB, textures et exports ne doivent pas être embarqués dans les documents JSON.
+
+---
+
+## ADR-011 — PostgreSQL
+
+**Décision:** ne pas rendre PostgreSQL obligatoire en phase 1.
+
+**Raison:** compatibilité SiteGround et simplicité initiale. Ajouter un Geo Service si les besoins spatiaux serveur deviennent importants.
+
+---
+
+## ADR-012 — Modular Monolith
+
+**Décision:** modular monolith PHP avant microservices.
+
+**Raison:** complexité opérationnelle plus faible et frontières de modules déjà définies.
+
+---
+
+# 37. Principes non négociables
+
+1. **Core métier indépendant de React.**
+2. **Aucune règle métier critique dans les composants React.**
+3. **Zustand n'est pas le cache API.**
+4. **TanStack Query n'est pas le moteur métier.**
+5. **Three.js n'est pas la source de vérité du modèle.**
+6. **PHP reste l'autorité pour sécurité, quotas, abonnement et droits.**
+7. **Le frontend ne fait pas confiance aux données serveur sans validation adaptée.**
+8. **Chaque donnée métier est isolée par tenant.**
+9. **Les gros assets sont hors PostgreSQL.**
+10. **Le projet possède un `schemaVersion`.**
+11. **Lint + typecheck + tests doivent passer avant build.**
+12. **Pas de nouveau `legacy.ts`.**
+13. **Pas de microservices prématurés.**
+14. **RGPD by design et by default.**
+15. **La conservation légale prime sur une suppression RGPD lorsque la loi impose la conservation d'une donnée.**
+16. **La facturation électronique doit être compatible avec les plateformes agréées et l'e-reporting français.**
+17. **Le module de facturation ne doit pas dépendre d'un fournisseur de PDP unique.**
+18. **Les données financières et commerciales sont historisées et auditables.**
+19. **Le reporting financier admin est séparé des données visibles par un tenant.**
+20. **La chaîne devis → vente → abonnement/commande → facture → paiement doit être traçable.**
+
+---
+
+# 38. Roadmap technique
+
+## Phase 1 — Foundation
+
+```text
+Core TS
+Typecheck
+ESLint
+Prettier
+Vitest
+React
+Vite
+Zustand
+TanStack Query
+Zod
+```
+
+## Phase 2 — UX shell
+
+```text
+AppShell
+Toolbar
+Canvas
+Property Panel
+2D
+3D
+Design System
+```
+
+## Phase 3 — Project engine
+
+```text
+Project model
+Commands
+Geometry
+Serialization
+Versioning
+IndexedDB
+Autosave
+```
+
+## Phase 4 — Backend
+
+```text
+PHP/PHP natif modulaire
+Auth
+Tenant
+Project API
+PostgreSQL
+JSONB
+OpenAPI
+```
+
+## Phase 5 — SaaS
+
+```text
+Plans
+Features
+Entitlements
+Billing
+Payment
+Invoices
+TVA
+Activation
+Retention
+```
+
+## Phase 6 — Data / 3D
+
+```text
+IGN
+Cadastre
+Terrain
+PLU
+Object Storage
+Photogrammetry
+3D export
+```
+
+## Phase 7 — Industrialisation
+
+```text
+CI/CD
+E2E
+Monitoring
+Jobs
+Workers
+Geo Service
+PostgreSQL si nécessaire
+```
+
+---
+
+# 41.1 Structure PHP cible
+
+```text
+src/
+├── Shared/
+│   ├── Http/
+│   ├── Database/
+│   ├── Security/
+│   ├── Validation/
+│   └── Exceptions/
+│
+├── Auth/
+│   ├── AuthController.php
+│   ├── AuthService.php
+│   └── AuthRepository.php
+│
+├── Tenant/
+├── User/
+├── Project/
+├── Billing/
+├── Payment/
+├── Subscription/
+├── Entitlement/
+├── Invoice/
+├── Skin/
+├── Data/
+└── Job/
+```
+
+Chaque module suit autant que possible :
+
+```text
+Module/
+├── Controller/
+├── Service/
+├── Repository/
+├── DTO/
+├── Validator/
+└── ...
+```
+
+La structure peut rester plus légère pour les petits modules.
+
+# 42. Architecture cible résumée
+
+```text
+                        ┌───────────────┐
+                        │     USER      │
+                        └───────┬───────┘
+                                │
+                        React + TypeScript
+                                │
+              ┌─────────────────┼─────────────────┐
+              │                 │                 │
+          Zustand         TanStack Query      RHF + Zod
+              │                 │                 │
+              └─────────────────┼─────────────────┘
+                                │
+                         CORE TYPESCRIPT
+                                │
+             ┌──────────────────┼──────────────────┐
+             │                  │                  │
+           Model             Geometry             Rules
+             │                  │                  │
+             └──────────────────┼──────────────────┘
+                                │
+                     React Three Fiber
+                                │
+                             Three.js
+                                │
+                              HTTPS
+                                │
+                         PHP 8.3+ / Composer
+                                │
+        ┌───────────────────────┼────────────────────────┐
+        │                       │                        │
+    PostgreSQL              Object Storage          External APIs
+      + JSONB               photos / GLB            IGN / PSP
+        │
+   PostgreSQL
+```
+
+# 43. Conclusion
+
+Cette architecture permet de faire de la V2 une véritable plateforme SaaS plutôt qu'une nouvelle version du legacy.
+
+La séparation fondamentale est :
+
+```text
+React
+  = expérience utilisateur
+
+Zustand
+  = état client
+
+TanStack Query
+  = état serveur
+
+Core TypeScript
+  = métier + géométrie + règles
+
+PHP
+  = API + sécurité + SaaS
+
+PostgreSQL
+  = données persistantes
+
+Object Storage
+  = gros fichiers
+
+Three.js
+  = rendu 3D
+```
+
+Cette séparation doit être considérée comme le principal garde-fou architectural de la V2.
