@@ -18,26 +18,23 @@ final class ErrorEnvelopeTest extends ApiTestCase
     public function testUnknownRouteReturns404InTheDocumentedEnvelope(): void
     {
         $response = $this->request('GET', '/api/v1/does-not-exist');
-        $body = $this->decode($response);
+        $error = $this->errorOf($response);
 
         self::assertSame(404, $response->getStatusCode());
-        self::assertArrayHasKey('error', $body);
-        self::assertIsArray($body['error']);
-        self::assertSame('NOT_FOUND', $body['error']['code'] ?? null);
-        self::assertArrayHasKey('message', $body['error']);
-        self::assertArrayHasKey('details', $body['error']);
-        self::assertArrayHasKey('request_id', $body['error']);
+        self::assertSame('NOT_FOUND', $error['code'] ?? null);
+        self::assertArrayHasKey('message', $error);
+        self::assertArrayHasKey('details', $error);
+        self::assertArrayHasKey('request_id', $error);
     }
 
     public function testWrongMethodReturns405AndAdvertisesAllowedMethods(): void
     {
         $response = $this->request('DELETE', '/api/v1/health');
-        $body = $this->decode($response);
+        $error = $this->errorOf($response);
 
         self::assertSame(405, $response->getStatusCode());
-        self::assertIsArray($body['error']);
-        self::assertSame('METHOD_NOT_ALLOWED', $body['error']['code'] ?? null);
-        self::assertSame(['allowed' => ['GET']], $body['error']['details'] ?? null);
+        self::assertSame('METHOD_NOT_ALLOWED', $error['code'] ?? null);
+        self::assertSame(['allowed' => ['GET']], $error['details'] ?? null);
     }
 
     public function testErrorBodyCarriesTheSameCorrelationIdAsTheHeader(): void
@@ -46,10 +43,7 @@ final class ErrorEnvelopeTest extends ApiTestCase
             RequestId::HEADER => 'correlate-me-please',
         ]);
 
-        $body = $this->decode($response);
-        self::assertIsArray($body['error']);
-
-        self::assertSame('correlate-me-please', $body['error']['request_id'] ?? null);
+        self::assertSame('correlate-me-please', $this->errorOf($response)['request_id'] ?? null);
         self::assertSame('correlate-me-please', $response->getHeaderLine(RequestId::HEADER));
     }
 }

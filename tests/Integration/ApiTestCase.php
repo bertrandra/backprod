@@ -51,6 +51,26 @@ abstract class ApiTestCase extends TestCase
         return $decoded;
     }
 
+    /**
+     * The `error` object of the §10.4 envelope, as a typed array.
+     *
+     * Returning it typed keeps assertions free of offset access on mixed,
+     * which static analysis rejects at this level.
+     *
+     * @return array<string, mixed>
+     */
+    protected function errorOf(ResponseInterface $response): array
+    {
+        $error = $this->decode($response)['error'] ?? null;
+
+        if (!is_array($error)) {
+            throw new RuntimeException('Response did not carry an error envelope.');
+        }
+
+        /** @var array<string, mixed> $error */
+        return $error;
+    }
+
     private function app(): RequestHandlerInterface
     {
         $factory = require dirname(__DIR__, 2) . '/config/container.php';

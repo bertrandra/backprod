@@ -29,24 +29,47 @@ final class Router implements RequestHandlerInterface
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
+        // FastRoute returns an untyped array, so every element is narrowed
+        // explicitly before it reaches typed code.
         $route = $this->dispatcher->dispatch(
             $request->getMethod(),
             rawurldecode($request->getUri()->getPath()),
         );
 
-        return match ($route[0]) {
-            Dispatcher::NOT_FOUND => throw new NotFoundException(),
-            Dispatcher::METHOD_NOT_ALLOWED => throw new MethodNotAllowedException(
-                array_values(array_map(strval(...), $route[1])),
-            ),
-            default => $this->invoke($route[1], $route[2], $request),
-        };
+        $outcome = $route[0] ?? null;
+
+        if ($outcome === Dispatcher::METHOD_NOT_ALLOWED) {
+            throw new MethodNotAllowedException($this->allowedMethods($route[1] ?? null));
+        }
+
+        if ($outcome !== Dispatcher::FOUND) {
+            throw new NotFoundException();
+        }
+
+        return $this->invoke($route[1] ?? null, $route[2] ?? null, $request);
     }
 
     /**
-     * @param array<string, string> $arguments
+     * @return list<string>
      */
-    private function invoke(mixed $handlerId, array $arguments, ServerRequestInterface $request): ResponseInterface
+    private function allowedMethods(mixed $allowed): array
+    {
+        if (!is_array($allowed)) {
+            return [];
+        }
+
+        $methods = [];
+
+        foreach ($allowed as $method) {
+            if (is_string($method)) {
+                $methods[] = $method;
+            }
+        }
+
+        return $methods;
+    }
+
+    private function invoke(mixed $handlerId, mixed $arguments, ServerRequestInterface $request): ResponseInterface
     {
         if (!is_string($handlerId)) {
             throw new RuntimeException('Route handler must be referenced by class name.');
@@ -58,8 +81,12 @@ final class Router implements RequestHandlerInterface
             throw new RuntimeException(sprintf('Route handler %s must implement %s.', $handlerId, RouteHandler::class));
         }
 
-        foreach ($arguments as $name => $value) {
-            $request = $request->withAttribute($name, $value);
+        if (is_array($arguments)) {
+            foreach ($arguments as $name => $value) {
+                if (is_string($name) && is_string($value)) {
+                    $request = $request->withAttribute($name, $value);
+                }
+            }
         }
 
         return $handler($request);

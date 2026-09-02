@@ -21,11 +21,14 @@ final class ErrorLogLogger extends AbstractLogger
      */
     public function log(mixed $level, string|Stringable $message, array $context = []): void
     {
+        // PSR-3 types $level as mixed, so it is normalised rather than cast.
+        $levelName = is_scalar($level) ? (string) $level : 'unknown';
+
         $encoded = json_encode(
-            ['level' => (string) $level, 'message' => (string) $message, 'context' => $context],
+            ['level' => $levelName, 'message' => (string) $message, 'context' => $context],
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
         );
 
-        error_log($encoded === false ? sprintf('%s: %s', (string) $level, $message) : $encoded);
+        error_log($encoded === false ? sprintf('%s: %s', $levelName, $message) : $encoded);
     }
 }

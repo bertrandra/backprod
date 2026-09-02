@@ -13,7 +13,13 @@ return (new PhpCsFixer\Config())
         'declare_strict_types' => true,
         'strict_param' => true,
         'array_syntax' => ['syntax' => 'short'],
-        'ordered_imports' => ['sort_algorithm' => 'alpha'],
+        // Group classes first, then functions, then constants — each alphabetical.
+        // Without an explicit order the fixer interleaves `use function` lines
+        // among the class imports, which is valid but unreadable.
+        'ordered_imports' => [
+            'sort_algorithm' => 'alpha',
+            'imports_order' => ['class', 'function', 'const'],
+        ],
         'no_unused_imports' => true,
         'trailing_comma_in_multiline' => ['elements' => ['arrays', 'arguments', 'parameters']],
         'single_quote' => true,

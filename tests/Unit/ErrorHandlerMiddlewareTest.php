@@ -38,35 +38,43 @@ final class ErrorHandlerMiddlewareTest extends TestCase
         self::assertStringNotContainsString('db.internal', $body);
         self::assertStringNotContainsString(__FILE__, $body);
 
-        $decoded = json_decode($body, true);
-        self::assertIsArray($decoded);
-        self::assertIsArray($decoded['error']);
-        self::assertSame('INTERNAL_ERROR', $decoded['error']['code']);
-        self::assertSame('An unexpected error occurred.', $decoded['error']['message']);
+        $error = $this->errorOf($response);
+        self::assertSame('INTERNAL_ERROR', $error['code'] ?? null);
+        self::assertSame('An unexpected error occurred.', $error['message'] ?? null);
     }
 
     public function testDomainHttpExceptionKeepsItsDocumentedStatusAndCode(): void
     {
         $response = $this->process(new NotFoundException('Project not found.'));
-
-        $decoded = json_decode((string) $response->getBody(), true);
-        self::assertIsArray($decoded);
-        self::assertIsArray($decoded['error']);
+        $error = $this->errorOf($response);
 
         self::assertSame(404, $response->getStatusCode());
-        self::assertSame('NOT_FOUND', $decoded['error']['code']);
-        self::assertSame('Project not found.', $decoded['error']['message']);
+        self::assertSame('NOT_FOUND', $error['code'] ?? null);
+        self::assertSame('Project not found.', $error['message'] ?? null);
     }
 
     public function testCorrelationIdReachesTheEnvelope(): void
     {
-        $response = $this->process(new RuntimeException('boom'));
+        $requestId = $this->errorOf($this->process(new RuntimeException('boom')))['request_id'] ?? null;
 
+        self::assertIsString($requestId);
+        self::assertMatchesRegularExpression('/^[a-f0-9]{32}$/', $requestId);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function errorOf(ResponseInterface $response): array
+    {
         $decoded = json_decode((string) $response->getBody(), true);
-        self::assertIsArray($decoded);
-        self::assertIsArray($decoded['error']);
+        $error = is_array($decoded) ? ($decoded['error'] ?? null) : null;
 
-        self::assertMatchesRegularExpression('/^[a-f0-9]{32}$/', (string) $decoded['error']['request_id']);
+        if (!is_array($error)) {
+            throw new RuntimeException('Response did not carry an error envelope.');
+        }
+
+        /** @var array<string, mixed> $error */
+        return $error;
     }
 
     private function process(Throwable $thrown): ResponseInterface
