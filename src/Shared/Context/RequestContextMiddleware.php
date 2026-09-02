@@ -9,6 +9,7 @@ use App\Entitlement\Domain\EntitlementRepository;
 use App\Product\Service\ProductResolver;
 use App\Shared\Exceptions\UnauthenticatedException;
 use App\Tenant\Service\TenantResolver;
+use App\User\Domain\UserDirectory;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -33,6 +34,7 @@ final class RequestContextMiddleware implements MiddlewareInterface
 {
     public function __construct(
         private readonly AuthProvider $auth,
+        private readonly UserDirectory $users,
         private readonly ProductResolver $products,
         private readonly TenantResolver $tenants,
         private readonly EntitlementRepository $entitlements,
@@ -48,16 +50,21 @@ final class RequestContextMiddleware implements MiddlewareInterface
 
         $identity = $this->auth->authenticate($this->bearerToken($request));
 
+        // The provider says who they are; the directory says who that is
+        // here, provisioning on first sight (ADR-017). Everything downstream
+        // uses the internal id, never the provider subject.
+        $user = $this->users->resolve($identity);
+
         $product = $this->products->resolve($request->getHeaderLine(ProductResolver::HEADER));
 
         $membership = $this->tenants->resolve(
-            $identity->userId,
+            $user->id,
             $product->id,
             $request->getHeaderLine(TenantResolver::SELECTION_HEADER),
         );
 
         $context = new RequestContext(
-            $identity->userId,
+            $user->id,
             $product->id,
             $membership->tenantId,
             $membership->roles,

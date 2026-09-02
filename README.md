@@ -84,8 +84,10 @@ as they gain those layers; small modules stay lighter (§41.1).
 
 ## Status
 
-M1 of [`docs/backend-roadmap.md`](docs/backend-roadmap.md): the request
-context chain. Routes are `GET /api/v1/health` (public) and `GET /api/v1/me`.
+M2 (persistence foundation) of
+[`docs/backend-roadmap.md`](docs/backend-roadmap.md), on top of the M1 request
+context chain. Routes are `GET /api/v1/health` (public) and `GET /api/v1/me`;
+tenant and user management endpoints are the next increment.
 
 Every request to a non-public path resolves, in this order (§10.6):
 
@@ -101,8 +103,23 @@ query or body is reading a claim, not a decision — see
 Routes are protected by omission: only paths in the public-routes list skip
 the chain, so a new route is secure unless someone deliberately exempts it.
 
-**Persistence is not implemented.** Products, tenant memberships and
-entitlements are served by in-memory adapters behind their ports, seeded
-empty in production wiring. The PostgreSQL adapters arrive with the milestone
-that owns each table — tenants in M2, products in M3, entitlements in M5 —
-and swapping them changes no caller.
+Users, products, tenants and membership are stored in PostgreSQL. A person is
+provisioned locally on their first authenticated request
+([ADR-017](docs/adr/ADR-017-user-provisioning.md)); the internal user id, not
+the identity provider's subject, is what every foreign key references.
+
+Entitlements remain in memory and seeded empty until offers and subscriptions
+land in M5, so no tenant may currently use any capability.
+
+## Database
+
+Requires PostgreSQL 16. Set `DATABASE_DSN`, then:
+
+```bash
+composer run migrate
+```
+
+Migrations are hand-written SQL
+([ADR-016](docs/adr/ADR-016-migrations.md)). Tests that need a database skip
+without `DATABASE_DSN` and always run in CI, which provisions PostgreSQL as a
+service.

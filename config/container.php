@@ -10,17 +10,21 @@ use App\Auth\Infrastructure\SupabaseJwtAuthProvider;
 use App\Entitlement\Domain\EntitlementRepository;
 use App\Entitlement\Infrastructure\InMemoryEntitlementRepository;
 use App\Product\Domain\ProductRepository;
-use App\Product\Infrastructure\InMemoryProductRepository;
+use App\Product\Infrastructure\PostgresProductRepository;
 use App\Shared\Context\PublicRoutes;
 use App\Shared\Context\RequestContextMiddleware;
+use App\Shared\Database\ConnectionFactory;
 use App\Shared\Http\Middleware\ErrorHandlerMiddleware;
 use App\Shared\Http\Middleware\RequestIdMiddleware;
 use App\Shared\Http\MiddlewarePipeline;
 use App\Shared\Http\Router;
 use App\Shared\Logging\ErrorLogLogger;
 use App\Tenant\Domain\TenantMembershipRepository;
-use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
+use App\Tenant\Infrastructure\PostgresTenantMembershipRepository;
+use App\User\Domain\UserDirectory;
+use App\User\Infrastructure\PostgresUserDirectory;
 use DI\ContainerBuilder;
+use Doctrine\DBAL\Connection;
 use FastRoute\Dispatcher;
 use FastRoute\RouteCollector;
 use Psr\Container\ContainerInterface;
@@ -72,18 +76,22 @@ return static function (array $overrides = []): ContainerInterface {
             ->constructorParameter('expectedIssuer', $env('SUPABASE_ISSUER'))
             ->constructorParameter('expectedAudience', $env('SUPABASE_AUDIENCE', 'authenticated')),
 
+        // --- Persistence ----------------------------------------------------
+        // DBAL connects lazily, so an unconfigured or unreachable database
+        // does not stop the process from serving the liveness probe.
+        Connection::class => factory(
+            static fn (): Connection => ConnectionFactory::fromDsn($env('DATABASE_DSN')),
+        ),
+
         // --- Platform data --------------------------------------------------
-        // In-memory placeholders. The real PostgreSQL adapters arrive with the
-        // milestone that owns each table: tenants in M2, products in M3,
-        // entitlements in M5. Seeded empty, so nothing is silently granted.
-        ProductRepository::class => factory(
-            static fn (): ProductRepository => new InMemoryProductRepository([]),
-        ),
+        UserDirectory::class => autowire(PostgresUserDirectory::class),
+        ProductRepository::class => autowire(PostgresProductRepository::class),
+        TenantMembershipRepository::class => autowire(PostgresTenantMembershipRepository::class),
 
-        TenantMembershipRepository::class => factory(
-            static fn (): TenantMembershipRepository => new InMemoryTenantMembershipRepository([]),
-        ),
-
+        // Still in memory and seeded empty: offers and subscriptions are M5,
+        // and until then no tenant may use anything. Absence of a
+        // subscription must read as "may use nothing", never as "may use
+        // everything".
         EntitlementRepository::class => factory(
             static fn (): EntitlementRepository => new InMemoryEntitlementRepository([]),
         ),
