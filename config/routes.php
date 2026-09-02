@@ -6,6 +6,11 @@ use App\Health\Controller\HealthController;
 use App\Identity\Controller\MeController;
 use App\Identity\Controller\MePermissionsController;
 use App\Identity\Controller\UpdateMeController;
+use App\Product\Controller\ListProductsController;
+use App\Product\Controller\ProductCatalogueController;
+use App\Product\Controller\ProductConfigurationController;
+use App\Product\Controller\ProductFeaturesController;
+use App\Product\Controller\ShowProductController;
 use App\Tenant\Controller\AddMemberController;
 use App\Tenant\Controller\CurrentTenantController;
 use App\Tenant\Controller\ListMembersController;
@@ -33,6 +38,13 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/me', MeController::class);
     $routes->addRoute('PATCH', '/api/v1/me', UpdateMeController::class);
     $routes->addRoute('GET', '/api/v1/me/permissions', MePermissionsController::class);
+
+    // Identity-only: discovery cannot require the product context it supplies.
+    $routes->addRoute('GET', '/api/v1/products', ListProductsController::class);
+    $routes->addRoute('GET', '/api/v1/products/{productId}', ShowProductController::class);
+    $routes->addRoute('GET', '/api/v1/products/{productId}/catalog', ProductCatalogueController::class);
+    $routes->addRoute('GET', '/api/v1/products/{productId}/features', ProductFeaturesController::class);
+    $routes->addRoute('GET', '/api/v1/products/{productId}/configuration', ProductConfigurationController::class);
 
     $routes->addRoute('GET', '/api/v1/tenants/current', CurrentTenantController::class);
     $routes->addRoute('PATCH', '/api/v1/tenants/current', UpdateCurrentTenantController::class);

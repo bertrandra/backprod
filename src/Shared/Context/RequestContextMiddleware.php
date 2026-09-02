@@ -25,10 +25,14 @@ use Psr\Http\Server\RequestHandlerInterface;
  * delegated to a collaborator that is testable on its own; this class owns
  * only the sequence and the mapping from HTTP to those collaborators.
  *
+ * How far it goes depends on the route's policy. Everything past
+ * authentication is skipped for identity-only routes — product discovery
+ * cannot require a product — but nothing skips authentication itself.
+ *
  * Resource authorization — the final step — is deliberately not performed
  * here: it depends on the resource being addressed, so handlers ask the
- * resulting RequestContext. What this middleware guarantees is that no
- * handler runs without one.
+ * resulting context. What this middleware guarantees is that no handler runs
+ * without one.
  */
 final class RequestContextMiddleware implements MiddlewareInterface
 {
@@ -38,13 +42,15 @@ final class RequestContextMiddleware implements MiddlewareInterface
         private readonly ProductResolver $products,
         private readonly TenantResolver $tenants,
         private readonly EntitlementRepository $entitlements,
-        private readonly PublicRoutes $publicRoutes,
+        private readonly RoutePolicy $policy,
     ) {
     }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        if ($this->publicRoutes->includes($request->getUri()->getPath())) {
+        $policy = $this->policy->for($request->getUri()->getPath());
+
+        if ($policy === RoutePolicy::PUBLIC) {
             return $handler->handle($request);
         }
 
@@ -54,6 +60,15 @@ final class RequestContextMiddleware implements MiddlewareInterface
         // here, provisioning on first sight (ADR-017). Everything downstream
         // uses the internal id, never the provider subject.
         $user = $this->users->resolve($identity);
+
+        $request = $request->withAttribute(
+            IdentityContext::ATTRIBUTE,
+            new IdentityContext($user->id),
+        );
+
+        if ($policy === RoutePolicy::IDENTITY_ONLY) {
+            return $handler->handle($request);
+        }
 
         $product = $this->products->resolve($request->getHeaderLine(ProductResolver::HEADER));
 
@@ -80,11 +95,9 @@ final class RequestContextMiddleware implements MiddlewareInterface
 
     private function bearerToken(ServerRequestInterface $request): string
     {
-        $header = $request->getHeaderLine('Authorization');
-
         // \S+ guarantees a non-empty capture, so a successful match needs no
         // further checking of the group.
-        if (preg_match('/^Bearer[ ]+(?<token>\S+)$/i', $header, $matches) !== 1) {
+        if (preg_match('/^Bearer[ ]+(?<token>\S+)$/i', $request->getHeaderLine('Authorization'), $matches) !== 1) {
             throw new UnauthenticatedException();
         }
 

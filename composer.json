@@ -58,13 +58,16 @@
             "@stan",
             "@deptrac",
             "@gate:proof",
+            "@gate:products",
             "@test"
         ],
-        "migrate": "doctrine-migrations migrate --no-interaction --allow-no-migration"
+        "migrate": "doctrine-migrations migrate --no-interaction --allow-no-migration",
+        "gate:products": "@php tools/prove-no-product-branching.php"
     },
     "scripts-descriptions": {
         "gates": "Run the full quality gate chain exactly as CI does",
         "gate:proof": "Prove the Deptrac gate actually rejects an illegal dependency",
-        "migrate": "Apply pending database migrations"
+        "migrate": "Apply pending database migrations",
+        "gate:products": "Prove no code branches on product identity (\u00a712.1)"
     }
 }

@@ -9,10 +9,12 @@ use App\Auth\Infrastructure\StaticSigningKeySource;
 use App\Auth\Infrastructure\SupabaseJwtAuthProvider;
 use App\Entitlement\Domain\EntitlementRepository;
 use App\Entitlement\Infrastructure\InMemoryEntitlementRepository;
+use App\Product\Domain\ProductRegistry;
 use App\Product\Domain\ProductRepository;
+use App\Product\Infrastructure\PostgresProductRegistry;
 use App\Product\Infrastructure\PostgresProductRepository;
-use App\Shared\Context\PublicRoutes;
 use App\Shared\Context\RequestContextMiddleware;
+use App\Shared\Context\RoutePolicy;
 use App\Shared\Database\ConnectionFactory;
 use App\Shared\Http\Middleware\ErrorHandlerMiddleware;
 use App\Shared\Http\Middleware\RequestIdMiddleware;
@@ -93,6 +95,7 @@ return static function (array $overrides = []): ContainerInterface {
         UserDirectory::class => autowire(PostgresUserDirectory::class),
         UserRepository::class => autowire(PostgresUserRepository::class),
         ProductRepository::class => autowire(PostgresProductRepository::class),
+        ProductRegistry::class => autowire(PostgresProductRegistry::class),
         TenantRepository::class => autowire(PostgresTenantRepository::class),
         TenantMemberRepository::class => autowire(PostgresTenantMemberRepository::class),
         TenantMembershipRepository::class => autowire(PostgresTenantMembershipRepository::class),
@@ -106,8 +109,14 @@ return static function (array $overrides = []): ContainerInterface {
         ),
 
         // --- HTTP -----------------------------------------------------------
-        PublicRoutes::class => factory(
-            static fn (): PublicRoutes => new PublicRoutes(['/api/v1/health']),
+        // Three levels of protection, declared in one place. Anything not
+        // listed gets the full §10.6 chain, so a new route is protected by
+        // omission rather than by remembering to protect it.
+        RoutePolicy::class => factory(
+            static fn (): RoutePolicy => new RoutePolicy(
+                publicPaths: ['/api/v1/health'],
+                identityOnlyPaths: ['/api/v1/products'],
+            ),
         ),
 
         Dispatcher::class => factory(static function (): Dispatcher {
