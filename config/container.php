@@ -7,6 +7,8 @@ use App\Auth\Infrastructure\NullSigningKeySource;
 use App\Auth\Infrastructure\SigningKeySource;
 use App\Auth\Infrastructure\StaticSigningKeySource;
 use App\Auth\Infrastructure\SupabaseJwtAuthProvider;
+use App\Commerce\Domain\CatalogueRepository;
+use App\Commerce\Infrastructure\PostgresCatalogueRepository;
 use App\Entitlement\Domain\EntitlementRepository;
 use App\Entitlement\Infrastructure\InMemoryEntitlementRepository;
 use App\Product\Domain\ProductRegistry;
@@ -98,6 +100,7 @@ return static function (array $overrides = []): ContainerInterface {
         UserRepository::class => autowire(PostgresUserRepository::class),
         ProductRepository::class => autowire(PostgresProductRepository::class),
         ProductRegistry::class => autowire(PostgresProductRegistry::class),
+        CatalogueRepository::class => autowire(PostgresCatalogueRepository::class),
         ProjectRepository::class => autowire(PostgresProjectRepository::class),
         TenantRepository::class => autowire(PostgresTenantRepository::class),
         TenantMemberRepository::class => autowire(PostgresTenantMemberRepository::class),

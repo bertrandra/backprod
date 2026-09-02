@@ -7,6 +7,7 @@ $finder = PhpCsFixer\Finder::create()
     ->append([
         __DIR__ . '/tools/prove-architecture-gate.php',
         __DIR__ . '/tools/prove-no-product-branching.php',
+        __DIR__ . '/tools/prove-no-plan-branching.php',
     ]);
 
 return (new PhpCsFixer\Config())

@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Commerce\Controller\ListFeaturesController;
+use App\Commerce\Controller\ListOffersController;
+use App\Commerce\Controller\ListPlansController;
+use App\Commerce\Controller\ShowOfferController;
 use App\Health\Controller\HealthController;
 use App\Identity\Controller\MeController;
 use App\Identity\Controller\MePermissionsController;
@@ -55,6 +59,14 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/products/{productId}/catalog', ProductCatalogueController::class);
     $routes->addRoute('GET', '/api/v1/products/{productId}/features', ProductFeaturesController::class);
     $routes->addRoute('GET', '/api/v1/products/{productId}/configuration', ProductConfigurationController::class);
+
+    // The catalogue: what this product sells. Product-scoped through the
+    // resolved context, so two products never see each other's commercial
+    // terms.
+    $routes->addRoute('GET', '/api/v1/plans', ListPlansController::class);
+    $routes->addRoute('GET', '/api/v1/features', ListFeaturesController::class);
+    $routes->addRoute('GET', '/api/v1/offers', ListOffersController::class);
+    $routes->addRoute('GET', '/api/v1/offers/{offerId}', ShowOfferController::class);
 
     // Projects take the full context chain: unlike discovery, they are
     // tenant data, and every one of these resolves product *and* tenant

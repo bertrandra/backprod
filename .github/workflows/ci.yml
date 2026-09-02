@@ -79,5 +79,11 @@ jobs:
       - name: No product-specific branching
         run: composer run gate:products
 
+      # §13 bans rights expressed as plan-name checks. Same reasoning as the
+      # gate above, and verified to fail on a deliberate violation before it
+      # was trusted here.
+      - name: No plan-name branching
+        run: composer run gate:plans
+
       - name: Tests
         run: composer run test
