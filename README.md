@@ -84,12 +84,17 @@ as they gain those layers; small modules stay lighter (§41.1).
 
 ## Status
 
-M2 of [`docs/backend-roadmap.md`](docs/backend-roadmap.md) — platform
-identity — on top of the M1 request context chain.
+M3 of [`docs/backend-roadmap.md`](docs/backend-roadmap.md) — the product
+registry — on top of M1's context chain and M2's platform identity.
 
 | Route | Permission |
 |---|---|
 | `GET /api/v1/health` | public |
+| `GET /api/v1/products` | authenticated only |
+| `GET /api/v1/products/{id}` | authenticated only |
+| `GET /api/v1/products/{id}/catalog` | authenticated only |
+| `GET /api/v1/products/{id}/features` | authenticated only |
+| `GET /api/v1/products/{id}/configuration` | authenticated only |
 | `GET /api/v1/me` | — |
 | `PATCH /api/v1/me` | `account.manage` |
 | `GET /api/v1/me/permissions` | — |
@@ -108,6 +113,15 @@ is a subscription change, `NO_TENANT_ACCESS` is an invitation.
 
 There is deliberately no `/tenants/{id}` — the tenant is whichever one the
 context chain resolved.
+
+Product routes are **authenticated but product-agnostic**: a client cannot
+send `X-Product` before it knows which products it may use, and it learns
+that from `/products`. They authorise per product from membership instead. A
+product you have no membership in is reported exactly as one that does not
+exist.
+
+Everything else requires the full chain by omission — a new route is
+protected unless someone deliberately relaxes it.
 
 Every request to a non-public path resolves, in this order (§10.6):
 

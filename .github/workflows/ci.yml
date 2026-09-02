@@ -74,5 +74,10 @@ jobs:
       - name: Architecture gate is enforced
         run: composer run gate:proof
 
+      # §12.1 bans branching on a product's identity; the architecture gate
+      # cannot see a string comparison, so it is checked separately.
+      - name: No product-specific branching
+        run: composer run gate:products
+
       - name: Tests
         run: composer run test
