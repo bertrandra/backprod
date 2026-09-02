@@ -36,7 +36,9 @@
     },
     "config": {
         "sort-packages": true,
-        "use-github-api": false
+        "platform": {
+            "php": "8.3.0"
+        }
     },
     "scripts": {
         "cs": "php-cs-fixer check --diff",
