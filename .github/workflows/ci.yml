@@ -18,6 +18,29 @@ jobs:
     name: Quality gates
     runs-on: ubuntu-latest
 
+    # A real PostgreSQL, not a substitute. The repository adapters exist to
+    # run SQL, and the tenant isolation they enforce is only meaningfully
+    # tested against the database that will enforce it in production.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: backprod
+          POSTGRES_PASSWORD: backprod
+          POSTGRES_DB: backprod_test
+        ports:
+          - 5432:5432
+        # -U matters: without it pg_isready connects as the runner's OS user,
+        # which has no role, and the server logs a FATAL for every probe.
+        options: >-
+          --health-cmd "pg_isready -U backprod -d backprod_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_DSN: postgresql://backprod:backprod@127.0.0.1:5432/backprod_test
+
     steps:
       - uses: actions/checkout@v4
 
@@ -31,6 +54,11 @@ jobs:
 
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
+
+      # Migrations run before the tests that read the schema they create, and
+      # running them here also proves each one applies to an empty database.
+      - name: Migrate
+        run: composer run migrate
 
       - name: Coding standards
         run: composer run cs

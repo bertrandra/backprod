@@ -13,6 +13,8 @@ use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
+use App\User\Domain\UserDirectory;
+use App\User\Infrastructure\InMemoryUserDirectory;
 use PHPUnit\Framework\Attributes\CoversNothing;
 
 /**
@@ -33,6 +35,9 @@ final class ErrorEnvelopeTest extends ApiTestCase
         parent::setUp();
 
         $this->override([
+            // Provisioned ids are the subjects, so fixtures stay readable.
+            UserDirectory::class => new InMemoryUserDirectory(),
+
             AuthProvider::class => new FakeAuthProvider(['valid-token' => 'user-1']),
 
             ProductRepository::class => new InMemoryProductRepository([
