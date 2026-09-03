@@ -303,10 +303,11 @@ final class SalesChainTest extends DatabaseApiTestCase
 
         $transmission = $this->decode($response);
         self::assertSame('SUBMITTED', $transmission['status'] ?? null);
-        self::assertIsString($transmission['provider_document_id'] ?? null);
         self::assertSame('SUBMITTED', $this->statusOf('invoices', $invoiceId));
 
-        $document = $transmission['provider_document_id'];
+        // Asserted once. Narrowing the offset and then narrowing the variable
+        // read from it makes the second assertion dead.
+        $document = $transmission['provider_document_id'] ?? null;
         self::assertIsString($document);
 
         $this->deliver(['id' => 'ev_ok', 'type' => 'document.accepted', 'document_id' => $document]);
