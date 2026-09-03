@@ -37,7 +37,7 @@ final class StartConversationController implements RouteHandler
             $context->userId,
             $body->has('kind') ? $body->requiredString('kind', 16) : ConversationKind::INTERNAL,
             $body->requiredString('subject', Conversations::MAX_SUBJECT),
-            $body->has('participants') ? $body->requiredStringList('participants') : [],
+            $body->optionalStringList('participants'),
         );
 
         return new JsonResponse(MessagingPresenter::conversation($conversation), 201);

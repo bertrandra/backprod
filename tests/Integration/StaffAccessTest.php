@@ -102,10 +102,15 @@ final class StaffAccessTest extends DatabaseApiTestCase
 
     public function testAStaffRoleOpensNoTenantRoute(): void
     {
-        // Sam holds SUPPORT_ADMIN and belongs to no tenant. The tenant route
-        // refuses him for the reason it refuses any stranger — no membership
-        // — rather than consulting his platform role at all.
-        $response = $this->get('/api/v1/tenants/current', 'sam-token');
+        // Sam holds SUPPORT_ADMIN and belongs to no tenant. The product is
+        // sent so the request reaches tenant resolution: refusing it earlier,
+        // for a missing header, would prove nothing about the platform role.
+        // It gets there and is refused for the reason any stranger is — no
+        // membership — rather than his platform role being consulted at all.
+        $response = $this->request('GET', '/api/v1/tenants/current', [
+            'Authorization' => 'Bearer sam-token',
+            'X-Product' => 'atlas',
+        ]);
 
         self::assertSame(403, $response->getStatusCode());
     }
