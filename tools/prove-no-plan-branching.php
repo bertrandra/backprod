@@ -43,6 +43,13 @@ $patterns = [
     // names to rights is itself what §13 asks to be moved into the database.
     '/[\'"](?:' . $tiers . ')[\'"]\s*=>/',
     '/\bcase\s+[\'"](?:' . $tiers . ')[\'"]\s*:/',
+    // A plan or tier reached through a property path. Found by watching the
+    // gate misfire: it matched `$offer->version->billingPeriod`, which is a
+    // term rather than an identity — and in doing so revealed that it keyed
+    // on the *variable* name, so `match ($version->plan->code)` would have
+    // walked past it.
+    '/\bmatch\s*\(\s*\$\w+(?:->\w+)*->(?:plan|tier)\b/i',
+    '/->(?:plan|tier)(?:->\w+)*\s*(?:===|==|!==|!=)\s*[\'"]/i',
     '/\bin_array\s*\(\s*\$\w*(?:plan|offer|tier)\w*\b/i',
     '/\bmatch\s*\(\s*\$\w*(?:plan|offer|tier)\w*(?:->\w+)*\s*\)/i',
 ];

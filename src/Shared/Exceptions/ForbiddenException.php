@@ -48,4 +48,25 @@ final class ForbiddenException extends HttpException
             ['capability' => $capability],
         );
     }
+
+    /**
+     * The tenant has the feature and has used all of it.
+     *
+     * A fourth refusal, distinct from the three above because it is fixed in
+     * a fourth place. ENTITLEMENT_REQUIRED says "you did not buy this";
+     * this says "you did, and there is none left" — which is answered by
+     * upgrading or by deleting something, not by changing a role or a plan.
+     *
+     * The limit and the usage are both returned: a client told only that it
+     * is over quota cannot show its user how far over, or how much deleting
+     * one thing would help.
+     */
+    public static function quotaExceeded(string $capability, int $limit, int $used): self
+    {
+        return new self(
+            'QUOTA_EXCEEDED',
+            'The tenant has used all of this allowance.',
+            ['capability' => $capability, 'limit' => $limit, 'used' => $used],
+        );
+    }
 }

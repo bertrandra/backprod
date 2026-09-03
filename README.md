@@ -73,16 +73,16 @@ config/     container and route definitions
 migrations/ hand-written SQL, one class per change
 public/     front controller
 src/
-  Auth/     token verification behind a provider port
-  Entitlement/ what a tenant has bought
-  Health/   liveness endpoint
-  Identity/ the caller's own account
-  Commerce/ plans, billable features and versioned offers
-  Product/  the product registry and catalogue
-  Project/  projects and their versions
-  Tenant/   tenants, members and roles
-  User/     platform users and provisioning
-  Shared/   Context (the §10.6 chain), Http, Database, Exceptions, Logging
+  Auth/        token verification behind a provider port
+  Commerce/    plans, features, offers, subscriptions, entitlement rows
+  Entitlement/ the narrow port the §10.6 chain reads, plus quotas
+  Health/      liveness endpoint
+  Identity/    the caller's own account
+  Product/     the product registry and catalogue
+  Project/     projects and their versions
+  Tenant/      tenants, members and roles
+  User/        platform users and provisioning
+  Shared/      Context (the §10.6 chain), Http, Database, Exceptions, Logging
 tests/
   Unit/
   Integration/
@@ -96,10 +96,10 @@ as they gain those layers; small modules stay lighter (§41.1).
 
 ## Status
 
-M5 part 1 of [`docs/backend-roadmap.md`](docs/backend-roadmap.md) — the
-commercial catalogue — on top of M1's context chain, M2's platform identity,
-M3's product registry and M4's projects. Subscriptions, entitlements and
-quota enforcement are part 2.
+M5 of [`docs/backend-roadmap.md`](docs/backend-roadmap.md) — commerce, in
+full — on top of M1's context chain, M2's platform identity, M3's product
+registry and M4's projects. Entitlements are no longer a placeholder: what a
+tenant may use comes from what they subscribed to.
 
 | Route | Permission |
 |---|---|
@@ -132,12 +132,28 @@ quota enforcement are part 2.
 | `GET /api/v1/features` | `catalog.read` |
 | `GET /api/v1/offers` | `catalog.read` |
 | `GET /api/v1/offers/{id}` | `catalog.read` |
+| `GET /api/v1/subscription` | `subscription.read` |
+| `POST /api/v1/subscription` | `subscription.manage` |
+| `POST /api/v1/subscription/change-offer` | `subscription.manage` |
+| `POST /api/v1/subscription/cancel` | `subscription.manage` |
+| `POST /api/v1/subscription/resume` | `subscription.manage` |
+| `GET /api/v1/entitlements` | `entitlements.read` |
+| `GET /api/v1/me/entitlements` | — |
+| `GET /api/v1/tenants/current/usage` | `entitlements.read` |
 
 Authorisation asks about **permissions**, never role names (§13). Roles map
 to permissions in the database, so moving a permission between roles changes
-no code. Three refusals mean three different things and are fixed in three
-different places: `PERMISSION_DENIED` is a role change, `ENTITLEMENT_REQUIRED`
-is a subscription change, `NO_TENANT_ACCESS` is an invitation.
+no code.
+
+**Four refusals, four different fixes** — conflating them sends a customer to
+the wrong screen:
+
+| Code | Means | Fixed by |
+|---|---|---|
+| `NO_TENANT_ACCESS` | not a member | an invitation |
+| `PERMISSION_DENIED` | wrong role | a role change |
+| `ENTITLEMENT_REQUIRED` | not bought | a subscription change |
+| `QUOTA_EXCEEDED` | bought, and used up | an upgrade, or deleting something |
 
 There is deliberately no `/tenants/{id}` — the tenant is whichever one the
 context chain resolved.
@@ -166,10 +182,6 @@ Users, products, tenants and membership are stored in PostgreSQL. A person is
 provisioned locally on their first authenticated request
 ([ADR-017](docs/adr/ADR-017-user-provisioning.md)); the internal user id, not
 the identity provider's subject, is what every foreign key references.
-
-Entitlements remain in memory and seeded empty until subscriptions land in
-M5 part 2, so no tenant may currently use any capability. The `max_projects`
-quota is an entitlement, so project creation is not yet quota-limited.
 
 ## Commerce
 
@@ -216,6 +228,43 @@ do not mention `$plan` at all.
 
 Nothing writes to the catalogue yet: plans, features and offers are seeded by
 migration or by an administrator. Authoring endpoints are M8.
+
+## Subscriptions and entitlements
+
+A subscription points at an **offer version**, so what a tenant agreed to
+cannot change under them when the offer is repriced. Withdrawing an offer from
+sale does not cancel the people on it: their terms stay readable through their
+subscription, which is the one place a withdrawn offer remains visible.
+
+Entitlements are **stored rows with a validity window**, written when a
+subscription changes ([ADR-020](docs/adr/ADR-020-entitlement-resolution.md)).
+They are read by the §10.6 chain on every authenticated request, which is why
+they are not a four-table join, and why they are not a cache either.
+
+The window is the point. **In this platform a lapse is a fact about the clock,
+never about whether something ran** — the same rule that decides whether an
+offer may be sold. A subscription's `status` may sit at `ACTIVE` long after
+its period ended; the tenant is entitled to nothing regardless, and there is a
+test that leaves the column deliberately stale to prove it.
+
+A `SUBSCRIPTION` grant is replaced on every plan change; an `OVERRIDE` — a
+negotiated exception — survives one. Where a feature is held twice the **most
+generous wins**, because the alternative is a support team's deliberate
+exception silently doing nothing.
+
+**Quotas are enforced against measured usage**, never a counter the platform
+maintains: a counter drifts the first time a delete half-fails, and a quota
+enforced from a drifted counter refuses a customer who is within their
+allowance. A quota nothing counts yet is reported as `"metered": false` with
+no invented number, rather than a confident zero that looks like enforcement.
+
+**Absence grants nothing.** An offer that does not mention `max_projects`
+grants no projects, not unlimited — otherwise forgetting a line in a price
+list would be the way to give something away.
+
+Renewal is a service method with no endpoint: renewing is what time does, and
+the job that notices is M7. It is written and tested now rather than first
+exercised in production.
 
 ## Projects
 

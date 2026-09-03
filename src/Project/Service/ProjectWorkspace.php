@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Project\Service;
 
+use App\Entitlement\Domain\QuotaPolicy;
 use App\Project\Domain\DocumentPolicy;
 use App\Project\Domain\Project;
 use App\Project\Domain\ProjectChanges;
@@ -21,18 +22,29 @@ use App\Shared\Exceptions\NotFoundException;
  * tenant is not "denied" — it is not found, which is the same answer an
  * invented id gets (§31).
  *
- * Quotas are not enforced here yet: max_projects is an entitlement, and
- * offers and subscriptions arrive in M5. Until then no capability is
- * granted to anyone, so there is nothing truthful to check against.
+ * How many projects a tenant may hold is an entitlement, not a constant
+ * here: the offer they subscribed to says, and QuotaPolicy enforces it
+ * against the count of projects that actually exist.
+ *
+ * An offer that does not mention max_projects grants no projects at all,
+ * rather than unlimited. Absence grants nothing, everywhere in this platform
+ * — the alternative would make forgetting a line in a price list the way to
+ * give something away.
  */
 final class ProjectWorkspace
 {
     public const NAME_MAX_LENGTH = 255;
 
+    /**
+     * The entitlement that says how many projects a tenant may hold.
+     */
+    public const QUOTA = 'max_projects';
+
     public function __construct(
         private readonly ProjectRepository $projects,
         private readonly SchemaVersionPolicy $schemaVersions,
         private readonly DocumentPolicy $documents,
+        private readonly QuotaPolicy $quotas,
     ) {
     }
 
@@ -69,6 +81,10 @@ final class ProjectWorkspace
         int $schemaVersion,
         object $document,
     ): Project {
+        // Quota first: a tenant at their limit should be told so before
+        // being told their document is too deep. The cheapest refusal to act
+        // on is the one that names what to do about it.
+        $this->quotas->assertMayConsume($tenantId, $productId, self::QUOTA);
         $this->schemaVersions->assertSupported($productId, $schemaVersion);
         $this->documents->assertStorable($document);
 
@@ -196,6 +212,10 @@ final class ProjectWorkspace
         ?string $createdBy,
     ): Project {
         $project = $this->get($tenantId, $productId, $projectId);
+
+        // A duplicate is a new project and counts against the same quota.
+        // Exempting it would make the limit trivially avoidable.
+        $this->quotas->assertMayConsume($tenantId, $productId, self::QUOTA);
 
         // A copy carries the original's schema version rather than being
         // refused when that version has been retired: it is the same document,
