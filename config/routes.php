@@ -2,6 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Billing\Controller\CancelInvoiceController;
+use App\Billing\Controller\IssueInvoiceController;
+use App\Billing\Controller\ListInvoicesController;
+use App\Billing\Controller\PayInvoiceController;
+use App\Billing\Controller\SaveBillingProfileController;
+use App\Billing\Controller\ShowBillingProfileController;
+use App\Billing\Controller\ShowInvoiceController;
 use App\Commerce\Controller\CancelSubscriptionController;
 use App\Commerce\Controller\ChangeOfferController;
 use App\Commerce\Controller\ListEntitlementsController;
@@ -85,6 +92,18 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('POST', '/api/v1/subscription/resume', ResumeSubscriptionController::class);
 
     $routes->addRoute('GET', '/api/v1/entitlements', ListEntitlementsController::class);
+
+    // What the tenant is charged, and who it is charged as. Both take the
+    // full context chain: an invoice is the most sensitive thing a tenant
+    // owns here, and every read is scoped by tenant *and* product.
+    $routes->addRoute('GET', '/api/v1/billing/profile', ShowBillingProfileController::class);
+    $routes->addRoute('PUT', '/api/v1/billing/profile', SaveBillingProfileController::class);
+
+    $routes->addRoute('GET', '/api/v1/billing/invoices', ListInvoicesController::class);
+    $routes->addRoute('POST', '/api/v1/billing/invoices', IssueInvoiceController::class);
+    $routes->addRoute('GET', '/api/v1/billing/invoices/{invoiceId}', ShowInvoiceController::class);
+    $routes->addRoute('POST', '/api/v1/billing/invoices/{invoiceId}/pay', PayInvoiceController::class);
+    $routes->addRoute('POST', '/api/v1/billing/invoices/{invoiceId}/cancel', CancelInvoiceController::class);
 
     // Projects take the full context chain: unlike discovery, they are
     // tenant data, and every one of these resolves product *and* tenant
