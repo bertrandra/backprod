@@ -668,6 +668,55 @@ changes what a lapsed quote or subscription *means*: acceptance and
 entitlement resolution have asked the clock since M5 and M6. They make the
 status column agree with the clock, which is what listings read.
 
+## Assets
+
+Large files live outside PostgreSQL (non-negotiable #9,
+[ADR-028](docs/adr/ADR-028-assets-and-signed-links.md)). The `assets` table
+records an object — key, type, size, checksum — and never holds one.
+
+**The stored content type is sniffed from the bytes, never taken from the
+request.** A client's `Content-Type` is a claim, and a claim is what an
+attacker controls. Verified against real bytes, not assumed:
+
+| Uploaded as | Sniffed as | Stored? |
+|---|---|---|
+| `image/png`, actually a PNG | `image/png` | ✅ |
+| `application/pdf`, actually a PNG | `image/png` | ✅ as PNG |
+| `image/png`, a PHP script behind PNG magic bytes | `application/octet-stream` | ❌ |
+| anything, an SVG | `image/svg+xml` | ❌ |
+
+SVG is excluded on purpose: an image to a user, a script container to a
+browser, and serving one from this origin would be stored XSS with a friendly
+extension.
+
+**Storage keys are generated, never derived from the filename** — a key built
+from user input is a path traversal waiting to be written. The filename
+survives as a display label only, and the local adapter refuses any key that
+is not the shape this platform generates.
+
+**Downloads use signed, expiring links.** A browser fetching an image in an
+`<img>` tag sends no Authorization header, so the URL carries its own proof —
+the same shape as the payment webhook. The expiry is inside the signed
+material, so it cannot be extended by editing the query string; comparison is
+constant-time; and with no configured secret, verification fails closed.
+
+The public prefix is `/api/v1/downloads/` and covers exactly one route.
+Mounting it under `/assets/` would have exposed the whole asset surface.
+
+```text
+POST   /api/v1/projects/{id}/assets     the request body IS the file
+GET    /api/v1/projects/{id}/assets
+POST   /api/v1/projects/{id}/exports    202 and a job id; the runner renders it
+GET    /api/v1/assets/{id}
+DELETE /api/v1/assets/{id}
+POST   /api/v1/assets/{id}/link         a short-lived signed URL
+GET    /api/v1/downloads/{id}/content   the only route needing no session
+```
+
+An orphaned object is possible and is the failure deliberately chosen: upload
+writes the object then the row, delete does the reverse, so a half-success
+leaves something unreachable rather than a listing that lies.
+
 ## Projects
 
 A project is a document the Core owns, stored as JSONB, plus the columns the

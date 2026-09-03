@@ -35,6 +35,11 @@ final class RequestJobController implements RouteHandler
             $context->tenantId,
             $context->productId,
             $body->requiredString('type', 100),
+            // No payload from the client, deliberately. A handler acts on
+            // what its payload says, so an arbitrary one posted here is an
+            // injection surface aimed at whatever the queue runs. Jobs that
+            // need arguments get a typed endpoint that builds them — as
+            // /projects/{id}/exports does.
             [],
             $body->optionalNullableString('idempotency_key', 200),
             $context->userId,

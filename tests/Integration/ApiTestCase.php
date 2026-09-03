@@ -127,7 +127,16 @@ abstract class ApiTestCase extends TestCase
         return $error;
     }
 
-    private function app(): RequestHandlerInterface
+    /**
+     * The production container, built with this test's overrides.
+     *
+     * A fresh one each call, which is fine for anything whose state lives
+     * outside it — the database, the storage root — and is why a test that
+     * reaches for a service here gets the same rows and the same files the
+     * HTTP requests do. It is not a way to inspect an in-memory double: that
+     * would be a second instance with its own memory.
+     */
+    protected function container(): ContainerInterface
     {
         $factory = require dirname(__DIR__, 2) . '/config/container.php';
 
@@ -141,7 +150,12 @@ abstract class ApiTestCase extends TestCase
             throw new RuntimeException('Container factory must return a PSR-11 container.');
         }
 
-        $app = $container->get(RequestHandlerInterface::class);
+        return $container;
+    }
+
+    private function app(): RequestHandlerInterface
+    {
+        $app = $this->container()->get(RequestHandlerInterface::class);
 
         if (!$app instanceof RequestHandlerInterface) {
             throw new RuntimeException('Container must provide a PSR-15 request handler.');

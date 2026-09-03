@@ -60,6 +60,7 @@ use App\Project\Controller\DeleteProjectController;
 use App\Project\Controller\DuplicateProjectController;
 use App\Project\Controller\ListProjectsController;
 use App\Project\Controller\ListProjectVersionsController;
+use App\Project\Controller\RequestExportController;
 use App\Project\Controller\RestoreProjectController;
 use App\Project\Controller\ShowProjectController;
 use App\Project\Controller\ShowProjectVersionController;
@@ -82,6 +83,12 @@ use App\Staff\Controller\PostSupportMessageController;
 use App\Staff\Controller\ShowSupportConversationController;
 use App\Staff\Controller\ShowTenantController;
 use App\Staff\Controller\StaffIdentityController;
+use App\Storage\Controller\CreateAssetLinkController;
+use App\Storage\Controller\DeleteAssetController;
+use App\Storage\Controller\DownloadAssetController;
+use App\Storage\Controller\ListAssetsController;
+use App\Storage\Controller\ShowAssetController;
+use App\Storage\Controller\UploadAssetController;
 use App\Tenant\Controller\AddMemberController;
 use App\Tenant\Controller\CurrentTenantController;
 use App\Tenant\Controller\ListMembersController;
@@ -213,6 +220,23 @@ return static function (RouteCollector $routes): void {
     );
     $routes->addRoute('POST', '/api/v1/projects/{projectId}/duplicate', DuplicateProjectController::class);
     $routes->addRoute('POST', '/api/v1/projects/{projectId}/restore', RestoreProjectController::class);
+
+    // Assets (§15). The bytes live outside PostgreSQL; these move the record
+    // of them. Upload takes the file as the raw body — the request is the
+    // file — and the stored type comes from sniffing those bytes, never from
+    // the Content-Type the request claimed.
+    $routes->addRoute('GET', '/api/v1/projects/{projectId}/assets', ListAssetsController::class);
+    $routes->addRoute('POST', '/api/v1/projects/{projectId}/assets', UploadAssetController::class);
+    $routes->addRoute('POST', '/api/v1/projects/{projectId}/exports', RequestExportController::class);
+
+    $routes->addRoute('GET', '/api/v1/assets/{assetId}', ShowAssetController::class);
+    $routes->addRoute('DELETE', '/api/v1/assets/{assetId}', DeleteAssetController::class);
+    $routes->addRoute('POST', '/api/v1/assets/{assetId}/link', CreateAssetLinkController::class);
+
+    // The download itself is under /api/v1/downloads so that the public
+    // prefix covers exactly one route. Mounting it at /assets/... would put
+    // the whole asset surface behind a prefix reachable with no credential.
+    $routes->addRoute('GET', '/api/v1/downloads/{assetId}/content', DownloadAssetController::class);
 
     $routes->addRoute('GET', '/api/v1/tenants/current', CurrentTenantController::class);
     $routes->addRoute('PATCH', '/api/v1/tenants/current', UpdateCurrentTenantController::class);

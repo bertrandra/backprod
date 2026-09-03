@@ -342,10 +342,10 @@ M7), and email notification of unread messages (a §27 job, so M7).
 **Goal:** large assets out of the database and long operations off the request path.
 
 **Deliverables**
-- `StorageProvider` adapter; private assets with signed URLs (§31)
+- `StorageProvider` adapter; private assets with signed URLs (§31) — *delivered ([ADR-028](adr/ADR-028-assets-and-signed-links.md))*
 - Endpoints: `/projects/{id}/assets*`, `/projects/{id}/exports*`
 - Job queue per D3: `POST /jobs`, `GET /jobs/{id}`, `POST /jobs/{id}/cancel` — *delivered ([ADR-027](adr/ADR-027-cron-polled-job-queue.md))*, with `sweep.quotes` and `sweep.subscriptions` as its first handlers
-- Upload validation: type, size, content sniffing
+- Upload validation: type, size, content sniffing — *delivered*; the sniffed type is what is stored, and the request's claim is never read
 - `GeoProvider` interface for spatial operations — **implemented over
   PostgreSQL, no PostGIS dependency**, so a spatial backend can be introduced
   later without the domain knowing
