@@ -38,8 +38,8 @@ final class StaffRoute
      */
     public static function query(ServerRequestInterface $request): array
     {
-        $query = $request->getQueryParams();
-
-        return is_array($query) ? $query : [];
+        // No guard: PSR-7 types this as an array already, and re-checking it
+        // is a condition that can never be false.
+        return $request->getQueryParams();
     }
 }
