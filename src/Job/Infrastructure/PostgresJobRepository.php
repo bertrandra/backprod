@@ -128,6 +128,9 @@ final class PostgresJobRepository implements JobRepository
         return array_map(self::toJob(...), $rows);
     }
 
+    /**
+     * @param array<string, mixed> $result
+     */
     public function succeed(Job $job, array $result): void
     {
         $this->connection->executeStatement(
@@ -239,7 +242,10 @@ final class PostgresJobRepository implements JobRepository
             ['id' => $job->id],
         );
 
-        return $affected > 0;
+        // Normalised for the same reason as the quote sweep: executeStatement
+        // reports int|string, and leaning on PHP's string-to-number juggling
+        // to compare it is the kind of thing that is right until it is not.
+        return (is_numeric($affected) ? (int) $affected : 0) > 0;
     }
 
     public function beginRun(): string

@@ -48,6 +48,9 @@ interface JobRepository
      */
     public function claim(int $limit, int $leaseSeconds): array;
 
+    /**
+     * @param array<string, mixed> $result what the handler reported
+     */
     public function succeed(Job $job, array $result): void;
 
     /**
