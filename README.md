@@ -74,6 +74,7 @@ migrations/ hand-written SQL, one class per change
 public/     front controller
 src/
   Auth/        token verification behind a provider port
+  Billing/     billing profiles, invoices, VAT and the financial ledger
   Commerce/    plans, features, offers, subscriptions, entitlement rows
   Entitlement/ the narrow port the §10.6 chain reads, plus quotas
   Health/      liveness endpoint
@@ -96,10 +97,11 @@ as they gain those layers; small modules stay lighter (§41.1).
 
 ## Status
 
-M5 of [`docs/backend-roadmap.md`](docs/backend-roadmap.md) — commerce, in
-full — on top of M1's context chain, M2's platform identity, M3's product
-registry and M4's projects. Entitlements are no longer a placeholder: what a
-tenant may use comes from what they subscribed to.
+M6 part 1 of [`docs/backend-roadmap.md`](docs/backend-roadmap.md) — invoicing
+— on top of M5's commerce, M4's projects, M3's product registry, M2's platform
+identity and M1's context chain. §12's chain now reaches money: what a tenant
+subscribed to is what they are invoiced for, on a document that keeps its own
+snapshot.
 
 | Route | Permission |
 |---|---|
@@ -140,6 +142,13 @@ tenant may use comes from what they subscribed to.
 | `GET /api/v1/entitlements` | `entitlements.read` |
 | `GET /api/v1/me/entitlements` | — |
 | `GET /api/v1/tenants/current/usage` | `entitlements.read` |
+| `GET /api/v1/billing/profile` | `billing.read` |
+| `PUT /api/v1/billing/profile` | `billing.manage` |
+| `GET /api/v1/billing/invoices` | `billing.read` |
+| `POST /api/v1/billing/invoices` | `billing.manage` |
+| `GET /api/v1/billing/invoices/{id}` | `billing.read` |
+| `POST /api/v1/billing/invoices/{id}/pay` | `billing.manage` |
+| `POST /api/v1/billing/invoices/{id}/cancel` | `billing.manage` |
 
 Authorisation asks about **permissions**, never role names (§13). Roles map
 to permissions in the database, so moving a permission between roles changes
@@ -265,6 +274,64 @@ list would be the way to give something away.
 Renewal is a service method with no endpoint: renewing is what time does, and
 the job that notices is M7. It is written and tested now rather than first
 exercised in production.
+
+## Billing
+
+An invoice **keeps its own snapshot** ([ADR-021](docs/adr/ADR-021-invoice-snapshots-and-numbering.md)).
+Both parties, every line's description, unit price, discount and VAT rate, and
+the tax totalled per rate are copied onto the document when it is issued. The
+offer version is recorded for lineage; **no amount is ever read back through
+it**. Repricing an offer, renaming a company or moving office changes nothing
+about an invoice already filed by somebody's accountant — which is §25's
+requirement, not a denormalisation for speed.
+
+The **number is allocated from `max + 1` under a table lock**, inside the
+transaction that writes the document. Deliberately not a PostgreSQL sequence:
+sequences are fast because they do not roll back, so a failed transaction
+burns a number. French numbering must be sequential and without gaps, and a
+missing number is a question from an auditor rather than a cosmetic problem.
+
+Cancelling **voids, never deletes**. The number stays allocated and the row
+stays readable, because an auditor asking about `2026-000042` must get an
+answer and "cancelled" is one. For the same reason a tenant with invoices
+cannot be deleted: §25.1 separates legal accounting retention from RGPD
+erasure, and here that separation is a foreign key, not a convention.
+
+**Money is integers everywhere** — minor units plus an ISO currency, in the
+domain, in the database and in JSON. VAT rates are **basis points**, because
+5.5% is `550` exactly and `0.055` approximately. Rounding is half-up on the
+magnitude, in one place, so a credit line exactly undoes the line it corrects.
+
+`VatPolicy` applies a configured rate per country and **is not a tax engine**.
+§25.1's real treatment depends on the operation, the customer's VAT status and
+their country; none of that is decided here. What makes that honest is that
+the rate used is stored on the line and in `tax_records`, so the gap is visible
+on the document rather than buried in code that looked like it knew.
+
+Two pieces of configuration, both per product so a second product sold by a
+second company needs no code (§12.1):
+
+- `billing_supplier` — who is issuing, with the mandatory mentions
+- `vat_rates` — `{"FR": 2000, "default": 0}`, in basis points
+
+A product with no supplier identity, or a tenant with no billing profile,
+**cannot be invoiced**. Both refusals happen before a number is allocated:
+failing early costs a 409, failing late costs a permanent row in a legal
+sequence.
+
+`invoices.status` accepts all nine states of §25.1 so the e-invoicing adapter
+needs no migration, but only the transitions this milestone can perform are
+reachable, and an unknown status grants nothing. The refusals are the point:
+re-issuing an issued invoice would allocate a second number for one document,
+paying a cancelled one would put money against a debt that no longer exists,
+and cancelling a paid one would erase a payment that happened.
+
+Every issue and every transition appends to `financial_events`, which is
+append-only — an audit trail added after payments exist is one with a hole in
+exactly the period anyone would want to inspect.
+
+Nothing decides *when* to bill. `POST /api/v1/billing/invoices` bills the
+current subscription period on demand; M7's scheduler is what will call it.
 
 ## Projects
 
