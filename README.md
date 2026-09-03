@@ -74,7 +74,8 @@ migrations/ hand-written SQL, one class per change
 public/     front controller
 src/
   Auth/        token verification behind a provider port
-  Billing/     billing profiles, invoices, VAT and the financial ledger
+  Billing/     billing profiles, invoices, credit notes, VAT and the ledger
+  Payment/     the PSP port, its webhook, payments and refunds
   Commerce/    plans, features, offers, subscriptions, entitlement rows
   Entitlement/ the narrow port the §10.6 chain reads, plus quotas
   Health/      liveness endpoint
@@ -97,11 +98,10 @@ as they gain those layers; small modules stay lighter (§41.1).
 
 ## Status
 
-M6 part 1 of [`docs/backend-roadmap.md`](docs/backend-roadmap.md) — invoicing
-— on top of M5's commerce, M4's projects, M3's product registry, M2's platform
-identity and M1's context chain. §12's chain now reaches money: what a tenant
-subscribed to is what they are invoiced for, on a document that keeps its own
-snapshot.
+M6 part 2 of [`docs/backend-roadmap.md`](docs/backend-roadmap.md) — payments,
+refunds and credit notes — on top of part 1's invoicing, M5's commerce, M4's
+projects, M3's product registry, M2's platform identity and M1's context
+chain. Money now moves, and the provider's webhook is what says so.
 
 | Route | Permission |
 |---|---|
@@ -149,6 +149,13 @@ snapshot.
 | `GET /api/v1/billing/invoices/{id}` | `billing.read` |
 | `POST /api/v1/billing/invoices/{id}/pay` | `billing.manage` |
 | `POST /api/v1/billing/invoices/{id}/cancel` | `billing.manage` |
+| `POST /api/v1/billing/invoices/{id}/credit` | `billing.manage` |
+| `GET /api/v1/billing/credit-notes` | `billing.read` |
+| `GET /api/v1/billing/payments` | `payments.read` |
+| `GET /api/v1/billing/payments/{id}` | `payments.read` |
+| `POST /api/v1/billing/invoices/{id}/payments` | `payments.manage` |
+| `POST /api/v1/billing/payments/{id}/refund` | `payments.manage` |
+| `POST /api/v1/webhooks/payments/{provider}` | **none — signature** |
 
 Authorisation asks about **permissions**, never role names (§13). Roles map
 to permissions in the database, so moving a permission between roles changes
@@ -332,6 +339,68 @@ exactly the period anyone would want to inspect.
 
 Nothing decides *when* to bill. `POST /api/v1/billing/invoices` bills the
 current subscription period on demand; M7's scheduler is what will call it.
+
+## Payments
+
+**The webhook is the source of truth** ([§24](docs/architecture-v2.md),
+[ADR-022](docs/adr/ADR-022-payments-and-webhook-idempotency.md)). Nothing in
+the API can mark a payment collected; a platform that could would be trusting
+the browser that redirected back.
+
+**Exactly-once is a unique index, not a check.** The delivery is recorded
+against `UNIQUE (provider, provider_event_id)` in the same transaction that
+acts on it, so a replay hits the constraint before it can do anything — and
+because PostgreSQL aborts a transaction on a constraint violation, every
+statement after it is refused too. The obvious alternative, looking for the
+event id first, is a race: two copies arriving together both find nothing and
+both proceed, and money is counted twice.
+
+A replay is answered **202**, never an error. A provider retries anything that
+is not a 2xx.
+
+**The signature is verified over the raw bytes, before parsing.** A signature
+is over bytes; parsing first and verifying the result verifies something the
+provider never signed. This is the only unauthenticated write endpoint in the
+platform, so `RoutePolicy` carries it as a *public prefix* — the most
+dangerous kind of route, and the rule is that anything mounted under one must
+authenticate the request itself.
+
+**Payment status is a one-way machine.** Providers deliver out of order, and a
+retried `payment.failed` landing after the `payment.succeeded` that superseded
+it must not reverse a collected payment. A move that is not permitted is
+recorded as `IGNORED_STALE` rather than discarded — an operator needs to know
+whether a delivery never arrived, arrived for something unknown, or arrived
+too late.
+
+**No card data, structurally.** There is no column that could hold a PAN, an
+expiry or a CVV, and `payments.method` is constrained to a small set of labels
+so an adapter cannot quietly put an instrument there. The one credential that
+exists — the client secret for completing the payment — is returned and never
+stored.
+
+**The invoice settles inside the payment's transaction.** A collected payment
+and an invoice still saying it is owed must never be observable together. That
+is done through a participating repository method rather than a nested
+transaction, so correctness does not depend on how the driver handles nesting.
+
+A **chargeback** sets the payment to `CHARGEBACK` and records it, and
+deliberately does not move the invoice: a bank dispute is not a decision this
+platform makes on the customer's behalf, and the instrument for correcting a
+paid invoice is a credit note somebody issues.
+
+Refunds and chargebacks share one table — the money moves identically, only
+who decided differs — with `disputed` surfaced so a client does not tell a
+customer the wrong story.
+
+A **credit note** is how a finalised invoice is corrected: never by editing it,
+which would leave a hole in a legal sequence. It has its own gapless series
+(`AV2026-000001`) through the same `max + 1` mechanism as invoices. Crediting
+is full-invoice only for now.
+
+Providers are a **registry**, not a dependency (non-negotiable #17): a platform
+migrating between PSPs runs both while payments started with the old one are
+still settling. A deployment with no configured signing secret has no provider
+and cannot take money.
 
 ## Projects
 

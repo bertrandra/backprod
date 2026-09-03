@@ -21,6 +21,15 @@ namespace App\Shared\Context;
  *
  * Default-deny: a path matching nothing here gets FULL, so a new route is
  * fully protected unless someone deliberately relaxes it.
+ *
+ * PUBLIC comes in two shapes. Exact paths are the safe kind — a fixed string
+ * cannot accidentally cover a route added later. Prefixes exist because a
+ * webhook carries its sender in the URL, and they are the most dangerous
+ * entry a route can have: everything under one is reachable by anybody on
+ * the internet. A handler behind a public prefix must therefore authenticate
+ * the *request* itself — for the payment webhook, by verifying the
+ * provider's signature over the raw body before reading a single field.
+ * Nothing may be mounted under one that does not.
  */
 final class RoutePolicy
 {
@@ -29,12 +38,15 @@ final class RoutePolicy
     public const FULL = 'full';
 
     /**
-     * @param list<string> $publicPaths       exact, already-decoded paths
+     * @param list<string> $publicPaths      exact, already-decoded paths
      * @param list<string> $identityOnlyPaths path prefixes
+     * @param list<string> $publicPrefixes   path prefixes reachable with no
+     *                                       credential at all
      */
     public function __construct(
         private readonly array $publicPaths,
         private readonly array $identityOnlyPaths,
+        private readonly array $publicPrefixes = [],
     ) {
     }
 
@@ -45,6 +57,12 @@ final class RoutePolicy
     {
         if (in_array($path, $this->publicPaths, true)) {
             return self::PUBLIC;
+        }
+
+        foreach ($this->publicPrefixes as $prefix) {
+            if ($path === $prefix || str_starts_with($path, rtrim($prefix, '/') . '/')) {
+                return self::PUBLIC;
+            }
         }
 
         foreach ($this->identityOnlyPaths as $prefix) {

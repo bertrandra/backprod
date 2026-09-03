@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use App\Billing\Controller\CancelInvoiceController;
+use App\Billing\Controller\IssueCreditNoteController;
 use App\Billing\Controller\IssueInvoiceController;
+use App\Billing\Controller\ListCreditNotesController;
 use App\Billing\Controller\ListInvoicesController;
 use App\Billing\Controller\PayInvoiceController;
 use App\Billing\Controller\SaveBillingProfileController;
@@ -25,6 +27,11 @@ use App\Identity\Controller\MeController;
 use App\Identity\Controller\MePermissionsController;
 use App\Identity\Controller\MyEntitlementsController;
 use App\Identity\Controller\UpdateMeController;
+use App\Payment\Controller\ListPaymentsController;
+use App\Payment\Controller\PaymentWebhookController;
+use App\Payment\Controller\RefundPaymentController;
+use App\Payment\Controller\ShowPaymentController;
+use App\Payment\Controller\StartPaymentController;
 use App\Product\Controller\ListProductsController;
 use App\Product\Controller\ProductCatalogueController;
 use App\Product\Controller\ProductConfigurationController;
@@ -104,6 +111,25 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/billing/invoices/{invoiceId}', ShowInvoiceController::class);
     $routes->addRoute('POST', '/api/v1/billing/invoices/{invoiceId}/pay', PayInvoiceController::class);
     $routes->addRoute('POST', '/api/v1/billing/invoices/{invoiceId}/cancel', CancelInvoiceController::class);
+
+    // Money, as opposed to the documents about it. Starting a payment takes
+    // no amount and no instrument: the amount is the invoice's, and the card
+    // goes to the provider, never here (§24).
+    $routes->addRoute('GET', '/api/v1/billing/payments', ListPaymentsController::class);
+    $routes->addRoute('GET', '/api/v1/billing/payments/{paymentId}', ShowPaymentController::class);
+    $routes->addRoute('POST', '/api/v1/billing/invoices/{invoiceId}/payments', StartPaymentController::class);
+    $routes->addRoute('POST', '/api/v1/billing/payments/{paymentId}/refund', RefundPaymentController::class);
+
+    // How a finalised invoice is corrected. Never by editing it: it has a
+    // legal number in an unbroken sequence, and editing or deleting leaves a
+    // hole. Both documents are kept.
+    $routes->addRoute('GET', '/api/v1/billing/credit-notes', ListCreditNotesController::class);
+    $routes->addRoute('POST', '/api/v1/billing/invoices/{invoiceId}/credit', IssueCreditNoteController::class);
+
+    // The one unauthenticated write in the platform, and the source of truth
+    // for whether money moved (§24). It authenticates itself: the provider's
+    // signature over the raw body, checked before a field is read.
+    $routes->addRoute('POST', '/api/v1/webhooks/payments/{provider}', PaymentWebhookController::class);
 
     // Projects take the full context chain: unlike discovery, they are
     // tenant data, and every one of these resolves product *and* tenant

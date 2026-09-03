@@ -22,7 +22,8 @@ final class TestDatabase
      * created by the migrations, not by fixtures, and clearing them would
      * leave the platform unable to authorise anything.
      */
-    private const TABLES = 'financial_events, tax_records, invoice_lines, invoices, '
+    private const TABLES = 'credit_note_lines, credit_notes, payment_events, refunds, '
+        . 'payments, financial_events, tax_records, invoice_lines, invoices, '
         . 'billing_profiles, entitlements, subscription_events, subscriptions, '
         . 'offer_version_features, offer_versions, offers, plans, features, '
         . 'project_versions, projects, tenant_member_roles, tenant_members, '
