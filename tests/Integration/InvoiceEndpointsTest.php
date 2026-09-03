@@ -104,7 +104,7 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
 
         // One legal identity per tenant. A second row would leave "which one
         // gets invoiced" to whichever query happened to run first.
-        self::assertSame(1, $this->count('SELECT count(*) FROM billing_profiles'));
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM billing_profiles'));
 
         $stored = $this->decode(
             $this->request('GET', '/api/v1/billing/profile', $this->headers()),
@@ -146,7 +146,7 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
         self::assertSame('BILLING_PROFILE_REQUIRED', $this->errorOf($response)['code'] ?? null);
         // Refused before a number was allocated. Numbering is gapless, so a
         // document raised by mistake cannot simply be deleted.
-        self::assertSame(0, $this->count('SELECT count(*) FROM invoices'));
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM invoices'));
     }
 
     public function testAnIssuedInvoiceCarriesItsNumberTotalsAndParties(): void
@@ -176,9 +176,15 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
         $taxes = $invoice['taxes'] ?? null;
         self::assertIsArray($taxes);
         self::assertCount(1, $taxes);
-        self::assertSame('FR', $taxes[0]['jurisdiction'] ?? null);
-        self::assertSame(2000, $taxes[0]['rate_basis_points'] ?? null);
-        self::assertSame(580, $taxes[0]['tax']['minor_units'] ?? null);
+
+        $tax = $taxes[0] ?? null;
+        self::assertIsArray($tax);
+        self::assertSame('FR', $tax['jurisdiction'] ?? null);
+        self::assertSame(2000, $tax['rate_basis_points'] ?? null);
+
+        $charged = $tax['tax'] ?? null;
+        self::assertIsArray($charged);
+        self::assertSame(580, $charged['minor_units'] ?? null);
     }
 
     /**
@@ -218,9 +224,15 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
         self::assertSame($issued['gross'] ?? null, $reread['gross'] ?? null);
         self::assertSame($issued['net'] ?? null, $reread['net'] ?? null);
 
-        $line = $reread['lines'][0] ?? null;
+        $lines = $reread['lines'] ?? null;
+        self::assertIsArray($lines);
+
+        $line = $lines[0] ?? null;
         self::assertIsArray($line);
-        self::assertSame(2900, $line['unit_price']['minor_units'] ?? null);
+
+        $unitPrice = $line['unit_price'] ?? null;
+        self::assertIsArray($unitPrice);
+        self::assertSame(2900, $unitPrice['minor_units'] ?? null);
         self::assertSame('Atlas Pro (v1) — subscription', $line['description'] ?? null);
         // The version is still named, for lineage — and naming it is exactly
         // what makes the rest of this test meaningful: the link exists and
@@ -277,7 +289,7 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
         // Void, not absent. An auditor asking about this number must get an
         // answer, and "cancelled" is an answer; "no such invoice" is a gap.
         self::assertSame(date('Y') . '-000001', $cancelled['number'] ?? null);
-        self::assertSame(1, $this->count('SELECT count(*) FROM invoices'));
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM invoices'));
 
         // And the next one continues the sequence rather than reusing it.
         $next = $this->decode($this->issue());
@@ -388,7 +400,7 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
         $response = $this->issue();
 
         self::assertSame(403, $response->getStatusCode());
-        self::assertSame(0, $this->count('SELECT count(*) FROM invoices'));
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM invoices'));
     }
 
     public function testAProductWithNoBillingIdentityCannotInvoice(): void
@@ -405,7 +417,7 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
 
         self::assertSame(409, $response->getStatusCode());
         self::assertSame('BILLING_NOT_CONFIGURED', $this->errorOf($response)['code'] ?? null);
-        self::assertSame(0, $this->count('SELECT count(*) FROM invoices'));
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM invoices'));
     }
 
     public function testInvoicesArePagedAndBounded(): void
@@ -548,7 +560,11 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
         );
     }
 
-    private function count(string $sql): int
+    /**
+     * Deliberately not named count(): TestCase::count() is final, and
+     * shadowing it is a fatal error rather than a style question.
+     */
+    private function rowsMatching(string $sql): int
     {
         $count = $this->connection->fetchOne($sql);
 
