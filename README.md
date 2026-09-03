@@ -77,7 +77,7 @@ src/
   Billing/     billing profiles, invoices, credit notes, VAT and the ledger
   EInvoice/    the approved-platform port and the transmission history
   Payment/     the PSP port, its webhook, payments and refunds
-  Sales/       quotes, orders, and what fulfilling one causes
+  Sales/       quotes, orders, and what paying for one causes
   Commerce/    plans, features, offers, subscriptions, entitlement rows
   Entitlement/ the narrow port the §10.6 chain reads, plus quotas
   Health/      liveness endpoint
@@ -426,7 +426,7 @@ and cannot take money.
 
 §20's chain starts before the subscription. A **quote** prices an offer and
 holds it until a date; accepting it places an **order**; fulfilling the order
-starts the subscription and raises the invoice.
+raises the invoice; paying that invoice starts the subscription.
 
 **A quote lapses on the clock** — the fourth place this platform applies that
 rule, after offer windows, entitlement validity and subscription periods.
@@ -438,15 +438,43 @@ past, which is exactly the state a platform with no sweeper is in.
 unbroken sequences; a devis is not subject to that, and a second numbering
 scheme living beside the legal one is how one eventually gets mistaken for it.
 
-**Fulfilment is one transaction** — subscription, invoice and completion, or
-none of them. `orders_completed_is_traceable` refuses a completed order that
-does not name both, which is #20's traceability made structural. Getting there
-extended part 2's pattern: `applyActivate()` and `applyIssue()` sit beside the
-transactional `activate()` and `issue()`, so nothing nests.
+**Nothing starts before the money arrives.** Fulfilling an order raises its
+invoice and parks the order at `AWAITING_PAYMENT`; the subscription starts when
+that invoice is paid. Activating on the assumption that payment will follow is
+a decision to extend credit to everyone who can reach the endpoint, and it is
+worth taking on purpose rather than by default. An order with nothing to
+collect — a free offer — completes at fulfilment, because there is no payment
+for it to wait on.
+
+**The trigger is the invoice, not the card.** §25 lets an invoice reach `PAID`
+two ways: a provider's webhook, and an operator reconciling a bank transfer.
+Both fire the same `InvoicePaid` port, so the rule stays one sentence rather
+than one sentence and an exception that would have left every transfer-paying
+customer switched off.
+
+**Each half resolves the offer differently, and that is the point.** Invoicing
+asks what is *on sale* — billing against withdrawn terms would charge for
+something nobody agreed to, and refusing costs nothing because no money has
+moved. Activating asks what was *sold* — the money has arrived, possibly after
+the offer was withdrawn, and refusing there would take a payment and give
+nothing back.
+
+**Both halves are one transaction each.** `orders_completed_is_traceable`
+refuses a completed order that does not name both its invoice and its
+subscription; `orders_awaiting_payment_has_invoice` refuses one waiting for
+money it has raised no invoice for; and a partial unique index on
+`orders.invoice_id` makes one invoice belong to exactly one sale, which is what
+stops a single payment starting two subscriptions. Getting there extended part
+2's pattern: `applyActivate()`, `applyIssue()` and `applyCompleteOrder()` sit
+beside their transactional twins, so nothing nests.
 
 **The invoice bills what the quote priced.** The lines travel quote → order →
 invoice as data. A test reprices the offer between quote and fulfilment and
 asserts the invoice does not move — otherwise a quote would be decorative.
+
+**An invoiced order is undone by crediting it**, not by cancelling the order.
+That holds from the moment the invoice exists, whether or not it has been paid:
+numbering is gapless, so an issued document cannot simply be dropped.
 
 **Transmission is its own history** ([§25.1](docs/architecture-v2.md)). An
 invoice has nine states; a transmission has four, and there is one row per

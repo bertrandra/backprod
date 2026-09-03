@@ -285,36 +285,91 @@ final class PostgresSalesRepository implements SalesRepository
     public function fulfilOrder(Order $order, OrderFulfilment $fulfilment, ?string $actorUserId): Order
     {
         return $this->connection->transactional(function () use ($order, $fulfilment, $actorUserId): Order {
-            $produced = $fulfilment->fulfil($order);
+            $raised = $fulfilment->invoice($order);
 
             $this->connection->executeStatement(
                 <<<'SQL'
                     UPDATE orders
-                       SET subscription_id = :subscription,
-                           invoice_id = :invoice,
-                           status = 'COMPLETED',
-                           completed_at = now(),
+                       SET invoice_id = :invoice,
+                           status = 'AWAITING_PAYMENT',
                            updated_at = now()
                      WHERE id = :id
                     SQL,
-                [
-                    'subscription' => $produced['subscription_id'],
-                    'invoice' => $produced['invoice_id'],
-                    'id' => $order->id,
-                ],
+                ['invoice' => $raised['invoice_id'], 'id' => $order->id],
             );
 
-            $this->record(
-                $order->tenantId,
-                $order->productId,
-                'ORDER_COMPLETED',
-                $order->id,
-                $order->gross,
+            if ($raised['awaiting_payment']) {
+                return $this->requireOrder($order->tenantId, $order->productId, $order->id);
+            }
+
+            // Nothing to collect, so nothing to wait for. Completing here
+            // rather than leaving a free order parked behind a payment that
+            // will never arrive — read back first, because completing works
+            // from the order as it now is, invoice and all.
+            $this->applyCompleteOrder(
+                $this->requireOrder($order->tenantId, $order->productId, $order->id),
+                $fulfilment,
                 $actorUserId,
             );
 
             return $this->requireOrder($order->tenantId, $order->productId, $order->id);
         });
+    }
+
+    public function findOrderAwaitingPayment(string $tenantId, string $productId, string $invoiceId): ?Order
+    {
+        if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId) || !Uuid::isValid($invoiceId)) {
+            return null;
+        }
+
+        return $this->hydrateOrders($this->connection->fetchAllAssociative(
+            'SELECT ' . self::ORDER_COLUMNS . <<<'SQL'
+                 FROM orders
+                WHERE invoice_id = :invoice
+                  AND tenant_id = :tenantId
+                  AND product_id = :productId
+                  AND status = 'AWAITING_PAYMENT'
+                SQL,
+            ['invoice' => $invoiceId, 'tenantId' => $tenantId, 'productId' => $productId],
+        ))[0] ?? null;
+    }
+
+    public function applyCompleteOrder(Order $order, OrderFulfilment $fulfilment, ?string $actorUserId): void
+    {
+        $subscriptionId = $fulfilment->activate($order);
+
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE orders
+                   SET subscription_id = :subscription,
+                       status = 'COMPLETED',
+                       completed_at = now(),
+                       updated_at = now()
+                 WHERE id = :id
+                SQL,
+            ['subscription' => $subscriptionId, 'id' => $order->id],
+        );
+
+        // The sale a payment settled, written where a payment can be read
+        // back from: §20 wants the chain followable in both directions, and
+        // the payment row is the end a reconciliation starts from.
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE payments
+                   SET order_id = :order, updated_at = now()
+                 WHERE invoice_id = :invoice AND order_id IS NULL
+                SQL,
+            ['order' => $order->id, 'invoice' => $order->invoiceId],
+        );
+
+        $this->record(
+            $order->tenantId,
+            $order->productId,
+            'ORDER_COMPLETED',
+            $order->id,
+            $order->gross,
+            $actorUserId,
+        );
     }
 
     public function cancelOrder(Order $order, ?string $actorUserId): Order

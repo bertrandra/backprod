@@ -7,6 +7,8 @@ namespace App\Tests\Integration;
 use App\Auth\Domain\AuthProvider;
 use App\EInvoice\Infrastructure\StubEInvoiceProvider;
 use App\EInvoice\Service\EInvoiceProviders;
+use App\Payment\Infrastructure\StubPaymentProvider;
+use App\Payment\Service\PaymentProviders;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
@@ -20,7 +22,13 @@ use Psr\Http\Message\ResponseInterface;
 /**
  * §20's chain end to end, through the real pipeline and the real database:
  *
- *     Quote → Order → Subscription → Invoice → (Payment) → e-invoice
+ *     Quote → Order → Invoice → Payment → Subscription → e-invoice
+ *
+ * The order of those middle two is the gate. A subscription used to start the
+ * moment an order was fulfilled, on the assumption the money would follow;
+ * now the invoice is raised first and what was bought starts when that
+ * invoice is paid — by card through the provider's webhook, or by transfer
+ * through an operator reconciling it.
  *
  * Plus §37.4's last billing scenario, invoice rejected, which is where the
  * transmission history earns its separate table.
@@ -60,6 +68,8 @@ final class SalesChainTest extends DatabaseApiTestCase
 
             EInvoiceProviders::class => new EInvoiceProviders([new StubEInvoiceProvider(self::SECRET)]),
 
+            PaymentProviders::class => new PaymentProviders([new StubPaymentProvider(self::SECRET)]),
+
             TenantMembershipRepository::class => new InMemoryTenantMembershipRepository([
                 new TenantMembership(
                     $this->tenant,
@@ -69,6 +79,7 @@ final class SalesChainTest extends DatabaseApiTestCase
                     [
                         'sales.read', 'sales.manage',
                         'billing.read', 'billing.manage',
+                        'payments.read', 'payments.manage',
                         'subscription.read', 'entitlements.read',
                     ],
                 ),
@@ -117,16 +128,33 @@ final class SalesChainTest extends DatabaseApiTestCase
 
         $fulfilled = $this->decode($this->fulfil($orderId));
 
-        self::assertSame('COMPLETED', $fulfilled['status'] ?? null);
-        // §20's chain readable off one document, which is the point of it.
-        self::assertIsString($fulfilled['subscription_id'] ?? null);
+        // The invoice is raised; the subscription is not. That is the gate:
+        // what was bought starts when the money arrives, not when somebody
+        // presses fulfil.
+        self::assertSame('AWAITING_PAYMENT', $fulfilled['status'] ?? null);
         self::assertIsString($fulfilled['invoice_id'] ?? null);
-        self::assertIsString($fulfilled['completed_at'] ?? null);
+        self::assertArrayHasKey('subscription_id', $fulfilled);
+        self::assertNull($fulfilled['subscription_id']);
+        self::assertArrayHasKey('completed_at', $fulfilled);
+        self::assertNull($fulfilled['completed_at']);
 
         // The quote was accepted by the same act.
         self::assertSame('ACCEPTED', $this->statusOf('quotes', $quoteId));
 
-        // And the subscription actually entitles the tenant.
+        // Nothing is switched on yet, which is the whole point.
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM subscriptions'));
+
+        $this->payInFull($orderId);
+
+        $completed = $this->decode($this->showOrder($orderId));
+
+        // §20's chain readable off one document, which is the point of it.
+        self::assertSame('COMPLETED', $completed['status'] ?? null);
+        self::assertIsString($completed['subscription_id'] ?? null);
+        self::assertIsString($completed['invoice_id'] ?? null);
+        self::assertIsString($completed['completed_at'] ?? null);
+
+        // And now the subscription actually entitles the tenant.
         $mine = $this->decode($this->request('GET', '/api/v1/subscription', $this->headers()));
         self::assertIsArray($mine['subscription'] ?? null);
     }
@@ -224,22 +252,37 @@ final class SalesChainTest extends DatabaseApiTestCase
 
         $again = $this->fulfil($orderId);
 
+        // An order awaiting payment already has a numbered invoice against
+        // it, and numbering is gapless: a second one could not be deleted.
         self::assertSame(409, $again->getStatusCode());
         self::assertSame('ORDER_NOT_FULFILLABLE', $this->errorOf($again)['code'] ?? null);
-        // One subscription and one invoice, not two.
-        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM subscriptions'));
         self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM invoices'));
     }
 
-    public function testACompletedOrderCannotBeCancelled(): void
+    public function testAnInvoicedOrderCannotBeCancelled(): void
     {
         $orderId = $this->orderedId();
         $this->fulfil($orderId);
+
+        // Still only awaiting payment — but the invoice has been issued, and
+        // an issued document is undone by crediting it, not by cancelling
+        // the order that raised it.
+        self::assertSame('AWAITING_PAYMENT', $this->statusOf('orders', $orderId));
 
         $response = $this->request('POST', '/api/v1/sales/orders/' . $orderId . '/cancel', $this->headers());
 
         self::assertSame(409, $response->getStatusCode());
         self::assertSame('ORDER_NOT_CANCELLABLE', $this->errorOf($response)['code'] ?? null);
+    }
+
+    public function testAnOrderWithNoInvoiceYetCanStillBeCancelled(): void
+    {
+        $orderId = $this->orderedId();
+
+        $response = $this->request('POST', '/api/v1/sales/orders/' . $orderId . '/cancel', $this->headers());
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('CANCELLED', $this->statusOf('orders', $orderId));
     }
 
     public function testFulfilmentIsRefusedWithoutABillingProfile(): void
@@ -251,7 +294,8 @@ final class SalesChainTest extends DatabaseApiTestCase
 
         self::assertSame(409, $response->getStatusCode());
         self::assertSame('BILLING_PROFILE_REQUIRED', $this->errorOf($response)['code'] ?? null);
-        // Nothing was written: the whole fulfilment is one transaction.
+        // Nothing was written: raising the invoice and parking the order is
+        // one transaction.
         self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM subscriptions'));
         self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM invoices'));
         self::assertSame('PENDING', $this->statusOf('orders', $orderId));
@@ -273,6 +317,7 @@ final class SalesChainTest extends DatabaseApiTestCase
         self::assertSame(409, $response->getStatusCode());
         self::assertSame('OFFER_NO_LONGER_ON_SALE', $this->errorOf($response)['code'] ?? null);
         self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM subscriptions'));
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM invoices'));
     }
 
     public function testSellingRequiresThePermission(): void
@@ -460,6 +505,161 @@ final class SalesChainTest extends DatabaseApiTestCase
         self::assertSame('INVOICE_NOT_TRANSMITTABLE', $this->errorOf($response)['code'] ?? null);
     }
 
+    // --- The gate ------------------------------------------------------------
+
+    public function testAnInvoiceSettledByHandStartsTheSubscriptionToo(): void
+    {
+        $orderId = $this->orderedId();
+
+        self::assertSame(200, $this->fulfil($orderId)->getStatusCode());
+
+        $invoiceId = $this->invoiceOf($orderId);
+
+        // No card, no webhook: an operator matching a bank transfer. §25 makes
+        // this as real a way to be paid as any, so it has to release the sale
+        // as well — otherwise every transfer-paying customer pays and gets
+        // nothing.
+        $response = $this->request(
+            'POST',
+            '/api/v1/billing/invoices/' . $invoiceId . '/pay',
+            $this->headers(),
+        );
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('COMPLETED', $this->statusOf('orders', $orderId));
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM subscriptions'));
+    }
+
+    public function testAPaymentThatFailsStartsNothing(): void
+    {
+        $orderId = $this->orderedId();
+        $this->fulfil($orderId);
+
+        $reference = $this->startedPayment($orderId);
+
+        $this->deliverPayment([
+            'id' => 'evt_failed_1',
+            'type' => 'payment.failed',
+            'payment_id' => $reference,
+            'failure_code' => 'CARD_DECLINED',
+        ]);
+
+        // The order is still waiting, which is exactly right: the customer
+        // can try again, and nothing was switched on for a payment that did
+        // not arrive.
+        self::assertSame('AWAITING_PAYMENT', $this->statusOf('orders', $orderId));
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM subscriptions'));
+    }
+
+    public function testReplayingTheSuccessStartsExactlyOneSubscription(): void
+    {
+        $orderId = $this->orderedId();
+        $this->fulfil($orderId);
+
+        $reference = $this->startedPayment($orderId);
+        $event = ['id' => 'evt_once', 'type' => 'payment.succeeded', 'payment_id' => $reference];
+
+        $this->deliverPayment($event);
+        $this->deliverPayment($event);
+        $this->deliverPayment($event);
+
+        // One subscription, and one ledger entry saying the order completed.
+        // Counting the ledger rather than the status matters: a status is
+        // idempotent by accident, a ledger row is not.
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM subscriptions'));
+        self::assertSame(
+            1,
+            $this->rowsMatching("SELECT count(*) FROM financial_events WHERE type = 'ORDER_COMPLETED'"),
+        );
+        self::assertSame('COMPLETED', $this->statusOf('orders', $orderId));
+    }
+
+    public function testAnOfferWithdrawnAfterInvoicingStillActivatesWhenPaid(): void
+    {
+        $orderId = $this->orderedId();
+        $this->fulfil($orderId);
+
+        $reference = $this->startedPayment($orderId);
+
+        // Withdrawn between the invoice going out and the money arriving.
+        $this->connection->executeStatement(
+            "UPDATE offer_versions SET status = 'ARCHIVED' WHERE id = :version",
+            ['version' => $this->offerVersion],
+        );
+
+        $this->deliverPayment(['id' => 'evt_late', 'type' => 'payment.succeeded', 'payment_id' => $reference]);
+
+        // Refusing here would take a customer's money and give them nothing.
+        // What is on sale governs what may be *invoiced*; what was sold
+        // governs what is activated.
+        self::assertSame('COMPLETED', $this->statusOf('orders', $orderId));
+        self::assertSame(
+            $this->offerVersion,
+            $this->connection->fetchOne('SELECT offer_version_id FROM subscriptions'),
+        );
+    }
+
+    public function testAnOrderWithNothingToCollectNeedsNoPayment(): void
+    {
+        $free = $this->seedFreeOffer();
+
+        $order = $this->decode($this->request(
+            'POST',
+            '/api/v1/sales/orders',
+            $this->headers(),
+            $this->json(['offer_id' => $free]),
+        ));
+
+        $orderId = $order['id'] ?? null;
+        self::assertIsString($orderId);
+
+        $fulfilled = $this->decode($this->fulfil($orderId));
+
+        // Nothing to pay, so nothing to wait for. Parking a free order behind
+        // a payment would strand it forever.
+        self::assertSame('COMPLETED', $fulfilled['status'] ?? null);
+        self::assertIsString($fulfilled['subscription_id'] ?? null);
+        self::assertIsString($fulfilled['invoice_id'] ?? null);
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM payments'));
+    }
+
+    public function testThePaidInvoiceNamesTheSubscriptionItStarted(): void
+    {
+        $orderId = $this->orderedId();
+        $this->fulfil($orderId);
+
+        $invoiceId = $this->invoiceOf($orderId);
+
+        // Raised before the subscription existed, so it cannot name it yet.
+        self::assertNull($this->connection->fetchOne(
+            'SELECT subscription_id FROM invoices WHERE id = :id',
+            ['id' => $invoiceId],
+        ));
+
+        $this->payInFull($orderId);
+
+        // And now it does, so "what has this subscription been billed?" is
+        // answerable without going through the order.
+        self::assertIsString($this->connection->fetchOne(
+            'SELECT subscription_id FROM invoices WHERE id = :id',
+            ['id' => $invoiceId],
+        ));
+    }
+
+    public function testThePaymentRecordsTheSaleItSettled(): void
+    {
+        $orderId = $this->orderedId();
+        $this->fulfil($orderId);
+        $this->payInFull($orderId);
+
+        // §20 wants the chain followable in both directions, and a
+        // reconciliation starts from the payment.
+        self::assertSame(
+            $orderId,
+            $this->connection->fetchOne('SELECT order_id FROM payments'),
+        );
+    }
+
     // --- Helpers -------------------------------------------------------------
 
     private function quote(): ResponseInterface
@@ -507,6 +707,96 @@ final class SalesChainTest extends DatabaseApiTestCase
         self::assertIsString($invoiceId);
 
         return $invoiceId;
+    }
+
+    private function showOrder(string $orderId): ResponseInterface
+    {
+        return $this->request('GET', '/api/v1/sales/orders/' . $orderId, $this->headers());
+    }
+
+    private function invoiceOf(string $orderId): string
+    {
+        $invoiceId = $this->decode($this->showOrder($orderId))['invoice_id'] ?? null;
+        self::assertIsString($invoiceId);
+
+        return $invoiceId;
+    }
+
+    /**
+     * Starts a payment against the order's invoice and returns the provider's
+     * handle for it, which is what a webhook names.
+     */
+    private function startedPayment(string $orderId): string
+    {
+        $response = $this->request(
+            'POST',
+            '/api/v1/billing/invoices/' . $this->invoiceOf($orderId) . '/payments',
+            $this->headers(),
+        );
+
+        self::assertSame(201, $response->getStatusCode());
+
+        $reference = $this->connection->fetchOne(
+            'SELECT provider_payment_id FROM payments ORDER BY created_at DESC LIMIT 1',
+        );
+        self::assertIsString($reference);
+
+        return $reference;
+    }
+
+    private function payInFull(string $orderId): void
+    {
+        $reference = $this->startedPayment($orderId);
+
+        $response = $this->deliverPayment([
+            'id' => 'evt_paid_' . substr($reference, -6),
+            'type' => 'payment.succeeded',
+            'payment_id' => $reference,
+        ]);
+
+        self::assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * @param array<string, mixed> $event
+     */
+    private function deliverPayment(array $event): ResponseInterface
+    {
+        $body = $this->json($event);
+
+        return $this->request(
+            'POST',
+            '/api/v1/webhooks/payments/stub',
+            [StubPaymentProvider::SIGNATURE_HEADER => (new StubPaymentProvider(self::SECRET))->sign($body)],
+            $body,
+        );
+    }
+
+    /**
+     * An offer priced at nothing, which the schema allows and a free tier is.
+     */
+    private function seedFreeOffer(): string
+    {
+        $plan = $this->id(
+            "INSERT INTO plans (product_id, code, name, rank) VALUES (:product, 'FREE', 'Free', 10) RETURNING id",
+            ['product' => $this->product],
+        );
+
+        $offer = $this->id(
+            'INSERT INTO offers (product_id, plan_id, code, name)'
+            . " VALUES (:product, :plan, 'free', 'Atlas Free') RETURNING id",
+            ['product' => $this->product, 'plan' => $plan],
+        );
+
+        $this->id(
+            'INSERT INTO offer_versions'
+            . ' (offer_id, version, status, billing_period, price_minor_units, currency, valid_from)'
+            . " VALUES (:offer, 1, 'ACTIVE', 'MONTHLY', 0, 'EUR', now() - interval '1 day')"
+            . ' RETURNING id',
+            ['offer' => $offer],
+        );
+
+        return $offer;
     }
 
     private function transmit(string $invoiceId): ResponseInterface

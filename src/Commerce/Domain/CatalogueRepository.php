@@ -41,4 +41,16 @@ interface CatalogueRepository
      * must not be able to read another product's catalogue by id.
      */
     public function findOffer(string $productId, string $offerId): ?OfferCandidate;
+
+    /**
+     * The offer owning a given version, carrying that version alone —
+     * whatever its status, and without consulting the clock.
+     *
+     * Every other read here answers "what may be sold?", so storage filters
+     * to what is sellable. This one answers "what was sold?", which a
+     * withdrawn version is still the honest answer to: it is the terms a
+     * document was written against, and the customer who paid that document
+     * is owed them.
+     */
+    public function findOfferByVersion(string $productId, string $offerVersionId): ?OfferCandidate;
 }

@@ -63,8 +63,9 @@ final class SalesPresenter
             'status' => $order->status,
             'quote_id' => $order->quoteId,
             'offer_version_id' => $order->offerVersionId,
-            // Both null until fulfilled, and both non-null after: the chain
-            // of non-negotiable #20 is readable straight off this document.
+            // The gate, readable straight off the document: an invoice from
+            // fulfilment onwards, a subscription only once that invoice is
+            // paid. Both non-null is non-negotiable #20's chain complete.
             'subscription_id' => $order->subscriptionId,
             'invoice_id' => $order->invoiceId,
             'net' => self::money($order->net),

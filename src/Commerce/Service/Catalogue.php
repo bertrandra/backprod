@@ -85,4 +85,28 @@ final class Catalogue
 
         return $candidate->withVersion($version);
     }
+
+    /**
+     * The exact terms a document was written against, on sale or not.
+     *
+     * The clock is deliberately not consulted here. This answers "what did
+     * they buy?", and a customer who has paid an invoice is owed the version
+     * that invoice priced even if the offer was withdrawn the day after —
+     * the same ground on which a subscription keeps showing the terms it was
+     * sold on.
+     *
+     * Addressed by version rather than by offer because that is what an order
+     * records: the offer is what moves, the version is what was agreed.
+     */
+    public function offerAsSold(string $productId, string $offerVersionId): Offer
+    {
+        $candidate = $this->catalogue->findOfferByVersion($productId, $offerVersionId);
+        $version = $candidate === null ? null : ($candidate->versions[0] ?? null);
+
+        if ($candidate === null || $version === null) {
+            throw new NotFoundException('Offer not found.', [], 'OFFER_NOT_FOUND');
+        }
+
+        return $candidate->withVersion($version);
+    }
 }

@@ -9,6 +9,7 @@ use App\Auth\Infrastructure\StaticSigningKeySource;
 use App\Auth\Infrastructure\SupabaseJwtAuthProvider;
 use App\Billing\Domain\BillingProfileRepository;
 use App\Billing\Domain\CreditNoteRepository;
+use App\Billing\Domain\InvoicePaid;
 use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Infrastructure\PostgresBillingProfileRepository;
 use App\Billing\Infrastructure\PostgresCreditNoteRepository;
@@ -43,7 +44,8 @@ use App\Project\Service\ProjectWorkspace;
 use App\Sales\Domain\OrderFulfilment;
 use App\Sales\Domain\SalesRepository;
 use App\Sales\Infrastructure\PostgresSalesRepository;
-use App\Sales\Service\SubscribeAndInvoice;
+use App\Sales\Service\CompleteOrderOnPayment;
+use App\Sales\Service\InvoiceThenSubscribe;
 use App\Shared\Context\RequestContextMiddleware;
 use App\Shared\Context\RoutePolicy;
 use App\Shared\Database\ConnectionFactory;
@@ -137,7 +139,13 @@ return static function (array $overrides = []): ContainerInterface {
         PaymentRepository::class => autowire(PostgresPaymentRepository::class),
         PaymentSettlement::class => autowire(InvoiceSettlement::class),
         SalesRepository::class => autowire(PostgresSalesRepository::class),
-        OrderFulfilment::class => autowire(SubscribeAndInvoice::class),
+        OrderFulfilment::class => autowire(InvoiceThenSubscribe::class),
+
+        // The far side of the payment gate. Both ways an invoice can reach
+        // PAID — a provider's webhook, an operator reconciling a transfer —
+        // fire this, so a sale is released by the money arriving rather than
+        // by which route it arrived through.
+        InvoicePaid::class => autowire(CompleteOrderOnPayment::class),
         TransmissionRepository::class => autowire(PostgresTransmissionRepository::class),
         TransmissionEffect::class => autowire(InvoiceTransmissionEffect::class),
 

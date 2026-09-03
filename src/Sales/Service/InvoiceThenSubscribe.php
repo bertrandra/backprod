@@ -16,19 +16,26 @@ use App\Shared\Exceptions\ConflictException;
 use DateTimeImmutable;
 
 /**
- * What an order causes: the subscription starts and the invoice is raised.
+ * The invoice is raised when the order is fulfilled; the subscription starts
+ * when that invoice is paid.
  *
- * Both happen through the *participating* repository methods, because this
- * runs inside the transaction that completes the order. The schema refuses a
- * completed order that does not name both, so the three writes are one thing
- * or they are a sale nobody can trace.
+ * The two halves resolve the offer differently, and the difference is the
+ * whole point of the gate.
  *
- * The invoice's lines are copied from the order's, which were copied from the
- * quote's. That is §25's snapshot rule applied along the whole chain: what
- * was quoted is what was ordered is what is billed, and none of it is
- * re-derived from an offer that may have moved since.
+ * Invoicing asks what is **on sale**: the customer is about to be billed, and
+ * billing them against terms that have since been withdrawn or repriced would
+ * charge them for something they never agreed to. Refusing at that moment
+ * costs nobody anything, because no money has moved.
+ *
+ * Activating asks what was **sold**: the money has arrived, possibly days
+ * later and possibly after the offer was withdrawn. Refusing there would take
+ * a customer's payment and give them nothing — so it activates on the version
+ * the order recorded, which is the version the invoice priced.
+ *
+ * Both run through the *participating* repository methods, because both are
+ * called from inside a transaction the caller already holds.
  */
-final class SubscribeAndInvoice implements OrderFulfilment
+final class InvoiceThenSubscribe implements OrderFulfilment
 {
     public function __construct(
         private readonly SubscriptionRepository $subscriptions,
@@ -39,7 +46,7 @@ final class SubscribeAndInvoice implements OrderFulfilment
     ) {
     }
 
-    public function fulfil(Order $order): array
+    public function invoice(Order $order): array
     {
         $profile = $this->profiles->find($order->tenantId);
 
@@ -59,31 +66,55 @@ final class SubscribeAndInvoice implements OrderFulfilment
         );
 
         $now = new DateTimeImmutable();
-        $periodEnd = $offer->version->periodEndFrom($now);
-
-        $subscription = $this->subscriptions->applyActivate(
-            $order->tenantId,
-            $order->productId,
-            $offer,
-            $periodEnd,
-            null,
-        );
 
         $invoice = $this->invoices->applyIssue(
             $order->tenantId,
             $order->productId,
-            $subscription->id,
+            null,
             $order->lines,
             $supplier,
             $profile->snapshot(),
             SupplierIdentity::jurisdictionOf($supplier),
             $now,
-            $periodEnd,
+            $offer->version->periodEndFrom($now),
             'Payable on receipt.',
             null,
         );
 
-        return ['subscription_id' => $subscription->id, 'invoice_id' => $invoice->id];
+        return [
+            'invoice_id' => $invoice->id,
+            // Nothing to collect is not the same as nothing to do: the
+            // invoice still exists, because a €0 document is still the record
+            // of what was sold. It simply has no payment to wait for.
+            'awaiting_payment' => $order->gross->minorUnits > 0,
+        ];
+    }
+
+    public function activate(Order $order): string
+    {
+        $offer = SubscribedOffer::from(
+            $this->catalogue->offerAsSold($order->productId, $order->offerVersionId),
+        );
+
+        $now = new DateTimeImmutable();
+
+        $subscription = $this->subscriptions->applyActivate(
+            $order->tenantId,
+            $order->productId,
+            $offer,
+            $offer->version->periodEndFrom($now),
+            null,
+        );
+
+        // The invoice was raised before the subscription existed, so it could
+        // not name it then. It can now — and an invoice that names the
+        // subscription it started is what makes "what has this subscription
+        // been billed?" answerable without going through the order.
+        if ($order->invoiceId !== null) {
+            $this->invoices->applyAttachSubscription($order->invoiceId, $subscription->id);
+        }
+
+        return $subscription->id;
     }
 
     /**
@@ -103,7 +134,7 @@ final class SubscribeAndInvoice implements OrderFulfilment
         }
 
         // The offer was withdrawn, or re-versioned, between the order being
-        // placed and being fulfilled. Refusing is right: fulfilling against
+        // placed and being invoiced. Refusing is right: invoicing against
         // whatever the offer became would bill the customer for terms they
         // never agreed to.
         throw new ConflictException(
