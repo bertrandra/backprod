@@ -37,7 +37,7 @@ final class PaymentWebhook
     }
 
     /**
-     * @param array<string, string> $headers
+     * @param array<array-key, string> $headers
      */
     public function handle(string $providerName, string $rawBody, array $headers): WebhookOutcome
     {

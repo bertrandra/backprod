@@ -43,8 +43,8 @@ interface PaymentProvider
     /**
      * Verifies that a delivery came from the provider.
      *
-     * @param string                $rawBody the bytes exactly as received
-     * @param array<string, string> $headers
+     * @param string                   $rawBody the bytes exactly as received
+     * @param array<array-key, string> $headers
      *
      * @throws UnauthenticatedException when the signature is absent, malformed or wrong
      */

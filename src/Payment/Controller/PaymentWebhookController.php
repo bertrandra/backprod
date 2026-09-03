@@ -72,7 +72,13 @@ final class PaymentWebhookController implements RouteHandler
     }
 
     /**
-     * @return array<string, string>
+     * Flattened for the adapter, which compares names case-insensitively.
+     *
+     * array-key rather than string: PHP demotes a numeric-string key to an
+     * int, so a header literally named "1" would make this array<int, string>
+     * and no promise of string keys can be kept.
+     *
+     * @return array<array-key, string>
      */
     private static function headers(ServerRequestInterface $request): array
     {
