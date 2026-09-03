@@ -21,7 +21,7 @@ pipeline, which is the hardest layer to change later.
 |---|---|---|---|
 | D1 | **How `product_id` reaches the backend** — header, subdomain, path prefix, or claim | The whole context pipeline resolves product *first* (§10.6). Changing it later touches every route. | `X-Product` header, validated against the product registry; backend remains the authority |
 | D2 | **Hosting capability** — PostgreSQL 15+, PHP 8.3, cron, outbound HTTPS | ADR-009/ADR-011 assume PostgreSQL + JSONB; §33 assumes SiteGround | **Settled: PostgreSQL is available.** ADR-009 stands as written |
-| D3 | **Job execution model** — cron-driven runner vs. persistent worker | §27 requires async jobs; shared hosting usually forbids daemons | Cron-polled queue table, worker-compatible interface |
+| D3 | **Job execution model** — cron-driven runner vs. persistent worker | §27 requires async jobs; shared hosting usually forbids daemons | **Settled: a cron-polled queue table** behind a worker-compatible interface. `bin/run-jobs` claims work with `FOR UPDATE SKIP LOCKED` and exits; nothing stays resident. A persistent worker can later call the same runner without the queue changing (ADR-027) |
 | D4 | **Supabase JWT verification** — JWKS endpoint vs. shared secret | Determines `AuthProvider` adapter shape | Verify RS256 via JWKS, cache keys |
 | D5 | **Tenant resolution rule** — one tenant per user, or explicit selection | §12 supports B2C and B2B; affects every request | Derive from membership; explicit selection only when a user has several |
 | D6 | **Migration tool** — Doctrine Migrations vs. Phinx vs. plain SQL | Locked in from the first table | Doctrine Migrations (already a justified component per CLAUDE.md) |
@@ -344,7 +344,7 @@ M7), and email notification of unread messages (a §27 job, so M7).
 **Deliverables**
 - `StorageProvider` adapter; private assets with signed URLs (§31)
 - Endpoints: `/projects/{id}/assets*`, `/projects/{id}/exports*`
-- Job queue per D3: `POST /jobs`, `GET /jobs/{id}`, `POST /jobs/{id}/cancel`
+- Job queue per D3: `POST /jobs`, `GET /jobs/{id}`, `POST /jobs/{id}/cancel` — *delivered ([ADR-027](adr/ADR-027-cron-polled-job-queue.md))*, with `sweep.quotes` and `sweep.subscriptions` as its first handlers
 - Upload validation: type, size, content sniffing
 - `GeoProvider` interface for spatial operations — **implemented over
   PostgreSQL, no PostGIS dependency**, so a spatial backend can be introduced
@@ -420,7 +420,8 @@ A PR carries code + tests + architecture impact + migration.
 | # | Risk | Impact | Mitigation |
 |---|---|---|---|
 | ~~**R1**~~ | ~~**SiteGround may not offer PostgreSQL.**~~ **Closed: PostgreSQL is available.** The data architecture and the deployment target agree, so ADR-009 needs no revision and the MySQL contingency is moot. Everything built through M6 depends on it — JSONB documents, partial unique indexes, `LOCK TABLE` for gapless numbering — and none of that is now at risk. | Closed | — |
-| R2 | No persistent workers on shared hosting | High — §27 async jobs | D3: cron-polled queue behind a worker-compatible interface. Still open, and now the nearest risk: M7's scheduler is what sweeps lapsed quotas, quotes and subscriptions |
+| ~~R2~~ | ~~No persistent workers on shared hosting~~ **Closed by D3's cron-polled queue.** The runner is a process that starts, claims what is due, and exits — the shape shared hosting actually permits. What replaces it as a live concern is narrower and is tracked as R10 | Closed | — |
+| R10 | **A cron-driven queue has a floor on latency and no liveness signal.** Work waits up to one cron interval, and a cron that stops firing looks exactly like a quiet queue | Medium — §27 | Jobs carry `run_after`, so a delayed run is late rather than wrong. The runner records each pass, so "when did this last run?" is answerable; alerting on that gap belongs with M8's observability |
 | R3 | French e-invoicing deadlines (Sept 2026 / Sept 2027) drive M6 timing | High, regulatory | Confirm dates and PDP obligations against current official sources — the source citations in `architecture-v2.md` §25.1 are broken and resolve to nothing |
 | R4 | Entitlement checks leaking into controllers as plan-name conditionals | Medium — erodes §13 | Single `EntitlementChecker`; CI grep + Deptrac rule |
 | R5 | Product context added late | High — pipeline rework | M1 before any resource endpoint; D1 decided up front |

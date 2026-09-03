@@ -104,4 +104,13 @@ interface SalesRepository
     public function applyCompleteOrder(Order $order, OrderFulfilment $fulfilment, ?string $actorUserId): void;
 
     public function cancelOrder(Order $order, ?string $actorUserId): Order;
+
+    /**
+     * Moves quotes past their date to EXPIRED, and says how many moved.
+     *
+     * This does not change what a lapsed quote *means* — acceptance has asked
+     * the clock since M6, so an unswept quote was never honoured. It makes the
+     * column agree with the clock, which is what a listing shows.
+     */
+    public function expireLapsedQuotes(): int;
 }

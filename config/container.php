@@ -27,6 +27,11 @@ use App\EInvoice\Service\EInvoiceProviders;
 use App\EInvoice\Service\InvoiceTransmissionEffect;
 use App\Entitlement\Domain\EntitlementRepository;
 use App\Entitlement\Domain\UsageMeter;
+use App\Job\Domain\JobRepository;
+use App\Job\Infrastructure\PostgresJobRepository;
+use App\Job\Service\ExpireQuotes;
+use App\Job\Service\ExpireSubscriptions;
+use App\Job\Service\JobHandlers;
 use App\Messaging\Domain\ConversationRepository;
 use App\Messaging\Infrastructure\PostgresConversationRepository;
 use App\Payment\Domain\PaymentRepository;
@@ -202,6 +207,22 @@ return static function (array $overrides = []): ContainerInterface {
             ProjectWorkspace::QUOTA => get(ProjectUsageSource::class),
             MemberUsageSource::QUOTA => get(MemberUsageSource::class),
         ]),
+
+        // --- Jobs (§27, D3) --------------------------------------------------
+        // The registry is where a job type becomes runnable. A type with no
+        // entry here is refused at enqueue rather than claimed and retried
+        // until its attempts run out.
+        // Parameters are resolved by type, so the registry names its handlers
+        // as types rather than pulling them out of the container by string —
+        // which also means each one is a checked dependency, not a `mixed`.
+        JobHandlers::class => factory(
+            static fn (ExpireQuotes $quotes, ExpireSubscriptions $subscriptions): JobHandlers => new JobHandlers([
+                $quotes,
+                $subscriptions,
+            ]),
+        ),
+
+        JobRepository::class => autowire(PostgresJobRepository::class),
 
         // --- Messaging (§12.3) ----------------------------------------------
         // One repository serving two services: Conversations scopes every

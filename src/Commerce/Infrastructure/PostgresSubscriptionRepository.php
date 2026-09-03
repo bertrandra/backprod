@@ -323,6 +323,38 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
         );
     }
 
+    public function expireLapsed(): int
+    {
+        return $this->connection->transactional(function (): int {
+            // RETURNING rather than a bulk UPDATE, because every other
+            // transition in this repository writes an event and this one is
+            // not special. A subscription that ended with no trace of ending
+            // would be the one gap in an otherwise complete history (§18).
+            //
+            // A CUSTOM period has no `current_period_end` and is therefore
+            // never past one — untouched, deliberately.
+            $ids = $this->connection->fetchFirstColumn(
+                <<<'SQL'
+                    UPDATE subscriptions
+                       SET status = 'EXPIRED', ended_at = now(), updated_at = now()
+                     WHERE status = 'ACTIVE'
+                       AND current_period_end IS NOT NULL
+                       AND current_period_end < now()
+                    RETURNING id
+                    SQL,
+            );
+
+            foreach ($ids as $id) {
+                if (is_string($id)) {
+                    // No actor: nobody did this, the clock did.
+                    $this->record($id, SubscriptionEvent::EXPIRED, null, null, null, []);
+                }
+            }
+
+            return count($ids);
+        });
+    }
+
     /**
      * @param array<string, mixed> $detail
      */

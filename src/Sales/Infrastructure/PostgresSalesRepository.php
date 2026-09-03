@@ -397,6 +397,20 @@ final class PostgresSalesRepository implements SalesRepository
         });
     }
 
+    public function expireLapsedQuotes(): int
+    {
+        // The clock decides which rows, exactly as acceptance does. `decided_at`
+        // stays null: expiring is not a decision anybody took, and recording a
+        // moment there would misreport a sweep as a customer's answer.
+        return $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE quotes
+                   SET status = 'EXPIRED', updated_at = now()
+                 WHERE status = 'SENT' AND valid_until < now()
+                SQL,
+        );
+    }
+
     private function applyQuoteTransition(Quote $quote, string $status): void
     {
         $this->connection->executeStatement(

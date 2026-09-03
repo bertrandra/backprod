@@ -2,6 +2,7 @@ parameters:
     level: max
     paths:
         - src
+        - bin
         - config
         - public
         - tests
