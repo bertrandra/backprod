@@ -57,4 +57,20 @@ interface InvoiceRepository
      * The caller has already checked that the transition is legal.
      */
     public function transition(Invoice $invoice, string $status, ?string $actorUserId): Invoice;
+
+    /**
+     * The same move, without a transaction of its own, for a caller that
+     * already has one open on the same connection.
+     *
+     * It exists because a payment settling its invoice must be atomic with
+     * the payment itself — a collected payment and an invoice still saying
+     * it is owed must never be observable, not even after a crash between
+     * them — and nesting one transaction inside another is a property of the
+     * driver rather than of this design. One writer, two entry points: the
+     * transactional one above delegates here.
+     *
+     * Calling this outside a transaction writes the status and the ledger
+     * entry unatomically, so don't.
+     */
+    public function applyTransition(Invoice $invoice, string $status, ?string $actorUserId): void;
 }

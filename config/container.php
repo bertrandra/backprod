@@ -8,8 +8,10 @@ use App\Auth\Infrastructure\SigningKeySource;
 use App\Auth\Infrastructure\StaticSigningKeySource;
 use App\Auth\Infrastructure\SupabaseJwtAuthProvider;
 use App\Billing\Domain\BillingProfileRepository;
+use App\Billing\Domain\CreditNoteRepository;
 use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Infrastructure\PostgresBillingProfileRepository;
+use App\Billing\Infrastructure\PostgresCreditNoteRepository;
 use App\Billing\Infrastructure\PostgresInvoiceRepository;
 use App\Commerce\Domain\CatalogueRepository;
 use App\Commerce\Domain\SubscriptionRepository;
@@ -18,6 +20,12 @@ use App\Commerce\Infrastructure\PostgresEntitlementRepository;
 use App\Commerce\Infrastructure\PostgresSubscriptionRepository;
 use App\Entitlement\Domain\EntitlementRepository;
 use App\Entitlement\Domain\UsageMeter;
+use App\Payment\Domain\PaymentRepository;
+use App\Payment\Domain\PaymentSettlement;
+use App\Payment\Infrastructure\PostgresPaymentRepository;
+use App\Payment\Infrastructure\StubPaymentProvider;
+use App\Payment\Service\InvoiceSettlement;
+use App\Payment\Service\PaymentProviders;
 use App\Product\Domain\ProductRegistry;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\PostgresProductRegistry;
@@ -115,6 +123,24 @@ return static function (array $overrides = []): ContainerInterface {
         SubscriptionRepository::class => autowire(PostgresSubscriptionRepository::class),
         BillingProfileRepository::class => autowire(PostgresBillingProfileRepository::class),
         InvoiceRepository::class => autowire(PostgresInvoiceRepository::class),
+        CreditNoteRepository::class => autowire(PostgresCreditNoteRepository::class),
+        PaymentRepository::class => autowire(PostgresPaymentRepository::class),
+        PaymentSettlement::class => autowire(InvoiceSettlement::class),
+
+        // --- Payment providers ----------------------------------------------
+        // A registry, not one provider: non-negotiable #17 is about not
+        // coupling to a single PSP, and a platform migrating between two runs
+        // both while payments started with the old one are still settling.
+        //
+        // Without a configured secret the stub is left out entirely, so a
+        // deployment that has not been given a provider cannot take money —
+        // rather than taking it through something whose signatures anyone
+        // could forge. That is the same fail-closed shape as the JWKS above.
+        PaymentProviders::class => factory(static function () use ($env): PaymentProviders {
+            $secret = $env('STUB_PAYMENT_SIGNING_SECRET');
+
+            return new PaymentProviders($secret === '' ? [] : [new StubPaymentProvider($secret)]);
+        }),
         ProjectRepository::class => autowire(PostgresProjectRepository::class),
         TenantRepository::class => autowire(PostgresTenantRepository::class),
         TenantMemberRepository::class => autowire(PostgresTenantMemberRepository::class),
@@ -144,6 +170,10 @@ return static function (array $overrides = []): ContainerInterface {
             static fn (): RoutePolicy => new RoutePolicy(
                 publicPaths: ['/api/v1/health'],
                 identityOnlyPaths: ['/api/v1/products'],
+                // Unauthenticated, because the sender is a payment provider
+                // rather than a person. Everything under it must verify its
+                // own signature — see RoutePolicy and §24.
+                publicPrefixes: ['/api/v1/webhooks'],
             ),
         ),
 

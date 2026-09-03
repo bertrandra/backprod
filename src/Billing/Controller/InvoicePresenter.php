@@ -51,7 +51,7 @@ final class InvoicePresenter
             'payment_terms' => $invoice->paymentTerms,
             'supplier' => $invoice->supplier,
             'customer' => $invoice->customer,
-            'lines' => array_map(self::line(...), $invoice->lines),
+            'lines' => self::lines($invoice->lines),
             'taxes' => array_map(self::tax(...), $invoice->taxes),
         ];
     }
@@ -82,6 +82,19 @@ final class InvoicePresenter
             'country_code' => $profile->countryCode,
             'billing_email' => $profile->billingEmail,
         ];
+    }
+
+    /**
+     * Shared with the credit note presenter: a credit note's lines are the
+     * same shape, because they are copied from the invoice's.
+     *
+     * @param list<InvoiceLine> $lines
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function lines(array $lines): array
+    {
+        return array_map(self::line(...), $lines);
     }
 
     /**

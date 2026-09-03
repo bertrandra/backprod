@@ -139,7 +139,7 @@ final class PostgresInvoiceRepository implements InvoiceRepository
                 $vat = $vat->plus($line->vat);
             }
 
-            $number = $this->nextNumber();
+            $number = DocumentNumbering::next($this->connection, DocumentNumbering::INVOICE);
 
             $id = $this->connection->fetchOne(
                 <<<'SQL'
@@ -255,27 +255,7 @@ final class PostgresInvoiceRepository implements InvoiceRepository
     public function transition(Invoice $invoice, string $status, ?string $actorUserId): Invoice
     {
         return $this->connection->transactional(function () use ($invoice, $status, $actorUserId): Invoice {
-            $this->connection->executeStatement(
-                <<<'SQL'
-                    UPDATE invoices
-                       SET status = :status,
-                           paid_at = CASE WHEN :status = 'PAID' THEN now() ELSE paid_at END,
-                           updated_at = now()
-                     WHERE id = :id
-                    SQL,
-                ['status' => $status, 'id' => $invoice->id],
-            );
-
-            $this->record(
-                $invoice->tenantId,
-                $invoice->productId,
-                self::ledgerTypeFor($status),
-                $invoice->id,
-                $invoice->subscriptionId,
-                $invoice->gross,
-                $actorUserId,
-                ['from' => $invoice->status, 'to' => $status],
-            );
+            $this->applyTransition($invoice, $status, $actorUserId);
 
             $updated = $this->find($invoice->tenantId, $invoice->productId, $invoice->id);
 
@@ -287,35 +267,31 @@ final class PostgresInvoiceRepository implements InvoiceRepository
         });
     }
 
-    /**
-     * The next number in an unbroken sequence, per year.
-     *
-     * Taken from the maximum already issued while holding a lock on the
-     * invoices table, so two concurrent issues cannot read the same one. The
-     * unique constraint is the backstop; this is what stops it being hit.
-     */
-    private function nextNumber(): string
+    public function applyTransition(Invoice $invoice, string $status, ?string $actorUserId): void
     {
-        $year = (new DateTimeImmutable())->format('Y');
-
-        // A table-level lock for the shortest possible moment. Invoicing is
-        // rare and its correctness is legal rather than merely important, so
-        // serialising it is the right trade.
-        $this->connection->executeStatement('LOCK TABLE invoices IN SHARE ROW EXCLUSIVE MODE');
-
-        $highest = $this->connection->fetchOne(
+        $this->connection->executeStatement(
             <<<'SQL'
-                SELECT max(substring(number from '\d+$')::bigint)
-                  FROM invoices
-                 WHERE number LIKE :prefix
+                UPDATE invoices
+                   SET status = :status,
+                       paid_at = CASE WHEN :status = 'PAID' THEN now() ELSE paid_at END,
+                       updated_at = now()
+                 WHERE id = :id
                 SQL,
-            ['prefix' => $year . '-%'],
+            ['status' => $status, 'id' => $invoice->id],
         );
 
-        $next = (is_numeric($highest) ? (int) $highest : 0) + 1;
-
-        return sprintf('%s-%06d', $year, $next);
+        $this->record(
+            $invoice->tenantId,
+            $invoice->productId,
+            self::ledgerTypeFor($status),
+            $invoice->id,
+            $invoice->subscriptionId,
+            $invoice->gross,
+            $actorUserId,
+            ['from' => $invoice->status, 'to' => $status],
+        );
     }
+
 
     /**
      * @param array<string, mixed> $detail
