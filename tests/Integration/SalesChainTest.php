@@ -584,7 +584,7 @@ final class SalesChainTest extends DatabaseApiTestCase
         );
 
         $this->offer = $this->id(
-            "INSERT INTO offers (product_id, plan_id, code, name)"
+            'INSERT INTO offers (product_id, plan_id, code, name)'
             . " VALUES (:product, :plan, 'pro', 'Atlas Pro') RETURNING id",
             ['product' => $this->product, 'plan' => $plan],
         );
