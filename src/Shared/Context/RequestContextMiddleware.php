@@ -7,7 +7,9 @@ namespace App\Shared\Context;
 use App\Auth\Domain\AuthProvider;
 use App\Entitlement\Domain\EntitlementRepository;
 use App\Product\Service\ProductResolver;
+use App\Shared\Exceptions\ForbiddenException;
 use App\Shared\Exceptions\UnauthenticatedException;
+use App\Staff\Domain\StaffRepository;
 use App\Tenant\Service\TenantResolver;
 use App\User\Domain\UserDirectory;
 use Psr\Http\Message\ResponseInterface;
@@ -29,6 +31,12 @@ use Psr\Http\Server\RequestHandlerInterface;
  * authentication is skipped for identity-only routes — product discovery
  * cannot require a product — but nothing skips authentication itself.
  *
+ * A staff route (§12.2) leaves the chain after authentication and resolves a
+ * platform role instead. That is a different question, asked of a different
+ * repository, answered by a different context type: the two axes are never
+ * resolved into one another here or anywhere else, and a user with no
+ * platform role is refused whatever memberships they hold.
+ *
  * Resource authorization — the final step — is deliberately not performed
  * here: it depends on the resource being addressed, so handlers ask the
  * resulting context. What this middleware guarantees is that no handler runs
@@ -42,6 +50,7 @@ final class RequestContextMiddleware implements MiddlewareInterface
         private readonly ProductResolver $products,
         private readonly TenantResolver $tenants,
         private readonly EntitlementRepository $entitlements,
+        private readonly StaffRepository $staff,
         private readonly RoutePolicy $policy,
     ) {
     }
@@ -68,6 +77,22 @@ final class RequestContextMiddleware implements MiddlewareInterface
 
         if ($policy === RoutePolicy::IDENTITY_ONLY) {
             return $handler->handle($request);
+        }
+
+        if ($policy === RoutePolicy::STAFF) {
+            $identity = $this->staff->find($user->id);
+
+            if ($identity === null) {
+                // 403, not 404: they authenticated fine and this route
+                // exists. Hiding it would also hide it from the staff who
+                // need it, and the route names itself in the API catalogue
+                // anyway.
+                throw ForbiddenException::permissionDenied('staff');
+            }
+
+            return $handler->handle(
+                $request->withAttribute(StaffContext::ATTRIBUTE, new StaffContext($identity)),
+            );
         }
 
         $product = $this->products->resolve($request->getHeaderLine(ProductResolver::HEADER));

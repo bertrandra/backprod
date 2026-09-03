@@ -299,7 +299,7 @@ of §25.2 are a comment in the M2 migration saying they arrive with M8. So
 M6.2 brings that identity forward — not the whole admin surface, only the
 identity, its permissions, and the audit trail that makes it accountable.
 
-**Part 1 — platform staff identity**
+**Part 1 — platform staff identity** — *delivered ([ADR-025](adr/ADR-025-platform-staff-identity.md))*
 - Migrations: `platform_roles`, `platform_staff`, `platform_role_permissions`
 - `platform_staff` is a **separate table** from `tenant_members`: one table
   holding both would make a forgotten filter into privilege escalation

@@ -60,6 +60,10 @@ use App\Sales\Controller\PlaceOrderController;
 use App\Sales\Controller\RejectQuoteController;
 use App\Sales\Controller\ShowOrderController;
 use App\Sales\Controller\ShowQuoteController;
+use App\Staff\Controller\ListAccessLogController;
+use App\Staff\Controller\ListTenantsController;
+use App\Staff\Controller\ShowTenantController;
+use App\Staff\Controller\StaffIdentityController;
 use App\Tenant\Controller\AddMemberController;
 use App\Tenant\Controller\CurrentTenantController;
 use App\Tenant\Controller\ListMembersController;
@@ -196,6 +200,17 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('PATCH', '/api/v1/tenants/current', UpdateCurrentTenantController::class);
 
     $routes->addRoute('GET', '/api/v1/tenants/current/usage', TenantUsageController::class);
+
+    // Platform staff (§12.2). Everything under /staff requires a platform
+    // role, which no tenant membership grants — and grants nothing on the
+    // tenant routes above. The tenant is named in the path here, the only
+    // place in the platform where a client may do that, because there is no
+    // membership to derive one from; the role authorises, and the read is
+    // recorded.
+    $routes->addRoute('GET', '/api/v1/staff/me', StaffIdentityController::class);
+    $routes->addRoute('GET', '/api/v1/staff/tenants', ListTenantsController::class);
+    $routes->addRoute('GET', '/api/v1/staff/tenants/{tenantId}', ShowTenantController::class);
+    $routes->addRoute('GET', '/api/v1/staff/access-log', ListAccessLogController::class);
 
     $routes->addRoute('GET', '/api/v1/tenants/current/members', ListMembersController::class);
     $routes->addRoute('POST', '/api/v1/tenants/current/members', AddMemberController::class);

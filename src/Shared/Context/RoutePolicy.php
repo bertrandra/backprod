@@ -7,10 +7,12 @@ namespace App\Shared\Context;
 /**
  * How much context a path requires before a handler may run.
  *
- * Three levels, because product discovery does not fit the other two:
+ * Four levels, because neither product discovery nor platform staff fits the
+ * ordinary chain:
  *
  *   PUBLIC          nothing — the liveness probe
  *   IDENTITY_ONLY   authenticated, but no product or tenant yet
+ *   STAFF           authenticated, with a platform role (§12.2)
  *   FULL            the whole §10.6 chain
  *
  * IDENTITY_ONLY exists for a real reason. A client cannot send X-Product
@@ -18,6 +20,16 @@ namespace App\Shared\Context;
  * /products — so requiring product context there would make discovery
  * depend on its own result. Those endpoints authorise per product instead,
  * from membership.
+ *
+ * STAFF exists because a staff route cannot resolve a tenant the way every
+ * other protected route does: there is no membership to derive one from —
+ * that is the entire point of the identity. So the chain stops after
+ * authentication and resolves a platform role instead, and the tenant
+ * arrives as an explicit parameter the handler must justify and audit.
+ *
+ * The relaxation is only apparent. A STAFF route is not a FULL route with a
+ * step skipped: it demands a platform role that no tenant membership can
+ * grant, and refuses everyone else outright.
  *
  * Default-deny: a path matching nothing here gets FULL, so a new route is
  * fully protected unless someone deliberately relaxes it.
@@ -35,6 +47,7 @@ final class RoutePolicy
 {
     public const PUBLIC = 'public';
     public const IDENTITY_ONLY = 'identity';
+    public const STAFF = 'staff';
     public const FULL = 'full';
 
     /**
@@ -42,16 +55,19 @@ final class RoutePolicy
      * @param list<string> $identityOnlyPaths path prefixes
      * @param list<string> $publicPrefixes   path prefixes reachable with no
      *                                       credential at all
+     * @param list<string> $staffPrefixes    path prefixes requiring a platform
+     *                                       role instead of a membership
      */
     public function __construct(
         private readonly array $publicPaths,
         private readonly array $identityOnlyPaths,
         private readonly array $publicPrefixes = [],
+        private readonly array $staffPrefixes = [],
     ) {
     }
 
     /**
-     * @return self::PUBLIC|self::IDENTITY_ONLY|self::FULL
+     * @return self::PUBLIC|self::IDENTITY_ONLY|self::STAFF|self::FULL
      */
     public function for(string $path): string
     {
@@ -62,6 +78,15 @@ final class RoutePolicy
         foreach ($this->publicPrefixes as $prefix) {
             if ($path === $prefix || str_starts_with($path, rtrim($prefix, '/') . '/')) {
                 return self::PUBLIC;
+            }
+        }
+
+        // Before the identity-only check, so a staff prefix nested under a
+        // relaxed one could never inherit the relaxation and lose its role
+        // requirement.
+        foreach ($this->staffPrefixes as $prefix) {
+            if ($path === $prefix || str_starts_with($path, rtrim($prefix, '/') . '/')) {
+                return self::STAFF;
             }
         }
 
