@@ -79,6 +79,7 @@ final class SalesChainTest extends DatabaseApiTestCase
                     [
                         'sales.read', 'sales.manage',
                         'billing.read', 'billing.manage',
+                        'payments.read', 'payments.manage',
                         'subscription.read', 'entitlements.read',
                     ],
                 ),
