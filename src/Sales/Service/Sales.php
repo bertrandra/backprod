@@ -199,17 +199,26 @@ final class Sales
     }
 
     /**
-     * Turns a placed order into a subscription and an invoice.
+     * Raises the invoice a placed order is to be paid against.
      *
-     * All three in one transaction, through the fulfilment port: the schema
-     * refuses a completed order that does not name both, so they are one
-     * write or a sale nobody can trace.
+     * What it deliberately does not do is start the subscription. That waits
+     * for the money: an order fulfilled the moment it is placed extends
+     * credit to everyone who can reach this endpoint, which is a decision
+     * worth taking on purpose rather than by default. The subscription starts
+     * when the invoice is paid, through {@see \App\Billing\Domain\InvoicePaid}.
+     *
+     * An order with nothing to collect completes here, in the same
+     * transaction — there is no payment to wait for.
      */
     public function fulfil(string $tenantId, string $productId, string $orderId, ?string $actorUserId): Order
     {
         $order = $this->showOrder($tenantId, $productId, $orderId);
 
-        if ($order->status !== Order::PENDING && $order->status !== Order::AWAITING_PAYMENT) {
+        // Only PENDING. An order already awaiting payment has an invoice with
+        // a legal number on it, and numbering is gapless: raising a second
+        // one because somebody pressed the button twice is a document that
+        // cannot be deleted afterwards.
+        if ($order->status !== Order::PENDING) {
             throw new ConflictException(
                 'ORDER_NOT_FULFILLABLE',
                 'Only a pending order can be fulfilled.',
@@ -224,14 +233,16 @@ final class Sales
     {
         $order = $this->showOrder($tenantId, $productId, $orderId);
 
-        if ($order->isComplete()) {
-            // A completed order raised an invoice and started a subscription.
-            // Undoing it is a credit note and a cancellation, both of which
-            // are deliberate acts with their own documents.
+        if ($order->invoiceId !== null) {
+            // Once an invoice exists the order is no longer the document that
+            // matters. Undoing it is a credit note, which is a deliberate act
+            // with its own number — and that holds whether the order was
+            // completed or is still waiting to be paid, because the invoice
+            // is issued either way.
             throw new ConflictException(
                 'ORDER_NOT_CANCELLABLE',
-                'A completed order is undone by crediting its invoice, not by cancelling it.',
-                ['status' => $order->status],
+                'An invoiced order is undone by crediting its invoice, not by cancelling it.',
+                ['status' => $order->status, 'invoice_id' => $order->invoiceId],
             );
         }
 

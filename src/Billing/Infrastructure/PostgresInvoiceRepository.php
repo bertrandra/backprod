@@ -6,6 +6,7 @@ namespace App\Billing\Infrastructure;
 
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceLine;
+use App\Billing\Domain\InvoicePaid;
 use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Domain\InvoiceStatus;
 use App\Billing\Domain\Money;
@@ -310,6 +311,40 @@ final class PostgresInvoiceRepository implements InvoiceRepository
         );
     }
 
+    public function settle(Invoice $invoice, InvoicePaid $paid, ?string $actorUserId): Invoice
+    {
+        return $this->connection->transactional(function () use ($invoice, $paid, $actorUserId): Invoice {
+            $this->applyTransition($invoice, InvoiceStatus::PAID, $actorUserId);
+
+            // Inside the transaction, so an invoice marked paid and the sale
+            // it releases can never be observed apart — the same rule the
+            // payment path holds itself to, for the same reason.
+            $paid->paid($invoice);
+
+            $updated = $this->find($invoice->tenantId, $invoice->productId, $invoice->id);
+
+            if ($updated === null) {
+                throw new RuntimeException('The invoice vanished during a change to it.');
+            }
+
+            return $updated;
+        });
+    }
+
+    public function applyAttachSubscription(string $invoiceId, string $subscriptionId): void
+    {
+        // Only ever onto an invoice that has none: an invoice already naming
+        // a subscription is one raised for that subscription directly, and
+        // repointing it would rewrite which sale a document belongs to.
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE invoices
+                   SET subscription_id = :subscription, updated_at = now()
+                 WHERE id = :id AND subscription_id IS NULL
+                SQL,
+            ['subscription' => $subscriptionId, 'id' => $invoiceId],
+        );
+    }
 
     /**
      * @param array<string, mixed> $detail

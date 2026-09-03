@@ -69,15 +69,39 @@ interface SalesRepository
     ): Order;
 
     /**
-     * Fulfils an order: starts the subscription, raises the invoice and
-     * completes the order, in one transaction.
+     * Fulfils an order: raises its invoice and parks it until that invoice is
+     * paid, in one transaction.
+     *
+     * An order with nothing to collect completes here instead, in the same
+     * transaction — a free offer has no payment to wait for, and parking it
+     * would strand it behind money that is never coming.
      *
      * The work itself comes from the supplied {@see OrderFulfilment}, so this
      * never learns what a subscription or an invoice is. What it owns is the
-     * transaction — and that is the point, because the schema refuses a
-     * completed order that does not name both.
+     * transaction.
      */
     public function fulfilOrder(Order $order, OrderFulfilment $fulfilment, ?string $actorUserId): Order;
+
+    /**
+     * The order waiting on an invoice, if a sale is waiting on it at all.
+     *
+     * Most invoices have no order behind them — a subscription billed
+     * directly, a document raised by hand — so nothing found is the ordinary
+     * answer rather than an anomaly.
+     */
+    public function findOrderAwaitingPayment(string $tenantId, string $productId, string $invoiceId): ?Order;
+
+    /**
+     * Completes an order whose invoice has just been paid, without a
+     * transaction of its own.
+     *
+     * The caller already holds one: this runs inside the write that marked
+     * the invoice paid, whether that was a provider's webhook or an operator
+     * reconciling a transfer. Money collected and a subscription still off
+     * must never be observable, and nesting one transaction inside another is
+     * a property of the driver rather than of this design.
+     */
+    public function applyCompleteOrder(Order $order, OrderFulfilment $fulfilment, ?string $actorUserId): void;
 
     public function cancelOrder(Order $order, ?string $actorUserId): Order;
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Payment\Service;
 
+use App\Billing\Domain\InvoicePaid;
 use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Domain\InvoiceStatus;
 use App\Payment\Domain\Payment;
@@ -26,8 +27,10 @@ use App\Payment\Domain\PaymentSettlement;
  */
 final class InvoiceSettlement implements PaymentSettlement
 {
-    public function __construct(private readonly InvoiceRepository $invoices)
-    {
+    public function __construct(
+        private readonly InvoiceRepository $invoices,
+        private readonly InvoicePaid $paid,
+    ) {
     }
 
     public function settle(Payment $payment): void
@@ -43,5 +46,11 @@ final class InvoiceSettlement implements PaymentSettlement
         // one inside it would make correctness depend on how the driver
         // nests.
         $this->invoices->applyTransition($invoice, InvoiceStatus::PAID, null);
+
+        // And whatever was waiting on this invoice being paid starts here,
+        // in the same transaction. A payment collected, an invoice settled
+        // and a subscription still switched off is the state this ordering
+        // exists to make unobservable.
+        $this->paid->paid($invoice);
     }
 }

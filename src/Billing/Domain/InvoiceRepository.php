@@ -100,4 +100,26 @@ interface InvoiceRepository
      * entry unatomically, so don't.
      */
     public function applyTransition(Invoice $invoice, string $status, ?string $actorUserId): void;
+
+    /**
+     * Marks an invoice paid and lets the sale it settles react, in one
+     * transaction.
+     *
+     * This is the hand-reconciled path — a bank transfer an operator has
+     * matched — and it has to do exactly what the provider's webhook does,
+     * because §25 makes both legitimate ways for an invoice to reach PAID. An
+     * invoice settled by transfer that started nothing would be a customer
+     * who paid and got nothing, found weeks later.
+     */
+    public function settle(Invoice $invoice, InvoicePaid $paid, ?string $actorUserId): Invoice;
+
+    /**
+     * Names the subscription an already-issued invoice turned out to start.
+     *
+     * An order's invoice is raised before its subscription exists, so the
+     * link can only be written afterwards. It is a reference, not a priced
+     * fact: §25's snapshot rule governs what the document says was sold and
+     * for how much, and none of that moves here.
+     */
+    public function applyAttachSubscription(string $invoiceId, string $subscriptionId): void;
 }

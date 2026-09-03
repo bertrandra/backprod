@@ -13,9 +13,13 @@ use Psr\Http\Message\ServerRequestInterface;
 /**
  * POST /api/v1/sales/orders/{orderId}/fulfil.
  *
- * Starts the subscription and raises the invoice, in one transaction with the
- * order completing. The response carries both ids, which is §20's chain
- * readable in a single document.
+ * Raises the order's invoice and leaves it AWAITING_PAYMENT: the subscription
+ * starts when that invoice is paid, not when this returns. The response
+ * carries the invoice to pay, and `subscription_id` stays null until it is —
+ * which is the gate, visible in the document rather than only in the code.
+ *
+ * An order with nothing to collect comes back COMPLETED, because there is no
+ * payment for it to wait on.
  */
 final class FulfilOrderController implements RouteHandler
 {

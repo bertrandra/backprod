@@ -213,6 +213,19 @@ an invoice remains correct after its offer is re-versioned.
 **Delivered** in three parts: invoicing (ADR-021), payments and credit notes
 (ADR-022), and the sales chain with e-invoicing (ADR-023).
 
+**Amended** by ADR-024, which put the chain in the order money actually moves:
+
+```text
+Quote → Order → Invoice → Payment → Subscription
+```
+
+Fulfilment used to start the subscription on the assumption payment would
+follow — a decision to extend credit to everyone who could reach the endpoint,
+taken by default. Now fulfilling raises the invoice and parks the order at
+`AWAITING_PAYMENT`, and the subscription starts when that invoice reaches
+`PAID` by either sanctioned route: a provider's webhook, or an operator
+reconciling a bank transfer.
+
 ---
 
 ### M7 — Storage & jobs

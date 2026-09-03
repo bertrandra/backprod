@@ -54,4 +54,23 @@ final class InMemoryCatalogueRepository implements CatalogueRepository
 
         return null;
     }
+
+    public function findOfferByVersion(string $productId, string $offerVersionId): ?OfferCandidate
+    {
+        foreach ($this->offersFor($productId) as $offer) {
+            foreach ($offer->versions as $version) {
+                if ($version->id === $offerVersionId) {
+                    return new OfferCandidate(
+                        $offer->id,
+                        $offer->code,
+                        $offer->name,
+                        $offer->plan,
+                        [$version],
+                    );
+                }
+            }
+        }
+
+        return null;
+    }
 }

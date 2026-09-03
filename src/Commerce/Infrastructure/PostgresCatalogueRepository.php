@@ -77,6 +77,81 @@ final class PostgresCatalogueRepository implements CatalogueRepository
         return $this->load($productId, $offerId)[0] ?? null;
     }
 
+    public function findOfferByVersion(string $productId, string $offerVersionId): ?OfferCandidate
+    {
+        if (!Uuid::isValid($offerVersionId)) {
+            return null;
+        }
+
+        $offerId = $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT v.offer_id
+                  FROM offer_versions v
+                  JOIN offers o ON o.id = v.offer_id
+                 WHERE v.id = :versionId AND o.product_id = :productId
+                SQL,
+            ['versionId' => $offerVersionId, 'productId' => $productId],
+        );
+
+        if (!is_string($offerId)) {
+            return null;
+        }
+
+        $candidate = $this->load($productId, $offerId)[0] ?? null;
+
+        if ($candidate === null) {
+            return null;
+        }
+
+        // Carrying the one version asked for, whatever its status: `load`
+        // deliberately sees only what is sellable, and this question is about
+        // what was sold. A version withdrawn since is still the terms the
+        // document was written against.
+        return new OfferCandidate(
+            $candidate->id,
+            $candidate->code,
+            $candidate->name,
+            $candidate->plan,
+            $this->versionById($offerVersionId),
+        );
+    }
+
+    /**
+     * One version by id, with no filter on status or on the clock.
+     *
+     * @return list<OfferVersion>
+     */
+    private function versionById(string $offerVersionId): array
+    {
+        $row = $this->connection->fetchAssociative(
+            <<<'SQL'
+                SELECT id, offer_id, version, status, billing_period,
+                       price_minor_units, currency, valid_from, valid_until
+                  FROM offer_versions
+                 WHERE id = :versionId
+                SQL,
+            ['versionId' => $offerVersionId],
+        );
+
+        if ($row === false) {
+            return [];
+        }
+
+        $id = Row::string($row, 'id');
+
+        return [new OfferVersion(
+            $id,
+            Row::integer($row, 'version'),
+            Row::string($row, 'status'),
+            Row::string($row, 'billing_period'),
+            Row::integer($row, 'price_minor_units'),
+            Row::string($row, 'currency'),
+            Row::timestamp($row, 'valid_from'),
+            Row::nullableTimestamp($row, 'valid_until'),
+            $this->grantsOf([$id])[$id] ?? [],
+        )];
+    }
+
     /**
      * @return list<OfferCandidate>
      */

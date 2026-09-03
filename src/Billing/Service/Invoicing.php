@@ -8,6 +8,7 @@ use App\Billing\Domain\BillingProfile;
 use App\Billing\Domain\BillingProfileRepository;
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceLine;
+use App\Billing\Domain\InvoicePaid;
 use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Domain\InvoiceStatus;
 use App\Billing\Domain\Money;
@@ -40,6 +41,7 @@ final class Invoicing
 
     public function __construct(
         private readonly InvoiceRepository $invoices,
+        private readonly InvoicePaid $paid,
         private readonly BillingProfileRepository $profiles,
         private readonly Subscriptions $subscriptions,
         private readonly VatPolicy $vat,
@@ -145,9 +147,22 @@ final class Invoicing
         );
     }
 
+    /**
+     * Reconciles an invoice by hand — a bank transfer that arrived.
+     *
+     * It goes through `settle` rather than the ordinary move because §25
+     * makes this as real a way to be paid as a card is, and the sale waiting
+     * on the money must be released either way. A customer who pays by
+     * transfer and gets nothing is the bug this shape exists to make
+     * impossible.
+     */
     public function markPaid(string $tenantId, string $productId, string $invoiceId, ?string $actorUserId): Invoice
     {
-        return $this->move($tenantId, $productId, $invoiceId, InvoiceStatus::PAID, $actorUserId);
+        $invoice = $this->show($tenantId, $productId, $invoiceId);
+
+        InvoiceStatus::assertPermits($invoice->status, InvoiceStatus::PAID);
+
+        return $this->invoices->settle($invoice, $this->paid, $actorUserId);
     }
 
     public function cancel(string $tenantId, string $productId, string $invoiceId, ?string $actorUserId): Invoice
