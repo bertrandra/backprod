@@ -309,7 +309,7 @@ identity, its permissions, and the audit trail that makes it accountable.
   explicit parameter, every access audited (who, when, which tenant, why)
 - Non-negotiables #21 and #22
 
-**Part 2 — conversations and messages**
+**Part 2 — conversations and messages** — *delivered ([ADR-026](adr/ADR-026-conversations-and-messages.md))*
 - Migrations: `conversations`, `conversation_participants`, `messages`
 - Invariants in the database: a conversation names `(tenant, product)`; an
   author is a participant (foreign key, not a check);

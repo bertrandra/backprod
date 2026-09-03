@@ -27,6 +27,8 @@ use App\EInvoice\Service\EInvoiceProviders;
 use App\EInvoice\Service\InvoiceTransmissionEffect;
 use App\Entitlement\Domain\EntitlementRepository;
 use App\Entitlement\Domain\UsageMeter;
+use App\Messaging\Domain\ConversationRepository;
+use App\Messaging\Infrastructure\PostgresConversationRepository;
 use App\Payment\Domain\PaymentRepository;
 use App\Payment\Domain\PaymentSettlement;
 use App\Payment\Infrastructure\PostgresPaymentRepository;
@@ -200,6 +202,13 @@ return static function (array $overrides = []): ContainerInterface {
             ProjectWorkspace::QUOTA => get(ProjectUsageSource::class),
             MemberUsageSource::QUOTA => get(MemberUsageSource::class),
         ]),
+
+        // --- Messaging (§12.3) ----------------------------------------------
+        // One repository serving two services: Conversations scopes every
+        // query to a tenant and product, SupportDesk crosses that boundary
+        // and records having done so. The separation is in the services and
+        // in the SQL, not in a flag.
+        ConversationRepository::class => autowire(PostgresConversationRepository::class),
 
         // --- Platform staff (§12.2) -----------------------------------------
         // Bound separately from the tenant repositories above, and reading

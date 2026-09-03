@@ -100,7 +100,7 @@ as they gain those layers; small modules stay lighter (§41.1).
 
 ## Status
 
-**M6 complete, M6.2 part 1 landed** in
+**M6 complete, M6.2 landed** in
 [`docs/backend-roadmap.md`](docs/backend-roadmap.md) —
 billing, payments and e-invoicing — on top of M5's commerce, M4's projects,
 M3's product registry, M2's platform identity and M1's context chain.
@@ -538,6 +538,70 @@ GET /api/v1/staff/tenants      every tenant (recorded once, naming none)
 GET /api/v1/staff/tenants/{id} one tenant (recorded, naming it)
 GET /api/v1/staff/access-log   the trail, ?tenant_id= to narrow it
 ```
+
+## Conversations
+
+One model for two needs (§12.3,
+[ADR-026](docs/adr/ADR-026-conversations-and-messages.md)):
+
+```text
+INTERNAL   tenant members only  — staff must never appear
+SUPPORT    tenant members + platform staff
+```
+
+**Four invariants live in the schema**, not in a service:
+
+- a conversation names `(tenant, product)`, like every other resource;
+- the author of a message **is a participant, by foreign key** — writing into
+  a thread you do not belong to is refused by PostgreSQL;
+- `UNIQUE (conversation_id, seq)`, so ordering and paging are stable;
+- **a STAFF participant implies a SUPPORT conversation**, carried by a
+  composite foreign key onto `conversations (id, kind)`. Adding staff to an
+  internal thread fails the check; claiming `SUPPORT` to get past it fails the
+  foreign key.
+
+The author key names three columns — `(conversation, user, kind)` — so a
+member cannot post as `STAFF` by sending the field.
+
+**`seq` is monotone and unique, not gapless.** Gapless numbering is a legal
+requirement for invoices and costs a table lock; a chat message is entitled to
+no such thing, so posting takes a row lock on the one conversation.
+
+**Read state is a per-participant watermark**, moved with `GREATEST` so a
+second tab reporting an older position cannot rewind it.
+
+**No WebSocket, no held-open SSE** — R2 means no persistent process on shared
+hosting. Reading is polling with `since_seq`, which the watermark makes cheap.
+
+**A deleted message is really deleted**: the body is erased and a tombstone
+keeps the thread's order. The opposite of an invoice, deliberately — §26
+separates RGPD erasure from legal retention.
+
+A member who is not a participant gets the same 404 as a conversation that
+does not exist, so nobody can probe for threads they are not in. Adding a
+participant checks tenant membership first; that one check is the difference
+between a conversation and a hole in the tenant boundary.
+
+```text
+GET    /api/v1/conversations                                  threads you are in
+POST   /api/v1/conversations                                  open one
+GET    /api/v1/conversations/{id}                             with participants
+POST   /api/v1/conversations/{id}/messages                    post
+GET    /api/v1/conversations/{id}/messages?since_seq=         poll
+POST   /api/v1/conversations/{id}/read                        move the watermark
+POST   /api/v1/conversations/{id}/participants                add (membership checked)
+DELETE /api/v1/conversations/{id}/participants/{userId}       mark as left
+POST   /api/v1/conversations/{id}/close
+DELETE /api/v1/conversations/{id}/messages/{messageId}        erase the body
+
+GET    /api/v1/staff/conversations         support threads, ?tenant_id= to narrow
+GET    /api/v1/staff/conversations/{id}    thread and messages together
+POST   /api/v1/staff/conversations/{id}/messages   reply to a customer
+POST   /api/v1/staff/conversations/{id}/close
+```
+
+Every staff read and reply writes to `staff_access_log`, as with every other
+crossing of the boundary.
 
 ## Projects
 

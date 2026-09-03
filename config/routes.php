@@ -30,6 +30,16 @@ use App\Identity\Controller\MeController;
 use App\Identity\Controller\MePermissionsController;
 use App\Identity\Controller\MyEntitlementsController;
 use App\Identity\Controller\UpdateMeController;
+use App\Messaging\Controller\AddParticipantController;
+use App\Messaging\Controller\CloseConversationController;
+use App\Messaging\Controller\DeleteMessageController;
+use App\Messaging\Controller\ListConversationsController;
+use App\Messaging\Controller\ListMessagesController;
+use App\Messaging\Controller\MarkReadController;
+use App\Messaging\Controller\PostMessageController;
+use App\Messaging\Controller\RemoveParticipantController;
+use App\Messaging\Controller\ShowConversationController;
+use App\Messaging\Controller\StartConversationController;
 use App\Payment\Controller\ListPaymentsController;
 use App\Payment\Controller\PaymentWebhookController;
 use App\Payment\Controller\RefundPaymentController;
@@ -60,8 +70,12 @@ use App\Sales\Controller\PlaceOrderController;
 use App\Sales\Controller\RejectQuoteController;
 use App\Sales\Controller\ShowOrderController;
 use App\Sales\Controller\ShowQuoteController;
+use App\Staff\Controller\CloseSupportConversationController;
 use App\Staff\Controller\ListAccessLogController;
+use App\Staff\Controller\ListSupportConversationsController;
 use App\Staff\Controller\ListTenantsController;
+use App\Staff\Controller\PostSupportMessageController;
+use App\Staff\Controller\ShowSupportConversationController;
 use App\Staff\Controller\ShowTenantController;
 use App\Staff\Controller\StaffIdentityController;
 use App\Tenant\Controller\AddMemberController;
@@ -211,6 +225,59 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/staff/tenants', ListTenantsController::class);
     $routes->addRoute('GET', '/api/v1/staff/tenants/{tenantId}', ShowTenantController::class);
     $routes->addRoute('GET', '/api/v1/staff/access-log', ListAccessLogController::class);
+
+    // Support: the platform's side of §12.3. Only SUPPORT threads are
+    // reachable — the repository filters on kind in SQL, so a tenant's
+    // internal conversations are not excluded here by remembering to.
+    $routes->addRoute('GET', '/api/v1/staff/conversations', ListSupportConversationsController::class);
+    $routes->addRoute(
+        'GET',
+        '/api/v1/staff/conversations/{conversationId}',
+        ShowSupportConversationController::class,
+    );
+    $routes->addRoute(
+        'POST',
+        '/api/v1/staff/conversations/{conversationId}/messages',
+        PostSupportMessageController::class,
+    );
+    $routes->addRoute(
+        'POST',
+        '/api/v1/staff/conversations/{conversationId}/close',
+        CloseSupportConversationController::class,
+    );
+
+    // Conversations: the tenant's side. Full context chain, scoped to the
+    // caller's tenant and product and further to the threads they are in.
+    $routes->addRoute('GET', '/api/v1/conversations', ListConversationsController::class);
+    $routes->addRoute('POST', '/api/v1/conversations', StartConversationController::class);
+    $routes->addRoute('GET', '/api/v1/conversations/{conversationId}', ShowConversationController::class);
+    $routes->addRoute('POST', '/api/v1/conversations/{conversationId}/close', CloseConversationController::class);
+    $routes->addRoute(
+        'GET',
+        '/api/v1/conversations/{conversationId}/messages',
+        ListMessagesController::class,
+    );
+    $routes->addRoute(
+        'POST',
+        '/api/v1/conversations/{conversationId}/messages',
+        PostMessageController::class,
+    );
+    $routes->addRoute(
+        'DELETE',
+        '/api/v1/conversations/{conversationId}/messages/{messageId}',
+        DeleteMessageController::class,
+    );
+    $routes->addRoute('POST', '/api/v1/conversations/{conversationId}/read', MarkReadController::class);
+    $routes->addRoute(
+        'POST',
+        '/api/v1/conversations/{conversationId}/participants',
+        AddParticipantController::class,
+    );
+    $routes->addRoute(
+        'DELETE',
+        '/api/v1/conversations/{conversationId}/participants/{userId}',
+        RemoveParticipantController::class,
+    );
 
     $routes->addRoute('GET', '/api/v1/tenants/current/members', ListMembersController::class);
     $routes->addRoute('POST', '/api/v1/tenants/current/members', AddMemberController::class);
