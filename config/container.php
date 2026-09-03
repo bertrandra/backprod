@@ -18,6 +18,12 @@ use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Infrastructure\PostgresCatalogueRepository;
 use App\Commerce\Infrastructure\PostgresEntitlementRepository;
 use App\Commerce\Infrastructure\PostgresSubscriptionRepository;
+use App\EInvoice\Domain\TransmissionEffect;
+use App\EInvoice\Domain\TransmissionRepository;
+use App\EInvoice\Infrastructure\PostgresTransmissionRepository;
+use App\EInvoice\Infrastructure\StubEInvoiceProvider;
+use App\EInvoice\Service\EInvoiceProviders;
+use App\EInvoice\Service\InvoiceTransmissionEffect;
 use App\Entitlement\Domain\EntitlementRepository;
 use App\Entitlement\Domain\UsageMeter;
 use App\Payment\Domain\PaymentRepository;
@@ -34,6 +40,10 @@ use App\Project\Domain\ProjectRepository;
 use App\Project\Infrastructure\PostgresProjectRepository;
 use App\Project\Infrastructure\ProjectUsageSource;
 use App\Project\Service\ProjectWorkspace;
+use App\Sales\Domain\OrderFulfilment;
+use App\Sales\Domain\SalesRepository;
+use App\Sales\Infrastructure\PostgresSalesRepository;
+use App\Sales\Service\SubscribeAndInvoice;
 use App\Shared\Context\RequestContextMiddleware;
 use App\Shared\Context\RoutePolicy;
 use App\Shared\Database\ConnectionFactory;
@@ -126,6 +136,10 @@ return static function (array $overrides = []): ContainerInterface {
         CreditNoteRepository::class => autowire(PostgresCreditNoteRepository::class),
         PaymentRepository::class => autowire(PostgresPaymentRepository::class),
         PaymentSettlement::class => autowire(InvoiceSettlement::class),
+        SalesRepository::class => autowire(PostgresSalesRepository::class),
+        OrderFulfilment::class => autowire(SubscribeAndInvoice::class),
+        TransmissionRepository::class => autowire(PostgresTransmissionRepository::class),
+        TransmissionEffect::class => autowire(InvoiceTransmissionEffect::class),
 
         // --- Payment providers ----------------------------------------------
         // A registry, not one provider: non-negotiable #17 is about not
@@ -140,6 +154,17 @@ return static function (array $overrides = []): ContainerInterface {
             $secret = $env('STUB_PAYMENT_SIGNING_SECRET');
 
             return new PaymentProviders($secret === '' ? [] : [new StubPaymentProvider($secret)]);
+        }),
+
+        // --- E-invoicing platforms (§25.1) -----------------------------------
+        // Same shape and the same fail-closed rule: with no configured secret
+        // there is no platform, and nothing can be transmitted. A transmission
+        // record produced by an unverifiable adapter would be worse than none,
+        // because it could be mistaken for evidence of compliance.
+        EInvoiceProviders::class => factory(static function () use ($env): EInvoiceProviders {
+            $secret = $env('STUB_EINVOICE_SIGNING_SECRET');
+
+            return new EInvoiceProviders($secret === '' ? [] : [new StubEInvoiceProvider($secret)]);
         }),
         ProjectRepository::class => autowire(PostgresProjectRepository::class),
         TenantRepository::class => autowire(PostgresTenantRepository::class),

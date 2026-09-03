@@ -43,6 +43,27 @@ final class OfferVersion
     }
 
     /**
+     * When the period this version bills for would end, starting from a
+     * moment.
+     *
+     * Null for a CUSTOM period, which has no computable end — meaning the
+     * subscription runs until someone ends it, not that it has already
+     * expired.
+     *
+     * It lives on the version because the billing period is the version's
+     * own term. Two callers needed it (subscribing, and an order fulfilling
+     * itself) and the second would otherwise have copied it.
+     */
+    public function periodEndFrom(DateTimeImmutable $from): ?DateTimeImmutable
+    {
+        return match ($this->billingPeriod) {
+            'MONTHLY' => $from->modify('+1 month'),
+            'YEARLY' => $from->modify('+1 year'),
+            default => null,
+        };
+    }
+
+    /**
      * Whether this version may be sold at the given moment.
      *
      * Both halves matter. A version can be ACTIVE and outside its window

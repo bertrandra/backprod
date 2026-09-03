@@ -22,6 +22,9 @@ use App\Commerce\Controller\ShowOfferController;
 use App\Commerce\Controller\ShowSubscriptionController;
 use App\Commerce\Controller\SubscribeController;
 use App\Commerce\Controller\TenantUsageController;
+use App\EInvoice\Controller\EInvoiceWebhookController;
+use App\EInvoice\Controller\ListTransmissionsController;
+use App\EInvoice\Controller\SubmitInvoiceController;
 use App\Health\Controller\HealthController;
 use App\Identity\Controller\MeController;
 use App\Identity\Controller\MePermissionsController;
@@ -47,6 +50,16 @@ use App\Project\Controller\RestoreProjectController;
 use App\Project\Controller\ShowProjectController;
 use App\Project\Controller\ShowProjectVersionController;
 use App\Project\Controller\UpdateProjectController;
+use App\Sales\Controller\AcceptQuoteController;
+use App\Sales\Controller\CancelOrderController;
+use App\Sales\Controller\CreateQuoteController;
+use App\Sales\Controller\FulfilOrderController;
+use App\Sales\Controller\ListOrdersController;
+use App\Sales\Controller\ListQuotesController;
+use App\Sales\Controller\PlaceOrderController;
+use App\Sales\Controller\RejectQuoteController;
+use App\Sales\Controller\ShowOrderController;
+use App\Sales\Controller\ShowQuoteController;
 use App\Tenant\Controller\AddMemberController;
 use App\Tenant\Controller\CurrentTenantController;
 use App\Tenant\Controller\ListMembersController;
@@ -130,6 +143,35 @@ return static function (RouteCollector $routes): void {
     // for whether money moved (§24). It authenticates itself: the provider's
     // signature over the raw body, checked before a field is read.
     $routes->addRoute('POST', '/api/v1/webhooks/payments/{provider}', PaymentWebhookController::class);
+    $routes->addRoute('POST', '/api/v1/webhooks/einvoice/{provider}', EInvoiceWebhookController::class);
+
+    // §20's chain, left half: what was proposed, and what was committed to.
+    // A quote lapses on the clock rather than on a sweep, so accepting one
+    // asks the date and not the status column.
+    $routes->addRoute('GET', '/api/v1/sales/quotes', ListQuotesController::class);
+    $routes->addRoute('POST', '/api/v1/sales/quotes', CreateQuoteController::class);
+    $routes->addRoute('GET', '/api/v1/sales/quotes/{quoteId}', ShowQuoteController::class);
+    $routes->addRoute('POST', '/api/v1/sales/quotes/{quoteId}/accept', AcceptQuoteController::class);
+    $routes->addRoute('POST', '/api/v1/sales/quotes/{quoteId}/reject', RejectQuoteController::class);
+
+    $routes->addRoute('GET', '/api/v1/sales/orders', ListOrdersController::class);
+    $routes->addRoute('POST', '/api/v1/sales/orders', PlaceOrderController::class);
+    $routes->addRoute('GET', '/api/v1/sales/orders/{orderId}', ShowOrderController::class);
+    $routes->addRoute('POST', '/api/v1/sales/orders/{orderId}/fulfil', FulfilOrderController::class);
+    $routes->addRoute('POST', '/api/v1/sales/orders/{orderId}/cancel', CancelOrderController::class);
+
+    // Transmission to an approved platform (§25.1). Every attempt is listed,
+    // not just the latest: proving what happened is the point of keeping them.
+    $routes->addRoute(
+        'POST',
+        '/api/v1/billing/invoices/{invoiceId}/transmit',
+        SubmitInvoiceController::class,
+    );
+    $routes->addRoute(
+        'GET',
+        '/api/v1/billing/invoices/{invoiceId}/transmissions',
+        ListTransmissionsController::class,
+    );
 
     // Projects take the full context chain: unlike discovery, they are
     // tenant data, and every one of these resolves product *and* tenant

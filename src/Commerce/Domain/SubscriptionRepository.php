@@ -53,6 +53,22 @@ interface SubscriptionRepository
     ): Subscription;
 
     /**
+     * The same activation, without a transaction of its own, for a caller
+     * that already has one open on the same connection.
+     *
+     * An order fulfilling itself starts the subscription, raises the invoice
+     * and completes, and those three cannot be observed apart: the schema
+     * refuses a completed order that does not name both.
+     */
+    public function applyActivate(
+        string $tenantId,
+        string $productId,
+        SubscribedOffer $offer,
+        ?DateTimeImmutable $periodEnd,
+        ?string $actorUserId,
+    ): Subscription;
+
+    /**
      * Moves a live subscription onto different terms, keeping its period.
      *
      * Prorating the difference is billing, and billing is M6. What happens

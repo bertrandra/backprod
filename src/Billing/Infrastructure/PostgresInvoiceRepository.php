@@ -117,7 +117,7 @@ final class PostgresInvoiceRepository implements InvoiceRepository
             throw new RuntimeException('An invoice must have at least one line.');
         }
 
-        return $this->connection->transactional(function () use (
+        return $this->connection->transactional(fn (): Invoice => $this->applyIssue(
             $tenantId,
             $productId,
             $subscriptionId,
@@ -129,127 +129,145 @@ final class PostgresInvoiceRepository implements InvoiceRepository
             $periodEnd,
             $paymentTerms,
             $actorUserId,
-        ): Invoice {
-            $currency = $lines[0]->net->currency;
-            $net = Money::zero($currency);
-            $vat = Money::zero($currency);
+        ));
+    }
 
-            foreach ($lines as $line) {
-                $net = $net->plus($line->net);
-                $vat = $vat->plus($line->vat);
-            }
+    public function applyIssue(
+        string $tenantId,
+        string $productId,
+        ?string $subscriptionId,
+        array $lines,
+        array $supplier,
+        array $customer,
+        string $jurisdiction,
+        ?DateTimeImmutable $periodStart,
+        ?DateTimeImmutable $periodEnd,
+        ?string $paymentTerms,
+        ?string $actorUserId,
+    ): Invoice {
+        if ($lines === []) {
+            throw new RuntimeException('An invoice must have at least one line.');
+        }
 
-            $number = DocumentNumbering::next($this->connection, DocumentNumbering::INVOICE);
+        $currency = $lines[0]->net->currency;
+        $net = Money::zero($currency);
+        $vat = Money::zero($currency);
 
-            $id = $this->connection->fetchOne(
+        foreach ($lines as $line) {
+            $net = $net->plus($line->net);
+            $vat = $vat->plus($line->vat);
+        }
+
+        $number = DocumentNumbering::next($this->connection, DocumentNumbering::INVOICE);
+
+        $id = $this->connection->fetchOne(
+            <<<'SQL'
+                INSERT INTO invoices
+                    (tenant_id, product_id, subscription_id, number, status, currency,
+                     net_minor_units, vat_minor_units, gross_minor_units,
+                     issued_at, period_start, period_end, payment_terms,
+                     supplier_snapshot, customer_snapshot)
+                VALUES
+                    (:tenantId, :productId, :subscriptionId, :number, 'ISSUED', :currency,
+                     :net, :vat, :gross,
+                     now(), :periodStart, :periodEnd, :paymentTerms,
+                     CAST(:supplier AS jsonb), CAST(:customer AS jsonb))
+                RETURNING id
+                SQL,
+            [
+                'tenantId' => $tenantId,
+                'productId' => $productId,
+                'subscriptionId' => $subscriptionId,
+                'number' => $number,
+                'currency' => $currency,
+                'net' => $net->minorUnits,
+                'vat' => $vat->minorUnits,
+                'gross' => $net->plus($vat)->minorUnits,
+                'periodStart' => self::moment($periodStart),
+                'periodEnd' => self::moment($periodEnd),
+                'paymentTerms' => $paymentTerms,
+                'supplier' => self::encode($supplier),
+                'customer' => self::encode($customer),
+            ],
+        );
+
+        if (!is_string($id)) {
+            throw new RuntimeException('Failed to issue an invoice.');
+        }
+
+        /** @var array<int, array{taxable: int, tax: int}> $byRate */
+        $byRate = [];
+
+        foreach ($lines as $line) {
+            $this->connection->executeStatement(
                 <<<'SQL'
-                    INSERT INTO invoices
-                        (tenant_id, product_id, subscription_id, number, status, currency,
-                         net_minor_units, vat_minor_units, gross_minor_units,
-                         issued_at, period_start, period_end, payment_terms,
-                         supplier_snapshot, customer_snapshot)
+                    INSERT INTO invoice_lines
+                        (invoice_id, position, description, quantity, unit_price_minor_units,
+                         discount_minor_units, net_minor_units, vat_rate_basis_points,
+                         vat_minor_units, gross_minor_units, source_offer_version_id)
                     VALUES
-                        (:tenantId, :productId, :subscriptionId, :number, 'ISSUED', :currency,
-                         :net, :vat, :gross,
-                         now(), :periodStart, :periodEnd, :paymentTerms,
-                         CAST(:supplier AS jsonb), CAST(:customer AS jsonb))
-                    RETURNING id
+                        (:invoice, :position, :description, :quantity, :unitPrice,
+                         :discount, :net, :rate, :vat, :gross, :source)
                     SQL,
                 [
-                    'tenantId' => $tenantId,
-                    'productId' => $productId,
-                    'subscriptionId' => $subscriptionId,
-                    'number' => $number,
-                    'currency' => $currency,
-                    'net' => $net->minorUnits,
-                    'vat' => $vat->minorUnits,
-                    'gross' => $net->plus($vat)->minorUnits,
-                    'periodStart' => self::moment($periodStart),
-                    'periodEnd' => self::moment($periodEnd),
-                    'paymentTerms' => $paymentTerms,
-                    'supplier' => self::encode($supplier),
-                    'customer' => self::encode($customer),
+                    'invoice' => $id,
+                    'position' => $line->position,
+                    'description' => $line->description,
+                    'quantity' => $line->quantity,
+                    'unitPrice' => $line->unitPrice->minorUnits,
+                    'discount' => $line->discount->minorUnits,
+                    'net' => $line->net->minorUnits,
+                    'rate' => $line->vatRateBasisPoints,
+                    'vat' => $line->vat->minorUnits,
+                    'gross' => $line->gross->minorUnits,
+                    'source' => $line->sourceOfferVersionId,
                 ],
             );
 
-            if (!is_string($id)) {
-                throw new RuntimeException('Failed to issue an invoice.');
-            }
+            // Aggregated per rate, because a VAT return is filed per rate
+            // — and from the rounded line amounts, so the recorded tax is
+            // the tax that was actually charged.
+            $rate = $line->vatRateBasisPoints;
+            $byRate[$rate] ??= ['taxable' => 0, 'tax' => 0];
+            $byRate[$rate]['taxable'] += $line->net->minorUnits;
+            $byRate[$rate]['tax'] += $line->vat->minorUnits;
+        }
 
-            /** @var array<int, array{taxable: int, tax: int}> $byRate */
-            $byRate = [];
-
-            foreach ($lines as $line) {
-                $this->connection->executeStatement(
-                    <<<'SQL'
-                        INSERT INTO invoice_lines
-                            (invoice_id, position, description, quantity, unit_price_minor_units,
-                             discount_minor_units, net_minor_units, vat_rate_basis_points,
-                             vat_minor_units, gross_minor_units, source_offer_version_id)
-                        VALUES
-                            (:invoice, :position, :description, :quantity, :unitPrice,
-                             :discount, :net, :rate, :vat, :gross, :source)
-                        SQL,
-                    [
-                        'invoice' => $id,
-                        'position' => $line->position,
-                        'description' => $line->description,
-                        'quantity' => $line->quantity,
-                        'unitPrice' => $line->unitPrice->minorUnits,
-                        'discount' => $line->discount->minorUnits,
-                        'net' => $line->net->minorUnits,
-                        'rate' => $line->vatRateBasisPoints,
-                        'vat' => $line->vat->minorUnits,
-                        'gross' => $line->gross->minorUnits,
-                        'source' => $line->sourceOfferVersionId,
-                    ],
-                );
-
-                // Aggregated per rate, because a VAT return is filed per rate
-                // — and from the rounded line amounts, so the recorded tax is
-                // the tax that was actually charged.
-                $rate = $line->vatRateBasisPoints;
-                $byRate[$rate] ??= ['taxable' => 0, 'tax' => 0];
-                $byRate[$rate]['taxable'] += $line->net->minorUnits;
-                $byRate[$rate]['tax'] += $line->vat->minorUnits;
-            }
-
-            foreach ($byRate as $rate => $totals) {
-                $this->connection->executeStatement(
-                    <<<'SQL'
-                        INSERT INTO tax_records
-                            (invoice_id, jurisdiction, rate_basis_points, taxable_minor_units, tax_minor_units)
-                        VALUES (:invoice, :jurisdiction, :rate, :taxable, :tax)
-                        SQL,
-                    [
-                        'invoice' => $id,
-                        'jurisdiction' => $jurisdiction,
-                        'rate' => $rate,
-                        'taxable' => $totals['taxable'],
-                        'tax' => $totals['tax'],
-                    ],
-                );
-            }
-
-            $this->record(
-                $tenantId,
-                $productId,
-                'INVOICE_ISSUED',
-                $id,
-                $subscriptionId,
-                $net->plus($vat),
-                $actorUserId,
-                ['number' => $number],
+        foreach ($byRate as $rate => $totals) {
+            $this->connection->executeStatement(
+                <<<'SQL'
+                    INSERT INTO tax_records
+                        (invoice_id, jurisdiction, rate_basis_points, taxable_minor_units, tax_minor_units)
+                    VALUES (:invoice, :jurisdiction, :rate, :taxable, :tax)
+                    SQL,
+                [
+                    'invoice' => $id,
+                    'jurisdiction' => $jurisdiction,
+                    'rate' => $rate,
+                    'taxable' => $totals['taxable'],
+                    'tax' => $totals['tax'],
+                ],
             );
+        }
 
-            $invoice = $this->find($tenantId, $productId, $id);
+        $this->record(
+            $tenantId,
+            $productId,
+            'INVOICE_ISSUED',
+            $id,
+            $subscriptionId,
+            $net->plus($vat),
+            $actorUserId,
+            ['number' => $number],
+        );
 
-            if ($invoice === null) {
-                throw new RuntimeException('The invoice vanished during the transaction that created it.');
-            }
+        $invoice = $this->find($tenantId, $productId, $id);
 
-            return $invoice;
-        });
+        if ($invoice === null) {
+            throw new RuntimeException('The invoice vanished during the transaction that created it.');
+        }
+
+        return $invoice;
     }
 
     public function transition(Invoice $invoice, string $status, ?string $actorUserId): Invoice
