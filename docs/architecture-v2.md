@@ -573,6 +573,24 @@ API ROOT
 │   ├── GET    /invoices/{id}/electronic
 │   └── GET    /invoices/{id}/electronic/status
 │
+├── Conversations / Messages
+│   ├── GET    /conversations
+│   ├── POST   /conversations
+│   ├── GET    /conversations/{id}
+│   ├── POST   /conversations/{id}/messages
+│   ├── GET    /conversations/{id}/messages
+│   ├── POST   /conversations/{id}/read
+│   ├── POST   /conversations/{id}/participants
+│   ├── DELETE /conversations/{id}/participants/{userId}
+│   ├── POST   /conversations/{id}/close
+│   └── DELETE /messages/{id}
+│
+├── Staff / Support (platform roles, §12.2)
+│   ├── GET    /staff/conversations
+│   ├── GET    /staff/conversations/{id}
+│   ├── POST   /staff/conversations/{id}/messages
+│   └── POST   /staff/conversations/{id}/close
+│
 ├── Webhooks
 │   └── POST   /webhooks/{provider}
 │
@@ -608,6 +626,8 @@ API ROOT
 | Tax / VAT | `/tax/*` | PHP Tax module (§25.3) | Oui | Oui | `tax.read/manage` |
 | Payment | `/checkout/*`, `/payments/*` | PSP + PHP | Oui | Oui | `billing.manage` |
 | E-invoice | `/invoices/*/electronic` | EInvoice/PDP adapter | Oui | Oui | `einvoice.access` |
+| Messaging | `/conversations/*`, `/messages/*` | PHP Messaging module (§12.3) | Oui | Oui | `messages.read/write` |
+| Support | `/staff/*` | PHP, platform roles (§12.2) | Explicit param | **Cross-tenant, audited** | `support.read/respond` |
 | Webhooks | `/webhooks/*` | PHP | Provider-scoped | Provider-scoped | Signature required |
 | Admin | `/admin/*` | PHP | Global | Global | `admin.*` |
 
@@ -914,6 +934,205 @@ Un nouveau produit doit pouvoir être ajouté au backend avec **configuration + 
 Le backend ne doit pas être couplé au frontend d'un produit particulier.
 
 ---
+
+
+# 12.2 Identité plateforme (staff)
+
+§12 isole chaque tenant. Cette section décrit la **seule** identité autorisée
+à travailler *au travers* de cette isolation, et ce que cela coûte.
+
+## Deux axes, jamais fusionnés
+
+Un membre du personnel de la plateforme est un **utilisateur** comme un
+autre : même table `users`, même authentification, une seule identité. Ce
+qui le distingue n'est pas *qui il est* mais *ce qu'il détient*, et cela vit
+en dehors de l'appartenance à un tenant :
+
+```text
+tenant membership          →  « que puis-je faire dans MON entreprise ? »
+   (tenant, user, product)     TENANT_ADMIN, USER
+
+platform staff role        →  « que puis-je faire à TRAVERS les entreprises ? »
+   (user, platform_role)       PLATFORM_ADMIN, SUPPORT_ADMIN,
+                               FINANCE_ADMIN, SALES_ADMIN
+```
+
+Les deux axes sont **indépendants et ne se convertissent jamais l'un en
+l'autre** :
+
+- un rôle plateforme **n'accorde aucune appartenance** à un tenant et n'en
+  fabrique pas une à la volée ;
+- une appartenance, fût-elle `TENANT_ADMIN`, **n'accorde aucun rôle
+  plateforme** ;
+- `TENANT_ADMIN` désigne l'administrateur **du client**, pas l'exploitant de
+  la plateforme. La confusion des deux est la faille la plus coûteuse que
+  ce modèle puisse produire.
+
+## Tables
+
+```text
+platform_roles          code, name
+platform_staff          user_id, platform_role_id, granted_by, granted_at
+platform_role_permissions
+```
+
+`platform_staff` est délibérément **séparée** de `tenant_members`. Une seule
+table portant les deux ferait de l'oubli d'un filtre une élévation de
+privilège ; deux tables font de la même erreur une requête qui ne renvoie
+rien.
+
+## Ce que coûte un accès staff
+
+> Non-négociable #21 — **tout accès du personnel plateforme à la donnée d'un
+> tenant est tracé, motivé et jamais silencieux.**
+
+Concrètement :
+
+- chaque accès staff à de la donnée tenant écrit une ligne d'audit : qui,
+  quand, quel tenant, quelle ressource, à quel titre ;
+- l'audit est écrit **dans la même transaction** que la lecture qu'il
+  justifie lorsque cette lecture est un acte (répondre, clore, agir), selon
+  le même principe que les webhooks de §24 : ce qui doit être vrai ensemble
+  est écrit ensemble ;
+- le staff **ne lit jamais** les conversations internes d'un tenant (§12.3) ;
+- §25.2 exige déjà que le reporting admin soit séparé de ce qu'un tenant
+  voit (non-négociable #19) : la même séparation s'applique ici.
+
+Le pipeline de contexte (§10.6) résout les deux axes séparément. Une route
+tenant reste une route tenant : elle exige une appartenance, et un rôle
+plateforme ne la débloque pas. Les routes staff sont un ensemble distinct,
+sous `/api/v1/staff/*`, qui exigent un rôle plateforme et **prennent le
+tenant en paramètre explicite** — parce qu'ici, contrairement à tout le
+reste de la plateforme, il n'y a pas d'appartenance d'où le déduire.
+
+C'est la seule exception à « ne jamais faire confiance à un tenant fourni
+par le client », et elle n'en est une qu'en apparence : le tenant est fourni,
+mais l'autorisation ne vient pas de lui — elle vient du rôle plateforme, et
+l'accès est audité.
+
+---
+
+# 12.3 Messagerie / Conversations
+
+Deux besoins distincts, un seul modèle :
+
+```text
+INTERNAL   les membres d'un tenant se parlent entre eux
+SUPPORT    le tenant et la plateforme se parlent
+```
+
+## Modèle
+
+```text
+conversations
+├── id
+├── tenant_id            à qui appartient le fil
+├── product_id           contexte racine (non-négociable : §12.1)
+├── kind                 INTERNAL | SUPPORT
+├── subject
+├── status               OPEN | CLOSED
+├── created_by
+└── created_at / updated_at
+
+conversation_participants
+├── conversation_id
+├── user_id
+├── participant_kind     MEMBER | STAFF
+├── joined_at / left_at
+└── last_read_seq        filigrane de lecture
+
+messages
+├── id
+├── conversation_id
+├── seq                  ordre stable dans le fil
+├── author_user_id
+├── author_kind          MEMBER | STAFF | SYSTEM
+├── body
+├── created_at
+├── edited_at
+└── deleted_at
+```
+
+## Invariants, en base plutôt qu'en convention
+
+- **Une conversation appartient à un couple (tenant, produit).** Le produit
+  est le contexte racine ; une conversation qui n'en nomme pas un serait
+  lisible depuis n'importe quel produit du même tenant.
+- **L'auteur d'un message est un participant de la conversation** — clé
+  étrangère vers `conversation_participants`, pas un `CHECK` applicatif.
+  Écrire dans un fil dont on ne fait pas partie doit être refusé par la base.
+- **`UNIQUE (conversation_id, seq)`** : l'ordre d'un fil est stable et la
+  pagination reprend où elle s'est arrêtée. `seq` est monotone par
+  conversation ; il n'a pas besoin d'être sans trou, contrairement à une
+  numérotation légale (§25).
+- **Un STAFF ne participe qu'à une conversation SUPPORT.** Invariant de
+  base : `participant_kind = 'STAFF'` exige `kind = 'SUPPORT'`. Sans lui, un
+  membre du personnel peut apparaître dans un fil interne — exactement ce que
+  §12.2 interdit.
+- **Le filigrane de lecture est par participant**, monotone, jamais
+  décroissant. Une table de jointure par message lu coûterait une ligne par
+  message et par lecteur pour la même information.
+
+## Suppression : ici le RGPD prime
+
+§26 distingue rétention légale et suppression RGPD, et un message n'est pas
+une pièce comptable. Un message supprimé est donc **réellement supprimé** —
+le corps est effacé, la ligne subsiste comme pierre tombale pour que l'ordre
+du fil reste lisible.
+
+C'est l'inverse d'une facture, que la loi impose de conserver. Le contraste
+est volontaire et doit rester explicite dans le code : les deux règles
+coexistent parce qu'elles s'appliquent à des objets différents, et non parce
+que l'une aurait été oubliée.
+
+## Pas de temps réel, et c'est un choix
+
+R2 du plan : l'hébergement mutualisé n'autorise pas de processus persistant.
+Il n'y aura donc **ni WebSocket ni SSE tenu ouvert**. La lecture se fait par
+interrogation avec `since_seq`, ce qui est exactement ce que le filigrane
+rend efficace : le client demande ce qui a suivi ce qu'il a déjà lu.
+
+La notification d'un message non lu (courriel) relève des jobs de §27, donc
+de M7 — pas d'une boucle qui attend.
+
+## Pièces jointes
+
+Différées. Elles appartiennent au `StorageProvider` de §15 : un message
+référencera un asset une fois M7 livré. Stocker une pièce jointe dans
+PostgreSQL contredirait le non-négociable #9.
+
+## API
+
+```text
+Conversations (tenant)
+├── GET    /api/v1/conversations
+├── POST   /api/v1/conversations
+├── GET    /api/v1/conversations/{id}
+├── POST   /api/v1/conversations/{id}/messages
+├── GET    /api/v1/conversations/{id}/messages?since_seq=
+├── POST   /api/v1/conversations/{id}/read
+├── POST   /api/v1/conversations/{id}/participants
+├── DELETE /api/v1/conversations/{id}/participants/{userId}
+├── POST   /api/v1/conversations/{id}/close
+└── DELETE /api/v1/messages/{id}
+
+Support (staff, §12.2)
+├── GET    /api/v1/staff/conversations
+├── GET    /api/v1/staff/conversations/{id}
+├── POST   /api/v1/staff/conversations/{id}/messages
+└── POST   /api/v1/staff/conversations/{id}/close
+```
+
+Permissions : `messages.read` / `messages.write` côté tenant,
+`support.read` / `support.respond` côté plateforme.
+
+Les deux surfaces sont **séparées de bout en bout** — routes, permissions,
+contrôleurs — plutôt qu'une seule surface qui se comporterait différemment
+selon l'appelant. Une branche `if (isStaff)` au milieu d'un contrôleur tenant
+est précisément la forme que prend une fuite inter-tenant.
+
+---
+
 
 # 13. Plans / features / quotas
 
@@ -2939,6 +3158,28 @@ Chargeback
 Invoice rejected
 ```
 
+## Messagerie & accès staff (§12.2, §12.3)
+
+Tester l'isolation avant la fonctionnalité :
+
+```text
+Un membre ne lit pas la conversation d'un autre tenant
+Un membre ne lit pas la conversation d'un autre produit du même tenant
+Écrire dans un fil dont on n'est pas participant est refusé
+Un STAFF ne peut pas rejoindre une conversation INTERNAL
+Un rôle plateforme n'ouvre aucune route tenant
+Une appartenance TENANT_ADMIN n'ouvre aucune route staff
+Tout accès staff écrit sa ligne d'audit
+```
+
+puis le comportement :
+
+```text
+Le filigrane de lecture ne recule jamais
+since_seq ne rend que ce qui a suivi
+Un message supprimé perd son corps, le fil garde son ordre
+```
+
 ## Fiscalité / TVA (§25.3)
 
 Tester :
@@ -3992,6 +4233,8 @@ Le backend est un modular monolith et non un ensemble de scripts PHP.
 18. **Les données financières et commerciales sont historisées et auditables.**
 19. **Le reporting financier admin est séparé des données visibles par un tenant.**
 20. **La chaîne devis → vente → abonnement/commande → facture → paiement doit être traçable.**
+21. **Tout accès du personnel plateforme à la donnée d'un tenant est tracé, motivé et jamais silencieux.**
+22. **Un rôle plateforme n'accorde jamais une appartenance à un tenant, et réciproquement.**
 
 ---
 

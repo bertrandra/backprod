@@ -105,6 +105,26 @@ GET /api/v1/products/{productId}/features
 GET /api/v1/products/{productId}/configuration
 ```
 
+Conversations and staff support (§12.2, §12.3):
+
+```text
+GET    /api/v1/conversations
+POST   /api/v1/conversations
+GET    /api/v1/conversations/{id}
+POST   /api/v1/conversations/{id}/messages
+GET    /api/v1/conversations/{id}/messages?since_seq=
+POST   /api/v1/conversations/{id}/read
+POST   /api/v1/conversations/{id}/participants
+DELETE /api/v1/conversations/{id}/participants/{userId}
+POST   /api/v1/conversations/{id}/close
+DELETE /api/v1/messages/{id}
+
+GET    /api/v1/staff/conversations
+GET    /api/v1/staff/conversations/{id}
+POST   /api/v1/staff/conversations/{id}/messages
+POST   /api/v1/staff/conversations/{id}/close
+```
+
 and Tax / VAT APIs (§25.3):
 
 ```text
@@ -179,6 +199,60 @@ Offers are versioned and historical offers must not be destructively rewritten.
 `valid_from` / `valid_until` describe commercial validity of an offer and are distinct from subscription dates.
 
 Authorization must use capabilities/entitlements, not scattered plan-name checks.
+
+## Platform staff vs tenant membership
+
+Full specification in `docs/architecture-v2.md` §12.2.
+
+`TENANT_ADMIN` is the **customer's** administrator, not the platform
+operator. Admin is a role held on a membership, never a property of a user:
+
+```text
+tenant membership     (tenant, user, product) → TENANT_ADMIN | USER
+platform staff role   (user, platform_role)   → PLATFORM_ADMIN | SUPPORT_ADMIN
+                                                 FINANCE_ADMIN | SALES_ADMIN
+```
+
+The two axes never convert into one another. A platform role grants no
+tenant membership and must never fabricate one; a membership grants no
+platform role.
+
+`platform_staff` is a separate table from `tenant_members`. One table
+holding both would turn a forgotten filter into privilege escalation.
+
+Staff routes live under `/api/v1/staff/*`, take the tenant as an explicit
+parameter, and are authorized by the platform role — never by the parameter.
+Every staff access to tenant data writes an audit row: who, when, which
+tenant, which resource, on what grounds.
+
+Never put `if (isStaff)` inside a tenant controller. The two surfaces are
+separate end to end — routes, permissions, controllers.
+
+## Messaging
+
+Full specification in `docs/architecture-v2.md` §12.3.
+
+A conversation belongs to a `(tenant, product)` pair, like every other
+resource. Two kinds, and the difference is a database invariant, not a
+convention:
+
+```text
+INTERNAL   tenant members only  — staff must never appear
+SUPPORT    tenant members + platform staff
+```
+
+A message's author must be a participant of the conversation — enforced by
+foreign key, not by an application check.
+
+Read state is a per-participant watermark (`last_read_seq`), monotone, never
+decreasing. Not a row per message read.
+
+No WebSockets and no held-open SSE: R2 means no persistent process. Polling
+with `since_seq`; unread notification is an M7 job.
+
+A deleted message is really deleted — the body is erased, the row remains as
+a tombstone so the thread keeps its order. That is the opposite of an
+invoice, which the law requires be kept (§26). Both rules are deliberate.
 
 ## Fiscalité / TVA
 

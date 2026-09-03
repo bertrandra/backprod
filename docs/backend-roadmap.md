@@ -49,6 +49,8 @@ M6  Billing & payments              invoices, PSP webhooks, e-invoicing adapter
       ↓
 M6.1 Fiscalité / TVA                tax profiles, regimes, VAT transactions, reporting
       ↓
+M6.2 Staff identity & messaging     platform roles, audited access, conversations
+      ↓
 M7  Storage & jobs                  assets, exports, async operations
       ↓
 M8  Admin, audit & hardening        financial dashboard API, observability, RGPD
@@ -284,6 +286,57 @@ population that has to be corrected by hand rather than by rule.
 
 ---
 
+### M6.2 — Platform staff identity & messaging
+
+**Goal:** let the platform talk to its customers, and let a customer's team
+talk among themselves — without either becoming a way across the tenant
+boundary. Specified in `architecture-v2.md` §12.2 and §12.3.
+
+**Why this pulls M8 work forward.** Messaging *your* users needs a sender who
+is not a member of the tenant being written to, and no such identity exists:
+`TENANT_ADMIN` is the customer's administrator, and the platform-wide roles
+of §25.2 are a comment in the M2 migration saying they arrive with M8. So
+M6.2 brings that identity forward — not the whole admin surface, only the
+identity, its permissions, and the audit trail that makes it accountable.
+
+**Part 1 — platform staff identity**
+- Migrations: `platform_roles`, `platform_staff`, `platform_role_permissions`
+- `platform_staff` is a **separate table** from `tenant_members`: one table
+  holding both would make a forgotten filter into privilege escalation
+- Context pipeline resolves the two axes independently; neither converts into
+  the other
+- `/api/v1/staff/*` routes: authorized by platform role, tenant passed as an
+  explicit parameter, every access audited (who, when, which tenant, why)
+- Non-negotiables #21 and #22
+
+**Part 2 — conversations and messages**
+- Migrations: `conversations`, `conversation_participants`, `messages`
+- Invariants in the database: a conversation names `(tenant, product)`; an
+  author is a participant (foreign key, not a check);
+  `UNIQUE (conversation_id, seq)`; a STAFF participant implies a SUPPORT
+  conversation
+- Per-participant read watermark, monotone
+- Polling with `since_seq` — R2 forbids a held-open connection, so no
+  WebSocket and no SSE
+- Deletion is real deletion of the body, with a tombstone row keeping the
+  thread's order — the opposite of an invoice, and deliberately so
+
+**Tests (§37.4 Messagerie):** isolation first — cross-tenant read, cross-product
+read, writing to a thread one does not belong to, a STAFF joining an INTERNAL
+conversation, a platform role opening a tenant route, a `TENANT_ADMIN` opening
+a staff route, and the audit row for every staff access. Then behaviour: the
+watermark never goes backwards, `since_seq` returns only what followed, a
+deleted message loses its body while the thread keeps its order.
+
+**Exit criteria:** no route lets any identity read a conversation outside the
+`(tenant, product)` it was resolved for; every staff read of tenant data has
+an audit row written in the same transaction as the act it justifies.
+
+**Deferred:** attachments (they belong to the `StorageProvider` of §15, so
+M7), and email notification of unread messages (a §27 job, so M7).
+
+---
+
 ### M7 — Storage & jobs
 
 **Goal:** large assets out of the database and long operations off the request path.
@@ -373,6 +426,7 @@ A PR carries code + tests + architecture impact + migration.
 | R5 | Product context added late | High — pipeline rework | M1 before any resource endpoint; D1 decided up front |
 | R6 | Supabase coupling spreading past the adapter | Medium — violates provider independence | Deptrac rule: only `Auth/Infrastructure` may reference the Supabase SDK |
 | R7 | **VAT rates are wrong or stale.** The EU-27 table in §25.3 is a paramétrage seed, not a fiscal authority; four standard rates moved between 2024 and 2025, and an invoice issued at a wrong rate is a legal document that cannot be quietly recomputed | High, regulatory | Cross-checked against public sources on 2026-09-03, which caught the four recent moves (EE, RO, SK, FI). Still to do before M6.1 ships: confirm against official sources (Commission européenne, administrations nationales), as R3 requires for the e-invoicing deadlines. Load each rate **with its validity window** so a correction closes one window and opens another instead of overwriting history |
+| R9 | **Messaging becomes a cross-tenant leak.** A conversation is the first resource two different tenants might plausibly both touch, and staff routes cross the boundary by design | **Critical** — breaks non-negotiable #8 | Isolation tested before behaviour (§37.4); staff and tenant surfaces separated end to end, never one controller branching on `isStaff`; participation enforced by foreign key |
 | R8 | **Reverse charge granted on an unverified VAT number.** Invoicing intra-EU B2B at zero without proof of verification leaves the supplier liable for the tax | High, financial | `VatNumberValidator` fails closed; the verification result is stored with its date as audit evidence; the §37.4 fiscal scenarios cover VIES being unreachable |
 
 ---
