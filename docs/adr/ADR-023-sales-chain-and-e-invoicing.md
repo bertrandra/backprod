@@ -122,6 +122,21 @@ rather than opening a second — because two documents lodged for one invoice is
 a real problem with the administration, not just untidiness. A transmission
 already `SUBMITTED` refuses a second attempt outright.
 
+`submit()` therefore takes an **idempotency key**, and the key is the
+transmission's id — the *attempt*, never the invoice. That distinction is the
+whole design in one argument:
+
+- a resumed attempt asks under the same key, so a platform that honours it
+  returns the document already lodged rather than lodging a second;
+- a *re-*transmission after a rejection is a different attempt, so it asks
+  under a different key and gets its own document identifier.
+
+Keying it to the invoice instead mints one identifier for both, which
+`einvoice_transmissions_reference_unique` refuses — correctly, since a verdict
+is routed back by that identifier and two transmissions sharing one could not
+be told apart. That constraint caught exactly this mistake in the first
+adapter written against the port.
+
 This is a weaker guarantee than the payment webhook's and deliberately so: the
 part that must be exactly-once is the *verdict*, and that is one transaction
 with the same unique index.

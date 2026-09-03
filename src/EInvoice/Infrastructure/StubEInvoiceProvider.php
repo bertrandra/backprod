@@ -37,13 +37,21 @@ final class StubEInvoiceProvider implements EInvoiceProvider
         return self::NAME;
     }
 
-    public function submit(Invoice $invoice): SubmittedDocument
+    public function submit(Invoice $invoice, string $idempotencyKey): SubmittedDocument
     {
         // A real adapter maps the invoice onto its platform's format here —
         // §25.1 lists what must travel, and all of it is already on the
         // invoice's own snapshot.
+        //
+        // Derived from the attempt rather than the invoice, because that is
+        // what a platform does: each document lodged gets its own identifier,
+        // so an invoice rejected and re-sent has two. Deriving from the
+        // invoice alone would mint the same identifier twice and collide with
+        // einvoice_transmissions_reference_unique — which is the constraint
+        // doing its job, since a verdict is routed back by that identifier
+        // and two transmissions sharing one could not be told apart.
         return new SubmittedDocument(
-            'stub_doc_' . substr(hash('sha256', $invoice->id), 0, 24),
+            'stub_doc_' . substr(hash('sha256', $idempotencyKey), 0, 24),
             TransmissionStatus::SUBMITTED,
         );
     }

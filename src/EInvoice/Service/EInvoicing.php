@@ -69,8 +69,10 @@ final class EInvoicing
 
         $transmission = $inFlight ?? $this->openFor($invoice, $provider->name(), $actorUserId);
 
-        // The network call, outside any transaction.
-        $document = $provider->submit($invoice);
+        // The network call, outside any transaction. The transmission's id is
+        // the idempotency key, so a resumed attempt asks the platform for the
+        // same document rather than lodging a second.
+        $document = $provider->submit($invoice, $transmission->id);
 
         $submitted = $this->transmissions->recordSubmission($transmission, $document);
 

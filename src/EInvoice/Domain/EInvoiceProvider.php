@@ -29,8 +29,17 @@ interface EInvoiceProvider
      * document must carry — supplier, customer, SIREN, lines, rates — and
      * every one of those is already on the invoice's own snapshot. An adapter
      * maps that onto whatever format its platform wants.
+     *
+     * $idempotencyKey identifies the *attempt*, not the invoice. Each
+     * submission of an invoice is a separate document lodged with the
+     * platform and gets its own identifier — an invoice rejected, corrected
+     * and re-sent is two documents, not one sent twice. Passing the attempt
+     * is also what makes resuming safe: a submission interrupted before the
+     * platform answered is retried under the same key, so a platform that
+     * honours it returns the document already lodged rather than lodging a
+     * second.
      */
-    public function submit(Invoice $invoice): SubmittedDocument;
+    public function submit(Invoice $invoice, string $idempotencyKey): SubmittedDocument;
 
     /**
      * @param array<array-key, string> $headers
