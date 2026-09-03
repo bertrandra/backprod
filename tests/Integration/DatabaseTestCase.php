@@ -46,7 +46,8 @@ abstract class DatabaseTestCase extends TestCase
         // CASCADE, but naming them says so: a truncate list that relies on
         // something implicit is one nobody can read for what it clears.
         $this->connection->executeStatement(
-            'TRUNCATE project_versions, projects, tenant_member_roles, tenant_members, '
+            'TRUNCATE offer_version_features, offer_versions, offers, plans, features, '
+            . 'project_versions, projects, tenant_member_roles, tenant_members, '
             . 'tenants, products, users RESTART IDENTITY CASCADE',
         );
     }

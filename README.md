@@ -51,6 +51,7 @@ Individually:
 | `composer run deptrac` | Module and layer dependency rules (§37.6) |
 | `composer run gate:proof` | That the architecture gate really rejects a violation |
 | `composer run gate:products` | That no code branches on product identity (§12.1) |
+| `composer run gate:plans` | That no code branches on a plan or tier name (§13) |
 | `composer run test` | PHPUnit |
 
 `composer run cs:fix` applies formatting fixes.
@@ -76,6 +77,7 @@ src/
   Entitlement/ what a tenant has bought
   Health/   liveness endpoint
   Identity/ the caller's own account
+  Commerce/ plans, billable features and versioned offers
   Product/  the product registry and catalogue
   Project/  projects and their versions
   Tenant/   tenants, members and roles
@@ -94,9 +96,10 @@ as they gain those layers; small modules stay lighter (§41.1).
 
 ## Status
 
-M4 of [`docs/backend-roadmap.md`](docs/backend-roadmap.md) — projects, the
-first product resource — on top of M1's context chain, M2's platform identity
-and M3's product registry.
+M5 part 1 of [`docs/backend-roadmap.md`](docs/backend-roadmap.md) — the
+commercial catalogue — on top of M1's context chain, M2's platform identity,
+M3's product registry and M4's projects. Subscriptions, entitlements and
+quota enforcement are part 2.
 
 | Route | Permission |
 |---|---|
@@ -125,6 +128,10 @@ and M3's product registry.
 | `GET /api/v1/projects/{id}/versions/{versionId}` | `projects.read` |
 | `POST /api/v1/projects/{id}/duplicate` | `projects.write` |
 | `POST /api/v1/projects/{id}/restore` | `projects.write` |
+| `GET /api/v1/plans` | `catalog.read` |
+| `GET /api/v1/features` | `catalog.read` |
+| `GET /api/v1/offers` | `catalog.read` |
+| `GET /api/v1/offers/{id}` | `catalog.read` |
 
 Authorisation asks about **permissions**, never role names (§13). Roles map
 to permissions in the database, so moving a permission between roles changes
@@ -160,9 +167,55 @@ provisioned locally on their first authenticated request
 ([ADR-017](docs/adr/ADR-017-user-provisioning.md)); the internal user id, not
 the identity provider's subject, is what every foreign key references.
 
-Entitlements remain in memory and seeded empty until offers and subscriptions
-land in M5, so no tenant may currently use any capability. The `max_projects`
+Entitlements remain in memory and seeded empty until subscriptions land in
+M5 part 2, so no tenant may currently use any capability. The `max_projects`
 quota is an entitlement, so project creation is not yet quota-limited.
+
+## Commerce
+
+§12's chain is **Offer → Subscription → Entitlements → Tenant**, and the three
+words mean different things: an offer is what is *sold*, a subscription is
+what is *subscribed to*, and entitlements are what a tenant may *actually
+use*. Part 1 builds the first.
+
+An offer's identity is separate from its terms. `offers` holds what does not
+change; `offer_versions` holds price, billing period, commercial window and
+grants. A subscription will point at a **version**, so raising a price never
+retroactively changes what an existing customer bought
+([ADR-019](docs/adr/ADR-019-offer-model.md)).
+
+`valid_from` / `valid_until` are the window in which a version may be **sold**.
+§12 keeps this deliberately distinct from a tenant's subscription period, and
+they are never the same column.
+
+Whether an offer may be sold is decided **against the clock**, not by status
+alone: an offer whose window has closed stops selling even if no job has run
+to mark it expired. The window is half-open — open at `valid_from`, closed at
+`valid_until` — so an offer withdrawn on the 1st and its replacement starting
+that instant do not both apply for one tick.
+
+An offer with nothing on sale is reported exactly as one that does not exist.
+What a company is about to launch, or has stopped selling, is commercial
+information. The tenant who bought a withdrawn offer still reads its terms
+through their subscription, which is where it legitimately stays visible.
+
+**Prices are integer minor units** with an ISO 4217 currency —
+`{"amount_minor_units": 2900, "currency": "EUR"}` — never a float and never a
+formatted string. `price_minor_units` rather than `price_cents`, because not
+every currency has cents.
+
+A grant's `limit` is null both for a capability you simply hold and for a
+quota with no ceiling, so an explicit `unlimited` flag says which. A sentinel
+like `-1` would compare as the *smallest* allowance the first time a check was
+forgotten.
+
+Plans are rows with a `rank`, not names in code. Asking whether a change is an
+upgrade is then a comparison of two numbers, and `composer run gate:plans`
+rejects the `if ($plan === 'PRO')` shape §13 forbids — including the ones that
+do not mention `$plan` at all.
+
+Nothing writes to the catalogue yet: plans, features and offers are seeded by
+migration or by an administrator. Authoring endpoints are M8.
 
 ## Projects
 

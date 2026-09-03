@@ -9,11 +9,10 @@ use App\Project\Domain\ProjectChanges;
 use App\Project\Domain\ProjectDraft;
 use App\Project\Domain\ProjectRepository;
 use App\Project\Domain\ProjectVersion;
+use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
-use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
-use Exception;
 use RuntimeException;
 
 /**
@@ -332,16 +331,16 @@ final class PostgresProjectRepository implements ProjectRepository
     private function toProject(array $row): Project
     {
         return new Project(
-            self::string($row, 'id'),
-            self::string($row, 'tenant_id'),
-            self::string($row, 'product_id'),
-            self::string($row, 'name'),
-            self::nullableString($row, 'description'),
-            self::integer($row, 'schema_version'),
+            Row::string($row, 'id'),
+            Row::string($row, 'tenant_id'),
+            Row::string($row, 'product_id'),
+            Row::string($row, 'name'),
+            Row::nullableString($row, 'description'),
+            Row::integer($row, 'schema_version'),
             self::document($row),
-            self::nullableString($row, 'created_by'),
-            self::timestamp($row, 'created_at'),
-            self::timestamp($row, 'updated_at'),
+            Row::nullableString($row, 'created_by'),
+            Row::timestamp($row, 'created_at'),
+            Row::timestamp($row, 'updated_at'),
         );
     }
 
@@ -351,16 +350,16 @@ final class PostgresProjectRepository implements ProjectRepository
     private function toVersion(array $row): ProjectVersion
     {
         return new ProjectVersion(
-            self::string($row, 'id'),
-            self::string($row, 'project_id'),
-            self::integer($row, 'version_number'),
-            self::nullableString($row, 'label'),
-            self::string($row, 'name'),
-            self::nullableString($row, 'description'),
-            self::integer($row, 'schema_version'),
+            Row::string($row, 'id'),
+            Row::string($row, 'project_id'),
+            Row::integer($row, 'version_number'),
+            Row::nullableString($row, 'label'),
+            Row::string($row, 'name'),
+            Row::nullableString($row, 'description'),
+            Row::integer($row, 'schema_version'),
             self::document($row),
-            self::nullableString($row, 'created_by'),
-            self::timestamp($row, 'created_at'),
+            Row::nullableString($row, 'created_by'),
+            Row::timestamp($row, 'created_at'),
         );
     }
 
@@ -386,7 +385,7 @@ final class PostgresProjectRepository implements ProjectRepository
      */
     private static function document(array $row): object
     {
-        $decoded = json_decode(self::string($row, 'document'), false);
+        $decoded = json_decode(Row::string($row, 'document'), false);
 
         if (!is_object($decoded)) {
             // A CHECK constraint keeps every stored document an object, so
@@ -395,56 +394,6 @@ final class PostgresProjectRepository implements ProjectRepository
         }
 
         return $decoded;
-    }
-
-    /**
-     * @param array<string, mixed> $row
-     */
-    private static function string(array $row, string $column): string
-    {
-        $value = $row[$column] ?? null;
-
-        if (!is_string($value)) {
-            throw self::malformed($column);
-        }
-
-        return $value;
-    }
-
-    /**
-     * @param array<string, mixed> $row
-     */
-    private static function nullableString(array $row, string $column): ?string
-    {
-        $value = $row[$column] ?? null;
-
-        return is_string($value) ? $value : null;
-    }
-
-    /**
-     * @param array<string, mixed> $row
-     */
-    private static function integer(array $row, string $column): int
-    {
-        $value = $row[$column] ?? null;
-
-        if (!is_int($value) && !(is_string($value) && $value !== '' && ctype_digit($value))) {
-            throw self::malformed($column);
-        }
-
-        return (int) $value;
-    }
-
-    /**
-     * @param array<string, mixed> $row
-     */
-    private static function timestamp(array $row, string $column): DateTimeImmutable
-    {
-        try {
-            return new DateTimeImmutable(self::string($row, $column));
-        } catch (Exception) {
-            throw self::malformed($column);
-        }
     }
 
     private static function malformed(string $column): RuntimeException
