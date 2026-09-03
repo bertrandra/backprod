@@ -11,7 +11,6 @@ use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Domain\InvoiceStatus;
 use App\Billing\Domain\Money;
-use App\Commerce\Domain\Subscription;
 use App\Commerce\Service\Subscriptions;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
@@ -123,7 +122,7 @@ final class Invoicing
 
         $line = InvoiceLine::of(
             1,
-            self::describe($subscription),
+            $subscription->offer->lineDescription(),
             1,
             Money::of($version->priceMinorUnits, $version->currency),
             Money::zero($version->currency),
@@ -172,24 +171,5 @@ final class Invoicing
         InvoiceStatus::assertPermits($invoice->status, $status);
 
         return $this->invoices->transition($invoice, $status, $actorUserId);
-    }
-
-    /**
-     * What the line says.
-     *
-     * The offer's name and version, never its plan's code: §13 forbids
-     * behaviour keyed on a plan, and a description that read "Pro plan"
-     * would be the first place a report started grepping for one. The
-     * version number is included because two invoices at different prices
-     * for the same offer are otherwise indistinguishable to a customer
-     * asking why the amount changed.
-     */
-    private static function describe(Subscription $subscription): string
-    {
-        return sprintf(
-            '%s (v%d) — subscription',
-            $subscription->offer->name,
-            $subscription->offer->version->version,
-        );
     }
 }

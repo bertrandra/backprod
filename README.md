@@ -75,7 +75,9 @@ public/     front controller
 src/
   Auth/        token verification behind a provider port
   Billing/     billing profiles, invoices, credit notes, VAT and the ledger
+  EInvoice/    the approved-platform port and the transmission history
   Payment/     the PSP port, its webhook, payments and refunds
+  Sales/       quotes, orders, and what fulfilling one causes
   Commerce/    plans, features, offers, subscriptions, entitlement rows
   Entitlement/ the narrow port the §10.6 chain reads, plus quotas
   Health/      liveness endpoint
@@ -98,10 +100,15 @@ as they gain those layers; small modules stay lighter (§41.1).
 
 ## Status
 
-M6 part 2 of [`docs/backend-roadmap.md`](docs/backend-roadmap.md) — payments,
-refunds and credit notes — on top of part 1's invoicing, M5's commerce, M4's
-projects, M3's product registry, M2's platform identity and M1's context
-chain. Money now moves, and the provider's webhook is what says so.
+**M6 complete** in [`docs/backend-roadmap.md`](docs/backend-roadmap.md) —
+billing, payments and e-invoicing — on top of M5's commerce, M4's projects,
+M3's product registry, M2's platform identity and M1's context chain.
+
+Non-negotiable #20's chain now runs end to end:
+
+```text
+Quote → Order → Subscription → Invoice → Payment → e-invoice
+```
 
 | Route | Permission |
 |---|---|
@@ -155,7 +162,20 @@ chain. Money now moves, and the provider's webhook is what says so.
 | `GET /api/v1/billing/payments/{id}` | `payments.read` |
 | `POST /api/v1/billing/invoices/{id}/payments` | `payments.manage` |
 | `POST /api/v1/billing/payments/{id}/refund` | `payments.manage` |
+| `GET /api/v1/sales/quotes` | `sales.read` |
+| `POST /api/v1/sales/quotes` | `sales.manage` |
+| `GET /api/v1/sales/quotes/{id}` | `sales.read` |
+| `POST /api/v1/sales/quotes/{id}/accept` | `sales.manage` |
+| `POST /api/v1/sales/quotes/{id}/reject` | `sales.manage` |
+| `GET /api/v1/sales/orders` | `sales.read` |
+| `POST /api/v1/sales/orders` | `sales.manage` |
+| `GET /api/v1/sales/orders/{id}` | `sales.read` |
+| `POST /api/v1/sales/orders/{id}/fulfil` | `sales.manage` |
+| `POST /api/v1/sales/orders/{id}/cancel` | `sales.manage` |
+| `POST /api/v1/billing/invoices/{id}/transmit` | `billing.manage` |
+| `GET /api/v1/billing/invoices/{id}/transmissions` | `billing.read` |
 | `POST /api/v1/webhooks/payments/{provider}` | **none — signature** |
+| `POST /api/v1/webhooks/einvoice/{provider}` | **none — signature** |
 
 Authorisation asks about **permissions**, never role names (§13). Roles map
 to permissions in the database, so moving a permission between roles changes
@@ -401,6 +421,50 @@ Providers are a **registry**, not a dependency (non-negotiable #17): a platform
 migrating between PSPs runs both while payments started with the old one are
 still settling. A deployment with no configured signing secret has no provider
 and cannot take money.
+
+## Sales and e-invoicing
+
+§20's chain starts before the subscription. A **quote** prices an offer and
+holds it until a date; accepting it places an **order**; fulfilling the order
+starts the subscription and raises the invoice.
+
+**A quote lapses on the clock** — the fourth place this platform applies that
+rule, after offer windows, entitlement validity and subscription periods.
+`valid_until` is not nullable, and a quote past it cannot be accepted whatever
+its status column says. A test leaves the column at `SENT` with the date a day
+past, which is exactly the state a platform with no sweeper is in.
+
+**A quote has no number.** French law numbers invoices and credit notes in
+unbroken sequences; a devis is not subject to that, and a second numbering
+scheme living beside the legal one is how one eventually gets mistaken for it.
+
+**Fulfilment is one transaction** — subscription, invoice and completion, or
+none of them. `orders_completed_is_traceable` refuses a completed order that
+does not name both, which is #20's traceability made structural. Getting there
+extended part 2's pattern: `applyActivate()` and `applyIssue()` sit beside the
+transactional `activate()` and `issue()`, so nothing nests.
+
+**The invoice bills what the quote priced.** The lines travel quote → order →
+invoice as data. A test reprices the offer between quote and fulfilment and
+asserts the invoice does not move — otherwise a quote would be decorative.
+
+**Transmission is its own history** ([§25.1](docs/architecture-v2.md)). An
+invoice has nine states; a transmission has four, and there is one row per
+attempt. Squeezing them together would lose the fact that a document was
+rejected, corrected and re-sent — which is precisely the answer an inspector
+wants, rather than "accepted". `REJECTED → READY_FOR_EINVOICE` is that remedy;
+`ISSUED → PAID` stays reachable because not every invoice goes through a
+platform.
+
+Submitting is **resumable rather than transactional**, because it contains a
+network call and holding a transaction across one kills a connection pool. The
+*verdict* is one transaction, applied exactly once by the same unique index as
+payments.
+
+The platform is a configured adapter (non-negotiable #17). With no signing
+secret there is none, and nothing can be transmitted — which matters more here
+than for payments: a transmission record from an adapter nobody can verify
+could be mistaken for evidence of compliance.
 
 ## Projects
 

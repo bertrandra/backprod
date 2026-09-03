@@ -90,32 +90,40 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
         ?string $actorUserId,
     ): Subscription {
         return $this->connection->transactional(
-            function () use ($tenantId, $productId, $offer, $periodEnd, $actorUserId): Subscription {
-                $id = $this->connection->fetchOne(
-                    <<<'SQL'
-                        INSERT INTO subscriptions
-                            (tenant_id, product_id, offer_version_id, current_period_end)
-                        VALUES (:tenantId, :productId, :versionId, :periodEnd)
-                        RETURNING id
-                        SQL,
-                    [
-                        'tenantId' => $tenantId,
-                        'productId' => $productId,
-                        'versionId' => $offer->version->id,
-                        'periodEnd' => self::moment($periodEnd),
-                    ],
-                );
-
-                if (!is_string($id)) {
-                    throw new RuntimeException('Failed to start a subscription.');
-                }
-
-                $this->record($id, SubscriptionEvent::ACTIVATED, null, $offer->version->id, $actorUserId, []);
-                $this->grantEntitlements($id, $tenantId, $productId, $offer, $periodEnd);
-
-                return $this->requireActive($tenantId, $productId);
-            },
+            fn (): Subscription => $this->applyActivate($tenantId, $productId, $offer, $periodEnd, $actorUserId),
         );
+    }
+
+    public function applyActivate(
+        string $tenantId,
+        string $productId,
+        SubscribedOffer $offer,
+        ?DateTimeImmutable $periodEnd,
+        ?string $actorUserId,
+    ): Subscription {
+        $id = $this->connection->fetchOne(
+            <<<'SQL'
+                INSERT INTO subscriptions
+                    (tenant_id, product_id, offer_version_id, current_period_end)
+                VALUES (:tenantId, :productId, :versionId, :periodEnd)
+                RETURNING id
+                SQL,
+            [
+                'tenantId' => $tenantId,
+                'productId' => $productId,
+                'versionId' => $offer->version->id,
+                'periodEnd' => self::moment($periodEnd),
+            ],
+        );
+
+        if (!is_string($id)) {
+            throw new RuntimeException('Failed to start a subscription.');
+        }
+
+        $this->record($id, SubscriptionEvent::ACTIVATED, null, $offer->version->id, $actorUserId, []);
+        $this->grantEntitlements($id, $tenantId, $productId, $offer, $periodEnd);
+
+        return $this->requireActive($tenantId, $productId);
     }
 
     public function changeOffer(

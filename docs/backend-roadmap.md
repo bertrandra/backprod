@@ -210,6 +210,9 @@ duplicated, webhook delayed, refund, chargeback, invoice rejected.
 **Exit criteria:** replaying a webhook twice produces exactly one activation;
 an invoice remains correct after its offer is re-versioned.
 
+**Delivered** in three parts: invoicing (ADR-021), payments and credit notes
+(ADR-022), and the sales chain with e-invoicing (ADR-023).
+
 ---
 
 ### M7 — Storage & jobs

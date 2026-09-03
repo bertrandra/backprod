@@ -53,6 +53,33 @@ interface InvoiceRepository
     ): Invoice;
 
     /**
+     * The same issue, without a transaction of its own, for a caller that
+     * already has one open on the same connection.
+     *
+     * An order raising its invoice must be atomic with the subscription it
+     * started and with the order completing — the schema refuses a completed
+     * order that names neither — and nesting one transaction inside another
+     * is a property of the driver rather than of this design.
+     *
+     * @param list<InvoiceLine>    $lines
+     * @param array<string, mixed> $supplier
+     * @param array<string, mixed> $customer
+     */
+    public function applyIssue(
+        string $tenantId,
+        string $productId,
+        ?string $subscriptionId,
+        array $lines,
+        array $supplier,
+        array $customer,
+        string $jurisdiction,
+        ?DateTimeImmutable $periodStart,
+        ?DateTimeImmutable $periodEnd,
+        ?string $paymentTerms,
+        ?string $actorUserId,
+    ): Invoice;
+
+    /**
      * Moves an invoice to a new status, recording the move in the ledger.
      * The caller has already checked that the transition is legal.
      */

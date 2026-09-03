@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Commerce\Service;
 
-use App\Commerce\Domain\Offer;
-use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Domain\SubscribedOffer;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionEvent;
@@ -84,7 +82,7 @@ final class Subscriptions
             $tenantId,
             $productId,
             $offer,
-            self::periodEndFor($offer->version, new DateTimeImmutable()),
+            $offer->version->periodEndFrom(new DateTimeImmutable()),
             $actorUserId,
         );
     }
@@ -163,8 +161,7 @@ final class Subscriptions
 
         return $this->subscriptions->renew(
             $subscription,
-            self::periodEndFor(
-                $subscription->offer->version,
+            $subscription->offer->version->periodEndFrom(
                 $subscription->currentPeriodEnd ?? new DateTimeImmutable(),
             ),
         );
@@ -192,15 +189,6 @@ final class Subscriptions
      * silently cut short terms that were negotiated precisely because they
      * do not fit a month.
      */
-    private static function periodEndFor(OfferVersion $version, DateTimeImmutable $from): ?DateTimeImmutable
-    {
-        return match ($version->billingPeriod) {
-            'MONTHLY' => $from->modify('+1 month'),
-            'YEARLY' => $from->modify('+1 year'),
-            default => null,
-        };
-    }
-
     private function requireCurrent(string $tenantId, string $productId): Subscription
     {
         $subscription = $this->current($tenantId, $productId);
@@ -227,19 +215,7 @@ final class Subscriptions
     {
         $offer = $this->catalogue->offerOnSale($productId, $offerId);
 
-        return self::subscribed($offer);
+        return SubscribedOffer::from($offer);
     }
 
-    private static function subscribed(Offer $offer): SubscribedOffer
-    {
-        $version = $offer->currentVersion;
-
-        if ($version === null) {
-            // offerOnSale only returns an offer with a sellable version, so
-            // this is a broken invariant rather than a client mistake.
-            throw new NotFoundException('Offer not found.', [], 'OFFER_NOT_FOUND');
-        }
-
-        return new SubscribedOffer($offer->id, $offer->code, $offer->name, $offer->plan, $version);
-    }
 }

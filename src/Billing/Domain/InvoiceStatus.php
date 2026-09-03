@@ -33,15 +33,32 @@ final class InvoiceStatus
     public const CREDITED = 'CREDITED';
 
     /**
-     * What this milestone can actually do. Transmission states arrive with
-     * the e-invoicing adapter, and payment with the payment adapter; both
-     * will extend this table rather than working around it.
+     * The reachable transitions.
+     *
+     * The transmission states were declared but unreachable until the
+     * e-invoicing adapter existed, exactly as this comment promised: wiring
+     * it extended this table deliberately rather than discovering the states
+     * already worked.
+     *
+     * ISSUED still leads straight to PAID. Not every invoice goes through an
+     * approved platform — a bank transfer reconciled by hand does not — and
+     * forcing one path would make the platform unusable for the invoices
+     * §25.1 does not cover.
+     *
+     * REJECTED leads back to READY_FOR_EINVOICE because that is what §25.1's
+     * remedy is: correct the document and transmit it again. The attempts
+     * themselves are kept as separate transmission rows, so the history is
+     * not lost when the invoice moves on.
      *
      * @var array<string, list<string>>
      */
     private const ALLOWED = [
         self::DRAFT => [self::ISSUED, self::CANCELLED],
-        self::ISSUED => [self::PAID, self::CANCELLED, self::CREDITED],
+        self::ISSUED => [self::READY_FOR_EINVOICE, self::PAID, self::CANCELLED, self::CREDITED],
+        self::READY_FOR_EINVOICE => [self::SUBMITTED, self::CANCELLED, self::CREDITED],
+        self::SUBMITTED => [self::ACCEPTED, self::REJECTED],
+        self::ACCEPTED => [self::PAID, self::CANCELLED, self::CREDITED],
+        self::REJECTED => [self::READY_FOR_EINVOICE, self::CANCELLED, self::CREDITED],
         self::PAID => [self::CREDITED],
         self::CANCELLED => [],
         self::CREDITED => [],

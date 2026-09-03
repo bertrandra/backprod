@@ -59,9 +59,9 @@ final class InvoiceStatusTest extends TestCase
             // Skipping straight past issue: a draft has no number, and
             // paying it would settle a document that was never sent.
             [InvoiceStatus::DRAFT, InvoiceStatus::PAID],
-            // A status this milestone stores but cannot yet reach. It is
-            // refused rather than silently permitted, so wiring the
-            // e-invoicing adapter has to extend the table deliberately.
+            // Transmission is not a shortcut. An invoice reaches SUBMITTED
+            // through READY_FOR_EINVOICE, never straight from ISSUED, so the
+            // intent to transmit is always a recorded step.
             [InvoiceStatus::ISSUED, InvoiceStatus::SUBMITTED],
         ];
     }
