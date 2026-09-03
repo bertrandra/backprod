@@ -2,13 +2,21 @@
 
 declare(strict_types=1);
 
+use App\Commerce\Controller\CancelSubscriptionController;
+use App\Commerce\Controller\ChangeOfferController;
+use App\Commerce\Controller\ListEntitlementsController;
 use App\Commerce\Controller\ListFeaturesController;
 use App\Commerce\Controller\ListOffersController;
 use App\Commerce\Controller\ListPlansController;
+use App\Commerce\Controller\ResumeSubscriptionController;
 use App\Commerce\Controller\ShowOfferController;
+use App\Commerce\Controller\ShowSubscriptionController;
+use App\Commerce\Controller\SubscribeController;
+use App\Commerce\Controller\TenantUsageController;
 use App\Health\Controller\HealthController;
 use App\Identity\Controller\MeController;
 use App\Identity\Controller\MePermissionsController;
+use App\Identity\Controller\MyEntitlementsController;
 use App\Identity\Controller\UpdateMeController;
 use App\Product\Controller\ListProductsController;
 use App\Product\Controller\ProductCatalogueController;
@@ -52,6 +60,7 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/me', MeController::class);
     $routes->addRoute('PATCH', '/api/v1/me', UpdateMeController::class);
     $routes->addRoute('GET', '/api/v1/me/permissions', MePermissionsController::class);
+    $routes->addRoute('GET', '/api/v1/me/entitlements', MyEntitlementsController::class);
 
     // Identity-only: discovery cannot require the product context it supplies.
     $routes->addRoute('GET', '/api/v1/products', ListProductsController::class);
@@ -67,6 +76,15 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/features', ListFeaturesController::class);
     $routes->addRoute('GET', '/api/v1/offers', ListOffersController::class);
     $routes->addRoute('GET', '/api/v1/offers/{offerId}', ShowOfferController::class);
+
+    // What the tenant subscribed to, and what it consequently may use.
+    $routes->addRoute('GET', '/api/v1/subscription', ShowSubscriptionController::class);
+    $routes->addRoute('POST', '/api/v1/subscription', SubscribeController::class);
+    $routes->addRoute('POST', '/api/v1/subscription/change-offer', ChangeOfferController::class);
+    $routes->addRoute('POST', '/api/v1/subscription/cancel', CancelSubscriptionController::class);
+    $routes->addRoute('POST', '/api/v1/subscription/resume', ResumeSubscriptionController::class);
+
+    $routes->addRoute('GET', '/api/v1/entitlements', ListEntitlementsController::class);
 
     // Projects take the full context chain: unlike discovery, they are
     // tenant data, and every one of these resolves product *and* tenant
@@ -89,6 +107,8 @@ return static function (RouteCollector $routes): void {
 
     $routes->addRoute('GET', '/api/v1/tenants/current', CurrentTenantController::class);
     $routes->addRoute('PATCH', '/api/v1/tenants/current', UpdateCurrentTenantController::class);
+
+    $routes->addRoute('GET', '/api/v1/tenants/current/usage', TenantUsageController::class);
 
     $routes->addRoute('GET', '/api/v1/tenants/current/members', ListMembersController::class);
     $routes->addRoute('POST', '/api/v1/tenants/current/members', AddMemberController::class);

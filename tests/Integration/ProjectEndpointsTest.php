@@ -15,6 +15,7 @@ use App\Product\Infrastructure\InMemoryProductRepository;
 use App\Project\Domain\DocumentPolicy;
 use App\Project\Domain\ProjectRepository;
 use App\Project\Infrastructure\InMemoryProjectRepository;
+use App\Project\Service\ProjectWorkspace;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
@@ -96,7 +97,13 @@ final class ProjectEndpointsTest extends ApiTestCase
 
             ProjectRepository::class => new InMemoryProjectRepository(),
 
-            EntitlementRepository::class => new InMemoryEntitlementRepository([]),
+            // A tenant with no subscription may hold no projects, so these
+            // tests grant the entitlement that says they may. How *many* is
+            // what the quota tests are about, not these.
+            EntitlementRepository::class => InMemoryEntitlementRepository::granting([
+                self::ACME . ':' . self::ATLAS => [ProjectWorkspace::QUOTA],
+                self::GLOBEX . ':' . self::ATLAS => [ProjectWorkspace::QUOTA],
+            ]),
         ]);
     }
 

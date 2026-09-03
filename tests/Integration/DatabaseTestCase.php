@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration;
 
-use App\Shared\Database\ConnectionFactory;
+use App\Tests\Support\TestDatabase;
 use Doctrine\DBAL\Connection;
 use PHPUnit\Framework\TestCase;
 
@@ -27,28 +27,13 @@ abstract class DatabaseTestCase extends TestCase
     {
         parent::setUp();
 
-        $dsn = $_ENV['DATABASE_DSN'] ?? getenv('DATABASE_DSN');
+        $dsn = TestDatabase::dsn();
 
-        if (!is_string($dsn) || $dsn === '') {
+        if ($dsn === null) {
             self::markTestSkipped('DATABASE_DSN is not set; skipping database tests.');
         }
 
-        $this->connection = ConnectionFactory::fromDsn($dsn);
-
-        // Each test starts from a known state. Truncating rather than
-        // recreating keeps the migrated schema — including the constraints
-        // that are half the point of these tests.
-        //
-        // roles and permissions are deliberately absent: they are reference
-        // data created by the migration, not fixtures, and clearing them
-        // would leave the platform unable to authorise anything.
-        // projects and project_versions would be reached anyway through
-        // CASCADE, but naming them says so: a truncate list that relies on
-        // something implicit is one nobody can read for what it clears.
-        $this->connection->executeStatement(
-            'TRUNCATE offer_version_features, offer_versions, offers, plans, features, '
-            . 'project_versions, projects, tenant_member_roles, tenant_members, '
-            . 'tenants, products, users RESTART IDENTITY CASCADE',
-        );
+        $this->connection = TestDatabase::connect($dsn);
+        TestDatabase::reset($this->connection);
     }
 }

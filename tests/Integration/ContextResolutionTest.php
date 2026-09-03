@@ -63,7 +63,7 @@ final class ContextResolutionTest extends ApiTestCase
                 new TenantMembership('tenant-globex', self::BOB, 'prod-atlas', ['USER'], ['members.read']),
             ]),
 
-            EntitlementRepository::class => new InMemoryEntitlementRepository([
+            EntitlementRepository::class => InMemoryEntitlementRepository::granting([
                 'tenant-acme:prod-atlas' => ['projects.read', 'projects.write'],
                 'tenant-globex:prod-atlas' => ['projects.read'],
             ]),

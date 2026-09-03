@@ -127,6 +127,28 @@ final class JsonBody
     }
 
     /**
+     * A real boolean, or the default when absent.
+     *
+     * Rejects "true" and 1 rather than coercing them. A flag that decides
+     * whether a subscription ends today or in three weeks is not the place
+     * to be generous about types.
+     */
+    public function optionalBool(string $field, bool $default = false): bool
+    {
+        $value = $this->value($field);
+
+        if ($value === null) {
+            return $default;
+        }
+
+        if (!is_bool($value)) {
+            throw $this->invalid($field, 'must be true or false');
+        }
+
+        return $value;
+    }
+
+    /**
      * A JSON object. Arrays and scalars are refused: the caller was asked for
      * a structure with named fields, and a list is not one.
      */
