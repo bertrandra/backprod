@@ -7,6 +7,7 @@ namespace App\Tests\Integration;
 use App\Commerce\Domain\OfferGrant;
 use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Infrastructure\PostgresCatalogueRepository;
+use App\Shared\Database\Row;
 use Doctrine\DBAL\Exception\DriverException;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -168,8 +169,12 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         );
 
         self::assertIsArray($stored);
-        self::assertSame('2900', (string) ($stored['price_minor_units'] ?? null));
-        self::assertSame('EUR', $stored['currency'] ?? null);
+
+        // Narrowed through the shared helper rather than cast: a row value is
+        // mixed, and casting mixed to string is exactly the shortcut that
+        // makes a column type change look like a passing test.
+        self::assertSame(2900, Row::integer($stored, 'price_minor_units'));
+        self::assertSame('EUR', Row::string($stored, 'currency'));
         self::assertSame(50, $this->grantLimitFor($version, $projects));
     }
 
