@@ -7,6 +7,7 @@ namespace App\Commerce\Infrastructure;
 use App\Entitlement\Domain\Entitlement;
 use App\Entitlement\Domain\EntitlementRepository;
 use App\Shared\Database\Row;
+use App\Shared\Database\Uuid;
 use Doctrine\DBAL\Connection;
 
 /**
@@ -58,6 +59,10 @@ final class PostgresEntitlementRepository implements EntitlementRepository
 
     public function capabilitiesFor(string $tenantId, string $productId): array
     {
+        if (!self::addressable($tenantId, $productId)) {
+            return [];
+        }
+
         // The §10.6 chain runs this on every authenticated request, so it
         // asks only what that chain needs: which codes are live.
         $codes = $this->connection->fetchFirstColumn(
@@ -81,6 +86,10 @@ final class PostgresEntitlementRepository implements EntitlementRepository
 
     public function entitlementsFor(string $tenantId, string $productId): array
     {
+        if (!self::addressable($tenantId, $productId)) {
+            return [];
+        }
+
         $rows = $this->connection->fetchAllAssociative(
             'SELECT DISTINCT ON (f.code)
                     f.code, f.name, f.kind, f.unit,
@@ -104,5 +113,20 @@ final class PostgresEntitlementRepository implements EntitlementRepository
             ),
             $rows,
         );
+    }
+
+    /**
+     * An id that cannot be a UUID matches no row, so it grants nothing.
+     *
+     * PostgreSQL raises on `= 'not-a-uuid'` against a UUID column, and this
+     * runs on every authenticated request — the one place in the platform
+     * where a driver error would take down every call rather than one. Both
+     * ids come from the resolved context and are always well-formed, which
+     * makes this defence in depth rather than input handling, and the same
+     * guard the product, project and offer adapters carry.
+     */
+    private static function addressable(string $tenantId, string $productId): bool
+    {
+        return Uuid::isValid($tenantId) && Uuid::isValid($productId);
     }
 }

@@ -241,12 +241,9 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
     {
         $this->subscribeTo($this->proOffer);
 
-        $cancelled = $this->request(
-            'POST',
-            '/api/v1/subscription/cancel',
-            $this->headers(),
-            $this->json([]),
-        );
+        // No body at all: json_encode([]) is "[]", a JSON array, which the
+        // body reader refuses — and rightly, since it is not an object.
+        $cancelled = $this->request('POST', '/api/v1/subscription/cancel', $this->headers());
 
         self::assertSame(200, $cancelled->getStatusCode());
         self::assertTrue($this->decode($cancelled)['cancel_at_period_end'] ?? null);

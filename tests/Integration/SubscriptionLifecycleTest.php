@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration;
 
+use App\Commerce\Domain\Offer;
 use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionEvent;
@@ -394,8 +395,14 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             ['id' => $versionId],
         );
 
-        // Gone from the catalogue…
-        self::assertSame([], (new Catalogue($this->catalogue()))->offersOnSale($this->product));
+        // Gone from the catalogue — and only it: withdrawing one offer must
+        // not take the rest of the price list with it.
+        $onSale = array_map(
+            static fn (Offer $offer): string => $offer->code,
+            (new Catalogue($this->catalogue()))->offersOnSale($this->product),
+        );
+        self::assertNotContains('pro', $onSale);
+        self::assertContains('free', $onSale);
 
         // …and still completely legible to the tenant who bought it.
         $reloaded = $this->subscriptions()->current($this->tenant, $this->product);
