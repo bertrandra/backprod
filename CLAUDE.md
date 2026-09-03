@@ -105,6 +105,40 @@ GET /api/v1/products/{productId}/features
 GET /api/v1/products/{productId}/configuration
 ```
 
+Conversations and staff support (§12.2, §12.3):
+
+```text
+GET    /api/v1/conversations
+POST   /api/v1/conversations
+GET    /api/v1/conversations/{id}
+POST   /api/v1/conversations/{id}/messages
+GET    /api/v1/conversations/{id}/messages?since_seq=
+POST   /api/v1/conversations/{id}/read
+POST   /api/v1/conversations/{id}/participants
+DELETE /api/v1/conversations/{id}/participants/{userId}
+POST   /api/v1/conversations/{id}/close
+DELETE /api/v1/messages/{id}
+
+GET    /api/v1/staff/conversations
+GET    /api/v1/staff/conversations/{id}
+POST   /api/v1/staff/conversations/{id}/messages
+POST   /api/v1/staff/conversations/{id}/close
+```
+
+and Tax / VAT APIs (§25.3):
+
+```text
+GET  /api/v1/tax/profile
+PUT  /api/v1/tax/profile
+GET  /api/v1/tax/rates
+POST /api/v1/tax/calculate
+GET  /api/v1/tax/transactions
+GET  /api/v1/tax/reports
+GET  /api/v1/tax/reports/{period}
+POST /api/v1/tax/reports/{period}/close
+GET  /api/v1/tax/export
+```
+
 All API endpoints must define authentication, authorization, product scope, tenant scope, request/response schemas and errors.
 
 ## Domain boundaries
@@ -133,6 +167,7 @@ External providers must be behind interfaces/adapters:
 AuthProvider
 PaymentProvider
 EInvoiceProvider
+VatNumberValidator
 StorageProvider
 CadastreProvider
 ```
@@ -164,6 +199,103 @@ Offers are versioned and historical offers must not be destructively rewritten.
 `valid_from` / `valid_until` describe commercial validity of an offer and are distinct from subscription dates.
 
 Authorization must use capabilities/entitlements, not scattered plan-name checks.
+
+## Platform staff vs tenant membership
+
+Full specification in `docs/architecture-v2.md` §12.2.
+
+`TENANT_ADMIN` is the **customer's** administrator, not the platform
+operator. Admin is a role held on a membership, never a property of a user:
+
+```text
+tenant membership     (tenant, user, product) → TENANT_ADMIN | USER
+platform staff role   (user, platform_role)   → PLATFORM_ADMIN | SUPPORT_ADMIN
+                                                 FINANCE_ADMIN | SALES_ADMIN
+```
+
+The two axes never convert into one another. A platform role grants no
+tenant membership and must never fabricate one; a membership grants no
+platform role.
+
+`platform_staff` is a separate table from `tenant_members`. One table
+holding both would turn a forgotten filter into privilege escalation.
+
+Staff routes live under `/api/v1/staff/*`, take the tenant as an explicit
+parameter, and are authorized by the platform role — never by the parameter.
+Every staff access to tenant data writes an audit row: who, when, which
+tenant, which resource, on what grounds.
+
+Never put `if (isStaff)` inside a tenant controller. The two surfaces are
+separate end to end — routes, permissions, controllers.
+
+## Messaging
+
+Full specification in `docs/architecture-v2.md` §12.3.
+
+A conversation belongs to a `(tenant, product)` pair, like every other
+resource. Two kinds, and the difference is a database invariant, not a
+convention:
+
+```text
+INTERNAL   tenant members only  — staff must never appear
+SUPPORT    tenant members + platform staff
+```
+
+A message's author must be a participant of the conversation — enforced by
+foreign key, not by an application check.
+
+Read state is a per-participant watermark (`last_read_seq`), monotone, never
+decreasing. Not a row per message read.
+
+No WebSockets and no held-open SSE: R2 means no persistent process. Polling
+with `since_seq`; unread notification is an M7 job.
+
+A deleted message is really deleted — the body is erased, the row remains as
+a tombstone so the thread keeps its order. That is the opposite of an
+invoice, which the law requires be kept (§26). Both rules are deliberate.
+
+## Fiscalité / TVA
+
+Full specification in `docs/architecture-v2.md` §25.3.
+
+Keep these concepts separate, exactly as offers/subscriptions/entitlements
+are kept separate:
+
+```text
+CustomerTaxProfile = who the customer is, fiscally
+TaxRate            = a rate, for a country, over a validity window
+TaxRule            = which regime applies, and why
+VATTransaction     = the fiscal fact, immutable, declarable
+```
+
+Never recompute historical VAT with today's rates.
+
+A `VATTransaction` records the rate and the rule that were applied, as
+values — never as a foreign key to a rate row that can move. A rate change
+must not shift a single euro of VAT already invoiced.
+
+A rate is valid over a window, and the clock decides which one applies: the
+rate in force at the date of the taxable event, never "the current rate".
+
+Never infer a tax regime from a country code alone. The regime depends on
+B2B/B2C status, on whether the VAT number was *verified*, on the nature of
+the supply and on the place of taxation.
+
+Reverse charge requires a verified VAT number, not a submitted one.
+Verification goes through the `VatNumberValidator` adapter, its result is
+stored with its date as audit evidence, and it fails closed — if VIES is
+unreachable, the sale is not silently reclassified as reverse-charged.
+
+A VAT number prefix is not an ISO country code: Greece is `GR` / `EL`, and
+Northern Ireland uses `XI`.
+
+A closed reporting period is immutable. Corrections go into a later period,
+never back into a closed one — the same rule as gapless numbering and credit
+notes.
+
+The backend produces and retains fiscal data, and exports it. It is not an
+accounting package: no chart of accounts, no general ledger, no filing with
+the tax authority.
 
 ## Quality gates
 

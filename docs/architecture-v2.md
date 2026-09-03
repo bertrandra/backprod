@@ -557,10 +557,39 @@ API ROOT
 │   ├── GET    /checkout/sessions/{id}
 │   └── POST   /payments/{id}/retry
 │
+├── Tax / VAT
+│   ├── GET    /tax/profile
+│   ├── PUT    /tax/profile
+│   ├── GET    /tax/rates
+│   ├── POST   /tax/calculate
+│   ├── GET    /tax/transactions
+│   ├── GET    /tax/reports
+│   ├── GET    /tax/reports/{period}
+│   ├── POST   /tax/reports/{period}/close
+│   └── GET    /tax/export
+│
 ├── E-invoicing / PDP
 │   ├── POST   /invoices/{id}/electronic
 │   ├── GET    /invoices/{id}/electronic
 │   └── GET    /invoices/{id}/electronic/status
+│
+├── Conversations / Messages
+│   ├── GET    /conversations
+│   ├── POST   /conversations
+│   ├── GET    /conversations/{id}
+│   ├── POST   /conversations/{id}/messages
+│   ├── GET    /conversations/{id}/messages
+│   ├── POST   /conversations/{id}/read
+│   ├── POST   /conversations/{id}/participants
+│   ├── DELETE /conversations/{id}/participants/{userId}
+│   ├── POST   /conversations/{id}/close
+│   └── DELETE /messages/{id}
+│
+├── Staff / Support (platform roles, §12.2)
+│   ├── GET    /staff/conversations
+│   ├── GET    /staff/conversations/{id}
+│   ├── POST   /staff/conversations/{id}/messages
+│   └── POST   /staff/conversations/{id}/close
 │
 ├── Webhooks
 │   └── POST   /webhooks/{provider}
@@ -594,8 +623,11 @@ API ROOT
 | GIS | `/geometry/*`, `/parcel*` | Core/Geo service | Oui | Oui | `gis.access` |
 | 3D | `/3d/*`, `/photogrammetry/*` | Job/Core services | Oui | Oui | `advanced_3d` / `photogrammetry` |
 | Billing | `/billing/*`, `/invoices*` | PHP | Oui | Oui | `billing.read/manage` |
+| Tax / VAT | `/tax/*` | PHP Tax module (§25.3) | Oui | Oui | `tax.read/manage` |
 | Payment | `/checkout/*`, `/payments/*` | PSP + PHP | Oui | Oui | `billing.manage` |
 | E-invoice | `/invoices/*/electronic` | EInvoice/PDP adapter | Oui | Oui | `einvoice.access` |
+| Messaging | `/conversations/*`, `/messages/*` | PHP Messaging module (§12.3) | Oui | Oui | `messages.read/write` |
+| Support | `/staff/*` | PHP, platform roles (§12.2) | Explicit param | **Cross-tenant, audited** | `support.read/respond` |
 | Webhooks | `/webhooks/*` | PHP | Provider-scoped | Provider-scoped | Signature required |
 | Admin | `/admin/*` | PHP | Global | Global | `admin.*` |
 
@@ -902,6 +934,205 @@ Un nouveau produit doit pouvoir être ajouté au backend avec **configuration + 
 Le backend ne doit pas être couplé au frontend d'un produit particulier.
 
 ---
+
+
+# 12.2 Identité plateforme (staff)
+
+§12 isole chaque tenant. Cette section décrit la **seule** identité autorisée
+à travailler *au travers* de cette isolation, et ce que cela coûte.
+
+## Deux axes, jamais fusionnés
+
+Un membre du personnel de la plateforme est un **utilisateur** comme un
+autre : même table `users`, même authentification, une seule identité. Ce
+qui le distingue n'est pas *qui il est* mais *ce qu'il détient*, et cela vit
+en dehors de l'appartenance à un tenant :
+
+```text
+tenant membership          →  « que puis-je faire dans MON entreprise ? »
+   (tenant, user, product)     TENANT_ADMIN, USER
+
+platform staff role        →  « que puis-je faire à TRAVERS les entreprises ? »
+   (user, platform_role)       PLATFORM_ADMIN, SUPPORT_ADMIN,
+                               FINANCE_ADMIN, SALES_ADMIN
+```
+
+Les deux axes sont **indépendants et ne se convertissent jamais l'un en
+l'autre** :
+
+- un rôle plateforme **n'accorde aucune appartenance** à un tenant et n'en
+  fabrique pas une à la volée ;
+- une appartenance, fût-elle `TENANT_ADMIN`, **n'accorde aucun rôle
+  plateforme** ;
+- `TENANT_ADMIN` désigne l'administrateur **du client**, pas l'exploitant de
+  la plateforme. La confusion des deux est la faille la plus coûteuse que
+  ce modèle puisse produire.
+
+## Tables
+
+```text
+platform_roles          code, name
+platform_staff          user_id, platform_role_id, granted_by, granted_at
+platform_role_permissions
+```
+
+`platform_staff` est délibérément **séparée** de `tenant_members`. Une seule
+table portant les deux ferait de l'oubli d'un filtre une élévation de
+privilège ; deux tables font de la même erreur une requête qui ne renvoie
+rien.
+
+## Ce que coûte un accès staff
+
+> Non-négociable #21 — **tout accès du personnel plateforme à la donnée d'un
+> tenant est tracé, motivé et jamais silencieux.**
+
+Concrètement :
+
+- chaque accès staff à de la donnée tenant écrit une ligne d'audit : qui,
+  quand, quel tenant, quelle ressource, à quel titre ;
+- l'audit est écrit **dans la même transaction** que la lecture qu'il
+  justifie lorsque cette lecture est un acte (répondre, clore, agir), selon
+  le même principe que les webhooks de §24 : ce qui doit être vrai ensemble
+  est écrit ensemble ;
+- le staff **ne lit jamais** les conversations internes d'un tenant (§12.3) ;
+- §25.2 exige déjà que le reporting admin soit séparé de ce qu'un tenant
+  voit (non-négociable #19) : la même séparation s'applique ici.
+
+Le pipeline de contexte (§10.6) résout les deux axes séparément. Une route
+tenant reste une route tenant : elle exige une appartenance, et un rôle
+plateforme ne la débloque pas. Les routes staff sont un ensemble distinct,
+sous `/api/v1/staff/*`, qui exigent un rôle plateforme et **prennent le
+tenant en paramètre explicite** — parce qu'ici, contrairement à tout le
+reste de la plateforme, il n'y a pas d'appartenance d'où le déduire.
+
+C'est la seule exception à « ne jamais faire confiance à un tenant fourni
+par le client », et elle n'en est une qu'en apparence : le tenant est fourni,
+mais l'autorisation ne vient pas de lui — elle vient du rôle plateforme, et
+l'accès est audité.
+
+---
+
+# 12.3 Messagerie / Conversations
+
+Deux besoins distincts, un seul modèle :
+
+```text
+INTERNAL   les membres d'un tenant se parlent entre eux
+SUPPORT    le tenant et la plateforme se parlent
+```
+
+## Modèle
+
+```text
+conversations
+├── id
+├── tenant_id            à qui appartient le fil
+├── product_id           contexte racine (non-négociable : §12.1)
+├── kind                 INTERNAL | SUPPORT
+├── subject
+├── status               OPEN | CLOSED
+├── created_by
+└── created_at / updated_at
+
+conversation_participants
+├── conversation_id
+├── user_id
+├── participant_kind     MEMBER | STAFF
+├── joined_at / left_at
+└── last_read_seq        filigrane de lecture
+
+messages
+├── id
+├── conversation_id
+├── seq                  ordre stable dans le fil
+├── author_user_id
+├── author_kind          MEMBER | STAFF | SYSTEM
+├── body
+├── created_at
+├── edited_at
+└── deleted_at
+```
+
+## Invariants, en base plutôt qu'en convention
+
+- **Une conversation appartient à un couple (tenant, produit).** Le produit
+  est le contexte racine ; une conversation qui n'en nomme pas un serait
+  lisible depuis n'importe quel produit du même tenant.
+- **L'auteur d'un message est un participant de la conversation** — clé
+  étrangère vers `conversation_participants`, pas un `CHECK` applicatif.
+  Écrire dans un fil dont on ne fait pas partie doit être refusé par la base.
+- **`UNIQUE (conversation_id, seq)`** : l'ordre d'un fil est stable et la
+  pagination reprend où elle s'est arrêtée. `seq` est monotone par
+  conversation ; il n'a pas besoin d'être sans trou, contrairement à une
+  numérotation légale (§25).
+- **Un STAFF ne participe qu'à une conversation SUPPORT.** Invariant de
+  base : `participant_kind = 'STAFF'` exige `kind = 'SUPPORT'`. Sans lui, un
+  membre du personnel peut apparaître dans un fil interne — exactement ce que
+  §12.2 interdit.
+- **Le filigrane de lecture est par participant**, monotone, jamais
+  décroissant. Une table de jointure par message lu coûterait une ligne par
+  message et par lecteur pour la même information.
+
+## Suppression : ici le RGPD prime
+
+§26 distingue rétention légale et suppression RGPD, et un message n'est pas
+une pièce comptable. Un message supprimé est donc **réellement supprimé** —
+le corps est effacé, la ligne subsiste comme pierre tombale pour que l'ordre
+du fil reste lisible.
+
+C'est l'inverse d'une facture, que la loi impose de conserver. Le contraste
+est volontaire et doit rester explicite dans le code : les deux règles
+coexistent parce qu'elles s'appliquent à des objets différents, et non parce
+que l'une aurait été oubliée.
+
+## Pas de temps réel, et c'est un choix
+
+R2 du plan : l'hébergement mutualisé n'autorise pas de processus persistant.
+Il n'y aura donc **ni WebSocket ni SSE tenu ouvert**. La lecture se fait par
+interrogation avec `since_seq`, ce qui est exactement ce que le filigrane
+rend efficace : le client demande ce qui a suivi ce qu'il a déjà lu.
+
+La notification d'un message non lu (courriel) relève des jobs de §27, donc
+de M7 — pas d'une boucle qui attend.
+
+## Pièces jointes
+
+Différées. Elles appartiennent au `StorageProvider` de §15 : un message
+référencera un asset une fois M7 livré. Stocker une pièce jointe dans
+PostgreSQL contredirait le non-négociable #9.
+
+## API
+
+```text
+Conversations (tenant)
+├── GET    /api/v1/conversations
+├── POST   /api/v1/conversations
+├── GET    /api/v1/conversations/{id}
+├── POST   /api/v1/conversations/{id}/messages
+├── GET    /api/v1/conversations/{id}/messages?since_seq=
+├── POST   /api/v1/conversations/{id}/read
+├── POST   /api/v1/conversations/{id}/participants
+├── DELETE /api/v1/conversations/{id}/participants/{userId}
+├── POST   /api/v1/conversations/{id}/close
+└── DELETE /api/v1/messages/{id}
+
+Support (staff, §12.2)
+├── GET    /api/v1/staff/conversations
+├── GET    /api/v1/staff/conversations/{id}
+├── POST   /api/v1/staff/conversations/{id}/messages
+└── POST   /api/v1/staff/conversations/{id}/close
+```
+
+Permissions : `messages.read` / `messages.write` côté tenant,
+`support.read` / `support.respond` côté plateforme.
+
+Les deux surfaces sont **séparées de bout en bout** — routes, permissions,
+contrôleurs — plutôt qu'une seule surface qui se comporterait différemment
+selon l'appelant. Une branche `if (isStaff)` au milieu d'un contrôleur tenant
+est précisément la forme que prend une fuite inter-tenant.
+
+---
+
 
 # 13. Plans / features / quotas
 
@@ -1282,6 +1513,13 @@ currency
 ```
 
 Une facture historique ne doit pas dépendre des valeurs actuelles du plan.
+
+Le volet fiscal de ce snapshot — quel taux, quel régime, quel numéro de TVA
+vérifié, et selon quelle règle — est spécifié en **§25.3**, qui ajoute le
+module `Tax` et la table `vat_transactions`. `tax_records` reste la
+ventilation par taux **à l'intérieur** d'une facture ; `vat_transactions`
+porte le fait fiscal **déclarable**, avec le pays de taxation, le régime et
+l'autoliquidation.
 
 ---
 
@@ -1809,6 +2047,313 @@ Un `TENANT_ADMIN` ne peut voir que les données de son tenant.
 Un `FINANCE_ADMIN` peut voir les données financières globales selon ses permissions.
 
 Toutes les opérations sensibles sont auditées.
+
+
+# 25.3 Fiscalité / TVA — profils, calcul, déclaration
+
+§25 impose qu'une facture conserve son propre snapshot. Cette section dit
+**quelles données fiscales** ce snapshot doit contenir, **qui décide** du
+régime applicable, et **ce qui est produit** pour la déclaration.
+
+## Périmètre : produire la donnée fiscale, pas tenir la comptabilité
+
+Le SaaS n'est pas un logiciel de comptabilité et ne doit pas le devenir.
+
+```text
+Le backend DOIT                          Le backend NE DOIT PAS
+─────────────────────────────────        ──────────────────────────────────
+calculer la TVA d'une vente              tenir un plan comptable
+enregistrer la règle appliquée           produire un grand livre
+conserver l'historique fiscal            télédéclarer à l'administration
+agréger par période et par pays          remplacer un expert-comptable
+exporter vers comptable / PDP            décider de l'assujettissement
+```
+
+La frontière est nette : le backend produit et conserve des **données
+fiscales fiables et exportables**, puis les remet à un logiciel comptable ou
+à une PDP. Tout ce qui relève de la qualification fiscale de l'entreprise
+elle-même reste une décision humaine, paramétrée, jamais devinée.
+
+## Les six objets à ne pas confondre
+
+Une seule notion de « TVA » dans le modèle produit des factures fausses. Il
+en faut six, distinctes :
+
+| # | Objet | Question à laquelle il répond |
+|---|---|---|
+| 1 | **TVA du client** | Qui est l'acheteur ? Pays, numéro intracommunautaire, B2B ou B2C |
+| 2 | **TVA appliquée à la vente** | Quel taux, sur quelle base, pour quel montant, sous quel régime |
+| 3 | **Déclaration de TVA** | Que doit-on déclarer, pour quelle période, dans quel pays |
+| 4 | **Historique fiscal** | Quelle règle et quel taux s'appliquaient **au moment** de la facture |
+| 5 | **TVA intracommunautaire** | Autoliquidation B2B, et OSS pour le B2C transfrontalier |
+| 6 | **Facturation électronique** | Quelles données fiscales partent vers la PDP (§25.1) |
+
+Le point 4 est le plus facile à perdre et le plus coûteux à retrouver.
+
+## Module Tax
+
+```text
+App\Tax\
+├── Domain\
+│   ├── CustomerTaxProfile      qui est le client, fiscalement
+│   ├── TaxIdentification       le numéro de TVA et sa vérification
+│   ├── TaxRate                 un taux, pour un pays, sur une fenêtre
+│   ├── TaxRule                 quel régime s'applique, et pourquoi
+│   ├── TaxCalculation          le résultat motivé d'une application
+│   ├── VATTransaction          le fait fiscal, immuable
+│   ├── VATReportingPeriod      une période déclarative, par juridiction
+│   ├── VATDeclaration          ce qui est déclaré pour cette période
+│   ├── VATReconciliation       facturé vs encaissé vs déclaré
+│   └── VatNumberValidator      port de vérification (VIES)
+├── Service\
+├── Infrastructure\
+└── Controller\
+```
+
+Le module est distinct de `Billing` : Billing produit un **document**, Tax
+produit un **fait fiscal déclarable**. Ils partagent la facture et rien
+d'autre.
+
+## VATTransaction
+
+Le fait fiscal, écrit une fois, jamais recalculé :
+
+```text
+VATTransaction
+├── invoice_id            la facture qui l'a produit
+├── tenant_id
+├── customer_id
+├── country               pays de taxation retenu
+├── customer_tax_number   tel que présenté, tel que vérifié
+├── supply_type           GOODS | SERVICES | DIGITAL_SERVICES
+├── taxable_base          base HT, en unités mineures
+├── vat_rate              taux appliqué, en points de base
+├── vat_amount            montant de TVA, en unités mineures
+├── currency              ISO 4217
+├── vat_regime            régime retenu (ci-dessous)
+├── reverse_charge        autoliquidation : oui / non
+└── transaction_date      date du fait générateur
+```
+
+Règles structurelles :
+
+- une facture produit **une ligne par couple (taux, régime)** ;
+- la somme des `vat_amount` d'une facture **égale** le total de TVA de cette
+  facture — invariant vérifiable en base, pas par convention ;
+- `taxable_base` et `vat_amount` sont des entiers en unités mineures, comme
+  partout ailleurs (§25) ;
+- une VATTransaction n'est jamais modifiée. Une correction est une nouvelle
+  transaction rattachée à un avoir, comme une facture se corrige par un avoir
+  et jamais par une réécriture.
+
+`vat_regime` est un ensemble fermé :
+
+```text
+STANDARD           TVA du pays de taxation
+REVERSE_CHARGE     autoliquidation B2B intracommunautaire
+OSS                guichet unique, taux du pays du client
+EXEMPT             exonération (avec mention légale obligatoire)
+ZERO_RATED         taux zéro
+OUT_OF_SCOPE       hors champ
+```
+
+## Le snapshot fiscal
+
+§25 dit qu'une facture conserve son snapshot. Le corollaire fiscal :
+
+> **Ne jamais recalculer l'historique avec les taux actuels.**
+
+Une VATTransaction enregistre le **taux** et l'**identifiant de la règle**
+appliqués, comme valeurs — jamais comme clé étrangère vers une ligne de taux
+susceptible de bouger. Un taux qui change par la loi ne doit pas déplacer un
+euro de TVA déjà facturé, et une déclaration rejouée deux ans plus tard doit
+rendre le même chiffre.
+
+La chaîne complète :
+
+```text
+Offer → Subscription → Invoice → VATTransaction
+                          │            │
+                    snapshot      snapshot fiscal
+                    commercial    (taux, règle, régime,
+                    (§25)          numéro vérifié)
+```
+
+## Un taux est valide sur une fenêtre, et c'est l'horloge qui tranche
+
+`TaxRate` porte `valid_from` / `valid_until`, et le taux applicable est celui
+en vigueur **à la date du fait générateur** — jamais « le taux courant ».
+C'est la cinquième application de la règle qui gouverne déjà les fenêtres
+d'offre, la validité des droits, les périodes d'abonnement et l'expiration
+d'un devis :
+
+> Une échéance est un fait d'horloge, jamais un fait de traitement.
+
+Un taux annoncé pour le 1er janvier s'insère à l'avance avec sa fenêtre ; il
+s'applique tout seul le jour venu, sans déploiement et sans script.
+
+## Autoliquidation intracommunautaire
+
+Pour une prestation B2B intracommunautaire, la TVA est **autoliquidée par le
+preneur** : la facture porte 0 et la mention obligatoire d'autoliquidation.
+
+La condition n'est pas « le client a saisi un numéro » mais « le numéro a été
+**vérifié** » :
+
+- la vérification passe par un port `VatNumberValidator`, adaptateur VIES,
+  jamais un appel direct depuis le domaine (§ indépendance des fournisseurs) ;
+- le résultat est **conservé avec sa date** : c'est la preuve opposable en
+  contrôle, et §26 la conserve au titre de la rétention comptable, pas du
+  RGPD ;
+- **fail-closed** : un numéro non vérifié n'est pas un numéro vérifié. En cas
+  d'indisponibilité de VIES, la vente n'est pas requalifiée en autoliquidation
+  par défaut — elle est facturée au régime standard, ou mise en attente, selon
+  le paramétrage, et l'anomalie est visible (§25.2).
+
+Deux pièges d'identifiants, structurels et non cosmétiques :
+
+- la **Grèce** est `GR` en ISO 3166 et `EL` en préfixe de numéro de TVA ;
+- l'**Irlande du Nord** est `XI` en préfixe de TVA pour les biens depuis le
+  Brexit, sans être un code pays ISO.
+
+Un modèle qui suppose « préfixe TVA = code pays ISO » est faux pour les deux.
+
+## OSS — B2C transfrontalier
+
+Pour un SaaS, la vente B2C intracommunautaire de services numériques est
+taxée **dans le pays du client**, déclarée via le guichet unique OSS, sauf
+application du seuil de minimis en dessous duquel le taux du pays du vendeur
+s'applique.
+
+Conséquences pour le modèle :
+
+- le pays de taxation est une **donnée calculée et conservée**, pas le pays du
+  vendeur par défaut ;
+- il faut donc conserver les **éléments de preuve de localisation** du client
+  utilisés au moment de la vente ;
+- le franchissement du seuil est un événement daté qui change le régime des
+  ventes suivantes, jamais des précédentes.
+
+## Période déclarative et clôture
+
+```text
+VATReportingPeriod
+├── juridiction
+├── période (mois | trimestre)
+├── statut : OPEN → CLOSED
+└── totaux par taux et par régime
+```
+
+**Une période close est immuable.** La clôture est une transition à sens
+unique, comme la numérotation légale est sans trou : une correction portant
+sur une période close est une écriture corrective **dans une période
+ultérieure**, jamais une modification rétroactive.
+
+`VATReconciliation` rapproche trois grandeurs qui n'ont aucune raison d'être
+égales et dont l'écart doit être expliqué plutôt que masqué :
+
+```text
+TVA facturée   (VATTransaction)
+TVA encaissée  (paiements rapprochés)
+TVA déclarée   (VATDeclaration)
+```
+
+## API
+
+```text
+GET    /api/v1/tax/profile               profil fiscal du tenant
+PUT    /api/v1/tax/profile               dont numéro de TVA (déclenche vérification)
+GET    /api/v1/tax/rates                 taux applicables, à une date
+POST   /api/v1/tax/calculate             simulation motivée, sans effet de bord
+GET    /api/v1/tax/transactions          faits fiscaux, filtrables
+GET    /api/v1/tax/reports               périodes déclaratives
+GET    /api/v1/tax/reports/{period}      totaux d'une période
+POST   /api/v1/tax/reports/{period}/close    clôture (sens unique)
+GET    /api/v1/tax/export                export comptable / PDP
+```
+
+`POST /tax/calculate` est **sans effet de bord** : il répond ce qui serait
+appliqué et **pourquoi** (règle retenue, taux, régime, mentions obligatoires),
+ce qui en fait l'outil de diagnostic quand une facture surprend son
+destinataire.
+
+`GET /tax/export` produit un format neutre destiné à être repris par un
+logiciel comptable ou une PDP. Comme pour les PDP (§25.1, non-négociable
+#17), le format d'export est un **adaptateur** : aucun format propriétaire ne
+doit remonter dans le domaine.
+
+Permissions : `tax.read` pour la lecture, `tax.manage` pour le profil et la
+clôture. La clôture d'une période est une opération auditée (§25.2).
+
+## Profils TVA — États membres de l'UE
+
+Taux **standard** par État membre, en points de base, avec le préfixe de
+numéro de TVA lorsqu'il diffère du code ISO :
+
+| Pays | ISO | Préfixe TVA | Taux standard | Points de base |
+|---|---|---|---|---|
+| Allemagne | DE | DE | 19 % | 1900 |
+| Autriche | AT | AT | 20 % | 2000 |
+| Belgique | BE | BE | 21 % | 2100 |
+| Bulgarie | BG | BG | 20 % | 2000 |
+| Chypre | CY | CY | 19 % | 1900 |
+| Croatie | HR | HR | 25 % | 2500 |
+| Danemark | DK | DK | 25 % | 2500 |
+| Espagne | ES | ES | 21 % | 2100 |
+| Estonie | EE | EE | 24 % | 2400 |
+| Finlande | FI | FI | 25,5 % | 2550 |
+| France | FR | FR | 20 % | 2000 |
+| Grèce | GR | **EL** | 24 % | 2400 |
+| Hongrie | HU | HU | 27 % | 2700 |
+| Irlande | IE | IE | 23 % | 2300 |
+| Italie | IT | IT | 22 % | 2200 |
+| Lettonie | LV | LV | 21 % | 2100 |
+| Lituanie | LT | LT | 21 % | 2100 |
+| Luxembourg | LU | LU | 17 % | 1700 |
+| Malte | MT | MT | 18 % | 1800 |
+| Pays-Bas | NL | NL | 21 % | 2100 |
+| Pologne | PL | PL | 23 % | 2300 |
+| Portugal | PT | PT | 23 % | 2300 |
+| Roumanie | RO | RO | 21 % | 2100 |
+| Slovaquie | SK | SK | 23 % | 2300 |
+| Slovénie | SI | SI | 22 % | 2200 |
+| Suède | SE | SE | 25 % | 2500 |
+| Tchéquie | CZ | CZ | 21 % | 2100 |
+
+Hors UE mais pertinents pour la facturation : `XI` (Irlande du Nord, biens),
+`CH`, `GB`, `NO` — traités comme export ou hors champ selon l'opération.
+
+**Statut de cette table.** C'est une **amorce de paramétrage, pas une
+autorité fiscale.** Les 27 taux ont été recoupés contre des sources publiques
+le **3 septembre 2026** — dont les quatre qui ont bougé récemment et qu'une
+table écrite de mémoire aurait ratés :
+
+```text
+Estonie    22 → 24    1er juillet 2025
+Roumanie   19 → 21    1er août 2025
+Slovaquie  20 → 23    1er janvier 2025
+Finlande   24 → 25,5  1er septembre 2024
+```
+
+Trois précautions restent structurelles :
+
+1. Un recoupement contre des agrégateurs n'est pas une vérification contre la
+   source officielle. Avant mise en production, la table doit être confirmée
+   auprès de la Commission européenne et des administrations nationales,
+   exactement comme les échéances de §25.1 (risques R3 et R7 du plan).
+2. Chaque taux est chargé **avec sa fenêtre de validité**, jamais comme une
+   valeur courante. Corriger un taux consiste à fermer la fenêtre en cours et
+   à en ouvrir une nouvelle — jamais à écraser une valeur.
+3. Seul le **taux standard** figure ici. Taux réduits, super-réduits et
+   parking existent et dépendent de la nature du bien ou du service ; ils
+   relèvent du paramétrage par produit, pas d'une table figée dans le code.
+
+Ce que le système ne doit jamais faire : **déduire un régime du seul code
+pays**. Le régime dépend du statut B2B/B2C, de la vérification du numéro, de
+la nature de l'opération et du lieu de taxation. Un pays ne suffit pas, et
+une table de taux n'est pas une règle.
+
+---
 
 
 # 26. Rétention
@@ -2611,6 +3156,50 @@ Webhook delayed
 Refund
 Chargeback
 Invoice rejected
+```
+
+## Messagerie & accès staff (§12.2, §12.3)
+
+Tester l'isolation avant la fonctionnalité :
+
+```text
+Un membre ne lit pas la conversation d'un autre tenant
+Un membre ne lit pas la conversation d'un autre produit du même tenant
+Écrire dans un fil dont on n'est pas participant est refusé
+Un STAFF ne peut pas rejoindre une conversation INTERNAL
+Un rôle plateforme n'ouvre aucune route tenant
+Une appartenance TENANT_ADMIN n'ouvre aucune route staff
+Tout accès staff écrit sa ligne d'audit
+```
+
+puis le comportement :
+
+```text
+Le filigrane de lecture ne recule jamais
+since_seq ne rend que ce qui a suivi
+Un message supprimé perd son corps, le fil garde son ordre
+```
+
+## Fiscalité / TVA (§25.3)
+
+Tester :
+
+```text
+B2C national            → taux du pays, régime STANDARD
+B2B intra-UE vérifié    → 0, REVERSE_CHARGE, mention obligatoire
+B2B intra-UE non vérifié→ pas d'autoliquidation par défaut
+B2C intra-UE            → taux du pays du client (OSS)
+Export hors UE          → hors champ
+```
+
+et les invariants qui protègent l'historique :
+
+```text
+Un changement de taux ne déplace aucune TVA déjà facturée
+Une facture rejouée deux ans plus tard rend le même chiffre
+La somme des VATTransaction d'une facture = la TVA de cette facture
+Une période close ne se modifie pas : la correction va dans la suivante
+VIES indisponible n'accorde pas l'autoliquidation
 ```
 
 ---
@@ -3644,6 +4233,8 @@ Le backend est un modular monolith et non un ensemble de scripts PHP.
 18. **Les données financières et commerciales sont historisées et auditables.**
 19. **Le reporting financier admin est séparé des données visibles par un tenant.**
 20. **La chaîne devis → vente → abonnement/commande → facture → paiement doit être traçable.**
+21. **Tout accès du personnel plateforme à la donnée d'un tenant est tracé, motivé et jamais silencieux.**
+22. **Un rôle plateforme n'accorde jamais une appartenance à un tenant, et réciproquement.**
 
 ---
 

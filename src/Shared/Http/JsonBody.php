@@ -201,6 +201,30 @@ final class JsonBody
      * Absent and null both read as null here; callers that need to tell them
      * apart ask has() first.
      */
+    /**
+     * A list of unique non-blank strings, or none at all.
+     *
+     * Absent and `[]` mean the same thing — nobody was named — because a
+     * client with no ids to send should not have to choose between omitting
+     * the field and sending an empty array, and answering 400 to the second
+     * teaches it a rule that serves nothing.
+     *
+     * Anything else goes through the same validation as a required list, so
+     * `[""]` and `"nope"` are still refused.
+     *
+     * @return list<string>
+     */
+    public function optionalStringList(string $field): array
+    {
+        $value = $this->value($field);
+
+        if ($value === null || $value === []) {
+            return [];
+        }
+
+        return $this->requiredStringList($field);
+    }
+
     private function value(string $field): mixed
     {
         return $this->has($field) ? $this->fields->{$field} : null;

@@ -100,7 +100,8 @@ as they gain those layers; small modules stay lighter (§41.1).
 
 ## Status
 
-**M6 complete** in [`docs/backend-roadmap.md`](docs/backend-roadmap.md) —
+**M6 complete, M6.2 landed** in
+[`docs/backend-roadmap.md`](docs/backend-roadmap.md) —
 billing, payments and e-invoicing — on top of M5's commerce, M4's projects,
 M3's product registry, M2's platform identity and M1's context chain.
 
@@ -493,6 +494,114 @@ The platform is a configured adapter (non-negotiable #17). With no signing
 secret there is none, and nothing can be transmitted — which matters more here
 than for payments: a transmission record from an adapter nobody can verify
 could be mistaken for evidence of compliance.
+
+## Platform staff
+
+Every authority elsewhere in this backend comes from membership. Support is
+not a member of the customer it supports, so §12.2 adds a **second axis**
+([ADR-025](docs/adr/ADR-025-platform-staff-identity.md)):
+
+```text
+tenant membership     (tenant, user, product) → TENANT_ADMIN | USER
+platform staff role   (user, platform_role)   → PLATFORM_ADMIN | SUPPORT_ADMIN
+                                                 FINANCE_ADMIN | SALES_ADMIN
+```
+
+**Neither converts into the other.** `TENANT_ADMIN` is the *customer's*
+administrator and opens no staff route; a platform role grants no membership
+and opens no tenant route. The tables are separate, and so are the permission
+catalogues — `platform_permissions.code` is constrained to the `staff.` and
+`support.` namespaces, so a tenant permission code cannot be granted to a
+platform role because the database refuses to store it there.
+
+**Staff routes take the tenant as an explicit path parameter**, the one place
+this platform lets a client name one. It is not the exception to ADR-015 it
+looks like: the path names the tenant, the platform role authorises the read,
+and the read is recorded either way.
+
+**Crossing the boundary is never silent** (non-negotiable #21). Every staff
+read of tenant data writes to `staff_access_log` — who, when, which tenant,
+which resource, and *under which permission*. The pairing lives in the service
+rather than in the controllers, so the only way to read tenant data is to
+record having read it. Failed lookups are recorded too: a trail holding only
+successes cannot show somebody probing for ids. Reading the trail is itself
+recorded.
+
+Both actor and subject are `ON DELETE RESTRICT`. A staff member who has read
+customer data can no longer be deleted — the intended consequence, since
+revoking access means deleting their grant, and an access log whose actor
+column can be emptied is not a log.
+
+```text
+GET /api/v1/staff/me           what the caller holds (records nothing)
+GET /api/v1/staff/tenants      every tenant (recorded once, naming none)
+GET /api/v1/staff/tenants/{id} one tenant (recorded, naming it)
+GET /api/v1/staff/access-log   the trail, ?tenant_id= to narrow it
+```
+
+## Conversations
+
+One model for two needs (§12.3,
+[ADR-026](docs/adr/ADR-026-conversations-and-messages.md)):
+
+```text
+INTERNAL   tenant members only  — staff must never appear
+SUPPORT    tenant members + platform staff
+```
+
+**Four invariants live in the schema**, not in a service:
+
+- a conversation names `(tenant, product)`, like every other resource;
+- the author of a message **is a participant, by foreign key** — writing into
+  a thread you do not belong to is refused by PostgreSQL;
+- `UNIQUE (conversation_id, seq)`, so ordering and paging are stable;
+- **a STAFF participant implies a SUPPORT conversation**, carried by a
+  composite foreign key onto `conversations (id, kind)`. Adding staff to an
+  internal thread fails the check; claiming `SUPPORT` to get past it fails the
+  foreign key.
+
+The author key names three columns — `(conversation, user, kind)` — so a
+member cannot post as `STAFF` by sending the field.
+
+**`seq` is monotone and unique, not gapless.** Gapless numbering is a legal
+requirement for invoices and costs a table lock; a chat message is entitled to
+no such thing, so posting takes a row lock on the one conversation.
+
+**Read state is a per-participant watermark**, moved with `GREATEST` so a
+second tab reporting an older position cannot rewind it.
+
+**No WebSocket, no held-open SSE** — R2 means no persistent process on shared
+hosting. Reading is polling with `since_seq`, which the watermark makes cheap.
+
+**A deleted message is really deleted**: the body is erased and a tombstone
+keeps the thread's order. The opposite of an invoice, deliberately — §26
+separates RGPD erasure from legal retention.
+
+A member who is not a participant gets the same 404 as a conversation that
+does not exist, so nobody can probe for threads they are not in. Adding a
+participant checks tenant membership first; that one check is the difference
+between a conversation and a hole in the tenant boundary.
+
+```text
+GET    /api/v1/conversations                                  threads you are in
+POST   /api/v1/conversations                                  open one
+GET    /api/v1/conversations/{id}                             with participants
+POST   /api/v1/conversations/{id}/messages                    post
+GET    /api/v1/conversations/{id}/messages?since_seq=         poll
+POST   /api/v1/conversations/{id}/read                        move the watermark
+POST   /api/v1/conversations/{id}/participants                add (membership checked)
+DELETE /api/v1/conversations/{id}/participants/{userId}       mark as left
+POST   /api/v1/conversations/{id}/close
+DELETE /api/v1/conversations/{id}/messages/{messageId}        erase the body
+
+GET    /api/v1/staff/conversations         support threads, ?tenant_id= to narrow
+GET    /api/v1/staff/conversations/{id}    thread and messages together
+POST   /api/v1/staff/conversations/{id}/messages   reply to a customer
+POST   /api/v1/staff/conversations/{id}/close
+```
+
+Every staff read and reply writes to `staff_access_log`, as with every other
+crossing of the boundary.
 
 ## Projects
 

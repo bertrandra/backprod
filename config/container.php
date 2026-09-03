@@ -27,6 +27,8 @@ use App\EInvoice\Service\EInvoiceProviders;
 use App\EInvoice\Service\InvoiceTransmissionEffect;
 use App\Entitlement\Domain\EntitlementRepository;
 use App\Entitlement\Domain\UsageMeter;
+use App\Messaging\Domain\ConversationRepository;
+use App\Messaging\Infrastructure\PostgresConversationRepository;
 use App\Payment\Domain\PaymentRepository;
 use App\Payment\Domain\PaymentSettlement;
 use App\Payment\Infrastructure\PostgresPaymentRepository;
@@ -54,6 +56,12 @@ use App\Shared\Http\Middleware\RequestIdMiddleware;
 use App\Shared\Http\MiddlewarePipeline;
 use App\Shared\Http\Router;
 use App\Shared\Logging\ErrorLogLogger;
+use App\Staff\Domain\StaffAccessLog;
+use App\Staff\Domain\StaffRepository;
+use App\Staff\Domain\TenantDirectory;
+use App\Staff\Infrastructure\PostgresStaffAccessLog;
+use App\Staff\Infrastructure\PostgresStaffRepository;
+use App\Staff\Infrastructure\PostgresTenantDirectory;
 use App\Tenant\Domain\TenantMemberRepository;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Domain\TenantRepository;
@@ -195,8 +203,22 @@ return static function (array $overrides = []): ContainerInterface {
             MemberUsageSource::QUOTA => get(MemberUsageSource::class),
         ]),
 
+        // --- Messaging (§12.3) ----------------------------------------------
+        // One repository serving two services: Conversations scopes every
+        // query to a tenant and product, SupportDesk crosses that boundary
+        // and records having done so. The separation is in the services and
+        // in the SQL, not in a flag.
+        ConversationRepository::class => autowire(PostgresConversationRepository::class),
+
+        // --- Platform staff (§12.2) -----------------------------------------
+        // Bound separately from the tenant repositories above, and reading
+        // separate tables. Neither axis can resolve into the other.
+        StaffRepository::class => autowire(PostgresStaffRepository::class),
+        StaffAccessLog::class => autowire(PostgresStaffAccessLog::class),
+        TenantDirectory::class => autowire(PostgresTenantDirectory::class),
+
         // --- HTTP -----------------------------------------------------------
-        // Three levels of protection, declared in one place. Anything not
+        // Four levels of protection, declared in one place. Anything not
         // listed gets the full §10.6 chain, so a new route is protected by
         // omission rather than by remembering to protect it.
         RoutePolicy::class => factory(
@@ -207,6 +229,10 @@ return static function (array $overrides = []): ContainerInterface {
                 // rather than a person. Everything under it must verify its
                 // own signature — see RoutePolicy and §24.
                 publicPrefixes: ['/api/v1/webhooks'],
+                // Authenticated and requiring a platform role, which no
+                // membership grants. These routes resolve no tenant of their
+                // own: they take one explicitly and record having read it.
+                staffPrefixes: ['/api/v1/staff'],
             ),
         ),
 
