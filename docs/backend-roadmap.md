@@ -47,6 +47,8 @@ M5  Commerce                        offers → subscriptions → entitlements en
       ↓
 M6  Billing & payments              invoices, PSP webhooks, e-invoicing adapter
       ↓
+M6.1 Fiscalité / TVA                tax profiles, regimes, VAT transactions, reporting
+      ↓
 M7  Storage & jobs                  assets, exports, async operations
       ↓
 M8  Admin, audit & hardening        financial dashboard API, observability, RGPD
@@ -228,6 +230,60 @@ reconciling a bank transfer.
 
 ---
 
+### M6.1 — Fiscalité / TVA
+
+**Goal:** produce and retain the fiscal data a sale generates, so that VAT can
+be justified, declared and exported — without turning the platform into an
+accounting package. Specified in `architecture-v2.md` §25.3.
+
+M6 invoices carry a VAT rate. That rate comes from `VatPolicy`, whose own
+docblock says what it is not: a configured per-country number, applied
+blindly, with no notion of who the customer is or which regime governs the
+sale. That is honest for a single-country B2C launch and wrong the moment a
+German company buys with a VAT number.
+
+```text
+today:      country code → rate → invoice line
+M6.1:       customer profile + supply + verified number + place of taxation
+                → rule → regime → rate → VATTransaction
+```
+
+**Deliverables**
+- Migrations: `customer_tax_profiles`, `tax_identifications`, `tax_rates`
+  (with validity windows), `tax_rules`, `vat_transactions`,
+  `vat_reporting_periods`, `vat_declarations`
+- `tax_records` keeps the per-rate breakdown *inside* an invoice;
+  `vat_transactions` carries the declarable fiscal fact
+- Seed the EU-27 standard rates from §25.3, each with its validity window —
+  **verified against official sources before production** (see R6)
+- `TaxRule` engine: STANDARD / REVERSE_CHARGE / OSS / EXEMPT / ZERO_RATED /
+  OUT_OF_SCOPE, returning a **motivated** decision, never a bare rate
+- `VatNumberValidator` adapter (VIES), fail-closed, result stored with its
+  date as audit evidence
+- Endpoints: `/tax/profile`, `/tax/rates`, `/tax/calculate`,
+  `/tax/transactions`, `/tax/reports`, `/tax/reports/{period}/close`,
+  `/tax/export`; permissions `tax.read` / `tax.manage`
+- Mentions légales on the invoice when the regime requires them
+  (autoliquidation, exonération)
+
+**Tests (§37.4 Fiscalité):** B2C national, B2B intra-EU verified and
+unverified, B2C intra-EU under OSS, export outside the EU; plus the history
+invariants — a rate change moves no invoiced VAT, a replayed period gives the
+same figure, VAT transactions sum to the invoice total, a closed period
+refuses modification, VIES unreachable grants no reverse charge.
+
+**Exit criteria:** changing a rate leaves every existing invoice and every
+closed period byte-identical; a B2B intra-EU sale with a verified number
+invoices at zero with the mention and its `vat_transactions` row says
+`REVERSE_CHARGE`; the same sale with an unverified number does not.
+
+**Why before M7:** every invoice raised between now and M6.1 carries a rate
+chosen without a regime. Those are documents with legal retention — they
+cannot be quietly recomputed later, and the longer the gap, the larger the
+population that has to be corrected by hand rather than by rule.
+
+---
+
 ### M7 — Storage & jobs
 
 **Goal:** large assets out of the database and long operations off the request path.
@@ -316,6 +372,8 @@ A PR carries code + tests + architecture impact + migration.
 | R4 | Entitlement checks leaking into controllers as plan-name conditionals | Medium — erodes §13 | Single `EntitlementChecker`; CI grep + Deptrac rule |
 | R5 | Product context added late | High — pipeline rework | M1 before any resource endpoint; D1 decided up front |
 | R6 | Supabase coupling spreading past the adapter | Medium — violates provider independence | Deptrac rule: only `Auth/Infrastructure` may reference the Supabase SDK |
+| R7 | **VAT rates are wrong or stale.** The EU-27 table in §25.3 is a paramétrage seed, not a fiscal authority; four standard rates moved between 2024 and 2025, and an invoice issued at a wrong rate is a legal document that cannot be quietly recomputed | High, regulatory | Cross-checked against public sources on 2026-09-03, which caught the four recent moves (EE, RO, SK, FI). Still to do before M6.1 ships: confirm against official sources (Commission européenne, administrations nationales), as R3 requires for the e-invoicing deadlines. Load each rate **with its validity window** so a correction closes one window and opens another instead of overwriting history |
+| R8 | **Reverse charge granted on an unverified VAT number.** Invoicing intra-EU B2B at zero without proof of verification leaves the supplier liable for the tax | High, financial | `VatNumberValidator` fails closed; the verification result is stored with its date as audit evidence; the §37.4 fiscal scenarios cover VIES being unreachable |
 
 ---
 

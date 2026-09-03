@@ -105,6 +105,20 @@ GET /api/v1/products/{productId}/features
 GET /api/v1/products/{productId}/configuration
 ```
 
+and Tax / VAT APIs (§25.3):
+
+```text
+GET  /api/v1/tax/profile
+PUT  /api/v1/tax/profile
+GET  /api/v1/tax/rates
+POST /api/v1/tax/calculate
+GET  /api/v1/tax/transactions
+GET  /api/v1/tax/reports
+GET  /api/v1/tax/reports/{period}
+POST /api/v1/tax/reports/{period}/close
+GET  /api/v1/tax/export
+```
+
 All API endpoints must define authentication, authorization, product scope, tenant scope, request/response schemas and errors.
 
 ## Domain boundaries
@@ -133,6 +147,7 @@ External providers must be behind interfaces/adapters:
 AuthProvider
 PaymentProvider
 EInvoiceProvider
+VatNumberValidator
 StorageProvider
 CadastreProvider
 ```
@@ -164,6 +179,49 @@ Offers are versioned and historical offers must not be destructively rewritten.
 `valid_from` / `valid_until` describe commercial validity of an offer and are distinct from subscription dates.
 
 Authorization must use capabilities/entitlements, not scattered plan-name checks.
+
+## Fiscalité / TVA
+
+Full specification in `docs/architecture-v2.md` §25.3.
+
+Keep these concepts separate, exactly as offers/subscriptions/entitlements
+are kept separate:
+
+```text
+CustomerTaxProfile = who the customer is, fiscally
+TaxRate            = a rate, for a country, over a validity window
+TaxRule            = which regime applies, and why
+VATTransaction     = the fiscal fact, immutable, declarable
+```
+
+Never recompute historical VAT with today's rates.
+
+A `VATTransaction` records the rate and the rule that were applied, as
+values — never as a foreign key to a rate row that can move. A rate change
+must not shift a single euro of VAT already invoiced.
+
+A rate is valid over a window, and the clock decides which one applies: the
+rate in force at the date of the taxable event, never "the current rate".
+
+Never infer a tax regime from a country code alone. The regime depends on
+B2B/B2C status, on whether the VAT number was *verified*, on the nature of
+the supply and on the place of taxation.
+
+Reverse charge requires a verified VAT number, not a submitted one.
+Verification goes through the `VatNumberValidator` adapter, its result is
+stored with its date as audit evidence, and it fails closed — if VIES is
+unreachable, the sale is not silently reclassified as reverse-charged.
+
+A VAT number prefix is not an ISO country code: Greece is `GR` / `EL`, and
+Northern Ireland uses `XI`.
+
+A closed reporting period is immutable. Corrections go into a later period,
+never back into a closed one — the same rule as gapless numbering and credit
+notes.
+
+The backend produces and retains fiscal data, and exports it. It is not an
+accounting package: no chart of accounts, no general ledger, no filing with
+the tax authority.
 
 ## Quality gates
 
