@@ -91,7 +91,8 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
         self::assertSame(200, $response->getStatusCode());
 
         $body = $this->decode($response);
-        self::assertNull($body['subscription'] ?? 'unset');
+        self::assertArrayHasKey('subscription', $body);
+        self::assertNull($body['subscription']);
         self::assertSame([], $body['history'] ?? null);
     }
 
@@ -165,8 +166,10 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
         self::assertSame('max_storage', $storage['feature'] ?? null);
         self::assertFalse($storage['metered'] ?? null, 'nothing counts storage yet');
         self::assertSame(1_000_000, $storage['limit'] ?? null, 'the limit is still recorded');
-        self::assertNull($storage['used'] ?? 'unset', 'and no number is invented for it');
-        self::assertNull($storage['remaining'] ?? 'unset');
+        self::assertArrayHasKey('used', $storage);
+        self::assertNull($storage['used'], 'and no number is invented for it');
+        self::assertArrayHasKey('remaining', $storage);
+        self::assertNull($storage['remaining']);
     }
 
     // --- §37.4: quota exhaustion --------------------------------------------
