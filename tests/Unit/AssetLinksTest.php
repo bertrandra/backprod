@@ -24,11 +24,16 @@ final class AssetLinksTest extends TestCase
     public function testAFreshLinkVerifies(): void
     {
         $links = new AssetLinks(self::SECRET);
-        [$expires, $signature] = $this->partsOf($links->mint($this->asset(), 300)['url']);
+        $link = $links->mint($this->asset(), 300);
+        [$expires, $signature] = $this->partsOf($link['url']);
 
         $links->verify(self::ASSET, $expires, $signature);
 
-        $this->expectNotToPerformAssertions();
+        // verify() answers by throwing, so reaching this line is the result.
+        // The deadline is asserted alongside it so that the link cannot be
+        // passing for the trivial reason of carrying a different one from the
+        // one minted.
+        self::assertSame($link['expires_at'], (int) $expires);
     }
 
     public function testTheExpiryCannotBeExtended(): void
