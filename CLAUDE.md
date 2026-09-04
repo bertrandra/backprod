@@ -280,6 +280,18 @@ WhatsApp. No provider name in the domain, exactly like `PaymentProvider`,
 Sending goes through the M7 job queue. Never send inside the HTTP request: a
 slow SMS provider would become a slow API.
 
+Delivery rows are written **up front**, one per candidate channel, before
+anything is sent — that is what makes a suppression recordable. Deciding at
+send time and skipping what fails the gate leaves nothing behind.
+
+The consent and preference decision lives in `DeliveryGate`, never inside a
+channel adapter. An adapter that could also refuse would put one decision in
+two places, and the SMS one is where a mistake costs money.
+
+An absent preference means enabled — except marketing, which is off until
+chosen. Somebody who never opened the settings should still hear that their
+payment failed.
+
 Delivery is exactly-once by **unique index on `(notification_id, channel)`**,
 not by a check. A retried job must not send a second SMS — that one is billed
 and it annoys the recipient.
