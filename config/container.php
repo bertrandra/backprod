@@ -47,6 +47,7 @@ use App\Product\Infrastructure\PostgresProductRepository;
 use App\Project\Domain\ProjectRepository;
 use App\Project\Infrastructure\PostgresProjectRepository;
 use App\Project\Infrastructure\ProjectUsageSource;
+use App\Project\Service\ExportProject;
 use App\Project\Service\ProjectWorkspace;
 use App\Sales\Domain\OrderFulfilment;
 use App\Sales\Domain\SalesRepository;
@@ -67,6 +68,11 @@ use App\Staff\Domain\TenantDirectory;
 use App\Staff\Infrastructure\PostgresStaffAccessLog;
 use App\Staff\Infrastructure\PostgresStaffRepository;
 use App\Staff\Infrastructure\PostgresTenantDirectory;
+use App\Storage\Domain\AssetRepository;
+use App\Storage\Domain\StorageProvider;
+use App\Storage\Infrastructure\LocalStorageProvider;
+use App\Storage\Infrastructure\PostgresAssetRepository;
+use App\Storage\Service\AssetLinks;
 use App\Tenant\Domain\TenantMemberRepository;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Domain\TenantRepository;
@@ -208,6 +214,25 @@ return static function (array $overrides = []): ContainerInterface {
             MemberUsageSource::QUOTA => get(MemberUsageSource::class),
         ]),
 
+        // --- Storage (§15, non-negotiable #9) --------------------------------
+        // The bytes live outside PostgreSQL. Which store is an adapter: the
+        // local one is what shared hosting offers, and swapping in S3 is
+        // another StorageProvider and this line.
+        StorageProvider::class => factory(
+            static fn (): StorageProvider => new LocalStorageProvider(
+                $env('ASSET_STORAGE_ROOT', sys_get_temp_dir() . '/backprod-assets'),
+            ),
+        ),
+
+        AssetRepository::class => autowire(PostgresAssetRepository::class),
+
+        // Fail-closed, like the payment and PDP secrets: with no key nothing
+        // can be signed, and AssetLinks refuses to verify rather than treating
+        // an empty key as valid.
+        AssetLinks::class => factory(
+            static fn (): AssetLinks => new AssetLinks($env('ASSET_LINK_SIGNING_SECRET')),
+        ),
+
         // --- Jobs (§27, D3) --------------------------------------------------
         // The registry is where a job type becomes runnable. A type with no
         // entry here is refused at enqueue rather than claimed and retried
@@ -216,10 +241,11 @@ return static function (array $overrides = []): ContainerInterface {
         // as types rather than pulling them out of the container by string —
         // which also means each one is a checked dependency, not a `mixed`.
         JobHandlers::class => factory(
-            static fn (ExpireQuotes $quotes, ExpireSubscriptions $subscriptions): JobHandlers => new JobHandlers([
-                $quotes,
-                $subscriptions,
-            ]),
+            static fn (
+                ExpireQuotes $quotes,
+                ExpireSubscriptions $subscriptions,
+                ExportProject $exports,
+            ): JobHandlers => new JobHandlers([$quotes, $subscriptions, $exports]),
         ),
 
         JobRepository::class => autowire(PostgresJobRepository::class),
@@ -249,7 +275,11 @@ return static function (array $overrides = []): ContainerInterface {
                 // Unauthenticated, because the sender is a payment provider
                 // rather than a person. Everything under it must verify its
                 // own signature — see RoutePolicy and §24.
-                publicPrefixes: ['/api/v1/webhooks'],
+                // Two, and both authenticate the request itself rather than
+                // the caller: a payment provider signs with its own secret, a
+                // download link with ours. Nothing may be mounted under
+                // either that does not verify its own signature.
+                publicPrefixes: ['/api/v1/webhooks', '/api/v1/downloads'],
                 // Authenticated and requiring a platform role, which no
                 // membership grants. These routes resolve no tenant of their
                 // own: they take one explicitly and record having read it.
