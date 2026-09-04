@@ -35,6 +35,13 @@ use App\Job\Service\ExpireSubscriptions;
 use App\Job\Service\JobHandlers;
 use App\Messaging\Domain\ConversationRepository;
 use App\Messaging\Infrastructure\PostgresConversationRepository;
+use App\Notification\Domain\Channel;
+use App\Notification\Domain\NotificationRepository;
+use App\Notification\Infrastructure\LogNotifier;
+use App\Notification\Infrastructure\PostgresNotificationRepository;
+use App\Notification\Infrastructure\ScreenChannel;
+use App\Notification\Service\DispatchNotifications;
+use App\Notification\Service\Notifications;
 use App\Payment\Domain\PaymentRepository;
 use App\Payment\Domain\PaymentSettlement;
 use App\Payment\Infrastructure\PostgresPaymentRepository;
@@ -256,7 +263,33 @@ return static function (array $overrides = []): ContainerInterface {
                 ExpireQuotes $quotes,
                 ExpireSubscriptions $subscriptions,
                 ExportProject $exports,
-            ): JobHandlers => new JobHandlers([$quotes, $subscriptions, $exports]),
+                DispatchNotifications $notify,
+            ): JobHandlers => new JobHandlers([$quotes, $subscriptions, $exports, $notify]),
+        ),
+
+        NotificationRepository::class => autowire(PostgresNotificationRepository::class),
+
+        // Notification channels (§27.1). Screen is real; the outbound three
+        // are one honest stand-in configured per channel until a provider is
+        // wired, because what differs between real SMTP and real SMS is
+        // everything and what differs between three fakes is nothing.
+        DispatchNotifications::class => factory(
+            static fn (
+                NotificationRepository $repository,
+                Notifications $notifications,
+                UserRepository $users,
+                LoggerInterface $logger,
+            ): DispatchNotifications => new DispatchNotifications(
+                $repository,
+                $notifications,
+                $users,
+                [
+                    new ScreenChannel(),
+                    new LogNotifier(Channel::EMAIL, $logger),
+                    new LogNotifier(Channel::SMS, $logger),
+                    new LogNotifier(Channel::WHATSAPP, $logger),
+                ],
+            ),
         ),
 
         JobRepository::class => autowire(PostgresJobRepository::class),

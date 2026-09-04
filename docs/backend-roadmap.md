@@ -417,7 +417,7 @@ asserting a customer agreed to something the database never recorded.
 
 ---
 
-### M7.1 — Notifications multi-canal
+### M7.1 — Notifications multi-canal — *delivered ([ADR-030](adr/ADR-030-notifications-across-channels.md))*
 
 **Goal:** one event, many channels, none of them in the request path.
 Specified in `architecture-v2.md` §27.1.
