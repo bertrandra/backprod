@@ -54,15 +54,21 @@ final class InMemoryEntitlementRepository implements EntitlementRepository
         return new self($entitlements);
     }
 
-    public function capabilitiesFor(string $tenantId, string $productId): array
+    public function capabilitiesFor(string $tenantId, string $productId, ?string $userId = null): array
     {
         return array_map(
             static fn (Entitlement $entitlement): string => $entitlement->featureCode,
-            $this->entitlementsFor($tenantId, $productId),
+            $this->entitlementsFor($tenantId, $productId, $userId),
         );
     }
 
-    public function entitlementsFor(string $tenantId, string $productId): array
+    /**
+     * $userId is accepted and ignored: this double holds entitlements by
+     * tenant and product with no subscription behind them, so it has nothing
+     * to tell a seat from a tenant grant. Tests that care about seats run
+     * against PostgreSQL, where the distinction is a real column.
+     */
+    public function entitlementsFor(string $tenantId, string $productId, ?string $userId = null): array
     {
         return $this->entitlements[$tenantId . ':' . $productId] ?? [];
     }
