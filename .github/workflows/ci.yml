@@ -49,11 +49,38 @@ jobs:
         with:
           php-version: '8.3'
           extensions: json, mbstring, pdo, pdo_pgsql
-          coverage: xdebug
+          # No coverage driver: nothing in this repository collects coverage,
+          # and Xdebug taxes every line of every PHP process it is loaded
+          # into. It was costing the whole gate chain for a report nobody
+          # asks for.
+          coverage: none
           tools: none
 
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
+
+      # This database exists for the length of one job and is thrown away.
+      # Durability after a crash is worth nothing here, and it is most of what
+      # the suite spends its time on: every test resets state with a single
+      # TRUNCATE of ~40 tables, and TRUNCATE's cost is the fsync of the new
+      # relation files at commit. Measured against a real PostgreSQL 16, 200
+      # of this suite's own resets take 16.5s durable and 5.6s here — and
+      # synchronous_commit alone changes nothing, because the flush being
+      # waited on is the file's, not the WAL's.
+      #
+      # Nothing about what the tests prove changes. The same PostgreSQL
+      # enforces the same constraints, triggers, foreign keys and isolation
+      # predicates; only its promise to survive losing power does not.
+      - name: Trade durability for speed on the throwaway database
+        env:
+          PGPASSWORD: backprod
+        run: |
+          psql -h 127.0.0.1 -U backprod -d backprod_test \
+            -c "ALTER SYSTEM SET fsync = off" \
+            -c "ALTER SYSTEM SET full_page_writes = off" \
+            -c "ALTER SYSTEM SET synchronous_commit = off" \
+            -c "SELECT pg_reload_conf()"
+          psql -h 127.0.0.1 -U backprod -d backprod_test -c "SHOW fsync"
 
       # Migrations run before the tests that read the schema they create, and
       # running them here also proves each one applies to an empty database.
@@ -85,5 +112,14 @@ jobs:
       - name: No plan-name branching
         run: composer run gate:plans
 
+      # The time bound lives here, on the step, rather than in Composer's
+      # 300-second default for the subprocesses it spawns. That default is
+      # sized for downloading packages, and when the suite crossed it the job
+      # failed with a process-timeout stack trace that named neither a test
+      # nor a failure. A suite that genuinely hangs still fails — loudly, and
+      # in the step that owns it.
       - name: Tests
+        timeout-minutes: 10
+        env:
+          COMPOSER_PROCESS_TIMEOUT: 0
         run: composer run test
