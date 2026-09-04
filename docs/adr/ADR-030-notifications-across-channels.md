@@ -33,11 +33,26 @@ send time and skipping what fails the gate would leave nothing behind, and
 *"did we tell them?"* would have no answer — which is exactly the question a
 pre-renewal notice has to settle.
 
-**Exactly-once is `UNIQUE (notification_id, channel)`.** ADR-027 requires
-idempotent handlers because an expired lease lets two copies of a job finish.
-For a notification a duplicate is a *billed* SMS and an annoyed recipient, and
-on WhatsApp it risks the sender's standing. A check would be raced; an index
-cannot be. Claiming uses `FOR UPDATE SKIP LOCKED`, as the job queue does.
+**Exactly-once is `UNIQUE (notification_id, channel)` *and* the claim.** ADR-027
+requires idempotent handlers because an expired lease lets two copies of a job
+finish. For a notification a duplicate is a *billed* SMS and an annoyed
+recipient, and on WhatsApp it risks the sender's standing. A check would be
+raced; an index cannot be.
+
+The index alone was not enough, and the gap was live until R12 closed it. It
+guarantees one *row* per channel; it says nothing about how many runners act
+on that row. `FOR UPDATE SKIP LOCKED` did not close that either — its locks
+last only as long as the statement, so once the claim committed the next pass
+saw the same row still `PENDING`. What closes it is the claim moving the row
+to `SENDING` in the statement that selects it, exactly as a job moves to
+`RUNNING`. A second pass looking for `PENDING` no longer finds it.
+
+**A claim is leased**, or the fix would trade a duplicate for a loss: a runner
+whose process dies mid-pass would leave its rows claimed for ever, and a notice
+nobody sends is the worse failure. A lapsed lease is claimable again — a lapse
+is a fact about the clock, never a verdict on the delivery — and a delivery
+that has spent its attempts is failed with `LEASE_EXPIRED` rather than retried,
+so a message that kills whoever picks it up cannot stop the queue draining.
 
 **Consent fails closed.** SMS and WhatsApp are attempted only against a
 recorded, revocable opt-in; with none, the delivery is written `SUPPRESSED`

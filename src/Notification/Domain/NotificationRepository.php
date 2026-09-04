@@ -63,11 +63,34 @@ interface NotificationRepository
     public function deliveriesFor(string $notificationId): array;
 
     /**
-     * Claims pending deliveries for sending, oldest first.
+     * Claims deliveries for sending, oldest first, under a lease.
+     *
+     * The claim moves each row out of PENDING in the same statement that
+     * selects it, so an overlapping runner pass — the normal case on a polled
+     * queue — cannot see it at all. That is what makes a duplicate send
+     * impossible rather than unlikely: `UNIQUE (notification_id, channel)`
+     * says there is one row per channel, and this says one runner holds it.
+     *
+     * A lease that has lapsed is claimable again, because a runner whose
+     * process died is indistinguishable from one that is slow and neither
+     * should cost the recipient a notice. `$maxAttempts` is what stops that
+     * from repeating for ever on a message that kills whoever picks it up.
      *
      * @return list<array{delivery: Delivery, notification: Notification}>
      */
-    public function claimPending(int $limit): array;
+    public function claimPending(int $limit, int $leaseSeconds, int $maxAttempts): array;
+
+    /**
+     * Fails deliveries whose lease lapsed and whose attempts are spent.
+     *
+     * Without this they would sit claimed for ever, held by a runner that no
+     * longer exists — which reads as "in flight" and is really "lost". A
+     * recorded failure is the honest answer, and it is the one a pre-renewal
+     * notice needs: never sent, and we know it.
+     *
+     * @return int how many were given up on
+     */
+    public function abandonExpired(int $maxAttempts): int;
 
     public function recordSent(string $deliveryId, ?string $providerMessageId, ?string $renderedBody): void;
 

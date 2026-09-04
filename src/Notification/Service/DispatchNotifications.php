@@ -22,12 +22,21 @@ use Throwable;
  * and an unreachable one an unreachable API. So producers write the
  * notification in their own transaction, and this runs later, from cron.
  *
- * **Exactly-once is the index, not this code.** ADR-027 requires idempotent
+ * **Exactly-once is the row, not this code.** ADR-027 requires idempotent
  * handlers because an expired lease lets two copies of a job finish — and for
- * a notification a duplicate is a billed SMS and an annoyed recipient. The
- * claim moves a delivery out of PENDING, and `UNIQUE (notification_id,
- * channel)` means there was never more than one row to claim in the first
- * place. Two runners racing take different rows or none.
+ * a notification a duplicate is a billed SMS and an annoyed recipient. Two
+ * facts make that impossible rather than unlikely: `UNIQUE (notification_id,
+ * channel)` means there was only ever one row per channel to send, and the
+ * claim moves that row out of PENDING in the statement that selects it, so a
+ * second pass looking for PENDING does not see it. Two runners racing take
+ * different rows or none.
+ *
+ * **A claim is leased, so the fix does not trade a duplicate for a loss.** A
+ * runner whose process dies mid-pass would otherwise leave its rows claimed
+ * for ever, and a notice nobody sends is the worse failure of the two. The
+ * lease lapses and a lapsed lease is claimable again; a delivery that has
+ * spent its attempts is failed rather than retried, because a message that
+ * kills whoever picks it up would otherwise stop the queue draining at all.
  *
  * **A suppression is written, never skipped.** A delivery the gate refuses
  * becomes SUPPRESSED with its reason, because "we did not send it" and "we
@@ -44,6 +53,26 @@ final class DispatchNotifications implements JobHandler
      * reach the newest item.
      */
     private const BATCH = 50;
+
+    /**
+     * How long a claim is held.
+     *
+     * Sized against the whole pass, not one send: the batch is claimed in one
+     * statement and sent one at a time, so the last delivery's lease has to
+     * outlive the forty-nine sends before it. Too short and a still-running
+     * pass has its own rows taken from under it — which is the duplicate this
+     * exists to prevent, reintroduced by arithmetic.
+     */
+    private const LEASE_SECONDS = 900;
+
+    /**
+     * How many times a delivery may be picked up before it is given up on.
+     *
+     * Counted at claim, so a runner that dies without recording anything
+     * still spends one — otherwise a message that crashes the process would
+     * be retried for ever and nothing behind it would ever go out.
+     */
+    private const MAX_ATTEMPTS = 3;
 
     /**
      * @var array<string, Notifier>
@@ -82,7 +111,18 @@ final class DispatchNotifications implements JobHandler
         $suppressed = 0;
         $failed = 0;
 
-        foreach ($this->notifications->claimPending(self::BATCH) as $claim) {
+        // Before claiming, not after: a delivery whose holder is gone and
+        // whose attempts are spent is given up on here, so it is not picked
+        // up again by the very next line and then abandoned a pass later.
+        $abandoned = $this->notifications->abandonExpired(self::MAX_ATTEMPTS);
+
+        $claims = $this->notifications->claimPending(
+            self::BATCH,
+            self::LEASE_SECONDS,
+            self::MAX_ATTEMPTS,
+        );
+
+        foreach ($claims as $claim) {
             $outcome = $this->deliver($claim['delivery'], $claim['notification']);
 
             match ($outcome) {
@@ -92,7 +132,12 @@ final class DispatchNotifications implements JobHandler
             };
         }
 
-        return ['sent' => $sent, 'suppressed' => $suppressed, 'failed' => $failed];
+        return [
+            'sent' => $sent,
+            'suppressed' => $suppressed,
+            'failed' => $failed,
+            'abandoned' => $abandoned,
+        ];
     }
 
     private function deliver(Delivery $delivery, Notification $notification): string
