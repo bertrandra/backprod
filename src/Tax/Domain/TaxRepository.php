@@ -111,10 +111,13 @@ interface TaxRepository
      *
      * @return array{
      *     currency: string,
+     *     currencies: list<string>,
      *     total_base: int,
      *     total_vat: int,
      *     transaction_count: int,
-     *     breakdown: list<array{regime: string, rate: int, base: int, vat: int, count: int}>
+     *     breakdown: list<array{
+     *         regime: string, rate: int, currency: string, base: int, vat: int, count: int
+     *     }>
      * }
      */
     public function totalsFor(VatReportingPeriod $period): array;

@@ -24,6 +24,7 @@ final class SupplierTaxSettings
         public readonly string $countryCode,
         public readonly bool $ossRegistered,
         public readonly string $defaultSupplyType,
+        public readonly string $currency,
     ) {
     }
 
@@ -45,6 +46,14 @@ final class SupplierTaxSettings
             ? $supply
             : SupplyType::DIGITAL_SERVICES;
 
-        return new self($country, ($tax['oss_registered'] ?? false) === true, $supply);
+        // The currency a product sells in is its own, not a constant hidden
+        // in a controller. ISO 4217, upper case, as everywhere money is
+        // handled.
+        $currency = $tax['currency'] ?? null;
+        $currency = is_string($currency) && preg_match('/^[A-Za-z]{3}$/', $currency) === 1
+            ? strtoupper($currency)
+            : 'EUR';
+
+        return new self($country, ($tax['oss_registered'] ?? false) === true, $supply, $currency);
     }
 }

@@ -17,7 +17,7 @@ use DateTimeImmutable;
 final class VatDeclaration
 {
     /**
-     * @param list<array{regime: string, rate: int, base: int, vat: int, count: int}> $breakdown
+     * @param list<array{regime: string, rate: int, currency: string, base: int, vat: int, count: int}> $breakdown
      */
     public function __construct(
         public readonly string $id,

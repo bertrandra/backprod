@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Tax\Service;
 
+use App\Billing\Domain\InvoiceLine;
 use App\Product\Domain\ProductRegistry;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
 use App\Tax\Domain\CustomerTaxProfile;
+use App\Tax\Domain\RegimeDecision;
 use App\Tax\Domain\SupplierTaxSettings;
 use App\Tax\Domain\SupplyType;
 use App\Tax\Domain\TaxCalculation;
@@ -45,6 +47,28 @@ final class Taxation
      * number is not, because it can only be corrected by a credit note.
      */
     public const NO_RATE = 'TAX_RATE_NOT_CONFIGURED';
+
+    /**
+     * The document charges something the regime no longer permits.
+     *
+     * Raised when a document was priced under one set of fiscal facts and is
+     * being issued under another — a rate window opened in between, or the
+     * customer's VAT number was verified after the quote was priced. Both are
+     * ordinary, and both make the priced lines wrong rather than the decision
+     * wrong. Refusing is recoverable; issuing is not, because the document
+     * would carry a legal number and could only be corrected by a credit note.
+     */
+    public const TERMS_CHANGED = 'TAX_TERMS_CHANGED';
+
+    /**
+     * How long a verified VAT number is trusted before it is checked again.
+     *
+     * A verification is evidence with a date on it, not a permanent property:
+     * a number can be withdrawn. Re-checking on every profile save would spend
+     * the provider's rate limit on nothing, so it is re-checked when the
+     * evidence gets old.
+     */
+    public const REVERIFY_AFTER_DAYS = 30;
 
     public function __construct(
         private readonly TaxRepository $tax,
@@ -103,10 +127,35 @@ final class Taxation
             // Fail-closed: whatever the validator says, only VALID becomes
             // VERIFIED. An outage leaves the number unproved rather than
             // trusted, and the evidence records that we asked.
-            $this->tax->recordVerification($identification->id, $this->validator->check($normalised));
+            //
+            // Re-checked only when the evidence is missing or stale. Checking
+            // on every save would spend the provider's rate limit to learn
+            // nothing, and would overwrite the dated proof each time — §25.3
+            // wants that proof kept, not refreshed for its own sake.
+            if ($this->needsVerification($identification)) {
+                $this->tax->recordVerification($identification->id, $this->validator->check($normalised));
+            }
         }
 
         return $this->profileFor($tenantId);
+    }
+
+    /**
+     * Whether a stored identification needs checking against the provider.
+     *
+     * Anything not verified does. A verification is evidence with a date on
+     * it rather than a permanent property — a number can be withdrawn — so a
+     * verified one is re-checked once its evidence gets old.
+     */
+    private function needsVerification(TaxIdentification $identification): bool
+    {
+        if (!$identification->isVerified() || $identification->verifiedAt === null) {
+            return true;
+        }
+
+        $stale = $identification->verifiedAt->modify(sprintf('+%d days', self::REVERIFY_AFTER_DAYS));
+
+        return $stale < new DateTimeImmutable();
     }
 
     /**
@@ -135,27 +184,7 @@ final class Taxation
 
         $decision = $this->rule->decide($supplier, $profile, $supply);
 
-        $rate = 0;
-
-        if ($decision->charges()) {
-            $found = $this->tax->rateAt($decision->countryOfTaxation, TaxRate::STANDARD, $moment);
-
-            if ($found === null) {
-                // Naming the country and the date matters: "no rate" is
-                // ambiguous, "no rate for DE on 2026-09-04" is actionable.
-                throw new ConflictException(
-                    self::NO_RATE,
-                    sprintf(
-                        'No standard VAT rate is configured for %s on %s.',
-                        $decision->countryOfTaxation,
-                        $moment->format('Y-m-d'),
-                    ),
-                    ['country' => $decision->countryOfTaxation, 'date' => $moment->format('Y-m-d')],
-                );
-            }
-
-            $rate = $found->basisPoints;
-        }
+        $rate = $this->rateFor($decision, $moment);
 
         $identification = $profile->identification;
 
@@ -176,7 +205,88 @@ final class Taxation
     }
 
     /**
-     * Writes the fiscal facts of a document, inside the caller's transaction.
+     * The fiscal facts a document's own lines produce, under a freshly decided
+     * regime.
+     *
+     * The amounts come from the **lines**, never from a recalculation: §25.3
+     * requires that the VAT transactions of an invoice sum to that invoice's
+     * VAT, and the only way to guarantee that is to read what the document
+     * actually charges. One fact per (rate, regime) pair, as §25.3 specifies.
+     *
+     * The regime, though, has to be decided now — and if it no longer matches
+     * what the lines charge, that is a contradiction to refuse rather than a
+     * number to reconcile. Called before the document is issued, so the
+     * refusal costs nothing; after issue it would cost a credit note.
+     *
+     * @param list<InvoiceLine> $lines
+     * @return list<TaxCalculation>
+     */
+    public function factsFor(
+        string $tenantId,
+        string $productId,
+        array $lines,
+        ?DateTimeImmutable $on,
+    ): array {
+        $profile = $this->profileFor($tenantId);
+        $supplier = $this->supplierFor($productId);
+        $moment = $on ?? new DateTimeImmutable();
+
+        $decision = $this->rule->decide($supplier, $profile, $supplier->defaultSupplyType);
+        $expected = $this->rateFor($decision, $moment);
+
+        /** @var array<int, array{base: int, vat: int, currency: string}> $byRate */
+        $byRate = [];
+
+        foreach ($lines as $line) {
+            $rate = $line->vatRateBasisPoints;
+
+            if ($rate !== $expected) {
+                throw new ConflictException(
+                    self::TERMS_CHANGED,
+                    'This document was priced under different tax terms and cannot be issued as it stands.',
+                    [
+                        'priced_rate_basis_points' => $rate,
+                        'applicable_rate_basis_points' => $expected,
+                        'regime' => $decision->regime,
+                    ],
+                );
+            }
+
+            $byRate[$rate] ??= ['base' => 0, 'vat' => 0, 'currency' => $line->net->currency];
+            $byRate[$rate]['base'] += $line->net->minorUnits;
+            $byRate[$rate]['vat'] += $line->vat->minorUnits;
+        }
+
+        $identification = $profile->identification;
+        $facts = [];
+
+        foreach ($byRate as $rate => $totals) {
+            $facts[] = new TaxCalculation(
+                $decision->ruleId,
+                $decision->regime,
+                $decision->countryOfTaxation,
+                $rate,
+                $totals['base'],
+                $totals['vat'],
+                $totals['currency'],
+                $decision->reverseCharge,
+                $identification?->transactionStatus() ?? 'NONE',
+                $identification?->vatNumber,
+                $decision->legalMention,
+                $decision->reasons,
+            );
+        }
+
+        return $facts;
+    }
+
+    /**
+     * Writes the fiscal facts of a document.
+     *
+     * **Must be called inside the caller's transaction**, and opens none of
+     * its own: an invoice with no VAT transaction is a document nothing will
+     * declare, and a VAT transaction with no invoice declares something never
+     * billed. Neither is observable if both are written together.
      *
      * @param list<TaxCalculation> $calculations
      * @return list<VatTransaction>
@@ -235,6 +345,38 @@ final class Taxation
     public function ratesOn(?DateTimeImmutable $moment): array
     {
         return $this->tax->ratesAt($moment ?? new DateTimeImmutable());
+    }
+
+    /**
+     * The rate a decision implies at a moment: zero for the regimes that do
+     * not charge, and otherwise the standard rate in force in the country of
+     * taxation on that date.
+     */
+    private function rateFor(RegimeDecision $decision, DateTimeImmutable $moment): int
+    {
+        if (!$decision->charges()) {
+            return 0;
+        }
+
+        $found = $this->tax->rateAt($decision->countryOfTaxation, TaxRate::STANDARD, $moment);
+
+        if ($found === null) {
+            // Naming the country and the date matters: "no rate" is ambiguous,
+            // "no rate for DE on 2026-09-04" is actionable. Fatal rather than
+            // zero: invoicing at no VAT would assert something false on a
+            // document with a legal number.
+            throw new ConflictException(
+                self::NO_RATE,
+                sprintf(
+                    'No standard VAT rate is configured for %s on %s.',
+                    $decision->countryOfTaxation,
+                    $moment->format('Y-m-d'),
+                ),
+                ['country' => $decision->countryOfTaxation, 'date' => $moment->format('Y-m-d')],
+            );
+        }
+
+        return $found->basisPoints;
     }
 
     public function supplierFor(string $productId): SupplierTaxSettings

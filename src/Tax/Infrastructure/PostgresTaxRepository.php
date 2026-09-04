@@ -414,10 +414,13 @@ final class PostgresTaxRepository implements TaxRepository
     /**
      * @return array{
      *     currency: string,
+     *     currencies: list<string>,
      *     total_base: int,
      *     total_vat: int,
      *     transaction_count: int,
-     *     breakdown: list<array{regime: string, rate: int, base: int, vat: int, count: int}>
+     *     breakdown: list<array{
+     *         regime: string, rate: int, currency: string, base: int, vat: int, count: int
+     *     }>
      * }
      */
     public function totalsFor(VatReportingPeriod $period): array
@@ -447,6 +450,7 @@ final class PostgresTaxRepository implements TaxRepository
         $totalVat = 0;
         $count = 0;
         $currency = 'EUR';
+        $currencies = [];
 
         foreach ($rows as $row) {
             // Row::integer, not Row::string, and the difference is not
@@ -458,10 +462,14 @@ final class PostgresTaxRepository implements TaxRepository
             $vat = Row::integer($row, 'vat');
             $entries = Row::integer($row, 'entries');
             $currency = Row::string($row, 'currency');
+            $currencies[$currency] = true;
 
+            // The currency belongs on the row, not only on the total: a
+            // breakdown that omits it cannot be disaggregated afterwards.
             $breakdown[] = [
                 'regime' => Row::string($row, 'vat_regime'),
                 'rate' => Row::integer($row, 'vat_rate'),
+                'currency' => $currency,
                 'base' => $base,
                 'vat' => $vat,
                 'count' => $entries,
@@ -472,8 +480,13 @@ final class PostgresTaxRepository implements TaxRepository
             $count += $entries;
         }
 
+        // The totals are only meaningful when there is one currency. Adding
+        // euros to dollars and labelling the sum with whichever row sorted
+        // last would be a declaration nobody could defend, so the currencies
+        // present are reported and the caller refuses a mixed period.
         return [
             'currency' => $currency,
+            'currencies' => array_keys($currencies),
             'total_base' => $totalBase,
             'total_vat' => $totalVat,
             'transaction_count' => $count,

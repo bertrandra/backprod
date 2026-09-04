@@ -24,6 +24,13 @@ final class VatReporting
     public const ALREADY_CLOSED = 'PERIOD_ALREADY_CLOSED';
     public const PERIOD_NOT_ENDED = 'PERIOD_NOT_ENDED';
 
+    /**
+     * A declaration carries one currency, and there is no honest single figure
+     * for a period holding several: adding euros to dollars would produce a
+     * total nobody could defend in front of an administration.
+     */
+    public const MIXED_CURRENCIES = 'PERIOD_HAS_MIXED_CURRENCIES';
+
     public function __construct(private readonly TaxRepository $tax)
     {
     }
@@ -51,10 +58,13 @@ final class VatReporting
      *     declaration: VatDeclaration|null,
      *     totals: array{
      *         currency: string,
+     *         currencies: list<string>,
      *         total_base: int,
      *         total_vat: int,
      *         transaction_count: int,
-     *         breakdown: list<array{regime: string, rate: int, base: int, vat: int, count: int}>
+     *         breakdown: list<array{
+     *             regime: string, rate: int, currency: string, base: int, vat: int, count: int
+     *         }>
      *     }
      * }
      */
@@ -70,6 +80,7 @@ final class VatReporting
             ? $this->tax->totalsFor($period)
             : [
                 'currency' => $declaration->currency,
+                'currencies' => [$declaration->currency],
                 'total_base' => $declaration->totalBase,
                 'total_vat' => $declaration->totalVat,
                 'transaction_count' => $declaration->transactionCount,
@@ -97,6 +108,16 @@ final class VatReporting
                 self::PERIOD_NOT_ENDED,
                 'This reporting period has not ended yet, and closing is one-way.',
                 ['ends_on' => $period->endsOn->format('Y-m-d')],
+            );
+        }
+
+        $totals = $this->tax->totalsFor($period);
+
+        if (count($totals['currencies']) > 1) {
+            throw new ConflictException(
+                self::MIXED_CURRENCIES,
+                'This period holds transactions in more than one currency, and a declaration carries one.',
+                ['currencies' => $totals['currencies']],
             );
         }
 

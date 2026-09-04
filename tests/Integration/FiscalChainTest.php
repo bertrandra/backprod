@@ -70,6 +70,10 @@ final class FiscalChainTest extends DatabaseApiTestCase
                         'tax.read', 'tax.manage',
                         'billing.read', 'billing.manage',
                         'subscription.read', 'subscription.manage',
+                        // The order path is exercised by the terms-changed
+                        // test, which needs to place and fulfil one.
+                        'sales.read', 'sales.manage',
+                        'payments.read', 'payments.manage',
                     ],
                 ),
             ]),
@@ -288,6 +292,128 @@ final class FiscalChainTest extends DatabaseApiTestCase
 
         // And the new rate governs what happens next.
         self::assertSame(2500, $this->calculate(10_000)['rate_basis_points']);
+    }
+
+
+    // --- the document and its fiscal facts cannot disagree ----------------
+
+    public function testTheFactsOfAnInvoiceSumToItsVat(): void
+    {
+        $this->saveTaxProfile(['country_code' => 'FR', 'customer_kind' => 'B2C']);
+        $this->saveBillingProfile();
+        $this->subscribe();
+
+        self::assertSame(
+            201,
+            $this->request('POST', '/api/v1/billing/invoices', $this->headers())->getStatusCode(),
+        );
+
+        // §25.3's structural rule, asked of the database rather than of the
+        // code that wrote it.
+        self::assertSame(
+            $this->rowsMatching('SELECT vat_minor_units FROM invoices LIMIT 1'),
+            $this->rowsMatching('SELECT coalesce(sum(vat_amount), 0) FROM vat_transactions'),
+        );
+    }
+
+    public function testAnOrderPricedBeforeAVatNumberWasVerifiedIsRefused(): void
+    {
+        // Priced as a plain French consumer sale, at 20%.
+        $this->saveTaxProfile(['country_code' => 'FR', 'customer_kind' => 'B2C']);
+        $this->saveBillingProfile();
+
+        $order = $this->placeOrder();
+
+        // Between the order and its fulfilment the customer turns out to be a
+        // German business with a verified number — ordinary in B2B, and it
+        // changes the regime from STANDARD to REVERSE_CHARGE.
+        $this->saveTaxProfile([
+            'country_code' => 'DE',
+            'customer_kind' => 'B2B',
+            'taxable_person' => true,
+            'vat_number' => 'DE123456781',
+        ]);
+
+        $response = $this->request(
+            'POST',
+            '/api/v1/sales/orders/' . $order . '/fulfil',
+            $this->headers(),
+        );
+
+        // Refused, and refused *before* a number is allocated. Issuing would
+        // have produced an invoice charging 20% alongside a fiscal fact
+        // claiming reverse charge — a contradiction the database would then
+        // have to hold.
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame('TAX_TERMS_CHANGED', $this->errorOf($response)['code'] ?? null);
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM invoices'));
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM vat_transactions'));
+    }
+
+    public function testAPeriodHoldingTwoCurrenciesCannotBeClosed(): void
+    {
+        $this->saveTaxProfile(['country_code' => 'FR', 'customer_kind' => 'B2C']);
+        $this->saveBillingProfile();
+        $this->subscribe();
+        $this->request('POST', '/api/v1/billing/invoices', $this->headers());
+
+        $this->connection->executeStatement(
+            'UPDATE vat_transactions SET transaction_date = current_date - 3',
+        );
+
+        // A second fact in the same window, in another currency.
+        $this->connection->executeStatement(
+            <<<'SQL'
+            INSERT INTO vat_transactions
+                (invoice_id, tenant_id, product_id, country, supply_type,
+                 taxable_base, vat_rate, vat_amount, currency, vat_regime, rule_id, transaction_date)
+            SELECT invoice_id, tenant_id, product_id, country, supply_type,
+                   taxable_base, vat_rate, vat_amount, 'USD', vat_regime, rule_id, transaction_date
+              FROM vat_transactions LIMIT 1
+            SQL,
+        );
+
+        $period = $this->id(
+            'INSERT INTO vat_reporting_periods (jurisdiction, period_kind, starts_on, ends_on)'
+            . " VALUES ('FR', 'MONTHLY', current_date - 5, current_date - 1) RETURNING id",
+        );
+
+        $response = $this->closePeriod($period);
+
+        // A declaration carries one currency. Adding euros to dollars and
+        // labelling the sum with one of them is not a figure anyone could
+        // defend.
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame('PERIOD_HAS_MIXED_CURRENCIES', $this->errorOf($response)['code'] ?? null);
+    }
+
+    public function testAVerifiedNumberIsNotRecheckedOnEverySave(): void
+    {
+        $this->saveTaxProfile([
+            'country_code' => 'DE',
+            'customer_kind' => 'B2B',
+            'taxable_person' => true,
+            'vat_number' => 'DE123456781',
+        ]);
+
+        $first = $this->connection->fetchOne(
+            'SELECT verified_at FROM tax_identifications LIMIT 1',
+        );
+
+        $this->saveTaxProfile([
+            'country_code' => 'DE',
+            'customer_kind' => 'B2B',
+            'taxable_person' => true,
+            'vat_number' => 'DE123456781',
+        ]);
+
+        // The dated proof is kept, not refreshed for its own sake — and the
+        // provider is not asked again to learn what it already told us.
+        self::assertSame(
+            $first,
+            $this->connection->fetchOne('SELECT verified_at FROM tax_identifications LIMIT 1'),
+        );
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM tax_identifications'));
     }
 
     // --- period closure ---------------------------------------------------
@@ -530,6 +656,26 @@ final class FiscalChainTest extends DatabaseApiTestCase
         return $declaration;
     }
 
+    /**
+     * Places an order without a quote — the self-serve path — and returns it.
+     */
+    private function placeOrder(): string
+    {
+        $response = $this->request(
+            'POST',
+            '/api/v1/sales/orders',
+            $this->headers(),
+            $this->json(['offer_id' => $this->offer]),
+        );
+
+        self::assertSame(201, $response->getStatusCode(), (string) $response->getBody());
+
+        $id = $this->decode($response)['id'] ?? null;
+        self::assertIsString($id);
+
+        return $id;
+    }
+
     private function subscribe(): void
     {
         $response = $this->request(
@@ -618,6 +764,19 @@ final class FiscalChainTest extends DatabaseApiTestCase
 
         /** @var array<string, mixed> $fact */
         return $fact;
+    }
+
+    /**
+     * Deliberately not named count(): TestCase::count() is final, and
+     * shadowing it is a fatal error rather than a style question.
+     */
+    private function rowsMatching(string $sql): int
+    {
+        $count = $this->connection->fetchOne($sql);
+
+        self::assertIsNumeric($count);
+
+        return (int) $count;
     }
 
     /**

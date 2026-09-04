@@ -38,7 +38,9 @@ final class CalculateTaxController implements RouteHandler
             $context->tenantId,
             $context->productId,
             $body->requiredInt('amount_minor_units', 0),
-            $body->has('currency') ? $body->requiredString('currency', 3) : 'EUR',
+            $body->has('currency')
+                ? $body->requiredString('currency', 3)
+                : $this->taxation->supplierFor($context->productId)->currency,
             $body->optionalNullableString('supply_type', 32),
             TaxRoute::date($request, 'on'),
         );

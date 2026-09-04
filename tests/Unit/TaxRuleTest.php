@@ -119,7 +119,7 @@ final class TaxRuleTest extends TestCase
     public function testBelowTheThresholdTheSupplierRateApplies(): void
     {
         $decision = $this->rule()->decide(
-            new SupplierTaxSettings('FR', false, SupplyType::DIGITAL_SERVICES),
+            new SupplierTaxSettings('FR', false, SupplyType::DIGITAL_SERVICES, 'EUR'),
             $this->customer('DE', CustomerTaxProfile::B2C, false, null),
             SupplyType::DIGITAL_SERVICES,
         );
@@ -201,7 +201,7 @@ final class TaxRuleTest extends TestCase
 
     private function supplier(): SupplierTaxSettings
     {
-        return new SupplierTaxSettings('FR', true, SupplyType::DIGITAL_SERVICES);
+        return new SupplierTaxSettings('FR', true, SupplyType::DIGITAL_SERVICES, 'EUR');
     }
 
     private function customer(

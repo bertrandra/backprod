@@ -67,6 +67,22 @@ key to a rate row that can move. A rate changed by law must not shift one euro
 of VAT already invoiced, and a declaration replayed two years later must give
 the same figure.
 
+**The fact's amounts come from the document's lines, never from a
+recalculation.** §25.3 requires that an invoice's VAT transactions sum to that
+invoice's VAT, and the only way to guarantee it is to read what the document
+actually charges. One fact per (rate, regime) pair. Recomputing from the total
+also loses per-line rounding: two lines of €0.03 at 20% charge 2 cents, while
+20% of €0.06 is 1 — the declaration must say what was charged.
+
+**A document priced under terms that no longer apply is refused, not
+reconciled.** The regime has to be decided at issue time, but the lines were
+priced earlier — and in between, a rate window may have opened or the
+customer's VAT number may have been verified. Both are ordinary. Both make the
+priced lines wrong rather than the decision wrong, and issuing anyway would put
+an invoice charging 20% next to a fiscal fact claiming reverse charge. The
+refusal happens *before* the document is issued, because numbering is gapless
+and a document raised in error cannot be deleted — only credited.
+
 **The fiscal fact commits with the invoice.** `issue()` takes a participating
 callback that runs inside its transaction, after the document exists and
 before it commits. An invoice with no VAT transaction is a document nothing
@@ -100,6 +116,17 @@ the rows a live query sees are not the rows that were filed.
   no VAT and record a fiscal fact claiming a zero rate applied — a legal
   document asserting something false. Refusing is recoverable; a wrong invoice
   with a legal number can only be corrected by a credit note.
+- **A period holding more than one currency cannot be closed.** A declaration
+  carries one currency, and there is no honest single figure for a mixed
+  period: adding euros to dollars and labelling the sum with whichever row
+  sorted last is not something anyone could defend in front of an
+  administration. The breakdown carries the currency per row so the period can
+  be split and declared properly.
+- **A verified VAT number is re-checked when its evidence gets old**, not on
+  every profile save. A verification is evidence with a date on it rather than
+  a permanent property — a number can be withdrawn — but re-checking on every
+  save would spend the provider's rate limit to learn nothing, and would
+  overwrite the dated proof each time.
 - **OSS threshold crossing is configured, not derived.** Crossing it is a
   dated event that changes the regime of *subsequent* sales and never of
   previous ones. `oss_registered` is a stated fact in product configuration;

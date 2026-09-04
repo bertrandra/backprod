@@ -70,16 +70,17 @@ final class InvoiceThenSubscribe implements OrderFulfilment
 
         $now = new DateTimeImmutable();
 
-        // The order's lines were priced when the order was placed, from the
-        // same motivated decision (§25.3). Re-deciding here gives the reasons
-        // and the regime for the fiscal fact, and the rate it yields is the
-        // one the lines already carry.
-        $calculation = $this->taxation->calculate(
+        // The order's lines were priced when the order was placed. The regime
+        // has to be decided now — a rate window may have opened since, or the
+        // customer's VAT number may have been verified — but the *amounts*
+        // come from the lines, so the facts sum to the invoice by
+        // construction. If the two no longer agree, this throws, and it
+        // throws **before** anything is issued: numbering is gapless, so a
+        // document raised in error cannot be deleted.
+        $facts = $this->taxation->factsFor(
             $order->tenantId,
             $order->productId,
-            $order->net->minorUnits,
-            $order->net->currency,
-            null,
+            $order->lines,
             $now,
         );
 
@@ -100,7 +101,7 @@ final class InvoiceThenSubscribe implements OrderFulfilment
             // Still inside the transaction this method was called in, so the
             // invoice, the fiscal fact, the subscription and the completed
             // order all commit together or none of them do.
-            function (Invoice $issued) use ($order, $supplyType, $now, $calculation): void {
+            function (Invoice $issued) use ($order, $supplyType, $now, $facts): void {
                 $this->taxation->recordFor(
                     $order->tenantId,
                     $order->productId,
@@ -108,7 +109,7 @@ final class InvoiceThenSubscribe implements OrderFulfilment
                     null,
                     $supplyType,
                     $now,
-                    [$calculation],
+                    $facts,
                 );
             },
         );

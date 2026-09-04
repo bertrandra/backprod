@@ -152,6 +152,12 @@ final class Invoicing
             $version->id,
         );
 
+        // Derived from the line just built, not from the calculation that
+        // built it. They agree here by construction, and routing both paths
+        // through the same helper keeps that true if a second line is ever
+        // added.
+        $facts = $this->taxation->factsFor($tenantId, $productId, [$line], $issuedAt);
+
         $supplyType = $this->taxation->defaultSupplyType($productId);
 
         return $this->invoices->issue(
@@ -173,7 +179,7 @@ final class Invoicing
                 $productId,
                 $supplyType,
                 $issuedAt,
-                $calculation,
+                $facts,
             ): void {
                 $this->taxation->recordFor(
                     $tenantId,
@@ -182,7 +188,7 @@ final class Invoicing
                     null,
                     $supplyType,
                     $issuedAt,
-                    [$calculation],
+                    $facts,
                 );
             },
         );
