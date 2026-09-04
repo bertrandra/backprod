@@ -13,6 +13,7 @@ use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
+use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
 
@@ -277,14 +278,19 @@ final class AdminMetricsTest extends DatabaseApiTestCase
         bool $paid = false,
         bool $issued = true,
     ): string {
+        // The moments are passed as values, not as flags a CASE tests.
+        // DBAL binds a PHP false as '' and PostgreSQL will not read that as a
+        // boolean, so `CASE WHEN :issued` fails on exactly the rows the test
+        // is about. Sending the timestamp itself sidesteps the question.
+        $now = (new DateTimeImmutable())->format('Y-m-d H:i:sP');
+
         return $this->id(
             <<<'SQL'
                 INSERT INTO invoices (tenant_id, product_id, number, status, currency,
                                       issued_at, paid_at, net_minor_units, vat_minor_units,
                                       gross_minor_units, supplier_snapshot, customer_snapshot)
                 VALUES (:tenant, :product, :number, :status, 'EUR',
-                        CASE WHEN :issued THEN now() ELSE NULL END,
-                        CASE WHEN :paid THEN now() ELSE NULL END,
+                        CAST(:issuedAt AS TIMESTAMPTZ), CAST(:paidAt AS TIMESTAMPTZ),
                         :net, :vat, :gross, '{}', '{}')
                 RETURNING id
                 SQL,
@@ -293,8 +299,8 @@ final class AdminMetricsTest extends DatabaseApiTestCase
                 'product' => $this->product,
                 'number' => $number,
                 'status' => $status,
-                'issued' => $issued,
-                'paid' => $paid,
+                'issuedAt' => $issued ? $now : null,
+                'paidAt' => $paid ? $now : null,
                 'net' => $net,
                 'vat' => $vat,
                 'gross' => $gross,
