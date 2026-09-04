@@ -562,12 +562,15 @@ final class PostgresTaxRepository implements TaxRepository
         $evidence = $row['location_evidence'] ?? null;
         $decoded = is_string($evidence) ? json_decode($evidence, true) : null;
 
+        /** @var array<string, mixed> $locationEvidence */
+        $locationEvidence = is_array($decoded) ? $decoded : [];
+
         return new CustomerTaxProfile(
             Row::string($row, 'tenant_id'),
             Row::string($row, 'customer_kind'),
             Row::nullableString($row, 'country_code'),
             self::boolean($row, 'taxable_person'),
-            is_array($decoded) ? $decoded : [],
+            $locationEvidence,
             $identification,
         );
     }
@@ -580,6 +583,9 @@ final class PostgresTaxRepository implements TaxRepository
         $result = $row['verification_result'] ?? null;
         $decoded = is_string($result) ? json_decode($result, true) : null;
 
+        /** @var array<string, mixed>|null $verification */
+        $verification = is_array($decoded) ? $decoded : null;
+
         return new TaxIdentification(
             Row::string($row, 'id'),
             Row::string($row, 'tenant_id'),
@@ -588,7 +594,7 @@ final class PostgresTaxRepository implements TaxRepository
             Row::string($row, 'status'),
             Row::nullableTimestamp($row, 'verified_at'),
             Row::nullableString($row, 'verification_source'),
-            is_array($decoded) ? $decoded : null,
+            $verification,
         );
     }
 

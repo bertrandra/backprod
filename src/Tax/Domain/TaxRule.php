@@ -115,7 +115,7 @@ final class TaxRule
 
             // The fail-closed branch. A number that was typed but not proved
             // buys nothing, and neither does VIES being unreachable.
-            $status = $customer->identification?->status ?? 'none';
+            $status = $customer->identification->status ?? 'none';
 
             return new RegimeDecision(
                 'eu.b2b.unverified',

@@ -248,11 +248,7 @@ final class FiscalChainTest extends DatabaseApiTestCase
             $this->request('POST', '/api/v1/billing/invoices', $this->headers())->getStatusCode(),
         );
 
-        $fact = $this->decode(
-            $this->request('GET', '/api/v1/tax/transactions', $this->headers()),
-        )['transactions'][0] ?? null;
-
-        self::assertIsArray($fact);
+        $fact = $this->firstFact();
         self::assertSame('REVERSE_CHARGE', $fact['vat_regime'] ?? null);
         self::assertTrue($fact['reverse_charge'] ?? null);
         self::assertSame(0, $fact['vat_amount'] ?? null);
@@ -268,11 +264,7 @@ final class FiscalChainTest extends DatabaseApiTestCase
         $this->subscribe();
         $this->request('POST', '/api/v1/billing/invoices', $this->headers());
 
-        $before = $this->decode(
-            $this->request('GET', '/api/v1/tax/transactions', $this->headers()),
-        )['transactions'][0] ?? null;
-
-        self::assertIsArray($before);
+        $before = $this->firstFact();
 
         // The law changes: close the current window, open a new one. This is
         // the only correct way to move a rate, and the exclusion constraint
@@ -285,11 +277,7 @@ final class FiscalChainTest extends DatabaseApiTestCase
             . " VALUES ('FR', 'STANDARD', 2500, now())",
         );
 
-        $after = $this->decode(
-            $this->request('GET', '/api/v1/tax/transactions', $this->headers()),
-        )['transactions'][0] ?? null;
-
-        self::assertIsArray($after);
+        $after = $this->firstFact();
         // The rate is stored as a value, never as a key to a row that moves.
         self::assertSame($before['vat_rate'], $after['vat_rate']);
         self::assertSame($before['vat_amount'], $after['vat_amount']);
@@ -366,9 +354,12 @@ final class FiscalChainTest extends DatabaseApiTestCase
             $this->request('GET', '/api/v1/tax/reports/' . $period, $this->headers()),
         );
 
+        $totals = $view['totals'] ?? null;
+        self::assertIsArray($totals);
+
         // The declared figure, not a fresh query's answer.
-        self::assertSame($declaredVat, $view['totals']['total_vat'] ?? null);
-        self::assertSame(1, $view['totals']['transaction_count'] ?? null);
+        self::assertSame($declaredVat, $totals['total_vat'] ?? null);
+        self::assertSame(1, $totals['transaction_count'] ?? null);
     }
 
     public function testTheDatabaseRefusesToReopenAClosedPeriod(): void
@@ -476,6 +467,7 @@ final class FiscalChainTest extends DatabaseApiTestCase
         $calculation = $this->decode($response)['calculation'] ?? null;
         self::assertIsArray($calculation);
 
+        /** @var array<string, mixed> $calculation */
         return $calculation;
     }
 
@@ -557,5 +549,39 @@ final class FiscalChainTest extends DatabaseApiTestCase
             . ' RETURNING id',
             ['offer' => $this->offer],
         );
+    }
+
+    /**
+     * The first VAT transaction, asserted down to an array so the tests read
+     * as statements about fiscal facts rather than about array offsets.
+     *
+     * @return array<string, mixed>
+     */
+    private function firstFact(): array
+    {
+        $body = $this->decode(
+            $this->request('GET', '/api/v1/tax/transactions', $this->headers()),
+        );
+
+        $transactions = $body['transactions'] ?? null;
+        self::assertIsArray($transactions);
+        self::assertNotSame([], $transactions);
+
+        $fact = $transactions[0];
+        self::assertIsArray($fact);
+
+        return $fact;
+    }
+
+    /**
+     * @param array<string, mixed> $parameters
+     */
+    private function id(string $sql, array $parameters = []): string
+    {
+        $id = $this->connection->fetchOne($sql, $parameters);
+
+        self::assertIsString($id);
+
+        return $id;
     }
 }
