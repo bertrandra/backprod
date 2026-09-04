@@ -73,6 +73,10 @@ use App\Storage\Domain\StorageProvider;
 use App\Storage\Infrastructure\LocalStorageProvider;
 use App\Storage\Infrastructure\PostgresAssetRepository;
 use App\Storage\Service\AssetLinks;
+use App\Tax\Domain\TaxRepository;
+use App\Tax\Domain\VatNumberValidator;
+use App\Tax\Infrastructure\PostgresTaxRepository;
+use App\Tax\Infrastructure\StubVatNumberValidator;
 use App\Tenant\Domain\TenantMemberRepository;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Domain\TenantRepository;
@@ -260,6 +264,12 @@ return static function (array $overrides = []): ContainerInterface {
         // --- Platform staff (§12.2) -----------------------------------------
         // Bound separately from the tenant repositories above, and reading
         // separate tables. Neither axis can resolve into the other.
+        // Fiscalité (§25.3). The validator is a port like every other
+        // provider: the stub answers deterministically so the fail-closed
+        // path can be exercised, and a real VIES adapter replaces this line.
+        TaxRepository::class => autowire(PostgresTaxRepository::class),
+        VatNumberValidator::class => autowire(StubVatNumberValidator::class),
+
         StaffRepository::class => autowire(PostgresStaffRepository::class),
         StaffAccessLog::class => autowire(PostgresStaffAccessLog::class),
         TenantDirectory::class => autowire(PostgresTenantDirectory::class),

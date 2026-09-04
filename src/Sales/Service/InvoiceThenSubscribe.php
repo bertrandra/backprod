@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Sales\Service;
 
 use App\Billing\Domain\BillingProfileRepository;
+use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Service\SupplierIdentity;
 use App\Commerce\Domain\SubscribedOffer;
@@ -13,6 +14,7 @@ use App\Commerce\Service\Catalogue;
 use App\Sales\Domain\Order;
 use App\Sales\Domain\OrderFulfilment;
 use App\Shared\Exceptions\ConflictException;
+use App\Tax\Service\Taxation;
 use DateTimeImmutable;
 
 /**
@@ -43,6 +45,7 @@ final class InvoiceThenSubscribe implements OrderFulfilment
         private readonly BillingProfileRepository $profiles,
         private readonly Catalogue $catalogue,
         private readonly SupplierIdentity $supplier,
+        private readonly Taxation $taxation,
     ) {
     }
 
@@ -67,6 +70,21 @@ final class InvoiceThenSubscribe implements OrderFulfilment
 
         $now = new DateTimeImmutable();
 
+        // The order's lines were priced when the order was placed, from the
+        // same motivated decision (§25.3). Re-deciding here gives the reasons
+        // and the regime for the fiscal fact, and the rate it yields is the
+        // one the lines already carry.
+        $calculation = $this->taxation->calculate(
+            $order->tenantId,
+            $order->productId,
+            $order->net->minorUnits,
+            $order->net->currency,
+            null,
+            $now,
+        );
+
+        $supplyType = $this->taxation->defaultSupplyType($order->productId);
+
         $invoice = $this->invoices->applyIssue(
             $order->tenantId,
             $order->productId,
@@ -79,6 +97,20 @@ final class InvoiceThenSubscribe implements OrderFulfilment
             $offer->version->periodEndFrom($now),
             'Payable on receipt.',
             null,
+            // Still inside the transaction this method was called in, so the
+            // invoice, the fiscal fact, the subscription and the completed
+            // order all commit together or none of them do.
+            function (Invoice $issued) use ($order, $supplyType, $now, $calculation): void {
+                $this->taxation->recordFor(
+                    $order->tenantId,
+                    $order->productId,
+                    $issued->id,
+                    null,
+                    $supplyType,
+                    $now,
+                    [$calculation],
+                );
+            },
         );
 
         return [

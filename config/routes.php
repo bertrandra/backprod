@@ -89,6 +89,14 @@ use App\Storage\Controller\DownloadAssetController;
 use App\Storage\Controller\ListAssetsController;
 use App\Storage\Controller\ShowAssetController;
 use App\Storage\Controller\UploadAssetController;
+use App\Tax\Controller\CalculateTaxController;
+use App\Tax\Controller\CloseVatPeriodController;
+use App\Tax\Controller\ListTaxRatesController;
+use App\Tax\Controller\ListVatPeriodsController;
+use App\Tax\Controller\ListVatTransactionsController;
+use App\Tax\Controller\SaveTaxProfileController;
+use App\Tax\Controller\ShowTaxProfileController;
+use App\Tax\Controller\ShowVatPeriodController;
 use App\Tenant\Controller\AddMemberController;
 use App\Tenant\Controller\CurrentTenantController;
 use App\Tenant\Controller\ListMembersController;
@@ -167,6 +175,25 @@ return static function (RouteCollector $routes): void {
     // hole. Both documents are kept.
     $routes->addRoute('GET', '/api/v1/billing/credit-notes', ListCreditNotesController::class);
     $routes->addRoute('POST', '/api/v1/billing/invoices/{invoiceId}/credit', IssueCreditNoteController::class);
+
+    // Fiscalité (§25.3). Tax is a separate surface from Billing because the
+    // two produce different things: Billing produces a document, Tax
+    // produces the declarable fact behind it.
+    //
+    // /tax/calculate has no side effect. It answers what would be applied
+    // *and why*, through the same code invoicing uses — which is what makes
+    // it the diagnostic tool when an invoice surprises its recipient.
+    $routes->addRoute('GET', '/api/v1/tax/profile', ShowTaxProfileController::class);
+    $routes->addRoute('PUT', '/api/v1/tax/profile', SaveTaxProfileController::class);
+    $routes->addRoute('GET', '/api/v1/tax/rates', ListTaxRatesController::class);
+    $routes->addRoute('POST', '/api/v1/tax/calculate', CalculateTaxController::class);
+    $routes->addRoute('GET', '/api/v1/tax/transactions', ListVatTransactionsController::class);
+
+    // Closing is one-way and audited, so it takes tax.manage while the reads
+    // take tax.read.
+    $routes->addRoute('GET', '/api/v1/tax/reports', ListVatPeriodsController::class);
+    $routes->addRoute('GET', '/api/v1/tax/reports/{periodId}', ShowVatPeriodController::class);
+    $routes->addRoute('POST', '/api/v1/tax/reports/{periodId}/close', CloseVatPeriodController::class);
 
     // The one unauthenticated write in the platform, and the source of truth
     // for whether money moved (§24). It authenticates itself: the provider's

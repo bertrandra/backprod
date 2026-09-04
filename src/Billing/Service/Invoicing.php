@@ -15,6 +15,8 @@ use App\Billing\Domain\Money;
 use App\Commerce\Service\Subscriptions;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
+use App\Tax\Service\Taxation;
+use DateTimeImmutable;
 
 /**
  * Raising and settling invoices for one tenant and product.
@@ -44,7 +46,7 @@ final class Invoicing
         private readonly InvoicePaid $paid,
         private readonly BillingProfileRepository $profiles,
         private readonly Subscriptions $subscriptions,
-        private readonly VatPolicy $vat,
+        private readonly Taxation $taxation,
         private readonly SupplierIdentity $supplier,
     ) {
     }
@@ -122,15 +124,35 @@ final class Invoicing
         $supplier = $this->supplier->forProduct($productId);
         $version = $subscription->offer->version;
 
+        // One moment for the whole issue, passed explicitly rather than taken
+        // twice. Reading the clock again inside the transaction could land on
+        // the far side of a rate window and put a rate on the fiscal fact
+        // that the invoice line does not carry.
+        $issuedAt = new DateTimeImmutable();
+
+        // §25.3: the rate comes from a *motivated* decision — who the
+        // customer is, whether their number was verified, what is supplied
+        // and where it is taxed — never from a country code alone.
+        $calculation = $this->taxation->calculate(
+            $tenantId,
+            $productId,
+            $version->priceMinorUnits,
+            $version->currency,
+            null,
+            $issuedAt,
+        );
+
         $line = InvoiceLine::of(
             1,
             $subscription->offer->lineDescription(),
             1,
             Money::of($version->priceMinorUnits, $version->currency),
             Money::zero($version->currency),
-            $this->vat->rateFor($productId, $profile->countryCode),
+            $calculation->rateBasisPoints,
             $version->id,
         );
+
+        $supplyType = $this->taxation->defaultSupplyType($productId);
 
         return $this->invoices->issue(
             $tenantId,
@@ -144,6 +166,25 @@ final class Invoicing
             $subscription->currentPeriodEnd,
             self::PAYMENT_TERMS,
             $actorUserId,
+            // Inside the invoice's own transaction, so the document and the
+            // fiscal fact it produces commit together.
+            function (Invoice $invoice) use (
+                $tenantId,
+                $productId,
+                $supplyType,
+                $issuedAt,
+                $calculation,
+            ): void {
+                $this->taxation->recordFor(
+                    $tenantId,
+                    $productId,
+                    $invoice->id,
+                    null,
+                    $supplyType,
+                    $issuedAt,
+                    [$calculation],
+                );
+            },
         );
     }
 
