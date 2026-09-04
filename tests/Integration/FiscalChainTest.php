@@ -149,6 +149,88 @@ final class FiscalChainTest extends DatabaseApiTestCase
         self::assertSame('STANDARD', $this->calculate(10_000)['regime']);
     }
 
+    /**
+     * Failing closed is right; failing closed in silence is not (R8).
+     *
+     * The customer typed a VAT number expecting to be zero-rated and is being
+     * charged standard VAT instead. Left unsaid, they find out from an
+     * invoice — a legal document that cannot then be quietly recomputed.
+     */
+    public function testAnUnverifiedNumberTellsThePersonWhoTypedIt(): void
+    {
+        $this->saveTaxProfile([
+            'country_code' => 'DE',
+            'customer_kind' => 'B2B',
+            'taxable_person' => true,
+            'vat_number' => 'DE123456789',
+        ]);
+
+        $notice = $this->newestNotification();
+
+        self::assertSame('tax.vat_number_unverified', $notice['type'] ?? null);
+        self::assertSame('BILLING', $notice['category'] ?? null);
+        // Operational, not evidential: the proof §25.3 wants is the dated
+        // verification record, not this message about it. Counted rather than
+        // read back, because a driver's idea of a PostgreSQL boolean is not
+        // something this test should rest on.
+        self::assertSame(0, $this->rowsMatching(
+            'SELECT count(*) FROM notifications WHERE legal_effect = true',
+        ));
+    }
+
+    /**
+     * VIES being unreachable is the case most worth sending, because it is
+     * the one that is not the customer's fault and that asking again fixes.
+     */
+    public function testViesBeingUnreachableIsAlsoToldToThem(): void
+    {
+        $this->saveTaxProfile([
+            'country_code' => 'DE',
+            'customer_kind' => 'B2B',
+            'taxable_person' => true,
+            'vat_number' => 'DE123456780',
+        ]);
+
+        self::assertSame('tax.vat_number_unverified', $this->newestNotification()['type'] ?? null);
+    }
+
+    public function testAVerifiedNumberSaysNothingToAnybody(): void
+    {
+        $this->saveTaxProfile([
+            'country_code' => 'DE',
+            'customer_kind' => 'B2B',
+            'taxable_person' => true,
+            'vat_number' => 'DE123456781',
+        ]);
+
+        self::assertSame(0, $this->rowsMatching(
+            "SELECT count(*) FROM notifications WHERE type = 'tax.vat_number_unverified'",
+        ));
+    }
+
+    /**
+     * Saving the same profile repeatedly is one notice, not four. The number
+     * is only re-checked once its evidence is stale, and the dedup key is the
+     * day, so nothing here depends on remembering to check first.
+     */
+    public function testSavingTheSameUnprovedNumberAgainDoesNotNagThem(): void
+    {
+        $body = [
+            'country_code' => 'DE',
+            'customer_kind' => 'B2B',
+            'taxable_person' => true,
+            'vat_number' => 'DE123456789',
+        ];
+
+        $this->saveTaxProfile($body);
+        $this->saveTaxProfile($body);
+        $this->saveTaxProfile($body);
+
+        self::assertSame(1, $this->rowsMatching(
+            "SELECT count(*) FROM notifications WHERE type = 'tax.vat_number_unverified'",
+        ));
+    }
+
     public function testACrossBorderConsumerIsTaxedInTheirOwnCountry(): void
     {
         $this->saveTaxProfile(['country_code' => 'DE', 'customer_kind' => 'B2C']);
@@ -564,6 +646,20 @@ final class FiscalChainTest extends DatabaseApiTestCase
     /**
      * @param array<string, mixed> $changes
      */
+    /**
+     * @return array<string, mixed>
+     */
+    private function newestNotification(): array
+    {
+        $row = $this->connection->fetchAssociative(
+            'SELECT type, category FROM notifications ORDER BY created_at DESC LIMIT 1',
+        );
+
+        self::assertIsArray($row);
+
+        return $row;
+    }
+
     private function saveTaxProfile(array $changes = []): ResponseInterface
     {
         $response = $this->request(

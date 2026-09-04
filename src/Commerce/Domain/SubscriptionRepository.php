@@ -152,5 +152,27 @@ interface SubscriptionRepository
      * can do — it makes the column agree with reality for the people reading
      * it. A subscription with no period end has no end to be past.
      */
+    /**
+     * Subscriptions inside their pre-renewal notice window, and who to tell.
+     *
+     * §13.1's notice is a *deadline*, not a courtesy: a notice sent late is a
+     * notice not sent, so the window is the question and `notice_days` before
+     * `term_ends_at` is the answer. Past the term end nothing is returned —
+     * whatever that would be, it is not prior notice.
+     *
+     * A subscription already set to end is excluded. There is no tacit
+     * renewal to warn about when the customer has already said no, and
+     * telling them otherwise would be worse than saying nothing.
+     *
+     * One row per recipient, so a tenant subscription with three
+     * administrators comes back three times. The limit therefore bounds
+     * *recipients*, not subscriptions, and a subscription whose
+     * administrators do not all fit is finished on the next pass — the
+     * notification's dedup key makes re-reading it free.
+     *
+     * @return list<RenewalNotice>
+     */
+    public function dueForRenewalNotice(int $limit): array;
+
     public function expireLapsed(): int;
 }
