@@ -594,24 +594,6 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
     }
 
     /**
-     * Reads one by id regardless of status — used after a change that leaves
-     * it no longer active, where findActive() would correctly return null.
-     */
-    private function latest(string $subscriptionId): Subscription
-    {
-        $row = $this->connection->fetchAssociative(
-            'SELECT ' . self::COLUMNS . ' ' . self::FROM . ' WHERE s.id = :id',
-            ['id' => $subscriptionId],
-        );
-
-        if ($row === false) {
-            throw new RuntimeException('The subscription vanished during a change to it.');
-        }
-
-        return $this->toSubscription($row);
-    }
-
-    /**
      * @param array<string, mixed> $row
      */
     private function toSubscription(array $row): Subscription
