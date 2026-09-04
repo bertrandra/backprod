@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Admin\Service\AuditTrail;
+use App\Audit\Domain\AuditLog;
+use App\Audit\Domain\AuditReader;
+use App\Audit\Infrastructure\PostgresAuditLog;
 use App\Auth\Domain\AuthProvider;
 use App\Auth\Infrastructure\NullSigningKeySource;
 use App\Auth\Infrastructure\SigningKeySource;
@@ -165,6 +169,13 @@ return static function (array $overrides = []): ContainerInterface {
         ProductRegistry::class => autowire(PostgresProductRegistry::class),
         CatalogueRepository::class => autowire(PostgresCatalogueRepository::class),
         SubscriptionRepository::class => autowire(PostgresSubscriptionRepository::class),
+
+        // One adapter, two ports. Writing happens everywhere and reading on
+        // one surface, so a module that records something does not acquire
+        // the reach to read the whole platform's trail by depending on it.
+        AuditLog::class => autowire(PostgresAuditLog::class),
+        AuditReader::class => autowire(PostgresAuditLog::class),
+        AuditTrail::class => autowire(),
         BillingProfileRepository::class => autowire(PostgresBillingProfileRepository::class),
         InvoiceRepository::class => autowire(PostgresInvoiceRepository::class),
         CreditNoteRepository::class => autowire(PostgresCreditNoteRepository::class),
@@ -333,7 +344,13 @@ return static function (array $overrides = []): ContainerInterface {
                 // Authenticated and requiring a platform role, which no
                 // membership grants. These routes resolve no tenant of their
                 // own: they take one explicitly and record having read it.
-                staffPrefixes: ['/api/v1/staff'],
+                //
+                // /admin joins /staff here rather than getting a policy of
+                // its own. Both are platform surfaces reached by a platform
+                // role and neither derives a tenant from a membership; what
+                // separates them is which permission each endpoint demands,
+                // which is a per-route decision and not a routing one.
+                staffPrefixes: ['/api/v1/staff', '/api/v1/admin'],
             ),
         ),
 

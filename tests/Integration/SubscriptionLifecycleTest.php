@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration;
 
+use App\Audit\Infrastructure\PostgresAuditLog;
 use App\Commerce\Domain\CancellationDecision;
 use App\Commerce\Domain\CancellationPolicy;
 use App\Commerce\Domain\EarlyTerminationCharge;
@@ -465,6 +466,10 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
                     TestCase::fail('An open-ended subscription charged for leaving.');
                 }
             },
+            // The real trail against the real database: a cancellation that
+            // is not recorded is one nobody can be held to (§30), and a
+            // double here would only prove the double writes nothing.
+            new PostgresAuditLog($this->connection),
         );
     }
 
