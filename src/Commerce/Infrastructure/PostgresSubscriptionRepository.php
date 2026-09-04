@@ -4,15 +4,19 @@ declare(strict_types=1);
 
 namespace App\Commerce\Infrastructure;
 
+use App\Commerce\Domain\CancellationDecision;
 use App\Commerce\Domain\Feature;
 use App\Commerce\Domain\OfferGrant;
 use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Domain\Plan;
 use App\Commerce\Domain\SubscribedOffer;
+use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionEvent;
 use App\Commerce\Domain\SubscriptionRepository;
+use App\Commerce\Domain\SubscriptionTerms;
 use App\Shared\Database\Row;
+use App\Shared\Database\Uuid;
 use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
 use RuntimeException;
@@ -38,10 +42,17 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
         s.id, s.tenant_id, s.product_id, s.offer_version_id, s.status,
         s.started_at, s.current_period_start, s.current_period_end,
         s.cancel_at_period_end, s.cancelled_at, s.ended_at,
+        s.subscriber_kind, s.subscriber_user_id,
+        s.term_months, s.term_ends_at, s.commitment_months, s.commitment_ends_at,
+        s.cancellation_policy, s.renewal, s.early_termination, s.notice_days,
+        s.cancel_effective_at,
         o.id AS offer_id, o.code AS offer_code, o.name AS offer_name,
         pl.id AS plan_id, pl.code AS plan_code, pl.name AS plan_name, pl.rank AS plan_rank,
         v.version, v.status AS version_status, v.billing_period,
-        v.price_minor_units, v.currency, v.valid_from, v.valid_until
+        v.price_minor_units, v.currency, v.valid_from, v.valid_until,
+        v.term_months AS version_term_months, v.commitment_months AS version_commitment_months,
+        v.cancellation_policy AS version_cancellation_policy, v.renewal AS version_renewal,
+        v.early_termination AS version_early_termination, v.notice_days AS version_notice_days
         SQL;
 
     private const FROM = <<<'SQL'
@@ -100,12 +111,27 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
         SubscribedOffer $offer,
         ?DateTimeImmutable $periodEnd,
         ?string $actorUserId,
+        ?Subscriber $subscriber = null,
     ): Subscription {
+        // The terms are copied from the version as values, not referenced.
+        // Repricing or re-terming the offer tomorrow must not change one
+        // condition this subscriber agreed to today — the invoice snapshot
+        // rule (§25) applied to the contract (§13.1).
+        $terms = $offer->version->terms;
+        $startedAt = new DateTimeImmutable();
+        $subscriber = $subscriber ?? Subscriber::tenant();
+
         $id = $this->connection->fetchOne(
             <<<'SQL'
                 INSERT INTO subscriptions
-                    (tenant_id, product_id, offer_version_id, current_period_end)
-                VALUES (:tenantId, :productId, :versionId, :periodEnd)
+                    (tenant_id, product_id, offer_version_id, current_period_end,
+                     subscriber_kind, subscriber_user_id,
+                     term_months, term_ends_at, commitment_months, commitment_ends_at,
+                     cancellation_policy, renewal, early_termination, notice_days)
+                VALUES (:tenantId, :productId, :versionId, :periodEnd,
+                        :subscriberKind, :subscriberUserId,
+                        :termMonths, :termEndsAt, :commitmentMonths, :commitmentEndsAt,
+                        :cancellationPolicy, :renewal, :earlyTermination, :noticeDays)
                 RETURNING id
                 SQL,
             [
@@ -113,6 +139,16 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
                 'productId' => $productId,
                 'versionId' => $offer->version->id,
                 'periodEnd' => self::moment($periodEnd),
+                'subscriberKind' => $subscriber->kind,
+                'subscriberUserId' => $subscriber->userId,
+                'termMonths' => $terms->termMonths,
+                'termEndsAt' => self::moment($terms->termEndsFrom($startedAt)),
+                'commitmentMonths' => $terms->commitmentMonths,
+                'commitmentEndsAt' => self::moment($terms->commitmentEndsFrom($startedAt)),
+                'cancellationPolicy' => $terms->cancellationPolicy,
+                'renewal' => $terms->renewal,
+                'earlyTermination' => $terms->earlyTermination,
+                'noticeDays' => $terms->noticeDays,
             ],
         );
 
@@ -123,7 +159,16 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
         $this->record($id, SubscriptionEvent::ACTIVATED, null, $offer->version->id, $actorUserId, []);
         $this->grantEntitlements($id, $tenantId, $productId, $offer, $periodEnd);
 
-        return $this->requireActive($tenantId, $productId);
+        // Fetched by id rather than by (tenant, product): a seat is not the
+        // tenant's subscription, and asking for the tenant's would return
+        // somebody else's row or none at all.
+        $created = $this->findById($id);
+
+        if ($created === null) {
+            throw new RuntimeException('The subscription vanished during the transaction that created it.');
+        }
+
+        return $created;
     }
 
     public function changeOffer(
@@ -448,6 +493,120 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
         );
     }
 
+    /**
+     * One subscription by id, whatever its status or subscriber.
+     *
+     * The seat lookups need this: a seat is not reachable by (tenant,
+     * product), which is the tenant's own subscription.
+     */
+    public function findById(string $subscriptionId): ?Subscription
+    {
+        if (!Uuid::isValid($subscriptionId)) {
+            return null;
+        }
+
+        $row = $this->connection->fetchAssociative(
+            'SELECT ' . self::COLUMNS . ' ' . self::FROM . ' WHERE s.id = :id',
+            ['id' => $subscriptionId],
+        );
+
+        return $row === false ? null : $this->toSubscription($row);
+    }
+
+    /**
+     * Every live subscription that entitles this person: the tenant's own,
+     * plus their seat if they hold one.
+     *
+     * @return list<Subscription>
+     */
+    public function liveFor(string $tenantId, string $productId, string $userId): array
+    {
+        if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId) || !Uuid::isValid($userId)) {
+            return [];
+        }
+
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT ' . self::COLUMNS . ' ' . self::FROM . <<<'SQL'
+                 WHERE s.tenant_id = :tenantId
+                   AND s.product_id = :productId
+                   AND s.status = 'ACTIVE'
+                   AND (s.subscriber_kind = 'TENANT' OR s.subscriber_user_id = :userId)
+                 ORDER BY s.subscriber_kind, s.started_at DESC
+                SQL,
+            ['tenantId' => $tenantId, 'productId' => $productId, 'userId' => $userId],
+        );
+
+        return array_map($this->toSubscription(...), $rows);
+    }
+
+    public function scheduleCancellation(
+        Subscription $subscription,
+        CancellationDecision $decision,
+        ?string $actorUserId,
+    ): Subscription {
+        return $this->connection->transactional(
+            function () use ($subscription, $decision, $actorUserId): Subscription {
+                if ($decision->effect === CancellationDecision::IMMEDIATE) {
+                    // Ends now. The entitlement goes with it, because the
+                    // clock is what entitlement resolution asks and there is
+                    // no period left to be inside.
+                    $this->connection->executeStatement(
+                        <<<'SQL'
+                        UPDATE subscriptions
+                           SET status = 'CANCELLED',
+                               cancel_at_period_end = false,
+                               cancel_effective_at = NULL,
+                               cancelled_at = coalesce(cancelled_at, now()),
+                               ended_at = coalesce(ended_at, now()),
+                               updated_at = now()
+                         WHERE id = :id
+                        SQL,
+                        ['id' => $subscription->id],
+                    );
+                } else {
+                    // Still live, and still owed, until the date the customer
+                    // was given. Storing that date is what makes the promise
+                    // checkable later.
+                    $this->connection->executeStatement(
+                        <<<'SQL'
+                        UPDATE subscriptions
+                           SET cancel_at_period_end = true,
+                               cancel_effective_at = :effectiveAt,
+                               cancelled_at = coalesce(cancelled_at, now()),
+                               updated_at = now()
+                         WHERE id = :id
+                        SQL,
+                        [
+                            'id' => $subscription->id,
+                            'effectiveAt' => self::moment($decision->effectiveAt),
+                        ],
+                    );
+                }
+
+                $this->record(
+                    $subscription->id,
+                    $decision->effect === CancellationDecision::IMMEDIATE
+                        ? SubscriptionEvent::CANCELLED
+                        : SubscriptionEvent::CANCELLATION_SCHEDULED,
+                    null,
+                    $subscription->offer->version->id,
+                    $actorUserId,
+                    // The decision travels with the event: which rule decided,
+                    // when it takes effect, and what the customer was told.
+                    $decision->toArray(),
+                );
+
+                $updated = $this->findById($subscription->id);
+
+                if ($updated === null) {
+                    throw new RuntimeException('The subscription vanished while being cancelled.');
+                }
+
+                return $updated;
+            },
+        );
+    }
+
     private function requireActive(string $tenantId, string $productId): Subscription
     {
         $subscription = $this->findActive($tenantId, $productId);
@@ -494,6 +653,14 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
             Row::timestamp($row, 'valid_from'),
             Row::nullableTimestamp($row, 'valid_until'),
             $this->grantsOf($versionId),
+            new SubscriptionTerms(
+                Row::nullableInteger($row, 'version_term_months'),
+                Row::integer($row, 'version_commitment_months'),
+                Row::string($row, 'version_cancellation_policy'),
+                Row::string($row, 'version_renewal'),
+                Row::string($row, 'version_early_termination'),
+                Row::integer($row, 'version_notice_days'),
+            ),
         );
 
         return new Subscription(
@@ -512,6 +679,18 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
                 ),
                 $version,
             ),
+            Subscriber::of(
+                Row::string($row, 'subscriber_kind'),
+                Row::nullableString($row, 'subscriber_user_id'),
+            ),
+            new SubscriptionTerms(
+                Row::nullableInteger($row, 'term_months'),
+                Row::integer($row, 'commitment_months'),
+                Row::string($row, 'cancellation_policy'),
+                Row::string($row, 'renewal'),
+                Row::string($row, 'early_termination'),
+                Row::integer($row, 'notice_days'),
+            ),
             Row::string($row, 'status'),
             Row::timestamp($row, 'started_at'),
             Row::timestamp($row, 'current_period_start'),
@@ -519,6 +698,9 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
             self::boolean($row, 'cancel_at_period_end'),
             Row::nullableTimestamp($row, 'cancelled_at'),
             Row::nullableTimestamp($row, 'ended_at'),
+            Row::nullableTimestamp($row, 'term_ends_at'),
+            Row::nullableTimestamp($row, 'commitment_ends_at'),
+            Row::nullableTimestamp($row, 'cancel_effective_at'),
         );
     }
 

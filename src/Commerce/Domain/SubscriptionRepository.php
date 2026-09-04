@@ -66,6 +66,36 @@ interface SubscriptionRepository
         SubscribedOffer $offer,
         ?DateTimeImmutable $periodEnd,
         ?string $actorUserId,
+        ?Subscriber $subscriber = null,
+    ): Subscription;
+
+    /**
+     * One subscription by id, whatever its status or subscriber. A seat is not
+     * reachable by (tenant, product) — that is the tenant's own.
+     */
+    public function findById(string $subscriptionId): ?Subscription;
+
+    /**
+     * Every live subscription entitling this person: the tenant's own, plus
+     * their seat if they hold one.
+     *
+     * @return list<Subscription>
+     */
+    public function liveFor(string $tenantId, string $productId, string $userId): array;
+
+    /**
+     * Records a cancellation decision: the schedule flag, the effective date
+     * the customer was told, and the event.
+     *
+     * The date is stored rather than recomputed on read, because "I
+     * cancelled" against "we received nothing" needs an arbiter, and a
+     * recomputation would answer with today's rules rather than the ones in
+     * force when the request was made.
+     */
+    public function scheduleCancellation(
+        Subscription $subscription,
+        CancellationDecision $decision,
+        ?string $actorUserId,
     ): Subscription;
 
     /**

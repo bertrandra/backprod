@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Commerce\Service;
 
+use App\Commerce\Domain\CancellationDecision;
+use App\Commerce\Domain\CancellationPolicy;
 use App\Commerce\Domain\SubscribedOffer;
+use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionEvent;
 use App\Commerce\Domain\SubscriptionRepository;
@@ -29,6 +32,7 @@ final class Subscriptions
     public function __construct(
         private readonly SubscriptionRepository $subscriptions,
         private readonly Catalogue $catalogue,
+        private readonly CancellationPolicy $policy,
     ) {
     }
 
@@ -68,11 +72,24 @@ final class Subscriptions
         string $productId,
         string $offerId,
         ?string $actorUserId,
+        ?Subscriber $subscriber = null,
     ): Subscription {
-        if ($this->current($tenantId, $productId) !== null) {
+        $subscriber ??= Subscriber::tenant();
+
+        // A seat and the tenant's own subscription are different scopes, so
+        // "already subscribed" is a different question for each. The unique
+        // indexes are what actually decide under concurrency; this refusal is
+        // the message a client can act on.
+        $existing = $subscriber->isSeat()
+            ? $this->seatOf($tenantId, $productId, (string) $subscriber->userId)
+            : $this->current($tenantId, $productId);
+
+        if ($existing !== null) {
             throw new ConflictException(
                 'ALREADY_SUBSCRIBED',
-                'This tenant already has a subscription for this product.',
+                $subscriber->isSeat()
+                    ? 'This person already holds a seat for this product.'
+                    : 'This tenant already has a subscription for this product.',
             );
         }
 
@@ -84,7 +101,42 @@ final class Subscriptions
             $offer,
             $offer->version->periodEndFrom(new DateTimeImmutable()),
             $actorUserId,
+            $subscriber,
         );
+    }
+
+    /**
+     * The seat a person holds for a product, if any.
+     */
+    public function seatOf(string $tenantId, string $productId, string $userId): ?Subscription
+    {
+        foreach ($this->subscriptions->liveFor($tenantId, $productId, $userId) as $subscription) {
+            if ($subscription->subscriber->isSeat()) {
+                return $subscription;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether this person is entitled to the product right now, by the
+     * tenant's subscription or by a seat of their own.
+     *
+     * Two questions, both of which must be yes: live at this moment, and
+     * addressed to them (§13.1).
+     */
+    public function entitles(string $tenantId, string $productId, string $userId): bool
+    {
+        $now = new DateTimeImmutable();
+
+        foreach ($this->subscriptions->liveFor($tenantId, $productId, $userId) as $subscription) {
+            if ($subscription->entitlesAt($userId, $now)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -120,17 +172,87 @@ final class Subscriptions
         );
     }
 
+    /**
+     * Cancels, or explains why it cannot be cancelled now (§13.1).
+     *
+     * The decision comes back with the subscription rather than instead of
+     * it, because both matter to the caller: what the subscription looks like
+     * afterwards, and which rule produced that. A refusal is recorded too —
+     * "I cancelled" against "we received nothing" needs an arbiter.
+     *
+     * @return array{subscription: Subscription, decision: CancellationDecision}
+     */
     public function cancel(
         string $tenantId,
         string $productId,
         bool $immediately,
         ?string $actorUserId,
-    ): Subscription {
-        return $this->subscriptions->cancel(
-            $this->requireCurrent($tenantId, $productId),
-            $immediately,
-            $actorUserId,
-        );
+        ?string $subscriptionId = null,
+    ): array {
+        $subscription = $subscriptionId === null
+            ? $this->requireCurrent($tenantId, $productId)
+            : $this->requireOwn($tenantId, $productId, $subscriptionId);
+
+        $decision = $this->policy->decide($subscription, new DateTimeImmutable(), $immediately);
+
+        if (!$decision->accepted) {
+            throw new ConflictException(
+                'CANCELLATION_NOT_PERMITTED',
+                'This subscription cannot be cancelled on these terms.',
+                $decision->toArray(),
+            );
+        }
+
+        return [
+            'subscription' => $this->subscriptions->scheduleCancellation(
+                $subscription,
+                $decision,
+                $actorUserId,
+            ),
+            'decision' => $decision,
+        ];
+    }
+
+    /**
+     * What a customer actually wants to know: until when is it paid, until
+     * when am I committed, and when may I leave (§13.1).
+     *
+     * @return array{subscription: Subscription, decision: CancellationDecision}
+     */
+    public function schedule(string $tenantId, string $productId, ?string $subscriptionId = null): array
+    {
+        $subscription = $subscriptionId === null
+            ? $this->requireCurrent($tenantId, $productId)
+            : $this->requireOwn($tenantId, $productId, $subscriptionId);
+
+        // The same decision the cancel endpoint would make, with no side
+        // effect — the diagnostic and the action cannot disagree because they
+        // are one code path, as with the fiscal module's /tax/calculate.
+        return [
+            'subscription' => $subscription,
+            'decision' => $this->policy->decide($subscription, new DateTimeImmutable()),
+        ];
+    }
+
+    /**
+     * A subscription of this tenant and product, by id.
+     *
+     * Scoped rather than fetched bare: an id is not an authorisation, and a
+     * seat belonging to another tenant must answer the same way as one that
+     * does not exist.
+     */
+    private function requireOwn(string $tenantId, string $productId, string $subscriptionId): Subscription
+    {
+        $subscription = $this->subscriptions->findById($subscriptionId);
+
+        if ($subscription === null
+            || $subscription->tenantId !== $tenantId
+            || $subscription->productId !== $productId
+        ) {
+            throw new NotFoundException('Subscription not found.', [], 'SUBSCRIPTION_NOT_FOUND');
+        }
+
+        return $subscription;
     }
 
     public function resume(string $tenantId, string $productId, ?string $actorUserId): Subscription

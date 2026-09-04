@@ -39,6 +39,19 @@ final class OfferVersion
         public readonly DateTimeImmutable $validFrom,
         public readonly ?DateTimeImmutable $validUntil,
         public readonly array $grants,
+        /**
+         * What this version commits a subscriber to (§13.1). Defaulted to
+         * open-ended so every offer written before terms existed keeps
+         * meaning exactly what it meant: month-to-month, no commitment.
+         */
+        public readonly SubscriptionTerms $terms = new SubscriptionTerms(
+            null,
+            0,
+            SubscriptionTerms::ANYTIME,
+            SubscriptionTerms::AUTO_RENEW,
+            SubscriptionTerms::FORBIDDEN,
+            0,
+        ),
     ) {
     }
 

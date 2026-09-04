@@ -41,7 +41,25 @@ final class SubscriptionPresenter
             'current_period_start' => self::moment($subscription->currentPeriodStart),
             'current_period_end' => self::nullableMoment($subscription->currentPeriodEnd),
             'cancel_at_period_end' => $subscription->cancelAtPeriodEnd,
+            'cancel_effective_at' => self::nullableMoment($subscription->cancelEffectiveAt),
             'cancelled_at' => self::nullableMoment($subscription->cancelledAt),
+            // Who is bound, and by what (§13.1). The terms are the ones
+            // snapshotted when this was taken out, not the offer's current
+            // ones — which is the whole point of snapshotting them.
+            'subscriber' => [
+                'kind' => $subscription->subscriber->kind,
+                'user_id' => $subscription->subscriber->userId,
+            ],
+            'terms' => [
+                'term_months' => $subscription->terms->termMonths,
+                'term_ends_at' => self::nullableMoment($subscription->termEndsAt),
+                'commitment_months' => $subscription->terms->commitmentMonths,
+                'commitment_ends_at' => self::nullableMoment($subscription->commitmentEndsAt),
+                'cancellation_policy' => $subscription->terms->cancellationPolicy,
+                'renewal' => $subscription->terms->renewal,
+                'early_termination' => $subscription->terms->earlyTermination,
+                'notice_days' => $subscription->terms->noticeDays,
+            ],
             'ended_at' => self::nullableMoment($subscription->endedAt),
         ];
     }

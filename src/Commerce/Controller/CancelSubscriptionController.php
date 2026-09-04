@@ -31,13 +31,20 @@ final class CancelSubscriptionController implements RouteHandler
         $context = RequestContextReader::from($request);
         $context->requirePermission('subscription.manage');
 
-        $subscription = $this->subscriptions->cancel(
+        $outcome = $this->subscriptions->cancel(
             $context->tenantId,
             $context->productId,
             JsonBody::of($request)->optionalBool('immediately'),
             $context->userId,
         );
 
-        return new JsonResponse(SubscriptionPresenter::one($subscription), 200);
+        // The decision travels with the subscription. What a customer needs
+        // to know is not "cancelled: true" but *when* it takes effect and
+        // which rule decided that (§13.1).
+        return new JsonResponse(
+            SubscriptionPresenter::one($outcome['subscription'])
+            + ['cancellation' => $outcome['decision']->toArray()],
+            200,
+        );
     }
 }
