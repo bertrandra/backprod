@@ -7,6 +7,7 @@ namespace App\Commerce\Controller;
 use App\Commerce\Service\Subscriptions;
 use App\Shared\Context\RequestContextReader;
 use App\Shared\Http\JsonBody;
+use App\Shared\Http\RequestId;
 use App\Shared\Http\RouteHandler;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
@@ -29,6 +30,13 @@ final class CancelSubscriptionController implements RouteHandler
     {
     }
 
+    private static function requestId(ServerRequestInterface $request): ?string
+    {
+        $id = $request->getAttribute(RequestId::ATTRIBUTE);
+
+        return $id instanceof RequestId ? $id->toString() : null;
+    }
+
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
         $context = RequestContextReader::from($request);
@@ -45,6 +53,12 @@ final class CancelSubscriptionController implements RouteHandler
             // flag rather than an id: whose seat it could be is already
             // settled by the context.
             $body->optionalBool('seat'),
+            // §30's fourth correlation key, and the only one the service
+            // cannot derive for itself. Passed explicitly rather than read
+            // from a request-scoped singleton, which would be a hidden
+            // dependency on there being a request at all — and the renewal
+            // job that will call this has none.
+            self::requestId($request),
         );
 
         // The decision travels with the subscription. What a customer needs

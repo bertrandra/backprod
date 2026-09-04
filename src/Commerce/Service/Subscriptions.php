@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Commerce\Service;
 
+use App\Audit\Domain\AuditLog;
+use App\Audit\Domain\AuditRecord;
 use App\Commerce\Domain\CancellationDecision;
 use App\Commerce\Domain\CancellationPolicy;
 use App\Commerce\Domain\EarlyTerminationCharge;
@@ -35,6 +37,7 @@ final class Subscriptions
         private readonly Catalogue $catalogue,
         private readonly CancellationPolicy $policy,
         private readonly EarlyTerminationCharge $charges,
+        private readonly AuditLog $audit,
     ) {
     }
 
@@ -200,6 +203,7 @@ final class Subscriptions
         bool $immediately,
         ?string $actorUserId,
         bool $seat = false,
+        ?string $requestId = null,
     ): array {
         $subscription = $this->subscriptionFor($tenantId, $productId, $actorUserId, $seat);
 
@@ -216,16 +220,40 @@ final class Subscriptions
         /** @var string|null $chargeInvoiceId assigned by reference inside the transaction */
         $chargeInvoiceId = null;
 
-        $alsoCharge = null;
-
-        // Only a buy-out with something outstanding raises a document. A free
-        // early exit and a deferral both cost nothing, and a €0 invoice for
-        // them would be a permanent, unremovable record of no transaction.
-        if (($decision->chargeableMonths ?? 0) > 0) {
-            $alsoCharge = function (Subscription $released) use (&$chargeInvoiceId, $decision, $actorUserId): void {
+        // Runs on the cancellation's transaction: the release, whatever it
+        // costs, and the record of who ended it commit together or not at
+        // all. An audit that can be lost while its act succeeds is a log
+        // line, and a charge that can be lost is revenue.
+        $alsoCharge = function (Subscription $released) use (
+            &$chargeInvoiceId,
+            $decision,
+            $actorUserId,
+            $requestId,
+            $tenantId,
+            $productId,
+        ): void {
+            // Only a buy-out with something outstanding raises a document. A
+            // free early exit and a deferral both cost nothing, and a €0
+            // invoice would be a permanent record of no transaction.
+            if (($decision->chargeableMonths ?? 0) > 0) {
                 $chargeInvoiceId = $this->charges->applyCharge($released, $decision, $actorUserId);
-            };
-        }
+            }
+
+            $this->audit->applyRecord(AuditRecord::of(
+                'subscription.cancelled',
+                'subscription',
+                $released->id,
+                $tenantId,
+                $productId,
+                $actorUserId,
+                null,
+                $requestId,
+                // The decision, not a summary of it: which rule decided, when
+                // it takes effect and what it cost are exactly what a dispute
+                // about this cancellation will ask for.
+                $decision->toArray() + ['charge_invoice_id' => $chargeInvoiceId],
+            ));
+        };
 
         $released = $this->subscriptions->scheduleCancellation(
             $subscription,
@@ -252,6 +280,7 @@ final class Subscriptions
         string $productId,
         ?string $actorUserId = null,
         bool $seat = false,
+        ?string $requestId = null,
     ): array {
         $subscription = $this->subscriptionFor($tenantId, $productId, $actorUserId, $seat);
 

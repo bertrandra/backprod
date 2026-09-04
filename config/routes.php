@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Admin\Controller\ListAuditController;
 use App\Billing\Controller\CancelInvoiceController;
 use App\Billing\Controller\IssueCreditNoteController;
 use App\Billing\Controller\IssueInvoiceController;
@@ -319,6 +320,12 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/staff/tenants', ListTenantsController::class);
     $routes->addRoute('GET', '/api/v1/staff/tenants/{tenantId}', ShowTenantController::class);
     $routes->addRoute('GET', '/api/v1/staff/access-log', ListAccessLogController::class);
+
+    // Admin / operations (§10.1). Same platform identity as /staff, a
+    // different audience and a different permission: support reads the staff
+    // access trail, operations reads the platform's audit trail. Nothing
+    // under here is reachable with a tenant membership.
+    $routes->addRoute('GET', '/api/v1/admin/audit', ListAuditController::class);
 
     // Support: the platform's side of §12.3. Only SUPPORT threads are
     // reachable — the repository filters on kind in SQL, so a tenant's

@@ -393,6 +393,60 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
         self::assertSame('USER', $subscriber['kind'] ?? null);
     }
 
+    /**
+     * A cancellation nobody can be held to is not much of a record (§30).
+     *
+     * Written on the cancellation's own transaction, so it cannot be the
+     * half that got lost — and carrying the decision itself, because "which
+     * rule released this customer, and what did it cost them?" is exactly
+     * what a dispute asks.
+     */
+    public function testCancellingIsRecordedInTheAuditTrail(): void
+    {
+        $this->subscribeTo($this->buyoutOffer);
+        $this->cancel(immediately: true);
+
+        $entry = $this->connection->fetchAssociative(
+            "SELECT action, subject_type, tenant_id, user_id, request_id, detail
+               FROM audit_log WHERE action = 'subscription.cancelled'",
+        );
+
+        self::assertIsArray($entry);
+        self::assertSame('subscription', $entry['subject_type'] ?? null);
+        self::assertSame($this->tenant, $entry['tenant_id'] ?? null);
+        self::assertSame($this->user, $entry['user_id'] ?? null);
+
+        // The middleware gives every request an id; the point is that it
+        // reached the trail, not what it was.
+        self::assertNotNull($entry['request_id'] ?? null);
+
+        $detail = $entry['detail'] ?? null;
+        self::assertIsString($detail);
+
+        /** @var array<string, mixed> $decoded */
+        $decoded = json_decode($detail, true);
+        self::assertSame('cancel.early_termination', $decoded['rule_id'] ?? null);
+        self::assertSame(11, $decoded['chargeable_months'] ?? null);
+        self::assertIsString($decoded['charge_invoice_id'] ?? null);
+    }
+
+    /**
+     * The release and its record are one fact. When the charge cannot be
+     * raised the whole transaction goes, and a trail claiming a cancellation
+     * that never happened would be worse than no trail.
+     */
+    public function testNothingIsRecordedWhenTheCancellationRollsBack(): void
+    {
+        $this->subscribeTo($this->buyoutOffer);
+        $this->connection->executeStatement('DELETE FROM billing_profiles');
+
+        self::assertSame(409, $this->cancel(immediately: true)->getStatusCode());
+
+        self::assertSame(0, $this->rowsMatching(
+            "SELECT count(*) FROM audit_log WHERE action = 'subscription.cancelled'",
+        ));
+    }
+
     // --- Helpers ------------------------------------------------------------
 
     private function cancel(bool $immediately = false): ResponseInterface
