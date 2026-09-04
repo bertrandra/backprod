@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Tests\Unit;
 
 use App\Notification\Domain\Category;
-use App\Notification\Domain\Consent;
 use App\Notification\Domain\Channel;
+use App\Notification\Domain\Consent;
 use App\Notification\Domain\Delivery;
 use App\Notification\Domain\DeliveryGate;
 use PHPUnit\Framework\Attributes\CoversClass;
