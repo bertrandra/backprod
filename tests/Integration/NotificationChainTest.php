@@ -202,14 +202,10 @@ final class NotificationChainTest extends DatabaseApiTestCase
     {
         $this->raise('export.ready', Category::ACCOUNT, [Channel::SCREEN]);
 
-        $id = $this->decode(
-            $this->request('GET', '/api/v1/notifications', $this->headers()),
-        )['notifications'][0]['id'] ?? null;
+        $id = $this->newestId();
 
-        self::assertIsString($id);
-
-        $first = $this->decode($this->read($id))['notification']['read_at'] ?? null;
-        $second = $this->decode($this->read($id))['notification']['read_at'] ?? null;
+        $first = $this->readAt($id);
+        $second = $this->readAt($id);
 
         // "When did they see it?" has one answer, and the first one is true.
         self::assertNotNull($first);
@@ -236,11 +232,7 @@ final class NotificationChainTest extends DatabaseApiTestCase
         $this->raise('payment.failed', Category::BILLING, [Channel::SMS, Channel::SCREEN]);
         $this->dispatch();
 
-        $id = $this->decode(
-            $this->request('GET', '/api/v1/notifications', $this->headers()),
-        )['notifications'][0]['id'] ?? null;
-
-        self::assertIsString($id);
+        $id = $this->newestId();
 
         $deliveries = $this->decode(
             $this->request('GET', '/api/v1/notifications/' . $id . '/deliveries', $this->headers()),
@@ -275,15 +267,21 @@ final class NotificationChainTest extends DatabaseApiTestCase
 
         foreach ($preferences as $preference) {
             self::assertIsArray($preference);
-            $byKey[$preference['category'] . ':' . $preference['channel']] = $preference;
+
+            $category = $preference['category'] ?? null;
+            $channel = $preference['channel'] ?? null;
+            self::assertIsString($category);
+            self::assertIsString($channel);
+
+            $byKey[$category . ':' . $channel] = $preference;
         }
 
         // A client rendering a settings screen should not have to know that
         // an absent row means enabled, nor that marketing is the exception.
-        self::assertTrue($byKey['BILLING:EMAIL']['enabled'] ?? null);
-        self::assertFalse($byKey['MARKETING:EMAIL']['enabled'] ?? null);
-        self::assertFalse($byKey['SECURITY:EMAIL']['mutable'] ?? null);
-        self::assertTrue($byKey['BILLING:SMS']['requires_consent'] ?? null);
+        self::assertTrue(self::flag($byKey, 'BILLING:EMAIL', 'enabled'));
+        self::assertFalse(self::flag($byKey, 'MARKETING:EMAIL', 'enabled'));
+        self::assertFalse(self::flag($byKey, 'SECURITY:EMAIL', 'mutable'));
+        self::assertTrue(self::flag($byKey, 'BILLING:SMS', 'requires_consent'));
     }
 
     // --- helpers ------------------------------------------------------------
@@ -435,5 +433,69 @@ final class NotificationChainTest extends DatabaseApiTestCase
         self::assertIsNumeric($count);
 
         return (int) $count;
+    }
+
+    /**
+     * The id of the newest notification, asserted down to a string so the
+     * tests read as statements about notifications rather than about array
+     * offsets. `decode()` gives array<string, mixed>, so one offset is typed
+     * and the second is not.
+     */
+    private function newestId(): string
+    {
+        $body = $this->decode($this->request('GET', '/api/v1/notifications', $this->headers()));
+
+        $notifications = $body['notifications'] ?? null;
+        self::assertIsArray($notifications);
+        self::assertNotSame([], $notifications);
+
+        $newest = $notifications[0];
+        self::assertIsArray($newest);
+
+        $id = $newest['id'] ?? null;
+        self::assertIsString($id);
+
+        return $id;
+    }
+
+    /**
+     * When a notification was first read, or null.
+     */
+    private function readAt(string $notificationId): ?string
+    {
+        $notification = $this->decode($this->read($notificationId))['notification'] ?? null;
+        self::assertIsArray($notification);
+
+        $readAt = $notification['read_at'] ?? null;
+
+        return is_string($readAt) ? $readAt : null;
+    }
+
+    /**
+     * One boolean out of the preference matrix.
+     *
+     * @param array<string, mixed> $matrix
+     */
+    private static function flag(array $matrix, string $key, string $field): bool
+    {
+        $row = $matrix[$key] ?? null;
+        self::assertIsArray($row);
+
+        $value = $row[$field] ?? null;
+        self::assertIsBool($value);
+
+        return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $parameters
+     */
+    private function id(string $sql, array $parameters = []): string
+    {
+        $id = $this->connection->fetchOne($sql, $parameters);
+
+        self::assertIsString($id);
+
+        return $id;
     }
 }
