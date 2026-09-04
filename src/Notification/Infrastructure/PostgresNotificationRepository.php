@@ -498,6 +498,12 @@ final class PostgresNotificationRepository implements NotificationRepository
         $payload = $row['payload'] ?? null;
         $decoded = is_string($payload) ? json_decode($payload, true) : null;
 
+        // json_decode gives array<mixed>; the constructor wants a keyed one,
+        // and is_array() does not narrow the key type. Same annotation the
+        // tax repository uses for the same reason.
+        /** @var array<string, mixed> $body */
+        $body = is_array($decoded) ? $decoded : [];
+
         return new Notification(
             Row::string($row, 'id'),
             Row::string($row, 'tenant_id'),
@@ -505,7 +511,7 @@ final class PostgresNotificationRepository implements NotificationRepository
             Row::string($row, 'recipient_user_id'),
             Row::string($row, 'type'),
             Row::string($row, 'category'),
-            is_array($decoded) ? $decoded : [],
+            $body,
             Row::nullableString($row, 'dedup_key'),
             self::boolean($row, 'legal_effect'),
             Row::timestamp($row, 'created_at'),
@@ -541,6 +547,9 @@ final class PostgresNotificationRepository implements NotificationRepository
         $evidence = $row['evidence'] ?? null;
         $decoded = is_string($evidence) ? json_decode($evidence, true) : null;
 
+        /** @var array<string, mixed> $proof */
+        $proof = is_array($decoded) ? $decoded : [];
+
         return new Consent(
             Row::string($row, 'id'),
             Row::string($row, 'user_id'),
@@ -549,7 +558,7 @@ final class PostgresNotificationRepository implements NotificationRepository
             Row::timestamp($row, 'granted_at'),
             Row::nullableTimestamp($row, 'revoked_at'),
             Row::string($row, 'source'),
-            is_array($decoded) ? $decoded : [],
+            $proof,
         );
     }
 

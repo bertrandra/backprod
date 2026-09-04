@@ -193,7 +193,10 @@ final class NotificationChainTest extends DatabaseApiTestCase
         self::assertSame(1, $body['total'] ?? null);
         self::assertSame(1, $body['unread'] ?? null);
 
-        $notification = $body['notifications'][0] ?? null;
+        $notifications = $body['notifications'] ?? null;
+        self::assertIsArray($notifications);
+
+        $notification = $notifications[0] ?? null;
         self::assertIsArray($notification);
         self::assertSame('export.ready', $notification['type'] ?? null);
     }
@@ -241,17 +244,29 @@ final class NotificationChainTest extends DatabaseApiTestCase
         self::assertIsArray($deliveries);
         self::assertCount(2, $deliveries);
 
+        /** @var array<string, string|null> $reasons */
         $reasons = [];
 
         foreach ($deliveries as $delivery) {
             self::assertIsArray($delivery);
-            $reasons[(string) ($delivery['channel'] ?? '')] = $delivery['suppression_reason'] ?? null;
+
+            $channel = $delivery['channel'] ?? null;
+            self::assertIsString($channel);
+
+            $reason = $delivery['suppression_reason'] ?? null;
+            $reasons[$channel] = is_string($reason) ? $reason : null;
         }
 
         // This is the endpoint that answers "did you text me about this?"
         // with something better than a shrug.
         self::assertSame('NO_CONSENT', $reasons[Channel::SMS] ?? null);
-        self::assertNull($reasons[Channel::SCREEN] ?? 'unset');
+
+        // The screen delivery is present *and* unsuppressed. Written as two
+        // assertions because "?? 'unset'" cannot express it: ?? fires on a
+        // null value as readily as on a missing key, so that form asserts
+        // something no run could ever satisfy.
+        self::assertArrayHasKey(Channel::SCREEN, $reasons);
+        self::assertNull($reasons[Channel::SCREEN]);
     }
 
     public function testPreferencesComeBackWithDefaultsFilledIn(): void
@@ -319,7 +334,7 @@ final class NotificationChainTest extends DatabaseApiTestCase
             $channels,
         );
 
-        return $notification?->id ?? '';
+        return $notification->id ?? '';
     }
 
     /**

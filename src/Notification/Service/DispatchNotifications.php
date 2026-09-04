@@ -174,7 +174,9 @@ final class DispatchNotifications implements JobHandler
             return '';
         }
 
-        return $this->users->find($userId)?->email ?? '';
+        // ?? already suppresses the read on null, so ?-> is redundant here
+        // and PHPStan rejects it (nullsafe.neverNull).
+        return $this->users->find($userId)->email ?? '';
     }
 
     /**
