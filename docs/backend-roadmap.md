@@ -363,7 +363,7 @@ base64 payload can reach JSONB.
 
 ---
 
-### M5.1 — Abonnements : durée, engagement, résiliation
+### M5.1 — Abonnements : durée, engagement, résiliation — *delivered ([ADR-030](adr/ADR-030-commitment-terms-and-motivated-cancellation.md))*
 
 **Goal:** make a subscription a contract with a duration rather than a
 recurring charge that anyone can stop at any time. Specified in
