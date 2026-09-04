@@ -53,11 +53,19 @@ M6.2 Staff identity & messaging     platform roles, audited access, conversation
       ↓
 M7  Storage & jobs                  assets, exports, async operations
       ↓
+M5.1 Abonnements: engagement        total term, commitment, cancellation policy
+      ↓
+M7.1 Notifications                  one event, many channels, consent-gated
+      ↓
 M8  Admin, audit & hardening        financial dashboard API, observability, RGPD
 ```
 
 M0–M2 are strictly sequential — they build the security boundary. M4 onward
 can overlap once the pipeline is frozen.
+
+A decimal number says which milestone a unit *extends*, not when it runs.
+M5.1 revisits M5's `subscriptions` table long after M5 shipped; M7.1 needs
+M7's queue before it can send anything.
 
 ---
 
@@ -355,6 +363,99 @@ base64 payload can reach JSONB.
 
 ---
 
+### M5.1 — Abonnements : durée, engagement, résiliation
+
+**Goal:** make a subscription a contract with a duration rather than a
+recurring charge that anyone can stop at any time. Specified in
+`architecture-v2.md` §13.1.
+
+M5 gives a subscription a billing period and `cancel_at_period_end`, which is
+the right answer for a month-to-month plan and the wrong one for a B2B deal.
+Nothing today can express "24 months, billed monthly, no exit before month
+12" — so nothing today can refuse an exit at month two.
+
+```text
+today:   billing_period + cancel_at_period_end
+M5.1:    billing_period + term + commitment + cancellation policy + renewal
+```
+
+**Deliverables**
+- Migration extending `offer_versions` (`term_months`, `commitment_months`,
+  `cancellation_policy`, `renewal`, `early_termination`, `notice_days`) and
+  `subscriptions` (the same, snapshotted, plus `subscriber_kind`,
+  `subscriber_user_id`, `term_ends_at`, `commitment_ends_at`,
+  `cancel_effective_at`)
+- The invariants as CHECK constraints, not service code: commitment ≤ term, a
+  commitment date exactly when there is a commitment, a named subscriber
+  exactly when the subscriber is a person
+- Replace `subscriptions_one_active_per_product` with the two partial unique
+  indexes — one per subscriber kind
+- Seat subscriptions: `subscriber_kind = USER` entitles that person only;
+  entitlement resolution learns the distinction, and a `USER` subscriber
+  outside the tenant is refused
+- Cancellation service returning a **motivated** decision (accepted with its
+  effective date, or refused with which rule refused it) — never a bare
+  boolean
+- `CHARGE_REMAINING` early exit invoiced through the existing billing chain
+- Endpoints: `POST /subscriptions/{id}/cancel`, `/resume`,
+  `GET /subscriptions/{id}/schedule`
+
+**Tests (§37.4 Abonnements):** cancellation under a `FORBIDDEN` commitment
+refused; under `AT_COMMITMENT_END` deferred; outside commitment effective at
+period end; a repriced offer changing no subscribed condition; two
+simultaneous subscriptions racing the index; a `USER` subscription entitling
+one person and not the tenant.
+
+**Exit criteria:** a 24-month commitment billed monthly refuses a month-two
+cancellation and says which rule refused it; changing the offer's terms
+leaves every existing subscription byte-identical; the seat index refuses a
+second active subscription for the same person under concurrency.
+
+**Why now:** every subscription sold before this ships is sold without a
+term. Those are contracts — re-deriving a commitment after the fact means
+asserting a customer agreed to something the database never recorded.
+
+---
+
+### M7.1 — Notifications multi-canal
+
+**Goal:** one event, many channels, none of them in the request path.
+Specified in `architecture-v2.md` §27.1.
+
+Four features are already waiting on this: unread messages (§12.3, deferred
+from M6.2), payment failure (§24), export ready (§15), and the pre-renewal
+notice M5.1 needs in order to renew anything tacitly.
+
+**Deliverables**
+- Migration: `notifications`, `notification_deliveries`,
+  `notification_preferences`, `notification_consents`
+- **`UNIQUE (notification_id, channel)`** — the retried job must not send a
+  second SMS (ADR-027 requires idempotent handlers; here a duplicate costs
+  money)
+- `Notifier` port with `ScreenChannel`, `EmailChannel`, `SmsChannel`,
+  `WhatsAppChannel` adapters; no provider name in the domain, and a Deptrac
+  rule saying so
+- `notify.dispatch` job handler; producers write the notification inside
+  their own transaction and the queue delivers it
+- Consent gate: no consent, no attempt — the delivery is written
+  `SUPPRESSED` with its reason, never dropped silently
+- `SECURITY` category not switchable off, including staff access to tenant
+  data (non-negotiable #21)
+- Rendered body retained for notifications with legal effect
+- Endpoints: `/notifications`, `/notifications/{id}/read`,
+  `/notifications/preferences`, `/notifications/consents`
+
+**Tests (§37.4 Notifications):** refusals first — no consent, revoked
+consent, muted channel, and `SECURITY` delivered anyway; then the replayed
+job that must not double-send, one failed channel not taking the others down,
+and a burst deduplicated to one notice.
+
+**Exit criteria:** an SMS is never attempted without a stored, dated consent;
+running the dispatch job twice on the same notification sends once; a
+notification never appears in a conversation.
+
+---
+
 ### M8 — Admin, audit & hardening
 
 **Goal:** operable, auditable, compliant.
@@ -428,6 +529,8 @@ A PR carries code + tests + architecture impact + migration.
 | R6 | Supabase coupling spreading past the adapter | Medium — violates provider independence | Deptrac rule: only `Auth/Infrastructure` may reference the Supabase SDK |
 | R7 | **VAT rates are wrong or stale.** The EU-27 table in §25.3 is a paramétrage seed, not a fiscal authority; four standard rates moved between 2024 and 2025, and an invoice issued at a wrong rate is a legal document that cannot be quietly recomputed | High, regulatory | Cross-checked against public sources on 2026-09-03, which caught the four recent moves (EE, RO, SK, FI). Still to do before M6.1 ships: confirm against official sources (Commission européenne, administrations nationales), as R3 requires for the e-invoicing deadlines. Load each rate **with its validity window** so a correction closes one window and opens another instead of overwriting history |
 | R9 | **Messaging becomes a cross-tenant leak.** A conversation is the first resource two different tenants might plausibly both touch, and staff routes cross the boundary by design | **Critical** — breaks non-negotiable #8 | Isolation tested before behaviour (§37.4); staff and tenant surfaces separated end to end, never one controller branching on `isStaff`; participation enforced by foreign key |
+| R11 | **Tacit renewal without the legally required prior notice.** Renewing a committed subscription silently is the kind of clause consumer law constrains, and the constraint is a deadline — a notice sent late is a notice not sent | High, regulatory | §13.1 derives the notice from `term_ends_at` / `commitment_ends_at`, and §27.1 keeps the attempt *and* the rendered body so "did we tell them, and what did we say?" is answerable. The exact deadlines, especially toward consumers, are **to be confirmed against official sources before M5.1 ships** — the same discipline R3 and R7 impose on e-invoicing dates and VAT rates |
+| R12 | **A retried job sends a second SMS.** ADR-027 requires idempotent handlers because an expired lease lets two copies finish; on a paid channel a duplicate is billed and it annoys the recipient, and on WhatsApp it risks the sender's standing | Medium — financial and reputational | Exactly-once is `UNIQUE (notification_id, channel)`, not a check the two copies both pass. Suppression is a recorded outcome, so a non-send is distinguishable from a lost send |
 | R8 | **Reverse charge granted on an unverified VAT number.** Invoicing intra-EU B2B at zero without proof of verification leaves the supplier liable for the tax | High, financial | `VatNumberValidator` fails closed; the verification result is stored with its date as audit evidence; the §37.4 fiscal scenarios cover VIES being unreachable |
 
 ---

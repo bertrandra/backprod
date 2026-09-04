@@ -169,6 +169,7 @@ PaymentProvider
 EInvoiceProvider
 VatNumberValidator
 StorageProvider
+Notifier
 CadastreProvider
 ```
 
@@ -199,6 +200,103 @@ Offers are versioned and historical offers must not be destructively rewritten.
 `valid_from` / `valid_until` describe commercial validity of an offer and are distinct from subscription dates.
 
 Authorization must use capabilities/entitlements, not scattered plan-name checks.
+
+Commitment terms — total term, commitment period, cancellation policy — are
+in the section below.
+
+## Subscription terms: duration, commitment, cancellation
+
+Full specification in `docs/architecture-v2.md` §13.1.
+
+Five durations, and they are not the same duration:
+
+```text
+billing_period       how often the customer pays
+term_months          how long the subscription runs        NULL = open-ended
+commitment_months    how long it cannot be cancelled       0 = no commitment
+current_period_end   how long the service is owed for
+notice_days          delay between the request and effect
+```
+
+**The payment period is not the commitment.** A 24-month subscription paid
+monthly is one 24-month commitment billed 24 times, not 24 one-month
+subscriptions. Confusing the two lets a customer walk out of a two-year
+contract after a month.
+
+A subscriber is a tenant or a named user:
+
+```text
+subscriber_kind = TENANT   entitles every member
+subscriber_kind = USER     entitles that person only (a seat)
+```
+
+A subscription **always names a tenant and a product**, even when the
+subscriber is a person — the tenant is the isolation context, the subscriber
+is the contracting party. A `USER` subscriber must be a member of that tenant.
+
+One active subscription per scope is a **partial unique index**, one per
+subscriber kind — never an application check, which two simultaneous
+subscriptions race straight through.
+
+Terms are carried by the offer version and **snapshotted into the
+subscription** when it is taken out, as values. Repricing or re-terming an
+offer must not change one condition a customer already agreed to — the same
+rule as the invoice snapshot and the fiscal snapshot.
+
+Cancellation obeys the clock, twice over: the service stays owed until the
+end of the paid period, and under commitment the request is refused or
+deferred by the offer's `cancellation_policy` — never silently accepted and
+then ignored. Every request is recorded with its effective date.
+
+Early exit is a product decision (`FORBIDDEN` / `CHARGE_REMAINING` / `FREE`).
+When it is charged, it is invoiced through the normal billing chain, never a
+special path.
+
+Renewal does not silently re-arm the commitment. Tacit renewal requires
+notifying the customer beforehand — that notice is a notification, and
+whether it was attempted must be answerable.
+
+## Notifications
+
+Full specification in `docs/architecture-v2.md` §27.1.
+
+Four things, kept apart:
+
+```text
+event          what happened                    payment.failed
+notification   the intent to inform someone     (recipient, event)
+delivery       one attempt on one channel       with its own outcome
+message        a human conversation (§12.3)     NOT a notification
+```
+
+A notification is never a message. A conversation has participants, an order
+and a reply; a notification is one-way. Mixing them puts system noise in
+support threads.
+
+Channels are adapters behind a `Notifier` port — screen, email, SMS,
+WhatsApp. No provider name in the domain, exactly like `PaymentProvider`,
+`EInvoiceProvider`, `StorageProvider` and `VatNumberValidator`.
+
+Sending goes through the M7 job queue. Never send inside the HTTP request: a
+slow SMS provider would become a slow API.
+
+Delivery is exactly-once by **unique index on `(notification_id, channel)`**,
+not by a check. A retried job must not send a second SMS — that one is billed
+and it annoys the recipient.
+
+Store the payload, render at send time. **Except** where the notification has
+legal effect (pre-renewal notice, formal demand, suspension notice): keep the
+rendered body, for the reason an invoice keeps its snapshot.
+
+SMS and WhatsApp are not email: no consent recorded, no send attempted. The
+delivery is written `SUPPRESSED` with its reason — fail closed, and never
+silent, because "did we tell them?" has to have an answer.
+
+`SECURITY` notifications cannot be switched off. A security notice the
+recipient can mute is one an attacker can mute.
+
+Never put a secret, a token, payment data or an exception trace in a
+notification payload. A channel leaves the platform.
 
 ## Platform staff vs tenant membership
 
@@ -248,7 +346,8 @@ Read state is a per-participant watermark (`last_read_seq`), monotone, never
 decreasing. Not a row per message read.
 
 No WebSockets and no held-open SSE: R2 means no persistent process. Polling
-with `since_seq`; unread notification is an M7 job.
+with `since_seq`; unread notification is a notification (§27.1) delivered by
+the M7 queue, not a message.
 
 A deleted message is really deleted — the body is erased, the row remains as
 a tombstone so the thread keeps its order. That is the opposite of an
