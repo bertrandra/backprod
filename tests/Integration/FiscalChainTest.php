@@ -212,8 +212,9 @@ final class FiscalChainTest extends DatabaseApiTestCase
         $response = $this->request('POST', '/api/v1/billing/invoices', $this->headers());
         self::assertSame(201, $response->getStatusCode());
 
-        $invoice = $this->decode($response)['invoice'] ?? null;
-        self::assertIsArray($invoice);
+        // The invoice endpoint answers with the presenter's output directly;
+        // there is no envelope around it.
+        $invoice = $this->decode($response);
 
         $facts = $this->decode(
             $this->request('GET', '/api/v1/tax/transactions', $this->headers()),
@@ -331,8 +332,7 @@ final class FiscalChainTest extends DatabaseApiTestCase
             'UPDATE vat_transactions SET transaction_date = current_date - 3',
         );
 
-        $closed = $this->decode($this->closePeriod($period))['declaration'] ?? null;
-        self::assertIsArray($closed);
+        $closed = $this->closedDeclaration($period);
         self::assertSame(1, $closed['transaction_count'] ?? null);
 
         $declaredVat = $closed['total_vat'] ?? null;
@@ -405,6 +405,29 @@ final class FiscalChainTest extends DatabaseApiTestCase
 
         // Closure is one-way and audited, so it takes tax.manage.
         self::assertSame(403, $this->closePeriod($period)->getStatusCode());
+    }
+
+    /**
+     * `tax_rates` is seed data loaded by a migration, and TestDatabase does not
+     * truncate it — rightly, since re-seeding 31 rate windows between every
+     * test would be slow and pointless. The consequence is that a test which
+     * *moves* a rate poisons every class running after it, which is exactly
+     * what happened: FR standard stayed at 25% and three later tests invoiced
+     * at a rate this class invented.
+     *
+     * So what this class changes, it puts back — in tearDown, which runs even
+     * when an assertion fails part-way through.
+     */
+    protected function tearDown(): void
+    {
+        // The seeded rows carry a source; the ones this class inserts do not.
+        $this->connection->executeStatement('DELETE FROM tax_rates WHERE source IS NULL');
+        $this->connection->executeStatement(
+            'UPDATE tax_rates SET valid_until = NULL'
+            . " WHERE country_code = 'FR' AND rate_kind = 'STANDARD'",
+        );
+
+        parent::tearDown();
     }
 
     // --- helpers ----------------------------------------------------------
@@ -482,6 +505,26 @@ final class FiscalChainTest extends DatabaseApiTestCase
     private function closePeriod(string $periodId): ResponseInterface
     {
         return $this->request('POST', '/api/v1/tax/reports/' . $periodId . '/close', $this->headers());
+    }
+
+    /**
+     * Closes a period and returns its declaration, asserting the status on the
+     * way so a refusal names itself rather than surfacing as "null is not an
+     * array" three lines later.
+     *
+     * @return array<string, mixed>
+     */
+    private function closedDeclaration(string $periodId): array
+    {
+        $response = $this->closePeriod($periodId);
+
+        self::assertSame(200, $response->getStatusCode(), (string) $response->getBody());
+
+        $declaration = $this->decode($response)['declaration'] ?? null;
+        self::assertIsArray($declaration);
+
+        /** @var array<string, mixed> $declaration */
+        return $declaration;
     }
 
     private function subscribe(): void
