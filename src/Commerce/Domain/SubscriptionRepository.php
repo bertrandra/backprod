@@ -123,15 +123,6 @@ interface SubscriptionRepository
     ): Subscription;
 
     /**
-     * Schedules the end of a subscription, or ends it now.
-     *
-     * Scheduled is the default because a customer who cancels on day two of
-     * a month they paid for keeps the month; immediate cancellation ends the
-     * entitlements with it.
-     */
-    public function cancel(Subscription $subscription, bool $immediately, ?string $actorUserId): Subscription;
-
-    /**
      * Withdraws a scheduled cancellation. Only meaningful while the
      * subscription is still live — one that has already ended is restarted
      * by subscribing again, not by resuming.

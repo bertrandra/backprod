@@ -222,61 +222,6 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
         );
     }
 
-    public function cancel(Subscription $subscription, bool $immediately, ?string $actorUserId): Subscription
-    {
-        return $this->connection->transactional(
-            function () use ($subscription, $immediately, $actorUserId): Subscription {
-                if (!$immediately) {
-                    // Still live, still entitled: a customer who cancels on
-                    // day two of a month they paid for keeps the month. The
-                    // entitlements already end when the period does.
-                    $this->connection->executeStatement(
-                        <<<'SQL'
-                            UPDATE subscriptions
-                               SET cancel_at_period_end = true, cancelled_at = now(), updated_at = now()
-                             WHERE id = :id
-                            SQL,
-                        ['id' => $subscription->id],
-                    );
-
-                    $this->record(
-                        $subscription->id,
-                        SubscriptionEvent::CANCELLATION_SCHEDULED,
-                        $subscription->offer->version->id,
-                        null,
-                        $actorUserId,
-                        [],
-                    );
-
-                    return $this->requireActive($subscription->tenantId, $subscription->productId);
-                }
-
-                $this->connection->executeStatement(
-                    <<<'SQL'
-                        UPDATE subscriptions
-                           SET status = 'CANCELLED', cancel_at_period_end = false,
-                               cancelled_at = now(), ended_at = now(), updated_at = now()
-                         WHERE id = :id
-                        SQL,
-                    ['id' => $subscription->id],
-                );
-
-                $this->record(
-                    $subscription->id,
-                    SubscriptionEvent::CANCELLED,
-                    $subscription->offer->version->id,
-                    null,
-                    $actorUserId,
-                    ['immediate' => true],
-                );
-
-                $this->endEntitlements($subscription->id);
-
-                return $this->latest($subscription->id);
-            },
-        );
-    }
-
     public function resume(Subscription $subscription, ?string $actorUserId): Subscription
     {
         return $this->connection->transactional(
@@ -284,7 +229,14 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
                 $this->connection->executeStatement(
                     <<<'SQL'
                         UPDATE subscriptions
-                           SET cancel_at_period_end = false, cancelled_at = NULL, updated_at = now()
+                           SET cancel_at_period_end = false,
+                               -- The date goes with the flag. The database
+                               -- refuses to hold one without the other, and
+                               -- a stale effective date on a resumed
+                               -- subscription is a promise to end it.
+                               cancel_effective_at = NULL,
+                               cancelled_at = NULL,
+                               updated_at = now()
                          WHERE id = :id AND status = 'ACTIVE'
                         SQL,
                     ['id' => $subscription->id],
@@ -572,6 +524,11 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
                         SQL,
                         ['id' => $subscription->id],
                     );
+
+                    // The entitlements go with it. There is no period left to
+                    // be inside, and a cancelled subscription still granting
+                    // capabilities is access nobody is paying for.
+                    $this->endEntitlements($subscription->id);
                 } else {
                     // Still live, and still owed, until the date the customer
                     // was given. Storing that date is what makes the promise
