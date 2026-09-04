@@ -99,9 +99,17 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
         SubscribedOffer $offer,
         ?DateTimeImmutable $periodEnd,
         ?string $actorUserId,
+        ?Subscriber $subscriber = null,
     ): Subscription {
         return $this->connection->transactional(
-            fn (): Subscription => $this->applyActivate($tenantId, $productId, $offer, $periodEnd, $actorUserId),
+            fn (): Subscription => $this->applyActivate(
+                $tenantId,
+                $productId,
+                $offer,
+                $periodEnd,
+                $actorUserId,
+                $subscriber,
+            ),
         );
     }
 

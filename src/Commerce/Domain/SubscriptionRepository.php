@@ -50,6 +50,7 @@ interface SubscriptionRepository
         SubscribedOffer $offer,
         ?DateTimeImmutable $periodEnd,
         ?string $actorUserId,
+        ?Subscriber $subscriber = null,
     ): Subscription;
 
     /**
