@@ -1093,7 +1093,9 @@ interrogation avec `since_seq`, ce qui est exactement ce que le filigrane
 rend efficace : le client demande ce qui a suivi ce qu'il a déjà lu.
 
 La notification d'un message non lu (courriel) relève des jobs de §27, donc
-de M7 — pas d'une boucle qui attend.
+de M7 — pas d'une boucle qui attend. Elle est une **notification** au sens de
+§27.1, pas un message : elle prévient qu'un fil a bougé, elle n'entre pas
+dedans.
 
 ## Pièces jointes
 
@@ -1169,6 +1171,229 @@ if ($plan === 'PRO') ...
 ```
 
 Les règles d'accès doivent être centralisées.
+
+Les conditions de durée, d'engagement et de résiliation d'un abonnement
+sont spécifiées en **§13.1**.
+
+---
+
+# 13.1 Abonnements — durée, périodicité, engagement, résiliation
+
+Un abonnement B2B ne se résume pas à « il paie tous les mois ». Quatre durées
+coexistent, elles ne coïncident pas, et les confondre est la faute qui coûte
+le plus cher : c'est elle qui laisse résilier au bout d'un mois un engagement
+de vingt-quatre.
+
+## Les cinq durées à ne pas confondre
+
+```text
+Périodicité de facturation   à quel rythme le client paie        MONTHLY | YEARLY
+Durée totale (terme)         combien de temps l'abonnement court 12 mois, 24 mois, indéterminée
+Période d'engagement         pendant combien de temps il ne      0 = sans engagement
+                             peut pas être résilié
+Période payée en cours       jusqu'à quand le service est dû     current_period_end
+Préavis                      délai entre la demande et l'effet   0 = effet immédiat à l'échéance
+```
+
+**La périodicité de paiement n'est pas la durée de l'engagement.** Un
+abonnement de vingt-quatre mois payé mensuellement est *un* engagement de
+vingt-quatre mois facturé vingt-quatre fois — pas vingt-quatre abonnements
+d'un mois qui se suivent. C'est la même distinction que §12 tient déjà entre
+la période d'abonnement et la fenêtre commerciale de l'offre : deux faits
+séparés, deux colonnes séparées.
+
+Et deux règles s'y ajoutent, qui ne se déduisent pas l'une de l'autre :
+
+```text
+Politique de résiliation   ce qui se passe quand le client résilie
+Reconduction               ce qui se passe quand le terme arrive
+```
+
+## Qui souscrit : un tenant, ou une personne
+
+Le souscripteur est la partie qui s'engage. Ce peut être l'organisation, ou
+une personne nommée :
+
+```text
+subscriber_kind = TENANT   l'organisation souscrit ; l'entitlement vaut pour tous ses membres
+subscriber_kind = USER     une personne souscrit (siège) ; l'entitlement ne vaut que pour elle
+```
+
+**Un abonnement nomme toujours un tenant et un produit, même quand le
+souscripteur est une personne.** Le tenant est le contexte d'isolation
+(non-négociable #8), le produit est le contexte racine (§12.1) ; le
+souscripteur est la partie contractante, ce qui est une autre question. Un
+professionnel isolé n'échappe pas à la règle : il a son propre tenant, dont
+il est le seul membre.
+
+Un souscripteur `USER` doit être membre du tenant au moment de la
+souscription. Sinon l'abonnement entitlerait quelqu'un qui n'a pas accès au
+tenant qui le paie.
+
+## L'unicité est un index, jamais un contrôle
+
+M5 pose « un seul abonnement actif par (tenant, produit) ». Avec les sièges,
+cette règle se dédouble, et les deux moitiés restent des index partiels :
+
+```sql
+-- l'abonnement de l'organisation : un seul par produit
+UNIQUE (tenant_id, product_id)
+    WHERE status = 'ACTIVE' AND subscriber_kind = 'TENANT'
+
+-- le siège : un seul par personne et par produit
+UNIQUE (tenant_id, product_id, subscriber_user_id)
+    WHERE status = 'ACTIVE' AND subscriber_kind = 'USER'
+```
+
+Un contrôle applicatif « existe-t-il déjà un abonnement actif ? » se perd
+dans la course entre deux souscriptions simultanées. L'index, non.
+
+## Ce que vend l'offre, ce que retient l'abonnement
+
+Les conditions sont **portées par la version d'offre** — c'est elle qui est
+vendue — puis **figées dans l'abonnement** au moment de souscrire :
+
+```text
+offer_versions  (ce qui est vendu)
+├── billing_period        MONTHLY | YEARLY | CUSTOM        (existant)
+├── term_months           durée totale vendue, NULL = indéterminée
+├── commitment_months     engagement vendu, 0 = sans engagement
+├── cancellation_policy   ANYTIME | AT_COMMITMENT_END | AT_TERM
+├── renewal               AUTO_RENEW | ENDS_AT_TERM
+├── early_termination     FORBIDDEN | CHARGE_REMAINING | FREE
+└── notice_days           préavis de résiliation, 0 = aucun
+
+subscriptions  (ce à quoi le client s'est engagé)
+├── subscriber_kind       TENANT | USER
+├── subscriber_user_id    NULL sauf si USER
+├── billing_period        copié de la version
+├── term_months / term_ends_at
+├── commitment_months / commitment_ends_at
+├── cancellation_policy / renewal / early_termination / notice_days
+├── current_period_start / current_period_end                   (existant)
+├── cancel_at_period_end / cancel_effective_at                   (existant, étendu)
+└── status                ACTIVE | CANCELLED | EXPIRED           (existant)
+```
+
+**Une offre re-tarifée ou re-durée demain ne change rien à ce qu'un client a
+déjà signé.** C'est le snapshot de la facture (§25) et le snapshot fiscal
+(§25.3), appliqués au contrat : les conditions sont recopiées comme des
+valeurs, pas référencées par une clé étrangère vers une ligne qui bouge.
+
+## Invariants, en base plutôt qu'en convention
+
+```sql
+-- l'engagement ne dépasse pas le terme
+CHECK (term_months IS NULL OR commitment_months <= term_months)
+
+-- une date d'engagement existe exactement quand il y a un engagement
+CHECK ((commitment_months > 0) = (commitment_ends_at IS NOT NULL))
+
+-- un souscripteur nommé existe exactement quand le souscripteur est une personne
+CHECK ((subscriber_kind = 'USER') = (subscriber_user_id IS NOT NULL))
+
+-- un terme se termine après avoir commencé
+CHECK (term_ends_at IS NULL OR term_ends_at > started_at)
+
+-- les ensembles fermés restent fermés
+CHECK (cancellation_policy IN ('ANYTIME', 'AT_COMMITMENT_END', 'AT_TERM'))
+CHECK (renewal            IN ('AUTO_RENEW', 'ENDS_AT_TERM'))
+CHECK (early_termination  IN ('FORBIDDEN', 'CHARGE_REMAINING', 'FREE'))
+```
+
+La deuxième a la même forme que le bail d'un job (§27, ADR-027) : une
+colonne dérivée qui existe *exactement* quand l'état le dit. Sans elle, un
+abonnement peut porter un engagement que rien ne date, donc que rien ne
+termine.
+
+**`commitment_months` doit être `NOT NULL`** — et c'est la contrainte
+elle-même qui l'exige, pas le confort. Sur une colonne nullable,
+`(NULL > 0) = (commitment_ends_at IS NOT NULL)` vaut `NULL`, et une
+contrainte `CHECK` **accepte** `NULL` : la règle laisserait passer
+exactement la ligne qu'elle existe pour refuser. Vérifié sur PostgreSQL, pas
+supposé. Zéro veut dire « sans engagement » ; l'absence ne veut rien dire.
+
+## Résilier : c'est l'horloge qui trie
+
+Deux règles, qui se cumulent.
+
+**Le service reste dû jusqu'à la fin de la période payée.** Résilier le
+2 du mois ne retire rien avant la fin du mois. C'est déjà la règle de M5 —
+`cancel_at_period_end` — et elle ne change pas.
+
+**Sous engagement, la demande est refusée ou différée, jamais silencieusement
+acceptée puis ignorée.** Ce que fait la plateforme dépend de la politique
+vendue :
+
+| Politique | Demande pendant l'engagement | Demande après |
+|---|---|---|
+| `ANYTIME` | acceptée, effet à la fin de la période payée | idem |
+| `AT_COMMITMENT_END` | acceptée, effet à la fin de l'engagement | effet fin de période payée |
+| `AT_TERM` | acceptée, effet à la fin du terme | idem |
+
+Dans les trois cas la demande est **enregistrée** et l'abonnement porte sa
+date d'effet (`cancel_effective_at`). Une demande qui ne laisserait pas de
+trace ferait du « j'ai résilié » / « nous n'avons rien reçu » un litige sans
+arbitre.
+
+`early_termination` dit ce qu'on peut acheter pour sortir plus tôt :
+
+- `FORBIDDEN` — la sortie anticipée n'est pas vendue ; la demande est
+  différée selon la politique ci-dessus ;
+- `CHARGE_REMAINING` — la sortie est possible contre les périodes restant
+  dues, qui sont **facturées par la chaîne de facturation normale** (§25),
+  jamais par un chemin spécial ;
+- `FREE` — la sortie est possible sans contrepartie.
+
+**L'échéance est un fait d'horloge, jamais un fait de balayage.**
+`isLiveAt()` interroge l'horloge et non le statut, exactement comme pour les
+offres, les entitlements, les devis et les baux de jobs. Un abonnement dont
+la période est passée n'entitle plus, que le job de balayage ait tourné ou
+non ; le job met la colonne d'accord avec la réalité, il ne la crée pas.
+
+## Reconduction
+
+À l'échéance du terme :
+
+- `AUTO_RENEW` — une nouvelle période commence, et s'il y a un terme, un
+  nouveau terme. **L'engagement ne se réarme pas silencieusement** : il ne
+  repart que si l'offre le stipule, et cette stipulation est une valeur, pas
+  un effet de bord.
+- `ENDS_AT_TERM` — l'abonnement s'arrête ; l'entitlement tombe avec lui.
+
+La reconduction tacite oblige à informer le client **avant** l'échéance. Ce
+préavis est une notification (§27.1), déclenchée depuis `term_ends_at` et
+`commitment_ends_at`, et sa tentative est conservée : « avons-nous prévenu ?
+» doit avoir une réponse. Les délais légaux exacts, en particulier vers les
+consommateurs, sont à confirmer auprès des sources officielles — c'est un
+risque suivi, au même titre que les échéances de facturation électronique.
+
+## API
+
+```text
+POST   /api/v1/subscriptions                  souscrire (offre, souscripteur)
+GET    /api/v1/subscriptions
+GET    /api/v1/subscriptions/{id}
+GET    /api/v1/subscriptions/{id}/schedule    échéancier : périodes, engagement, terme
+POST   /api/v1/subscriptions/{id}/cancel      demande de résiliation
+POST   /api/v1/subscriptions/{id}/resume      annule une résiliation programmée
+```
+
+`schedule` répond aux trois questions que le client pose réellement :
+jusqu'à quand est-ce payé, jusqu'à quand suis-je engagé, quand puis-je
+partir.
+
+Codes d'erreur :
+
+```text
+COMMITMENT_NOT_ELAPSED      409  résiliation demandée sous engagement FORBIDDEN
+CANCELLATION_NOT_PERMITTED  409  la politique de l'offre ne le permet pas
+SUBSCRIBER_NOT_A_MEMBER     422  souscripteur USER hors du tenant
+ALREADY_SUBSCRIBED          409  un abonnement actif existe déjà pour ce périmètre
+```
+
+Aucun de ces refus ne dépend d'un nom de plan : ce sont les conditions de
+l'abonnement qui décident, jamais `if ($plan === 'PRO')`.
 
 ---
 
@@ -2551,6 +2776,193 @@ FAILED
 CANCELLED
 ```
 
+Les notifications — un événement, plusieurs canaux — sont spécifiées en
+**§27.1** et livrées par cette file.
+
+---
+
+# 27.1 Notifications — un événement, plusieurs canaux
+
+La plateforme doit prévenir : un paiement a échoué, un abonnement se termine,
+un engagement arrive à son terme, un export est prêt. Le canal — écran, email,
+SMS, WhatsApp — est un détail de livraison, jamais le sujet.
+
+## Quatre objets à ne pas confondre
+
+```text
+Événement métier   ce qui s'est passé                payment.failed
+Notification       l'intention d'informer quelqu'un  (destinataire, événement)
+Livraison          une tentative sur un canal        avec son résultat
+Message (§12.3)    une conversation entre humains    ce n'est pas une notification
+```
+
+**Une notification n'est pas un message.** Une conversation est un échange :
+il a des participants, un ordre, un filigrane de lecture, et quelqu'un
+répond. Une notification est un sens unique : la plateforme informe, personne
+ne répond. Les confondre remplirait les fils de support de bruit système, et
+donnerait à un message humain le sort d'une notification désactivable.
+
+C'est la même règle que §12.2 tient entre rôle plateforme et appartenance
+tenant : deux axes qui ne se convertissent jamais l'un dans l'autre.
+
+## Les canaux sont des adaptateurs derrière un port
+
+```text
+Notifier  (port, dans le domaine)
+├── ScreenChannel     dans l'application, lu par l'API, aucun tiers
+├── EmailChannel      fournisseur SMTP / API
+├── SmsChannel        fournisseur SMS
+└── WhatsAppChannel   fournisseur WhatsApp Business
+```
+
+Aucun nom de fournisseur dans le domaine — c'est la règle déjà appliquée à
+`PaymentProvider` (§24), `EInvoiceProvider` (§25.1), `StorageProvider` (§15)
+et `VatNumberValidator` (§25.3). Un cinquième port, la même discipline :
+changer de routeur SMS est un changement de câblage, pas de code métier.
+
+Le canal écran est le seul qui ne sorte pas de la plateforme. C'est aussi
+celui qui n'échoue pas, ce qui en fait le repli naturel quand tous les autres
+sont refusés ou impossibles.
+
+## Modèle
+
+```text
+notifications
+├── id
+├── tenant_id / product_id        contexte racine (§12.1), comme tout le reste
+├── recipient_user_id
+├── type                          payment.failed, subscription.ending, ...
+├── category                      BILLING | ACCOUNT | SECURITY | SUPPORT | MARKETING
+├── payload            jsonb      les données du gabarit, pas le texte rendu
+├── dedup_key                     ce qui empêche la rafale
+├── created_at
+└── read_at                       canal écran uniquement
+
+notification_deliveries
+├── notification_id
+├── channel                       SCREEN | EMAIL | SMS | WHATSAPP
+├── status                        PENDING | SENT | DELIVERED | FAILED | SUPPRESSED
+├── suppression_reason            NO_CONSENT | OPTED_OUT | NO_ADDRESS
+├── provider_message_id           identifiant rendu par le fournisseur
+├── attempts
+├── failure_reason                classe d'erreur, jamais le message brut (§31)
+├── rendered_body                 conservé pour les notifications à effet juridique
+└── sent_at / delivered_at
+
+notification_preferences
+├── user_id / product_id
+├── category / channel
+└── enabled
+
+notification_consents             SMS, WhatsApp, prospection
+├── user_id / channel / purpose
+├── granted_at / revoked_at
+├── source                        d'où vient le consentement
+└── evidence          jsonb       la preuve, datée
+```
+
+## Règles
+
+**Un événement, plusieurs livraisons.** La notification porte l'intention ;
+chaque canal porte son propre état. Un SMS qui échoue ne doit pas faire
+disparaître l'email qui a réussi, ni l'inverse.
+
+**L'envoi passe par la file (§27).** Envoyer dans la requête HTTP ferait d'un
+fournisseur SMS lent une API lente, et d'un fournisseur en panne une API en
+panne. Le paiement, l'abonnement et l'export produisent la notification dans
+leur transaction ; la file la livre après.
+
+**Exactement-une-fois est un index unique, jamais un contrôle.** ADR-027 exige
+des handlers idempotents, parce qu'un bail expiré pendant qu'un job travaille
+encore fait terminer les deux exemplaires. Pour une notification, un doublon
+n'est pas un détail : c'est un SMS payé deux fois et un destinataire agacé.
+D'où :
+
+```sql
+UNIQUE (notification_id, channel)
+```
+
+Un contrôle « a-t-on déjà envoyé ? » se perd dans la course entre deux
+passages du runner. L'index, non.
+
+**Le contenu est rendu à l'envoi, à partir de données.** La notification
+stocke le `payload`, pas la phrase : la langue du destinataire, le gabarit et
+le format dépendent du canal et du moment. **Exception : ce qui a un effet
+juridique conserve son texte rendu** — préavis de reconduction (§13.1), mise
+en demeure, avis de suspension. Pour la même raison qu'une facture garde son
+snapshot : ce qui pourra être opposé doit être relisible tel qu'il a été
+envoyé.
+
+**Consentement : le SMS et WhatsApp ne sont pas l'email.** Ces canaux
+supposent une adhésion préalable, prouvable et révocable, et la distinction
+entre message transactionnel et prospection est celle du §26.1. La règle est
+fermée par défaut : **sans consentement enregistré, la livraison n'est pas
+tentée** — elle est inscrite `SUPPRESSED` avec son motif. C'est le même
+principe que VIES injoignable qui n'accorde pas l'autoliquidation (§25.3) et
+qu'un secret absent qui ne valide aucun lien signé (§31).
+
+**Une suppression est un résultat, pas un silence.** Ne rien écrire quand une
+notification n'est pas envoyée rend « l'avons-nous prévenu ? » sans réponse —
+précisément la question qu'un préavis de reconduction doit pouvoir trancher.
+
+**La catégorie `SECURITY` ne se désactive pas.** Changement de mot de passe,
+nouvelle connexion, accès du personnel plateforme à des données du tenant
+(§12.2) : une notification de sécurité que le destinataire peut couper est
+une notification qu'un attaquant peut couper. C'est le pendant du
+non-négociable #21 — un accès staff n'est jamais silencieux.
+
+**Jamais de secret ni de donnée de paiement dans une notification.** Ni jeton,
+ni mot de passe, ni numéro de carte, ni trace d'exception (§24, §31). Un canal
+sort de la plateforme et se stocke chez des tiers : ce qui y entre est
+public au sens du risque.
+
+**Une rafale n'est pas une information.** `dedup_key` regroupe ce qui
+mériterait un seul avis : trois échecs de paiement le même jour préviennent
+une fois, pas trois.
+
+## Les cas, tels qu'ils existent déjà dans la plateforme
+
+| Événement | Catégorie | Canaux typiques | Source |
+|---|---|---|---|
+| `payment.failed` | BILLING | écran, email | §24 |
+| `payment.succeeded` | BILLING | écran, email | §24 |
+| `invoice.issued` | BILLING | email | §25 |
+| `subscription.activated` | BILLING | écran, email | §13.1 |
+| `subscription.ending` | BILLING | écran, email, SMS | §13.1 |
+| `subscription.renewing` | BILLING | email | §13.1 — préavis de reconduction |
+| `subscription.commitment_ending` | BILLING | écran, email | §13.1 |
+| `quote.expiring` | BILLING | email | §25.2 |
+| `order.awaiting_payment` | BILLING | email | §24 |
+| `message.unread` | SUPPORT | email | §12.3 |
+| `export.ready` | ACCOUNT | écran, email | §15 |
+| `security.sign_in` | SECURITY | email | non désactivable |
+| `security.staff_access` | SECURITY | écran, email | §12.2, non-négociable #21 |
+
+La liste est ouverte ; la forme ne l'est pas. Un nouveau type est une ligne
+de catalogue et un gabarit, jamais un chemin d'envoi de plus.
+
+## API
+
+```text
+GET    /api/v1/notifications                  le canal écran
+GET    /api/v1/notifications/unread-count
+POST   /api/v1/notifications/{id}/read
+POST   /api/v1/notifications/read-all
+GET    /api/v1/notifications/preferences
+PUT    /api/v1/notifications/preferences
+POST   /api/v1/notifications/consents         adhésion SMS / WhatsApp
+DELETE /api/v1/notifications/consents/{id}    révocation
+```
+
+Une préférence porte sur un couple (catégorie, canal) : « les avis de
+facturation par email oui, par SMS non » est une réponse légitime, « plus
+rien du tout » n'en est pas une pour la catégorie `SECURITY`.
+
+L'état de lecture du canal écran est un `read_at` par notification, et non un
+filigrane de flux comme `last_read_seq` en messagerie (§12.3). La différence
+est voulue : un fil se lit en avançant, une liste d'avis se traite un par un
+et pas forcément dans l'ordre.
+
 ---
 
 # 28. Qualité du code
@@ -3200,6 +3612,52 @@ Une facture rejouée deux ans plus tard rend le même chiffre
 La somme des VATTransaction d'une facture = la TVA de cette facture
 Une période close ne se modifie pas : la correction va dans la suivante
 VIES indisponible n'accorde pas l'autoliquidation
+```
+
+## Abonnements — durée et engagement (§13.1)
+
+Tester ce que l'engagement doit refuser, avant ce qu'il autorise :
+
+```text
+Résiliation sous engagement, politique FORBIDDEN   → refusée, l'abonnement reste actif
+Résiliation sous engagement, AT_COMMITMENT_END     → acceptée, effet à la fin de l'engagement
+Résiliation hors engagement                        → effet à la fin de la période payée
+Résiliation le jour 2 d'un mois payé               → le service reste dû jusqu'à la fin du mois
+Sortie anticipée CHARGE_REMAINING                  → facture les périodes restantes, par la chaîne normale
+```
+
+et les invariants du contrat :
+
+```text
+24 mois payés mensuellement = un engagement, pas 24 abonnements d'un mois
+Une offre re-tarifée ne change aucune condition déjà souscrite
+Un abonnement dont la période est passée n'entitle plus, balayage ou non
+La reconduction ne réarme pas l'engagement sauf stipulation de l'offre
+Deux souscriptions simultanées : l'index tranche, une seule passe
+Un souscripteur USER hors du tenant est refusé
+Un abonnement USER n'entitle que cette personne, pas tout le tenant
+```
+
+## Notifications (§27.1)
+
+Tester d'abord ce qui ne doit pas partir :
+
+```text
+SMS sans consentement            → SUPPRESSED avec motif, aucun envoi tenté
+Consentement révoqué             → SUPPRESSED, pas « envoyé quand même »
+Préférence coupée sur un canal   → SUPPRESSED sur ce canal, livré sur les autres
+Catégorie SECURITY               → livrée même préférence coupée
+Aucun secret, aucune donnée de paiement, aucune trace d'exception dans un payload
+```
+
+puis ce qui protège le destinataire et la facture du fournisseur :
+
+```text
+Job rejoué après bail expiré     → l'index (notification_id, channel) empêche le doublon
+Un canal en échec                → n'empêche pas les autres livraisons
+Rafale du même événement         → dedup_key : un avis, pas trois
+Préavis de reconduction          → sa tentative et son texte rendu sont conservés
+Une notification n'est pas un message : elle n'entre dans aucune conversation
 ```
 
 ---
@@ -4235,6 +4693,8 @@ Le backend est un modular monolith et non un ensemble de scripts PHP.
 20. **La chaîne devis → vente → abonnement/commande → facture → paiement doit être traçable.**
 21. **Tout accès du personnel plateforme à la donnée d'un tenant est tracé, motivé et jamais silencieux.**
 22. **Un rôle plateforme n'accorde jamais une appartenance à un tenant, et réciproquement.**
+23. **La périodicité de paiement d'un abonnement n'est pas sa durée d'engagement.**
+24. **Aucun envoi SMS ou WhatsApp sans consentement prouvable et révocable, et aucune notification de sécurité désactivable.**
 
 ---
 
