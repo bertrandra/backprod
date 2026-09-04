@@ -111,6 +111,7 @@ final class PostgresInvoiceRepository implements InvoiceRepository
         ?DateTimeImmutable $periodEnd,
         ?string $paymentTerms,
         ?string $actorUserId,
+        ?callable $alsoRecord = null,
     ): Invoice {
         if ($lines === []) {
             // An invoice for nothing is not a document anyone should be able
@@ -130,6 +131,7 @@ final class PostgresInvoiceRepository implements InvoiceRepository
             $periodEnd,
             $paymentTerms,
             $actorUserId,
+            $alsoRecord,
         ));
     }
 
@@ -145,6 +147,7 @@ final class PostgresInvoiceRepository implements InvoiceRepository
         ?DateTimeImmutable $periodEnd,
         ?string $paymentTerms,
         ?string $actorUserId,
+        ?callable $alsoRecord = null,
     ): Invoice {
         if ($lines === []) {
             throw new RuntimeException('An invoice must have at least one line.');
@@ -266,6 +269,15 @@ final class PostgresInvoiceRepository implements InvoiceRepository
 
         if ($invoice === null) {
             throw new RuntimeException('The invoice vanished during the transaction that created it.');
+        }
+
+        // Still inside the caller's transaction, and deliberately so: this is
+        // where §25.3's fiscal facts are written, and they must commit with
+        // the invoice or not at all. An invoice with no VAT transaction is a
+        // document nothing will declare; a VAT transaction with no invoice
+        // declares something never billed.
+        if ($alsoRecord !== null) {
+            $alsoRecord($invoice);
         }
 
         return $invoice;

@@ -34,9 +34,17 @@ interface InvoiceRepository
      * transaction rolls back, and a missing invoice number is a question
      * from an auditor rather than a cosmetic gap.
      *
-     * @param list<InvoiceLine> $lines
-     * @param array<string, mixed> $supplier
-     * @param array<string, mixed> $customer
+     * `$alsoRecord` runs **inside** that transaction, after the document
+     * exists and before it commits. It is how the fiscal facts of §25.3 are
+     * written atomically with the invoice that produced them: an invoice
+     * with no VAT transaction is a document nothing will declare, and a VAT
+     * transaction with no invoice declares something never billed. Neither
+     * is observable if both are written in one transaction.
+     *
+     * @param list<InvoiceLine>              $lines
+     * @param array<string, mixed>           $supplier
+     * @param array<string, mixed>           $customer
+     * @param (callable(Invoice): void)|null $alsoRecord
      */
     public function issue(
         string $tenantId,
@@ -50,6 +58,7 @@ interface InvoiceRepository
         ?DateTimeImmutable $periodEnd,
         ?string $paymentTerms,
         ?string $actorUserId,
+        ?callable $alsoRecord = null,
     ): Invoice;
 
     /**
@@ -61,9 +70,10 @@ interface InvoiceRepository
      * order that names neither — and nesting one transaction inside another
      * is a property of the driver rather than of this design.
      *
-     * @param list<InvoiceLine>    $lines
-     * @param array<string, mixed> $supplier
-     * @param array<string, mixed> $customer
+     * @param list<InvoiceLine>            $lines
+     * @param array<string, mixed>         $supplier
+     * @param array<string, mixed>         $customer
+     * @param (callable(Invoice): void)|null $alsoRecord
      */
     public function applyIssue(
         string $tenantId,
@@ -77,6 +87,7 @@ interface InvoiceRepository
         ?DateTimeImmutable $periodEnd,
         ?string $paymentTerms,
         ?string $actorUserId,
+        ?callable $alsoRecord = null,
     ): Invoice;
 
     /**

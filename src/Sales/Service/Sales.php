@@ -7,7 +7,6 @@ namespace App\Sales\Service;
 use App\Billing\Domain\BillingProfileRepository;
 use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\Money;
-use App\Billing\Service\VatPolicy;
 use App\Commerce\Domain\SubscribedOffer;
 use App\Commerce\Service\Catalogue;
 use App\Sales\Domain\Order;
@@ -17,6 +16,7 @@ use App\Sales\Domain\QuoteStatus;
 use App\Sales\Domain\SalesRepository;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
+use App\Tax\Service\Taxation;
 use DateTimeImmutable;
 
 /**
@@ -43,7 +43,7 @@ final class Sales
         private readonly SalesRepository $sales,
         private readonly Catalogue $catalogue,
         private readonly BillingProfileRepository $profiles,
-        private readonly VatPolicy $vat,
+        private readonly Taxation $taxation,
         private readonly OrderFulfilment $fulfilment,
     ) {
     }
@@ -95,7 +95,14 @@ final class Sales
             1,
             Money::of($offer->version->priceMinorUnits, $offer->version->currency),
             Money::zero($offer->version->currency),
-            $this->vat->rateFor($productId, $profile?->countryCode),
+            $this->taxation->calculate(
+                $tenantId,
+                $productId,
+                $offer->version->priceMinorUnits,
+                $offer->version->currency,
+                null,
+                null,
+            )->rateBasisPoints,
             $offer->version->id,
         );
 
@@ -183,7 +190,6 @@ final class Sales
     public function order(string $tenantId, string $productId, string $offerId, ?string $actorUserId): Order
     {
         $offer = SubscribedOffer::from($this->catalogue->offerOnSale($productId, $offerId));
-        $profile = $this->profiles->find($tenantId);
 
         $line = InvoiceLine::of(
             1,
@@ -191,7 +197,14 @@ final class Sales
             1,
             Money::of($offer->version->priceMinorUnits, $offer->version->currency),
             Money::zero($offer->version->currency),
-            $this->vat->rateFor($productId, $profile?->countryCode),
+            $this->taxation->calculate(
+                $tenantId,
+                $productId,
+                $offer->version->priceMinorUnits,
+                $offer->version->currency,
+                null,
+                null,
+            )->rateBasisPoints,
             $offer->version->id,
         );
 

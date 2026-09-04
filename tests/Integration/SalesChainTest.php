@@ -861,7 +861,7 @@ final class SalesChainTest extends DatabaseApiTestCase
             <<<'SQL'
                 INSERT INTO product_configuration (product_id, key, value) VALUES
                     (:product, 'billing_supplier', CAST(:supplier AS jsonb)),
-                    (:product, 'vat_rates', CAST('{"FR": 2000, "default": 0}' AS jsonb))
+                    (:product, 'tax', CAST('{"country": "FR", "oss_registered": true}' AS jsonb))
                 SQL,
             ['product' => $this->product, 'supplier' => $supplier],
         );

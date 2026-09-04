@@ -240,14 +240,14 @@ reconciling a bank transfer.
 
 ---
 
-### M6.1 — Fiscalité / TVA
+### M6.1 — Fiscalité / TVA — *delivered ([ADR-029](adr/ADR-029-tax-regimes-and-fiscal-facts.md))*
 
 **Goal:** produce and retain the fiscal data a sale generates, so that VAT can
 be justified, declared and exported — without turning the platform into an
 accounting package. Specified in `architecture-v2.md` §25.3.
 
-M6 invoices carry a VAT rate. That rate comes from `VatPolicy`, whose own
-docblock says what it is not: a configured per-country number, applied
+M6 invoices carried a VAT rate from `VatPolicy` (now deleted), whose own
+docblock said what it was not: a configured per-country number, applied
 blindly, with no notion of who the customer is or which regime governs the
 sale. That is honest for a single-country B2C launch and wrong the moment a
 German company buys with a VAT number.
