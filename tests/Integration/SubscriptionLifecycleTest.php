@@ -456,7 +456,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             // ever cost anything to leave. A double that fails on contact
             // says so: if a cancellation in these scenarios ever reaches for
             // the billing chain, that is the bug, not a detail to stub over.
-            new class implements EarlyTerminationCharge {
+            new class () implements EarlyTerminationCharge {
                 public function applyCharge(
                     Subscription $subscription,
                     CancellationDecision $decision,

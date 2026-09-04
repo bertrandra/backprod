@@ -218,14 +218,16 @@ final class Subscriptions
         /** @var string|null $chargeInvoiceId assigned by reference inside the transaction */
         $chargeInvoiceId = null;
 
+        $alsoCharge = null;
+
         // Only a buy-out with something outstanding raises a document. A free
         // early exit and a deferral both cost nothing, and a €0 invoice for
         // them would be a permanent, unremovable record of no transaction.
-        $alsoCharge = ($decision->chargeableMonths ?? 0) > 0
-            ? function (Subscription $released) use (&$chargeInvoiceId, $decision, $actorUserId): void {
+        if (($decision->chargeableMonths ?? 0) > 0) {
+            $alsoCharge = function (Subscription $released) use (&$chargeInvoiceId, $decision, $actorUserId): void {
                 $chargeInvoiceId = $this->charges->applyCharge($released, $decision, $actorUserId);
-            }
-            : null;
+            };
+        }
 
         $released = $this->subscriptions->scheduleCancellation(
             $subscription,

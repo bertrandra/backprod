@@ -250,7 +250,30 @@ then ignored. Every request is recorded with its effective date.
 
 Early exit is a product decision (`FORBIDDEN` / `CHARGE_REMAINING` / `FREE`).
 When it is charged, it is invoiced through the normal billing chain, never a
-special path.
+special path — and on the **cancellation's own transaction**, because a
+release with the buy-out unbilled is revenue given away and a buy-out against
+a subscription still running is a customer charged for an exit they did not
+get.
+
+Two rules about what that charge costs, both easy to get wrong:
+
+- Count from the **end of the period already paid for**, never from now. A
+  yearly plan left in month 11 of a 24-month commitment owes twelve months,
+  not thirteen; counting from now bills a year the customer has settled.
+- Price in **billing periods**, never in months. The commitment is counted in
+  months because that is how it was sold, but the agreed price is per period.
+  A yearly price times a number of months is a figure on no contract. A
+  `CUSTOM` period has no period to count, so an offer may not sell a buy-out
+  on one — the constraint is on `offer_versions`, not in a service.
+
+Nothing outstanding raises **no document at all**. Numbering is gapless, so a
+€0 invoice is a permanent, unremovable record of no transaction.
+
+A seat is addressed to a **person**, so capability resolution asks who is
+asking and excludes seats held by somebody else. Resolve capabilities without
+the person and one colleague's seat entitles the whole tenant, which is the
+opposite of what a seat is. Quotas stay tenant-scoped on purpose: a seat must
+not silently raise the tenant's limit.
 
 Renewal does not silently re-arm the commitment. Tacit renewal requires
 notifying the customer beforehand — that notice is a notification, and
