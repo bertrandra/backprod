@@ -58,8 +58,13 @@ final class CancellationPolicy
 
         // Buying out of a commitment, when that is something the offer sells.
         if ($immediately && $terms->earlyTermination !== SubscriptionTerms::FORBIDDEN) {
+            // Counted from the end of the period already paid for, not from
+            // now. What has been paid is not owed twice: a yearly plan left
+            // in month 11 of a 24-month commitment has 12 months outstanding,
+            // not 13, and counting from now would bill the year the customer
+            // has already settled a second time.
             $chargeable = $terms->earlyTermination === SubscriptionTerms::CHARGE_REMAINING
-                ? self::monthsBetween($now, $commitmentEnd)
+                ? self::monthsBetween($periodEnd > $now ? $periodEnd : $now, $commitmentEnd)
                 : 0;
 
             return CancellationDecision::accepted(

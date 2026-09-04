@@ -77,6 +77,33 @@ final class OfferVersion
     }
 
     /**
+     * How many whole billing periods a span of months covers, rounded up.
+     *
+     * An early-termination charge has to be priced in the unit that was
+     * actually agreed. A commitment is counted in months, but what the
+     * customer signed is a price *per billing period*, and multiplying a
+     * yearly price by a number of months would invent a figure nobody quoted.
+     *
+     * A part-period rounds up, for the same reason a part-month does: the
+     * period would have billed in full had the subscription run on.
+     *
+     * Null for a CUSTOM period — there is no period to count, so there is no
+     * honest number here. The caller refuses rather than guesses.
+     */
+    public function periodsIn(int $months): ?int
+    {
+        if ($months <= 0) {
+            return 0;
+        }
+
+        return match ($this->billingPeriod) {
+            'MONTHLY' => $months,
+            'YEARLY' => intdiv($months + 11, 12),
+            default => null,
+        };
+    }
+
+    /**
      * Whether this version may be sold at the given moment.
      *
      * Both halves matter. A version can be ACTIVE and outside its window

@@ -91,11 +91,20 @@ interface SubscriptionRepository
      * cancelled" against "we received nothing" needs an arbiter, and a
      * recomputation would answer with today's rules rather than the ones in
      * force when the request was made.
+     *
+     * $alsoCharge runs inside this method's transaction, after the row has
+     * moved, for a decision that costs something. A subscription released
+     * with its buy-out unbilled is revenue given away, and a buy-out billed
+     * against a subscription still running is a customer charged for an exit
+     * they did not get; neither may survive a crash between the two.
+     *
+     * @param (callable(Subscription): void)|null $alsoCharge
      */
     public function scheduleCancellation(
         Subscription $subscription,
         CancellationDecision $decision,
         ?string $actorUserId,
+        ?callable $alsoCharge = null,
     ): Subscription;
 
     /**

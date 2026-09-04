@@ -6,6 +6,7 @@ namespace App\Commerce\Service;
 
 use App\Commerce\Domain\CancellationDecision;
 use App\Commerce\Domain\CancellationPolicy;
+use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\SubscribedOffer;
 use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
@@ -33,6 +34,7 @@ final class Subscriptions
         private readonly SubscriptionRepository $subscriptions,
         private readonly Catalogue $catalogue,
         private readonly CancellationPolicy $policy,
+        private readonly EarlyTerminationCharge $charges,
     ) {
     }
 
@@ -180,7 +182,17 @@ final class Subscriptions
      * afterwards, and which rule produced that. A refusal is recorded too —
      * "I cancelled" against "we received nothing" needs an arbiter.
      *
-     * @return array{subscription: Subscription, decision: CancellationDecision}
+     * When the decision costs something, the invoice for it is raised on the
+     * same transaction as the release — see EarlyTerminationCharge — so a
+     * customer is never let out unbilled nor billed for an exit they did not
+     * get. Its id comes back with the decision, because a charge the caller
+     * cannot name is a charge they cannot show anyone.
+     *
+     * @return array{
+     *     subscription: Subscription,
+     *     decision: CancellationDecision,
+     *     charge_invoice_id: string|null,
+     * }
      */
     public function cancel(
         string $tenantId,
@@ -203,13 +215,29 @@ final class Subscriptions
             );
         }
 
+        /** @var string|null $chargeInvoiceId assigned by reference inside the transaction */
+        $chargeInvoiceId = null;
+
+        // Only a buy-out with something outstanding raises a document. A free
+        // early exit and a deferral both cost nothing, and a €0 invoice for
+        // them would be a permanent, unremovable record of no transaction.
+        $alsoCharge = ($decision->chargeableMonths ?? 0) > 0
+            ? function (Subscription $released) use (&$chargeInvoiceId, $decision, $actorUserId): void {
+                $chargeInvoiceId = $this->charges->applyCharge($released, $decision, $actorUserId);
+            }
+            : null;
+
+        $released = $this->subscriptions->scheduleCancellation(
+            $subscription,
+            $decision,
+            $actorUserId,
+            $alsoCharge,
+        );
+
         return [
-            'subscription' => $this->subscriptions->scheduleCancellation(
-                $subscription,
-                $decision,
-                $actorUserId,
-            ),
+            'subscription' => $released,
             'decision' => $decision,
+            'charge_invoice_id' => $chargeInvoiceId,
         ];
     }
 

@@ -73,7 +73,9 @@ final class Version20260904060000 extends AbstractMigration
                 ADD CONSTRAINT offer_versions_renewal_known
                     CHECK (renewal IN ('AUTO_RENEW', 'ENDS_AT_TERM')),
                 ADD CONSTRAINT offer_versions_early_termination_known
-                    CHECK (early_termination IN ('FORBIDDEN', 'CHARGE_REMAINING', 'FREE'))
+                    CHECK (early_termination IN ('FORBIDDEN', 'CHARGE_REMAINING', 'FREE')),
+                ADD CONSTRAINT offer_versions_buyout_is_priceable
+                    CHECK (early_termination <> 'CHARGE_REMAINING' OR billing_period <> 'CUSTOM')
             SQL);
 
         // --- what was agreed to -------------------------------------------
@@ -220,6 +222,7 @@ final class Version20260904060000 extends AbstractMigration
                 DROP CONSTRAINT IF EXISTS offer_versions_notice_not_negative,
                 DROP CONSTRAINT IF EXISTS offer_versions_cancellation_policy_known,
                 DROP CONSTRAINT IF EXISTS offer_versions_renewal_known,
+                DROP CONSTRAINT IF EXISTS offer_versions_buyout_is_priceable,
                 DROP CONSTRAINT IF EXISTS offer_versions_early_termination_known
             SQL);
 

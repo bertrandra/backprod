@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration;
 
+use App\Commerce\Domain\CancellationDecision;
+use App\Commerce\Domain\CancellationPolicy;
+use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\Offer;
 use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Domain\Subscription;
@@ -18,6 +21,7 @@ use App\Shared\Exceptions\HttpException;
 use DateTimeImmutable;
 use Doctrine\DBAL\Exception\DriverException;
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\TestCase;
 
 /**
  * The subscription lifecycle against a real database.
@@ -314,7 +318,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
     {
         $this->subscribeToPro();
 
-        $cancelled = $this->subscriptions()->cancel($this->tenant, $this->product, false, $this->user);
+        $cancelled = $this->subscriptions()->cancel($this->tenant, $this->product, false, $this->user)['subscription'];
 
         self::assertSame(Subscription::ACTIVE, $cancelled->status);
         self::assertTrue($cancelled->cancelAtPeriodEnd);
@@ -332,7 +336,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
     {
         $this->subscribeToPro();
 
-        $cancelled = $this->subscriptions()->cancel($this->tenant, $this->product, true, $this->user);
+        $cancelled = $this->subscriptions()->cancel($this->tenant, $this->product, true, $this->user)['subscription'];
 
         self::assertSame(Subscription::CANCELLED, $cancelled->status);
         self::assertNotNull($cancelled->endedAt);
@@ -447,6 +451,20 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         return new Subscriptions(
             new PostgresSubscriptionRepository($this->connection),
             new Catalogue($this->catalogue()),
+            new CancellationPolicy(),
+            // Every offer in this file is open-ended, so nothing here may
+            // ever cost anything to leave. A double that fails on contact
+            // says so: if a cancellation in these scenarios ever reaches for
+            // the billing chain, that is the bug, not a detail to stub over.
+            new class implements EarlyTerminationCharge {
+                public function applyCharge(
+                    Subscription $subscription,
+                    CancellationDecision $decision,
+                    ?string $actorUserId,
+                ): string {
+                    TestCase::fail('An open-ended subscription charged for leaving.');
+                }
+            },
         );
     }
 

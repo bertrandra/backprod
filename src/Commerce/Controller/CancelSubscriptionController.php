@@ -40,10 +40,14 @@ final class CancelSubscriptionController implements RouteHandler
 
         // The decision travels with the subscription. What a customer needs
         // to know is not "cancelled: true" but *when* it takes effect and
-        // which rule decided that (§13.1).
+        // which rule decided that (§13.1) — and, when leaving early cost
+        // them something, the document to look at for it.
         return new JsonResponse(
             SubscriptionPresenter::one($outcome['subscription'])
-            + ['cancellation' => $outcome['decision']->toArray()],
+            + [
+                'cancellation' => $outcome['decision']->toArray()
+                    + ['charge_invoice_id' => $outcome['charge_invoice_id']],
+            ],
             200,
         );
     }

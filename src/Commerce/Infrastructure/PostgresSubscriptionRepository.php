@@ -543,9 +543,10 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
         Subscription $subscription,
         CancellationDecision $decision,
         ?string $actorUserId,
+        ?callable $alsoCharge = null,
     ): Subscription {
         return $this->connection->transactional(
-            function () use ($subscription, $decision, $actorUserId): Subscription {
+            function () use ($subscription, $decision, $actorUserId, $alsoCharge): Subscription {
                 if ($decision->effect === CancellationDecision::IMMEDIATE) {
                     // Ends now. The entitlement goes with it, because the
                     // clock is what entitlement resolution asks and there is
@@ -600,6 +601,15 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
 
                 if ($updated === null) {
                     throw new RuntimeException('The subscription vanished while being cancelled.');
+                }
+
+                // On this transaction, never one of its own: what the exit
+                // costs is part of the exit. It runs last so the charge
+                // describes the subscription as it now stands, and it throws
+                // rather than returns on failure — a rollback here takes the
+                // release with it, which is the point.
+                if ($alsoCharge !== null) {
+                    $alsoCharge($updated);
                 }
 
                 return $updated;
