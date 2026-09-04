@@ -67,6 +67,19 @@ final class Subscription
     }
 
     /**
+     * Whether a scheduled cancellation falls at or before a moment.
+     *
+     * The question renewal has to ask. A cancellation deferred to a
+     * commitment ending ten months out must not stop next month's renewal;
+     * one due at the end of the period being renewed must stop it, or the
+     * subscription is quietly extended past the date the customer was given.
+     */
+    public function isDueToEndBy(DateTimeImmutable $moment): bool
+    {
+        return $this->cancelEffectiveAt !== null && $this->cancelEffectiveAt <= $moment;
+    }
+
+    /**
      * Whether the term has run out. Open-ended subscriptions never have.
      */
     public function hasReachedTermAt(DateTimeImmutable $moment): bool

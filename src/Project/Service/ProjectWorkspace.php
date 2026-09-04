@@ -84,7 +84,7 @@ final class ProjectWorkspace
         // Quota first: a tenant at their limit should be told so before
         // being told their document is too deep. The cheapest refusal to act
         // on is the one that names what to do about it.
-        $this->quotas->assertMayConsume($tenantId, $productId, self::QUOTA);
+        $this->quotas->assertMayConsume($tenantId, $productId, self::QUOTA, $createdBy);
         $this->schemaVersions->assertSupported($productId, $schemaVersion);
         $this->documents->assertStorable($document);
 
@@ -215,7 +215,7 @@ final class ProjectWorkspace
 
         // A duplicate is a new project and counts against the same quota.
         // Exempting it would make the limit trivially avoidable.
-        $this->quotas->assertMayConsume($tenantId, $productId, self::QUOTA);
+        $this->quotas->assertMayConsume($tenantId, $productId, self::QUOTA, $createdBy);
 
         // A copy carries the original's schema version rather than being
         // refused when that version has been retired: it is the same document,

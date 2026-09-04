@@ -194,6 +194,76 @@ final class CancellationPolicyTest extends TestCase
         self::assertFalse($seat->entitles('bob'));
     }
 
+    // --- Terms with no computable period end ---------------------------------
+
+    /**
+     * A CUSTOM billing period is negotiated, not computed, so there is no
+     * date on which "at the end of the paid period" falls. Answering "today"
+     * would forfeit a period agreed precisely because it does not fit a
+     * month; answering "never" would leave a subscription the platform calls
+     * cancelled running forever. It refuses and says which.
+     */
+    public function testTermsWithNoPeriodEndCannotBeCancelledOnADate(): void
+    {
+        $decision = $this->decide(null, 0, SubscriptionTerms::ANYTIME, billingPeriod: 'CUSTOM');
+
+        self::assertFalse($decision->accepted);
+        self::assertSame('cancel.period_end_unknown', $decision->ruleId);
+        self::assertNull($decision->effect);
+    }
+
+    public function testTheSameTermsCanStillBeEndedImmediately(): void
+    {
+        $decision = $this->decide(
+            null,
+            0,
+            SubscriptionTerms::ANYTIME,
+            immediately: true,
+            billingPeriod: 'CUSTOM',
+        );
+
+        self::assertTrue($decision->accepted);
+        self::assertSame(CancellationDecision::IMMEDIATE, $decision->effect);
+    }
+
+    /**
+     * The refusal is scoped to the rules that need a *period* end. A
+     * commitment date is a real date that does not come from the period, so
+     * it still decides.
+     */
+    public function testACommitmentDateStillDecidesWithoutAPeriodEnd(): void
+    {
+        $decision = $this->decide(
+            null,
+            12,
+            SubscriptionTerms::AT_COMMITMENT_END,
+            monthsIn: 2,
+            billingPeriod: 'CUSTOM',
+        );
+
+        self::assertTrue($decision->accepted);
+        self::assertSame('cancel.deferred_to_commitment_end', $decision->ruleId);
+        self::assertSame(CancellationDecision::AT_COMMITMENT_END, $decision->effect);
+    }
+
+    /**
+     * And "cancellable at any time" is one of the rules that needs it: it
+     * ends with the paid period, and there is no paid period to end with.
+     */
+    public function testAnytimeUnderCommitmentAlsoNeedsAPeriodEnd(): void
+    {
+        $decision = $this->decide(
+            null,
+            12,
+            SubscriptionTerms::ANYTIME,
+            monthsIn: 2,
+            billingPeriod: 'CUSTOM',
+        );
+
+        self::assertFalse($decision->accepted);
+        self::assertSame('cancel.period_end_unknown', $decision->ruleId);
+    }
+
     private function decide(
         ?int $termMonths,
         int $commitmentMonths,
@@ -201,6 +271,7 @@ final class CancellationPolicyTest extends TestCase
         string $earlyTermination = SubscriptionTerms::FORBIDDEN,
         int $monthsIn = 0,
         bool $immediately = false,
+        string $billingPeriod = 'MONTHLY',
     ): CancellationDecision {
         $now = new DateTimeImmutable(self::NOW);
         $started = $now->modify(sprintf('-%d months', $monthsIn));
@@ -218,7 +289,7 @@ final class CancellationPolicyTest extends TestCase
             'version',
             1,
             OfferVersion::ACTIVE,
-            'MONTHLY',
+            $billingPeriod,
             2900,
             'EUR',
             $started,
@@ -237,7 +308,9 @@ final class CancellationPolicyTest extends TestCase
             Subscription::ACTIVE,
             $started,
             $now->modify('-3 days'),
-            $now->modify('+27 days'),
+            // A CUSTOM period has no computable end, so the subscription has
+            // none either — which is the whole point of these cases.
+            $billingPeriod === 'CUSTOM' ? null : $now->modify('+27 days'),
             false,
             null,
             null,

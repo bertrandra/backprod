@@ -19,6 +19,9 @@ use Psr\Http\Message\ServerRequestInterface;
  * paid for keeps the month. `{"immediately": true}` ends it now and takes
  * the entitlements with it, which is what a customer asking to stop being
  * billed *today* means.
+ *
+ * `{"seat": true}` cancels the seat the caller holds rather than the
+ * tenant's subscription (§13.1) — the mirror of how one is taken out.
  */
 final class CancelSubscriptionController implements RouteHandler
 {
@@ -31,11 +34,17 @@ final class CancelSubscriptionController implements RouteHandler
         $context = RequestContextReader::from($request);
         $context->requirePermission('subscription.manage');
 
+        $body = JsonBody::of($request);
+
         $outcome = $this->subscriptions->cancel(
             $context->tenantId,
             $context->productId,
-            JsonBody::of($request)->optionalBool('immediately'),
+            $body->optionalBool('immediately'),
             $context->userId,
+            // Their own seat, or the tenant's subscription. Which one is a
+            // flag rather than an id: whose seat it could be is already
+            // settled by the context.
+            $body->optionalBool('seat'),
         );
 
         // The decision travels with the subscription. What a customer needs

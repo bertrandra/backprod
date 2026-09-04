@@ -33,7 +33,16 @@ final class ShowScheduleController implements RouteHandler
         $context = RequestContextReader::from($request);
         $context->requirePermission('subscription.read');
 
-        $view = $this->subscriptions->schedule($context->tenantId, $context->productId);
+        // ?seat=1 asks about the seat the caller holds rather than the
+        // tenant's subscription, matching the cancel endpoint it predicts.
+        $seat = ($request->getQueryParams()['seat'] ?? null) !== null;
+
+        $view = $this->subscriptions->schedule(
+            $context->tenantId,
+            $context->productId,
+            $context->userId,
+            $seat,
+        );
 
         return new JsonResponse([
             'subscription' => SubscriptionPresenter::one($view['subscription']),

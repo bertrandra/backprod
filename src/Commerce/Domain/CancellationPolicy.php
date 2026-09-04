@@ -32,11 +32,16 @@ final class CancellationPolicy
         bool $immediately = false,
     ): CancellationDecision {
         $terms = $subscription->terms;
+
         $periodEnd = $subscription->currentPeriodEnd ?? $now;
 
         $underCommitment = $subscription->isUnderCommitmentAt($now);
 
         if (!$underCommitment) {
+            if (!$immediately && $subscription->currentPeriodEnd === null) {
+                return self::periodEndUnknown();
+            }
+
             // Free to go. The paid period is still owed, so the end of it is
             // when this takes effect — unless the caller asked for immediate,
             // which forfeits the remainder deliberately.
@@ -84,15 +89,17 @@ final class CancellationPolicy
         return match ($terms->cancellationPolicy) {
             // Sold as cancellable at any time: the commitment binds the price,
             // not the exit.
-            SubscriptionTerms::ANYTIME => CancellationDecision::accepted(
-                'cancel.anytime_under_commitment',
-                CancellationDecision::AT_PERIOD_END,
-                $periodEnd,
-                [
-                    'A commitment is in force until ' . $commitmentEnd->format('Y-m-d') . '.',
-                    'This offer is cancellable at any time, so it ends with the paid period.',
-                ],
-            ),
+            SubscriptionTerms::ANYTIME => $subscription->currentPeriodEnd === null
+                ? self::periodEndUnknown()
+                : CancellationDecision::accepted(
+                    'cancel.anytime_under_commitment',
+                    CancellationDecision::AT_PERIOD_END,
+                    $periodEnd,
+                    [
+                        'A commitment is in force until ' . $commitmentEnd->format('Y-m-d') . '.',
+                        'This offer is cancellable at any time, so it ends with the paid period.',
+                    ],
+                ),
 
             SubscriptionTerms::AT_COMMITMENT_END => CancellationDecision::accepted(
                 'cancel.deferred_to_commitment_end',
@@ -125,6 +132,30 @@ final class CancellationPolicy
                 ],
             ),
         };
+    }
+
+    /**
+     * There is no date to end on, so no date is promised.
+     *
+     * A CUSTOM billing period has no computable end — OfferVersion says so by
+     * returning null — and a rule that ends a subscription "with the paid
+     * period" has nothing to name. Both alternatives are worse than refusing:
+     * treating today as the end silently forfeits a period negotiated
+     * precisely because it does not fit a month, and treating it as never
+     * leaves a subscription the platform calls cancelled running forever.
+     *
+     * Ending it immediately still works, and so does a commitment or term
+     * date, because those are real dates that do not come from the period.
+     */
+    private static function periodEndUnknown(): CancellationDecision
+    {
+        return CancellationDecision::refused(
+            'cancel.period_end_unknown',
+            [
+                'These terms have no computable period end, so there is no date to end them on.',
+                'Ending it immediately is still available.',
+            ],
+        );
     }
 
     /**

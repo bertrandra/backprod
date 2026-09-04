@@ -5,13 +5,18 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Commerce\Infrastructure\PostgresEntitlementRepository;
+use App\Entitlement\Domain\QuotaPolicy;
+use App\Entitlement\Domain\UsageMeter;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
+use App\Shared\Exceptions\HttpException;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
+use App\Tests\Support\FixedUsage;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
 
@@ -291,12 +296,101 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
         $this->subscribeTo($this->anytimeOffer, seat: true);
 
         $mine = $this->decode($this->request('GET', '/api/v1/me/entitlements', $this->headers()));
-        self::assertSame(['advanced_3d'], $mine['capabilities'] ?? null);
+        self::assertSame(['advanced_3d', 'max_projects'], $mine['capabilities'] ?? null);
 
         $theirs = $this->decode(
             $this->request('GET', '/api/v1/me/entitlements', $this->headers('bob-token')),
         );
         self::assertSame([], $theirs['capabilities'] ?? null);
+    }
+
+    /**
+     * The two gates have to answer the same question about the same person.
+     *
+     * Capability resolution runs with the caller, so a seat's quota feature
+     * reaches $context->capabilities. If the quota check then asks the
+     * tenant-wide question it finds nothing and refuses with "you need this
+     * entitlement" — the one the caller is holding. Capability yes, quota no,
+     * for the same feature and the same person.
+     */
+    public function testASeatsQuotaIsFoundForItsHolder(): void
+    {
+        $this->subscribeTo($this->anytimeOffer, seat: true);
+
+        $quotas = new QuotaPolicy(
+            new PostgresEntitlementRepository($this->connection),
+            new UsageMeter(['max_projects' => new FixedUsage(1)]),
+        );
+
+        // Named: the seat is theirs and its limit of 50 applies.
+        $quotas->assertMayConsume($this->tenant, $this->product, 'max_projects', $this->user);
+
+        // Unnamed, the tenant-wide question — and the tenant bought nothing,
+        // so the honest answer there is still no.
+        $refused = null;
+
+        try {
+            $quotas->assertMayConsume($this->tenant, $this->product, 'max_projects');
+        } catch (HttpException $error) {
+            $refused = $error;
+        }
+
+        self::assertNotNull($refused);
+        self::assertSame('ENTITLEMENT_REQUIRED', $refused->errorCode());
+    }
+
+    /**
+     * A seat that can be taken out and never given up is not a subscription,
+     * it is a trap. Cancelling names the scope with a flag, never an id:
+     * whose seat it could be is already settled by the context.
+     */
+    public function testASeatIsCancelledOnItsOwn(): void
+    {
+        $this->subscribeTo($this->anytimeOffer);
+        $this->subscribeTo($this->anytimeOffer, seat: true);
+
+        $body = $this->decode($this->cancelSeat());
+
+        $subscriber = $body['subscriber'] ?? null;
+        self::assertIsArray($subscriber);
+        self::assertSame('USER', $subscriber['kind'] ?? null);
+        self::assertSame('AT_PERIOD_END', $this->cancellationIn($body)['effect'] ?? null);
+
+        // The tenant's subscription is untouched: two scopes, two decisions.
+        self::assertSame(1, $this->rowsMatching(
+            "SELECT count(*) FROM subscriptions
+              WHERE subscriber_kind = 'TENANT' AND NOT cancel_at_period_end",
+        ));
+    }
+
+    public function testCancellingASeatNobodyHoldsSaysSo(): void
+    {
+        $this->subscribeTo($this->anytimeOffer);
+
+        $refused = $this->cancelSeat();
+
+        self::assertSame(404, $refused->getStatusCode());
+        self::assertSame('NO_SEAT', $this->errorOf($refused)['code'] ?? null);
+    }
+
+    /**
+     * The schedule endpoint answers about the same scope the cancel endpoint
+     * would act on, or the prediction is about somebody else's subscription.
+     */
+    public function testTheScheduleEndpointAnswersAboutTheSeatToo(): void
+    {
+        $this->subscribeTo($this->anytimeOffer, seat: true);
+
+        $view = $this->decode(
+            $this->request('GET', '/api/v1/subscription/schedule?seat=1', $this->headers()),
+        );
+
+        $subscription = $view['subscription'] ?? null;
+        self::assertIsArray($subscription);
+
+        $subscriber = $subscription['subscriber'] ?? null;
+        self::assertIsArray($subscriber);
+        self::assertSame('USER', $subscriber['kind'] ?? null);
     }
 
     // --- Helpers ------------------------------------------------------------
@@ -308,6 +402,16 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
             '/api/v1/subscription/cancel',
             $this->headers(),
             $this->json(['immediately' => $immediately]),
+        );
+    }
+
+    private function cancelSeat(): ResponseInterface
+    {
+        return $this->request(
+            'POST',
+            '/api/v1/subscription/cancel',
+            $this->headers(),
+            $this->json(['seat' => true]),
         );
     }
 
@@ -423,20 +527,35 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
             ['product' => $this->product],
         );
 
+        // A quota, so the seat scenarios can ask the question a boolean
+        // capability never does: is the *limit* found for the person holding
+        // the seat, or only for the tenant?
+        $projects = $this->id(
+            'INSERT INTO features (product_id, code, name, kind, unit)'
+            . " VALUES (:product, 'max_projects', 'max_projects', 'QUOTA', 'projects') RETURNING id",
+            ['product' => $this->product],
+        );
+
         // Twelve months of commitment on every one of them. What differs is
         // only what the offer says about leaving, which is exactly the axis
         // §13.1 makes an option rather than a policy.
-        $this->lockedOffer = $this->offer($plan, 'locked', $advanced, null, 12, 'AT_COMMITMENT_END', 'FORBIDDEN');
-        $this->buyoutOffer = $this->offer($plan, 'buyout', $advanced, null, 12, 'AT_COMMITMENT_END', 'CHARGE_REMAINING');
-        $this->freeExitOffer = $this->offer($plan, 'freeexit', $advanced, null, 12, 'AT_COMMITMENT_END', 'FREE');
-        $this->anytimeOffer = $this->offer($plan, 'anytime', $advanced, null, 12, 'ANYTIME', 'FORBIDDEN');
-        $this->termOffer = $this->offer($plan, 'term', $advanced, 24, 12, 'AT_TERM', 'FORBIDDEN');
+        $only = [[$advanced, null]];
+        $withQuota = [[$advanced, null], [$projects, 50]];
+
+        $this->lockedOffer = $this->offer($plan, 'locked', $only, null, 12, 'AT_COMMITMENT_END', 'FORBIDDEN');
+        $this->buyoutOffer = $this->offer($plan, 'buyout', $only, null, 12, 'AT_COMMITMENT_END', 'CHARGE_REMAINING');
+        $this->freeExitOffer = $this->offer($plan, 'freeexit', $only, null, 12, 'AT_COMMITMENT_END', 'FREE');
+        $this->anytimeOffer = $this->offer($plan, 'anytime', $withQuota, null, 12, 'ANYTIME', 'FORBIDDEN');
+        $this->termOffer = $this->offer($plan, 'term', $only, 24, 12, 'AT_TERM', 'FORBIDDEN');
     }
 
+    /**
+     * @param list<array{string, int|null}> $grants
+     */
     private function offer(
         string $planId,
         string $code,
-        string $featureId,
+        array $grants,
         ?int $termMonths,
         int $commitmentMonths,
         string $policy,
@@ -467,11 +586,13 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
             ],
         );
 
-        $this->connection->executeStatement(
-            'INSERT INTO offer_version_features (offer_version_id, feature_id, limit_value)'
-            . ' VALUES (:version, :feature, NULL)',
-            ['version' => $versionId, 'feature' => $featureId],
-        );
+        foreach ($grants as [$featureId, $limit]) {
+            $this->connection->executeStatement(
+                'INSERT INTO offer_version_features (offer_version_id, feature_id, limit_value)'
+                . ' VALUES (:version, :feature, :limit)',
+                ['version' => $versionId, 'feature' => $featureId, 'limit' => $limit],
+            );
+        }
 
         return $offerId;
     }

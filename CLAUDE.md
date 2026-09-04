@@ -272,8 +272,25 @@ Nothing outstanding raises **no document at all**. Numbering is gapless, so a
 A seat is addressed to a **person**, so capability resolution asks who is
 asking and excludes seats held by somebody else. Resolve capabilities without
 the person and one colleague's seat entitles the whole tenant, which is the
-opposite of what a seat is. Quotas stay tenant-scoped on purpose: a seat must
-not silently raise the tenant's limit.
+opposite of what a seat is.
+
+**Every gate must ask about the same person.** The quota check takes the
+caller too. Asking the tenant-wide question there while the capability chain
+asked a personal one is the worst of both: the capability check lets a seat
+holder through and the quota check then tells them they need the entitlement
+they are holding. Where a seat and the tenant both grant a feature, the most
+generous wins — the same rule that settles a negotiated override. The seat
+does not raise the *tenant-wide* answer, because that question names nobody,
+and usage stays measured tenant-wide because that is what the feature counts.
+
+A seat is taken out and given up by its holder, and both name the scope with
+a flag, never an id: the only two subscribers are the tenant and the caller,
+and both come from the context, so there is no id to supply and nothing to
+check one against.
+
+**Renewal may not roll past a cancellation already due**, or the subscription
+is quietly extended beyond the date the customer was given. A deferral
+further out does not block anything — it is only due once its date arrives.
 
 Renewal does not silently re-arm the commitment. Tacit renewal requires
 notifying the customer beforehand — that notice is a notification, and

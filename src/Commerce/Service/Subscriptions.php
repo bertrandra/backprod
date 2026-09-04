@@ -199,11 +199,9 @@ final class Subscriptions
         string $productId,
         bool $immediately,
         ?string $actorUserId,
-        ?string $subscriptionId = null,
+        bool $seat = false,
     ): array {
-        $subscription = $subscriptionId === null
-            ? $this->requireCurrent($tenantId, $productId)
-            : $this->requireOwn($tenantId, $productId, $subscriptionId);
+        $subscription = $this->subscriptionFor($tenantId, $productId, $actorUserId, $seat);
 
         $decision = $this->policy->decide($subscription, new DateTimeImmutable(), $immediately);
 
@@ -249,11 +247,13 @@ final class Subscriptions
      *
      * @return array{subscription: Subscription, decision: CancellationDecision}
      */
-    public function schedule(string $tenantId, string $productId, ?string $subscriptionId = null): array
-    {
-        $subscription = $subscriptionId === null
-            ? $this->requireCurrent($tenantId, $productId)
-            : $this->requireOwn($tenantId, $productId, $subscriptionId);
+    public function schedule(
+        string $tenantId,
+        string $productId,
+        ?string $actorUserId = null,
+        bool $seat = false,
+    ): array {
+        $subscription = $this->subscriptionFor($tenantId, $productId, $actorUserId, $seat);
 
         // The same decision the cancel endpoint would make, with no side
         // effect — the diagnostic and the action cannot disagree because they
@@ -265,24 +265,38 @@ final class Subscriptions
     }
 
     /**
-     * A subscription of this tenant and product, by id.
+     * Which subscription the caller means: the tenant's, or their own seat.
      *
-     * Scoped rather than fetched bare: an id is not an authorisation, and a
-     * seat belonging to another tenant must answer the same way as one that
-     * does not exist.
+     * Never an id from the request. The two subscribers §13.1 allows are the
+     * tenant — resolved from the context — and the person making the call,
+     * also from the context, so there is no id for a client to supply and
+     * nothing to check it against. An earlier version took a subscription id
+     * and scoped it by tenant; this needs neither the parameter nor the
+     * check, which is the better answer to "an id is not an authorisation".
      */
-    private function requireOwn(string $tenantId, string $productId, string $subscriptionId): Subscription
-    {
-        $subscription = $this->subscriptions->findById($subscriptionId);
-
-        if ($subscription === null
-            || $subscription->tenantId !== $tenantId
-            || $subscription->productId !== $productId
-        ) {
-            throw new NotFoundException('Subscription not found.', [], 'SUBSCRIPTION_NOT_FOUND');
+    private function subscriptionFor(
+        string $tenantId,
+        string $productId,
+        ?string $actorUserId,
+        bool $seat,
+    ): Subscription {
+        if (!$seat) {
+            return $this->requireCurrent($tenantId, $productId);
         }
 
-        return $subscription;
+        $held = $actorUserId === null
+            ? null
+            : $this->seatOf($tenantId, $productId, $actorUserId);
+
+        if ($held === null) {
+            throw new NotFoundException(
+                'You hold no seat for this product.',
+                [],
+                'NO_SEAT',
+            );
+        }
+
+        return $held;
     }
 
     public function resume(string $tenantId, string $productId, ?string $actorUserId): Subscription
@@ -310,12 +324,25 @@ final class Subscriptions
     public function renew(string $tenantId, string $productId): Subscription
     {
         $subscription = $this->requireCurrent($tenantId, $productId);
+        $from = $subscription->currentPeriodEnd ?? new DateTimeImmutable();
+
+        // A cancellation already due is not something renewal may roll past.
+        // Renewing here would extend a subscription beyond the date the
+        // customer was given and start billing a period they cancelled —
+        // exactly the promise §13.1 says has to stay checkable. A deferral
+        // to a commitment further out does not block anything: it is only
+        // due once its date arrives.
+        if ($subscription->isDueToEndBy($from)) {
+            throw new ConflictException(
+                'CANCELLATION_DUE',
+                'This subscription is due to end and cannot be renewed.',
+                ['cancel_effective_at' => $subscription->cancelEffectiveAt?->format(DATE_ATOM)],
+            );
+        }
 
         return $this->subscriptions->renew(
             $subscription,
-            $subscription->offer->version->periodEndFrom(
-                $subscription->currentPeriodEnd ?? new DateTimeImmutable(),
-            ),
+            $subscription->offer->version->periodEndFrom($from),
         );
     }
 
