@@ -20,4 +20,12 @@ namespace App\Admin\Domain;
 final class AdminPermission
 {
     public const AUDIT_READ = 'admin.audit.read';
+
+    /**
+     * Held by FINANCE_ADMIN and SALES_ADMIN as well as PLATFORM_ADMIN, and
+     * deliberately not by SUPPORT_ADMIN: support answers one customer's
+     * question about their own account, which is not a reason to see every
+     * customer's revenue.
+     */
+    public const FINANCE_READ = 'admin.finance.read';
 }

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Admin\Controller\ListAuditController;
+use App\Admin\Controller\ShowMetricsController;
 use App\Billing\Controller\CancelInvoiceController;
 use App\Billing\Controller\IssueCreditNoteController;
 use App\Billing\Controller\IssueInvoiceController;
@@ -326,6 +327,12 @@ return static function (RouteCollector $routes): void {
     // access trail, operations reads the platform's audit trail. Nothing
     // under here is reachable with a tenant membership.
     $routes->addRoute('GET', '/api/v1/admin/audit', ListAuditController::class);
+
+    // §25.2's dashboard, behind its own permission: finance and sales hold
+    // it, support does not. The product is named in the query because an
+    // admin surface resolves none of its own — which product is the question,
+    // not the context.
+    $routes->addRoute('GET', '/api/v1/admin/metrics', ShowMetricsController::class);
 
     // Support: the platform's side of §12.3. Only SUPPORT threads are
     // reachable — the repository filters on kind in SQL, so a tenant's
