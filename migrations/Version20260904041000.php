@@ -89,7 +89,7 @@ final class Version20260904041000 extends AbstractMigration
                 $end = $until === null ? 'NULL' : sprintf("TIMESTAMPTZ '%s'", $until);
 
                 $this->addSql(sprintf(
-                    "INSERT INTO tax_rates (country_code, rate_kind, basis_points, valid_from, valid_until, source)"
+                    'INSERT INTO tax_rates (country_code, rate_kind, basis_points, valid_from, valid_until, source)'
                     . " VALUES ('%s', 'STANDARD', %d, TIMESTAMPTZ '%s', %s, '%s')",
                     $country,
                     $basisPoints,

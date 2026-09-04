@@ -340,7 +340,7 @@ final class FiscalChainTest extends DatabaseApiTestCase
             . " VALUES ('FR', 'MONTHLY', current_date - 5, current_date - 1) RETURNING id",
         );
         $this->connection->executeStatement(
-            "UPDATE vat_transactions SET transaction_date = current_date - 3",
+            'UPDATE vat_transactions SET transaction_date = current_date - 3',
         );
 
         $closed = $this->decode($this->closePeriod($period))['declaration'] ?? null;
