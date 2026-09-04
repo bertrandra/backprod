@@ -570,6 +570,7 @@ final class FiscalChainTest extends DatabaseApiTestCase
         $fact = $transactions[0];
         self::assertIsArray($fact);
 
+        /** @var array<string, mixed> $fact */
         return $fact;
     }
 
