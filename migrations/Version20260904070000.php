@@ -22,10 +22,18 @@ use Doctrine\Migrations\AbstractMigration;
  * authorisation path to get wrong. §10.1 lists both surfaces; M6.2 already
  * defined FINANCE_ADMIN and SALES_ADMIN with nothing to grant them.
  *
- * **The audit log is append-only in the database, not by convention.** A
- * trail an application can edit is a trail that proves nothing, and "we do
- * not update it" is a promise rather than a constraint. A trigger refuses
- * UPDATE and DELETE outright, the way the VAT period closure does.
+ * **The audit log records what happened permanently, and who did it only
+ * for as long as it may.** A trail an application can edit proves nothing,
+ * so a trigger enforces it rather than a convention — but "append-only" in
+ * its strict form collides with erasure (#14, #15) and the collision is a
+ * deadlock, not a trade-off: a foreign key that refuses to let the actor go
+ * plus an UPDATE nobody may run means the person can never be erased at all.
+ *
+ * So the trigger draws the line where it actually belongs. DELETE is refused
+ * outright. UPDATE is refused too, with exactly one exception: an update
+ * that *forgets the actor* — clears `user_id`, stamps `actor_forgotten_at`,
+ * and leaves every column describing the event byte-identical. You may
+ * forget who; you may never change what happened.
  *
  * §30 names four correlation keys — tenant, user, project, request — and all
  * four are columns rather than JSON, because the questions they answer
@@ -84,28 +92,65 @@ final class Version20260904070000 extends AbstractMigration
                 project_id UUID,
                 request_id TEXT,
                 detail JSONB NOT NULL DEFAULT '{}'::jsonb,
+                -- Says the actor was erased, rather than leaving the row
+                -- indistinguishable from one that never had an actor. A
+                -- system action and a forgotten person are different facts.
+                actor_forgotten_at TIMESTAMPTZ,
                 CONSTRAINT audit_log_action_not_blank
                     CHECK (btrim(action) <> ''),
                 CONSTRAINT audit_log_subject_type_not_blank
                     CHECK (btrim(subject_type) <> ''),
                 CONSTRAINT audit_log_detail_is_object
-                    CHECK (jsonb_typeof(detail) = 'object')
+                    CHECK (jsonb_typeof(detail) = 'object'),
+                -- Forgotten means forgotten: the stamp and the absence of an
+                -- actor cannot drift apart.
+                CONSTRAINT audit_log_forgotten_has_no_actor
+                    CHECK (actor_forgotten_at IS NULL OR user_id IS NULL)
             )
             SQL);
 
-        // ON DELETE RESTRICT on the actor is deliberate and will have to be
-        // faced rather than worked around. An erasure request under RGPD and
-        // a trail that names who acted are in genuine tension (#14, #15), and
-        // the two easy answers are both wrong: CASCADE destroys the evidence
-        // an audit exists to hold, SET NULL keeps the row while removing the
-        // only thing it was recording. Refusing the delete forces M8's
-        // retention service to decide out loud — anonymise, or retain under
-        // a legal basis — instead of a foreign key deciding silently.
+        // ON DELETE RESTRICT, with anonymisation as the way through.
+        //
+        // CASCADE would destroy the evidence an audit exists to hold. SET
+        // NULL would forget the actor silently, on any careless delete, with
+        // nothing afterwards to say the trail had been anonymised at all.
+        // RESTRICT refuses instead, so erasing a person is a deliberate act:
+        // the retention service forgets them in the trail first — which the
+        // trigger below permits and the stamp records — and only then may
+        // the row go. A delete nobody thought about fails.
 
         $this->addSql(<<<'SQL'
-            CREATE FUNCTION audit_log_is_append_only() RETURNS trigger AS $$
+            CREATE FUNCTION audit_log_forgets_only_the_actor() RETURNS trigger AS $$
             BEGIN
-                RAISE EXCEPTION 'audit_log is append-only; % is not permitted', TG_OP;
+                IF TG_OP = 'DELETE' THEN
+                    RAISE EXCEPTION 'audit_log is append-only; DELETE is not permitted';
+                END IF;
+
+                IF NEW.occurred_at   IS DISTINCT FROM OLD.occurred_at
+                   OR NEW.action     IS DISTINCT FROM OLD.action
+                   OR NEW.subject_type IS DISTINCT FROM OLD.subject_type
+                   OR NEW.subject_id IS DISTINCT FROM OLD.subject_id
+                   OR NEW.tenant_id  IS DISTINCT FROM OLD.tenant_id
+                   OR NEW.product_id IS DISTINCT FROM OLD.product_id
+                   OR NEW.project_id IS DISTINCT FROM OLD.project_id
+                   OR NEW.request_id IS DISTINCT FROM OLD.request_id
+                   OR NEW.detail     IS DISTINCT FROM OLD.detail
+                THEN
+                    RAISE EXCEPTION
+                        'audit_log records what happened; only the actor may be forgotten';
+                END IF;
+
+                IF NEW.user_id IS NOT NULL THEN
+                    RAISE EXCEPTION
+                        'audit_log: forgetting an actor clears user_id, it does not reassign it';
+                END IF;
+
+                IF NEW.actor_forgotten_at IS NULL THEN
+                    RAISE EXCEPTION
+                        'audit_log: forgetting an actor must be stamped, or nothing records that it happened';
+                END IF;
+
+                RETURN NEW;
             END;
             $$ LANGUAGE plpgsql
             SQL);
@@ -113,7 +158,7 @@ final class Version20260904070000 extends AbstractMigration
         $this->addSql(<<<'SQL'
             CREATE TRIGGER audit_log_stays_written
                 BEFORE UPDATE OR DELETE ON audit_log
-                FOR EACH ROW EXECUTE FUNCTION audit_log_is_append_only()
+                FOR EACH ROW EXECUTE FUNCTION audit_log_forgets_only_the_actor()
             SQL);
 
         // The three questions the trail is read by: what happened to this
@@ -134,7 +179,7 @@ final class Version20260904070000 extends AbstractMigration
     {
         // The trigger refuses row deletes, not the table's removal.
         $this->addSql('DROP TABLE IF EXISTS audit_log');
-        $this->addSql('DROP FUNCTION IF EXISTS audit_log_is_append_only()');
+        $this->addSql('DROP FUNCTION IF EXISTS audit_log_forgets_only_the_actor()');
 
         $this->addSql(<<<'SQL'
             DELETE FROM platform_role_permissions
