@@ -44,6 +44,16 @@ use App\Messaging\Controller\PostMessageController;
 use App\Messaging\Controller\RemoveParticipantController;
 use App\Messaging\Controller\ShowConversationController;
 use App\Messaging\Controller\StartConversationController;
+use App\Notification\Controller\GrantConsentController;
+use App\Notification\Controller\ListConsentsController;
+use App\Notification\Controller\ListNotificationsController;
+use App\Notification\Controller\ReadAllNotificationsController;
+use App\Notification\Controller\ReadNotificationController;
+use App\Notification\Controller\RevokeConsentController;
+use App\Notification\Controller\SavePreferenceController;
+use App\Notification\Controller\ShowDeliveriesController;
+use App\Notification\Controller\ShowPreferencesController;
+use App\Notification\Controller\UnreadCountController;
 use App\Payment\Controller\ListPaymentsController;
 use App\Payment\Controller\PaymentWebhookController;
 use App\Payment\Controller\RefundPaymentController;
@@ -175,6 +185,29 @@ return static function (RouteCollector $routes): void {
     // hole. Both documents are kept.
     $routes->addRoute('GET', '/api/v1/billing/credit-notes', ListCreditNotesController::class);
     $routes->addRoute('POST', '/api/v1/billing/invoices/{invoiceId}/credit', IssueCreditNoteController::class);
+
+    // Notifications (§27.1). Every route is scoped by the *resolved* user:
+    // a notification is addressed to one person, and asking for somebody
+    // else's is not something this API can express.
+    //
+    // The literal paths are registered before the {notificationId} one so
+    // that /read-all and /unread-count are not read as ids.
+    $routes->addRoute('GET', '/api/v1/notifications', ListNotificationsController::class);
+    $routes->addRoute('GET', '/api/v1/notifications/unread-count', UnreadCountController::class);
+    $routes->addRoute('POST', '/api/v1/notifications/read-all', ReadAllNotificationsController::class);
+
+    $routes->addRoute('GET', '/api/v1/notifications/preferences', ShowPreferencesController::class);
+    $routes->addRoute('PUT', '/api/v1/notifications/preferences', SavePreferenceController::class);
+
+    // SMS and WhatsApp are attempted only against a recorded, revocable
+    // opt-in. A revoked consent is dated, never deleted: it is the record
+    // that permission once existed.
+    $routes->addRoute('GET', '/api/v1/notifications/consents', ListConsentsController::class);
+    $routes->addRoute('POST', '/api/v1/notifications/consents', GrantConsentController::class);
+    $routes->addRoute('DELETE', '/api/v1/notifications/consents/{consentId}', RevokeConsentController::class);
+
+    $routes->addRoute('POST', '/api/v1/notifications/{notificationId}/read', ReadNotificationController::class);
+    $routes->addRoute('GET', '/api/v1/notifications/{notificationId}/deliveries', ShowDeliveriesController::class);
 
     // Fiscalité (§25.3). Tax is a separate surface from Billing because the
     // two produce different things: Billing produces a document, Tax
