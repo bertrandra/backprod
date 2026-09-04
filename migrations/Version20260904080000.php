@@ -15,6 +15,12 @@ use Doctrine\Migrations\AbstractMigration;
  * each time somebody opens a page. So the answers are rolled up per month and
  * the dashboard reads rows, not the ledger.
  *
+ * **Turnover is what was invoiced, not what was collected.** §25.2 asks
+ * for revenue *and* for unpaid invoices and receivables, which only makes
+ * sense if revenue is the billed figure — otherwise the two lines would be
+ * the same fact twice. That is also the French reading of chiffre
+ * d'affaires: recognised at issue.
+ *
  * **Currency is part of the grain and totals are never summed across it.**
  * €100 and $100 are not €200, and a dashboard that adds them is worse than
  * one that declines to: the wrong number is actionable in a way a missing one
@@ -39,6 +45,26 @@ final class Version20260904080000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
+        // The permission this dashboard is read behind. FINANCE_ADMIN and
+        // SALES_ADMIN were defined in M6.2 with nothing to grant them; this
+        // is the first thing that is theirs. PLATFORM_ADMIN gets it too, and
+        // SUPPORT_ADMIN deliberately does not: support answers a customer's
+        // question about their own account, which is not a reason to see
+        // every customer's revenue.
+        $this->addSql(<<<'SQL'
+            INSERT INTO platform_permissions (code, description) VALUES
+                ('admin.finance.read', 'Read the platform financial dashboard')
+            SQL);
+
+        $this->addSql(<<<'SQL'
+            INSERT INTO platform_role_permissions (platform_role_id, platform_permission_id)
+            SELECT r.id, p.id
+              FROM platform_roles r
+              CROSS JOIN platform_permissions p
+             WHERE p.code = 'admin.finance.read'
+               AND r.code IN ('PLATFORM_ADMIN', 'FINANCE_ADMIN', 'SALES_ADMIN')
+            SQL);
+
         // --- turnover per month ------------------------------------------
         $this->addSql(<<<'SQL'
             CREATE TABLE revenue_periods (
@@ -49,6 +75,13 @@ final class Version20260904080000 extends AbstractMigration
                 net_minor_units BIGINT NOT NULL DEFAULT 0,
                 vat_minor_units BIGINT NOT NULL DEFAULT 0,
                 gross_minor_units BIGINT NOT NULL DEFAULT 0,
+                -- Credit notes are reported beside turnover, never netted
+                -- into it. A single figure that quietly absorbed them would
+                -- answer "what did we bill?" and "what do we keep?" with one
+                -- number, and they are different questions with different
+                -- audiences.
+                credited_minor_units BIGINT NOT NULL DEFAULT 0,
+                invoices_issued INTEGER NOT NULL DEFAULT 0,
                 invoices_paid INTEGER NOT NULL DEFAULT 0,
                 status TEXT NOT NULL DEFAULT 'OPEN',
                 closed_at TIMESTAMPTZ,
@@ -64,9 +97,14 @@ final class Version20260904080000 extends AbstractMigration
                 CONSTRAINT revenue_periods_starts_a_month
                     CHECK (period_start = date_trunc('month', CAST(period_start AS timestamp))::date),
                 CONSTRAINT revenue_periods_amounts_not_negative
-                    CHECK (net_minor_units >= 0 AND vat_minor_units >= 0 AND gross_minor_units >= 0),
+                    CHECK (net_minor_units >= 0 AND vat_minor_units >= 0
+                           AND gross_minor_units >= 0 AND credited_minor_units >= 0),
                 CONSTRAINT revenue_periods_counts_not_negative
-                    CHECK (invoices_paid >= 0)
+                    CHECK (invoices_issued >= 0 AND invoices_paid >= 0),
+                -- Paid is a subset of issued: an invoice cannot be settled in
+                -- a month it was never raised in.
+                CONSTRAINT revenue_periods_paid_within_issued
+                    CHECK (invoices_paid <= invoices_issued)
             )
             SQL);
 
@@ -161,6 +199,13 @@ final class Version20260904080000 extends AbstractMigration
 
     public function down(Schema $schema): void
     {
+        $this->addSql(<<<'SQL'
+            DELETE FROM platform_role_permissions
+             WHERE platform_permission_id IN (
+                   SELECT id FROM platform_permissions WHERE code = 'admin.finance.read'
+             )
+            SQL);
+        $this->addSql("DELETE FROM platform_permissions WHERE code = 'admin.finance.read'");
         $this->addSql('DROP TABLE IF EXISTS renewal_periods');
         $this->addSql('DROP TABLE IF EXISTS offer_revenue_periods');
         $this->addSql('DROP TABLE IF EXISTS revenue_periods');

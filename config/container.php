@@ -3,9 +3,12 @@
 declare(strict_types=1);
 
 use App\Admin\Service\AuditTrail;
+use App\Admin\Service\FinancialDashboard;
 use App\Audit\Domain\AuditLog;
 use App\Audit\Domain\AuditReader;
 use App\Audit\Infrastructure\PostgresAuditLog;
+use App\Finance\Domain\FinancialPeriods;
+use App\Finance\Infrastructure\PostgresFinancialPeriods;
 use App\Auth\Domain\AuthProvider;
 use App\Auth\Infrastructure\NullSigningKeySource;
 use App\Auth\Infrastructure\SigningKeySource;
@@ -36,6 +39,7 @@ use App\Job\Domain\JobRepository;
 use App\Job\Infrastructure\PostgresJobRepository;
 use App\Job\Service\ExpireQuotes;
 use App\Job\Service\ExpireSubscriptions;
+use App\Job\Service\RollUpFinancials;
 use App\Job\Service\JobHandlers;
 use App\Messaging\Domain\ConversationRepository;
 use App\Messaging\Infrastructure\PostgresConversationRepository;
@@ -176,6 +180,13 @@ return static function (array $overrides = []): ContainerInterface {
         AuditLog::class => autowire(PostgresAuditLog::class),
         AuditReader::class => autowire(PostgresAuditLog::class),
         AuditTrail::class => autowire(),
+
+        // The rollups the dashboard reads and the job fills. One interface
+        // for both: unlike the audit trail there is no privilege to separate
+        // here — the surface that reads them is the surface that would ask
+        // for them to be recomputed.
+        FinancialPeriods::class => autowire(PostgresFinancialPeriods::class),
+        FinancialDashboard::class => autowire(),
         BillingProfileRepository::class => autowire(PostgresBillingProfileRepository::class),
         InvoiceRepository::class => autowire(PostgresInvoiceRepository::class),
         CreditNoteRepository::class => autowire(PostgresCreditNoteRepository::class),
@@ -275,7 +286,10 @@ return static function (array $overrides = []): ContainerInterface {
                 ExpireSubscriptions $subscriptions,
                 ExportProject $exports,
                 DispatchNotifications $notify,
-            ): JobHandlers => new JobHandlers([$quotes, $subscriptions, $exports, $notify]),
+                RollUpFinancials $rollup,
+            ): JobHandlers => new JobHandlers(
+                [$quotes, $subscriptions, $exports, $notify, $rollup],
+            ),
         ),
 
         NotificationRepository::class => autowire(PostgresNotificationRepository::class),
