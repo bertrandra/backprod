@@ -683,7 +683,11 @@ final class PostgresTaxRepository implements TaxRepository
         $breakdown = $row['breakdown'] ?? null;
         $decoded = is_string($breakdown) ? json_decode($breakdown, true) : null;
 
-        /** @var list<array{regime: string, rate: int, base: int, vat: int, count: int}> $lines */
+        /**
+         * @var list<array{
+         *     regime: string, rate: int, currency: string, base: int, vat: int, count: int
+         * }> $lines
+         */
         $lines = is_array($decoded) ? array_values($decoded) : [];
 
         return new VatDeclaration(
