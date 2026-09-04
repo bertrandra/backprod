@@ -449,9 +449,14 @@ final class PostgresTaxRepository implements TaxRepository
         $currency = 'EUR';
 
         foreach ($rows as $row) {
-            $base = (int) Row::string($row, 'base');
-            $vat = (int) Row::string($row, 'vat');
-            $entries = (int) Row::string($row, 'entries');
+            // Row::integer, not Row::string, and the difference is not
+            // cosmetic: PostgreSQL's sum() over a bigint returns *numeric*,
+            // which PDO hands back as a string, while count(*) returns bigint,
+            // which PDO hands back as a PHP int. Asking for a string got a
+            // 500 the moment a period actually had transactions in it.
+            $base = Row::integer($row, 'base');
+            $vat = Row::integer($row, 'vat');
+            $entries = Row::integer($row, 'entries');
             $currency = Row::string($row, 'currency');
 
             $breakdown[] = [

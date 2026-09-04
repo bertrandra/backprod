@@ -230,7 +230,10 @@ final class FiscalChainTest extends DatabaseApiTestCase
         self::assertSame('domestic.standard', $fact['rule_id'] ?? null);
 
         // §25.3: the fiscal facts of an invoice sum to that invoice's VAT.
-        self::assertSame($invoice['vat_minor_units'] ?? null, $fact['vat_amount'] ?? null);
+        // The presenter renders money as {minor_units, currency}.
+        $vat = $invoice['vat'] ?? null;
+        self::assertIsArray($vat);
+        self::assertSame($vat['minor_units'] ?? null, $fact['vat_amount'] ?? null);
     }
 
     public function testAReverseChargedSaleLeavesAFactThatSaysSo(): void
