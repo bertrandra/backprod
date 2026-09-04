@@ -30,6 +30,10 @@ use App\Identity\Controller\MeController;
 use App\Identity\Controller\MePermissionsController;
 use App\Identity\Controller\MyEntitlementsController;
 use App\Identity\Controller\UpdateMeController;
+use App\Job\Controller\CancelJobController;
+use App\Job\Controller\ListJobsController;
+use App\Job\Controller\RequestJobController;
+use App\Job\Controller\ShowJobController;
 use App\Messaging\Controller\AddParticipantController;
 use App\Messaging\Controller\CloseConversationController;
 use App\Messaging\Controller\DeleteMessageController;
@@ -245,6 +249,14 @@ return static function (RouteCollector $routes): void {
         '/api/v1/staff/conversations/{conversationId}/close',
         CloseSupportConversationController::class,
     );
+
+    // Jobs (§27). Requesting work returns 202 and a job id; nothing here
+    // runs anything — bin/run-jobs.php is the only thing that executes, and
+    // cron is the only thing that calls it (D3).
+    $routes->addRoute('GET', '/api/v1/jobs', ListJobsController::class);
+    $routes->addRoute('POST', '/api/v1/jobs', RequestJobController::class);
+    $routes->addRoute('GET', '/api/v1/jobs/{jobId}', ShowJobController::class);
+    $routes->addRoute('POST', '/api/v1/jobs/{jobId}/cancel', CancelJobController::class);
 
     // Conversations: the tenant's side. Full context chain, scoped to the
     // caller's tenant and product and further to the threads they are in.

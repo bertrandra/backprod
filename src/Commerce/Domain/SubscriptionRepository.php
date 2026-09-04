@@ -112,4 +112,14 @@ interface SubscriptionRepository
      * @return list<SubscriptionEvent>
      */
     public function events(Subscription $subscription): array;
+
+    /**
+     * Moves subscriptions past the end of their period to EXPIRED, and says
+     * how many moved.
+     *
+     * Entitlements already ask the clock, so this changes nothing a customer
+     * can do — it makes the column agree with reality for the people reading
+     * it. A subscription with no period end has no end to be past.
+     */
+    public function expireLapsed(): int;
 }

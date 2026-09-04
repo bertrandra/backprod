@@ -100,7 +100,7 @@ as they gain those layers; small modules stay lighter (§41.1).
 
 ## Status
 
-**M6 complete, M6.2 landed** in
+**M6 complete, M6.2 landed, M7 under way** in
 [`docs/backend-roadmap.md`](docs/backend-roadmap.md) —
 billing, payments and e-invoicing — on top of M5's commerce, M4's projects,
 M3's product registry, M2's platform identity and M1's context chain.
@@ -602,6 +602,71 @@ POST   /api/v1/staff/conversations/{id}/close
 
 Every staff read and reply writes to `staff_access_log`, as with every other
 crossing of the boundary.
+
+## Jobs
+
+Asynchronous work runs without a resident process, because the deployment
+target has none to offer (D3, [ADR-027](docs/adr/ADR-027-cron-polled-job-queue.md)).
+
+```bash
+# crontab
+* * * * * /usr/bin/php /path/to/bin/run-jobs.php >> /path/to/jobs.log 2>&1
+```
+
+`bin/run-jobs.php` starts, claims what is due, runs it, and exits. Its
+correctness rests on one statement:
+
+```sql
+UPDATE jobs SET status = 'RUNNING', leased_until = now() + …, attempts = attempts + 1
+ WHERE id IN (
+   SELECT id FROM jobs
+    WHERE attempts < max_attempts
+      AND ((status = 'QUEUED' AND run_after <= now())
+        OR (status = 'RUNNING' AND leased_until < now()))
+    ORDER BY priority DESC, run_after, created_at
+    FOR UPDATE SKIP LOCKED
+    LIMIT :n
+ )
+RETURNING …
+```
+
+**`FOR UPDATE SKIP LOCKED` is what makes overlapping runs safe.** A cron
+firing while the previous pass is still going is the normal case, not an
+error: the second run takes different rows rather than waiting behind the
+first or claiming the same ones. Selection and leasing are one statement, so
+no window exists in which a job is chosen but unclaimed. Verified with two
+real concurrent sessions.
+
+**A lease, not a lock.** A running job holds `leased_until`; when that lapses
+the job is claimable again — the same rule that governs offer windows,
+entitlements and quote expiry, now applied to the runner itself. It is what
+stops a crashed worker stranding work, with no recovery step to schedule.
+
+**`attempts` increments at claim, not at failure**, because a handler that
+kills the process never reaches a failure path.
+
+**Handlers must be idempotent.** A job can run twice — a lapsed lease while
+the original is still working — and no lock available on this hosting
+prevents it, so the requirement sits where it can be met.
+
+**`failure_reason` holds the exception class, not its message**: the field is
+served over the API and a driver's message can carry the SQL that failed
+(§31). The message goes to the log.
+
+`job_runs` records every pass, so a stopped cron is distinguishable from a
+quiet queue — otherwise they look identical (R10).
+
+```text
+GET  /api/v1/jobs               this tenant's jobs
+POST /api/v1/jobs               202 and an id; nothing runs in the request
+GET  /api/v1/jobs/{id}          what a client polls after the 202
+POST /api/v1/jobs/{id}/cancel   only before it starts
+```
+
+Two sweeps ship with it — `sweep.quotes` and `sweep.subscriptions`. Neither
+changes what a lapsed quote or subscription *means*: acceptance and
+entitlement resolution have asked the clock since M5 and M6. They make the
+status column agree with the clock, which is what listings read.
 
 ## Projects
 
