@@ -10,6 +10,7 @@ use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
+use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
