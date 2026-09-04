@@ -50,6 +50,7 @@ interface SubscriptionRepository
         SubscribedOffer $offer,
         ?DateTimeImmutable $periodEnd,
         ?string $actorUserId,
+        ?Subscriber $subscriber = null,
     ): Subscription;
 
     /**
@@ -66,6 +67,45 @@ interface SubscriptionRepository
         SubscribedOffer $offer,
         ?DateTimeImmutable $periodEnd,
         ?string $actorUserId,
+        ?Subscriber $subscriber = null,
+    ): Subscription;
+
+    /**
+     * One subscription by id, whatever its status or subscriber. A seat is not
+     * reachable by (tenant, product) — that is the tenant's own.
+     */
+    public function findById(string $subscriptionId): ?Subscription;
+
+    /**
+     * Every live subscription entitling this person: the tenant's own, plus
+     * their seat if they hold one.
+     *
+     * @return list<Subscription>
+     */
+    public function liveFor(string $tenantId, string $productId, string $userId): array;
+
+    /**
+     * Records a cancellation decision: the schedule flag, the effective date
+     * the customer was told, and the event.
+     *
+     * The date is stored rather than recomputed on read, because "I
+     * cancelled" against "we received nothing" needs an arbiter, and a
+     * recomputation would answer with today's rules rather than the ones in
+     * force when the request was made.
+     *
+     * $alsoCharge runs inside this method's transaction, after the row has
+     * moved, for a decision that costs something. A subscription released
+     * with its buy-out unbilled is revenue given away, and a buy-out billed
+     * against a subscription still running is a customer charged for an exit
+     * they did not get; neither may survive a crash between the two.
+     *
+     * @param (callable(Subscription): void)|null $alsoCharge
+     */
+    public function scheduleCancellation(
+        Subscription $subscription,
+        CancellationDecision $decision,
+        ?string $actorUserId,
+        ?callable $alsoCharge = null,
     ): Subscription;
 
     /**
@@ -81,15 +121,6 @@ interface SubscriptionRepository
         string $direction,
         ?string $actorUserId,
     ): Subscription;
-
-    /**
-     * Schedules the end of a subscription, or ends it now.
-     *
-     * Scheduled is the default because a customer who cancels on day two of
-     * a month they paid for keeps the month; immediate cancellation ends the
-     * entitlements with it.
-     */
-    public function cancel(Subscription $subscription, bool $immediately, ?string $actorUserId): Subscription;
 
     /**
      * Withdraws a scheduled cancellation. Only meaningful while the

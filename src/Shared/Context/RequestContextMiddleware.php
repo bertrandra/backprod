@@ -112,7 +112,10 @@ final class RequestContextMiddleware implements MiddlewareInterface
             $membership->tenantId,
             $membership->roles,
             $membership->permissions,
-            $this->entitlements->capabilitiesFor($membership->tenantId, $product->id),
+            // Named, so a seat this person holds counts and one held by a
+            // colleague does not (§13.1). Resolving capabilities without the
+            // person would make every seat tenant-wide.
+            $this->entitlements->capabilitiesFor($membership->tenantId, $product->id, $user->id),
         );
 
         return $handler->handle($request->withAttribute(RequestContext::ATTRIBUTE, $context));

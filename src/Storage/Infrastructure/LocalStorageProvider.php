@@ -81,11 +81,6 @@ final class LocalStorageProvider implements StorageProvider
         }
     }
 
-    public function exists(string $key): bool
-    {
-        return is_file($this->pathFor($key));
-    }
-
     private function pathFor(string $key): string
     {
         if (preg_match(self::KEY_PATTERN, $key) !== 1) {

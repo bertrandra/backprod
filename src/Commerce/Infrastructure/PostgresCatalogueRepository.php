@@ -10,6 +10,7 @@ use App\Commerce\Domain\OfferCandidate;
 use App\Commerce\Domain\OfferGrant;
 use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Domain\Plan;
+use App\Commerce\Domain\SubscriptionTerms;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
 use Doctrine\DBAL\ArrayParameterType;
@@ -126,7 +127,9 @@ final class PostgresCatalogueRepository implements CatalogueRepository
         $row = $this->connection->fetchAssociative(
             <<<'SQL'
                 SELECT id, offer_id, version, status, billing_period,
-                       price_minor_units, currency, valid_from, valid_until
+                       price_minor_units, currency, valid_from, valid_until,
+                       term_months, commitment_months, cancellation_policy,
+                       renewal, early_termination, notice_days
                   FROM offer_versions
                  WHERE id = :versionId
                 SQL,
@@ -149,6 +152,14 @@ final class PostgresCatalogueRepository implements CatalogueRepository
             Row::timestamp($row, 'valid_from'),
             Row::nullableTimestamp($row, 'valid_until'),
             $this->grantsOf([$id])[$id] ?? [],
+            new SubscriptionTerms(
+                Row::nullableInteger($row, 'term_months'),
+                Row::integer($row, 'commitment_months'),
+                Row::string($row, 'cancellation_policy'),
+                Row::string($row, 'renewal'),
+                Row::string($row, 'early_termination'),
+                Row::integer($row, 'notice_days'),
+            ),
         )];
     }
 
@@ -218,7 +229,9 @@ final class PostgresCatalogueRepository implements CatalogueRepository
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
                 SELECT id, offer_id, version, status, billing_period,
-                       price_minor_units, currency, valid_from, valid_until
+                       price_minor_units, currency, valid_from, valid_until,
+                       term_months, commitment_months, cancellation_policy,
+                       renewal, early_termination, notice_days
                 FROM offer_versions
                 WHERE offer_id IN (:offerIds)
                   AND status = 'ACTIVE'
@@ -252,6 +265,14 @@ final class PostgresCatalogueRepository implements CatalogueRepository
                 Row::timestamp($row, 'valid_from'),
                 Row::nullableTimestamp($row, 'valid_until'),
                 $grants[$id] ?? [],
+                new SubscriptionTerms(
+                    Row::nullableInteger($row, 'term_months'),
+                    Row::integer($row, 'commitment_months'),
+                    Row::string($row, 'cancellation_policy'),
+                    Row::string($row, 'renewal'),
+                    Row::string($row, 'early_termination'),
+                    Row::integer($row, 'notice_days'),
+                ),
             );
         }
 

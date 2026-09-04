@@ -15,6 +15,7 @@ use App\Billing\Infrastructure\PostgresBillingProfileRepository;
 use App\Billing\Infrastructure\PostgresCreditNoteRepository;
 use App\Billing\Infrastructure\PostgresInvoiceRepository;
 use App\Commerce\Domain\CatalogueRepository;
+use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Infrastructure\PostgresCatalogueRepository;
 use App\Commerce\Infrastructure\PostgresEntitlementRepository;
@@ -59,6 +60,7 @@ use App\Project\Service\ProjectWorkspace;
 use App\Sales\Domain\OrderFulfilment;
 use App\Sales\Domain\SalesRepository;
 use App\Sales\Infrastructure\PostgresSalesRepository;
+use App\Sales\Service\ChargeOnEarlyTermination;
 use App\Sales\Service\CompleteOrderOnPayment;
 use App\Sales\Service\InvoiceThenSubscribe;
 use App\Shared\Context\RequestContextMiddleware;
@@ -170,6 +172,11 @@ return static function (array $overrides = []): ContainerInterface {
         PaymentSettlement::class => autowire(InvoiceSettlement::class),
         SalesRepository::class => autowire(PostgresSalesRepository::class),
         OrderFulfilment::class => autowire(InvoiceThenSubscribe::class),
+
+        // Leaving a commitment early is a sale like any other: it produces a
+        // numbered, taxed document. Bound here rather than called directly so
+        // subscriptions never learn how an invoice is made.
+        EarlyTerminationCharge::class => autowire(ChargeOnEarlyTermination::class),
 
         // The far side of the payment gate. Both ways an invoice can reach
         // PAID — a provider's webhook, an operator reconciling a transfer —

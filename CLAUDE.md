@@ -250,7 +250,47 @@ then ignored. Every request is recorded with its effective date.
 
 Early exit is a product decision (`FORBIDDEN` / `CHARGE_REMAINING` / `FREE`).
 When it is charged, it is invoiced through the normal billing chain, never a
-special path.
+special path — and on the **cancellation's own transaction**, because a
+release with the buy-out unbilled is revenue given away and a buy-out against
+a subscription still running is a customer charged for an exit they did not
+get.
+
+Two rules about what that charge costs, both easy to get wrong:
+
+- Count from the **end of the period already paid for**, never from now. A
+  yearly plan left in month 11 of a 24-month commitment owes twelve months,
+  not thirteen; counting from now bills a year the customer has settled.
+- Price in **billing periods**, never in months. The commitment is counted in
+  months because that is how it was sold, but the agreed price is per period.
+  A yearly price times a number of months is a figure on no contract. A
+  `CUSTOM` period has no period to count, so an offer may not sell a buy-out
+  on one — the constraint is on `offer_versions`, not in a service.
+
+Nothing outstanding raises **no document at all**. Numbering is gapless, so a
+€0 invoice is a permanent, unremovable record of no transaction.
+
+A seat is addressed to a **person**, so capability resolution asks who is
+asking and excludes seats held by somebody else. Resolve capabilities without
+the person and one colleague's seat entitles the whole tenant, which is the
+opposite of what a seat is.
+
+**Every gate must ask about the same person.** The quota check takes the
+caller too. Asking the tenant-wide question there while the capability chain
+asked a personal one is the worst of both: the capability check lets a seat
+holder through and the quota check then tells them they need the entitlement
+they are holding. Where a seat and the tenant both grant a feature, the most
+generous wins — the same rule that settles a negotiated override. The seat
+does not raise the *tenant-wide* answer, because that question names nobody,
+and usage stays measured tenant-wide because that is what the feature counts.
+
+A seat is taken out and given up by its holder, and both name the scope with
+a flag, never an id: the only two subscribers are the tenant and the caller,
+and both come from the context, so there is no id to supply and nothing to
+check one against.
+
+**Renewal may not roll past a cancellation already due**, or the subscription
+is quietly extended beyond the date the customer was given. A deferral
+further out does not block anything — it is only due once its date arrives.
 
 Renewal does not silently re-arm the commitment. Tacit renewal requires
 notifying the customer beforehand — that notice is a notification, and

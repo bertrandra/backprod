@@ -16,6 +16,12 @@ namespace App\Entitlement\Domain;
  * Both are answered against the clock. An entitlement carries the window it
  * was granted for, so access ends when the subscription period does, whether
  * or not anything has swept the rows.
+ *
+ * And both are answered for a *person* when one is named. A seat (§13.1) is
+ * a subscription addressed to an individual, so what it grants belongs to
+ * them alone; naming nobody asks the tenant-wide question, and that answer
+ * contains no seat at all. Getting this wrong makes seats decorative — one
+ * person buys one and the whole tenant is entitled.
  */
 interface EntitlementRepository
 {
@@ -25,14 +31,20 @@ interface EntitlementRepository
      * Capabilities, not plan names (§13): the caller of RequestContext::allows()
      * must never need to know which offer produced them.
      *
+     * @param string|null $userId whose seats count; null asks the tenant-wide
+     *                            question, which no seat answers
+     *
      * @return list<string>
      */
-    public function capabilitiesFor(string $tenantId, string $productId): array;
+    public function capabilitiesFor(string $tenantId, string $productId, ?string $userId = null): array;
 
     /**
      * The same set, with limits and provenance.
      *
+     * @param string|null $userId whose seats count; null asks the tenant-wide
+     *                            question, which no seat answers
+     *
      * @return list<Entitlement>
      */
-    public function entitlementsFor(string $tenantId, string $productId): array;
+    public function entitlementsFor(string $tenantId, string $productId, ?string $userId = null): array;
 }

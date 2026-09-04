@@ -7,7 +7,9 @@ namespace App\Tests\Unit;
 use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Domain\Plan;
 use App\Commerce\Domain\SubscribedOffer;
+use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
+use App\Commerce\Domain\SubscriptionTerms;
 use App\Commerce\Service\Subscriptions;
 use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -143,6 +145,11 @@ final class SubscriptionTest extends TestCase
             'tenant-acme',
             'prod-atlas',
             new SubscribedOffer('offer-1', 'pro', 'Pro', new Plan('plan-1', 'PRO', 'Pro', 20), $version),
+            // The subscriptions these cases are about are month-to-month, as
+            // every subscription was before §13.1: the tenant subscribes, and
+            // nothing commits it.
+            Subscriber::tenant(),
+            SubscriptionTerms::openEnded(),
             $status,
             new DateTimeImmutable('2026-03-01T00:00:00+00:00'),
             new DateTimeImmutable('2026-03-01T00:00:00+00:00'),

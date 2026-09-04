@@ -34,6 +34,4 @@ interface StorageProvider
      * absent, and it is.
      */
     public function delete(string $key): void;
-
-    public function exists(string $key): bool;
 }

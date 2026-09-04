@@ -19,6 +19,7 @@ use App\Commerce\Controller\ListOffersController;
 use App\Commerce\Controller\ListPlansController;
 use App\Commerce\Controller\ResumeSubscriptionController;
 use App\Commerce\Controller\ShowOfferController;
+use App\Commerce\Controller\ShowScheduleController;
 use App\Commerce\Controller\ShowSubscriptionController;
 use App\Commerce\Controller\SubscribeController;
 use App\Commerce\Controller\TenantUsageController;
@@ -156,6 +157,11 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('POST', '/api/v1/subscription', SubscribeController::class);
     $routes->addRoute('POST', '/api/v1/subscription/change-offer', ChangeOfferController::class);
     $routes->addRoute('POST', '/api/v1/subscription/cancel', CancelSubscriptionController::class);
+
+    // What a customer asks before they cancel: until when is it paid, until
+    // when am I committed, and when may I leave (§13.1). No side effect, and
+    // the same decision the cancel route acts on.
+    $routes->addRoute('GET', '/api/v1/subscription/schedule', ShowScheduleController::class);
     $routes->addRoute('POST', '/api/v1/subscription/resume', ResumeSubscriptionController::class);
 
     $routes->addRoute('GET', '/api/v1/entitlements', ListEntitlementsController::class);
