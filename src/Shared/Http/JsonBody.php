@@ -167,6 +167,41 @@ final class JsonBody
     }
 
     /**
+     * A non-empty list of JSON objects, capped.
+     *
+     * The cap is a parameter rather than a constant because it is a property
+     * of the endpoint, not of JSON: what a caller may send in one request is
+     * a question about the work that request causes.
+     *
+     * @return list<stdClass>
+     */
+    public function requiredObjectList(string $field, int $maximum): array
+    {
+        $value = $this->value($field);
+
+        if (!is_array($value) || !array_is_list($value)) {
+            throw $this->invalid($field, 'must be an array');
+        }
+
+        if ($value === []) {
+            throw $this->invalid($field, 'must not be empty');
+        }
+
+        if (count($value) > $maximum) {
+            throw $this->invalid($field, sprintf('must hold at most %d items', $maximum));
+        }
+
+        foreach ($value as $item) {
+            if (!$item instanceof stdClass) {
+                throw $this->invalid($field, 'must contain only JSON objects');
+            }
+        }
+
+        /** @var list<stdClass> $value */
+        return $value;
+    }
+
+    /**
      * A non-empty list of unique non-blank strings.
      *
      * @return list<string>

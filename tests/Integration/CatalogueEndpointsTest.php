@@ -161,7 +161,7 @@ final class CatalogueEndpointsTest extends ApiTestCase
         // assertSame is strict, so this asserts the type as much as the
         // value: 2900.0 would not match 2900. A separate assertIsInt after
         // it asserts nothing that this line has not already established.
-        self::assertSame(['amount_minor_units' => 2900, 'currency' => 'EUR'], $price);
+        self::assertSame(['minor_units' => 2900, 'currency' => 'EUR'], $price);
     }
 
     /**

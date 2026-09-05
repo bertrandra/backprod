@@ -251,9 +251,11 @@ information. The tenant who bought a withdrawn offer still reads its terms
 through their subscription, which is where it legitimately stays visible.
 
 **Prices are integer minor units** with an ISO 4217 currency —
-`{"amount_minor_units": 2900, "currency": "EUR"}` — never a float and never a
-formatted string. `price_minor_units` rather than `price_cents`, because not
-every currency has cents.
+`"price": {"minor_units": 2900, "currency": "EUR"}` — never a float and never a
+formatted string. `minor_units` rather than `cents`, because not every currency
+has cents. The field is bare because the key it sits under already says which
+amount it is; where a money value has no such key it carries the whole name
+instead, as `amount_minor_units` beside its own `currency`.
 
 A grant's `limit` is null both for a capability you simply hold and for a
 quota with no ceiling, so an explicit `unlimited` flag says which. A sentinel

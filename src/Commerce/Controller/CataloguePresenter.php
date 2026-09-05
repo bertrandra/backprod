@@ -101,7 +101,7 @@ final class CataloguePresenter
             'version' => $version->version,
             'billing_period' => $version->billingPeriod,
             'price' => [
-                'amount_minor_units' => $version->priceMinorUnits,
+                'minor_units' => $version->priceMinorUnits,
                 'currency' => $version->currency,
             ],
             // The window in which this version may be sold — not a

@@ -1,4 +1,4 @@
-# ADR-030 — The payment period is not the commitment
+# ADR-031 — The payment period is not the commitment
 
 **Status:** accepted
 **Decides:** what a subscription commits to, who it entitles, and what leaving early costs

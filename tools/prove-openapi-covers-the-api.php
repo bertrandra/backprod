@@ -18,12 +18,10 @@ declare(strict_types=1);
  * The second direction matters as much as the first. A path removed from the
  * router and left in the contract is a promise the platform no longer keeps.
  *
- * **The undocumented list is a ratchet, not an exemption.** It exists because
- * 116 endpoints shipped before the contract did, and back-filling them is
- * work in progress. It may only ever shrink: naming a route here that *is*
- * documented fails the gate, so entries cannot be left behind once written,
- * and a route that is neither documented nor listed fails too — which is what
- * stops the debt growing while it is being paid down.
+ * There is no exemption list. One existed while the 116 endpoints that
+ * shipped before the contract were being back-filled, and it was deleted the
+ * day it emptied — a list of allowed omissions that nothing is omitting is an
+ * invitation to omit something.
  *
  * JSON rather than YAML, and not by preference: there is no ext-yaml here and
  * a lock file that cannot be regenerated offline rules out adding a parser.
