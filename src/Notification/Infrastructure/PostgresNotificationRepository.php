@@ -246,19 +246,32 @@ final class PostgresNotificationRepository implements NotificationRepository
     /**
      * @return list<array{delivery: Delivery, notification: Notification}>
      */
-    public function claimPending(int $limit): array
+    public function claimPending(int $limit, int $leaseSeconds, int $maxAttempts): array
     {
-        // FOR UPDATE SKIP LOCKED, as the job queue does (ADR-027): two runner
-        // passes overlapping is the normal case on cron, and the second must
-        // take different rows rather than wait behind the first or send the
-        // same message twice.
+        // Choose and claim in one statement, as the job queue does (ADR-027).
+        //
+        // `FOR UPDATE SKIP LOCKED` alone was not enough, and that was the bug
+        // R12 named: the row locks it takes last only as long as the
+        // statement, so once this committed the next pass saw the same rows
+        // still PENDING and sent the same message again. What closes the
+        // window is the status moving here — a second pass looking for
+        // PENDING no longer finds a claimed row, whatever it is holding.
+        //
+        // The lease is read as "or claimed by somebody who never came back".
+        // A lapse is a fact about the clock, not a claim that the holder
+        // failed, so an expired lease is simply claimable again.
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
             UPDATE notification_deliveries d
-               SET attempts = d.attempts + 1, updated_at = now()
+               SET status = 'SENDING',
+                   leased_until = now() + make_interval(secs => :lease),
+                   attempts = d.attempts + 1,
+                   updated_at = now()
              WHERE d.id IN (
                    SELECT id FROM notification_deliveries
-                    WHERE status = 'PENDING'
+                    WHERE (status = 'PENDING'
+                           OR (status = 'SENDING' AND leased_until < now()))
+                      AND attempts < :maxAttempts
                     ORDER BY created_at
                     FOR UPDATE SKIP LOCKED
                     LIMIT :limit
@@ -267,7 +280,7 @@ final class PostgresNotificationRepository implements NotificationRepository
                       d.provider_message_id, d.attempts, d.failure_reason, d.rendered_body,
                       d.sent_at, d.delivered_at
             SQL,
-            ['limit' => $limit],
+            ['limit' => $limit, 'lease' => $leaseSeconds, 'maxAttempts' => $maxAttempts],
         );
 
         $claimed = [];
@@ -299,8 +312,9 @@ final class PostgresNotificationRepository implements NotificationRepository
             <<<'SQL'
             UPDATE notification_deliveries
                SET status = 'SENT', sent_at = now(), provider_message_id = :providerId,
-                   rendered_body = :body, failure_reason = NULL, updated_at = now()
-             WHERE id = :id
+                   rendered_body = :body, failure_reason = NULL,
+                   leased_until = NULL, updated_at = now()
+             WHERE id = :id AND status = 'SENDING'
             SQL,
             ['id' => $deliveryId, 'providerId' => $providerMessageId, 'body' => $renderedBody],
         );
@@ -314,8 +328,9 @@ final class PostgresNotificationRepository implements NotificationRepository
         $this->connection->executeStatement(
             <<<'SQL'
             UPDATE notification_deliveries
-               SET status = 'FAILED', failure_reason = :reason, updated_at = now()
-             WHERE id = :id
+               SET status = 'FAILED', failure_reason = :reason,
+                   leased_until = NULL, updated_at = now()
+             WHERE id = :id AND status = 'SENDING'
             SQL,
             ['id' => $deliveryId, 'reason' => $failureReason],
         );
@@ -326,10 +341,30 @@ final class PostgresNotificationRepository implements NotificationRepository
         $this->connection->executeStatement(
             <<<'SQL'
             UPDATE notification_deliveries
-               SET status = 'SUPPRESSED', suppression_reason = :reason, updated_at = now()
-             WHERE id = :id
+               SET status = 'SUPPRESSED', suppression_reason = :reason,
+                   leased_until = NULL, updated_at = now()
+             WHERE id = :id AND status = 'SENDING'
             SQL,
             ['id' => $deliveryId, 'reason' => $reason],
+        );
+    }
+
+    public function abandonExpired(int $maxAttempts): int
+    {
+        // Only rows that have used their attempts. One lapsed lease is a
+        // runner that died and the delivery deserves another go; the same row
+        // lapsing over and over is a message that kills whoever picks it up,
+        // and retrying that for ever is how a queue stops draining.
+        return (int) $this->connection->executeStatement(
+            <<<'SQL'
+            UPDATE notification_deliveries
+               SET status = 'FAILED', failure_reason = :reason,
+                   leased_until = NULL, updated_at = now()
+             WHERE status = 'SENDING'
+               AND leased_until < now()
+               AND attempts >= :maxAttempts
+            SQL,
+            ['reason' => Delivery::LEASE_EXPIRED, 'maxAttempts' => $maxAttempts],
         );
     }
 

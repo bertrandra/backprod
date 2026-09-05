@@ -6,6 +6,7 @@ namespace App\Job\Infrastructure;
 
 use App\Job\Domain\Job;
 use App\Job\Domain\JobRepository;
+use App\Job\Domain\QueueLiveness;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
 use Doctrine\DBAL\Connection;
@@ -274,6 +275,50 @@ final class PostgresJobRepository implements JobRepository
                 'succeeded' => ParameterType::INTEGER,
                 'failed' => ParameterType::INTEGER,
             ],
+        );
+    }
+
+    public function liveness(): QueueLiveness
+    {
+        // One statement rather than five round trips, and every number is
+        // computed by the database against a single `now()`. Reading them
+        // separately would compose an answer out of moments that had already
+        // stopped agreeing with each other.
+        $row = $this->connection->fetchAssociative(
+            <<<'SQL'
+                SELECT (SELECT max(started_at) FROM job_runs) AS last_started_at,
+                       (SELECT max(finished_at) FROM job_runs) AS last_finished_at,
+                       extract(epoch FROM now() - (SELECT max(started_at) FROM job_runs))::int
+                           AS seconds_since_started,
+                       extract(epoch FROM now() - (SELECT max(finished_at) FROM job_runs))::int
+                           AS seconds_since_finished,
+                       (SELECT count(*) FROM job_runs WHERE finished_at IS NULL)
+                           AS unfinished_runs,
+                       (SELECT extract(epoch FROM now() - min(started_at))::int
+                          FROM job_runs WHERE finished_at IS NULL)
+                           AS oldest_unfinished_seconds,
+                       (SELECT count(*) FROM jobs
+                         WHERE status = 'QUEUED' AND run_after <= now())
+                           AS due_jobs,
+                       (SELECT extract(epoch FROM now() - min(run_after))::int
+                          FROM jobs WHERE status = 'QUEUED' AND run_after <= now())
+                           AS oldest_due_seconds
+                SQL,
+        );
+
+        if ($row === false) {
+            throw new RuntimeException('Queue liveness returned no row.');
+        }
+
+        return new QueueLiveness(
+            Row::nullableTimestamp($row, 'last_started_at'),
+            Row::nullableTimestamp($row, 'last_finished_at'),
+            Row::nullableInteger($row, 'seconds_since_started'),
+            Row::nullableInteger($row, 'seconds_since_finished'),
+            Row::integer($row, 'unfinished_runs'),
+            Row::nullableInteger($row, 'oldest_unfinished_seconds'),
+            Row::integer($row, 'due_jobs'),
+            Row::nullableInteger($row, 'oldest_due_seconds'),
         );
     }
 

@@ -78,6 +78,9 @@ final class JsonBody
     /**
      * A string that may be explicitly cleared: null stays null, and a blank
      * string is treated as clearing rather than as the literal "".
+     *
+     * Absent and null both read as null here; callers that need to tell them
+     * apart ask has() first.
      */
     public function optionalNullableString(string $field, int $maxLength = 255): ?string
     {
@@ -197,10 +200,6 @@ final class JsonBody
         return $values;
     }
 
-    /**
-     * Absent and null both read as null here; callers that need to tell them
-     * apart ask has() first.
-     */
     /**
      * A list of unique non-blank strings, or none at all.
      *

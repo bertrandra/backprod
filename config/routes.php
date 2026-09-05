@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Admin\Controller\ListAuditController;
 use App\Admin\Controller\ShowMetricsController;
+use App\Admin\Controller\ShowQueueController;
 use App\Billing\Controller\CancelInvoiceController;
 use App\Billing\Controller\IssueCreditNoteController;
 use App\Billing\Controller\IssueInvoiceController;
@@ -333,6 +334,11 @@ return static function (RouteCollector $routes): void {
     // admin surface resolves none of its own — which product is the question,
     // not the context.
     $routes->addRoute('GET', '/api/v1/admin/metrics', ShowMetricsController::class);
+
+    // R10: a cron that stopped firing and a queue with nothing to do produce
+    // the same silence. No product in the query — the runner is one process
+    // for the whole platform, so there is no per-product answer to give.
+    $routes->addRoute('GET', '/api/v1/admin/queue', ShowQueueController::class);
 
     // Support: the platform's side of §12.3. Only SUPPORT threads are
     // reachable — the repository filters on kind in SQL, so a tenant's

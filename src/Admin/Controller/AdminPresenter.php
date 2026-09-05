@@ -8,6 +8,7 @@ use App\Audit\Domain\AuditEntry;
 use App\Finance\Domain\OfferRevenue;
 use App\Finance\Domain\RenewalPeriod;
 use App\Finance\Domain\RevenuePeriod;
+use App\Job\Domain\QueueLiveness;
 
 /**
  * What an audit entry looks like on the wire.
@@ -19,6 +20,41 @@ use App\Finance\Domain\RevenuePeriod;
  */
 final class AdminPresenter
 {
+    /**
+     * Whether the queue is still being polled, as clock facts.
+     *
+     * `never_ran` is its own field rather than an absent timestamp the reader
+     * has to notice. Every other number is zero or null in that state — no
+     * backlog, nothing overdue, nothing failed — which reads exactly like a
+     * healthy idle queue and is the opposite of one.
+     *
+     * The two ways it can be broken stay separate: `seconds_since_finished`
+     * ageing is a cron that stopped firing, `oldest_unfinished_seconds` is a
+     * runner that died mid-pass. They need different responses. And the
+     * backlog sits beside both, because a cron firing faithfully into a
+     * wedged handler looks perfectly alive by the clock alone.
+     *
+     * @return array<string, mixed>
+     */
+    public static function liveness(QueueLiveness $liveness): array
+    {
+        return [
+            'never_ran' => $liveness->neverRan(),
+            'last_run' => [
+                'started_at' => $liveness->lastStartedAt?->format(DATE_ATOM),
+                'finished_at' => $liveness->lastFinishedAt?->format(DATE_ATOM),
+                'seconds_since_started' => $liveness->secondsSinceStarted,
+                'seconds_since_finished' => $liveness->secondsSinceFinished,
+            ],
+            'unfinished_runs' => $liveness->unfinishedRuns,
+            'oldest_unfinished_seconds' => $liveness->oldestUnfinishedSeconds,
+            'backlog' => [
+                'due' => $liveness->dueJobs,
+                'oldest_due_seconds' => $liveness->oldestDueSeconds,
+            ],
+        ];
+    }
+
     /**
      * One month of turnover. Amounts stay in minor units with the currency
      * beside them: formatting is the reader's business and a float here
