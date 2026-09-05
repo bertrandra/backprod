@@ -29,12 +29,15 @@ deptrac:
         - type: classLike
           value: '^App\\[A-Za-z0-9]+\\Infrastructure\\.*'
 
-    # The §10.6 request context chain. It orchestrates modules, so it is its
-    # own layer rather than part of SharedHttp, which must stay transport-only.
+    # Request-scoped middleware that has to ask a module something. The
+    # §10.6 context chain resolves identity by composing modules; the rate
+    # limiter has to reach storage to count. Neither belongs in SharedHttp,
+    # which must stay transport-only, and both need exactly this ruleset —
+    # so they share a layer rather than each getting one.
     - name: Context
       collectors:
         - type: classLike
-          value: '^App\\Shared\\Context\\.*'
+          value: '^App\\Shared\\(Context|Throttle)\\.*'
 
     # Shared platform code.
     - name: SharedHttp

@@ -468,6 +468,11 @@ notification never appears in a conversation.
   live recomputation over all transactions (§25.2)
 - Audit log with `tenant_id`, `user_id`, `request_id` correlation (§30)
 - Rate limiting, strict CORS, Argon2id where passwords are held locally (§31)
+  — *rate limiting and CORS delivered*; a fixed window counted in PostgreSQL
+  because D3 rules out a resident store, keyed on the caller's address and
+  placed **before** the context chain so a flood of forged tokens is bounded
+  too. Argon2id has nothing to hash: identity is a Supabase JWT and no
+  password is held locally anywhere
 - Retention + RGPD service separating deletion from legal accounting retention
   (non-negotiables #14, #15)
 

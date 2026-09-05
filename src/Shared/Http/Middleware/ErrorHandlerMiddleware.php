@@ -42,13 +42,22 @@ final class ErrorHandlerMiddleware implements MiddlewareInterface
                 'code' => $e->errorCode(),
             ]);
 
-            return ErrorResponse::create(
+            $response = ErrorResponse::create(
                 $e->statusCode(),
                 $e->errorCode(),
                 $e->getMessage(),
                 $e->details(),
                 $requestId,
             );
+
+            // A few statuses are not fully expressed by their body — `Allow`
+            // on a 405, `Retry-After` on a 429. The exception says which,
+            // because the status is what requires them.
+            foreach ($e->headers() as $name => $value) {
+                $response = $response->withHeader($name, $value);
+            }
+
+            return $response;
         } catch (Throwable $e) {
             $this->logger->error('Unhandled exception', [
                 'request_id' => $requestId,

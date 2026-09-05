@@ -42,6 +42,7 @@ use App\Job\Service\ExpireSubscriptions;
 use App\Job\Service\JobHandlers;
 use App\Job\Service\RollUpFinancials;
 use App\Job\Service\SendRenewalNotices;
+use App\Job\Service\SweepRateLimits;
 use App\Messaging\Domain\ConversationRepository;
 use App\Messaging\Infrastructure\PostgresConversationRepository;
 use App\Notification\Domain\Channel;
@@ -75,11 +76,13 @@ use App\Sales\Service\InvoiceThenSubscribe;
 use App\Shared\Context\RequestContextMiddleware;
 use App\Shared\Context\RoutePolicy;
 use App\Shared\Database\ConnectionFactory;
+use App\Shared\Http\Middleware\CorsMiddleware;
 use App\Shared\Http\Middleware\ErrorHandlerMiddleware;
 use App\Shared\Http\Middleware\RequestIdMiddleware;
 use App\Shared\Http\MiddlewarePipeline;
 use App\Shared\Http\Router;
 use App\Shared\Logging\ErrorLogLogger;
+use App\Shared\Throttle\RateLimitMiddleware;
 use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffRepository;
 use App\Staff\Domain\TenantDirectory;
@@ -102,6 +105,8 @@ use App\Tenant\Infrastructure\MemberUsageSource;
 use App\Tenant\Infrastructure\PostgresTenantMemberRepository;
 use App\Tenant\Infrastructure\PostgresTenantMembershipRepository;
 use App\Tenant\Infrastructure\PostgresTenantRepository;
+use App\Throttle\Domain\RateLimiter;
+use App\Throttle\Infrastructure\PostgresRateLimiter;
 use App\User\Domain\UserDirectory;
 use App\User\Domain\UserRepository;
 use App\User\Infrastructure\PostgresUserDirectory;
@@ -139,6 +144,16 @@ return static function (array $overrides = []): ContainerInterface {
         $value = $_ENV[$key] ?? getenv($key);
 
         return is_string($value) && $value !== '' ? $value : $default;
+    };
+
+    // A comma-separated setting, as a list. Blank entries are dropped rather
+    // than kept as empty strings: `CORS_ALLOWED_ORIGINS=""` and an unset
+    // variable mean the same thing, and an empty string in an allowlist would
+    // match an absent Origin header.
+    $list = static function (string $raw): array {
+        $values = array_map(trim(...), explode(',', $raw));
+
+        return array_values(array_filter($values, static fn (string $v): bool => $v !== ''));
     };
 
     $builder = new ContainerBuilder();
@@ -289,8 +304,9 @@ return static function (array $overrides = []): ContainerInterface {
                 DispatchNotifications $notify,
                 RollUpFinancials $rollup,
                 SendRenewalNotices $renewalNotices,
+                SweepRateLimits $rateLimits,
             ): JobHandlers => new JobHandlers(
-                [$quotes, $subscriptions, $exports, $notify, $rollup, $renewalNotices],
+                [$quotes, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $rateLimits],
             ),
         ),
 
@@ -382,10 +398,44 @@ return static function (array $overrides = []): ContainerInterface {
             });
         }),
 
+        // --- §31 hardening --------------------------------------------------
+        // Limits are configuration because the right number depends on the
+        // deployment, not on the code: a shared host and a dedicated box
+        // shed load at very different points. The defaults are deliberately
+        // generous — a limit that fires on ordinary use teaches people to
+        // ignore it.
+        RateLimiter::class => autowire(PostgresRateLimiter::class),
+
+        RateLimitMiddleware::class => autowire()
+            ->constructorParameter('windowSeconds', (int) $env('RATE_LIMIT_WINDOW_SECONDS', '60'))
+            ->constructorParameter('limit', (int) $env('RATE_LIMIT_PER_WINDOW', '600'))
+            // Tighter, because this is the surface reachable without any
+            // credential and therefore the cheap thing to attack.
+            ->constructorParameter('publicLimit', (int) $env('RATE_LIMIT_PUBLIC_PER_WINDOW', '60'))
+            // Empty by default: X-Forwarded-For is a request header anybody
+            // may send, so it is believed only from an address we put there.
+            ->constructorParameter('trustedProxies', $list($env('TRUSTED_PROXIES'))),
+
+        SweepRateLimits::class => autowire()
+            ->constructorParameter('windowSeconds', (int) $env('RATE_LIMIT_WINDOW_SECONDS', '60')),
+
+        // No wildcard and no default: an unconfigured deployment allows no
+        // cross-origin call at all, which fails the safe way.
+        CorsMiddleware::class => autowire()
+            ->constructorParameter('allowedOrigins', $list($env('CORS_ALLOWED_ORIGINS'))),
+
         MiddlewarePipeline::class => autowire()
             ->constructorParameter('middleware', [
                 get(RequestIdMiddleware::class),
+                // Above the error handler, so an error response carries the
+                // CORS headers too — a browser that cannot read a 403 shows
+                // the developer a network error instead of the reason.
+                get(CorsMiddleware::class),
                 get(ErrorHandlerMiddleware::class),
+                // Before the context chain: keying on the authenticated user
+                // would give fairer buckets but would leave a flood of forged
+                // tokens unlimited, and that is the attack §31 names.
+                get(RateLimitMiddleware::class),
                 get(RequestContextMiddleware::class),
             ])
             ->constructorParameter('finalHandler', get(Router::class)),

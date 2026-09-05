@@ -44,4 +44,22 @@ abstract class HttpException extends RuntimeException
     {
         return $this->details;
     }
+
+    /**
+     * Headers the status itself requires, beyond the envelope.
+     *
+     * A few statuses are not fully expressed by a body. RFC 9110 says a 405
+     * MUST carry `Allow`, and a 429 is close to useless without
+     * `Retry-After` — a client told only "too many" can do nothing but guess,
+     * and guessing means retrying too soon.
+     *
+     * Empty for everything else, because a header that repeats the body is
+     * two places for one fact to drift.
+     *
+     * @return array<string, string>
+     */
+    public function headers(): array
+    {
+        return [];
+    }
 }
