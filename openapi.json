@@ -28,6 +28,10 @@
     {
       "name": "Catalogue",
       "description": "Plans, features and the offers on sale."
+    },
+    {
+      "name": "Subscription",
+      "description": "The tenant's subscription, its terms, and what it entitles them to."
     }
   ],
   "components": {
@@ -368,6 +372,371 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "Subscriber": {
+        "type": "object",
+        "required": [
+          "kind",
+          "user_id"
+        ],
+        "description": "Who is bound. A seat names the person; a tenant subscription does not.",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "TENANT",
+              "USER"
+            ]
+          },
+          "user_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "SubscriptionTerms": {
+        "type": "object",
+        "description": "Snapshotted when the subscription was taken out, not read from the offer now — which is the whole point of snapshotting them (§13.1). Changing an offer never rewrites what somebody already agreed to.",
+        "required": [
+          "term_months",
+          "term_ends_at",
+          "commitment_months",
+          "commitment_ends_at",
+          "cancellation_policy",
+          "renewal",
+          "early_termination",
+          "notice_days"
+        ],
+        "properties": {
+          "term_months": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "How long the contract runs. Null means no fixed term."
+          },
+          "term_ends_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "commitment_months": {
+            "type": "integer",
+            "description": "How much of the term the customer cannot leave. Never longer than the term; the database refuses it."
+          },
+          "commitment_ends_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "cancellation_policy": {
+            "type": "string",
+            "enum": [
+              "ANYTIME",
+              "AT_COMMITMENT_END",
+              "AT_TERM"
+            ]
+          },
+          "renewal": {
+            "type": "string",
+            "enum": [
+              "AUTO_RENEW",
+              "ENDS_AT_TERM"
+            ]
+          },
+          "early_termination": {
+            "type": "string",
+            "enum": [
+              "FORBIDDEN",
+              "CHARGE_REMAINING",
+              "FREE"
+            ],
+            "description": "What leaving before the commitment ends costs."
+          },
+          "notice_days": {
+            "type": "integer",
+            "description": "How long before the term ends the prior notice is due. Zero means none is configured, and none is sent."
+          }
+        }
+      },
+      "Subscription": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "offer",
+          "started_at",
+          "current_period_start",
+          "current_period_end",
+          "cancel_at_period_end",
+          "cancel_effective_at",
+          "cancelled_at",
+          "subscriber",
+          "terms",
+          "ended_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "CANCELLED",
+              "EXPIRED"
+            ]
+          },
+          "offer": {
+            "type": "object",
+            "required": [
+              "id",
+              "code",
+              "name",
+              "plan",
+              "version"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "code": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "plan": {
+                "$ref": "#/components/schemas/Plan"
+              },
+              "version": {
+                "$ref": "#/components/schemas/OfferVersion"
+              }
+            }
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "current_period_start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The *subscription's* period, which §12 keeps distinct from the offer's commercial window."
+          },
+          "current_period_end": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Null for a CUSTOM billing period, which has no end to be past."
+          },
+          "cancel_at_period_end": {
+            "type": "boolean"
+          },
+          "cancel_effective_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "cancelled_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "subscriber": {
+            "$ref": "#/components/schemas/Subscriber"
+          },
+          "terms": {
+            "$ref": "#/components/schemas/SubscriptionTerms"
+          },
+          "ended_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "CancellationDecision": {
+        "type": "object",
+        "description": "Why the answer is what it is. What a customer needs is not `cancelled: true` but *when* it takes effect and which rule decided that (§13.1) — so the rule's id travels with the decision and the reasons are in plain words.",
+        "required": [
+          "accepted",
+          "rule_id",
+          "effect",
+          "effective_at",
+          "chargeable_months",
+          "reasons"
+        ],
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "rule_id": {
+            "type": "string",
+            "description": "Which rule decided. Stable, and the thing to quote in a support conversation.",
+            "examples": [
+              "cancel.at_commitment_end"
+            ]
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "IMMEDIATE",
+              "AT_PERIOD_END",
+              "AT_COMMITMENT_END",
+              "AT_TERM",
+              "REFUSED"
+            ]
+          },
+          "effective_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "chargeable_months": {
+            "type": "integer",
+            "description": "Months of the commitment still owed. Counted from the end of the period already paid for, not from today."
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "SubscriptionEvent": {
+        "type": "object",
+        "description": "The history (§18). Every transition writes one, including those nobody performed — an expiry has no actor because the clock did it.",
+        "required": [
+          "id",
+          "type",
+          "from_offer_version_id",
+          "to_offer_version_id",
+          "actor_user_id",
+          "detail",
+          "occurred_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "examples": [
+              "SUBSCRIBED",
+              "OFFER_CHANGED",
+              "CANCELLATION_SCHEDULED",
+              "RESUMED",
+              "RENEWED",
+              "EXPIRED"
+            ]
+          },
+          "from_offer_version_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "to_offer_version_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "actor_user_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Null when the clock did it rather than a person."
+          },
+          "detail": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Entitlement": {
+        "type": "object",
+        "required": [
+          "feature",
+          "name",
+          "kind",
+          "unit",
+          "limit",
+          "unlimited",
+          "source",
+          "valid_until"
+        ],
+        "properties": {
+          "feature": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "BOOLEAN",
+              "QUOTA"
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Null means two different things, so `unlimited` says which."
+          },
+          "unlimited": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "description": "What produced it — a subscription grant, or an override negotiated outside one."
+          },
+          "valid_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         }
       }
@@ -1260,6 +1629,508 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/subscription": {
+      "get": {
+        "tags": [
+          "Subscription"
+        ],
+        "operationId": "showSubscription",
+        "summary": "The current subscription, its history and its events",
+        "description": "Three answers in one: what is in force now, everything that came before, and the transitions between them. `subscription` is null when the tenant has never subscribed — not the same as a cancelled one, and history tells them apart.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The subscription, with history.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "subscription",
+                    "history",
+                    "events"
+                  ],
+                  "properties": {
+                    "subscription": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/Subscription"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Subscription"
+                      }
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SubscriptionEvent"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Subscription"
+        ],
+        "operationId": "subscribe",
+        "summary": "Take out a subscription",
+        "description": "`seat: true` subscribes the caller personally rather than the tenant. A tenant may hold one active subscription and a person one active seat — both are unique indexes, so two simultaneous requests cannot produce two.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "offer_id"
+                ],
+                "properties": {
+                  "offer_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "seat": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Subscribe the caller personally instead of the tenant."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new subscription.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already subscribed, or the offer is not on sale.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Well-formed JSON, but not acceptable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/subscription/change-offer": {
+      "post": {
+        "tags": [
+          "Subscription"
+        ],
+        "operationId": "changeOffer",
+        "summary": "Move to a different offer",
+        "description": "The subscription keeps its identity and its history; only what it grants changes. An upgrade compares the plans' ranks, never their names (§13).",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "offer_id"
+                ],
+                "properties": {
+                  "offer_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The subscription on its new offer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "No subscription to change, or the offer is not on sale.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/subscription/cancel": {
+      "post": {
+        "tags": [
+          "Subscription"
+        ],
+        "operationId": "cancelSubscription",
+        "summary": "Cancel, or say why it cannot be cancelled",
+        "description": "Returns the subscription **and the decision**. A refusal is a 200 with `accepted: false` and the rule that refused it, not an error: the request was understood and answered, and the customer needs to know which term binds them. Where leaving early costs money, the buy-out invoice is raised in the same transaction and named here.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "immediately": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Ask to end now rather than at the next boundary. The policy still decides; asking does not make it so."
+                  },
+                  "seat": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Cancel the caller's own seat rather than the tenant's subscription."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The subscription and what cancelling did, or would do.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Subscription"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "cancellation"
+                      ],
+                      "properties": {
+                        "cancellation": {
+                          "allOf": [
+                            {
+                              "$ref": "#/components/schemas/CancellationDecision"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "charge_invoice_id": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "format": "uuid",
+                                  "description": "The early-termination invoice, when one was raised. Null when leaving cost nothing."
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/subscription/schedule": {
+      "get": {
+        "tags": [
+          "Subscription"
+        ],
+        "operationId": "showSchedule",
+        "summary": "What cancelling now would do",
+        "description": "The same decision the cancel endpoint would return, without performing it — so a client can show the consequence before the customer commits to it.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "seat",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Present asks about the caller's own seat rather than the tenant's subscription, matching the cancel endpoint it predicts."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The subscription and the hypothetical decision.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "subscription",
+                    "if_cancelled_now"
+                  ],
+                  "properties": {
+                    "subscription": {
+                      "$ref": "#/components/schemas/Subscription"
+                    },
+                    "if_cancelled_now": {
+                      "$ref": "#/components/schemas/CancellationDecision"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/subscription/resume": {
+      "post": {
+        "tags": [
+          "Subscription"
+        ],
+        "operationId": "resumeSubscription",
+        "summary": "Undo a scheduled cancellation",
+        "description": "Only before it takes effect. Resuming clears the effective date as well as the flag — a subscription claiming to end on a date it no longer honours is refused by the database.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The subscription, no longer ending.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Nothing was scheduled to end.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/entitlements": {
+      "get": {
+        "tags": [
+          "Subscription"
+        ],
+        "operationId": "listEntitlements",
+        "summary": "What the tenant is entitled to",
+        "description": "Resolved from what is in force now, so a lapsed subscription grants nothing without anything having had to sweep it first. This is the *tenant's* view: a seat held by one colleague still appears here, which is a known gap rather than a design.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The entitlements in force.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "entitlements"
+                  ],
+                  "properties": {
+                    "entitlements": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Entitlement"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"

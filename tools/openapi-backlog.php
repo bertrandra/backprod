@@ -16,16 +16,7 @@ declare(strict_types=1);
  */
 
 return [
-    // /api/v1/subscription
-    'GET /api/v1/subscription',
-    'POST /api/v1/subscription',
-    'POST /api/v1/subscription/change-offer',
-    'POST /api/v1/subscription/cancel',
-    'GET /api/v1/subscription/schedule',
-    'POST /api/v1/subscription/resume',
 
-    // /api/v1/entitlements
-    'GET /api/v1/entitlements',
 
     // /api/v1/billing
     'GET /api/v1/billing/profile',
