@@ -155,12 +155,79 @@ final class NotificationChainTest extends DatabaseApiTestCase
         $second = $this->dispatch();
 
         self::assertSame(1, $first['sent'] ?? null);
-        // The claim moved it out of PENDING, and the unique index meant there
-        // was only ever one row to claim. A retried job must not send a
-        // second email — on SMS that one is billed.
+        // The easy half: the first pass finished, so the row is SENT and the
+        // second pass finds nothing waiting. The hard half — a second pass
+        // arriving while the first is still sending — is the test below.
         self::assertSame(0, $second['sent'] ?? null);
         self::assertSame(1, $this->rowsMatching(
             "SELECT count(*) FROM notification_deliveries WHERE status = 'SENT'",
+        ));
+    }
+
+    /**
+     * The case the test above cannot reach.
+     *
+     * Dispatching twice in sequence sends once because the first pass
+     * finished — the row was SENT before the second looked. The duplicate
+     * R12 names happens when the second pass starts while the first is still
+     * sending, which on a cron-polled queue is the ordinary case rather than
+     * an error. So this claims without finishing, exactly as a runner
+     * mid-pass has, and then lets a whole dispatch run against it.
+     */
+    public function testASecondPassCannotTakeADeliveryTheFirstIsStillSending(): void
+    {
+        $this->raise('payment.failed', Category::BILLING, [Channel::EMAIL]);
+
+        $inFlight = $this->repository()->claimPending(50, 900, 3);
+        self::assertCount(1, $inFlight);
+
+        $second = $this->dispatch();
+
+        self::assertSame(0, $second['sent'] ?? null);
+        self::assertSame(0, $this->rowsMatching(
+            "SELECT count(*) FROM notification_deliveries WHERE status = 'SENT'",
+        ));
+        self::assertSame(['SENDING', null], $this->deliveryState(Channel::EMAIL));
+        self::assertSame(1, $this->attemptsOn(Channel::EMAIL));
+    }
+
+    /**
+     * The other half of that trade: holding a claim must not lose the notice
+     * when the holder dies. A lapse is a fact about the clock, so the lease
+     * expiring is not a verdict on the delivery.
+     */
+    public function testALeaseThatLapsedIsClaimedAgain(): void
+    {
+        $this->raise('payment.failed', Category::BILLING, [Channel::EMAIL]);
+        $this->repository()->claimPending(50, 900, 3);
+        $this->lapseTheLease();
+
+        $recovered = $this->dispatch();
+
+        self::assertSame(1, $recovered['sent'] ?? null);
+        self::assertSame(['SENT', null], $this->deliveryState(Channel::EMAIL));
+        self::assertSame(2, $this->attemptsOn(Channel::EMAIL));
+    }
+
+    /**
+     * And a bound on that, or a message that kills whoever picks it up would
+     * be retried for ever and nothing behind it would go out.
+     */
+    public function testADeliveryThatSpentItsAttemptsIsGivenUpOnRatherThanRetried(): void
+    {
+        $this->raise('payment.failed', Category::BILLING, [Channel::EMAIL]);
+        $this->repository()->claimPending(50, 900, 3);
+        $this->connection->executeStatement(
+            "UPDATE notification_deliveries SET attempts = 3, leased_until = now() - interval '1 minute'",
+        );
+
+        $swept = $this->dispatch();
+
+        self::assertSame(1, $swept['abandoned'] ?? null);
+        self::assertSame(0, $swept['sent'] ?? null);
+        self::assertSame(['FAILED', null], $this->deliveryState(Channel::EMAIL));
+        self::assertSame('LEASE_EXPIRED', $this->connection->fetchOne(
+            'SELECT failure_reason FROM notification_deliveries',
         ));
     }
 
@@ -376,6 +443,37 @@ final class NotificationChainTest extends DatabaseApiTestCase
             null,
             $now,
         );
+    }
+
+    private function repository(): NotificationRepository
+    {
+        $repository = $this->container()->get(NotificationRepository::class);
+        self::assertInstanceOf(NotificationRepository::class, $repository);
+
+        return $repository;
+    }
+
+    /**
+     * Ages the claim rather than waiting out fifteen minutes of it.
+     */
+    private function lapseTheLease(): void
+    {
+        $this->connection->executeStatement(
+            "UPDATE notification_deliveries SET leased_until = now() - interval '1 minute'"
+            . " WHERE status = 'SENDING'",
+        );
+    }
+
+    private function attemptsOn(string $channel): int
+    {
+        $attempts = $this->connection->fetchOne(
+            'SELECT attempts FROM notification_deliveries WHERE channel = :channel',
+            ['channel' => $channel],
+        );
+
+        self::assertIsNumeric($attempts);
+
+        return (int) $attempts;
     }
 
     /**
