@@ -177,13 +177,13 @@
       },
       "Money": {
         "type": "object",
-        "description": "Integer minor units and the currency. Never a float — a cent lost to binary rounding is a cent an auditor will ask about.",
+        "description": "Integer minor units and the currency. Never a float — a cent lost to binary rounding is a cent an auditor will ask about. The field is `minor_units` because the key this object sits under (`price`, `net`, `vat`, `gross`, `amount`) already says which amount it is; where money appears without such a key it is named in full instead, as `amount_minor_units` beside its own `currency`.",
         "required": [
-          "amount_minor_units",
+          "minor_units",
           "currency"
         ],
         "properties": {
-          "amount_minor_units": {
+          "minor_units": {
             "type": "integer",
             "description": "Cents, not euros.",
             "examples": [
@@ -810,23 +810,6 @@
           }
         }
       },
-      "BillingMoney": {
-        "type": "object",
-        "required": [
-          "minor_units",
-          "currency"
-        ],
-        "description": "Integer minor units and the currency. Note the field is `minor_units` here, while the catalogue uses `amount_minor_units` for the same idea — an inconsistency the contract records rather than hides.",
-        "properties": {
-          "minor_units": {
-            "type": "integer"
-          },
-          "currency": {
-            "type": "string",
-            "pattern": "^[A-Z]{3}$"
-          }
-        }
-      },
       "PartySnapshot": {
         "type": "object",
         "description": "Supplier or customer **as they were when the document was issued**, copied rather than referenced (§25). A later change of address must not rewrite an invoice already sent, and an RGPD erasure deliberately leaves this standing.",
@@ -858,13 +841,13 @@
             "type": "integer"
           },
           "unit_price": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "discount": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "net": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "vat_rate_basis_points": {
             "type": "integer",
@@ -875,10 +858,10 @@
             ]
           },
           "vat": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "gross": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "source_offer_version_id": {
             "type": [
@@ -906,10 +889,10 @@
             "type": "integer"
           },
           "taxable": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "tax": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           }
         }
       },
@@ -968,13 +951,13 @@
             "format": "uuid"
           },
           "net": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "vat": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "gross": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "issued_at": {
             "type": [
@@ -1079,13 +1062,13 @@
             ]
           },
           "net": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "vat": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "gross": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "issued_at": {
             "type": "string",
@@ -1171,7 +1154,7 @@
             "description": "Whether the status can still move. A webhook arriving after this is ignored rather than applied twice."
           },
           "amount": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "method": {
             "type": [
@@ -1774,13 +1757,13 @@
             "description": "The version that priced it. Pinned, so a catalogue change cannot silently reprice a quote already sent."
           },
           "net": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "vat": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "gross": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "valid_until": {
             "type": "string",
@@ -1874,13 +1857,13 @@
             "format": "uuid"
           },
           "net": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "vat": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "gross": {
-            "$ref": "#/components/schemas/BillingMoney"
+            "$ref": "#/components/schemas/Money"
           },
           "completed_at": {
             "type": [
