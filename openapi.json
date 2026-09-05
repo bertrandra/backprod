@@ -36,6 +36,14 @@
     {
       "name": "Billing",
       "description": "Invoices, payments, credit notes and the e-invoicing transmissions that follow them."
+    },
+    {
+      "name": "Tax",
+      "description": "Tax profiles, VAT regimes, the transactions they produce and the periods they are declared in (§25.3)."
+    },
+    {
+      "name": "Sales",
+      "description": "The commercial chain of non-negotiable #20: quote → order → invoice → subscription, traceable end to end."
     }
   ],
   "components": {
@@ -1324,6 +1332,538 @@
         "type": "object",
         "description": "A refund against a settled payment.",
         "additionalProperties": true
+      },
+      "TaxProfile": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "customer_kind",
+          "country_code",
+          "taxable_person",
+          "location_evidence",
+          "vat_number",
+          "vat_number_status",
+          "vat_number_verified_at",
+          "vat_number_country",
+          "reverse_charge_available"
+        ],
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "customer_kind": {
+            "type": "string",
+            "enum": [
+              "B2B",
+              "B2C"
+            ]
+          },
+          "country_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "taxable_person": {
+            "type": "boolean",
+            "description": "What the customer *claims*. Claiming it is not the same as proving it — see the status below."
+          },
+          "location_evidence": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "vat_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vat_number_status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "VERIFIED",
+              "INVALID",
+              "UNAVAILABLE",
+              null
+            ],
+            "description": "UNAVAILABLE is \"we asked and got no answer\" — not a refusal, and definitely not a verification. It is its own state because §25.2 has to be able to show it as an anomaly."
+          },
+          "vat_number_verified_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Evidence with a date on it. A number is re-checked when this gets old, not on every save."
+          },
+          "vat_number_country": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reverse_charge_available": {
+            "type": "boolean",
+            "description": "Only a *verified* business gets it. Fail-closed: an outage leaves the number unproved rather than trusted (R8)."
+          }
+        }
+      },
+      "TaxRate": {
+        "type": "object",
+        "required": [
+          "country_code",
+          "rate_kind",
+          "basis_points",
+          "valid_from",
+          "valid_until",
+          "source"
+        ],
+        "description": "Rates carry validity windows, so a correction closes one window and opens another instead of restating an invoice already issued (R7).",
+        "properties": {
+          "country_code": {
+            "type": "string"
+          },
+          "rate_kind": {
+            "type": "string"
+          },
+          "basis_points": {
+            "type": "integer",
+            "examples": [
+              2000,
+              550
+            ]
+          },
+          "valid_from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "valid_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "description": "Where the figure came from. A paramétrage seed, not a fiscal authority."
+          }
+        }
+      },
+      "TaxCalculation": {
+        "type": "object",
+        "required": [
+          "rule_id",
+          "regime",
+          "country_of_taxation",
+          "rate_basis_points",
+          "taxable_base",
+          "vat_amount",
+          "currency",
+          "reverse_charge",
+          "customer_tax_status",
+          "legal_mention",
+          "reasons"
+        ],
+        "description": "Not just a number: which rule produced it, and why. An invoice priced under a regime the customer disputes is a conversation, and `reasons` is what that conversation needs.",
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "examples": [
+              "eu.b2b.reverse_charge",
+              "eu.b2b.unverified"
+            ]
+          },
+          "regime": {
+            "type": "string",
+            "enum": [
+              "STANDARD",
+              "REVERSE_CHARGE",
+              "EXEMPT",
+              "OUT_OF_SCOPE"
+            ]
+          },
+          "country_of_taxation": {
+            "type": "string"
+          },
+          "rate_basis_points": {
+            "type": "integer"
+          },
+          "taxable_base": {
+            "type": "integer"
+          },
+          "vat_amount": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "reverse_charge": {
+            "type": "boolean"
+          },
+          "customer_tax_status": {
+            "type": "string"
+          },
+          "legal_mention": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The wording the invoice must carry when a regime requires one."
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "VatTransaction": {
+        "type": "object",
+        "required": [
+          "id",
+          "invoice_id",
+          "credit_note_id",
+          "country",
+          "customer_tax_number",
+          "customer_tax_status",
+          "supply_type",
+          "taxable_base",
+          "vat_rate",
+          "vat_amount",
+          "currency",
+          "vat_regime",
+          "rule_id",
+          "reverse_charge",
+          "transaction_date"
+        ],
+        "description": "The fiscal fact, written in the same transaction as the document that caused it — a sale whose VAT row could be lost is a sale that cannot be declared.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoice_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "credit_note_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "country": {
+            "type": "string"
+          },
+          "customer_tax_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customer_tax_status": {
+            "type": "string"
+          },
+          "supply_type": {
+            "type": "string"
+          },
+          "taxable_base": {
+            "type": "integer"
+          },
+          "vat_rate": {
+            "type": "integer"
+          },
+          "vat_amount": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "vat_regime": {
+            "type": "string"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "reverse_charge": {
+            "type": "boolean"
+          },
+          "transaction_date": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "VatPeriod": {
+        "type": "object",
+        "required": [
+          "id",
+          "jurisdiction",
+          "period_kind",
+          "starts_on",
+          "ends_on",
+          "status",
+          "closed_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "jurisdiction": {
+            "type": "string"
+          },
+          "period_kind": {
+            "type": "string"
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "ends_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "CLOSED"
+            ],
+            "description": "Closure is one-way, and a trigger enforces it: figures somebody has declared do not quietly change underneath them."
+          },
+          "closed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "VatDeclaration": {
+        "type": "object",
+        "required": [
+          "id",
+          "period_id",
+          "currency",
+          "total_base",
+          "total_vat",
+          "transaction_count",
+          "breakdown",
+          "created_at"
+        ],
+        "description": "What was declared, frozen at closure. Reading a closed period reports this rather than recomputing — a recomputation would answer a different question than the one that was filed.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "period_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "total_base": {
+            "type": "integer"
+          },
+          "total_vat": {
+            "type": "integer"
+          },
+          "transaction_count": {
+            "type": "integer"
+          },
+          "breakdown": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Quote": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "open",
+          "offer_version_id",
+          "net",
+          "vat",
+          "gross",
+          "valid_until",
+          "customer",
+          "sent_at",
+          "decided_at",
+          "created_at",
+          "lines"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "SENT",
+              "ACCEPTED",
+              "REJECTED",
+              "EXPIRED"
+            ]
+          },
+          "open": {
+            "type": "boolean",
+            "description": "Whether it can still be accepted *now*. Derived from the clock, so an expired quote reads as closed without anything having had to sweep it."
+          },
+          "offer_version_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The version that priced it. Pinned, so a catalogue change cannot silently reprice a quote already sent."
+          },
+          "net": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "vat": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "gross": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "valid_until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "customer": {
+            "$ref": "#/components/schemas/PartySnapshot"
+          },
+          "sent_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "decided_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceLine"
+            }
+          }
+        }
+      },
+      "Order": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "quote_id",
+          "offer_version_id",
+          "subscription_id",
+          "invoice_id",
+          "net",
+          "vat",
+          "gross",
+          "completed_at",
+          "created_at",
+          "lines"
+        ],
+        "description": "The payment gate is readable straight off the document: an `invoice_id` from fulfilment onwards, a `subscription_id` only once that invoice is paid. Both non-null is #20's chain complete.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "AWAITING_PAYMENT",
+              "COMPLETED",
+              "CANCELLED"
+            ]
+          },
+          "quote_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Null for an order placed directly, without a quote."
+          },
+          "offer_version_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subscription_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Appears only after the invoice is paid. Nothing is provisioned before the money arrives."
+          },
+          "invoice_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "net": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "vat": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "gross": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceLine"
+            }
+          }
+        }
       }
     },
     "responses": {
@@ -3784,6 +4324,1248 @@
                       "type": "integer"
                     }
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tax/profile": {
+      "get": {
+        "tags": [
+          "Tax"
+        ],
+        "operationId": "showTaxProfile",
+        "summary": "The tenant's tax position",
+        "description": "What they claim, what was proved, and whether that adds up to a reverse charge.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The profile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "profile"
+                  ],
+                  "properties": {
+                    "profile": {
+                      "$ref": "#/components/schemas/TaxProfile"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Tax"
+        ],
+        "operationId": "saveTaxProfile",
+        "summary": "Set the tax position, and verify the VAT number",
+        "description": "Saving a VAT number checks it against the provider — but only when there is no evidence or the evidence is stale, so repeated saves do not spend the provider's rate limit to learn nothing.\n\nWhen it does not prove out, the person who entered it is told (R8): they typed a number expecting to be zero-rated and will otherwise discover the standard rate on an invoice, which is a legal document that cannot then be quietly recomputed.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "customer_kind"
+                ],
+                "properties": {
+                  "customer_kind": {
+                    "type": "string",
+                    "enum": [
+                      "B2B",
+                      "B2C"
+                    ]
+                  },
+                  "country_code": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "ISO 3166 alpha-2."
+                  },
+                  "taxable_person": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "vat_number": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 20,
+                    "description": "Normalised before checking; \"FR 123 456\" is not what a verification service accepts."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The saved profile, with whatever the check concluded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "profile"
+                  ],
+                  "properties": {
+                    "profile": {
+                      "$ref": "#/components/schemas/TaxProfile"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A field was unacceptable — a country code that is not two letters, say.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tax/rates": {
+      "get": {
+        "tags": [
+          "Tax"
+        ],
+        "operationId": "listTaxRates",
+        "summary": "The rates in force on a date",
+        "description": "`?on=` asks about a past date, which is what pricing a back-dated document needs. The clock picks the rate, never the current value of a row.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "on",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Defaults to now."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rates, and the moment they were read for.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "on",
+                    "rates"
+                  ],
+                  "properties": {
+                    "on": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "rates": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TaxRate"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tax/calculate": {
+      "post": {
+        "tags": [
+          "Tax"
+        ],
+        "operationId": "calculateTax",
+        "summary": "What VAT would apply, and why",
+        "description": "A dry run against the tenant's tax profile. Returns the rule that decided, the regime, the legal mention where one is required, and the reasons in plain words — everything a quote needs to show before anything is invoiced.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "amount_minor_units"
+                ],
+                "properties": {
+                  "amount_minor_units": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "currency": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{3}$",
+                    "description": "Defaults to the product's."
+                  },
+                  "supply_type": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 32,
+                    "description": "Goods, services, digital services — what is supplied changes where it is taxed."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The calculation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "calculation"
+                  ],
+                  "properties": {
+                    "calculation": {
+                      "$ref": "#/components/schemas/TaxCalculation"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The amount or currency was unacceptable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tax/transactions": {
+      "get": {
+        "tags": [
+          "Tax"
+        ],
+        "operationId": "listVatTransactions",
+        "summary": "The fiscal facts behind the documents",
+        "description": "One row per taxed line of a document, with the rule that produced it. Paginated.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of VAT transactions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "transactions",
+                    "total",
+                    "limit",
+                    "offset"
+                  ],
+                  "properties": {
+                    "transactions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/VatTransaction"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tax/reports": {
+      "get": {
+        "tags": [
+          "Tax"
+        ],
+        "operationId": "listVatPeriods",
+        "summary": "The declaration periods",
+        "description": "Open and closed alike. A closed one cannot be reopened.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The periods.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "periods"
+                  ],
+                  "properties": {
+                    "periods": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/VatPeriod"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tax/reports/{periodId}": {
+      "get": {
+        "tags": [
+          "Tax"
+        ],
+        "operationId": "showVatPeriod",
+        "summary": "One period, with its totals",
+        "description": "An open period is totalled from the transactions as they stand now. A closed one reports **what was declared** instead — recomputing it would answer a different question than the one that was filed.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "periodId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The period, its totals, and the declaration if it has one.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "period",
+                    "totals",
+                    "declaration"
+                  ],
+                  "properties": {
+                    "period": {
+                      "$ref": "#/components/schemas/VatPeriod"
+                    },
+                    "totals": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "declaration": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/VatDeclaration"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tax/reports/{periodId}/close": {
+      "post": {
+        "tags": [
+          "Tax"
+        ],
+        "operationId": "closeVatPeriod",
+        "summary": "Close a period and freeze its declaration",
+        "description": "One-way, and the database enforces it rather than the service remembering to. A period holding more than one currency is refused: summing across currencies would produce a figure that is not money.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "periodId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The frozen declaration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "declaration"
+                  ],
+                  "properties": {
+                    "declaration": {
+                      "$ref": "#/components/schemas/VatDeclaration"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Already closed, not yet ended, or holding more than one currency.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/sales/quotes": {
+      "get": {
+        "tags": [
+          "Sales"
+        ],
+        "operationId": "listQuotes",
+        "summary": "The tenant's quotes",
+        "description": "Newest first, paginated.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of quotes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "quotes",
+                    "total",
+                    "limit",
+                    "offset"
+                  ],
+                  "properties": {
+                    "quotes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Quote"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Sales"
+        ],
+        "operationId": "createQuote",
+        "summary": "Quote an offer",
+        "description": "Priced from the offer version on sale now and pinned to it, so a catalogue change cannot reprice a quote already sent. `validity_days` is clamped to the platform's maximum — a quote open for ever is a price open for ever.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "offer_id"
+                ],
+                "properties": {
+                  "offer_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "validity_days": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Clamped to the platform maximum if larger."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The quote.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Quote"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The offer is not on sale.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A field was unacceptable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/sales/quotes/{quoteId}": {
+      "get": {
+        "tags": [
+          "Sales"
+        ],
+        "operationId": "showQuote",
+        "summary": "One quote",
+        "description": "With its lines and the moment it stops being acceptable.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "quoteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The quote.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Quote"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/sales/quotes/{quoteId}/accept": {
+      "post": {
+        "tags": [
+          "Sales"
+        ],
+        "operationId": "acceptQuote",
+        "summary": "Accept a quote, creating an order",
+        "description": "201, because an order is created. Accepting an expired quote is refused rather than honoured — the clock decides, not the status column, so a quote that lapsed a second ago is already closed.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "quoteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The order the quote became.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "No longer open — expired, or already decided.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/sales/quotes/{quoteId}/reject": {
+      "post": {
+        "tags": [
+          "Sales"
+        ],
+        "operationId": "rejectQuote",
+        "summary": "Decline a quote",
+        "description": "Recorded rather than deleted: a quote that was refused is a commercial fact, and the date of the refusal is part of it.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "quoteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rejected quote.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Quote"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Already decided.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/sales/orders": {
+      "get": {
+        "tags": [
+          "Sales"
+        ],
+        "operationId": "listOrders",
+        "summary": "The tenant's orders",
+        "description": "Newest first, paginated.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of orders.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "orders",
+                    "total",
+                    "limit",
+                    "offset"
+                  ],
+                  "properties": {
+                    "orders": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Order"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Sales"
+        ],
+        "operationId": "placeOrder",
+        "summary": "Order an offer directly",
+        "description": "Without a quote. The resulting order carries a null `quote_id`, which is how the two routes stay distinguishable afterwards.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "offer_id"
+                ],
+                "properties": {
+                  "offer_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The offer is not on sale.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/sales/orders/{orderId}": {
+      "get": {
+        "tags": [
+          "Sales"
+        ],
+        "operationId": "showOrder",
+        "summary": "One order",
+        "description": "Read `invoice_id` and `subscription_id` together to see how far through the gate it is.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/sales/orders/{orderId}/fulfil": {
+      "post": {
+        "tags": [
+          "Sales"
+        ],
+        "operationId": "fulfilOrder",
+        "summary": "Invoice the order",
+        "description": "Fulfilment raises the invoice and **stops**. The subscription is created when that invoice is paid, not here — provisioning before the money arrives is the failure this split exists to prevent (ADR-024). The order moves to AWAITING_PAYMENT.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The order, now carrying an invoice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Not in a state that can be fulfilled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/sales/orders/{orderId}/cancel": {
+      "post": {
+        "tags": [
+          "Sales"
+        ],
+        "operationId": "cancelOrder",
+        "summary": "Cancel an order",
+        "description": "Before it completes. An order whose invoice is already paid cannot be cancelled here — that is a refund and a credit note, which are different documents with different consequences.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The cancelled order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Already completed, or already cancelled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }

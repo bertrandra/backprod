@@ -31,31 +31,11 @@ return [
     'POST /api/v1/notifications/{notificationId}/read',
     'GET /api/v1/notifications/{notificationId}/deliveries',
 
-    // /api/v1/tax
-    'GET /api/v1/tax/profile',
-    'PUT /api/v1/tax/profile',
-    'GET /api/v1/tax/rates',
-    'POST /api/v1/tax/calculate',
-    'GET /api/v1/tax/transactions',
-    'GET /api/v1/tax/reports',
-    'GET /api/v1/tax/reports/{periodId}',
-    'POST /api/v1/tax/reports/{periodId}/close',
 
     // /api/v1/webhooks
     'POST /api/v1/webhooks/payments/{provider}',
     'POST /api/v1/webhooks/einvoice/{provider}',
 
-    // /api/v1/sales
-    'GET /api/v1/sales/quotes',
-    'POST /api/v1/sales/quotes',
-    'GET /api/v1/sales/quotes/{quoteId}',
-    'POST /api/v1/sales/quotes/{quoteId}/accept',
-    'POST /api/v1/sales/quotes/{quoteId}/reject',
-    'GET /api/v1/sales/orders',
-    'POST /api/v1/sales/orders',
-    'GET /api/v1/sales/orders/{orderId}',
-    'POST /api/v1/sales/orders/{orderId}/fulfil',
-    'POST /api/v1/sales/orders/{orderId}/cancel',
 
     // /api/v1/projects
     'GET /api/v1/projects',
