@@ -141,7 +141,9 @@ final class ErasureTest extends DatabaseApiTestCase
         self::assertNull($row['email']);
         self::assertNull($row['display_name']);
         self::assertNotNull($row['erased_at']);
-        self::assertStringStartsWith('erased:', (string) $row['auth_subject']);
+        $tombstone = $row['auth_subject'];
+        self::assertIsString($tombstone);
+        self::assertStringStartsWith('erased:', $tombstone);
     }
 
     /**
@@ -173,7 +175,9 @@ final class ErasureTest extends DatabaseApiTestCase
         self::assertSame('', $row['body']);
         // The message keeps its place, so the thread does not develop a hole
         // where a reply used to be.
-        self::assertSame(1, (int) $row['seq']);
+        $seq = $row['seq'];
+        self::assertIsNumeric($seq);
+        self::assertSame(1, (int) $seq);
         self::assertNotNull($row['deleted_at']);
     }
 
@@ -273,8 +277,13 @@ final class ErasureTest extends DatabaseApiTestCase
         self::assertIsArray($row);
         self::assertSame($this->subject, $row['subject_user_id']);
         self::assertSame($this->operator, $row['requested_by']);
-        self::assertStringContainsString('identity', (string) $row['erased']);
-        self::assertStringContainsString('accounting_record', (string) $row['retained']);
+        $erased = $row['erased'];
+        $retained = $row['retained'];
+        self::assertIsString($erased);
+        self::assertIsString($retained);
+
+        self::assertStringContainsString('identity', $erased);
+        self::assertStringContainsString('accounting_record', $retained);
     }
 
     // --- Helpers -----------------------------------------------------------------

@@ -12,6 +12,7 @@ use App\Privacy\Domain\RetentionGround;
 use App\Shared\Database\Uuid;
 use App\Shared\Exceptions\NotFoundException;
 use Doctrine\DBAL\Connection;
+use RuntimeException;
 
 /**
  * The erasure, as the schema permits it to be done.
@@ -191,15 +192,15 @@ final class PostgresErasureRepository implements ErasureRepository
     private function countBy(string $table, string $column, string $userId): int
     {
         // The table and column are literals from the map above, never input.
-        return (int) $this->connection->fetchOne(
+        return self::asCount($this->connection->fetchOne(
             sprintf('SELECT count(*) FROM %s WHERE %s = CAST(:id AS uuid)', $table, $column),
             ['id' => $userId],
-        );
+        ));
     }
 
     private function countLegalNotices(string $userId): int
     {
-        return (int) $this->connection->fetchOne(
+        return self::asCount($this->connection->fetchOne(
             <<<'SQL'
                 SELECT count(*)
                   FROM notification_deliveries d
@@ -209,7 +210,21 @@ final class PostgresErasureRepository implements ErasureRepository
                    AND d.rendered_body IS NOT NULL
                 SQL,
             ['id' => $userId],
-        );
+        ));
+    }
+
+    /**
+     * `fetchOne` is typed mixed, and a count that quietly became zero because
+     * the driver handed back something unexpected would understate what was
+     * retained — which is the number this record exists to be trusted on.
+     */
+    private static function asCount(mixed $value): int
+    {
+        if (!is_numeric($value)) {
+            throw new RuntimeException('A retention count came back as something other than a number.');
+        }
+
+        return (int) $value;
     }
 
     /**
