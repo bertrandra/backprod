@@ -59,7 +59,7 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
     {
         $this->tenantSubscription(endsInDays: 90, noticeDays: 30);
 
-        self::assertSame(0, $this->run()['raised'] ?? null);
+        self::assertSame(0, $this->sweep()['raised'] ?? null);
         self::assertSame(0, $this->noticesRaised());
     }
 
@@ -71,7 +71,7 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
     {
         $this->tenantSubscription(endsInDays: -1, noticeDays: 30);
 
-        self::assertSame(0, $this->run()['raised'] ?? null);
+        self::assertSame(0, $this->sweep()['raised'] ?? null);
     }
 
     /**
@@ -87,14 +87,14 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
             ['id' => $id],
         );
 
-        self::assertSame(0, $this->run()['raised'] ?? null);
+        self::assertSame(0, $this->sweep()['raised'] ?? null);
     }
 
     public function testASubscriptionThatDoesNotRenewItselfNeedsNoNotice(): void
     {
         $this->tenantSubscription(endsInDays: 10, noticeDays: 30, renewal: 'ENDS_AT_TERM');
 
-        self::assertSame(0, $this->run()['raised'] ?? null);
+        self::assertSame(0, $this->sweep()['raised'] ?? null);
     }
 
     /**
@@ -107,7 +107,7 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
         $this->connection->executeStatement('DELETE FROM tenant_member_roles');
         $this->tenantSubscription(endsInDays: 10, noticeDays: 30);
 
-        $pass = $this->run();
+        $pass = $this->sweep();
 
         self::assertSame(0, $pass['raised'] ?? null);
         self::assertSame(1, $pass['unaddressed'] ?? null);
@@ -119,7 +119,7 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
     {
         $this->tenantSubscription(endsInDays: 10, noticeDays: 30);
 
-        self::assertSame(1, $this->run()['raised'] ?? null);
+        self::assertSame(1, $this->sweep()['raised'] ?? null);
 
         $notice = $this->newestNotice();
         self::assertSame('subscription.renewal_notice', $notice['type'] ?? null);
@@ -139,13 +139,14 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
     public function testAMemberWhoIsNotAnAdministratorIsNotTold(): void
     {
         $this->tenantSubscription(endsInDays: 10, noticeDays: 30);
-        $this->run();
+        $this->sweep();
 
         $told = $this->connection->fetchOne(
             'SELECT count(*) FROM notifications WHERE recipient_user_id = :user',
             ['user' => $this->plainMember],
         );
 
+        self::assertIsNumeric($told);
         self::assertSame(0, (int) $told);
     }
 
@@ -153,7 +154,7 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
     {
         $this->seatSubscription(endsInDays: 7, noticeDays: 30);
 
-        self::assertSame(1, $this->run()['raised'] ?? null);
+        self::assertSame(1, $this->sweep()['raised'] ?? null);
         self::assertSame($this->seatHolder, $this->newestNotice()['recipient_user_id'] ?? null);
     }
 
@@ -166,9 +167,9 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
     {
         $this->tenantSubscription(endsInDays: 10, noticeDays: 30);
 
-        $first = $this->run();
-        $second = $this->run();
-        $third = $this->run();
+        $first = $this->sweep();
+        $second = $this->sweep();
+        $third = $this->sweep();
 
         self::assertSame(1, $first['raised'] ?? null);
         self::assertSame(0, $second['raised'] ?? null);
@@ -185,23 +186,28 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
     public function testTheNextTermGetsItsOwnNotice(): void
     {
         $id = $this->tenantSubscription(endsInDays: 10, noticeDays: 30);
-        $this->run();
+        $this->sweep();
 
         $this->connection->executeStatement(
             "UPDATE subscriptions SET term_ends_at = now() + interval '20 days' WHERE id = :id",
             ['id' => $id],
         );
 
-        self::assertSame(1, $this->run()['raised'] ?? null);
+        self::assertSame(1, $this->sweep()['raised'] ?? null);
         self::assertSame(2, $this->noticesRaised());
     }
 
     // --- Helpers ---------------------------------------------------------------
 
     /**
+     * One pass of the job.
+     *
+     * Not `run()`: PHPUnit's own `TestCase::run()` is final, and a helper by
+     * that name is a name collision rather than a helper.
+     *
      * @return array<string, mixed>
      */
-    private function run(): array
+    private function sweep(): array
     {
         $handler = $this->container()->get(SendRenewalNotices::class);
         self::assertInstanceOf(SendRenewalNotices::class, $handler);

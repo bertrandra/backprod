@@ -152,6 +152,9 @@ interface SubscriptionRepository
      * can do — it makes the column agree with reality for the people reading
      * it. A subscription with no period end has no end to be past.
      */
+
+    public function expireLapsed(): int;
+
     /**
      * Subscriptions inside their pre-renewal notice window, and who to tell.
      *
@@ -173,6 +176,4 @@ interface SubscriptionRepository
      * @return list<RenewalNotice>
      */
     public function dueForRenewalNotice(int $limit): array;
-
-    public function expireLapsed(): int;
 }

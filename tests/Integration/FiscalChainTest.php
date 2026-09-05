@@ -644,9 +644,6 @@ final class FiscalChainTest extends DatabaseApiTestCase
     // --- helpers ----------------------------------------------------------
 
     /**
-     * @param array<string, mixed> $changes
-     */
-    /**
      * @return array<string, mixed>
      */
     private function newestNotification(): array
@@ -660,6 +657,9 @@ final class FiscalChainTest extends DatabaseApiTestCase
         return $row;
     }
 
+    /**
+     * @param array<string, mixed> $changes
+     */
     private function saveTaxProfile(array $changes = []): ResponseInterface
     {
         $response = $this->request(
