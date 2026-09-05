@@ -52,6 +52,7 @@ Individually:
 | `composer run gate:proof` | That the architecture gate really rejects a violation |
 | `composer run gate:products` | That no code branches on product identity (§12.1) |
 | `composer run gate:plans` | That no code branches on a plan or tier name (§13) |
+| `composer run gate:entitlements` | That no controller decides an entitlement question itself (§13, R4) |
 | `composer run test` | PHPUnit |
 
 `composer run cs:fix` applies formatting fixes.
