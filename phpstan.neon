@@ -1,6 +1,7 @@
 parameters:
     level: max
     paths:
+        - migrations
         - src
         - bin
         - config
