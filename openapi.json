@@ -32,6 +32,10 @@
     {
       "name": "Subscription",
       "description": "The tenant's subscription, its terms, and what it entitles them to."
+    },
+    {
+      "name": "Billing",
+      "description": "Invoices, payments, credit notes and the e-invoicing transmissions that follow them."
     }
   ],
   "components": {
@@ -62,6 +66,28 @@
           "format": "uuid"
         },
         "description": "Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own."
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 25
+        },
+        "description": "How many to return."
+      },
+      "Offset": {
+        "name": "offset",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        },
+        "description": "How many to skip."
       }
     },
     "schemas": {
@@ -739,6 +765,565 @@
             "format": "date-time"
           }
         }
+      },
+      "BillingMoney": {
+        "type": "object",
+        "required": [
+          "minor_units",
+          "currency"
+        ],
+        "description": "Integer minor units and the currency. Note the field is `minor_units` here, while the catalogue uses `amount_minor_units` for the same idea — an inconsistency the contract records rather than hides.",
+        "properties": {
+          "minor_units": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          }
+        }
+      },
+      "PartySnapshot": {
+        "type": "object",
+        "description": "Supplier or customer **as they were when the document was issued**, copied rather than referenced (§25). A later change of address must not rewrite an invoice already sent, and an RGPD erasure deliberately leaves this standing.",
+        "additionalProperties": true
+      },
+      "InvoiceLine": {
+        "type": "object",
+        "required": [
+          "position",
+          "description",
+          "quantity",
+          "unit_price",
+          "discount",
+          "net",
+          "vat_rate_basis_points",
+          "vat",
+          "gross",
+          "source_offer_version_id"
+        ],
+        "properties": {
+          "position": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer"
+          },
+          "unit_price": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "discount": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "net": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "vat_rate_basis_points": {
+            "type": "integer",
+            "description": "Basis points, as stored. Sending \"20%\" would lose 5.5% to whatever the client's parser did with the half.",
+            "examples": [
+              2000,
+              550
+            ]
+          },
+          "vat": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "gross": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "source_offer_version_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Which offer version priced this line. Attribution runs through here, never through the subscription's *current* offer, which would credit today's offer with money an older one earned."
+          }
+        }
+      },
+      "TaxRecord": {
+        "type": "object",
+        "required": [
+          "jurisdiction",
+          "rate_basis_points",
+          "taxable",
+          "tax"
+        ],
+        "properties": {
+          "jurisdiction": {
+            "type": "string"
+          },
+          "rate_basis_points": {
+            "type": "integer"
+          },
+          "taxable": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "tax": {
+            "$ref": "#/components/schemas/BillingMoney"
+          }
+        }
+      },
+      "Invoice": {
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "status",
+          "final",
+          "subscription_id",
+          "net",
+          "vat",
+          "gross",
+          "issued_at",
+          "due_at",
+          "paid_at",
+          "period_start",
+          "period_end",
+          "payment_terms",
+          "supplier",
+          "customer",
+          "lines",
+          "taxes"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null until issued. A draft has no legal number, and inventing a placeholder is how a gap enters a sequence that must not have one."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "ISSUED",
+              "PAID",
+              "CANCELLED"
+            ]
+          },
+          "final": {
+            "type": "boolean",
+            "description": "Whether it can still change. A final invoice is corrected by a credit note, never edited."
+          },
+          "subscription_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "net": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "vat": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "gross": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "issued_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "due_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "paid_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "period_start": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "period_end": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "payment_terms": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supplier": {
+            "$ref": "#/components/schemas/PartySnapshot"
+          },
+          "customer": {
+            "$ref": "#/components/schemas/PartySnapshot"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceLine"
+            }
+          },
+          "taxes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaxRecord"
+            },
+            "description": "One row per jurisdiction and rate. They sum to the invoice's VAT — a test asserts it."
+          }
+        }
+      },
+      "CreditNote": {
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "invoice_id",
+          "direction",
+          "reason",
+          "net",
+          "vat",
+          "gross",
+          "issued_at",
+          "supplier",
+          "customer",
+          "lines"
+        ],
+        "description": "How a final invoice is corrected. Its own gapless sequence, separate from the invoices'.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "string"
+          },
+          "invoice_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "direction": {
+            "type": "string",
+            "const": "CREDIT",
+            "description": "Always CREDIT. Present so a client reading a mixed ledger never has to infer the sign."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "net": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "vat": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "gross": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "supplier": {
+            "$ref": "#/components/schemas/PartySnapshot"
+          },
+          "customer": {
+            "$ref": "#/components/schemas/PartySnapshot"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceLine"
+            }
+          }
+        }
+      },
+      "Payment": {
+        "type": "object",
+        "required": [
+          "id",
+          "invoice_id",
+          "subscription_id",
+          "provider",
+          "provider_payment_id",
+          "status",
+          "settled",
+          "final",
+          "amount",
+          "method",
+          "failure_code",
+          "failure_reason",
+          "succeeded_at",
+          "failed_at",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoice_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "subscription_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "provider": {
+            "type": "string",
+            "description": "Which PSP. The domain never names one; this is the adapter that was used."
+          },
+          "provider_payment_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "SUCCEEDED",
+              "FAILED",
+              "REFUNDED",
+              "CHARGED_BACK"
+            ]
+          },
+          "settled": {
+            "type": "boolean"
+          },
+          "final": {
+            "type": "boolean",
+            "description": "Whether the status can still move. A webhook arriving after this is ignored rather than applied twice."
+          },
+          "amount": {
+            "$ref": "#/components/schemas/BillingMoney"
+          },
+          "method": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "How it was paid. Never card data — §24 forbids storing that here at all."
+          },
+          "failure_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "failure_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The provider's category, never its raw message: that can carry an endpoint or a token, and this field is served over the API (§31)."
+          },
+          "succeeded_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "failed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Transmission": {
+        "type": "object",
+        "required": [
+          "id",
+          "invoice_id",
+          "provider",
+          "provider_document_id",
+          "status",
+          "settled",
+          "rejection_code",
+          "rejection_reason",
+          "submitted_at",
+          "settled_at",
+          "created_at"
+        ],
+        "description": "An invoice's journey to a certified e-invoicing platform (§25.1). Four states, and a rejection is a settled outcome rather than an error to retry blindly.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoice_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "provider_document_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "SUBMITTED",
+              "ACCEPTED",
+              "REJECTED"
+            ]
+          },
+          "settled": {
+            "type": "boolean"
+          },
+          "rejection_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rejection_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "submitted_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "settled_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "BillingProfile": {
+        "type": "object",
+        "required": [
+          "legal_name",
+          "vat_number",
+          "registration_number",
+          "address_line1",
+          "address_line2",
+          "postal_code",
+          "city",
+          "country_code",
+          "billing_email"
+        ],
+        "description": "Who the tenant is, for invoicing. Copied onto each document at issue — changing it never rewrites an invoice already sent.",
+        "properties": {
+          "legal_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vat_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "registration_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "address_line1": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "address_line2": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "postal_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "country_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 3166 alpha-2."
+          },
+          "billing_email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "email"
+          }
+        }
+      },
+      "Refund": {
+        "type": "object",
+        "description": "A refund against a settled payment.",
+        "additionalProperties": true
       }
     },
     "responses": {
@@ -2126,6 +2711,1077 @@
                       "items": {
                         "$ref": "#/components/schemas/Entitlement"
                       }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/billing/profile": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "showBillingProfile",
+        "summary": "The tenant's invoicing identity",
+        "description": "Every field is nullable: a tenant that has not filled this in yet gets nulls rather than a 404, because the profile is a property of the tenant and always exists conceptually.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The profile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "profile"
+                  ],
+                  "properties": {
+                    "profile": {
+                      "$ref": "#/components/schemas/BillingProfile"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "saveBillingProfile",
+        "summary": "Replace the invoicing identity",
+        "description": "PUT, not PATCH: this is the whole identity, and a partial update of a legal address is how half an address reaches an invoice. Only `legal_name` is required.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "legal_name"
+                ],
+                "properties": {
+                  "legal_name": {
+                    "type": "string",
+                    "maxLength": 255
+                  },
+                  "vat_number": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 32
+                  },
+                  "registration_number": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 32
+                  },
+                  "address_line1": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "address_line2": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "postal_code": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 16
+                  },
+                  "city": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 128
+                  },
+                  "country_code": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "ISO 3166 alpha-2."
+                  },
+                  "billing_email": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "email"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The saved profile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "profile"
+                  ],
+                  "properties": {
+                    "profile": {
+                      "$ref": "#/components/schemas/BillingProfile"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A field was present but unacceptable — a country code that is not two letters, say.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/billing/invoices": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "listInvoices",
+        "summary": "The tenant's invoices",
+        "description": "Newest first, paginated.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of invoices.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "invoices",
+                    "total",
+                    "limit",
+                    "offset"
+                  ],
+                  "properties": {
+                    "invoices": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Invoice"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "issueInvoice",
+        "summary": "Raise the invoice for the current subscription",
+        "description": "Takes no body: what to bill is the subscription in force, and letting a client name the amount would let a client name the amount. Issuing assigns the next number in a gapless sequence, under a lock — two simultaneous requests cannot both take it.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The issued invoice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Nothing to invoice, or the period is already invoiced.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/billing/invoices/{invoiceId}": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "showInvoice",
+        "summary": "One invoice",
+        "description": "With its lines and its tax rows. The party snapshots are as of issue, not as the tenant is now.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The invoice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/billing/invoices/{invoiceId}/pay": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "markInvoicePaid",
+        "summary": "Record an invoice as paid",
+        "description": "For payment received outside the platform — a transfer, a cheque. Money taken through a PSP arrives by webhook instead and must not be recorded here as well.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The invoice, now paid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Not in a state that can be paid — a draft, or already paid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/billing/invoices/{invoiceId}/cancel": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "cancelInvoice",
+        "summary": "Cancel an invoice",
+        "description": "Only while it is still a draft. A final invoice is corrected by a credit note, never cancelled — cancelling one that has been sent would leave a hole in the legal sequence.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The cancelled invoice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Already final; issue a credit note instead.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/billing/invoices/{invoiceId}/payments": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "startPayment",
+        "summary": "Begin a payment through the provider",
+        "description": "Returns the payment **and the provider's client secret**, which is what the browser needs to complete the charge. Card data never reaches this API (§24): the client talks to the provider directly and the platform learns the outcome by webhook.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The pending payment and its client secret.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Payment"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "client_secret"
+                      ],
+                      "properties": {
+                        "client_secret": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Hand to the provider's client SDK. Never logged, never stored."
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The invoice cannot be paid — a draft, cancelled, or already settled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/billing/invoices/{invoiceId}/credit": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "issueCreditNote",
+        "summary": "Correct a final invoice",
+        "description": "The only way to change a document that has been issued. The credit note takes the next number in its **own** gapless sequence.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The credit note.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditNote"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The invoice is not in a state that can be credited.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/billing/invoices/{invoiceId}/transmit": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "submitInvoice",
+        "summary": "Send an invoice to the e-invoicing platform",
+        "description": "202, not 200: submission is handed to the provider and settles later. Poll the transmissions below, or wait for the webhook. **Today this reaches a stub** — no certified platform is connected yet (R3).",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted for transmission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transmission"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The invoice is not issued, or has already been transmitted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/billing/invoices/{invoiceId}/transmissions": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "listTransmissions",
+        "summary": "An invoice's transmission attempts",
+        "description": "Every attempt, not just the last: a rejection followed by an acceptance is two facts, and the first is the one an auditor asks about.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The transmissions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "transmissions"
+                  ],
+                  "properties": {
+                    "transmissions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Transmission"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/billing/payments": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "listPayments",
+        "summary": "The tenant's payments",
+        "description": "Newest first, paginated.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of payments.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "payments",
+                    "total",
+                    "limit",
+                    "offset"
+                  ],
+                  "properties": {
+                    "payments": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Payment"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/billing/payments/{paymentId}": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "showPayment",
+        "summary": "One payment",
+        "description": "Including why it failed, as a code and a category — never the provider's raw message, which can carry an endpoint or a token (§31).",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "paymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The payment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payment"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/billing/payments/{paymentId}/refund": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "refundPayment",
+        "summary": "Refund a settled payment",
+        "description": "202: the provider decides when the money moves. Omitting `amount_minor_units` refunds the whole payment; a partial refund may not exceed what is left unrefunded, and the database enforces that rather than the caller remembering it.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "paymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 32,
+                    "description": "Why. Upper-cased and stored as a category."
+                  },
+                  "amount_minor_units": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Absent refunds everything still refundable."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The refund, accepted by the provider.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refund"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Not refundable — unsettled, or already fully refunded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The amount exceeds what remains.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/billing/credit-notes": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "listCreditNotes",
+        "summary": "The tenant's credit notes",
+        "description": "Newest first, paginated.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of credit notes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "credit_notes",
+                    "total",
+                    "limit",
+                    "offset"
+                  ],
+                  "properties": {
+                    "credit_notes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CreditNote"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "type": "integer"
                     }
                   }
                 }

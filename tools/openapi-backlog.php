@@ -18,22 +18,6 @@ declare(strict_types=1);
 return [
 
 
-    // /api/v1/billing
-    'GET /api/v1/billing/profile',
-    'PUT /api/v1/billing/profile',
-    'GET /api/v1/billing/invoices',
-    'POST /api/v1/billing/invoices',
-    'GET /api/v1/billing/invoices/{invoiceId}',
-    'POST /api/v1/billing/invoices/{invoiceId}/pay',
-    'POST /api/v1/billing/invoices/{invoiceId}/cancel',
-    'GET /api/v1/billing/payments',
-    'GET /api/v1/billing/payments/{paymentId}',
-    'POST /api/v1/billing/invoices/{invoiceId}/payments',
-    'POST /api/v1/billing/payments/{paymentId}/refund',
-    'GET /api/v1/billing/credit-notes',
-    'POST /api/v1/billing/invoices/{invoiceId}/credit',
-    'POST /api/v1/billing/invoices/{invoiceId}/transmit',
-    'GET /api/v1/billing/invoices/{invoiceId}/transmissions',
 
     // /api/v1/notifications
     'GET /api/v1/notifications',
