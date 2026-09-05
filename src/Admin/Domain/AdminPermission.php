@@ -36,4 +36,12 @@ final class AdminPermission
      * Tuesday". The signal is timestamps and counts, never a customer's data.
      */
     public const HEALTH_READ = 'admin.health.read';
+
+    /**
+     * PLATFORM_ADMIN alone, and not SUPPORT_ADMIN. Support answers a
+     * customer's questions; this destroys their identity irreversibly, and
+     * the two are not the same authority however close the conversation that
+     * leads to one is to the conversation that leads to the other.
+     */
+    public const PRIVACY_ERASE = 'admin.privacy.erase';
 }

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Admin\Controller\EraseUserController;
 use App\Admin\Controller\ListAuditController;
 use App\Admin\Controller\ShowMetricsController;
 use App\Admin\Controller\ShowQueueController;
@@ -339,6 +340,11 @@ return static function (RouteCollector $routes): void {
     // the same silence. No product in the query — the runner is one process
     // for the whole platform, so there is no per-product answer to give.
     $routes->addRoute('GET', '/api/v1/admin/queue', ShowQueueController::class);
+
+    // §31 and non-negotiables #14/#15. A POST because it is irreversible and
+    // creates a record of itself; the response is the receipt naming what was
+    // kept, which is the half of an erasure somebody has to be able to prove.
+    $routes->addRoute('POST', '/api/v1/admin/erasures', EraseUserController::class);
 
     // Support: the platform's side of §12.3. Only SUPPORT threads are
     // reachable — the repository filters on kind in SQL, so a tenant's

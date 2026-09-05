@@ -30,7 +30,7 @@ final class TestDatabase
      * they would accumulate across the whole suite until an unrelated test
      * tripped the limit.
      */
-    private const TABLES = 'rate_limit_counters, assets, job_runs, jobs, '
+    private const TABLES = 'rate_limit_counters, erasure_requests, assets, job_runs, jobs, '
         . 'messages, conversation_participants, conversations, '
         . 'staff_access_log, platform_staff, '
         . 'einvoice_events, einvoice_transmissions, order_lines, orders, '

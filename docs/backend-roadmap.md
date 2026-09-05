@@ -474,7 +474,15 @@ notification never appears in a conversation.
   too. Argon2id has nothing to hash: identity is a Supabase JWT and no
   password is held locally anywhere
 - Retention + RGPD service separating deletion from legal accounting retention
-  (non-negotiables #14, #15)
+  (non-negotiables #14, #15) — *delivered*. A person is **anonymised, never
+  deleted**, because the schema says so: of twenty foreign keys into `users`,
+  five RESTRICT and four CASCADE, so a DELETE would either be refused or would
+  silently take notification history with it. `POST /api/v1/admin/erasures`
+  clears the identity, the person's own message bodies and their name from the
+  audit trail, and keeps — counted, and with the ground recorded per
+  category — the accounting, fiscal, audit, legal-notice and traceability
+  records. The invoice still names them afterwards, which is #15 working
+  rather than failing: altering an issued invoice falsifies a legal document
 
 **Exit criteria:** a `TENANT_ADMIN` provably cannot read cross-tenant financials;
 a deletion request preserves records under legal retention.
