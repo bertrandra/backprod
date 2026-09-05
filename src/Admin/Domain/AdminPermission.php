@@ -28,4 +28,12 @@ final class AdminPermission
      * customer's revenue.
      */
     public const FINANCE_READ = 'admin.finance.read';
+
+    /**
+     * Held by SUPPORT_ADMIN as well as PLATFORM_ADMIN, and for the opposite
+     * reason to FINANCE_READ: "why has my export not arrived?" is a support
+     * question whose honest answer is sometimes "the runner has not run since
+     * Tuesday". The signal is timestamps and counts, never a customer's data.
+     */
+    public const HEALTH_READ = 'admin.health.read';
 }

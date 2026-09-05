@@ -89,4 +89,13 @@ interface JobRepository
     public function beginRun(): string;
 
     public function finishRun(string $runId, int $claimed, int $succeeded, int $failed): void;
+
+    /**
+     * Whether the queue is still being polled, and whether it is keeping up.
+     *
+     * R10's question. A quiet queue and a cron that stopped firing are
+     * indistinguishable from the outside, and `job_runs` is the only thing
+     * that tells them apart.
+     */
+    public function liveness(): QueueLiveness;
 }
