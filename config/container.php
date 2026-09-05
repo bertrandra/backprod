@@ -58,6 +58,8 @@ use App\Payment\Infrastructure\PostgresPaymentRepository;
 use App\Payment\Infrastructure\StubPaymentProvider;
 use App\Payment\Service\InvoiceSettlement;
 use App\Payment\Service\PaymentProviders;
+use App\Privacy\Domain\ErasureRepository;
+use App\Privacy\Infrastructure\PostgresErasureRepository;
 use App\Product\Domain\ProductRegistry;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\PostgresProductRegistry;
@@ -397,6 +399,8 @@ return static function (array $overrides = []): ContainerInterface {
                 $routes($collector);
             });
         }),
+
+        ErasureRepository::class => autowire(PostgresErasureRepository::class),
 
         // --- §31 hardening --------------------------------------------------
         // Limits are configuration because the right number depends on the
