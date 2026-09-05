@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Shared\Throttle;
 
+use App\Shared\Context\ClientAddress;
 use App\Shared\Context\RoutePolicy;
 use App\Shared\Exceptions\TooManyRequestsException;
-use App\Shared\Http\ClientAddress;
 use App\Throttle\Domain\RateLimiter;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;

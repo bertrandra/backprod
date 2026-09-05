@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit;
 
-use App\Shared\Http\ClientAddress;
+use App\Shared\Context\ClientAddress;
 use Laminas\Diactoros\ServerRequest;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;

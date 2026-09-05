@@ -2,12 +2,17 @@
 
 declare(strict_types=1);
 
-namespace App\Shared\Http;
+namespace App\Shared\Context;
 
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * Who to count a request against, when nobody has authenticated yet.
+ *
+ * In the context layer rather than beside the transport helpers, because
+ * that is what it does: resolve something about who is asking, from the
+ * request, before a handler runs. The layers agree — SharedHttp is
+ * transport-only and may not be reached from here.
  *
  * This is the same rule as "never trust a client-supplied tenant id", applied
  * to the network. `X-Forwarded-For` is a request header: anybody may send one,
