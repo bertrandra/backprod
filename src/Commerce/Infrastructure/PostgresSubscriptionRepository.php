@@ -9,6 +9,7 @@ use App\Commerce\Domain\Feature;
 use App\Commerce\Domain\OfferGrant;
 use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Domain\Plan;
+use App\Commerce\Domain\RenewalNotice;
 use App\Commerce\Domain\SubscribedOffer;
 use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
@@ -324,6 +325,63 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
                     Row::timestamp($row, 'occurred_at'),
                 );
             },
+            $rows,
+        );
+    }
+
+    public function dueForRenewalNotice(int $limit): array
+    {
+        // The recipient is resolved here, in the same query, rather than by
+        // asking the membership repository. That port is deliberately shaped
+        // "every tenant this *user* belongs to" and has no "who is in tenant
+        // X", because that shape invites a client-supplied tenant id being
+        // passed straight through. Nothing here comes from a client — the
+        // tenant is read off the subscription row — so the answer belongs in
+        // the SQL rather than in a hole cut through that stance.
+        //
+        // LEFT JOIN, not JOIN: a tenant with no administrator produces a row
+        // with no recipient. Dropping it would turn an unmet legal obligation
+        // into an empty result, which is the failure R11 actually warns about.
+        $rows = $this->connection->fetchAllAssociative(
+            <<<'SQL'
+                SELECT s.id, s.tenant_id, s.product_id, s.term_ends_at,
+                       s.notice_days, r.user_id AS recipient_user_id
+                  FROM subscriptions s
+                  LEFT JOIN LATERAL (
+                        SELECT s.subscriber_user_id AS user_id
+                         WHERE s.subscriber_kind = 'USER'
+                           AND s.subscriber_user_id IS NOT NULL
+                        UNION
+                        SELECT tmr.user_id
+                          FROM tenant_member_roles tmr
+                          JOIN roles ro ON ro.id = tmr.role_id
+                         WHERE s.subscriber_kind = 'TENANT'
+                           AND tmr.tenant_id = s.tenant_id
+                           AND tmr.product_id = s.product_id
+                           AND ro.code = 'TENANT_ADMIN'
+                       ) r ON TRUE
+                 WHERE s.status = 'ACTIVE'
+                   AND s.renewal = 'AUTO_RENEW'
+                   AND s.term_ends_at IS NOT NULL
+                   AND s.notice_days > 0
+                   AND s.cancel_at_period_end = false
+                   AND now() >= s.term_ends_at - make_interval(days => s.notice_days)
+                   AND now() <  s.term_ends_at
+                 ORDER BY s.term_ends_at, r.user_id
+                 LIMIT :limit
+                SQL,
+            ['limit' => $limit],
+        );
+
+        return array_map(
+            static fn (array $row): RenewalNotice => new RenewalNotice(
+                Row::string($row, 'id'),
+                Row::string($row, 'tenant_id'),
+                Row::string($row, 'product_id'),
+                Row::timestamp($row, 'term_ends_at'),
+                Row::integer($row, 'notice_days'),
+                Row::nullableString($row, 'recipient_user_id'),
+            ),
             $rows,
         );
     }
