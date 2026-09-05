@@ -764,3 +764,23 @@ Migrations are hand-written SQL
 ([ADR-016](docs/adr/ADR-016-migrations.md)). Tests that need a database skip
 without `DATABASE_DSN` and always run in CI, which provisions PostgreSQL as a
 service.
+
+## Hardening settings (§31)
+
+Every one of these defaults to the safe answer, so an unconfigured deployment
+is restrictive rather than open.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `CORS_ALLOWED_ORIGINS` | *(none)* | Exact origins, comma-separated. Empty allows no cross-origin call at all. There is no wildcard: this API is read with a bearer token, and `*` cannot carry credentials. |
+| `RATE_LIMIT_WINDOW_SECONDS` | `60` | Width of the fixed window. |
+| `RATE_LIMIT_PER_WINDOW` | `600` | Requests per window per caller. |
+| `RATE_LIMIT_PUBLIC_PER_WINDOW` | `60` | The same, for paths reachable with no credential — the cheap surface to attack. |
+| `TRUSTED_PROXIES` | *(none)* | Addresses whose `X-Forwarded-For` may be believed. Empty means none, and the header is ignored. |
+
+`TRUSTED_PROXIES` is the one worth reading twice. `X-Forwarded-For` is a
+request header anybody may send, so believing it from an arbitrary connection
+would give the rate limiter a bypass: a fresh address per request and an
+allowance that never runs out. Left empty behind a real proxy the failure is
+the other way — every client shares one bucket and the limit is too strict,
+which costs a retry rather than an outage.

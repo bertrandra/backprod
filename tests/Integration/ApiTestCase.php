@@ -44,12 +44,17 @@ abstract class ApiTestCase extends TestCase
      * proving the handler works on input the server never produces.
      *
      * @param array<string, string> $headers
+     * @param array<string, mixed>  $serverParams what a real server would put
+     *                                            in $_SERVER — REMOTE_ADDR,
+     *                                            for anything that has to know
+     *                                            where a request came from
      */
     protected function request(
         string $method,
         string $path,
         array $headers = [],
         ?string $body = null,
+        array $serverParams = [],
     ): ResponseInterface {
         $uri = 'https://api.test' . $path;
 
@@ -67,6 +72,7 @@ abstract class ApiTestCase extends TestCase
         }
 
         $request = new ServerRequest(
+            serverParams: $serverParams + ['REMOTE_ADDR' => $this->addressOfThisTest()],
             uri: $uri,
             method: $method,
             body: $stream,
@@ -82,6 +88,23 @@ abstract class ApiTestCase extends TestCase
         }
 
         return $this->app()->handle($request);
+    }
+
+    /**
+     * A caller address unique to this test, unless the test names its own.
+     *
+     * Every request now passes a rate limiter that counts per address, and
+     * the counters are not cleared by tests that use no database. Without
+     * this, unrelated tests would share one bucket, the suite would spend a
+     * real allowance as it grew, and the first test to cross the line would
+     * fail for a reason having nothing to do with what it was checking.
+     *
+     * Not a real address, and it does not need to be: the bucket is an opaque
+     * string, and the point is only that two tests never collide.
+     */
+    private function addressOfThisTest(): string
+    {
+        return 'test-' . substr(hash('xxh128', static::class . '::' . $this->name()), 0, 16);
     }
 
     /**

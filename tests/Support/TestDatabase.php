@@ -21,8 +21,16 @@ final class TestDatabase
      * Reference data is deliberately absent: roles and permissions are
      * created by the migrations, not by fixtures, and clearing them would
      * leave the platform unable to authorise anything.
+     *
+     * `rate_limit_counters` has to be named explicitly, unlike most of what
+     * this clears. Everything else is reachable from `products`, `tenants` or
+     * `users` by CASCADE, so a new table with a foreign key gets truncated
+     * without anybody remembering. The counters reference nothing — they are
+     * keyed by an address — so CASCADE never reaches them, and left behind
+     * they would accumulate across the whole suite until an unrelated test
+     * tripped the limit.
      */
-    private const TABLES = 'assets, job_runs, jobs, '
+    private const TABLES = 'rate_limit_counters, assets, job_runs, jobs, '
         . 'messages, conversation_participants, conversations, '
         . 'staff_access_log, platform_staff, '
         . 'einvoice_events, einvoice_transmissions, order_lines, orders, '
