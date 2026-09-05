@@ -30,6 +30,8 @@ use App\Commerce\Controller\TenantUsageController;
 use App\EInvoice\Controller\EInvoiceWebhookController;
 use App\EInvoice\Controller\ListTransmissionsController;
 use App\EInvoice\Controller\SubmitInvoiceController;
+use App\Geometry\Controller\IntersectGeometriesController;
+use App\Geometry\Controller\MeasureGeometryController;
 use App\Health\Controller\HealthController;
 use App\Identity\Controller\MeController;
 use App\Identity\Controller\MePermissionsController;
@@ -307,6 +309,17 @@ return static function (RouteCollector $routes): void {
     // prefix covers exactly one route. Mounting it at /assets/... would put
     // the whole asset surface behind a prefix reachable with no credential.
     $routes->addRoute('GET', '/api/v1/downloads/{assetId}/content', DownloadAssetController::class);
+
+    // Geometry (§19). Two routes, not the three §7 sketches: core PostgreSQL
+    // has no buffer, and §19 names buffers among the things a spatial
+    // extension is for. An endpoint that returned an approximation of one
+    // would be harder to remove than an endpoint that does not exist yet.
+    //
+    // These read no tenant row and write none. The door is the `gis.access`
+    // capability rather than a permission — what a plan bought, not what a
+    // role allows (§10.2, §13).
+    $routes->addRoute('POST', '/api/v1/geometry/measure', MeasureGeometryController::class);
+    $routes->addRoute('POST', '/api/v1/geometry/intersections', IntersectGeometriesController::class);
 
     $routes->addRoute('GET', '/api/v1/tenants/current', CurrentTenantController::class);
     $routes->addRoute('PATCH', '/api/v1/tenants/current', UpdateCurrentTenantController::class);

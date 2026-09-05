@@ -71,6 +71,57 @@ final class Row
     }
 
     /**
+     * A double precision column.
+     *
+     * Unlike an integer, a float that arrives as a string is accepted in any
+     * form PHP reads as a number: PostgreSQL can render one as `1e-07`, and
+     * a driver that hands that back as text has not made it a different
+     * value. `Infinity` and `NaN` are refused — PostgreSQL can store both,
+     * and neither survives `json_encode` as anything a client can read.
+     *
+     * @param array<string, mixed> $row
+     */
+    public static function float(array $row, string $column): float
+    {
+        $value = self::asFloat($row[$column] ?? null);
+
+        if ($value === null) {
+            throw self::unexpected($column);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    public static function nullableFloat(array $row, string $column): ?float
+    {
+        return self::asFloat($row[$column] ?? null);
+    }
+
+    /**
+     * A boolean column. PDO returns these natively, but a driver configured
+     * to stringify would send PostgreSQL's own `t`/`f`, so both are read.
+     *
+     * @param array<string, mixed> $row
+     */
+    public static function boolean(array $row, string $column): bool
+    {
+        $value = $row[$column] ?? null;
+
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        return match ($value) {
+            't', 'true', '1', 1 => true,
+            'f', 'false', '0', 0 => false,
+            default => throw self::unexpected($column),
+        };
+    }
+
+    /**
      * @param array<string, mixed> $row
      */
     public static function timestamp(array $row, string $column): DateTimeImmutable
@@ -102,6 +153,25 @@ final class Row
         // accept "--5" and cast it to 0.
         if (is_string($value) && preg_match('/^-?\d+$/', $value) === 1) {
             return (int) $value;
+        }
+
+        return null;
+    }
+
+    private static function asFloat(mixed $value): ?float
+    {
+        if (is_float($value)) {
+            return is_finite($value) ? $value : null;
+        }
+
+        if (is_int($value)) {
+            return (float) $value;
+        }
+
+        if (is_string($value) && is_numeric($value)) {
+            $float = (float) $value;
+
+            return is_finite($float) ? $float : null;
         }
 
         return null;

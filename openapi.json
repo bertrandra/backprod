@@ -58,6 +58,10 @@
       "description": "Files kept outside the database, reached by signed links."
     },
     {
+      "name": "Geometry",
+      "description": "Spatial computation over caller-supplied GeoJSON (§19 phase 1). Behind the `gis.access` entitlement, backed by core PostgreSQL with no PostGIS dependency, and deliberately without a buffer operation — §19 names buffers among the things a spatial extension is for, and an approximation of one would be harder to remove than an endpoint that does not exist yet."
+    },
+    {
       "name": "Conversations",
       "description": "Threads inside a tenant, and support threads that cross to the platform (§12.3)."
     },
@@ -2692,6 +2696,178 @@
           "detail": {
             "type": "object",
             "additionalProperties": true
+          }
+        }
+      },
+      "GeoJsonPolygon": {
+        "type": "object",
+        "description": "A GeoJSON Polygon with **exactly one linear ring** and no Z ordinate — narrower than RFC 7946 on purpose. The phase 1 spatial backend is core PostgreSQL (§19), whose `polygon` type has no holes and no third dimension, and the tempting repairs — keep the outer ring, drop the elevation — answer a different question from the one that was asked. A ring with a hole, a MultiPolygon or a 3D position is refused with 400 rather than reduced.",
+        "required": [
+          "type",
+          "coordinates"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "Polygon"
+            ]
+          },
+          "coordinates": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "description": "One ring, closed: its last position repeats its first, so a triangle has four positions. At most 513 positions, and the ring must be simple — a self-intersecting ring is refused with 422, because PostgreSQL measures a bowtie as zero area rather than as an error.",
+            "items": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 513,
+              "items": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "number"
+                },
+                "examples": [
+                  [
+                    0,
+                    0
+                  ]
+                ]
+              }
+            }
+          }
+        }
+      },
+      "GeoJsonPoint": {
+        "type": "object",
+        "required": [
+          "type",
+          "coordinates"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "Point"
+            ]
+          },
+          "coordinates": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "number"
+            },
+            "examples": [
+              [
+                3.06,
+                50.63
+              ]
+            ]
+          }
+        }
+      },
+      "CoordinateReference": {
+        "type": "string",
+        "enum": [
+          "PROJECTED",
+          "GEOGRAPHIC"
+        ],
+        "description": "Which kind of coordinates the geometry is in. Required, and never inferred: a parcel in Lambert-93 and the same parcel in WGS 84 are both pairs of finite numbers, and guessing from magnitude would report a 1200 m² plot as 0.00000015.\n\n`PROJECTED` — a planar system in linear units (Lambert-93, a UTM zone). Lengths and areas are in those units; the platform never learns which unit and never claims one.\n\n`GEOGRAPHIC` — longitude and latitude in degrees. Topology is answerable, so `/geometry/intersections` accepts it and withholds `distance`. `/geometry/measure` refuses it with 422: a degree of longitude is not a fixed distance, so an area in degrees is not an area."
+      },
+      "BoundingBox": {
+        "type": "object",
+        "description": "The axis-aligned extent, in the coordinate units of the input.",
+        "required": [
+          "min_x",
+          "min_y",
+          "max_x",
+          "max_y"
+        ],
+        "properties": {
+          "min_x": {
+            "type": "number"
+          },
+          "min_y": {
+            "type": "number"
+          },
+          "max_x": {
+            "type": "number"
+          },
+          "max_y": {
+            "type": "number"
+          }
+        }
+      },
+      "Measurement": {
+        "type": "object",
+        "description": "Area and perimeter in the coordinate units of the input, squared and plain respectively. There is no unit field because there is no unit to report: the caller chose the projection and knows whether it is metres or feet, and inventing \"m²\" for a US state plane would be a claim this platform cannot support.",
+        "required": [
+          "vertices",
+          "area",
+          "perimeter",
+          "bounding_box"
+        ],
+        "properties": {
+          "vertices": {
+            "type": "integer",
+            "description": "Corners of the ring, counting the closing position once.",
+            "examples": [
+              4
+            ]
+          },
+          "area": {
+            "type": "number",
+            "examples": [
+              12.0
+            ]
+          },
+          "perimeter": {
+            "type": "number",
+            "examples": [
+              14.0
+            ]
+          },
+          "bounding_box": {
+            "$ref": "#/components/schemas/BoundingBox"
+          }
+        }
+      },
+      "SpatialRelation": {
+        "type": "object",
+        "description": "How the subject stands to one candidate. Four answers rather than one, because a parcel search needs to separate the plots a footprint merely clips from the ones it swallows whole — and the plot that swallows the footprint is a third answer.",
+        "required": [
+          "id",
+          "intersects",
+          "contains",
+          "within",
+          "distance"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The id the caller gave this candidate."
+          },
+          "intersects": {
+            "type": "boolean",
+            "description": "Whether the shapes share any point. Genuinely geometric, not a bounding-box approximation: an L-shaped parcel and a block sitting in its notch have overlapping boxes and this answers false."
+          },
+          "contains": {
+            "type": "boolean",
+            "description": "Whether the subject wholly contains the candidate. Always false for a point subject."
+          },
+          "within": {
+            "type": "boolean",
+            "description": "Whether the subject lies wholly inside the candidate."
+          },
+          "distance": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Minimum separation in the input's linear units, zero when the shapes touch. **Null when `crs` is GEOGRAPHIC**, where a separation in degrees is not a distance. Null rather than absent, so one response shape serves both references."
           }
         }
       }
@@ -10796,6 +10972,227 @@
           }
         },
         "security": []
+      }
+    },
+    "/api/v1/geometry/measure": {
+      "post": {
+        "tags": [
+          "Geometry"
+        ],
+        "operationId": "measureGeometry",
+        "summary": "Area, perimeter and extent of a polygon",
+        "description": "Pure computation: no row is read and none is written, and two tenants asking the same question get the same answer. The door is the `gis.access` **entitlement** rather than a permission — what the plan bought, not what the role allows (§10.2) — which is why the refusal here is 403 `ENTITLEMENT_REQUIRED` and never 404.\n\nRequires projected coordinates; see `CoordinateReference` for why degrees are refused rather than converted.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "crs",
+                  "geometry"
+                ],
+                "properties": {
+                  "crs": {
+                    "$ref": "#/components/schemas/CoordinateReference"
+                  },
+                  "geometry": {
+                    "$ref": "#/components/schemas/GeoJsonPolygon"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The measurement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "measurement"
+                  ],
+                  "properties": {
+                    "measurement": {
+                      "$ref": "#/components/schemas/Measurement"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The geometry is not one this backend represents: a hole, a MultiPolygon, a Z ordinate, a ring that is not closed, or an unknown `crs`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`GEOMETRY_NOT_SIMPLE` — the ring crosses itself, which has no well-defined area. Or `PROJECTION_REQUIRED` — `crs` was GEOGRAPHIC.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/geometry/intersections": {
+      "post": {
+        "tags": [
+          "Geometry"
+        ],
+        "operationId": "intersectGeometries",
+        "summary": "One shape against a set of candidate polygons",
+        "description": "Answers overlap, containment and proximity for each candidate, in the order they were sent. The candidates carry ids the caller chose and those ids come straight back, which is what makes this usable against a parcel register the platform has never seen: the caller holds the mapping and this side holds none of it.\n\nA polygon subject asks what a footprint touches; a point subject asks which parcel holds an address. Accepted in either coordinate reference, because topology does not depend on the unit — but `distance` is withheld in degrees.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "crs",
+                  "subject",
+                  "candidates"
+                ],
+                "properties": {
+                  "crs": {
+                    "$ref": "#/components/schemas/CoordinateReference"
+                  },
+                  "subject": {
+                    "description": "The shape being asked about.",
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/GeoJsonPolygon"
+                      },
+                      {
+                        "$ref": "#/components/schemas/GeoJsonPoint"
+                      }
+                    ]
+                  },
+                  "candidates": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "description": "The parcels to test against. Ids must be distinct — two rows sharing one id would make the response impossible to index by, so a repeat is refused rather than resolved.",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "geometry"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "examples": [
+                            "parcel-AB-0142"
+                          ]
+                        },
+                        "geometry": {
+                          "$ref": "#/components/schemas/GeoJsonPolygon"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "One relation per candidate, in the order given.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "relations"
+                  ],
+                  "properties": {
+                    "relations": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SpatialRelation"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A geometry this backend does not represent, a candidate without an id, or two candidates sharing one.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`GEOMETRY_NOT_SIMPLE` — a ring crosses itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     }
   }

@@ -356,14 +356,26 @@ M7), and email notification of unread messages (a §27 job, so M7).
 - Upload validation: type, size, content sniffing — *delivered*; the sniffed type is what is stored, and the request's claim is never read
 - `GeoProvider` interface for spatial operations — **implemented over
   PostgreSQL, no PostGIS dependency**, so a spatial backend can be introduced
-  later without the domain knowing
+  later without the domain knowing — *delivered
+  ([ADR-032](adr/ADR-032-geometry-over-core-postgresql.md))*, with
+  `POST /geometry/measure` and `POST /geometry/intersections` behind the
+  `gis.access` entitlement.
+
+  **`/geometry/buffer` is deliberately not built.** Core PostgreSQL has no
+  buffer, §19 names buffers among the things a spatial extension is for, and
+  an approximation of one would be harder to remove than an endpoint that
+  does not exist yet. It arrives with the §19 phase 2 backend.
+
+  Still unbuilt from §7's GIS block: `/projects/{id}/parcel` and
+  `/projects/{id}/parcel/resolve`, which need a cadastre source rather than a
+  geometry engine.
 
 **Exit criteria:** a long export returns a job id, never blocking HTTP; no
 base64 payload can reach JSONB.
 
 ---
 
-### M5.1 — Abonnements : durée, engagement, résiliation — *delivered ([ADR-030](adr/ADR-030-commitment-terms-and-motivated-cancellation.md))*
+### M5.1 — Abonnements : durée, engagement, résiliation — *delivered ([ADR-031](adr/ADR-031-commitment-terms-and-motivated-cancellation.md))*
 
 **Goal:** make a subscription a contract with a duration rather than a
 recurring charge that anyone can stop at any time. Specified in

@@ -35,6 +35,8 @@ use App\Entitlement\Domain\EntitlementRepository;
 use App\Entitlement\Domain\UsageMeter;
 use App\Finance\Domain\FinancialPeriods;
 use App\Finance\Infrastructure\PostgresFinancialPeriods;
+use App\Geometry\Domain\GeoProvider;
+use App\Geometry\Infrastructure\PostgresGeoProvider;
 use App\Job\Domain\JobRepository;
 use App\Job\Infrastructure\PostgresJobRepository;
 use App\Job\Service\ExpireQuotes;
@@ -283,6 +285,12 @@ return static function (array $overrides = []): ContainerInterface {
         ),
 
         AssetRepository::class => autowire(PostgresAssetRepository::class),
+
+        // The spatial backend of §19 phase 1: core PostgreSQL, no PostGIS,
+        // because §19 will not depend on an extension the deployment target
+        // has not confirmed. Phase 2 moves this behind a Geo service, and
+        // that is another GeoProvider and this line.
+        GeoProvider::class => autowire(PostgresGeoProvider::class),
 
         // Fail-closed, like the payment and PDP secrets: with no key nothing
         // can be signed, and AssetLinks refuses to verify rather than treating
