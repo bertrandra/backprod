@@ -41,6 +41,7 @@ use App\Job\Service\ExpireQuotes;
 use App\Job\Service\ExpireSubscriptions;
 use App\Job\Service\JobHandlers;
 use App\Job\Service\RollUpFinancials;
+use App\Job\Service\SendRenewalNotices;
 use App\Messaging\Domain\ConversationRepository;
 use App\Messaging\Infrastructure\PostgresConversationRepository;
 use App\Notification\Domain\Channel;
@@ -287,8 +288,9 @@ return static function (array $overrides = []): ContainerInterface {
                 ExportProject $exports,
                 DispatchNotifications $notify,
                 RollUpFinancials $rollup,
+                SendRenewalNotices $renewalNotices,
             ): JobHandlers => new JobHandlers(
-                [$quotes, $subscriptions, $exports, $notify, $rollup],
+                [$quotes, $subscriptions, $exports, $notify, $rollup, $renewalNotices],
             ),
         ),
 

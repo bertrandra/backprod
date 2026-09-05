@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Tax\Service;
 
 use App\Billing\Domain\InvoiceLine;
+use App\Notification\Domain\Category;
+use App\Notification\Service\Notifications;
 use App\Product\Domain\ProductRegistry;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
@@ -17,6 +19,7 @@ use App\Tax\Domain\TaxIdentification;
 use App\Tax\Domain\TaxRate;
 use App\Tax\Domain\TaxRepository;
 use App\Tax\Domain\TaxRule;
+use App\Tax\Domain\VatNumberCheck;
 use App\Tax\Domain\VatNumberValidator;
 use App\Tax\Domain\VatRegime;
 use App\Tax\Domain\VatTransaction;
@@ -75,6 +78,7 @@ final class Taxation
         private readonly TaxRule $rule,
         private readonly VatNumberValidator $validator,
         private readonly ProductRegistry $products,
+        private readonly Notifications $notifications,
     ) {
     }
 
@@ -102,6 +106,8 @@ final class Taxation
      */
     public function saveProfile(
         string $tenantId,
+        string $productId,
+        string $actorUserId,
         string $customerKind,
         ?string $countryCode,
         bool $taxablePerson,
@@ -133,11 +139,60 @@ final class Taxation
             // nothing, and would overwrite the dated proof each time — §25.3
             // wants that proof kept, not refreshed for its own sake.
             if ($this->needsVerification($identification)) {
-                $this->tax->recordVerification($identification->id, $this->validator->check($normalised));
+                $check = $this->validator->check($normalised);
+                $this->tax->recordVerification($identification->id, $check);
+
+                if (!$check->isValid()) {
+                    $this->tellThemItIsNotProved($tenantId, $productId, $actorUserId, $identification, $check);
+                }
             }
         }
 
         return $this->profileFor($tenantId);
+    }
+
+    /**
+     * Tells the person who just typed the number that it did not prove out.
+     *
+     * Failing closed is right and it stays: an unproved number buys no reverse
+     * charge, whether the provider said no or said nothing (R8). What was
+     * missing is that nobody was told. The customer typed a VAT number
+     * expecting to be zero-rated, gets charged standard VAT instead, and
+     * finds out from an invoice — by which point it is a legal document that
+     * cannot be quietly recomputed.
+     *
+     * So the refusal becomes visible while it is still fixable. `UNAVAILABLE`
+     * is worth sending precisely because it is not the customer's fault: VIES
+     * was unreachable, the number may well be good, and asking again later is
+     * the whole remedy.
+     *
+     * Not `legalEffect`: this is operational, and the proof §25.3 actually
+     * requires is the dated verification record, not this message about it.
+     *
+     * The dedup key carries the day, so a customer saving the same profile
+     * four times in an afternoon is told once — and a re-check a month later
+     * that fails again is told again, which is the point.
+     */
+    private function tellThemItIsNotProved(
+        string $tenantId,
+        string $productId,
+        string $actorUserId,
+        TaxIdentification $identification,
+        VatNumberCheck $check,
+    ): void {
+        $this->notifications->raise(
+            $tenantId,
+            $productId,
+            $actorUserId,
+            'tax.vat_number_unverified',
+            Category::BILLING,
+            [
+                'vat_number' => $identification->vatNumber,
+                'outcome' => $check->outcome,
+                'consequence' => 'standard_vat_applies',
+            ],
+            sprintf('%s:%s:%s', $identification->id, $check->outcome, date('Y-m-d')),
+        );
     }
 
     /**

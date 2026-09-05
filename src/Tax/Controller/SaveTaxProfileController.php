@@ -58,6 +58,10 @@ final class SaveTaxProfileController implements RouteHandler
 
         $profile = $this->taxation->saveProfile(
             $context->tenantId,
+            $context->productId,
+            // The person who typed the number is the one who can fix it, so
+            // they are the one told when it does not prove out (R8).
+            $context->userId,
             $kind,
             $country,
             $body->optionalBool('taxable_person'),
