@@ -112,6 +112,12 @@ jobs:
       - name: No plan-name branching
         run: composer run gate:plans
 
+      # §13 bans rights scattered through the code. gate:plans catches the
+      # loud shape; this catches the quiet one — a controller that injects
+      # the entitlement machinery and reasons about it itself (R4).
+      - name: Entitlement decisions have one door
+        run: composer run gate:entitlements
+
       # The time bound lives here, on the step, rather than in Composer's
       # 300-second default for the subprocesses it spawns. That default is
       # sized for downloading packages, and when the suite crossed it the job
