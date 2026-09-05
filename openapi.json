@@ -1,0 +1,1280 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Backprod API",
+    "version": "1.0.0",
+    "summary": "The shared multi-product SaaS backend.",
+    "description": "Every response that is not a success is the §10.4 envelope: one `error` object carrying a stable machine-readable `code`, a human `message`, a `details` object and the `request_id` to quote when asking about it. Driver text, SQL and stack traces never appear in it (§31), in any environment.\n\n**Context is carried in headers, never in the body or the path.** `X-Product` names the product and `X-Tenant` the tenant; a tenant a caller is not a member of is refused rather than silently emptied, and a client-supplied tenant is never trusted as authority — it is checked against membership.\n\n**Money is integer minor units with its currency beside it.** There are no floats: 1999 EUR is nineteen euros ninety-nine, and a rounding rule belongs to whoever formats it."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "The API is mounted at the root; every path below is absolute."
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health",
+      "description": "The liveness probe."
+    },
+    {
+      "name": "Identity",
+      "description": "Who the caller is, and what this product and tenant let them do."
+    },
+    {
+      "name": "Products",
+      "description": "Product discovery, which runs before a product is resolved."
+    },
+    {
+      "name": "Catalogue",
+      "description": "Plans, features and the offers on sale."
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "An RS256 access token from the identity provider, verified locally against its published keys. Swapping provider is an adapter change (ADR-014)."
+      }
+    },
+    "parameters": {
+      "ProductHeader": {
+        "name": "X-Product",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1)."
+      },
+      "TenantHeader": {
+        "name": "X-Tenant",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "description": "The §10.4 envelope. Every failure has this shape, whatever produced it.",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message",
+              "details",
+              "request_id"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable and machine-readable. Branch on this, never on the message.",
+                "examples": [
+                  "PERMISSION_DENIED"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "For a person. Wording may change without notice."
+              },
+              "details": {
+                "type": "object",
+                "description": "What the code could not say alone — the field at fault, the limit exceeded. Empty rather than absent.",
+                "additionalProperties": true
+              },
+              "request_id": {
+                "type": "string",
+                "description": "Quote this when reporting a problem; the server log is keyed by it."
+              }
+            }
+          }
+        }
+      },
+      "Money": {
+        "type": "object",
+        "description": "Integer minor units and the currency. Never a float — a cent lost to binary rounding is a cent an auditor will ask about.",
+        "required": [
+          "amount_minor_units",
+          "currency"
+        ],
+        "properties": {
+          "amount_minor_units": {
+            "type": "integer",
+            "description": "Cents, not euros.",
+            "examples": [
+              2900
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217.",
+            "examples": [
+              "EUR"
+            ]
+          }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name"
+        ],
+        "description": "`active` is deliberately absent: every product a caller can see is active, so the field would always be true and would only invite clients to branch on it.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "examples": [
+              "atlas"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "examples": [
+              "Atlas"
+            ]
+          }
+        }
+      },
+      "ProductFeature": {
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "enabled"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ProductConfiguration": {
+        "type": "object",
+        "description": "Free-form product settings. An object even when empty, so a client never has to tell `{}` from `null`.",
+        "additionalProperties": true
+      },
+      "Plan": {
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "rank"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "examples": [
+              "PRO"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "rank": {
+            "type": "integer",
+            "description": "Orders plans against each other. An upgrade is a comparison of two ranks, never of two names (§13)."
+          }
+        }
+      },
+      "Feature": {
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "kind",
+          "unit"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "BOOLEAN",
+              "QUOTA"
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Only a quota has one; the database refuses a unit on a boolean."
+          }
+        }
+      },
+      "OfferGrant": {
+        "type": "object",
+        "description": "What one offer version gives. A quota with no limit is `unlimited`, which is not the same as a limit of zero.",
+        "required": [
+          "feature",
+          "name",
+          "kind",
+          "unit",
+          "limit",
+          "unlimited"
+        ],
+        "properties": {
+          "feature": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "BOOLEAN",
+              "QUOTA"
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "unlimited": {
+            "type": "boolean"
+          }
+        }
+      },
+      "OfferVersion": {
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "billing_period",
+          "price",
+          "valid_from",
+          "valid_until",
+          "grants"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "billing_period": {
+            "type": "string",
+            "enum": [
+              "MONTHLY",
+              "YEARLY",
+              "ONE_OFF",
+              "CUSTOM"
+            ]
+          },
+          "price": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "valid_from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The window in which this version may be *sold* — not a subscription period, which §12 keeps separate."
+          },
+          "valid_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferGrant"
+            }
+          }
+        }
+      },
+      "Offer": {
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "plan",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/Plan"
+          },
+          "version": {
+            "description": "Null only in principle — an offer is presented once a sellable version exists — but typed honestly rather than asserted away.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OfferVersion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "responses": {
+      "Unauthenticated": {
+        "description": "No credential, or one that did not verify.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "PermissionDenied": {
+        "description": "Authenticated, but not allowed to do this here.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "No such thing — or none this caller may see. The two are deliberately indistinguishable.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "The caller has spent its allowance for the current window (§31).",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds to wait. A client told only \"too many\" would guess, and a guessing client retries too soon.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "A controlled 500 (§37.9). The diagnostic detail is in the server log against this request_id, never on the wire.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "health",
+        "summary": "Liveness probe",
+        "description": "The one path reachable with no credential at all. It answers from the process alone: an unreachable database must not make the process look dead to an orchestrator, so this stays up when data is down.",
+        "responses": {
+          "200": {
+            "description": "The process is up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "examples": [
+                        "ok"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "operationId": "showMe",
+        "summary": "The caller, as this product and tenant see them",
+        "description": "Everything the §10.6 chain resolved: who, where, and what that combination permits. `roles` and `permissions` are the tenant's grant; `capabilities` are what the subscription bought. Authorisation asks about capabilities, never about a plan's name (§13).",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The resolved caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "user_id",
+                    "email",
+                    "display_name",
+                    "product_id",
+                    "tenant_id",
+                    "roles",
+                    "permissions",
+                    "capabilities"
+                  ],
+                  "properties": {
+                    "user_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "email": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "email"
+                    },
+                    "display_name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "product_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "tenant_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "permissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "capabilities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Feature codes the tenant is entitled to here."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Identity"
+        ],
+        "operationId": "updateMe",
+        "summary": "Change the caller's own profile",
+        "description": "Partial by design: an absent `display_name` leaves it untouched, an explicit `null` clears it. Those are different requests and are not collapsed into one.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The updated profile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "user_id",
+                    "email",
+                    "display_name"
+                  ],
+                  "properties": {
+                    "user_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "email": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "email"
+                    },
+                    "display_name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The body was well-formed JSON but not acceptable — a display name past its length, say.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "display_name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 120,
+                    "description": "Absent leaves it alone; null clears it."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/permissions": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "operationId": "showMyPermissions",
+        "summary": "The caller's roles and permissions here",
+        "description": "The authorisation half of `/me`, on its own, for a client that wants to refresh what is allowed without re-reading the profile.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Roles and permissions for this product and tenant.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "tenant_id",
+                    "product_id",
+                    "roles",
+                    "permissions"
+                  ],
+                  "properties": {
+                    "tenant_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "product_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "permissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/me/entitlements": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "operationId": "showMyEntitlements",
+        "summary": "What the caller's subscription bought",
+        "description": "Capability codes, resolved once by the context chain from what is in force now. A lapsed subscription grants nothing without anything having to sweep it first — entitlement asks the clock.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The capabilities in force.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "capabilities"
+                  ],
+                  "properties": {
+                    "capabilities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/products": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "operationId": "listProducts",
+        "summary": "Products this caller may use",
+        "description": "Runs before a product is resolved, and must: a client cannot send `X-Product` until it knows which products it may use, so requiring one here would make discovery depend on its own result. Authorisation is per product, from membership.",
+        "responses": {
+          "200": {
+            "description": "The products available to this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "products"
+                  ],
+                  "properties": {
+                    "products": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Product"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/products/{productId}": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "operationId": "showProduct",
+        "summary": "One product",
+        "description": "Named in the path rather than the header, because this is discovery: the caller is asking about a product, not acting inside one.",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "product"
+                  ],
+                  "properties": {
+                    "product": {
+                      "$ref": "#/components/schemas/Product"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/products/{productId}/catalog": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "operationId": "showProductCatalogue",
+        "summary": "A product's features and configuration together",
+        "description": "One round trip for what a client needs to render a product before choosing it.",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product, features and configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "product",
+                    "features",
+                    "configuration"
+                  ],
+                  "properties": {
+                    "product": {
+                      "$ref": "#/components/schemas/Product"
+                    },
+                    "features": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProductFeature"
+                      }
+                    },
+                    "configuration": {
+                      "$ref": "#/components/schemas/ProductConfiguration"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/products/{productId}/features": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "operationId": "listProductFeatures",
+        "summary": "What a product offers",
+        "description": "The catalogue of features a product defines, independent of what any tenant has bought.",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product's features.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "features"
+                  ],
+                  "properties": {
+                    "features": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProductFeature"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/products/{productId}/configuration": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "operationId": "showProductConfiguration",
+        "summary": "A product's settings",
+        "description": "An object even when empty, so a client never has to tell `{}` from `null`.",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "configuration"
+                  ],
+                  "properties": {
+                    "configuration": {
+                      "$ref": "#/components/schemas/ProductConfiguration"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/plans": {
+      "get": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "listPlans",
+        "summary": "The plans this product sells",
+        "description": "Ordered by `rank`, which is what an upgrade compares. Nothing in the platform branches on a plan's *name* (§13, and a CI gate says so).",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plans.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "plans"
+                  ],
+                  "properties": {
+                    "plans": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Plan"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/features": {
+      "get": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "listFeatures",
+        "summary": "The capabilities this product sells",
+        "description": "The vocabulary entitlements are expressed in. A quota carries its unit; a boolean must not.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The features.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "features"
+                  ],
+                  "properties": {
+                    "features": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Feature"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/offers": {
+      "get": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "listOffers",
+        "summary": "Offers currently on sale",
+        "description": "Only what may be sold *now*: an offer whose version's validity window has closed is absent rather than marked expired, because a client that can see it will eventually try to buy it.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The offers on sale.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "offers"
+                  ],
+                  "properties": {
+                    "offers": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Offer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/offers/{offerId}": {
+      "get": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "showOffer",
+        "summary": "One offer on sale",
+        "description": "The offer with its plan and the version that prices it, including every grant that version carries.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The offer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Offer"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    }
+  }
+}
