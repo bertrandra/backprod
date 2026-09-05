@@ -493,6 +493,11 @@ a deletion request preserves records under legal retention.
 
 Every endpoint in every milestone follows the CLAUDE.md sequence — no exceptions:
 
+`openapi.json` describes all 116 operations, and `gate:openapi` fails CI if
+the contract and the router ever disagree — in either direction. There is no
+allowlist: a new endpoint cannot ship undocumented, and a documented path that
+stops being routed is caught as the promise nothing keeps.
+
 ```text
 1. Update OpenAPI            contract first, always
 2. Define schemas            request + response + errors

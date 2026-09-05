@@ -124,31 +124,16 @@ foreach ($paths as $route => $operations) {
     }
 }
 
-// --- The ratchet --------------------------------------------------------------
-
-$notYetDocumented = require __DIR__ . '/openapi-backlog.php';
-
-$missing = array_values(array_diff($served, $documented, $notYetDocumented));
-$phantom = array_values(array_diff($documented, $served));
-$stale = array_values(array_intersect($notYetDocumented, $documented));
-$gone = array_values(array_diff($notYetDocumented, $served));
+// --- The comparison -----------------------------------------------------------
 
 $failures = [];
 
-foreach ($missing as $route) {
+foreach (array_diff($served, $documented) as $route) {
     $failures[] = sprintf('%s is served but not described.', $route);
 }
 
-foreach ($phantom as $route) {
+foreach (array_diff($documented, $served) as $route) {
     $failures[] = sprintf('%s is described but not served — a promise nothing keeps.', $route);
-}
-
-foreach ($stale as $route) {
-    $failures[] = sprintf('%s is documented; take it out of the backlog.', $route);
-}
-
-foreach ($gone as $route) {
-    $failures[] = sprintf('%s is in the backlog but no longer served; take it out.', $route);
 }
 
 if ($failures !== []) {
@@ -161,11 +146,6 @@ if ($failures !== []) {
     exit(1);
 }
 
-printf(
-    "OK: %d of %d operations described, %d still to back-fill.\n",
-    count($documented),
-    count($served),
-    count($notYetDocumented),
-);
+printf("OK: the contract describes all %d operations the router serves.\n", count($served));
 
 exit(0);
