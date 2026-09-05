@@ -9,6 +9,7 @@ $finder = PhpCsFixer\Finder::create()
         __DIR__ . '/tools/prove-no-product-branching.php',
         __DIR__ . '/tools/prove-no-plan-branching.php',
         __DIR__ . '/tools/prove-entitlements-have-one-door.php',
+        __DIR__ . '/tools/prove-openapi-covers-the-api.php',
     ]);
 
 return (new PhpCsFixer\Config())
