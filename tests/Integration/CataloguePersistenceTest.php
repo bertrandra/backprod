@@ -6,6 +6,7 @@ namespace App\Tests\Integration;
 
 use App\Commerce\Domain\OfferGrant;
 use App\Commerce\Domain\OfferVersion;
+use App\Commerce\Infrastructure\OfferVersionLoader;
 use App\Commerce\Infrastructure\PostgresCatalogueRepository;
 use App\Shared\Database\Row;
 use Doctrine\DBAL\Exception\DriverException;
@@ -40,7 +41,7 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         $this->seedFeature($this->atlas, 'max_projects', 'QUOTA', 'projects');
         $this->seedPlan($this->beacon, 'PRO', 20);
 
-        $catalogue = new PostgresCatalogueRepository($this->connection);
+        $catalogue = $this->catalogue();
 
         // The same code in both products, and neither sees the other's row.
         self::assertCount(1, $catalogue->plansFor($this->atlas));
@@ -60,7 +61,7 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         $this->grant($version, $projects, 50);
         $this->grant($version, $advanced, null);
 
-        $candidates = (new PostgresCatalogueRepository($this->connection))->offersFor($this->atlas);
+        $candidates = $this->catalogue()->offersFor($this->atlas);
 
         self::assertCount(1, $candidates);
         self::assertSame('PRO', $candidates[0]->plan->code);
@@ -93,7 +94,7 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         $version = $this->seedVersion($this->seedOffer($this->atlas, $plan, 'enterprise'), 1, OfferVersion::ACTIVE, 0);
         $this->grant($version, $projects, null);
 
-        $candidates = (new PostgresCatalogueRepository($this->connection))->offersFor($this->atlas);
+        $candidates = $this->catalogue()->offersFor($this->atlas);
 
         self::assertTrue($candidates[0]->versions[0]->grants[0]->isUnlimited());
     }
@@ -112,7 +113,7 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         $this->seedVersion($offer, 2, OfferVersion::ACTIVE, 2900);
         $this->seedVersion($offer, 3, OfferVersion::DRAFT, 3900);
 
-        $candidates = (new PostgresCatalogueRepository($this->connection))->offersFor($this->atlas);
+        $candidates = $this->catalogue()->offersFor($this->atlas);
 
         self::assertCount(1, $candidates[0]->versions);
         self::assertSame(2, $candidates[0]->versions[0]->version);
@@ -131,7 +132,7 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         $this->seedVersion($offer, 3, OfferVersion::ACTIVE, 3900);
         $this->seedVersion($offer, 2, OfferVersion::ACTIVE, 2900);
 
-        $candidates = (new PostgresCatalogueRepository($this->connection))->offersFor($this->atlas);
+        $candidates = $this->catalogue()->offersFor($this->atlas);
 
         self::assertSame(
             [3, 2, 1],
@@ -159,7 +160,7 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         );
 
         // Gone from the catalogue…
-        $candidates = (new PostgresCatalogueRepository($this->connection))->offersFor($this->atlas);
+        $candidates = $this->catalogue()->offersFor($this->atlas);
         self::assertSame([], $candidates[0]->versions);
 
         // …but the terms, and what they granted, are still there.
@@ -184,7 +185,7 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         $offer = $this->seedOffer($this->atlas, $plan, 'pro-monthly');
         $this->seedVersion($offer, 1, OfferVersion::ACTIVE, 2900);
 
-        $catalogue = new PostgresCatalogueRepository($this->connection);
+        $catalogue = $this->catalogue();
 
         self::assertNotNull($catalogue->findOffer($this->atlas, $offer));
         self::assertNull($catalogue->findOffer($this->beacon, $offer));
@@ -193,7 +194,7 @@ final class CataloguePersistenceTest extends DatabaseTestCase
     public function testAMalformedOfferIdIsNotFoundRatherThanADatabaseError(): void
     {
         self::assertNull(
-            (new PostgresCatalogueRepository($this->connection))->findOffer($this->atlas, 'not-a-uuid'),
+            $this->catalogue()->findOffer($this->atlas, 'not-a-uuid'),
         );
     }
 
@@ -387,5 +388,20 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         self::assertIsString($id);
 
         return $id;
+    }
+
+    /**
+     * The read catalogue over this test's connection.
+     *
+     * Named rather than constructed at each call site: the repository needs a
+     * collaborator to map rows to versions, and nine `new` expressions would
+     * be nine places to update the next time it needs another.
+     */
+    private function catalogue(): PostgresCatalogueRepository
+    {
+        return new PostgresCatalogueRepository(
+            $this->connection,
+            new OfferVersionLoader($this->connection),
+        );
     }
 }

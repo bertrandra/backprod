@@ -102,6 +102,10 @@ use App\Sales\Controller\PlaceOrderController;
 use App\Sales\Controller\RejectQuoteController;
 use App\Sales\Controller\ShowOrderController;
 use App\Sales\Controller\ShowQuoteController;
+use App\Skin\Controller\DeleteSkinLogoController;
+use App\Skin\Controller\ShowSkinController;
+use App\Skin\Controller\UpdateSkinController;
+use App\Skin\Controller\UploadSkinLogoController;
 use App\Staff\Controller\CloseSupportConversationController;
 use App\Staff\Controller\ListAccessLogController;
 use App\Staff\Controller\ListSupportConversationsController;
@@ -348,6 +352,18 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('PATCH', '/api/v1/tenants/current', UpdateCurrentTenantController::class);
 
     $routes->addRoute('GET', '/api/v1/tenants/current/usage', TenantUsageController::class);
+
+    // White label (§7). Reading needs only membership — a client has to know
+    // how to render itself before it knows what the tenant bought — while
+    // writing needs both the skin.manage permission and the `white_label`
+    // entitlement, which do not imply each other.
+    //
+    // The logo is bytes, so it takes the raw body like an asset upload, and
+    // its type is sniffed before anything is stored.
+    $routes->addRoute('GET', '/api/v1/tenant/skin', ShowSkinController::class);
+    $routes->addRoute('PATCH', '/api/v1/tenant/skin', UpdateSkinController::class);
+    $routes->addRoute('POST', '/api/v1/tenant/skin/logo', UploadSkinLogoController::class);
+    $routes->addRoute('DELETE', '/api/v1/tenant/skin/logo', DeleteSkinLogoController::class);
 
     // Platform staff (§12.2). Everything under /staff requires a platform
     // role, which no tenant membership grants — and grants nothing on the

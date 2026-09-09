@@ -28,7 +28,6 @@ use Psr\Http\Message\ResponseInterface;
 #[CoversNothing]
 final class OfferAuthoringTest extends DatabaseApiTestCase
 {
-    private const ATLAS = 'prod-atlas';
     private const ACME = 'tenant-acme';
 
     private string $product = '';
@@ -261,7 +260,10 @@ final class OfferAuthoringTest extends DatabaseApiTestCase
 
         $grants = $this->partOf($response, 'grants');
         self::assertCount(1, $grants);
-        self::assertSame(10, $grants[0]['limit'] ?? null);
+
+        $grant = $grants[0] ?? null;
+        self::assertIsArray($grant);
+        self::assertSame(10, $grant['limit'] ?? null);
     }
 
     public function testAFeatureFromAnotherProductIsRefusedAndTakesTheVersionWithIt(): void

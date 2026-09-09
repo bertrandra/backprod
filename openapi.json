@@ -3316,6 +3316,43 @@
             "format": "date-time"
           }
         }
+      },
+      "Skin": {
+        "type": "object",
+        "description": "How a tenant wants this product to look. Every field is present and null when unset, rather than absent — a client reading this to decide how to render needs one shape, and null means \"use the product's defaults\".\n\nKept per (tenant, product): §12.1 lets one tenant use several products, and a company white-labelling two of them has no reason to want the same shade in both.",
+        "required": [
+          "primary_color",
+          "accent_color",
+          "logo_asset_id"
+        ],
+        "properties": {
+          "primary_color": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^#[0-9a-f]{6}$",
+            "description": "Lower-case hex. The database refuses anything else: these values end up in a stylesheet, and a colour column accepting arbitrary text is a stylesheet injection with extra steps.",
+            "examples": [
+              "#1f4b99"
+            ]
+          },
+          "accent_color": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^#[0-9a-f]{6}$"
+          },
+          "logo_asset_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "An asset, fetched through the usual signed-link route. Storing the logo as an asset means it goes through the same sniffing and the same SVG refusal as every other upload."
+          }
+        }
       }
     },
     "responses": {
@@ -12451,6 +12488,316 @@
           },
           "403": {
             "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tenant/skin": {
+      "get": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "showSkin",
+        "summary": "The tenant's colours and logo",
+        "description": "Needs nothing but membership. A client has to know how to render itself before it knows what the tenant bought, and a tenant that has never set a skin gets one with every field null rather than a 404 — which would make every client write a branch to mean what null already means.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The skin, set or not.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "skin"
+                  ],
+                  "properties": {
+                    "skin": {
+                      "$ref": "#/components/schemas/Skin"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "updateSkin",
+        "summary": "Set or clear the colours",
+        "description": "A PATCH, so a field the body does not mention keeps its value. **Omitting a field and sending it as `null` are different instructions**: the first leaves it alone, the second clears it — so a caller who wants to drop one colour without knowing the other can say so.\n\nThe logo is not settable here; it is bytes, and it has its own endpoint.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "primary_color": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^#[0-9a-f]{6}$"
+                  },
+                  "accent_color": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^#[0-9a-f]{6}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The skin as it now is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "skin"
+                  ],
+                  "properties": {
+                    "skin": {
+                      "$ref": "#/components/schemas/Skin"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A value that is not a `#rrggbb` colour, and not null.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`PERMISSION_DENIED` — the caller may not configure the tenant. Or `ENTITLEMENT_REQUIRED` — the tenant's plan does not include `white_label`. The two are separate checks and neither implies the other.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tenant/skin/logo": {
+      "post": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "uploadSkinLogo",
+        "summary": "Upload a logo",
+        "description": "**The raw bytes are the request**, as with an asset upload: a base64 field inside JSON would inflate the payload by a third and would put an image inside a document this platform elsewhere refuses to let images into (non-negotiable #9).\n\nThe type is sniffed from the bytes and checked **before anything is stored**, so a refused logo leaves no file behind and no orphaned row. Only PNG, JPEG, GIF and WebP are accepted — SVG is refused here as everywhere, being an image to a user and a script container to a browser.\n\n`X-Filename` is a label for humans and decides nothing.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "X-Filename",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "A label. The stored type comes from the bytes, never from this."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/gif": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The skin, now pointing at the new logo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "skin"
+                  ],
+                  "properties": {
+                    "skin": {
+                      "$ref": "#/components/schemas/Skin"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`UPLOAD_EMPTY` — the body is the file, and there was none.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`LOGO_NOT_AN_IMAGE` — the bytes sniffed as something else. Or the upload policy refused them outright.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`PERMISSION_DENIED` — the caller may not configure the tenant. Or `ENTITLEMENT_REQUIRED` — the tenant's plan does not include `white_label`. The two are separate checks and neither implies the other.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "deleteSkinLogo",
+        "summary": "Stop using the logo",
+        "description": "Clears it from the skin. **The asset itself stays**: this says \"this is no longer our logo\", which is not the same instruction as \"destroy this file\" — the file may be on a page somebody has open or inside a document already generated, and `/assets` is where a file is deleted deliberately.\n\n200 with the skin rather than 204, because the caller asked for a change and the useful answer is what the skin now is.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The skin, with no logo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "skin"
+                  ],
+                  "properties": {
+                    "skin": {
+                      "$ref": "#/components/schemas/Skin"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`PERMISSION_DENIED` — the caller may not configure the tenant. Or `ENTITLEMENT_REQUIRED` — the tenant's plan does not include `white_label`. The two are separate checks and neither implies the other.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"

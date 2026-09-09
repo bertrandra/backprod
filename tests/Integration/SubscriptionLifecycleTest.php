@@ -12,6 +12,7 @@ use App\Commerce\Domain\Offer;
 use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionEvent;
+use App\Commerce\Infrastructure\OfferVersionLoader;
 use App\Commerce\Infrastructure\PostgresCatalogueRepository;
 use App\Commerce\Infrastructure\PostgresEntitlementRepository;
 use App\Commerce\Infrastructure\PostgresSubscriptionRepository;
@@ -475,7 +476,10 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
 
     private function catalogue(): PostgresCatalogueRepository
     {
-        return new PostgresCatalogueRepository($this->connection);
+        return new PostgresCatalogueRepository(
+            $this->connection,
+            new OfferVersionLoader($this->connection),
+        );
     }
 
     private function entitlements(): PostgresEntitlementRepository
