@@ -475,12 +475,10 @@
       },
       "SubscriptionTerms": {
         "type": "object",
-        "description": "Snapshotted when the subscription was taken out, not read from the offer now — which is the whole point of snapshotting them (§13.1). Changing an offer never rewrites what somebody already agreed to.",
+        "description": "What a subscription commits to (§13.1). The distinction this exists to hold is the one that costs the most to lose: **the payment period is not the commitment**. A 24-month subscription billed monthly is one 24-month commitment billed 24 times, not 24 one-month subscriptions in a row.",
         "required": [
           "term_months",
-          "term_ends_at",
           "commitment_months",
-          "commitment_ends_at",
           "cancellation_policy",
           "renewal",
           "early_termination",
@@ -492,25 +490,13 @@
               "integer",
               "null"
             ],
-            "description": "How long the contract runs. Null means no fixed term."
-          },
-          "term_ends_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
+            "minimum": 1,
+            "description": "How long the contract runs. Null is open-ended."
           },
           "commitment_months": {
             "type": "integer",
-            "description": "How much of the term the customer cannot leave. Never longer than the term; the database refuses it."
-          },
-          "commitment_ends_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
+            "minimum": 0,
+            "description": "Never more than `term_months`; a commitment longer than the contract is not a commitment."
           },
           "cancellation_policy": {
             "type": "string",
@@ -533,12 +519,11 @@
               "FORBIDDEN",
               "CHARGE_REMAINING",
               "FREE"
-            ],
-            "description": "What leaving before the commitment ends costs."
+            ]
           },
           "notice_days": {
             "type": "integer",
-            "description": "How long before the term ends the prior notice is due. Zero means none is configured, and none is sent."
+            "minimum": 0
           }
         }
       },
@@ -2870,6 +2855,181 @@
             "description": "Minimum separation in the input's linear units, zero when the shapes touch. **Null when `crs` is GEOGRAPHIC**, where a separation in degrees is not a distance. Null rather than absent, so one response shape serves both references."
           }
         }
+      },
+      "OfferDraft": {
+        "type": "object",
+        "description": "The terms of a version being written. Always born `DRAFT` — no field here can say otherwise, because publishing is a separate and deliberate act.",
+        "required": [
+          "billing_period",
+          "price_minor_units",
+          "currency"
+        ],
+        "properties": {
+          "billing_period": {
+            "type": "string",
+            "enum": [
+              "MONTHLY",
+              "YEARLY",
+              "CUSTOM"
+            ]
+          },
+          "price_minor_units": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Zero is legitimate: a free tier is still an offer.",
+            "examples": [
+              2900
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "examples": [
+              "EUR"
+            ]
+          },
+          "valid_from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When this version may start being sold. Defaults to now. Not the subscriber's period — §12 keeps the two apart."
+          },
+          "valid_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When it stops being sellable. Null leaves the window open."
+          },
+          "terms": {
+            "$ref": "#/components/schemas/SubscriptionTerms"
+          },
+          "grants": {
+            "type": "array",
+            "maxItems": 100,
+            "description": "What this version entitles the subscriber to.",
+            "items": {
+              "type": "object",
+              "required": [
+                "feature_id"
+              ],
+              "properties": {
+                "feature_id": {
+                  "type": "string",
+                  "description": "A feature of this product. One belonging to another product is refused, not ignored."
+                },
+                "limit": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "description": "Null means unlimited for a quota, and is the only valid value for a boolean capability."
+                }
+              }
+            }
+          }
+        }
+      },
+      "AuthoredOfferVersion": {
+        "type": "object",
+        "description": "A version as its author sees it, carrying the status the sale view has no reason to mention.",
+        "required": [
+          "id",
+          "version",
+          "status",
+          "billing_period",
+          "price",
+          "valid_from",
+          "valid_until",
+          "grants",
+          "terms"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Assigned by the database as `max + 1`, never by the caller."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "ACTIVE",
+              "EXPIRED",
+              "ARCHIVED"
+            ]
+          },
+          "billing_period": {
+            "type": "string",
+            "enum": [
+              "MONTHLY",
+              "YEARLY",
+              "CUSTOM"
+            ]
+          },
+          "price": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "valid_from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "valid_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "terms": {
+            "$ref": "#/components/schemas/SubscriptionTerms"
+          }
+        }
+      },
+      "AuthoredOffer": {
+        "type": "object",
+        "description": "An offer with every version it has, drafts included.",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "plan",
+          "versions"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "description": "How documents name this offer. Not editable: an identifier that can change is not an identifier."
+          },
+          "name": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "object"
+          },
+          "versions": {
+            "type": "array",
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/AuthoredOfferVersion"
+            }
+          }
+        }
       }
     },
     "responses": {
@@ -3720,6 +3880,125 @@
             "$ref": "#/components/responses/InternalError"
           }
         }
+      },
+      "post": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "createOffer",
+        "summary": "Create an offer and its first draft version",
+        "description": "One call, because an offer with no version has no price and no terms — nothing can be sold, shown or quoted from it. Born `DRAFT`; publishing is a separate act.\n\nBehind `catalog.manage`, not `catalog.read`: reading what is on sale is something every member does, deciding what it costs is not.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/OfferDraft"
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "code",
+                      "name",
+                      "plan_id"
+                    ],
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "description": "Unique within the product, and permanent.",
+                        "examples": [
+                          "pro-monthly"
+                        ]
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "plan_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "A plan of this product. One from another product is refused."
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The offer, with its draft version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "offer"
+                  ],
+                  "properties": {
+                    "offer": {
+                      "$ref": "#/components/schemas/AuthoredOffer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is not a valid draft: an unknown billing period, a bad currency, a commitment longer than the term.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The plan, or a granted feature, does not belong to this product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`OFFER_CODE_TAKEN` — another offer in this product uses that code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     },
     "/api/v1/offers/{offerId}": {
@@ -3760,6 +4039,102 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "renameOffer",
+        "summary": "Rename an offer",
+        "description": "The name, and only the name. The `code` is how quotes, orders and invoices name this offer; price, terms and grants live in versions, and a version that has been sold is what somebody bought (§12). So what is editable here is the one field no document depends on.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The offer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "offer"
+                  ],
+                  "properties": {
+                    "offer": {
+                      "$ref": "#/components/schemas/AuthoredOffer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The name is missing or blank.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such offer in this product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
@@ -11172,6 +11547,260 @@
           },
           "422": {
             "description": "`GEOMETRY_NOT_SIMPLE` — a ring crosses itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/offers/{offerId}/versions": {
+      "get": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "listOfferVersions",
+        "summary": "Every version of an offer, drafts included",
+        "description": "Behind `catalog.manage`, and that is the whole distinction: what a company is about to launch, and at what price, is commercial information. `GET /offers/{offerId}` answers what may be bought today and shows a draft to nobody.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The offer and all its versions, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "offer"
+                  ],
+                  "properties": {
+                    "offer": {
+                      "$ref": "#/components/schemas/AuthoredOffer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such offer in this product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "addOfferVersion",
+        "summary": "Add a draft version with new terms",
+        "description": "§12 as an endpoint: a change of price, quota or features **creates a version rather than rewriting history**. There is deliberately no way to edit a published version's price, so this is the only way to change what an offer costs.\n\nThe version number is not in the body — it is `max + 1`, assigned by the statement that writes the row, so two authors working at once get 4 and 5 rather than a collision.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfferDraft"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The offer, with the new draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "offer"
+                  ],
+                  "properties": {
+                    "offer": {
+                      "$ref": "#/components/schemas/AuthoredOffer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is not a valid draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such offer in this product, or a granted feature is not this product's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/offers/{offerId}/publish": {
+      "post": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "publishOfferVersion",
+        "summary": "Put one draft version on sale",
+        "description": "The version is named in the body rather than the path because an offer can hold several drafts, and \"publish the offer\" would have to guess which one.\n\nTwo versions of one offer may not be on sale over the same period. That is an exclusion constraint in the database, not a check in the service, so it holds against concurrent publishes as well as careless ones.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "version"
+                ],
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The offer, with that version now ACTIVE.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "offer"
+                  ],
+                  "properties": {
+                    "offer": {
+                      "$ref": "#/components/schemas/AuthoredOffer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No version given.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`VERSION_NOT_PUBLISHABLE` — it is not a draft. Or `OFFER_ALREADY_ON_SALE` — another version covers that window.",
             "content": {
               "application/json": {
                 "schema": {

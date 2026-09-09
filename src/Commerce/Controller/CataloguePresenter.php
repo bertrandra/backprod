@@ -6,9 +6,11 @@ namespace App\Commerce\Controller;
 
 use App\Commerce\Domain\Feature;
 use App\Commerce\Domain\Offer;
+use App\Commerce\Domain\OfferCandidate;
 use App\Commerce\Domain\OfferGrant;
 use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Domain\Plan;
+use App\Commerce\Domain\SubscriptionTerms;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
@@ -89,6 +91,54 @@ final class CataloguePresenter
     public static function offers(array $offers): array
     {
         return array_map(self::offer(...), $offers);
+    }
+
+    /**
+     * An offer as its author sees it: every version, drafts included, each
+     * carrying the status the sale view has no reason to mention.
+     *
+     * The sale view answers "what may I buy", where a status would always be
+     * ACTIVE and a draft would never appear. This answers "what have we
+     * written", where the status is the only thing distinguishing the version
+     * on sale from the one being prepared to replace it.
+     *
+     * @return array<string, mixed>
+     */
+    public static function authored(OfferCandidate $offer): array
+    {
+        return [
+            'id' => $offer->id,
+            'code' => $offer->code,
+            'name' => $offer->name,
+            'plan' => self::plan($offer->plan),
+            'versions' => array_map(self::authoredVersion(...), $offer->versions),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function authoredVersion(OfferVersion $version): array
+    {
+        return self::version($version) + [
+            'status' => $version->status,
+            'terms' => self::terms($version->terms),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function terms(SubscriptionTerms $terms): array
+    {
+        return [
+            'term_months' => $terms->termMonths,
+            'commitment_months' => $terms->commitmentMonths,
+            'cancellation_policy' => $terms->cancellationPolicy,
+            'renewal' => $terms->renewal,
+            'early_termination' => $terms->earlyTermination,
+            'notice_days' => $terms->noticeDays,
+        ];
     }
 
     /**

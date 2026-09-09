@@ -5,15 +5,11 @@ declare(strict_types=1);
 namespace App\Commerce\Infrastructure;
 
 use App\Commerce\Domain\CatalogueRepository;
-use App\Commerce\Domain\Feature;
 use App\Commerce\Domain\OfferCandidate;
-use App\Commerce\Domain\OfferGrant;
 use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Domain\Plan;
-use App\Commerce\Domain\SubscriptionTerms;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
-use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 
 /**
@@ -30,8 +26,10 @@ use Doctrine\DBAL\Connection;
  */
 final class PostgresCatalogueRepository implements CatalogueRepository
 {
-    public function __construct(private readonly Connection $connection)
-    {
+    public function __construct(
+        private readonly Connection $connection,
+        private readonly OfferVersionLoader $versions,
+    ) {
     }
 
     public function plansFor(string $productId): array
@@ -46,7 +44,7 @@ final class PostgresCatalogueRepository implements CatalogueRepository
             ['productId' => $productId],
         );
 
-        return array_map(self::toPlan(...), $rows);
+        return array_map(OfferVersionLoader::toPlan(...), $rows);
     }
 
     public function featuresFor(string $productId): array
@@ -61,7 +59,7 @@ final class PostgresCatalogueRepository implements CatalogueRepository
             ['productId' => $productId],
         );
 
-        return array_map(self::toFeature(...), $rows);
+        return array_map(OfferVersionLoader::toFeature(...), $rows);
     }
 
     public function offersFor(string $productId): array
@@ -118,49 +116,13 @@ final class PostgresCatalogueRepository implements CatalogueRepository
     }
 
     /**
-     * One version by id, with no filter on status or on the clock.
-     *
      * @return list<OfferVersion>
      */
     private function versionById(string $offerVersionId): array
     {
-        $row = $this->connection->fetchAssociative(
-            <<<'SQL'
-                SELECT id, offer_id, version, status, billing_period,
-                       price_minor_units, currency, valid_from, valid_until,
-                       term_months, commitment_months, cancellation_policy,
-                       renewal, early_termination, notice_days
-                  FROM offer_versions
-                 WHERE id = :versionId
-                SQL,
-            ['versionId' => $offerVersionId],
-        );
+        $version = $this->versions->byId($offerVersionId);
 
-        if ($row === false) {
-            return [];
-        }
-
-        $id = Row::string($row, 'id');
-
-        return [new OfferVersion(
-            $id,
-            Row::integer($row, 'version'),
-            Row::string($row, 'status'),
-            Row::string($row, 'billing_period'),
-            Row::integer($row, 'price_minor_units'),
-            Row::string($row, 'currency'),
-            Row::timestamp($row, 'valid_from'),
-            Row::nullableTimestamp($row, 'valid_until'),
-            $this->grantsOf([$id])[$id] ?? [],
-            new SubscriptionTerms(
-                Row::nullableInteger($row, 'term_months'),
-                Row::integer($row, 'commitment_months'),
-                Row::string($row, 'cancellation_policy'),
-                Row::string($row, 'renewal'),
-                Row::string($row, 'early_termination'),
-                Row::integer($row, 'notice_days'),
-            ),
-        )];
+        return $version === null ? [] : [$version];
     }
 
     /**
@@ -196,7 +158,7 @@ final class PostgresCatalogueRepository implements CatalogueRepository
         }
 
         $offerIds = array_map(static fn (array $row): string => Row::string($row, 'id'), $rows);
-        $versions = $this->versionsOf($offerIds);
+        $versions = $this->versions->versionsOf($offerIds, true);
 
         return array_map(
             static function (array $row) use ($versions): OfferCandidate {
@@ -216,125 +178,6 @@ final class PostgresCatalogueRepository implements CatalogueRepository
                 );
             },
             $rows,
-        );
-    }
-
-    /**
-     * @param list<string> $offerIds
-     *
-     * @return array<string, list<OfferVersion>>
-     */
-    private function versionsOf(array $offerIds): array
-    {
-        $rows = $this->connection->fetchAllAssociative(
-            <<<'SQL'
-                SELECT id, offer_id, version, status, billing_period,
-                       price_minor_units, currency, valid_from, valid_until,
-                       term_months, commitment_months, cancellation_policy,
-                       renewal, early_termination, notice_days
-                FROM offer_versions
-                WHERE offer_id IN (:offerIds)
-                  AND status = 'ACTIVE'
-                ORDER BY offer_id, version DESC
-                SQL,
-            ['offerIds' => $offerIds],
-            ['offerIds' => ArrayParameterType::STRING],
-        );
-
-        if ($rows === []) {
-            return [];
-        }
-
-        $grants = $this->grantsOf(
-            array_map(static fn (array $row): string => Row::string($row, 'id'), $rows),
-        );
-
-        $versions = [];
-
-        foreach ($rows as $row) {
-            $id = Row::string($row, 'id');
-
-            // Grouped by offer, and already newest-first from the ORDER BY.
-            $versions[Row::string($row, 'offer_id')][] = new OfferVersion(
-                $id,
-                Row::integer($row, 'version'),
-                Row::string($row, 'status'),
-                Row::string($row, 'billing_period'),
-                Row::integer($row, 'price_minor_units'),
-                Row::string($row, 'currency'),
-                Row::timestamp($row, 'valid_from'),
-                Row::nullableTimestamp($row, 'valid_until'),
-                $grants[$id] ?? [],
-                new SubscriptionTerms(
-                    Row::nullableInteger($row, 'term_months'),
-                    Row::integer($row, 'commitment_months'),
-                    Row::string($row, 'cancellation_policy'),
-                    Row::string($row, 'renewal'),
-                    Row::string($row, 'early_termination'),
-                    Row::integer($row, 'notice_days'),
-                ),
-            );
-        }
-
-        return $versions;
-    }
-
-    /**
-     * @param list<string> $versionIds
-     *
-     * @return array<string, list<OfferGrant>>
-     */
-    private function grantsOf(array $versionIds): array
-    {
-        $rows = $this->connection->fetchAllAssociative(
-            <<<'SQL'
-                SELECT ovf.offer_version_id, ovf.limit_value,
-                       f.id, f.code, f.name, f.kind, f.unit
-                FROM offer_version_features ovf
-                JOIN features f ON f.id = ovf.feature_id
-                WHERE ovf.offer_version_id IN (:versionIds)
-                ORDER BY f.code
-                SQL,
-            ['versionIds' => $versionIds],
-            ['versionIds' => ArrayParameterType::STRING],
-        );
-
-        $grants = [];
-
-        foreach ($rows as $row) {
-            $grants[Row::string($row, 'offer_version_id')][] = new OfferGrant(
-                self::toFeature($row),
-                Row::nullableInteger($row, 'limit_value'),
-            );
-        }
-
-        return $grants;
-    }
-
-    /**
-     * @param array<string, mixed> $row
-     */
-    private static function toPlan(array $row): Plan
-    {
-        return new Plan(
-            Row::string($row, 'id'),
-            Row::string($row, 'code'),
-            Row::string($row, 'name'),
-            Row::integer($row, 'rank'),
-        );
-    }
-
-    /**
-     * @param array<string, mixed> $row
-     */
-    private static function toFeature(array $row): Feature
-    {
-        return new Feature(
-            Row::string($row, 'id'),
-            Row::string($row, 'code'),
-            Row::string($row, 'name'),
-            Row::string($row, 'kind'),
-            Row::nullableString($row, 'unit'),
         );
     }
 }

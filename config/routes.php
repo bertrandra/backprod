@@ -17,16 +17,21 @@ use App\Billing\Controller\ShowBillingProfileController;
 use App\Billing\Controller\ShowInvoiceController;
 use App\Commerce\Controller\CancelSubscriptionController;
 use App\Commerce\Controller\ChangeOfferController;
+use App\Commerce\Controller\CreateOfferController;
+use App\Commerce\Controller\CreateOfferVersionController;
 use App\Commerce\Controller\ListEntitlementsController;
 use App\Commerce\Controller\ListFeaturesController;
 use App\Commerce\Controller\ListOffersController;
+use App\Commerce\Controller\ListOfferVersionsController;
 use App\Commerce\Controller\ListPlansController;
+use App\Commerce\Controller\PublishOfferVersionController;
 use App\Commerce\Controller\ResumeSubscriptionController;
 use App\Commerce\Controller\ShowOfferController;
 use App\Commerce\Controller\ShowScheduleController;
 use App\Commerce\Controller\ShowSubscriptionController;
 use App\Commerce\Controller\SubscribeController;
 use App\Commerce\Controller\TenantUsageController;
+use App\Commerce\Controller\UpdateOfferController;
 use App\EInvoice\Controller\EInvoiceWebhookController;
 use App\EInvoice\Controller\ListTransmissionsController;
 use App\EInvoice\Controller\SubmitInvoiceController;
@@ -157,6 +162,19 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/features', ListFeaturesController::class);
     $routes->addRoute('GET', '/api/v1/offers', ListOffersController::class);
     $routes->addRoute('GET', '/api/v1/offers/{offerId}', ShowOfferController::class);
+
+    // Authoring the catalogue, behind `catalog.manage` rather than
+    // `catalog.read` (§10.2). Reading what is on sale is something every
+    // member does; deciding what it costs is not.
+    //
+    // There is no way to edit a published version's price here, and that is
+    // §12 rather than an omission: terms change by adding a version, because
+    // a subscription points at the version it was sold on.
+    $routes->addRoute('POST', '/api/v1/offers', CreateOfferController::class);
+    $routes->addRoute('PATCH', '/api/v1/offers/{offerId}', UpdateOfferController::class);
+    $routes->addRoute('GET', '/api/v1/offers/{offerId}/versions', ListOfferVersionsController::class);
+    $routes->addRoute('POST', '/api/v1/offers/{offerId}/versions', CreateOfferVersionController::class);
+    $routes->addRoute('POST', '/api/v1/offers/{offerId}/publish', PublishOfferVersionController::class);
 
     // What the tenant subscribed to, and what it consequently may use.
     $routes->addRoute('GET', '/api/v1/subscription', ShowSubscriptionController::class);
