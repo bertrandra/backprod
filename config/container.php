@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Admin\Domain\AdminDirectory;
+use App\Admin\Infrastructure\PostgresAdminDirectory;
 use App\Admin\Service\AuditTrail;
 use App\Admin\Service\FinancialDashboard;
 use App\Audit\Domain\AuditLog;
@@ -207,6 +209,13 @@ return static function (array $overrides = []): ContainerInterface {
         AuditLog::class => autowire(PostgresAuditLog::class),
         AuditReader::class => autowire(PostgresAuditLog::class),
         AuditTrail::class => autowire(),
+
+        // The five operational listings of §7's /admin block. Read-only, and
+        // deliberately its own port: the dashboard aggregates, this
+        // enumerates, and one interface doing both would tempt a caller to
+        // page through every invoice to compute a total the aggregates
+        // already hold.
+        AdminDirectory::class => autowire(PostgresAdminDirectory::class),
 
         // The rollups the dashboard reads and the job fills. One interface
         // for both: unlike the audit trail there is no privilege to separate

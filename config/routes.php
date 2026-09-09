@@ -3,6 +3,11 @@
 declare(strict_types=1);
 
 use App\Admin\Controller\EraseUserController;
+use App\Admin\Controller\ListAdminInvoicesController;
+use App\Admin\Controller\ListAdminJobsController;
+use App\Admin\Controller\ListAdminSubscriptionsController;
+use App\Admin\Controller\ListAdminTenantsController;
+use App\Admin\Controller\ListAdminUsersController;
 use App\Admin\Controller\ListAuditController;
 use App\Admin\Controller\ShowMetricsController;
 use App\Admin\Controller\ShowQueueController;
@@ -376,6 +381,21 @@ return static function (RouteCollector $routes): void {
     // creates a record of itself; the response is the receipt naming what was
     // kept, which is the half of an erasure somebody has to be able to prove.
     $routes->addRoute('POST', '/api/v1/admin/erasures', EraseUserController::class);
+
+    // The operational listings §7 names. Cross-tenant by definition — that is
+    // what makes them admin surfaces — and each returns records *about*
+    // tenant data rather than the data itself: that a subscription exists and
+    // what it is worth, never what is inside anybody's project.
+    //
+    // Three permissions, not one, because these are not one audience: money
+    // is admin.finance.read, the queue is admin.health.read, and the customer
+    // directory is admin.directory.read, which PLATFORM_ADMIN alone holds
+    // because /admin/users returns personal data.
+    $routes->addRoute('GET', '/api/v1/admin/tenants', ListAdminTenantsController::class);
+    $routes->addRoute('GET', '/api/v1/admin/users', ListAdminUsersController::class);
+    $routes->addRoute('GET', '/api/v1/admin/subscriptions', ListAdminSubscriptionsController::class);
+    $routes->addRoute('GET', '/api/v1/admin/invoices', ListAdminInvoicesController::class);
+    $routes->addRoute('GET', '/api/v1/admin/jobs', ListAdminJobsController::class);
 
     // Support: the platform's side of §12.3. Only SUPPORT threads are
     // reachable — the repository filters on kind in SQL, so a tenant's

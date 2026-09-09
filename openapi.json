@@ -136,6 +136,27 @@
           "default": 0
         },
         "description": "How many to skip."
+      },
+      "DirectoryLimit": {
+        "name": "limit",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50
+        },
+        "description": "Page size. Out-of-range values are clamped, not refused."
+      },
+      "DirectoryOffset": {
+        "name": "offset",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000,
+          "default": 0
+        }
       }
     },
     "schemas": {
@@ -3028,6 +3049,271 @@
             "items": {
               "$ref": "#/components/schemas/AuthoredOfferVersion"
             }
+          }
+        }
+      },
+      "DirectoryEnvelope": {
+        "type": "object",
+        "description": "One page and how much lies behind it. The total is counted rather than inferred from a short page — an operator needs to know whether they are looking at forty customers or four thousand, and \"the page came back short\" answers that only on the last one.",
+        "required": [
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          }
+        }
+      },
+      "AdminTenant": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "members": {
+            "type": "integer"
+          },
+          "active_subscriptions": {
+            "type": "integer"
+          },
+          "unpaid_invoices": {
+            "type": "integer"
+          }
+        }
+      },
+      "AdminUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "erased_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Set means anonymised: the identity is gone and the record is kept."
+          },
+          "tenants": {
+            "type": "integer"
+          }
+        }
+      },
+      "AdminSubscription": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "current_period_end": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cancel_at_period_end": {
+            "type": "boolean"
+          },
+          "term_ends_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "commitment_ends_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "offer_code": {
+            "type": "string"
+          },
+          "offer_version": {
+            "type": "integer"
+          },
+          "price_minor_units": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
+      "AdminInvoice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "net_minor_units": {
+            "type": "integer"
+          },
+          "vat_minor_units": {
+            "type": "integer"
+          },
+          "gross_minor_units": {
+            "type": "integer"
+          },
+          "issued_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "due_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "paid_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AdminJob": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "product_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "max_attempts": {
+            "type": "integer"
+          },
+          "run_after": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "leased_until": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "failure_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }
@@ -11805,6 +12091,357 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/tenants": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "listAdminTenants",
+        "summary": "Every tenant, with its operational standing",
+        "description": "Distinct from `/staff/tenants`, which support uses to answer one customer's question and which writes an access-log row for having looked. This is the operations view: every tenant with the counts that say whether an account is healthy, and nothing from inside any of them.\n\nRequires `admin.directory.read`.",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Matches name or slug. The caller's own `%` and `_` are literal, not wildcards."
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryLimit"
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryOffset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DirectoryEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tenant": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AdminTenant"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "listAdminUsers",
+        "summary": "People, across every tenant",
+        "description": "**The only admin surface that returns personal data**, which is why PLATFORM_ADMIN alone may call it: support already has an audited per-tenant read at `/staff/tenants/{tenantId}`, and a list of everyone answers no support question.\n\nAn erased person still appears, carrying `erased_at` and no identity. The row survives erasure by design (non-negotiables #14 and #15) — hiding it would make this directory disagree with every count beside it, and would suggest the person had been deleted when the whole point is that they were not.\n\nRequires `admin.directory.read`.",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Matches email or display name. An erased person matches neither, having neither."
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryLimit"
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryOffset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DirectoryEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AdminUser"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/subscriptions": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "listAdminSubscriptions",
+        "summary": "What is running, and on what terms",
+        "description": "Carries the offer version each subscription was **sold on**, not the version on sale today — §12's whole point is that those differ, and an operator looking at a customer's bill needs the terms that bill was priced against.\n\nRequires `admin.finance.read`.",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "One customer."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "ACTIVE, CANCELLED, ENDED."
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryLimit"
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryOffset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DirectoryEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "subscription": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AdminSubscription"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/invoices": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "listAdminInvoices",
+        "summary": "Every invoice raised, across tenants",
+        "description": "`/admin/metrics` answers \"how much\"; this answers \"which ones\", which is the question an unpaid balance actually raises.\n\nRequires `admin.finance.read`.",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "One customer."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "DRAFT, ISSUED, PAID, CANCELLED, CREDITED."
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryLimit"
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryOffset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DirectoryEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "invoice": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AdminInvoice"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/jobs": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "listAdminJobs",
+        "summary": "What the queue is carrying",
+        "description": "`/admin/queue` answers whether the runner is alive (R10); this answers what it is carrying, which is the next question when the answer to the first is \"yes, and something is still wrong\".\n\n**The payload is deliberately not returned.** It is whatever the caller handed the queue, it can carry anything, and \"which jobs are stuck\" does not need to know what is inside them.\n\nRequires `admin.health.read`.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "PENDING, RUNNING, SUCCEEDED, FAILED, CANCELLED."
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "The handler's name."
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryLimit"
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryOffset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DirectoryEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "job": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AdminJob"
+                          }
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
