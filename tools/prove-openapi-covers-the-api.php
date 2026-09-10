@@ -23,9 +23,12 @@ declare(strict_types=1);
  * day it emptied — a list of allowed omissions that nothing is omitting is an
  * invitation to omit something.
  *
- * JSON rather than YAML, and not by preference: there is no ext-yaml here and
- * a lock file that cannot be regenerated offline rules out adding a parser.
- * JSON is a first-class OpenAPI serialization, and `json_decode` is in core.
+ * JSON rather than YAML, and not by preference: there is no ext-yaml here.
+ * JSON is a first-class OpenAPI serialization and `json_decode` is in core, so
+ * the contract needs no dependency at all to be read — which is the reason
+ * that holds. An earlier version of this comment also claimed the lock file
+ * could not be regenerated offline; that was wrong, and a YAML parser was
+ * always one `composer require` away.
  *
  * Exit 0 means the contract and the router agree.
  */

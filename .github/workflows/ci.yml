@@ -48,7 +48,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: json, mbstring, pdo, pdo_pgsql
+          extensions: gd, json, mbstring, pdo, pdo_pgsql
           # No coverage driver: nothing in this repository collects coverage,
           # and Xdebug taxes every line of every PHP process it is loaded
           # into. It was costing the whole gate chain for a report nobody

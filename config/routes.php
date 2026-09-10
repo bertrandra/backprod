@@ -20,6 +20,7 @@ use App\Billing\Controller\PayInvoiceController;
 use App\Billing\Controller\SaveBillingProfileController;
 use App\Billing\Controller\ShowBillingProfileController;
 use App\Billing\Controller\ShowInvoiceController;
+use App\Billing\Controller\ShowInvoicePdfController;
 use App\Checkout\Controller\OpenCheckoutSessionController;
 use App\Checkout\Controller\RetryPaymentController;
 use App\Checkout\Controller\ShowCheckoutSessionController;
@@ -211,6 +212,7 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/billing/invoices', ListInvoicesController::class);
     $routes->addRoute('POST', '/api/v1/billing/invoices', IssueInvoiceController::class);
     $routes->addRoute('GET', '/api/v1/billing/invoices/{invoiceId}', ShowInvoiceController::class);
+    $routes->addRoute('GET', '/api/v1/billing/invoices/{invoiceId}/pdf', ShowInvoicePdfController::class);
     $routes->addRoute('POST', '/api/v1/billing/invoices/{invoiceId}/pay', PayInvoiceController::class);
     $routes->addRoute('POST', '/api/v1/billing/invoices/{invoiceId}/cancel', CancelInvoiceController::class);
 

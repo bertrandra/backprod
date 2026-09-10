@@ -16,10 +16,14 @@ use App\Auth\Infrastructure\StaticSigningKeySource;
 use App\Auth\Infrastructure\SupabaseJwtAuthProvider;
 use App\Billing\Domain\BillingProfileRepository;
 use App\Billing\Domain\CreditNoteRepository;
+use App\Billing\Domain\InvoiceDocumentRepository;
 use App\Billing\Domain\InvoicePaid;
+use App\Billing\Domain\InvoiceRenderer;
 use App\Billing\Domain\InvoiceRepository;
+use App\Billing\Infrastructure\MpdfInvoiceRenderer;
 use App\Billing\Infrastructure\PostgresBillingProfileRepository;
 use App\Billing\Infrastructure\PostgresCreditNoteRepository;
+use App\Billing\Infrastructure\PostgresInvoiceDocumentRepository;
 use App\Billing\Infrastructure\PostgresInvoiceRepository;
 use App\Commerce\Domain\CatalogueRepository;
 use App\Commerce\Domain\EarlyTerminationCharge;
@@ -227,6 +231,16 @@ return static function (array $overrides = []): ContainerInterface {
         FinancialDashboard::class => autowire(),
         BillingProfileRepository::class => autowire(PostgresBillingProfileRepository::class),
         InvoiceRepository::class => autowire(PostgresInvoiceRepository::class),
+        InvoiceDocumentRepository::class => autowire(PostgresInvoiceDocumentRepository::class),
+
+        // Which engine renders an invoice is an adapter, like the store
+        // the bytes land in. mpdf needs somewhere to cache fonts, and it
+        // is told where rather than left to guess.
+        InvoiceRenderer::class => factory(
+            static fn (): InvoiceRenderer => new MpdfInvoiceRenderer(
+                $env('PDF_TEMPORARY_ROOT', sys_get_temp_dir() . '/backprod-pdf'),
+            ),
+        ),
         CreditNoteRepository::class => autowire(PostgresCreditNoteRepository::class),
         PaymentRepository::class => autowire(PostgresPaymentRepository::class),
         PaymentSettlement::class => autowire(InvoiceSettlement::class),
