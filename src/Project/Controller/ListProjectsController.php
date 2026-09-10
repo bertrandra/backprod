@@ -37,6 +37,11 @@ final class ListProjectsController implements RouteHandler
             $context->productId,
             PageRequest::bounded($query, 'limit', self::DEFAULT_LIMIT, 1, self::MAX_LIMIT),
             PageRequest::bounded($query, 'offset', 0, 0, PHP_INT_MAX),
+            // `?deleted=true` asks for the bin (R13). Anything else — absent,
+            // empty, "false", nonsense — asks for live projects, because a
+            // mistyped query string must not silently answer a different
+            // question from the one it looks like.
+            ($query['deleted'] ?? null) === 'true',
         );
 
         return new JsonResponse([

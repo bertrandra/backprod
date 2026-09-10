@@ -29,16 +29,30 @@ export type ProjectDocument = Schemas['ProjectDocument'];
 export type ProjectVersionSummary = Schemas['ProjectVersionSummary'];
 export type ProjectVersion = Schemas['ProjectVersion'];
 
-export function useProjects(limit = 25, offset = 0) {
+/**
+ * The live projects, or the deleted ones.
+ *
+ * Two lists, never one list with a flag on each row (R13). A deleted project is
+ * not something anybody is browsing *among* their work — the bin is a place you
+ * go — and mixing them would put a row in every list that every caller then has
+ * to remember to filter out.
+ *
+ * The contract accepts only the exact string `true`, so a mistyped query string
+ * answers the question it looks like rather than a different one.
+ */
+export function useProjects(limit = 25, offset = 0, deleted = false) {
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.projects.list(limit, offset),
+    queryKey: keys.projects.list(limit, offset, deleted),
     queryFn: async () => {
       const ambient = ambientParams(sessionSnapshot);
 
       const { data, error, response } = await client.GET('/api/v1/projects', {
-        params: { ...ambient.params, query: { limit, offset } },
+        params: {
+          ...ambient.params,
+          query: { limit, offset, ...(deleted ? { deleted: 'true' as const } : {}) },
+        },
       });
 
       if (error !== undefined || data === undefined) {
@@ -100,6 +114,44 @@ export function useCreateProject() {
       // Written *and* invalidated: the response is the whole project, so the
       // detail cache is correct immediately, while the list's `total` and
       // ordering are the server's to recompute.
+      queryClient.setQueryData(keys.projects.one(project.id), project);
+      await queryClient.invalidateQueries({ queryKey: keys.projects.lists });
+    },
+  });
+}
+
+/**
+ * Putting a deleted project back (R13).
+ *
+ * **Not `useRestoreProject`** — that already exists and means restoring a
+ * project *to one of its versions*, which is a different operation that happens
+ * to share a word. R13 was filed partly because those two were confused, and
+ * naming this one `restore` would have made the confusion permanent.
+ *
+ * Invalidates both lists: the project leaves the bin and rejoins the live list,
+ * and a screen showing one without the other would be showing the project in
+ * two places or in neither.
+ */
+export function useUndeleteProject() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (projectId: string): Promise<Project> => {
+      const ambient = ambientParams(sessionSnapshot);
+
+      const { data, error, response } = await client.POST(
+        '/api/v1/projects/{projectId}/undelete',
+        { params: { ...ambient.params, path: { projectId } } },
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    onSuccess: async (project) => {
       queryClient.setQueryData(keys.projects.one(project.id), project);
       await queryClient.invalidateQueries({ queryKey: keys.projects.lists });
     },

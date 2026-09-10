@@ -11,6 +11,7 @@ use App\Messaging\Domain\ParticipantKind;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\ForbiddenException;
 use App\Shared\Exceptions\NotFoundException;
+use App\Staff\Domain\AccessMotive;
 use App\Staff\Domain\StaffAccess;
 use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffIdentity;
@@ -67,7 +68,15 @@ final class SupportDesk
         ];
     }
 
-    public function show(StaffIdentity $staff, string $conversationId): Conversation
+    /**
+     * One thread, and why somebody opened it (R14).
+     *
+     * The motive is required here and not on the listing above, and the contract
+     * itself draws that line: a conversation's `tenant_id` appears on the detail
+     * and not on the list, so skimming the queue reveals no customer while
+     * opening a thread reveals which company is asking and what about.
+     */
+    public function show(StaffIdentity $staff, string $conversationId, AccessMotive $motive): Conversation
     {
         $conversation = $this->require($staff, $conversationId, StaffPermission::SUPPORT_READ);
 
@@ -79,6 +88,8 @@ final class SupportDesk
             'conversation',
             $conversation->id,
             StaffPermission::SUPPORT_READ,
+            [],
+            $motive,
         ));
 
         return $conversation;

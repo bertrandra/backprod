@@ -1214,7 +1214,9 @@ export interface paths {
         post?: never;
         /**
          * Delete a project
-         * @description Its versions and assets go with it.
+         * @description Recoverable since R13. The project leaves every list and keeps everything: its versions, its assets and the jobs that referred to it. `POST /projects/{projectId}/undelete` puts it back.
+         *
+         *     This was a hard delete, with `project_versions` following through ON DELETE CASCADE — a project with fifty snapshots left nothing behind, and nothing said so until it was gone.
          */
         delete: operations["deleteProject"];
         options?: never;
@@ -1697,7 +1699,9 @@ export interface paths {
         };
         /**
          * One tenant, as staff
-         * @description The tenant arrives as an explicit parameter rather than from a membership — there is none — so the handler must justify it, and the read is written to the access log in the same transaction.
+         * @description Requires a motive (R14): opening one customer reveals that customer’s data. Listing customers does not, and requires none — a platform that demanded a ticket reference to page through a list would teach its staff to type "support" into everything.
+         *
+         *     The tenant arrives as an explicit parameter rather than from a membership — there is none — so the handler must justify it, and the read is written to the access log in the same transaction.
          */
         get: operations["showTenantForStaff"];
         put?: never;
@@ -1757,7 +1761,9 @@ export interface paths {
         };
         /**
          * One support thread with its messages
-         * @description Carries the tenant and product it belongs to, because a staff surface resolves neither of its own. Every read is recorded.
+         * @description Requires a motive (R14). A conversation’s tenant appears on this detail and not on the list, so this is where the boundary is actually crossed.
+         *
+         *     Carries the tenant and product it belongs to, because a staff surface resolves neither of its own. Every read is recorded.
          */
         get: operations["showSupportConversation"];
         put?: never;
@@ -2353,6 +2359,28 @@ export interface paths {
          *     Refused while the previous attempt is still in flight — a second authorization then risks collecting twice for one debt — and refused if it succeeded, where there is nothing to retry.
          */
         post: operations["retryPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/undelete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Put a deleted project back
+         * @description Named `undelete` rather than `restore` because `restoreProject` already exists and restores a project *to one of its versions* — a different operation that shares a word. The project returns with everything that never stopped pointing at it: its versions, its assets, its jobs.
+         *
+         *     A project that is not deleted answers 404, exactly as one that never existed does. Undeleting a live project is not a thing, and a 409 would confirm that an id is real to somebody guessing at ids.
+         */
+        post: operations["undeleteProject"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2975,6 +3003,11 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+            /**
+             * Format: date-time
+             * @description When somebody deleted it, or null while it is live. A deleted project keeps its versions, its assets and every job that referred to it — deletion is a date, not a cascade (R13).
+             */
+            deleted_at: string | null;
         };
         /** @description The JSONB document. Key order is preserved and insignificant whitespace is gone — what is stored is what comes back, which is the guarantee snapshot and restore rest on. Large assets are refused here and belong in storage (non-negotiable #9). */
         ProjectDocument: {
@@ -3103,6 +3136,13 @@ export interface components {
             };
             /** Format: date-time */
             occurred_at: string;
+            /**
+             * @description Why the read happened (R14). Null on rows written before R14, and on reads that cross no boundary — listing a queue, reading this log. Null means "not recorded", never "no reason".
+             * @enum {string|null}
+             */
+            purpose: "SUPPORT_REQUEST" | "BILLING_INVESTIGATION" | "INCIDENT" | "SECURITY_REVIEW" | "LEGAL_REQUEST" | null;
+            /** @description The specific reference the person gave. */
+            reason: string | null;
         };
         Job: {
             /** Format: uuid */
@@ -3478,6 +3518,14 @@ export interface components {
         /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
         DirectoryLimit: number;
         DirectoryOffset: number;
+        /**
+         * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
+         *
+         *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
+         */
+        AccessPurpose: "SUPPORT_REQUEST" | "BILLING_INVESTIGATION" | "INCIDENT" | "SECURITY_REVIEW" | "LEGAL_REQUEST";
+        /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
+        AccessReason: string;
     };
     requestBodies: never;
     headers: never;
@@ -6126,6 +6174,8 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 /** @description How many to skip. */
                 offset?: components["parameters"]["Offset"];
+                /** @description Ask for the deleted projects instead of the live ones. Only the exact value "true" does so: a mistyped query string answers the question it looks like, which is "the live ones". */
+                deleted?: "true";
             };
             header: {
                 /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
@@ -7489,7 +7539,16 @@ export interface operations {
     showTenantForStaff: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /**
+                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
+                 *
+                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
+                 */
+                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
+                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
+                "X-Access-Reason": components["parameters"]["AccessReason"];
+            };
             path: {
                 tenantId: string;
             };
@@ -7511,6 +7570,15 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
+            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
@@ -7586,7 +7654,16 @@ export interface operations {
     showSupportConversation: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /**
+                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
+                 *
+                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
+                 */
+                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
+                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
+                "X-Access-Reason": components["parameters"]["AccessReason"];
+            };
             path: {
                 conversationId: string;
             };
@@ -7612,6 +7689,15 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
+            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
@@ -8965,6 +9051,38 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    undeleteProject: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The project, live again. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

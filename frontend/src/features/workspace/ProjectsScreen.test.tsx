@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { renderAtRoute, SESSION, stubClient, type Stub } from '@/test-utils';
+import { recordingClient, renderAtRoute, SESSION, stubClient, type Stub } from '@/test-utils';
 
 import { ProjectsScreen } from './ProjectsScreen';
 
@@ -137,5 +137,122 @@ describe('the list', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /create project/i })).toBeTruthy(),
     );
+  });
+});
+
+/**
+ * R13: the bin.
+ *
+ * Deleting a project used to destroy its versions through a database cascade,
+ * and this screen's delete confirmation said so because it was true. It is no
+ * longer true — the project keeps everything and comes back — so there are two
+ * lists here, and a deleted project has a date rather than a badge.
+ */
+describe('the deleted projects', () => {
+  it('are a separate list, asked for by the query the contract accepts', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/me': { data: SESSION_WITH_PROJECTS },
+      'GET /api/v1/products/{productId}/configuration': configuration([7]),
+      'GET /api/v1/projects': (): Stub => {
+        const asked = requests.filter((request) => request.path === '/api/v1/projects');
+        const wantsBin =
+          (asked[asked.length - 1]?.query as { deleted?: string } | undefined)?.deleted === 'true';
+
+        return wantsBin
+          ? listing([project({ id: 'p-2', name: 'Old shed', deleted_at: '2026-02-01T09:00:00Z' })])
+          : listing([project({ deleted_at: null })]);
+      },
+    });
+
+    renderAtRoute(<ProjectsScreen />, client, { path: '/projects' });
+
+    await waitFor(() => expect(screen.getByText('North wall')).toBeTruthy());
+
+    fireEvent.click(screen.getByTestId('toggle-bin'));
+
+    await waitFor(() => expect(screen.getByText('Old shed')).toBeTruthy());
+
+    // The exact string the contract accepts, not `true` as a boolean and not
+    // `1`: anything else asks for the live list.
+    const queries = requests
+      .filter((request) => request.path === '/api/v1/projects')
+      .map((request) => (request.query as { deleted?: string } | undefined)?.deleted);
+
+    expect(queries).toContain('true');
+    expect(queries).toContain(undefined);
+    // And the live project is no longer on screen: two lists, not one merged.
+    expect(screen.queryByText('North wall')).toBeNull();
+  });
+
+  it('show when each was deleted rather than only that it was', async () => {
+    renderAtRoute(
+      <ProjectsScreen />,
+      clientFor({
+        'GET /api/v1/projects': listing([
+          project({ name: 'Old shed', deleted_at: '2026-02-01T09:00:00Z' }),
+        ]),
+      }),
+      { path: '/projects' },
+    );
+
+    fireEvent.click(await waitFor(() => screen.getByTestId('toggle-bin')));
+
+    await waitFor(() => expect(screen.getByTestId('deleted-at')).toBeTruthy());
+    expect(screen.getByTestId('deleted-at').textContent).toMatch(/deleted/i);
+    expect(screen.getByTestId('deleted-at').textContent).toMatch(/2026/);
+  });
+
+  it('are put back through undelete, not through restore', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/me': { data: SESSION_WITH_PROJECTS },
+      'GET /api/v1/products/{productId}/configuration': configuration([7]),
+      'GET /api/v1/projects': listing([
+        project({ name: 'Old shed', deleted_at: '2026-02-01T09:00:00Z' }),
+      ]),
+      'POST /api/v1/projects/{projectId}/undelete': { data: project({ deleted_at: null }) },
+    });
+
+    renderAtRoute(<ProjectsScreen />, client, { path: '/projects' });
+
+    fireEvent.click(await waitFor(() => screen.getByTestId('toggle-bin')));
+    fireEvent.click(await waitFor(() => screen.getByRole('button', { name: 'Put it back' })));
+
+    await waitFor(() =>
+      expect(
+        requests.some((request) => request.path === '/api/v1/projects/{projectId}/undelete'),
+      ).toBe(true),
+    );
+
+    // Never `/restore`: that endpoint restores a project *to a version* and
+    // cannot undelete one. R13 was filed partly because the two were confused.
+    expect(requests.some((request) => request.path.endsWith('/restore'))).toBe(false);
+  });
+
+  it('offer no create form: the bin is somewhere you go, not somewhere you work', async () => {
+    renderAtRoute(
+      <ProjectsScreen />,
+      clientFor({
+        'GET /api/v1/projects': listing([
+          project({ name: 'Old shed', deleted_at: '2026-02-01T09:00:00Z' }),
+        ]),
+      }),
+      { path: '/projects' },
+    );
+
+    fireEvent.click(await waitFor(() => screen.getByTestId('toggle-bin')));
+
+    await waitFor(() => expect(screen.getByText('Old shed')).toBeTruthy());
+    expect(screen.queryByRole('button', { name: 'Create project' })).toBeNull();
+  });
+
+  it('say what a deleted project still has, when there are none', async () => {
+    renderAtRoute(<ProjectsScreen />, clientFor({ 'GET /api/v1/projects': listing([]) }), {
+      path: '/projects',
+    });
+
+    fireEvent.click(await waitFor(() => screen.getByTestId('toggle-bin')));
+
+    await waitFor(() => expect(screen.getByText('Nothing deleted')).toBeTruthy());
+    expect(screen.getByText(/versions, its assets and its jobs intact/i)).toBeTruthy();
   });
 });

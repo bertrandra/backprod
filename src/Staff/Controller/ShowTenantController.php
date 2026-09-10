@@ -31,7 +31,11 @@ final class ShowTenantController implements RouteHandler
 
         return new JsonResponse(
             StaffPresenter::tenant(
-                $this->desk->tenant($context->identity, StaffRoute::id($request, 'tenantId')),
+                $this->desk->tenant(
+                    $context->identity,
+                    StaffRoute::id($request, 'tenantId'),
+                    StaffRoute::motive($request),
+                ),
             ),
             200,
         );

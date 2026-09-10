@@ -319,9 +319,177 @@ final class StaffAccessTest extends DatabaseApiTestCase
 
     // --- Helpers -------------------------------------------------------------
 
+    /**
+     * A staff read, motivated (R14).
+     *
+     * The motive headers are sent by default because every caller here is
+     * reading one tenant's own data, which is exactly the case that requires
+     * one. `getWithoutMotive` below is the test that checks the refusal.
+     */
     private function get(string $path, string $token): ResponseInterface
     {
-        return $this->request('GET', $path, ['Authorization' => 'Bearer ' . $token]);
+        return $this->request('GET', $path, [
+            'Authorization' => 'Bearer ' . $token,
+            'X-Access-Purpose' => 'SUPPORT_REQUEST',
+            'X-Access-Reason' => 'ticket HELP-4182',
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $motive
+     */
+    private function getWithMotive(string $path, string $token, array $motive): ResponseInterface
+    {
+        return $this->request('GET', $path, ['Authorization' => 'Bearer ' . $token] + $motive);
+    }
+
+    /**
+     * R14: a read into a tenant's own data must say why.
+     *
+     * The platform recorded the *permission* a read was made under — the
+     * authority — and nothing about why this particular read happened. U8
+     * surfaced that and shipped the honest thing (a console that says the read
+     * is recorded and under what); this is the part that was missing.
+     */
+    public function testAReadWithoutAMotiveIsRefused(): void
+    {
+        $response = $this->getWithMotive('/api/v1/staff/tenants/' . $this->tenantB, 'sam-token', []);
+
+        self::assertSame(422, $response->getStatusCode());
+        self::assertSame('ACCESS_MOTIVE_REQUIRED', $this->errorCode($response));
+
+        // And nothing was read. A refusal that still returned the tenant would
+        // make the motive decorative.
+        self::assertArrayNotHasKey('name', $this->decode($response));
+    }
+
+    public function testAPurposeThePlatformDoesNotRecordIsRefused(): void
+    {
+        $response = $this->getWithMotive('/api/v1/staff/tenants/' . $this->tenantB, 'sam-token', [
+            'X-Access-Purpose' => 'CURIOSITY',
+            'X-Access-Reason' => 'just having a look',
+        ]);
+
+        self::assertSame(422, $response->getStatusCode());
+        self::assertSame('ACCESS_MOTIVE_INVALID', $this->errorCode($response));
+    }
+
+    /**
+     * "x" is not a reason.
+     *
+     * A field that accepted it would collect nothing while looking like a
+     * control, which is the failure R14 named when it warned that a free-text
+     * box collects "support" a thousand times.
+     */
+    public function testAReferenceTooShortToMeanAnythingIsRefused(): void
+    {
+        $response = $this->getWithMotive('/api/v1/staff/tenants/' . $this->tenantB, 'sam-token', [
+            'X-Access-Purpose' => 'SUPPORT_REQUEST',
+            'X-Access-Reason' => 'x',
+        ]);
+
+        self::assertSame(422, $response->getStatusCode());
+        self::assertSame('ACCESS_MOTIVE_INVALID', $this->errorCode($response));
+    }
+
+    public function testTheMotiveIsRecordedBesideThePermission(): void
+    {
+        $this->getWithMotive('/api/v1/staff/tenants/' . $this->tenantB, 'sam-token', [
+            'X-Access-Purpose' => 'BILLING_INVESTIGATION',
+            'X-Access-Reason' => 'invoice 2026-000042 disputed',
+        ]);
+
+        $row = $this->connection->fetchAssociative(
+            "SELECT permission, purpose, reason FROM staff_access_log WHERE action = 'READ' ORDER BY occurred_at DESC LIMIT 1",
+        );
+
+        self::assertIsArray($row);
+        // Both, and they answer different questions: the permission is the
+        // authority for the read, the purpose and reason are why it happened.
+        self::assertSame('staff.tenants.read', $row['permission']);
+        self::assertSame('BILLING_INVESTIGATION', $row['purpose']);
+        self::assertSame('invoice 2026-000042 disputed', $row['reason']);
+    }
+
+    /**
+     * A read that finds nothing is recorded with its motive too.
+     *
+     * Somebody probing for tenant ids is precisely who would rather their stated
+     * reason were not kept against the attempt.
+     */
+    public function testAMissRecordsTheMotiveAsWell(): void
+    {
+        $this->getWithMotive(
+            '/api/v1/staff/tenants/99999999-9999-9999-9999-999999999999',
+            'sam-token',
+            ['X-Access-Purpose' => 'SECURITY_REVIEW', 'X-Access-Reason' => 'checking an id from a log'],
+        );
+
+        $row = $this->connection->fetchAssociative(
+            "SELECT purpose, reason FROM staff_access_log WHERE action = 'READ_MISS' ORDER BY occurred_at DESC LIMIT 1",
+        );
+
+        self::assertIsArray($row);
+        self::assertSame('SECURITY_REVIEW', $row['purpose']);
+    }
+
+    /**
+     * Listing needs no motive, and that is the line rather than an oversight.
+     *
+     * Listing customers reveals no customer's data; opening one does. A platform
+     * that demanded a ticket reference to page through a list would teach its
+     * staff to type "support" into everything.
+     */
+    public function testListingNeedsNoMotive(): void
+    {
+        $response = $this->getWithMotive('/api/v1/staff/tenants', 'sam-token', []);
+
+        self::assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * Neither does reading the trail itself.
+     *
+     * It is the platform's own record, not a tenant's data, and requiring a
+     * reason to read the audit log would make the accountability mechanism the
+     * thing people avoid using.
+     */
+    public function testReadingTheTrailNeedsNoMotive(): void
+    {
+        // Elevated first: SUPPORT_ADMIN may read tenants and not the trail, so
+        // without this the 403 would hide what this test is about.
+        $this->connection->executeStatement(
+            <<<'SQL'
+                INSERT INTO platform_staff (user_id, platform_role_id)
+                SELECT :user, id FROM platform_roles WHERE code = 'PLATFORM_ADMIN'
+                SQL,
+            ['user' => $this->staffUser],
+        );
+
+        $response = $this->getWithMotive('/api/v1/staff/access-log', 'sam-token', []);
+
+        self::assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * The §10.4 envelope's code, narrowed.
+     *
+     * A decoded body is `mixed` all the way down, and indexing through it twice
+     * is three PHPStan errors and a test whose failure says "cannot access
+     * offset" rather than what came back.
+     */
+    private function errorCode(ResponseInterface $response): ?string
+    {
+        $body = $this->decode($response);
+        $error = $body['error'] ?? null;
+
+        if (!is_array($error)) {
+            return null;
+        }
+
+        $code = $error['code'] ?? null;
+
+        return is_string($code) ? $code : null;
     }
 
     private function rowsMatching(string $sql): int

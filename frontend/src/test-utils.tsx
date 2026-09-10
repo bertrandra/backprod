@@ -60,18 +60,32 @@ export interface RecordedRequest {
   readonly path: string;
   readonly body: unknown;
   readonly query: unknown;
+  /**
+   * The ambient and per-call headers.
+   *
+   * Added when R14 made a header load-bearing: a staff read carries the reason
+   * for it in `X-Access-Purpose` and `X-Access-Reason`, and no test could see
+   * one until this existed.
+   */
+  readonly header: unknown;
 }
 
 interface RequestInit {
   body?: unknown;
-  params?: { query?: unknown };
+  params?: { query?: unknown; header?: unknown };
 }
 
 function answers(responses: Stubs, record: (request: RecordedRequest) => void) {
   // Not `async`: there is nothing to await, and a promise is what the caller
   // needs. An unnecessary `async` is what the lint rule is about.
   return (method: string) => (path: string, init?: RequestInit) => {
-    record({ method, path, body: init?.body, query: init?.params?.query });
+    record({
+      method,
+      path,
+      body: init?.body,
+      query: init?.params?.query,
+      header: init?.params?.header,
+    });
 
     const entry = responses[`${method} ${path}`] ?? responses[path];
     const found = typeof entry === 'function' ? entry() : entry;

@@ -405,7 +405,8 @@
       ],
       "operations": [
         "createProject",
-        "listProjects"
+        "listProjects",
+        "undeleteProject"
       ]
     }
   },

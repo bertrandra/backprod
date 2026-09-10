@@ -95,6 +95,7 @@ use App\Project\Controller\RequestExportController;
 use App\Project\Controller\RestoreProjectController;
 use App\Project\Controller\ShowProjectController;
 use App\Project\Controller\ShowProjectVersionController;
+use App\Project\Controller\UndeleteProjectController;
 use App\Project\Controller\UpdateProjectController;
 use App\Sales\Controller\AcceptQuoteController;
 use App\Sales\Controller\CancelOrderController;
@@ -339,6 +340,9 @@ return static function (RouteCollector $routes): void {
     );
     $routes->addRoute('POST', '/api/v1/projects/{projectId}/duplicate', DuplicateProjectController::class);
     $routes->addRoute('POST', '/api/v1/projects/{projectId}/restore', RestoreProjectController::class);
+    // Restoring *to a version* and undeleting are different operations that
+    // share a word in English and nothing else (R13).
+    $routes->addRoute('POST', '/api/v1/projects/{projectId}/undelete', UndeleteProjectController::class);
 
     // Assets (§15). The bytes live outside PostgreSQL; these move the record
     // of them. Upload takes the file as the raw body — the request is the

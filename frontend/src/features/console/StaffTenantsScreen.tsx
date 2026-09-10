@@ -1,7 +1,11 @@
 import { useNavigate } from '@tanstack/react-router';
 
 import { useViewState } from '@/app/frame/viewState';
-import { useStaffTenant, useStaffTenants } from '@/queries/staff';
+import { useState } from 'react';
+
+import { useStaffTenant, useStaffTenants, type AccessMotive } from '@/queries/staff';
+
+import { AccessMotiveGate, MotiveInEffect } from './AccessMotiveGate';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { SkeletonRows } from '@/ui/Skeleton';
@@ -92,7 +96,7 @@ export function StaffTenantsScreen() {
               description="Choosing one performs a recorded read across the tenant boundary."
             />
           ) : (
-            <TenantDetail tenantId={selected} />
+            <TenantDetail key={selected} tenantId={selected} />
           )}
         </section>
       </div>
@@ -100,8 +104,21 @@ export function StaffTenantsScreen() {
   );
 }
 
+/**
+ * A customer, once somebody has said why (R14).
+ *
+ * The motive is asked for *before* the read, and the read is disabled until it
+ * arrives — so this screen never fetches a tenant and then explains that it
+ * should not have. Changing the selected tenant resets it: a reason given for
+ * opening one customer is not a reason for opening the next.
+ */
 function TenantDetail({ tenantId }: { tenantId: string }) {
-  const tenant = useStaffTenant(tenantId);
+  const [motive, setMotive] = useState<AccessMotive | null>(null);
+  const tenant = useStaffTenant(tenantId, motive);
+
+  if (motive === null) {
+    return <AccessMotiveGate what="this customer" onGiven={setMotive} />;
+  }
 
   if (tenant.isPending) {
     return <SkeletonRows rows={4} />;
@@ -118,6 +135,8 @@ function TenantDetail({ tenantId }: { tenantId: string }) {
     >
       <h2 className="text-base font-semibold">{tenant.data.name}</h2>
 
+      <MotiveInEffect motive={motive} onChange={() => setMotive(null)} />
+
       <dl className="grid gap-3 sm:grid-cols-2">
         <div>
           <dt className="text-xs uppercase tracking-wide text-neutral-500">Slug</dt>
@@ -132,8 +151,8 @@ function TenantDetail({ tenantId }: { tenantId: string }) {
       </dl>
 
       <p data-testid="read-recorded" className="border-t border-neutral-200 pt-3 text-xs text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
-        This read has been recorded under <code>staff.tenants.read</code>. It appears in the access
-        log with your user id against it.
+        This read has been recorded under <code>staff.tenants.read</code>, with the reason you gave.
+        It appears in the access log with your user id against it.
       </p>
     </div>
   );

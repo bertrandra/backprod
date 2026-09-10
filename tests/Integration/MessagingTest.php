@@ -414,10 +414,18 @@ final class MessagingTest extends DatabaseApiTestCase
     {
         $conversation = $this->startThread('mia-token', 'Invoice question', ConversationKind::SUPPORT);
 
-        $this->get('/api/v1/staff/conversations/' . $conversation, 'sam-token');
+        // Motivated (R14). Opening a thread reveals which company is asking and
+        // what about, so the platform requires a reason as part of the read —
+        // the listing above needs none, because a conversation's tenant appears
+        // on the detail and not on the list.
+        $this->request('GET', '/api/v1/staff/conversations/' . $conversation, [
+            ...$this->headers('sam-token'),
+            'X-Access-Purpose' => 'SUPPORT_REQUEST',
+            'X-Access-Reason' => 'ticket HELP-4182',
+        ]);
 
         // Non-negotiable #21: crossing the boundary is never silent, and the
-        // row says on what grounds.
+        // row says on what grounds — and now, why.
         self::assertSame(1, $this->rowsMatching(
             <<<'SQL'
                 SELECT count(*) FROM staff_access_log

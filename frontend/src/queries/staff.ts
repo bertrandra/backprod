@@ -26,6 +26,82 @@ import { toApiError } from './session';
  * screen of its own and why the reads that produce entries say so.
  */
 
+/**
+ * Why a staff member is crossing a tenant boundary (R14).
+ *
+ * The platform requires this on the two reads that reveal one tenant's own data
+ * — opening a customer, opening a support thread — and on neither listing.
+ * Non-negotiable #21 wants the reason recorded *with* the access rather than
+ * beside it, so it travels as headers on the request itself: there is no second
+ * call to forget to make.
+ *
+ * `purpose` is what makes the log countable; `reference` is what makes any one
+ * row mean something. R14 said a free-text box alone *"collects 'support' a
+ * thousand times and proves nothing"* and a structured field alone *"is only as
+ * good as the system it points at"* — so it is both, and neither is optional.
+ */
+export const ACCESS_PURPOSES = [
+  'SUPPORT_REQUEST',
+  'BILLING_INVESTIGATION',
+  'INCIDENT',
+  'SECURITY_REVIEW',
+  'LEGAL_REQUEST',
+] as const;
+
+export type AccessPurpose = (typeof ACCESS_PURPOSES)[number];
+
+export interface AccessMotive {
+  readonly purpose: AccessPurpose;
+  readonly reference: string;
+}
+
+/** What a person reads, rather than the enum's spelling. */
+export const PURPOSE_LABELS: Record<AccessPurpose, string> = {
+  SUPPORT_REQUEST: 'A support request',
+  BILLING_INVESTIGATION: 'A billing investigation',
+  INCIDENT: 'An incident',
+  SECURITY_REVIEW: 'A security review',
+  LEGAL_REQUEST: 'A legal request',
+};
+
+/** The platform's floor, mirrored so the form can refuse before the request. */
+export const MINIMUM_REFERENCE = 8;
+
+export function isMotiveComplete(motive: Partial<AccessMotive> | null): motive is AccessMotive {
+  return (
+    motive !== null &&
+    motive.purpose !== undefined &&
+    (motive.reference ?? '').trim().length >= MINIMUM_REFERENCE
+  );
+}
+
+/** The headers the contract names, built in one place. */
+function motiveHeaders(motive: AccessMotive): {
+  'X-Access-Purpose': AccessPurpose;
+  'X-Access-Reason': string;
+} {
+  return {
+    'X-Access-Purpose': motive.purpose,
+    'X-Access-Reason': motive.reference.trim(),
+  };
+}
+
+/**
+ * The invariant `enabled` already guarantees, said out loud.
+ *
+ * The two reads below are disabled until there is a motive, so their query
+ * functions never run without one. TypeScript cannot see that, and the honest
+ * options are a cast or a throw — a cast would be a claim, and this is a
+ * programmer error that should be loud if the guard is ever removed.
+ */
+function required(motive: AccessMotive | null): AccessMotive {
+  if (motive === null) {
+    throw new Error('A staff read reached its query function without a motive.');
+  }
+
+  return motive;
+}
+
 export type Tenant = Schemas['Tenant'];
 export type StaffAccessEntry = Schemas['StaffAccessEntry'];
 export type Conversation = Schemas['Conversation'];
@@ -121,15 +197,30 @@ export function useStaffTenants(limit = 25, offset = 0) {
  * the tenant, the *platform role* authorises the read, and the read is recorded
  * either way.
  */
-export function useStaffTenant(tenantId: string | null) {
+export function useStaffTenant(tenantId: string | null, motive: AccessMotive | null) {
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.staff.tenant(tenantId ?? ''),
-    enabled: tenantId !== null,
+    // The motive is part of the key, so a read for one reason is not served
+    // from the cache to a read for another. An access this platform records has
+    // to actually happen.
+    queryKey: keys.staff.tenant(tenantId ?? '', motive?.purpose ?? '', motive?.reference ?? ''),
+    // **Disabled until there is a reason.** The read does not go out and then
+    // fail — it does not go out. R14's requirement is that the reason is
+    // collected *as part of the read*, and a request fired without one would be
+    // a 422 the screen then apologised for.
+    //
+    // This is the *second* guard, and deliberately so. The load-bearing one is
+    // the screen: `StaffTenantsScreen` renders the motive gate instead of the
+    // detail, so this hook is never mounted without one — removing this line
+    // alone changes no test, because `required()` below throws before a request
+    // is built. Three guards for one rule is not redundancy here: the screen
+    // decides what a person sees, this decides what the cache does, and the
+    // throw makes a future mistake loud instead of silent.
+    enabled: tenantId !== null && motive !== null,
     queryFn: async (): Promise<Tenant> => {
       const { data, error, response } = await client.GET('/api/v1/staff/tenants/{tenantId}', {
-        params: { path: { tenantId: tenantId ?? '' } },
+        params: { path: { tenantId: tenantId ?? '' }, header: motiveHeaders(required(motive)) },
       });
 
       if (error !== undefined || data === undefined) {
@@ -194,16 +285,25 @@ export function useSupportConversations(limit = 25, offset = 0) {
  * of the boundary, and it happens when a thread is opened rather than when a
  * queue is skimmed.
  */
-export function useSupportConversation(conversationId: string | null) {
+export function useSupportConversation(conversationId: string | null, motive: AccessMotive | null) {
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.staff.conversation(conversationId ?? ''),
-    enabled: conversationId !== null,
+    queryKey: keys.staff.conversation(
+      conversationId ?? '',
+      motive?.purpose ?? '',
+      motive?.reference ?? '',
+    ),
+    enabled: conversationId !== null && motive !== null,
     queryFn: async () => {
       const { data, error, response } = await client.GET(
         '/api/v1/staff/conversations/{conversationId}',
-        { params: { path: { conversationId: conversationId ?? '' } } },
+        {
+          params: {
+            path: { conversationId: conversationId ?? '' },
+            header: motiveHeaders(required(motive)),
+          },
+        },
       );
 
       if (error !== undefined || data === undefined) {
@@ -247,7 +347,7 @@ export function usePostSupportMessage(conversationId: string) {
     },
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: keys.staff.conversation(conversationId) }),
+        queryClient.invalidateQueries({ queryKey: keys.staff.conversationReads(conversationId) }),
         queryClient.invalidateQueries({ queryKey: keys.staff.conversationLists }),
       ]);
     },
@@ -274,7 +374,7 @@ export function useCloseSupportConversation(conversationId: string) {
     },
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: keys.staff.conversation(conversationId) }),
+        queryClient.invalidateQueries({ queryKey: keys.staff.conversationReads(conversationId) }),
         queryClient.invalidateQueries({ queryKey: keys.staff.conversationLists }),
       ]);
     },

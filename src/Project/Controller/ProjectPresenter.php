@@ -27,7 +27,8 @@ final class ProjectPresenter
     /**
      * @return array{
      *     id: string, name: string, description: string|null, schema_version: int,
-     *     created_by: string|null, created_at: string, updated_at: string
+     *     created_by: string|null, created_at: string, updated_at: string,
+     *     deleted_at: string|null
      * }
      */
     public static function summary(Project $project): array
@@ -43,6 +44,11 @@ final class ProjectPresenter
             'created_by' => $project->createdBy,
             'created_at' => self::moment($project->createdAt),
             'updated_at' => self::moment($project->updatedAt),
+            // Null on every live project, which is every project a client sees
+            // unless it asked for `?deleted=true`. Present rather than omitted,
+            // so a client never has to infer the state from which list it
+            // happens to be reading (R13).
+            'deleted_at' => $project->deletedAt === null ? null : self::moment($project->deletedAt),
         ];
     }
 

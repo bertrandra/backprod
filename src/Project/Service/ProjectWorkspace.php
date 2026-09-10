@@ -51,21 +51,63 @@ final class ProjectWorkspace
     /**
      * @return array{projects: list<Project>, total: int, limit: int, offset: int}
      */
-    public function list(string $tenantId, string $productId, int $limit, int $offset): array
-    {
+    /**
+     * The live projects, or — when asked — the deleted ones (R13).
+     *
+     * Two lists rather than one list with a flag on each row: a deleted project
+     * is not something anybody is browsing *among* their work, and mixing them
+     * would put a row in every list that most callers must then remember to
+     * filter out. The bin is a place you go.
+     *
+     * @return array{projects: list<Project>, total: int, limit: int, offset: int}
+     */
+    public function list(
+        string $tenantId,
+        string $productId,
+        int $limit,
+        int $offset,
+        bool $deleted = false,
+    ): array {
         return [
-            'projects' => $this->projects->listForTenant($tenantId, $productId, $limit, $offset),
-            'total' => $this->projects->countForTenant($tenantId, $productId),
+            'projects' => $this->projects->listForTenant($tenantId, $productId, $limit, $offset, $deleted),
+            'total' => $this->projects->countForTenant($tenantId, $productId, $deleted),
             'limit' => $limit,
             'offset' => $offset,
         ];
     }
 
+    /**
+     * A live project.
+     *
+     * **A deleted one answers 404**, exactly as a non-existent one does, and for
+     * the same reason the repository refuses to distinguish "no such project"
+     * from "not yours": everything downstream — updating, snapshotting,
+     * exporting — would otherwise have to remember that a project it just
+     * fetched might be in the bin. One place decides.
+     */
     public function get(string $tenantId, string $productId, string $projectId): Project
     {
         $project = $this->projects->find($tenantId, $productId, $projectId);
 
-        if ($project === null) {
+        if ($project === null || $project->isDeleted()) {
+            throw self::unknownProject();
+        }
+
+        return $project;
+    }
+
+    /**
+     * A deleted project, for the one operation that is allowed to see one.
+     *
+     * Separate from `get()` rather than a boolean on it, so that reaching a
+     * deleted project is something a caller has to *ask* for by name — there is
+     * exactly one caller, and it is `undelete`.
+     */
+    private function deletedProject(string $tenantId, string $productId, string $projectId): Project
+    {
+        $project = $this->projects->find($tenantId, $productId, $projectId);
+
+        if ($project === null || !$project->isDeleted()) {
             throw self::unknownProject();
         }
 
@@ -132,9 +174,34 @@ final class ProjectWorkspace
         return $this->projects->update($project, $changes);
     }
 
-    public function delete(string $tenantId, string $productId, string $projectId): void
+    /**
+     * Deleting, recoverably (R13).
+     *
+     * The project leaves every list and keeps everything: its versions, its
+     * assets, and the jobs that referred to it. Before this, `DELETE FROM
+     * projects` cascaded through `project_versions` and a project with fifty
+     * snapshots left nothing behind.
+     */
+    public function delete(string $tenantId, string $productId, string $projectId, ?string $actorUserId): void
     {
-        $this->projects->delete($this->get($tenantId, $productId, $projectId));
+        $this->projects->delete($this->get($tenantId, $productId, $projectId), $actorUserId);
+    }
+
+    /**
+     * Putting one back.
+     *
+     * **Named `undelete`, not `restore`.** `restore()` below already means
+     * something else in this application — restoring a project *to* one of its
+     * versions — and R13 was filed partly because the two shared a word and not
+     * an operation. They still share neither.
+     */
+    public function undelete(string $tenantId, string $productId, string $projectId): Project
+    {
+        $project = $this->deletedProject($tenantId, $productId, $projectId);
+
+        $this->projects->undelete($project);
+
+        return $this->get($tenantId, $productId, $projectId);
     }
 
     /**

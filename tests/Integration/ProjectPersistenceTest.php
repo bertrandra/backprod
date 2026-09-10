@@ -184,16 +184,97 @@ final class ProjectPersistenceTest extends DatabaseTestCase
         self::assertSame('Before restoring version 1', $versions[0]->label);
     }
 
-    public function testDeletingAProjectTakesItsVersionsWithIt(): void
+    /**
+     * R13, closed. This test used to be
+     * `testDeletingAProjectTakesItsVersionsWithIt` and asserted the opposite —
+     * that `delete()` removed the row and `project_versions` cascaded behind it.
+     * That was faithful to the schema and was the defect: a project with fifty
+     * snapshots left nothing behind, and nothing said so until it was gone.
+     */
+    public function testDeletingAProjectKeepsItsVersions(): void
     {
         $projects = $this->repository();
         $project = $projects->create($this->draft('{"walls":[]}'));
         $projects->snapshot($project, null, $this->userId);
 
-        $projects->delete($project);
+        $projects->delete($project, $this->userId);
 
-        self::assertNull($projects->find($this->tenantId, $this->productId, $project->id));
-        self::assertSame(0, $this->countVersionsOf($project->id));
+        // Gone from every live read — a deleted project is not "hidden", it is
+        // out of the way — and every snapshot still there to come back to.
+        self::assertSame([], $projects->listForTenant($this->tenantId, $this->productId, 25, 0));
+        self::assertSame(0, $projects->countForTenant($this->tenantId, $this->productId));
+        self::assertSame(1, $this->countVersionsOf($project->id));
+    }
+
+    public function testADeletedProjectIsListedInTheBinWithItsDate(): void
+    {
+        $projects = $this->repository();
+        $project = $projects->create($this->draft('{"walls":[]}'));
+
+        $projects->delete($project, $this->userId);
+
+        $binned = $projects->listForTenant($this->tenantId, $this->productId, 25, 0, true);
+
+        self::assertCount(1, $binned);
+        self::assertSame($project->id, $binned[0]->id);
+        self::assertTrue($binned[0]->isDeleted());
+        self::assertSame(1, $projects->countForTenant($this->tenantId, $this->productId, true));
+    }
+
+    public function testUndeletingPutsAProjectBackWithItsVersions(): void
+    {
+        $projects = $this->repository();
+        $project = $projects->create($this->draft('{"walls":["east"]}'));
+        $projects->snapshot($project, 'before', $this->userId);
+
+        $projects->delete($project, $this->userId);
+        $projects->undelete($project);
+
+        $live = $projects->find($this->tenantId, $this->productId, $project->id);
+
+        self::assertNotNull($live);
+        self::assertFalse($live->isDeleted());
+        self::assertSame(1, $projects->countForTenant($this->tenantId, $this->productId));
+        self::assertSame(0, $projects->countForTenant($this->tenantId, $this->productId, true));
+        // The document survived untouched: undeleting is not a restore, and it
+        // must not behave like one.
+        self::assertSame('{"walls":["east"]}', json_encode($live->document));
+        self::assertCount(1, $projects->listVersions($live));
+    }
+
+    /**
+     * Deleting twice is not two deletions.
+     *
+     * The guard is `deleted_at IS NULL` in the UPDATE, so the second call
+     * changes no row rather than moving the date forward — which would make "when
+     * was this deleted" answer whenever somebody last clicked.
+     */
+    public function testDeletingTwiceDoesNotMoveTheDate(): void
+    {
+        $projects = $this->repository();
+        $project = $projects->create($this->draft('{"walls":[]}'));
+
+        $projects->delete($project, $this->userId);
+        $first = $projects->listForTenant($this->tenantId, $this->productId, 25, 0, true)[0]->deletedAt;
+
+        $projects->delete($project, $this->userId);
+        $second = $projects->listForTenant($this->tenantId, $this->productId, 25, 0, true)[0]->deletedAt;
+
+        self::assertNotNull($first);
+        self::assertEquals($first, $second);
+    }
+
+    /**
+     * A deleted project stays invisible across the tenant boundary in both
+     * directions: the bin is per tenant, like every other list.
+     */
+    public function testAnotherTenantCannotSeeADeletedProject(): void
+    {
+        $projects = $this->repository();
+        $project = $projects->create($this->draft('{"walls":[]}'));
+        $projects->delete($project, $this->userId);
+
+        self::assertSame([], $projects->listForTenant($this->otherTenantId, $this->productId, 25, 0, true));
     }
 
     public function testAProjectIsInvisibleFromAnotherTenant(): void

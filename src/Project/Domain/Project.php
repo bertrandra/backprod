@@ -31,6 +31,21 @@ final class Project
         public readonly ?string $createdBy,
         public readonly DateTimeImmutable $createdAt,
         public readonly DateTimeImmutable $updatedAt,
+        /**
+         * When somebody deleted it, or null while it is live (R13).
+         *
+         * A date rather than a flag, for the reason every other removal in this
+         * platform uses one: "it is gone" and "it went on Tuesday" are different
+         * amounts of information, and only the second survives a support
+         * conversation.
+         */
+        public readonly ?DateTimeImmutable $deletedAt = null,
     ) {
+    }
+
+    /** Deleted, and therefore invisible to every list until it is restored. */
+    public function isDeleted(): bool
+    {
+        return $this->deletedAt !== null;
     }
 }

@@ -13,9 +13,17 @@ use Psr\Http\Message\ServerRequestInterface;
 /**
  * DELETE /api/v1/projects/{projectId}.
  *
- * Takes the project's versions with it. They are that project's history
- * rather than history of their own, and leaving them behind would mean
- * keeping the contents of a project the tenant asked to delete.
+ * **Recoverable since R13.** This used to be a hard delete, and
+ * `project_versions` followed through `ON DELETE CASCADE` — a project with
+ * fifty snapshots left nothing behind, and nothing said so until it was gone.
+ * The reasoning at the time was that versions are that project's history rather
+ * than history of their own, which is true and is exactly why destroying them
+ * on a mis-click was the wrong answer.
+ *
+ * Now the project leaves every list, keeps everything, and
+ * `POST /projects/{projectId}/undelete` puts it back. The actor is recorded:
+ * "who deleted this" is the first question asked about a project somebody
+ * cannot find.
  */
 final class DeleteProjectController implements RouteHandler
 {
@@ -31,6 +39,7 @@ final class DeleteProjectController implements RouteHandler
             $context->tenantId,
             $context->productId,
             ProjectRoute::projectId($request),
+            $context->userId,
         );
 
         return new EmptyResponse(204);

@@ -18,9 +18,15 @@ interface ProjectRepository
     /**
      * @return list<Project>
      */
-    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset): array;
+    public function listForTenant(
+        string $tenantId,
+        string $productId,
+        int $limit,
+        int $offset,
+        bool $deleted = false,
+    ): array;
 
-    public function countForTenant(string $tenantId, string $productId): int;
+    public function countForTenant(string $tenantId, string $productId, bool $deleted = false): int;
 
     /**
      * Null covers both "no such project" and "not yours" — they must be
@@ -36,7 +42,16 @@ interface ProjectRepository
 
     public function update(Project $project, ProjectChanges $changes): Project;
 
-    public function delete(Project $project): void;
+    /**
+     * Deletes recoverably: the row stays, carrying the date and the actor (R13).
+     *
+     * It used to be a hard delete with `project_versions` cascading behind it,
+     * which destroyed the history and said nothing until it was gone.
+     */
+    public function delete(Project $project, ?string $deletedBy): void;
+
+    /** Puts a deleted project back, with everything that was still pointing at it. */
+    public function undelete(Project $project): void;
 
     /**
      * Newest first.

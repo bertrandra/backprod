@@ -65,7 +65,7 @@ const render = (client: ReturnType<typeof stubClient>) =>
   renderAtRoute(<ProjectScreen projectId="p-1" />, client, { path: '/projects/p-1' });
 
 describe('deleting', () => {
-  it('says the history goes with it, and needs the name typed', async () => {
+  it('says the project keeps its history, and still needs the name typed', async () => {
     let deleted = 0;
 
     render(
@@ -80,9 +80,14 @@ describe('deleting', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: /delete project/i })).toBeTruthy());
 
-    // The count is real: one snapshot exists, and it is not coming back.
-    expect(screen.getByText(/1 snapshot/)).toBeTruthy();
-    expect(screen.getByText(/cannot be undone/i)).toBeTruthy();
+    // The count is real: one snapshot exists — and since R13 it *is* coming
+    // back, so the wording must not say otherwise. A warning that overstates a
+    // consequence is a warning people learn to dismiss.
+    expect(screen.getByTestId('delete-explanation').textContent).toMatch(/1 snapshot/);
+    expect(screen.getByTestId('delete-explanation').textContent).toMatch(/keeps everything/i);
+    expect(screen.getByTestId('delete-explanation').textContent).toMatch(/put it back/i);
+    expect(screen.queryByText(/cannot be undone/i)).toBeNull();
+    expect(screen.queryByText(/removed permanently/i)).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: /delete project/i }));
 
