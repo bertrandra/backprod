@@ -1,5 +1,7 @@
 import { Link } from '@tanstack/react-router';
 
+import { can } from '@/app/access/access';
+import { useUnreadCount } from '@/queries/notifications';
 import { useSession } from '@/queries/session';
 import { cn } from '@/utils/cn';
 
@@ -37,6 +39,8 @@ export function ContextBar({
         <kbd className="ml-2 hidden text-[10px] text-neutral-500 sm:inline">⌘K</kbd>
       </button>
 
+      <UnreadBadge />
+
       {onOpenMore !== undefined && (
         <button
           type="button"
@@ -55,6 +59,40 @@ export function ContextBar({
         {(data?.displayName ?? data?.email ?? '?').slice(0, 1).toUpperCase()}
       </span>
     </>
+  );
+}
+
+/**
+ * The unread count, which region A owns (ui-spec.md §4.1).
+ *
+ * Its own query rather than a number the inbox screen passes up: the badge is
+ * visible everywhere and the inbox is not, so reading the count off the list
+ * would blank the badge the moment somebody navigated away.
+ *
+ * It asks nothing at all without `notifications.read` — a badge that fired a
+ * request only to be refused would put a 403 in the log for every page view of
+ * every session that cannot read an inbox.
+ */
+function UnreadBadge() {
+  const { data: session } = useSession();
+  const allowed = can(session, 'notifications.read');
+  const { data: unread } = useUnreadCount(allowed);
+
+  if (!allowed || unread === undefined || unread === 0) {
+    // Nothing rather than a zero: a permanent "0" is noise, and its absence is
+    // the same information.
+    return null;
+  }
+
+  return (
+    <Link
+      to="/notifications"
+      data-testid="unread-badge"
+      aria-label={`${String(unread)} unread notifications`}
+      className="rounded-full bg-neutral-900 px-2 py-0.5 text-xs font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-neutral-100 dark:text-neutral-900"
+    >
+      {unread > 99 ? '99+' : unread}
+    </Link>
   );
 }
 

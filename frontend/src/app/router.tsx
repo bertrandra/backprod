@@ -9,7 +9,10 @@ import {
 import { parseViewState, type ViewState } from '@/app/frame/viewState';
 import { ProfileScreen } from '@/features/account/ProfileScreen';
 import { BrandingScreen } from '@/features/branding/BrandingScreen';
+import { ConversationsScreen } from '@/features/messaging/ConversationsScreen';
 import { MembersScreen } from '@/features/members/MembersScreen';
+import { NotificationSettingsScreen } from '@/features/notifications/NotificationSettingsScreen';
+import { NotificationsScreen } from '@/features/notifications/NotificationsScreen';
 import { OrganisationScreen } from '@/features/organisation/OrganisationScreen';
 import { ConsoleShell } from '@/app/shells/ConsoleShell';
 import { TenantShell } from '@/app/shells/TenantShell';
@@ -59,12 +62,17 @@ const TENANT_ROUTES: readonly Placeholded[] = [
   { path: '/tax', area: 'Tax', milestone: 'U7' },
 ];
 
-/** U2's areas: real screens, so they are no longer placeholders. */
-const U2_ROUTES: readonly { path: string; component: () => React.JSX.Element }[] = [
+/** The areas that have a real screen. Placeholders below are what is still to come. */
+const SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element }[] = [
+  // U2
   { path: '/profile', component: ProfileScreen },
   { path: '/organisation', component: OrganisationScreen },
   { path: '/members', component: MembersScreen },
   { path: '/branding', component: BrandingScreen },
+  // U3
+  { path: '/notifications', component: NotificationsScreen },
+  { path: '/notification-settings', component: NotificationSettingsScreen },
+  { path: '/conversations', component: ConversationsScreen },
 ];
 
 const CONSOLE_ROUTES: readonly Placeholded[] = [
@@ -123,14 +131,14 @@ const notFoundRoute = createRoute({
   ),
 });
 
-const u2Routes: AnyRoute[] = U2_ROUTES.map(({ path, component }) =>
+const screenRoutes: AnyRoute[] = SCREEN_ROUTES.map(({ path, component }) =>
   createRoute({ getParentRoute: () => tenantShellRoute, path, validateSearch, component }),
 );
 
 const routeTree = rootRoute.addChildren([
   tenantShellRoute.addChildren([
     indexRoute,
-    ...u2Routes,
+    ...screenRoutes,
     ...placeholderRoutes(tenantShellRoute, TENANT_ROUTES),
     notFoundRoute,
   ]),

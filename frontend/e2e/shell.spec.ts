@@ -169,6 +169,12 @@ test.describe('keyboard', () => {
     await signedIn(page);
     await page.goto('/?product=atlas');
 
+    // Wait for the shell first, as the test above already does. A shortcut
+    // pressed into a document that has not mounted its key handler is simply
+    // lost, and this failed that way once in a full run and passed on its own —
+    // which is what a race looks like from the outside.
+    await expect(page.locator('[data-region="context-bar"]')).toBeVisible();
+
     await page.keyboard.press('ControlOrMeta+k');
     await expect(page.getByTestId('command-palette')).toBeVisible();
 
