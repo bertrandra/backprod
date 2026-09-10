@@ -52,6 +52,11 @@ $guarded = [
     'frontend/src/queries/einvoicing.ts',
     'frontend/src/queries/checkout.ts',
     'frontend/src/queries/sales.ts',
+    // U7. Closing a VAT period is the strongest case in the list: the
+    // declaration's figures are computed at closure and this client cannot
+    // know them, so an optimistic write would not be a stale number but an
+    // invented filing — and the period cannot be reopened to correct it.
+    'frontend/src/queries/tax.ts',
 ];
 
 $missing = [];

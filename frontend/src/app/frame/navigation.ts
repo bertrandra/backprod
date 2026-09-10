@@ -84,7 +84,12 @@ export const TENANT_NAV: readonly NavSection[] = [
         permission: 'billing.read',
         secondary: true,
       },
-      { id: 'tax', label: 'Tax', to: '/tax', permission: 'tax.read', secondary: true },
+      { id: 'tax', label: 'Tax profile', to: '/tax', permission: 'tax.read', secondary: true },
+      { id: 'tax-rates', label: 'Rates and regimes', to: '/tax/rates', permission: 'tax.read', secondary: true },
+      // `tax.read`, not `tax.manage`: closing a period needs the stronger
+      // permission, but reading what was declared is what the screen is mostly
+      // for, and the nav decides who reaches it rather than who may close.
+      { id: 'tax-reports', label: 'VAT periods', to: '/tax/reports', permission: 'tax.read', secondary: true },
     ],
   },
   {

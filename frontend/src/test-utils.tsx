@@ -48,10 +48,31 @@ export interface Stub {
  */
 export type Stubs = Partial<Record<string, Stub | (() => Stub)>>;
 
-export function stubClient(responses: Stubs): ApiClient {
+/**
+ * One request a screen made, as the test sees it.
+ *
+ * `body` and `query` are `unknown` rather than typed: a test asserting what was
+ * sent is asserting against the *contract*, and typing them from the same
+ * generated types the client uses would let a wrong-but-well-typed body pass.
+ */
+export interface RecordedRequest {
+  readonly method: string;
+  readonly path: string;
+  readonly body: unknown;
+  readonly query: unknown;
+}
+
+interface RequestInit {
+  body?: unknown;
+  params?: { query?: unknown };
+}
+
+function answers(responses: Stubs, record: (request: RecordedRequest) => void) {
   // Not `async`: there is nothing to await, and a promise is what the caller
   // needs. An unnecessary `async` is what the lint rule is about.
-  const answer = (method: string) => (path: string) => {
+  return (method: string) => (path: string, init?: RequestInit) => {
+    record({ method, path, body: init?.body, query: init?.params?.query });
+
     const entry = responses[`${method} ${path}`] ?? responses[path];
     const found = typeof entry === 'function' ? entry() : entry;
 
@@ -83,6 +104,10 @@ export function stubClient(responses: Stubs): ApiClient {
       ? Promise.resolve(answered)
       : new Promise((resolve) => setTimeout(() => resolve(answered), found.delayMs));
   };
+}
+
+function clientFrom(responses: Stubs, record: (request: RecordedRequest) => void): ApiClient {
+  const answer = answers(responses, record);
 
   return {
     GET: answer('GET'),
@@ -92,6 +117,31 @@ export function stubClient(responses: Stubs): ApiClient {
     DELETE: answer('DELETE'),
     use: () => undefined,
   } as unknown as ApiClient;
+}
+
+export function stubClient(responses: Stubs): ApiClient {
+  return clientFrom(responses, () => undefined);
+}
+
+/**
+ * The same client, keeping what was asked of it.
+ *
+ * For the assertions that are about the *request* rather than the screen: that
+ * an amount left as minor units, that an empty field went as null and not as an
+ * empty string, that changing a date asked the server again instead of filtering
+ * an answer already held. None of those are visible in the DOM, and a screen
+ * that got them wrong looks perfectly correct until it meets the API.
+ *
+ * `requests` is the same array throughout, appended to as calls arrive, so a
+ * test can `waitFor` a length rather than poll.
+ */
+export function recordingClient(responses: Stubs): {
+  readonly client: ApiClient;
+  readonly requests: readonly RecordedRequest[];
+} {
+  const requests: RecordedRequest[] = [];
+
+  return { client: clientFrom(responses, (request) => requests.push(request)), requests };
 }
 
 export function renderWith(ui: ReactNode, client: ApiClient): RenderResult {
