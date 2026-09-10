@@ -106,6 +106,30 @@ describe('authConfig', () => {
 
     expect(authConfig()?.url).toBe(URL_BASE);
   });
+
+  it('keeps only the origin when the REST endpoint was configured by mistake', () => {
+    // What a person actually pasted: the dashboard's Data API page shows this URL
+    // far more prominently than the bare project one. Left in place it composes
+    // `/rest/v1/auth/v1/token`, which 404s — and a 404 is reported as a rejected
+    // credential, so the message blames their password.
+    configure(`${URL_BASE}/rest/v1/`);
+
+    expect(authConfig()?.url).toBe(URL_BASE);
+  });
+
+  it('keeps only the origin for any other path a dashboard might show', () => {
+    configure(`${URL_BASE}/auth/v1`);
+
+    expect(authConfig()?.url).toBe(URL_BASE);
+  });
+
+  it('treats a value that is not a URL as no provider at all', () => {
+    configure('bmwjhxzyttyfimivvdnb.supabase.co');
+
+    // No scheme, so not a URL. Null rather than a throw: the screen says the
+    // deployment has no identity provider, which somebody can act on.
+    expect(authConfig()).toBeNull();
+  });
 });
 
 describe('signInWithPassword', () => {

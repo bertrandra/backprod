@@ -46,7 +46,29 @@ export function authConfig(): AuthConfig | null {
     return null;
   }
 
-  return { url: url.replace(/\/+$/, ''), anonKey };
+  /**
+   * Only the origin, whatever was configured.
+   *
+   * The dashboard shows several URLs for one project and the REST endpoint is the
+   * most prominent of them: `https://<ref>.supabase.co/rest/v1/`. Configured here,
+   * it composes `https://<ref>.supabase.co/rest/v1/auth/v1/token` — which 404s, and
+   * a 404 is not ok, so this file reports it as `credentials`. The person sees
+   * "that email and password do not match an account" and goes looking for a
+   * password problem that does not exist.
+   *
+   * That is a deployment mistake with a wrong error message, which is the worst
+   * combination, and stripping a trailing slash was never enough to prevent it. So
+   * the path goes too: every URL the dashboard offers for a project resolves to the
+   * same origin, and this needs the origin.
+   */
+  try {
+    return { url: new URL(url).origin, anonKey };
+  } catch {
+    // Not a URL at all. Null rather than a throw at module scope: the sign-in
+    // screen then says the deployment has no identity provider, which is true and
+    // is a sentence somebody can act on.
+    return null;
+  }
 }
 
 /**

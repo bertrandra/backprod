@@ -67,13 +67,31 @@ MESSAGE
     exit 1
 fi
 
-# The provider's origin, for the Content-Security-Policy. `connect-src` names an
-# origin rather than a URL, so a path or a trailing slash here would produce a
-# policy that silently refuses every token request.
+# The provider's origin — for the Content-Security-Policy, and for the bundle.
+#
+# A Supabase dashboard shows several URLs for one project, and the *REST* endpoint
+# is the most prominent: `https://<ref>.supabase.co/rest/v1/`. Someone pasted that
+# here, which is the natural mistake, and until this line existed it produced a
+# bundle that asked for a token at `/rest/v1/auth/v1/token` — a 404, reported to
+# the person as "that email and password do not match an account". A deployment
+# fault wearing a credential fault's message.
+#
+# So the origin is taken once, here, and used for both. The application normalises
+# it again at runtime (`authConfig`), because a value can also arrive from an
+# environment this script never saw — but it is announced here so that whoever
+# built the bundle learns what was configured rather than being quietly corrected.
 AUTH_ORIGIN="'none'"
 
 if [ -n "$SUPABASE_URL" ]; then
-    AUTH_ORIGIN="$(printf '%s' "$SUPABASE_URL" | sed -E 's#^(https?://[^/]+).*#\1#')"
+    ORIGIN="$(printf '%s' "$SUPABASE_URL" | sed -E 's#^(https?://[^/]+).*#\1#')"
+
+    if [ "$ORIGIN" != "$SUPABASE_URL" ]; then
+        printf '\nNote: using the origin %s rather than %s.\n' "$ORIGIN" "$SUPABASE_URL"
+        printf 'The identity provider is addressed at its origin; the path is not part of it.\n'
+    fi
+
+    SUPABASE_URL="$ORIGIN"
+    AUTH_ORIGIN="$ORIGIN"
 fi
 
 VERSION="$(git -C "$ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)"
