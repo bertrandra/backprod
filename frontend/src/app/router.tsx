@@ -10,11 +10,16 @@ import { useStringParam } from '@/app/frame/routeParams';
 import { parseViewState, type ViewState } from '@/app/frame/viewState';
 import { ProfileScreen } from '@/features/account/ProfileScreen';
 import { BrandingScreen } from '@/features/branding/BrandingScreen';
+import { CatalogueScreen } from '@/features/commerce/CatalogueScreen';
+import { CheckoutScreen } from '@/features/commerce/CheckoutScreen';
+import { OfferAuthoringScreen } from '@/features/commerce/OfferAuthoringScreen';
 import { ConversationsScreen } from '@/features/messaging/ConversationsScreen';
 import { MembersScreen } from '@/features/members/MembersScreen';
 import { NotificationSettingsScreen } from '@/features/notifications/NotificationSettingsScreen';
 import { NotificationsScreen } from '@/features/notifications/NotificationsScreen';
 import { OrganisationScreen } from '@/features/organisation/OrganisationScreen';
+import { OrdersScreen } from '@/features/sales/OrdersScreen';
+import { QuotesScreen } from '@/features/sales/QuotesScreen';
 import { JobsScreen } from '@/features/workspace/JobsScreen';
 import { ProjectScreen } from '@/features/workspace/ProjectScreen';
 import { ProjectsScreen } from '@/features/workspace/ProjectsScreen';
@@ -56,9 +61,6 @@ interface Placeholded {
 }
 
 const TENANT_ROUTES: readonly Placeholded[] = [
-  { path: '/catalogue', area: 'Catalogue', milestone: 'U5' },
-  { path: '/quotes', area: 'Quotes', milestone: 'U5' },
-  { path: '/orders', area: 'Orders', milestone: 'U5' },
   { path: '/subscription', area: 'Subscription', milestone: 'U6' },
   { path: '/invoices', area: 'Invoices', milestone: 'U6' },
   { path: '/tax', area: 'Tax', milestone: 'U7' },
@@ -78,6 +80,11 @@ const SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element
   // U4
   { path: '/projects', component: ProjectsScreen },
   { path: '/jobs', component: JobsScreen },
+  // U5
+  { path: '/catalogue', component: CatalogueScreen },
+  { path: '/offers', component: OfferAuthoringScreen },
+  { path: '/quotes', component: QuotesScreen },
+  { path: '/orders', component: OrdersScreen },
 ];
 
 const CONSOLE_ROUTES: readonly Placeholded[] = [
@@ -166,11 +173,35 @@ const projectRoute = createRoute({
   },
 });
 
+/**
+ * A checkout, addressed by the order it is.
+ *
+ * The id in the path is the order's (ADR-034), which is what makes a dropped
+ * connection survivable: the link is still valid afterwards and the order is
+ * still in `/orders`. Nothing about a checkout lives only in the tab — except the
+ * `client_secret`, which is deliberately not recoverable.
+ */
+const checkoutRoute = createRoute({
+  getParentRoute: () => tenantShellRoute,
+  path: '/checkout/$sessionId',
+  validateSearch,
+  component: function CheckoutRoute() {
+    const sessionId = useStringParam('sessionId');
+
+    return sessionId === null ? (
+      <EmptyState title="No such checkout" description="The link may be old, or mistyped." />
+    ) : (
+      <CheckoutScreen sessionId={sessionId} />
+    );
+  },
+});
+
 const routeTree = rootRoute.addChildren([
   tenantShellRoute.addChildren([
     indexRoute,
     ...screenRoutes,
     projectRoute,
+    checkoutRoute,
     ...placeholderRoutes(tenantShellRoute, TENANT_ROUTES),
     notFoundRoute,
   ]),

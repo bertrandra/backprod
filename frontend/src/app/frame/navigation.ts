@@ -57,6 +57,8 @@ export const TENANT_NAV: readonly NavSection[] = [
     label: 'Commerce',
     entries: [
       { id: 'catalogue', label: 'Catalogue', to: '/catalogue', permission: 'catalog.read' },
+      // Authoring is a different job from buying, and a different permission.
+      { id: 'offers', label: 'Offer authoring', to: '/offers', permission: 'catalog.manage', secondary: true },
       { id: 'quotes', label: 'Quotes', to: '/quotes', permission: 'sales.read', secondary: true },
       { id: 'orders', label: 'Orders', to: '/orders', permission: 'sales.read', secondary: true },
     ],

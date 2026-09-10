@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { useCreateProject, useProjects } from '@/queries/projects';
-import { supportedSchemaVersions, useProductConfiguration } from '@/queries/products';
+import { supportedSchemaVersions, useProductConfiguration } from '@/queries/catalogue';
 import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';

@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
 
 import { can } from '@/app/access/access';
+import { ProductSwitcher } from '@/app/frame/ProductSwitcher';
 import { useUnreadCount } from '@/queries/notifications';
 import { useSession } from '@/queries/session';
 import { cn } from '@/utils/cn';
@@ -19,12 +20,9 @@ export function ContextBar({
 
   return (
     <>
-      <span
-        data-testid="active-product"
-        className="rounded bg-neutral-900 px-2 py-1 text-xs font-semibold text-white dark:bg-neutral-100 dark:text-neutral-900"
-      >
-        {data?.productId.slice(0, 8) ?? '—'}
-      </span>
+      {/* U1 showed the product id here and deferred the switcher to U5, which is
+          where `listProducts` lives. It is a real switcher now. */}
+      <ProductSwitcher />
 
       <span className="truncate text-sm text-neutral-600 dark:text-neutral-400">
         {data?.tenantId.slice(0, 8) ?? 'No organisation'}

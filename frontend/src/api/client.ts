@@ -164,20 +164,38 @@ export function binaryBody(file: File): {
 export interface ClientOptions {
   readonly baseUrl?: string;
   readonly context: ApiContext;
+  /**
+   * The fetch implementation, for tests that need to see the request this
+   * client actually builds.
+   *
+   * It exists because nothing else could observe that: the screen tests replace
+   * the whole client, so the URL composition above had no test at all until it
+   * was wrong in production.
+   */
+  readonly fetch?: (request: Request) => Promise<Response>;
 }
 
 /**
- * The base URL is a path, not an origin, by default.
+ * Empty, because **the contract's paths already carry `/api/v1`**.
  *
- * Same-origin in production and proxied in development, so the browser makes no
- * cross-origin request and §31's strict CORS is never the thing standing
- * between a developer and a working page — which is how a permissive
- * development-only header gets added and then shipped.
+ * Every key in `paths` is `/api/v1/…`, so a base of `/api/v1` composed
+ * `/api/v1/api/v1/me` and every live request would have 404'd. It shipped from
+ * U0 to U5 unnoticed: the unit tests replace the client wholesale so they never
+ * compose a URL, the Playwright stubs match with patterns that a doubled path
+ * satisfies too, and the one test that looked at this asserted the *value* was
+ * `/api/v1` rather than asserting what it composed to. A vite proxy error in a
+ * passing run is what finally showed it.
+ *
+ * Same-origin either way: production serves both from one origin and
+ * development proxies `/api`, so the browser makes no cross-origin request and
+ * §31's strict CORS is never the thing standing between a developer and a
+ * working page — which is how a permissive development-only header gets added
+ * and then shipped.
  */
-export const DEFAULT_BASE_URL = '/api/v1';
+export const DEFAULT_BASE_URL = '';
 
-export function createApiClient({ baseUrl = DEFAULT_BASE_URL, context }: ClientOptions) {
-  const client = createClient<paths>({ baseUrl });
+export function createApiClient({ baseUrl = DEFAULT_BASE_URL, context, fetch }: ClientOptions) {
+  const client = createClient<paths>(fetch === undefined ? { baseUrl } : { baseUrl, fetch });
 
   client.use(contextMiddleware(context));
 

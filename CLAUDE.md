@@ -555,6 +555,12 @@ npm run e2e           Playwright, desktop and mobile
 `vite preview`, and a stale `dist/` makes every new screen fail as though it had
 never been written.
 
+**The contract's paths already carry `/api/v1`**, so the client's base URL is
+empty. A base of `/api/v1` composed `/api/v1/api/v1/…` and went unnoticed from U0
+to U5: the screen tests replace the client, the Playwright stubs match a doubled
+path too, and the test that looked at it asserted the value rather than what it
+composed to. Assert what a value *does*.
+
 `src/api/client.ts` is the only module allowed to reach the API, and ESLint
 enforces it. `src/api/generated/` is generated: never edit it, regenerate it
 (ADR-036).
@@ -588,6 +594,24 @@ data, so there is no question of what a role may do with it. The two refusals
 read differently — one is answered by an administrator, the other by an upgrade.
 `composer run gate:permissions` now checks both vocabularies against the
 platform.
+
+**Money is integer minor units all the way to the screen.** Convert only in
+`ui/Money.tsx`, which asks `Intl` for the currency's exponent — `/ 100` is right
+for EUR, under-reports JPY a hundredfold and over-reports TND tenfold. VAT rates
+arrive as basis points and are divided by 100 for display, so 550 reads as 5.5%.
+Never add two amounts in the frontend: every total on screen is the server's
+(§4, §25).
+
+**A published offer version is frozen** (ADR-033), and the UI proves it by
+*absence*: no input, no disabled control, no edit that explains itself. A quote
+pins the version that priced it, and that guarantee is worth nothing if the
+version can move. Changing published terms means adding a version and publishing
+it.
+
+**Derived fields are the server's answer, not a local calculation.** `open` on a
+quote, `status` on a checkout session, `unread` on a notification: all derived on
+read. A screen that recomputed one from a date or a count would disagree with the
+server a second later, and then two answers would exist for one document.
 
 **Product configuration is read, never assumed.** A project's `schema_version`
 must be one the product declares, so it comes from
