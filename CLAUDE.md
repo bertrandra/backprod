@@ -555,6 +555,15 @@ npm run e2e           Playwright, desktop and mobile
 enforces it. `src/api/generated/` is generated: never edit it, regenerate it
 (ADR-036).
 
+Every request needs a product: pass `ambientParams(sessionSnapshot)` as the
+call's init. The contract declares `X-Product` required, so a call that omits it
+does not compile — which is the point (ADR-037). The bearer token is different:
+it is a security scheme, so middleware attaches it and no call site mentions it.
+
+Gate what a screen offers with `can(permission)` / `isEntitled(capability)` over
+the strings `/me` returned. Never on a role or plan name — that is §13's rule in
+the frontend (ADR-037).
+
 ## Quality gates
 
 Before considering work complete:

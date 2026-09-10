@@ -42,14 +42,19 @@ export interface ApiContext {
 }
 
 export const PRODUCT_HEADER = 'X-Product';
+export const TENANT_HEADER = 'X-Tenant';
 
 /**
- * Attaches the ambient context to every request.
+ * Attaches the bearer token to every request.
  *
- * Absent rather than empty when unknown: an empty `Authorization` header is a
- * malformed credential, and an empty `X-Product` is a claim to a product that
- * does not exist. The backend refuses both, but it should be refusing a request
- * nobody meant to send rather than one this layer built badly.
+ * The token and nothing else, because the token is the one thing the contract
+ * models as a **security scheme** rather than a parameter (`bearerAuth`,
+ * applied globally). A security scheme is ambient by definition; a parameter is
+ * not, which is why `X-Product` is handled by `ambient()` below instead.
+ *
+ * Absent rather than empty when there is no token: an empty `Authorization` is
+ * a malformed credential, and the backend should be refusing a request nobody
+ * meant to send rather than one this layer built badly.
  *
  * Exported so it can be tested as what it is — a transform from context to a
  * request — without standing up a client or stubbing `fetch`.
@@ -63,13 +68,68 @@ export function contextMiddleware(context: ApiContext): Middleware {
         request.headers.set('Authorization', `Bearer ${token}`);
       }
 
-      const product = context.product();
-
-      if (product !== null && product !== '') {
-        request.headers.set(PRODUCT_HEADER, product);
-      }
-
       return request;
+    },
+  };
+}
+
+/** Thrown when a request needs a product and none has been chosen. */
+export class NoProductChosen extends Error {
+  constructor() {
+    super('This request needs a product, and none is selected.');
+    this.name = 'NoProductChosen';
+  }
+}
+
+export interface AmbientParams {
+  params: {
+    header: {
+      'X-Product': string;
+      'X-Tenant'?: string;
+    };
+  };
+  /**
+   * openapi-fetch's init type accepts arbitrary extra options (fetch overrides,
+   * a per-call baseUrl), so its parameter carries an index signature and
+   * anything passed to it must too.
+   */
+  [key: string]: unknown;
+}
+
+/**
+ * The request context, as the parameter the contract says it is.
+ *
+ * `X-Product` is declared `required: true` in OpenAPI, so the generated types
+ * demand it at every call site — and that is **better than attaching it in
+ * middleware**, which was the first design here. Middleware would satisfy the
+ * requirement invisibly, so a call that had forgotten it would still compile
+ * and still work, right up until the middleware changed. As a parameter, a call
+ * site that omits it **fails to build**.
+ *
+ * UD6's intent survives: no call site *decides* the product, and the value
+ * still comes from exactly one place. What each call site does is say that it
+ * needs it, which the contract already said.
+ *
+ * `X-Tenant` is optional — the backend derives the tenant from membership and
+ * only needs telling when a person belongs to several. It is included when
+ * known and omitted otherwise, never sent empty.
+ */
+export function ambientParams(context: ApiContext, tenantId?: string | null): AmbientParams {
+  const product = context.product();
+
+  if (product === null || product === '') {
+    // Refused here rather than sent. A resource request without a product is
+    // meaningless (§12.1) and the backend refuses it; failing in the caller
+    // gives a far better message than a 400 from the far end.
+    throw new NoProductChosen();
+  }
+
+  return {
+    params: {
+      header:
+        tenantId === undefined || tenantId === null || tenantId === ''
+          ? { 'X-Product': product }
+          : { 'X-Product': product, 'X-Tenant': tenantId },
     },
   };
 }
