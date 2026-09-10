@@ -134,6 +134,33 @@ export function ambientParams(context: ApiContext, tenantId?: string | null): Am
   };
 }
 
+/**
+ * The init fragment for a request whose body is a file.
+ *
+ * OpenAPI describes an `image/png` body as `type: string, format: binary`, and
+ * `openapi-typescript` maps that to `string` — there is no TypeScript type a
+ * generator could emit for "the bytes of a file". So the generated type asks for
+ * a string and a `File` is what should actually be sent.
+ *
+ * The cast lives here, in the module whose job is transport, rather than at each
+ * upload site. `bodySerializer` is what stops openapi-fetch JSON-encoding it.
+ *
+ * The content type is the file's own. The API sniffs the bytes rather than
+ * trusting the header (ADR-028), so a cautious `application/octet-stream` would
+ * be refused and a lie would be caught — the honest value is the useful one.
+ */
+export function binaryBody(file: File): {
+  body: string;
+  headers: Record<string, string>;
+  bodySerializer: (body: unknown) => BodyInit;
+} {
+  return {
+    body: file as unknown as string,
+    headers: { 'Content-Type': file.type },
+    bodySerializer: (body: unknown) => body as BodyInit,
+  };
+}
+
 export interface ClientOptions {
   readonly baseUrl?: string;
   readonly context: ApiContext;

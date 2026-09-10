@@ -564,6 +564,11 @@ Gate what a screen offers with `can(permission)` / `isEntitled(capability)` over
 the strings `/me` returned. Never on a role or plan name — that is §13's rule in
 the frontend (ADR-037).
 
+**Permission codes are not free-form.** Read them from the controller that
+requires them, never from the endpoint's name: six were wrong in the first
+navigation table and every test passed anyway. `composer run gate:permissions`
+compares what the frontend gates on with what the migrations create.
+
 ## Quality gates
 
 Before considering work complete:
@@ -576,6 +581,7 @@ Typecheck
 → PHPUnit
 → OpenAPI validation
 → Every operation is reachable in the UI (composer run gate:ui)
+→ The frontend gates on permissions that exist (composer run gate:permissions)
 → Generated client matches OpenAPI (npm run gate:client)
 → Playwright when applicable
 ```
