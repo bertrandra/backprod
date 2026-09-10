@@ -618,6 +618,33 @@ project.
 
 ---
 
+### U10 — Demo, decisions and readiness — *delivered*
+
+**Goal:** the two open design decisions, a world to look at, and an honest answer
+to "is this production ready".
+
+Not in the original plan: U9 was the last milestone this roadmap scheduled, and
+U10 was scoped from the risk register and one request — a demonstration database.
+
+**Delivered**
+- **A demonstration database** (`composer run demo:seed`). Until now the only way to see this platform run was to read its tests. Invariants go through the services that own them, so the invoice number comes from the gapless sequence rather than an INSERT; it refuses a database that already has data, and reads the world back through the repositories to prove it holds
+- **R13 closed** — a deleted project keeps its history. Deletion is a date, the bin is a separate list, and `undelete` is deliberately not called `restore`
+- **R14 closed** — a staff read carries the reason, not only the authority. `purpose` from an enumeration *and* a `reference` of at least eight characters, because R14 named both failure modes and the answer is to take both halves
+- **`composer run preflight`** — what this deployment can and cannot do, with `--strict` for a pipeline
+- **`composer run restore:drill`** — dumps, restores into a scratch database, and verifies the copy is the database that was dumped, triggers and foreign keys included
+- **`docs/production-readiness.md`** — what is verified, what is rehearsable, and what does not exist at all, in that order
+
+**Not delivered, and stated rather than implied**
+- **R11 stays open.** Re-attempted 2026-09-10: `legifrance.gouv.fr` and `eur-lex.europa.eu` are both refused by this environment's egress proxy, the same wall R3 and R7 hit. Recorded with a date so nobody repeats it from the same network
+- **Production readiness is a document, not a state.** There is no deployment, no observability, no backup schedule, no load testing and no secret management. The drill proves the *procedure*; nothing takes a backup on a timer
+
+**The U9 gate earned its keep immediately.** Adding `undeleteProject` to the
+contract failed `gate:ui` until it had a screen area, and assigning it then failed
+`gate:screens` until the frontend actually called it. A gate written one milestone
+ago is what made this one honest rather than optimistic.
+
+---
+
 ### U9 — Hardening & proof — *delivered*
 
 **Goal:** the claims this plan makes, verified rather than asserted.
