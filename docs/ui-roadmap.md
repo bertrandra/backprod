@@ -159,7 +159,7 @@ URL or configuration instead of borrowing the operation early.
 
 ---
 
-### U2 — Account & organisation — 4 areas, 13 operations
+### U2 — Account & organisation — 4 areas, 13 operations — *delivered*
 
 **Goal:** the smallest real CRUD in the product, chosen to prove forms, upload
 and entitlement gating where a mistake costs nothing.
@@ -173,11 +173,20 @@ and entitlement gating where a mistake costs nothing.
 - Branding: colours and logo. Two gates that do not imply each other — `skin.manage` **and** the `white_label` entitlement — so this is where both refusals get their real presentation: one answered by an administrator, the other by an upgrade
 - Usage against quota, which is the first read that must not look like an error when it is simply at zero
 
-**Exit criteria**
-- A member without `skin.manage` sees the branding screen refuse, and a member on a plan without `white_label` sees a *different* refusal
-- Logo upload rejects a disallowed type with the API's reason shown, not a generic failure
-- Every form round-trips: submit, refetch, no stale field
+**Exit criteria** — met
+- A member without `skin.manage` sees one refusal and a member on a plan without `white_label` sees a *different* one, asserted by comparing the rendered text rather than by checking both merely refuse
+- Logo upload is bounded by the contract's own type list, and the API's reason is what the screen shows
+- Every form round-trips: submit, cache patched from the response where the API returns the row, invalidated where it assigns an id
 - 13 operations covered
+
+**A defect from U1 fixed here, and a gate so it cannot recur.** Six of the
+sixteen permission codes in U1's navigation were wrong — guessed from endpoint
+names rather than read from the platform — and every U1 test still passed,
+because they exercised the mechanism against fixtures the same file invented.
+`composer run gate:permissions` now compares the frontend's vocabulary with the
+permissions the migrations create. It catches five of those six; the sixth was a
+*real* permission used for the wrong screen, which needs an endpoint-to-permission
+map and is not built.
 
 ---
 

@@ -64,6 +64,7 @@
             "@gate:entitlements",
             "@gate:openapi",
             "@gate:ui",
+            "@gate:permissions",
             "@test"
         ],
         "migrate": "doctrine-migrations migrate --no-interaction --allow-no-migration",
@@ -71,7 +72,8 @@
         "gate:plans": "@php tools/prove-no-plan-branching.php",
         "gate:entitlements": "@php tools/prove-entitlements-have-one-door.php",
         "gate:openapi": "@php tools/prove-openapi-covers-the-api.php",
-        "gate:ui": "@php tools/prove-ui-covers-the-api.php"
+        "gate:ui": "@php tools/prove-ui-covers-the-api.php",
+        "gate:permissions": "@php tools/prove-frontend-permissions-exist.php"
     },
     "scripts-descriptions": {
         "gates": "Run the full quality gate chain exactly as CI does",

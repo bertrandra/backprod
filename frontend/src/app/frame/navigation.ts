@@ -10,13 +10,28 @@ import { can, type Access } from '@/app/access/access';
  *
  * Sections mirror ui-spec.md §3. The areas inside them arrive with their
  * milestones (U2–U8); this is the shell's view of what exists.
+ *
+ * **The permission codes are not free-form.** Six of them were wrong when this
+ * table was first written — guessed from the endpoint's name rather than read
+ * from the backend — and every unit test still passed, because they exercised
+ * the *mechanism* against fixtures this file invented rather than the *values*
+ * against the platform. A nav entry naming a permission nobody can hold is
+ * simply invisible, which is the quietest possible bug.
+ *
+ * `composer run gate:permissions` now checks every code here against the
+ * permissions the migrations create, in both directions.
  */
 export interface NavEntry {
   readonly id: string;
   readonly label: string;
   readonly to: string;
-  /** Absent means always available to a signed-in member. */
-  readonly permission?: string;
+  /**
+   * The permission this entry needs. Every entry has one: an ungated entry would
+   * be visible before the session has loaded, which breaks the rule below that
+   * the nav offers nothing until it knows what to offer. "Your profile" looked
+   * like the exception and is not — the platform defines `account.read`.
+   */
+  readonly permission: string;
   /** Kept out of the phone's bottom bar; reachable under "More". */
   readonly secondary?: boolean;
 }
@@ -33,8 +48,8 @@ export const TENANT_NAV: readonly NavSection[] = [
     id: 'work',
     label: 'Work',
     entries: [
-      { id: 'projects', label: 'Projects', to: '/projects', permission: 'project.read' },
-      { id: 'jobs', label: 'Jobs', to: '/jobs', permission: 'job.read', secondary: true },
+      { id: 'projects', label: 'Projects', to: '/projects', permission: 'projects.read' },
+      { id: 'jobs', label: 'Jobs', to: '/jobs', permission: 'jobs.read', secondary: true },
     ],
   },
   {
@@ -59,7 +74,9 @@ export const TENANT_NAV: readonly NavSection[] = [
     id: 'organisation',
     label: 'Organisation',
     entries: [
-      { id: 'members', label: 'Members', to: '/members', permission: 'tenant.read', secondary: true },
+      { id: 'organisation', label: 'Organisation', to: '/organisation', permission: 'tenant.read', secondary: true },
+      { id: 'members', label: 'Members', to: '/members', permission: 'members.read', secondary: true },
+      { id: 'profile', label: 'Your profile', to: '/profile', permission: 'account.read', secondary: true },
       { id: 'branding', label: 'Branding', to: '/branding', permission: 'skin.manage', secondary: true },
     ],
   },
@@ -71,9 +88,9 @@ export const CONSOLE_NAV: readonly NavSection[] = [
     id: 'support',
     label: 'Support',
     entries: [
-      { id: 'tenants', label: 'Tenants', to: '/console/tenants', permission: 'support.tenant.read' },
-      { id: 'threads', label: 'Conversations', to: '/console/conversations', permission: 'support.conversation.read' },
-      { id: 'access-log', label: 'Access log', to: '/console/access-log', permission: 'staff.access.read', secondary: true },
+      { id: 'tenants', label: 'Tenants', to: '/console/tenants', permission: 'staff.tenants.read' },
+      { id: 'threads', label: 'Conversations', to: '/console/conversations', permission: 'support.read' },
+      { id: 'access-log', label: 'Access log', to: '/console/access-log', permission: 'staff.access_log.read', secondary: true },
     ],
   },
   {
@@ -102,9 +119,7 @@ export function visibleNav(
   return sections
     .map((section) => ({
       ...section,
-      entries: section.entries.filter(
-        (entry) => entry.permission === undefined || can(access, entry.permission),
-      ),
+      entries: section.entries.filter((entry) => can(access, entry.permission)),
     }))
     .filter((section) => section.entries.length > 0);
 }

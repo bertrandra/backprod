@@ -7,6 +7,10 @@ import {
 } from '@tanstack/react-router';
 
 import { parseViewState, type ViewState } from '@/app/frame/viewState';
+import { ProfileScreen } from '@/features/account/ProfileScreen';
+import { BrandingScreen } from '@/features/branding/BrandingScreen';
+import { MembersScreen } from '@/features/members/MembersScreen';
+import { OrganisationScreen } from '@/features/organisation/OrganisationScreen';
 import { ConsoleShell } from '@/app/shells/ConsoleShell';
 import { TenantShell } from '@/app/shells/TenantShell';
 import { EmptyState } from '@/ui/EmptyState';
@@ -53,8 +57,14 @@ const TENANT_ROUTES: readonly Placeholded[] = [
   { path: '/subscription', area: 'Subscription', milestone: 'U6' },
   { path: '/invoices', area: 'Invoices', milestone: 'U6' },
   { path: '/tax', area: 'Tax', milestone: 'U7' },
-  { path: '/members', area: 'Members', milestone: 'U2' },
-  { path: '/branding', area: 'Branding', milestone: 'U2' },
+];
+
+/** U2's areas: real screens, so they are no longer placeholders. */
+const U2_ROUTES: readonly { path: string; component: () => React.JSX.Element }[] = [
+  { path: '/profile', component: ProfileScreen },
+  { path: '/organisation', component: OrganisationScreen },
+  { path: '/members', component: MembersScreen },
+  { path: '/branding', component: BrandingScreen },
 ];
 
 const CONSOLE_ROUTES: readonly Placeholded[] = [
@@ -113,9 +123,14 @@ const notFoundRoute = createRoute({
   ),
 });
 
+const u2Routes: AnyRoute[] = U2_ROUTES.map(({ path, component }) =>
+  createRoute({ getParentRoute: () => tenantShellRoute, path, validateSearch, component }),
+);
+
 const routeTree = rootRoute.addChildren([
   tenantShellRoute.addChildren([
     indexRoute,
+    ...u2Routes,
     ...placeholderRoutes(tenantShellRoute, TENANT_ROUTES),
     notFoundRoute,
   ]),

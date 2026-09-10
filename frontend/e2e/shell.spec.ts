@@ -16,7 +16,7 @@ const SESSION = {
   product_id: '22222222-2222-4222-8222-222222222222',
   tenant_id: '33333333-3333-4333-8333-333333333333',
   roles: ['TENANT_ADMIN'],
-  permissions: ['project.read', 'billing.read', 'subscription.read', 'tax.read', 'job.read'],
+  permissions: ['projects.read', 'billing.read', 'subscription.read', 'tax.read', 'jobs.read'],
   capabilities: ['white_label'],
 };
 
@@ -100,7 +100,7 @@ test.describe('what the navigation offers', () => {
 
     if (wide) {
       await expect(page.locator('[data-nav="invoices"]')).toBeVisible();
-      // No project.read, so no Projects — and no empty "Work" heading either.
+      // No projects.read, so no Projects — and no empty "Work" heading either.
       await expect(page.locator('[data-nav="projects"]')).toHaveCount(0);
       await expect(page.getByText('Work', { exact: true })).toHaveCount(0);
     } else {

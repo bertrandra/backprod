@@ -43,7 +43,7 @@ describe('what the navigation offers', () => {
 
   it('grows when a permission is added', () => {
     const before = idsOf(visibleNav(TENANT_NAV, access(['billing.read'])));
-    const after = idsOf(visibleNav(TENANT_NAV, access(['billing.read', 'project.read'])));
+    const after = idsOf(visibleNav(TENANT_NAV, access(['billing.read', 'projects.read'])));
 
     expect(before).not.toContain('projects');
     expect(after).toContain('projects');
@@ -68,11 +68,11 @@ describe('what the navigation offers', () => {
 
   it('never offers an entry for a permission the session does not carry', () => {
     const everything = TENANT_NAV.flatMap((s) => s.entries);
-    const granted = ['project.read'];
+    const granted = ['projects.read'];
     const offered = visibleNav(TENANT_NAV, access(granted)).flatMap((s) => s.entries);
 
     for (const entry of offered) {
-      expect(entry.permission === undefined || granted.includes(entry.permission)).toBe(true);
+      expect(granted).toContain(entry.permission);
     }
 
     expect(offered.length).toBeLessThan(everything.length);
@@ -81,9 +81,7 @@ describe('what the navigation offers', () => {
 
 describe('the phone bottom bar', () => {
   it('holds at most five destinations', () => {
-    const all = TENANT_NAV.flatMap((s) => s.entries).flatMap((e) =>
-      e.permission === undefined ? [] : [e.permission],
-    );
+    const all = TENANT_NAV.flatMap((s) => s.entries).map((e) => e.permission);
 
     const entries = bottomBarEntries(TENANT_NAV, access(all));
 
@@ -93,7 +91,7 @@ describe('the phone bottom bar', () => {
   });
 
   it('fills with primary entries before secondary ones', () => {
-    const entries = bottomBarEntries(TENANT_NAV, access(['project.read', 'job.read']));
+    const entries = bottomBarEntries(TENANT_NAV, access(['projects.read', 'jobs.read']));
 
     // `jobs` is secondary and `projects` is not, so projects comes first even
     // though jobs is listed beside it in the same section.
@@ -102,6 +100,17 @@ describe('the phone bottom bar', () => {
 
   it('is empty for a session with no permissions at all', () => {
     expect(bottomBarEntries(TENANT_NAV, access([]))).toEqual([]);
+  });
+});
+
+describe('every entry', () => {
+  it('names a permission, so nothing is visible before the session loads', () => {
+    // "Your profile" was briefly ungated, which made the nav offer something
+    // while it still knew nothing. Every entry is gated now, including that one:
+    // the platform defines `account.read`.
+    for (const entry of [...TENANT_NAV, ...CONSOLE_NAV].flatMap((s) => s.entries)) {
+      expect(entry.permission).toMatch(/^[a-z][a-z_]*(\.[a-z][a-z_]*)+$/);
+    }
   });
 });
 
@@ -118,9 +127,7 @@ describe('the two navigations', () => {
   it('gate the console on platform permissions, never on tenant ones', () => {
     // A person with every tenant permission this application knows about must
     // still see no console entry (non-negotiable #22).
-    const tenantPermissions = TENANT_NAV.flatMap((s) => s.entries).flatMap((e) =>
-      e.permission === undefined ? [] : [e.permission],
-    );
+    const tenantPermissions = TENANT_NAV.flatMap((s) => s.entries).map((e) => e.permission);
 
     expect(visibleNav(CONSOLE_NAV, access(tenantPermissions))).toEqual([]);
   });
