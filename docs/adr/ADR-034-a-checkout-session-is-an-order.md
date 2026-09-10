@@ -50,6 +50,18 @@ previous attempt is in flight — a second authorization then risks collecting
 twice for one debt — and refused when it succeeded, where there is nothing to
 retry.
 
+**The reference names the attempt, not the invoice.** `Payments::start` used
+to hand the provider the invoice number, which made that last sentence a
+claim the code did not honour: the second attempt asked the provider to
+authorize the same thing again, so an idempotent provider would return the
+intent that had already failed and the unique index on `(provider,
+provider_payment_id)` would refuse the row. The reference is now
+`<invoice number>/<attempt>`, still readable by whoever reconciles the two
+systems side by side. The attempt number is counted from the existing
+payments, and it is a label rather than a lock: two callers racing here read
+the same count, and what keeps one attempt from existing twice is the unique
+index, not the number.
+
 ## Consequences
 
 The three calls are not one transaction and cannot be, because the middle step

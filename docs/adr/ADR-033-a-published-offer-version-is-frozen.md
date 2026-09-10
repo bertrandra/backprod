@@ -72,9 +72,9 @@ offer will fail this migration — which is the correct outcome, since that data
 already makes the catalogue ambiguous, but it is a migration that can fail on
 real data rather than one that cannot.
 
-**Two consequences surfaced only when the existing tests ran against it**, and
-both are worth stating because they are properties of the rule rather than of
-the tests.
+**Three consequences surfaced only when the existing tests ran against it**,
+and all are worth stating because they are properties of the rule rather than
+of the tests.
 
 The first: **a fixture that seeds an ACTIVE version and then attaches grants
 is now refused**, and four of them did exactly that. The order they used is one
@@ -90,6 +90,17 @@ genuinely overlap, and the constraint is right to refuse them. Anything that
 publishes consecutive windows must compute both bounds from one timestamp;
 computing each from its own `now()` produces a sub-millisecond overlap that
 looks like a constraint bug and is not.
+
+The third: **two older tests proved the invoice snapshot by repricing a
+published version in place**, describing that as the strongest available form
+of the assertion because production would never do it. This rule has made it
+unavailable, which is the point — the counterfactual they were guarding
+against can no longer be reached. Both now re-version the way production
+does, retiring the sold version and publishing a dearer one, and that turned
+out to cover a case nothing had: the guard in `InvoiceThenSubscribe` matches
+on the version the order recorded, and only its withdrawal half had a test.
+The re-versioned half, where a dearer version stands ready to be picked up
+silently, has one now.
 
 Every case was verified against a live PostgreSQL 16 before the endpoints were
 written: five refusals, four permitted paths, and each of the three
