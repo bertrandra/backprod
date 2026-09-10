@@ -551,6 +551,10 @@ npm run build         gates, then Vite build
 npm run e2e           Playwright, desktop and mobile
 ```
 
+`npm run e2e` serves `dist/`, so **build first**: Playwright starts
+`vite preview`, and a stale `dist/` makes every new screen fail as though it had
+never been written.
+
 `src/api/client.ts` is the only module allowed to reach the API, and ESLint
 enforces it. `src/api/generated/` is generated: never edit it, regenerate it
 (ADR-036).
@@ -568,6 +572,21 @@ the frontend (ADR-037).
 requires them, never from the endpoint's name: six were wrong in the first
 navigation table and every test passed anyway. `composer run gate:permissions`
 compares what the frontend gates on with what the migrations create.
+
+**What a mutation does to the cache** (established in U3,
+`src/queries/notifications.ts`):
+
+- if the response *is* the new state, write it into the cache;
+- if the server derives the state, **invalidate** and let the server answer;
+- **never adjust a count locally.** An unread badge decremented in JavaScript is
+  right until the same person reads something in another tab, and then it is
+  wrong with nothing to correct it.
+
+Optimistic updates are for changes that create nothing anyone can act on — a
+chat message, not an invoice, a legal number or a gapless sequence (U6 forbids
+them outright). Where one is used, the rollback must be *provable*: hold the
+reconciling refetch open in the test, or the refetch clears the placeholder and
+the test passes with no rollback at all.
 
 ## Quality gates
 

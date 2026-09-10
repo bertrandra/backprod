@@ -12,6 +12,8 @@
  * because a bad link should open the page rather than break it.
  */
 
+import { useSearch } from '@tanstack/react-router';
+
 export interface ViewState {
   /** Free-text filter. */
   readonly q?: string;
@@ -79,4 +81,25 @@ export function parseViewState(search: Record<string, unknown>): ViewState {
     ...(limit !== undefined && { limit }),
     ...(offset !== undefined && { offset }),
   };
+}
+
+/**
+ * The current view state, typed.
+ *
+ * `useSearch({ strict: false })` answers `any`: the route tree is built at
+ * runtime (see `router.tsx`), so there is no generated route union for the
+ * router to infer a search type from. Left alone that `any` would spread into
+ * every screen that reads a filter or a selection, and `selected.toUpperCase()`
+ * on a number would compile.
+ *
+ * So it is narrowed once, here, through the same parser the routes validate
+ * with. Parsing an already-parsed object returns the same thing, which is what
+ * makes doing it twice safe rather than merely cheap.
+ */
+export function useViewState(): ViewState {
+  const search: unknown = useSearch({ strict: false });
+
+  return parseViewState(
+    typeof search === 'object' && search !== null ? (search as Record<string, unknown>) : {},
+  );
 }

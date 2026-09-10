@@ -483,6 +483,27 @@ La régénération appartient à la chaîne de qualité (§ *Quality gates*) : s
 contrat a changé et que le client généré ne l'a pas suivi, l'écart doit faire
 échouer la CI, pas attendre d'être découvert à l'exécution.
 
+### Ce qu'une mutation fait au cache
+
+Établi en U3 (`frontend/src/queries/notifications.ts`) et normatif ensuite :
+
+- si la réponse **est** le nouvel état, on l'écrit dans le cache ;
+- si l'état est dérivé par le serveur, on **invalide** et c'est le serveur qui
+  répond ;
+- **un compteur ne se recalcule jamais localement.**
+
+La troisième règle est celle qui coûte cher quand elle manque. Un badge de
+non-lus décrémenté en JavaScript est juste jusqu'à ce que la même personne lise
+quelque chose dans un autre onglet — ensuite il est faux, et rien ne le corrige.
+Une requête de plus est le prix d'être exact plutôt que rapide et menteur.
+
+Les mises à jour optimistes sont réservées à ce qui ne crée rien
+d'actionnable : un message de conversation, jamais une facture, un numéro légal
+ou une séquence sans trou (§25 et §37.4 les interdisent là). Là où il y en a
+une, le rollback doit être **prouvable** : dans le test, on retient le refetch
+de réconciliation, sinon c'est lui qui efface le brouillon et le test passe
+sans qu'aucun rollback n'existe.
+
 ### Où vivent les écrans
 
 Les zones d'écran, les deux shells et le comportement responsive sont

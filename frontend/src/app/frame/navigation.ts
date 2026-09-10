@@ -71,6 +71,27 @@ export const TENANT_NAV: readonly NavSection[] = [
     ],
   },
   {
+    id: 'inbox',
+    label: 'Inbox',
+    entries: [
+      // Both read permissions, not the manage ones: reaching the screen is what
+      // the nav decides, and a person who can read their inbox but not mark it
+      // read must still be able to open it.
+      {
+        id: 'notifications',
+        label: 'Notifications',
+        to: '/notifications',
+        permission: 'notifications.read',
+      },
+      {
+        id: 'conversations',
+        label: 'Conversations',
+        to: '/conversations',
+        permission: 'messages.read',
+      },
+    ],
+  },
+  {
     id: 'organisation',
     label: 'Organisation',
     entries: [
@@ -78,6 +99,13 @@ export const TENANT_NAV: readonly NavSection[] = [
       { id: 'members', label: 'Members', to: '/members', permission: 'members.read', secondary: true },
       { id: 'profile', label: 'Your profile', to: '/profile', permission: 'account.read', secondary: true },
       { id: 'branding', label: 'Branding', to: '/branding', permission: 'skin.manage', secondary: true },
+      {
+        id: 'notification-settings',
+        label: 'Notification settings',
+        to: '/notification-settings',
+        permission: 'notifications.read',
+        secondary: true,
+      },
     ],
   },
 ];

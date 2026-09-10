@@ -190,7 +190,7 @@ map and is not built.
 
 ---
 
-### U3 — Notifications & messaging — 3 areas, 20 operations
+### U3 — Notifications & messaging — 3 areas, 20 operations — *delivered*
 
 **Goal:** the first screens whose data changes without the user acting, which
 is what makes them the right place to get invalidation right.
@@ -204,11 +204,37 @@ is what makes them the right place to get invalidation right.
 - Conversations: threads, messages, participants, read state, with `since_seq` incremental fetch
 - Invalidation strategy documented once here and reused: what a mutation invalidates, and what merely refetches
 
-**Exit criteria**
-- The unread badge is correct after reading in another tab (invalidation, not a local counter)
-- Posting a message appears immediately and reconciles; a failed post is visibly not sent
-- Revoking a consent is reflected without a reload
+**Exit criteria** — met
+- The unread badge is correct after reading in another tab (invalidation, not a local counter) — asserted in a browser (`e2e/inbox.spec.ts`) with a stub that moves the server's count behind the page's back, so a decrement in JavaScript fails it
+- Posting a message appears immediately and reconciles; a failed post is visibly not sent — the rollback is proven with the reconciling refetch held open, because otherwise the refetch clears the placeholder and the test passes with no rollback at all
+- Revoking a consent is reflected without a reload, **and the row stays** — deleting it would destroy the proof that permission once existed
 - 20 operations covered
+
+**The invalidation rule, established here and reused after** (`src/queries/notifications.ts`):
+
+- a mutation whose response *is* the new state writes it into the cache;
+- a mutation that changes state the server derives **invalidates**, and the
+  server answers;
+- **a count is never adjusted locally.**
+
+The last one is why notifications come before billing. An unread badge
+decremented in JavaScript is right until the same person reads something in
+another tab, and then it is wrong in a way nothing corrects. One extra request
+is the price of being correct rather than fast and lying.
+
+**Two defects the tests found by being broken on purpose.**
+
+The optimistic post's `onSettled` returned the invalidation promise, which keeps
+the mutation *pending* until the refetch answers — so on a slow network a failed
+post showed a button still saying "Working…" and no reason, about a message
+already taken back. The refetch reconciles; it is not part of the post's
+outcome, and it is no longer awaited.
+
+A ref that remembered which watermark had already been reported was written,
+could not be made to fail, and was removed. Nothing broke without it: the
+effect's dependency array is the actual guard, and a guard no test can break is
+one nobody can trust. What *does* fail without a dependency array is the same
+test, 126 reads instead of one.
 
 ---
 
@@ -429,7 +455,7 @@ contract:
 34 areas scheduled across U2–U8, none twice, none omitted
 
 U2   4 areas    13 operations
-U3   3 areas    20 operations
+U3   3 areas    20 operations   delivered
 U4   5 areas    22 operations
 U5   5 areas    26 operations
 U6   6 areas    24 operations
