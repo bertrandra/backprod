@@ -8,3 +8,11 @@
 .phpunit.result.cache
 /.phpunit.cache/
 /coverage/
+
+# Frontend
+/frontend/node_modules/
+/frontend/dist/
+/frontend/coverage/
+/frontend/playwright-report/
+/frontend/test-results/
+/frontend/.vite/

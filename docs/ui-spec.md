@@ -337,7 +337,11 @@ repository yet. When there is, the natural next check is that every area named
 here has a route, and every operation it claims is called through the generated
 client — which is mechanically checkable in the same way.
 
-Also still unbuilt, and named in CLAUDE.md's quality gates: the check that the
-**generated client is up to date with OpenAPI**. Without it, §8.1 is enforced
-by reading rather than by CI. Both gaps are recorded rather than papered over,
-because the alternative is a document that claims more than it can defend.
+The check that the **generated client matches OpenAPI** was the other gap named
+here, and U0 closed it: `npm run gate:client` regenerates from the contract and
+compares, and ESLint leaves nowhere to write a request that bypasses the client
+(ADR-036). So §8.1 is enforced by CI now, not by reading.
+
+What remains is the screen-level half above. It is recorded rather than papered
+over, because the alternative is a document that claims more than it can
+defend.

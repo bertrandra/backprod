@@ -536,6 +536,25 @@ The backend produces and retains fiscal data, and exports it. It is not an
 accounting package: no chart of accounts, no general ledger, no filing with
 the tax authority.
 
+## Frontend commands
+
+The frontend lives in `frontend/`. From that directory:
+
+```text
+npm run generate      openapi.json -> src/api/generated/schema.d.ts
+npm run gate:client   regenerate and compare; fails if the client is stale
+npm run lint          ESLint, including the ban on fetch outside the client
+npm run typecheck     tsc --noEmit
+npm run test          Vitest
+npm run gates         lint + typecheck + test + gate:client
+npm run build         gates, then Vite build
+npm run e2e           Playwright, desktop and mobile
+```
+
+`src/api/client.ts` is the only module allowed to reach the API, and ESLint
+enforces it. `src/api/generated/` is generated: never edit it, regenerate it
+(ADR-036).
+
 ## Quality gates
 
 Before considering work complete:
@@ -548,7 +567,7 @@ Typecheck
 → PHPUnit
 → OpenAPI validation
 → Every operation is reachable in the UI (composer run gate:ui)
-→ Generated client is up to date with OpenAPI
+→ Generated client matches OpenAPI (npm run gate:client)
 → Playwright when applicable
 ```
 

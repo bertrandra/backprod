@@ -96,7 +96,7 @@ done.
 
 ## 2. Milestones
 
-### U0 — Scaffold & gates
+### U0 — Scaffold & gates — *delivered ([ADR-036](adr/ADR-036-the-frontend-contract-is-generated-and-checked.md))*
 
 **Goal:** an empty but fully governed frontend, and the two gates that make
 §8.1 enforceable rather than aspirational. No screens.
@@ -110,10 +110,17 @@ done.
 - The generated client configured once with base URL, auth and `X-Product` (UD5, UD6)
 - `gate:ui` already exists and stays in the chain
 
-**Exit criteria**
-- A deliberately stale generated client **fails CI** — gate proven, not assumed, exactly as M0 proved Deptrac by breaking it
-- A `fetch()` added to a component fails lint
-- `npm run build` green with zero screens
+**Exit criteria** — all met, each proven by breaking it
+- A deliberately stale generated client **fails CI**: renaming a field in the committed file made `gate:client` name line 2390, print committed against regenerated, and exit 1
+- A `fetch()` added to a component fails lint: `fetch`, `window.fetch` and `new XMLHttpRequest` produced four errors, `import axios` produced its own
+- `npm run build` green with zero screens: lint, typecheck, 6 Vitest tests and `gate:client` all run inside it, then Vite builds
+- Playwright passes on desktop **and** mobile, so U1's first screen inherits a working harness
+
+**Decided here:** UD1 `openapi-typescript` + `openapi-fetch`; UD2 the check is
+the regeneration; UD6 product and token ambient in one middleware. The version
+pins are the intersection of three peer ranges — TypeScript 5.9 is the only one
+`typescript-eslint`, `openapi-typescript` and the rest all accept, so installing
+the newest of each would not have worked.
 
 ---
 

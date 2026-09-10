@@ -5,10 +5,14 @@ on:
     branches: [main]
   pull_request:
 
-# Architecture V2 §37.13 lists the full gate chain for the platform. The
-# frontend steps (ESLint, Prettier, dependency-cruiser, Vitest, Playwright)
-# are not represented here because this repository currently holds only the
-# PHP backend; they join this workflow when the frontend lands.
+# Architecture V2 §37.13 lists the full gate chain for the platform. Both halves
+# are here now: `quality-gates` runs the PHP chain, `frontend` runs ESLint,
+# TypeScript, Vitest, the generated-client check and Playwright.
+#
+# The two jobs are separate rather than sequential. They share only
+# `openapi.json` — the frontend regenerates from it to prove its client is not
+# stale — and neither needs the other's toolchain, so running them in parallel
+# means a lint error surfaces without waiting for a database to start.
 #
 # §37.13 is explicit that a failing step means "PR = NOT READY", so nothing
 # below is allowed to continue-on-error.
@@ -144,3 +148,52 @@ jobs:
         env:
           COMPOSER_PROCESS_TIMEOUT: 0
         run: composer run test
+
+  frontend:
+    name: Frontend gates
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # Before lint and typecheck, deliberately. If the contract moved and the
+      # committed client did not follow, every error the other steps report is
+      # about a stale shape and sends the reader looking in the wrong place.
+      # This step names the real cause first.
+      - name: The generated client matches the contract
+        run: npm run gate:client
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: TypeScript
+        run: npm run typecheck
+
+      - name: Vitest
+        run: npm run test
+
+      - name: Build
+        run: npx vite build
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      # Desktop and mobile, because docs/ui-roadmap.md says mobile is not a
+      # milestone and a suite that only ran at desktop width would make that
+      # promise decorative.
+      - name: Playwright
+        run: npm run e2e
