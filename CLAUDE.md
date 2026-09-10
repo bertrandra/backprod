@@ -93,7 +93,8 @@ API base path:
 /api/v1/
 ```
 
-OpenAPI 3.1 is the source of truth.
+OpenAPI 3.1 is the source of truth. The frontend's types and API client are
+generated from it — see *Frontend API data flow* below.
 
 The API catalog must include Product APIs such as:
 
@@ -141,12 +142,62 @@ GET  /api/v1/tax/export
 
 All API endpoints must define authentication, authorization, product scope, tenant scope, request/response schemas and errors.
 
+## Frontend API data flow
+
+**Build in this order. Do not skip a step, and do not start from React.**
+
+```text
+PHP API
+   ↓
+OpenAPI 3.1
+   ↓
+TypeScript types + API client (generated)
+   ↓
+TanStack Query
+   ↓
+React
+```
+
+OpenAPI is the source contract. The TypeScript types and API client are
+generated from it. TanStack Query consumes that client exclusively to manage
+server state. React consumes TanStack Query.
+
+Never write, anywhere in the frontend:
+
+```text
+fetch() in a component            ❌
+fetch() in a queryFn              ❌
+axios                             ❌
+a hand-written URL or HTTP verb   ❌
+a hand-copied DTO or response type ❌
+```
+
+Each of those is a second contract, maintained by hand, that can drift from
+the first — and will. The backend renames a field, the OpenAPI gate stays green
+because the contract and the router still agree, generation stays green because
+nobody re-ran it, and a customer's browser finds the difference. A single
+contract is not defended by the discipline of whoever writes the `fetch()`; it
+is defended by there being nowhere to write one.
+
+Generated code is not edited by hand. A missing field is a field missing **from
+OpenAPI**: fix the contract, regenerate. Editing the output produces a file the
+next generation overwrites, and a fix that vanishes silently is worse than no
+fix.
+
+This applies to server state only. Client state — Zustand, form state, whether
+a panel is open — never comes from the server and never goes through this
+chain.
+
+Full rule, with the reasoning: `docs/architecture-v2.md` §8.1. Non-negotiable
+#25.
+
 ## Domain boundaries
 
 Frontend:
 - React renders UI.
 - Zustand manages local/client state.
-- TanStack Query manages server state.
+- TanStack Query manages server state, and reaches the API only through the
+  generated client.
 - React must not own core business rules.
 
 TypeScript Core:
@@ -459,10 +510,14 @@ Typecheck
 → PHPStan
 → PHPUnit
 → OpenAPI validation
+→ Generated client is up to date with OpenAPI
 → Playwright when applicable
 ```
 
 Never disable a quality gate merely to make CI pass.
+
+If the contract changed and the generated client did not follow, that gap must
+fail CI. A drift discovered at runtime is a drift discovered by a customer.
 
 ## Claude Code workflow
 
