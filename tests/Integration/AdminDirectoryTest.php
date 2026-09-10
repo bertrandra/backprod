@@ -239,7 +239,11 @@ final class AdminDirectoryTest extends DatabaseApiTestCase
         $error = $this->errorOf($response);
 
         self::assertSame('VALIDATION_FAILED', $error['code'] ?? null);
-        self::assertSame('limit', $error['details']['field'] ?? null);
+
+        $details = $error['details'] ?? null;
+
+        self::assertIsArray($details);
+        self::assertSame('limit', $details['field'] ?? null);
     }
 
     public function testThePageSizeDefaultsWhenItIsNotAskedFor(): void
