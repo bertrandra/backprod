@@ -65,6 +65,7 @@
             "@gate:openapi",
             "@gate:ui",
             "@gate:permissions",
+            "@gate:money",
             "@test"
         ],
         "migrate": "doctrine-migrations migrate --no-interaction --allow-no-migration",
@@ -73,13 +74,15 @@
         "gate:entitlements": "@php tools/prove-entitlements-have-one-door.php",
         "gate:openapi": "@php tools/prove-openapi-covers-the-api.php",
         "gate:ui": "@php tools/prove-ui-covers-the-api.php",
-        "gate:permissions": "@php tools/prove-frontend-permissions-exist.php"
+        "gate:permissions": "@php tools/prove-frontend-permissions-exist.php",
+        "gate:money": "@php tools/prove-money-is-never-optimistic.php"
     },
     "scripts-descriptions": {
         "gates": "Run the full quality gate chain exactly as CI does",
         "gate:proof": "Prove the Deptrac gate actually rejects an illegal dependency",
         "migrate": "Apply pending database migrations",
-        "gate:products": "Prove no code branches on product identity (\u00a712.1)",
-        "gate:plans": "Prove no code branches on a plan or tier name (\u00a713)"
+        "gate:products": "Prove no code branches on product identity (§12.1)",
+        "gate:plans": "Prove no code branches on a plan or tier name (§13)",
+        "gate:money": "Prove no mutation that moves money writes to the cache before the server answers (U6)"
     }
 }

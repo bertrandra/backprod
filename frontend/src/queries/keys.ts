@@ -57,6 +57,27 @@ export const keys = {
   assets: {
     one: (id: string) => ['assets', id] as const,
   },
+  subscription: {
+    current: ['subscription', 'current'] as const,
+    schedule: ['subscription', 'schedule'] as const,
+    entitlements: ['subscription', 'entitlements'] as const,
+  },
+  billing: {
+    invoiceLists: ['billing', 'invoices'] as const,
+    invoiceList: (limit: number, offset: number) => ['billing', 'invoices', limit, offset] as const,
+    invoice: (id: string) => ['billing', 'invoice', id] as const,
+    // Its own key, cached forever: the document is rendered once at issue and
+    // its bytes never change (ADR-035).
+    invoicePdf: (id: string) => ['billing', 'invoice', id, 'pdf'] as const,
+    transmissions: (id: string) => ['billing', 'invoice', id, 'transmissions'] as const,
+    paymentLists: ['billing', 'payments'] as const,
+    paymentList: (limit: number, offset: number) => ['billing', 'payments', limit, offset] as const,
+    payment: (id: string) => ['billing', 'payment', id] as const,
+    creditNoteLists: ['billing', 'credit-notes'] as const,
+    creditNoteList: (limit: number, offset: number) =>
+      ['billing', 'credit-notes', limit, offset] as const,
+    profile: ['billing', 'profile'] as const,
+  },
   sales: {
     quoteLists: ['sales', 'quotes'] as const,
     quoteList: (limit: number, offset: number) => ['sales', 'quotes', limit, offset] as const,

@@ -38,7 +38,11 @@ describe('what the navigation offers', () => {
   it('offers only what the permissions allow', () => {
     const sections = visibleNav(TENANT_NAV, access(['billing.read']));
 
-    expect(idsOf(sections)).toEqual(['invoices']);
+    // Everything `billing.read` opens, and nothing else. The list grows as
+    // milestones add areas — U6 added credit notes and the billing identity —
+    // and it is written out in full rather than counted, so an entry appearing
+    // under the wrong permission fails here.
+    expect(idsOf(sections)).toEqual(['invoices', 'credit-notes', 'billing-profile']);
   });
 
   it('grows when a permission is added', () => {

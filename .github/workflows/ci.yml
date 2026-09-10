@@ -144,6 +144,14 @@ jobs:
       - name: The frontend gates on permissions that exist
         run: composer run gate:permissions
 
+      # U6's rule, made mechanical. "No optimistic mutation anywhere in this
+      # milestone" was a paragraph in a docblock, which is the same kind of
+      # promise the six wrong permission codes were. Issuing an invoice
+      # allocates a gapless legal number, and a screen that assumed success
+      # would have invented a document nobody can find.
+      - name: No mutation that moves money is optimistic
+        run: composer run gate:money
+
       # The time bound lives here, on the step, rather than in Composer's
       # 300-second default for the subprocesses it spawns. That default is
       # sized for downloading packages, and when the suite crossed it the job

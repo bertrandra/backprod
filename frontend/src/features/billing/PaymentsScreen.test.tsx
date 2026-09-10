@@ -1,0 +1,191 @@
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+
+import { renderWith, SESSION, stubClient, type Stub } from '@/test-utils';
+
+import { PaymentsScreen } from './PaymentsScreen';
+
+/**
+ * U6's second exit criterion: **a failed payment leads to retry, and the UI makes
+ * clear it is a new attempt.**
+ *
+ * Not a resurrection. The failed payment keeps its status and its failure code
+ * because it is the record of what happened, and the screen has to say so — a
+ * person who thinks their previous attempt is resuming will not understand why
+ * the card is asked for again.
+ */
+const PAYER = { ...SESSION, permissions: [...SESSION.permissions, 'payments.read', 'payments.manage'] };
+
+function payment(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'pay-1',
+    invoice_id: 'inv-1',
+    subscription_id: null,
+    provider: 'stripe',
+    provider_payment_id: 'pi_1',
+    status: 'FAILED',
+    settled: false,
+    final: true,
+    amount: { minor_units: 3480, currency: 'EUR' },
+    method: 'card',
+    failure_code: 'card_declined',
+    failure_reason: 'The card was declined.',
+    succeeded_at: null,
+    failed_at: '2026-01-01T10:00:00Z',
+    created_at: '2026-01-01T09:59:00Z',
+    ...overrides,
+  };
+}
+
+const listing = (payments: unknown[]): Stub => ({
+  data: { payments, total: payments.length, limit: 25, offset: 0 },
+});
+
+function clientFor(
+  payments: unknown[],
+  extra: Record<string, Stub | (() => Stub)> = {},
+  session: Record<string, unknown> = PAYER,
+) {
+  return stubClient({
+    'GET /api/v1/me': { data: session },
+    'GET /api/v1/billing/payments': listing(payments),
+    ...extra,
+  });
+}
+
+describe('a failed payment', () => {
+  it('shows why, with both the reason and the code', async () => {
+    // Different questions: the reason is what to tell the person, the code is
+    // what to quote to the provider.
+    renderWith(<PaymentsScreen />, clientFor([payment()]));
+
+    await waitFor(() => expect(screen.getByTestId('failure')).toBeTruthy());
+    expect(screen.getByTestId('failure').textContent).toContain('The card was declined.');
+    expect(screen.getByTestId('failure').textContent).toContain('card_declined');
+  });
+
+  it('offers a retry that says it is a new attempt', async () => {
+    let retried = 0;
+
+    renderWith(
+      <PaymentsScreen />,
+      clientFor([payment()], {
+        'POST /api/v1/payments/{paymentId}/retry': (): Stub => {
+          retried += 1;
+
+          return { data: { client_secret: 'pi_secret_new_attempt' }, status: 201 };
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+
+    await waitFor(() => expect(retried).toBe(1));
+
+    // The words that matter: new attempt, this one stays failed, the card is
+    // asked for again.
+    await waitFor(() => expect(screen.getByTestId('new-attempt')).toBeTruthy());
+    expect(screen.getByTestId('new-attempt').textContent).toMatch(/new/i);
+    expect(screen.getByTestId('new-attempt').textContent).toMatch(/stays failed/i);
+    expect(screen.getByTestId('new-attempt').textContent).toMatch(/cannot be resumed/i);
+  });
+
+  it('never puts the new credential anywhere it could be found', async () => {
+    renderWith(
+      <PaymentsScreen />,
+      clientFor([payment()], {
+        'POST /api/v1/payments/{paymentId}/retry': {
+          data: { client_secret: 'pi_secret_new_attempt' },
+          status: 201,
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+
+    await waitFor(() => expect(screen.getByTestId('new-attempt')).toBeTruthy());
+
+    // Returned "here and nowhere else", and short-lived. It goes to the
+    // provider's SDK and is forgotten.
+    expect(document.body.textContent).not.toContain('pi_secret');
+    expect(JSON.stringify(window.localStorage)).not.toContain('pi_secret');
+    expect(window.location.href).not.toContain('pi_secret');
+  });
+});
+
+describe('a succeeded payment', () => {
+  it('can be refunded, with a reason chosen rather than typed', async () => {
+    let refunded: string | null = null;
+
+    renderWith(
+      <PaymentsScreen />,
+      clientFor([payment({ status: 'SUCCEEDED', settled: true, failure_code: null, failure_reason: null })], {
+        'POST /api/v1/billing/payments/{paymentId}/refund': (): Stub => {
+          refunded = 'yes';
+
+          return { data: {}, status: 202 };
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /refund/i })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /refund…/i }));
+
+    // A select, not a text box: the API stores the reason as a category, and a
+    // free-text field produces forty spellings of "duplicate".
+    const reason = await waitFor(() => screen.getByLabelText<HTMLSelectElement>(/^reason$/i));
+    expect(reason.tagName).toBe('SELECT');
+
+    fireEvent.click(screen.getByRole('button', { name: /refund it/i }));
+    await waitFor(() => expect(refunded).toBe('yes'));
+  });
+
+  it('says the money leaves asynchronously', async () => {
+    renderWith(
+      <PaymentsScreen />,
+      clientFor([payment({ status: 'SUCCEEDED', settled: true, failure_code: null, failure_reason: null })]),
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /refund…/i })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /refund…/i }));
+
+    expect(screen.getByText(/accepted rather than done/i)).toBeTruthy();
+  });
+
+  it('offers no retry — there is nothing to retry', async () => {
+    renderWith(
+      <PaymentsScreen />,
+      clientFor([payment({ status: 'SUCCEEDED', settled: true, failure_code: null, failure_reason: null })]),
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /refund…/i })).toBeTruthy());
+    expect(screen.queryByRole('button', { name: /try again/i })).toBeNull();
+  });
+});
+
+describe('an unsettled payment', () => {
+  it('cannot be refunded — only settled money can be given back', async () => {
+    renderWith(
+      <PaymentsScreen />,
+      clientFor([payment({ status: 'SUCCEEDED', settled: false, failure_code: null, failure_reason: null })]),
+    );
+
+    await waitFor(() => expect(screen.getByText(/stripe/)).toBeTruthy());
+    expect(screen.queryByRole('button', { name: /refund…/i })).toBeNull();
+  });
+});
+
+describe('someone who may only read', () => {
+  it('sees the payments and none of the actions', async () => {
+    renderWith(
+      <PaymentsScreen />,
+      clientFor([payment()], {}, { ...SESSION, permissions: ['payments.read'] }),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('failure')).toBeTruthy());
+    expect(screen.queryByRole('button', { name: /try again/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /refund…/i })).toBeNull();
+  });
+});

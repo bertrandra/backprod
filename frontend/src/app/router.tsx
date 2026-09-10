@@ -10,6 +10,12 @@ import { useStringParam } from '@/app/frame/routeParams';
 import { parseViewState, type ViewState } from '@/app/frame/viewState';
 import { ProfileScreen } from '@/features/account/ProfileScreen';
 import { BrandingScreen } from '@/features/branding/BrandingScreen';
+import { BillingProfileScreen } from '@/features/billing/BillingProfileScreen';
+import { CreditNotesScreen } from '@/features/billing/CreditNotesScreen';
+import { InvoiceScreen } from '@/features/billing/InvoiceScreen';
+import { InvoicesScreen } from '@/features/billing/InvoicesScreen';
+import { PaymentsScreen } from '@/features/billing/PaymentsScreen';
+import { SubscriptionScreen } from '@/features/billing/SubscriptionScreen';
 import { CatalogueScreen } from '@/features/commerce/CatalogueScreen';
 import { CheckoutScreen } from '@/features/commerce/CheckoutScreen';
 import { OfferAuthoringScreen } from '@/features/commerce/OfferAuthoringScreen';
@@ -61,8 +67,6 @@ interface Placeholded {
 }
 
 const TENANT_ROUTES: readonly Placeholded[] = [
-  { path: '/subscription', area: 'Subscription', milestone: 'U6' },
-  { path: '/invoices', area: 'Invoices', milestone: 'U6' },
   { path: '/tax', area: 'Tax', milestone: 'U7' },
 ];
 
@@ -85,6 +89,12 @@ const SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element
   { path: '/offers', component: OfferAuthoringScreen },
   { path: '/quotes', component: QuotesScreen },
   { path: '/orders', component: OrdersScreen },
+  // U6
+  { path: '/subscription', component: SubscriptionScreen },
+  { path: '/invoices', component: InvoicesScreen },
+  { path: '/payments', component: PaymentsScreen },
+  { path: '/credit-notes', component: CreditNotesScreen },
+  { path: '/billing-profile', component: BillingProfileScreen },
 ];
 
 const CONSOLE_ROUTES: readonly Placeholded[] = [
@@ -196,12 +206,29 @@ const checkoutRoute = createRoute({
   },
 });
 
+/** One invoice, addressed by its id — a document worth linking to. */
+const invoiceRoute = createRoute({
+  getParentRoute: () => tenantShellRoute,
+  path: '/invoices/$invoiceId',
+  validateSearch,
+  component: function InvoiceRoute() {
+    const invoiceId = useStringParam('invoiceId');
+
+    return invoiceId === null ? (
+      <EmptyState title="No such invoice" description="The link may be old, or mistyped." />
+    ) : (
+      <InvoiceScreen invoiceId={invoiceId} />
+    );
+  },
+});
+
 const routeTree = rootRoute.addChildren([
   tenantShellRoute.addChildren([
     indexRoute,
     ...screenRoutes,
     projectRoute,
     checkoutRoute,
+    invoiceRoute,
     ...placeholderRoutes(tenantShellRoute, TENANT_ROUTES),
     notFoundRoute,
   ]),
