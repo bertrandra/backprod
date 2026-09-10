@@ -416,7 +416,7 @@ still owed — never a boolean.
 
 ---
 
-### U7 — Tax — 3 areas, 8 operations
+### U7 — Tax — 3 areas, 8 operations — *delivered*
 
 **Goal:** the tenant's own fiscal data, including an action that cannot be
 undone.
@@ -428,10 +428,68 @@ undone.
 - Rates in force, and `POST /tax/calculate` presented as the **diagnostic it was built to be** (§25.3): it answers what would be applied and *why*, so the screen shows the reasoning, not just a number
 - VAT periods, the transactions behind them, and **closing a period — one-way and audited**. The confirmation must state what becomes impossible, not ask "are you sure?"
 
-**Exit criteria**
-- A closed period is visibly closed and offers no path to reopen
-- The calculator shows the rule, rate and regime behind its answer
+**Exit criteria** — all met
+- A closed period is visibly closed and offers no path to reopen — asserted by searching the whole rendered page for a control *by name* (`reopen`, `re-open`, `unlock`), in jsdom and in a browser, so a future "Reopen" added anywhere fails it. Proven by adding one and watching both fail
+- The calculator shows the rule, rate and regime behind its answer — every reasoning field is asserted separately: `rule_id`, `regime`, `country_of_taxation`, `rate_basis_points`, `customer_tax_status`, the reasons in words, and `legal_mention`. Each was proven by deleting it
 - 8 operations covered
+
+**A closed period reports what was declared, and the fixtures make that
+falsifiable.** The stubs answer with a `totals` that deliberately *disagrees*
+with the frozen `declaration` — a late credit note landed after closure — so a
+screen recomputing shows 90 000 and a screen reading the declaration shows
+100 000. Both numbers are in the response, so the assertion does not depend on
+the fixture being incomplete. Proven by swapping one for the other.
+
+**Closing is not optimistic, and now the gate says so.** `queries/tax.ts` joined
+`gate:money`'s list, which is where it belongs: unlike a stale total, an
+optimistic close would not be a number that catches up — the declaration's
+figures are computed *at closure*, this client cannot know them, and the period
+cannot be reopened to correct the invention. The gate refused the file until it
+was listed, which is the completeness check doing its job rather than a comment
+being read. Proven by writing the optimistic `onMutate` and watching the gate
+and two tests reject it together.
+
+**The confirmation names what becomes impossible.** Four sentences, not "are you
+sure?" — the figures freeze, the period can never be reopened, a transaction
+that arrives later will not change the declared totals, and a mistake is
+corrected in a later period. A confirmation that asks somebody to reconfirm
+using only what they already knew tells them nothing, and for a one-way action
+that is the whole of what they need.
+
+**A control is hidden where the backend would refuse.** A period that has not
+ended cannot be closed (`PERIOD_NOT_ENDED`), so the button is not offered and
+the rule is stated where it would have been. The clock is read **once at mount**
+rather than during render — a component calling `Date.now()` while rendering
+answers a different question each time React re-runs it, which is the objection
+`QuotesScreen` raises against recomputing a quote's `open`. And the check only
+hides: the backend is what refuses, so a clock a few seconds out costs a refusal
+with a reason, never a period closed early.
+
+**Two facts about one VAT number.** `taxable_person` is what the tenant
+*claims*; `vat_number_status` is what the registry answered. `UNAVAILABLE` is
+kept distinct from `INVALID` — "we asked and got no answer" is not a refusal —
+and `reverse_charge_available` is *read* from the backend rather than derived
+from the other two, because recomputing it would put the fail-closed rule (R8)
+in a second place and the copy in the browser would be the one nobody updated.
+
+**A rate has a date.** The rate list asks the server again when the date
+changes rather than filtering an answer already held: rates carry validity
+windows, so a correction closes one window and opens another (R7), and the
+answer for March is the answer March's invoices used. Proven by pinning the
+query to today and watching the assertion fail.
+
+**Honest about what the transaction list is.** `GET /tax/transactions` pages
+every VAT transaction, not the selected period's, and the heading says so.
+Implying otherwise would have somebody reconciling a declaration against the
+wrong two numbers.
+
+**A test utility, rather than six casts.** Four assertions in this milestone are
+about the *request* — minor units scaled by the currency's own exponent and not
+by 100, an empty country sent as `null` and not as `""`, a date change reaching
+the server, a bad amount never sent at all. None of those is visible in the DOM.
+`recordingClient` in `test-utils.tsx` keeps what a screen asked for, typed, so
+the tests assert against the contract without `any` and without disabling a lint
+rule to do it.
 
 ---
 
@@ -562,7 +620,7 @@ U3   3 areas    20 operations   delivered
 U4   5 areas    22 operations   delivered
 U5   5 areas    26 operations   delivered
 U6   6 areas    24 operations   delivered
-U7   3 areas     8 operations
+U7   3 areas     8 operations   delivered
 U8   8 areas    16 operations
             ───────────────
             129 operations   in screen areas

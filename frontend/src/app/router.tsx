@@ -26,6 +26,9 @@ import { NotificationsScreen } from '@/features/notifications/NotificationsScree
 import { OrganisationScreen } from '@/features/organisation/OrganisationScreen';
 import { OrdersScreen } from '@/features/sales/OrdersScreen';
 import { QuotesScreen } from '@/features/sales/QuotesScreen';
+import { TaxProfileScreen } from '@/features/tax/TaxProfileScreen';
+import { TaxRatesScreen } from '@/features/tax/TaxRatesScreen';
+import { VatReportsScreen } from '@/features/tax/VatReportsScreen';
 import { JobsScreen } from '@/features/workspace/JobsScreen';
 import { ProjectScreen } from '@/features/workspace/ProjectScreen';
 import { ProjectsScreen } from '@/features/workspace/ProjectsScreen';
@@ -66,10 +69,6 @@ interface Placeholded {
   milestone: string;
 }
 
-const TENANT_ROUTES: readonly Placeholded[] = [
-  { path: '/tax', area: 'Tax', milestone: 'U7' },
-];
-
 /** The areas that have a real screen. Placeholders below are what is still to come. */
 const SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element }[] = [
   // U2
@@ -95,6 +94,11 @@ const SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element
   { path: '/payments', component: PaymentsScreen },
   { path: '/credit-notes', component: CreditNotesScreen },
   { path: '/billing-profile', component: BillingProfileScreen },
+  // U7 — three areas, and the last placeholder inside the tenant shell goes
+  // with them. What is left to build is the console, which has its own tree.
+  { path: '/tax', component: TaxProfileScreen },
+  { path: '/tax/rates', component: TaxRatesScreen },
+  { path: '/tax/reports', component: VatReportsScreen },
 ];
 
 const CONSOLE_ROUTES: readonly Placeholded[] = [
@@ -229,7 +233,6 @@ const routeTree = rootRoute.addChildren([
     projectRoute,
     checkoutRoute,
     invoiceRoute,
-    ...placeholderRoutes(tenantShellRoute, TENANT_ROUTES),
     notFoundRoute,
   ]),
   consoleShellRoute.addChildren(placeholderRoutes(consoleShellRoute, CONSOLE_ROUTES)),

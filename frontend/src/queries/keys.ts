@@ -57,6 +57,14 @@ export const keys = {
   assets: {
     one: (id: string) => ['assets', id] as const,
   },
+  tax: {
+    profile: ['tax', 'profile'] as const,
+    rates: (on: string) => ['tax', 'rates', on] as const,
+    periods: ['tax', 'periods'] as const,
+    period: (id: string) => ['tax', 'period', id] as const,
+    transactions: (limit: number, offset: number) =>
+      ['tax', 'transactions', limit, offset] as const,
+  },
   subscription: {
     current: ['subscription', 'current'] as const,
     schedule: ['subscription', 'schedule'] as const,
