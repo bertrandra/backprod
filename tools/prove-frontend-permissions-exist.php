@@ -44,6 +44,7 @@ $root = dirname(__DIR__);
 
 $migrations = $root . '/migrations';
 $frontend = $root . '/frontend/src';
+$frontendE2e = $root . '/frontend/e2e';
 
 if (!is_dir($migrations)) {
     fwrite(STDERR, "FAIL: migrations/ is missing.\n");
@@ -113,10 +114,18 @@ if ($defined === []) {
 
 $referenced = [];
 
-foreach ($filesIn($frontend, '.ts') + $filesIn($frontend, '.tsx') as $path) {
-    if (str_contains($path, '/api/generated/') || str_ends_with($path, '.test.ts')) {
-        // Generated code gates on nothing, and a test legitimately invents a
-        // permission to prove a refusal.
+$sources = array_merge(
+    $filesIn($frontend, '.ts'),
+    $filesIn($frontend, '.tsx'),
+    // End-to-end fixtures too. A test session listing a permission nobody can
+    // hold asserts against a world that does not exist — which is how the first
+    // six wrong codes survived a green suite.
+    is_dir($frontendE2e) ? $filesIn($frontendE2e, '.ts') : [],
+);
+
+foreach ($sources as $path) {
+    if (str_contains($path, '/api/generated/')) {
+        // Generated code gates on nothing.
         continue;
     }
 
@@ -126,19 +135,39 @@ foreach ($filesIn($frontend, '.ts') + $filesIn($frontend, '.tsx') as $path) {
         continue;
     }
 
-    $patterns = [
+    // Two shapes, read separately rather than through one clever pattern that
+    // has to guess which it matched. The first version of this tried that and
+    // captured a query key called `permissions` as if it were a permission.
+    //
+    // A code always contains a dot, which is what tells `billing.read` apart
+    // from a cache key like ['session', 'permissions'].
+    $scalarPatterns = [
         "/permission:\\s*'([a-z][a-z_]*(?:\\.[a-z][a-z_]*)+)'/",
         "/\\bcan\\([^,)]*,\\s*'([a-z][a-z_]*(?:\\.[a-z][a-z_]*)+)'/",
         "/permission=\\{?'([a-z][a-z_]*(?:\\.[a-z][a-z_]*)+)'/",
     ];
 
-    foreach ($patterns as $pattern) {
+    foreach ($scalarPatterns as $pattern) {
         if (preg_match_all($pattern, $source, $matches) === false) {
             continue;
         }
 
         foreach ($matches[1] as $code) {
             $referenced[$code][] = str_replace($root . '/', '', $path);
+        }
+    }
+
+    // A `permissions: [...]` fixture. Only the dotted entries inside it count,
+    // so an empty list contributes nothing and a cache key contributes nothing.
+    if (preg_match_all("/permissions:\\s*\\[([^\\]]*)\\]/", $source, $lists) !== false) {
+        foreach ($lists[1] as $list) {
+            if (preg_match_all("/'([a-z][a-z_]*(?:\\.[a-z][a-z_]*)+)'/", $list, $codes) === false) {
+                continue;
+            }
+
+            foreach ($codes[1] as $code) {
+                $referenced[$code][] = str_replace($root . '/', '', $path);
+            }
         }
     }
 }
