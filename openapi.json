@@ -12939,8 +12939,11 @@
                           "type": "object",
                           "properties": {
                             "client_secret": {
-                              "type": "string",
-                              "description": "Handed to the payment provider's client SDK. **Returned here and nowhere else**: it is short-lived and it is a credential, so it is never stored (§31). A caller who needs a fresh one retries the payment, which is a new attempt and gets its own."
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "description": "Handed to the payment provider’s client SDK. **Returned here and nowhere else**: it is short-lived and it is a credential, so it is never stored (§31). Null when the provider uses a redirect rather than a secret. A caller who needs a fresh one retries the payment, which is a new attempt and gets its own."
                             }
                           }
                         }
@@ -13091,8 +13094,11 @@
                   "type": "object",
                   "properties": {
                     "client_secret": {
-                      "type": "string",
-                      "description": "Handed to the payment provider's client SDK. **Returned here and nowhere else**: it is short-lived and it is a credential, so it is never stored (§31). A caller who needs a fresh one retries the payment, which is a new attempt and gets its own."
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Handed to the payment provider’s client SDK. **Returned here and nowhere else**: it is short-lived and it is a credential, so it is never stored (§31). Null when the provider uses a redirect rather than a secret. A caller who needs a fresh one retries the payment, which is a new attempt and gets its own."
                     }
                   }
                 }

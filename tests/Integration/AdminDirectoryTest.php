@@ -35,7 +35,6 @@ final class AdminDirectoryTest extends DatabaseApiTestCase
 {
     private string $product = '';
     private string $tenantA = '';
-    private string $tenantB = '';
     private string $operator = '';
     private string $supporter = '';
     private string $accountant = '';
@@ -52,7 +51,9 @@ final class AdminDirectoryTest extends DatabaseApiTestCase
         $this->tenantA = $this->id(
             "INSERT INTO tenants (name, slug) VALUES ('Acme 50% Off', 'acme') RETURNING id",
         );
-        $this->tenantB = $this->id("INSERT INTO tenants (name, slug) VALUES ('Globex', 'globex') RETURNING id");
+        // A second customer, so the listing has more than one row to page and
+        // the search has something to exclude. Nothing needs its id.
+        $this->id("INSERT INTO tenants (name, slug) VALUES ('Globex', 'globex') RETURNING id");
 
         $this->operator = $this->id(
             'INSERT INTO users (auth_subject, email, display_name)'

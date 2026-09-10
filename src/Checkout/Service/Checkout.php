@@ -91,7 +91,11 @@ final class Checkout
      * says why: the customer may have used a different instrument, and two
      * attempts that must be told apart cannot share a provider reference.
      *
-     * @return array{payment: Payment, client_secret: string}
+     * `client_secret` is nullable for the same reason it is on a first
+     * attempt: a redirect-based provider issues no secret, and promising one
+     * here would be promising something the port does not guarantee.
+     *
+     * @return array{payment: Payment, client_secret: string|null}
      */
     public function retry(string $tenantId, string $productId, string $paymentId, ?string $actorUserId): array
     {
