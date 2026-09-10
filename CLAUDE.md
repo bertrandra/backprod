@@ -191,6 +191,42 @@ chain.
 Full rule, with the reasoning: `docs/architecture-v2.md` §8.1. Non-negotiable
 #25.
 
+## UI structure
+
+Full specification: `docs/ui-spec.md`. The parts that constrain every change:
+
+**Two shells, never merged.** The tenant application (one product, one tenant)
+and the platform console (`/admin/*`, `/staff/*`) are separate shells with
+separate routes. A platform role never grants tenant membership and the reverse
+(non-negotiable #22), so the two authorities never share a navigation tree.
+
+**Six named screen regions.** Context bar, primary nav, view (header + body),
+inspector, status strip, overlay. Every screen is those regions with different
+contents. No region disappears on mobile — it changes presentation, because a
+region that vanished would be a capability only desktop users have.
+
+**Product-agnostic vs product-scoped.** Billing, subscription, tax, members,
+branding, notifications, messaging and the console work for any product. Only
+the workspace is product-scoped. Adding a second product adds a workspace
+module and touches nothing else.
+
+Never write `if (product === '…')` or branch on a plan or tier name in a
+component. That is the frontend copy of what `gate:products` and `gate:plans`
+forbid in PHP. What varies per product comes from
+`GET /products/{productId}/configuration`; what varies per customer comes from
+entitlements.
+
+**Gating is data.** The shell reads `/me/permissions` and `/me/entitlements`
+and hides or disables from those. Hiding is courtesy only — the API refuses
+regardless, and the frontend is never the authority.
+
+**Every operation is reachable, or says why not.** `docs/ui-api-coverage.json`
+maps all 136 operations to a screen area, to shell bootstrap, or to a written
+reason for having no screen. `composer run gate:ui` checks it both ways: an
+unmapped operation fails, and so does an area claiming an operation the
+contract no longer declares. Add an endpoint and that gate fails until a screen
+area claims it.
+
 ## Domain boundaries
 
 Frontend:
@@ -510,6 +546,7 @@ Typecheck
 → PHPStan
 → PHPUnit
 → OpenAPI validation
+→ Every operation is reachable in the UI (composer run gate:ui)
 → Generated client is up to date with OpenAPI
 → Playwright when applicable
 ```

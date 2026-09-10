@@ -1,0 +1,322 @@
+{
+  "$comment": "Single source for UI coverage of the API. docs/ui-spec.md explains the areas and the reasoning; tools/prove-ui-covers-the-api.php checks this file against openapi.json in both directions. Add an operation to the contract and this file fails until a screen area claims it.",
+  "shells": {
+    "tenant": "The product application: one product, one tenant, scoped by X-Product and the caller's membership.",
+    "console": "The platform console. A separate shell because a platform role never grants tenant membership (non-negotiable #22)."
+  },
+  "areas": {
+    "account.notification_settings": {
+      "shell": "tenant",
+      "operations": [
+        "grantConsent",
+        "listConsents",
+        "revokeConsent",
+        "savePreference",
+        "showPreferences"
+      ]
+    },
+    "account.notifications": {
+      "shell": "tenant",
+      "operations": [
+        "listNotifications",
+        "readAll",
+        "readNotification",
+        "showDeliveries",
+        "unreadCount"
+      ]
+    },
+    "account.profile": {
+      "shell": "tenant",
+      "operations": [
+        "showMe",
+        "updateMe"
+      ]
+    },
+    "billing.credit_notes": {
+      "shell": "tenant",
+      "operations": [
+        "listCreditNotes"
+      ]
+    },
+    "billing.einvoicing": {
+      "shell": "tenant",
+      "operations": [
+        "listTransmissions",
+        "submitInvoice"
+      ]
+    },
+    "billing.invoices": {
+      "shell": "tenant",
+      "operations": [
+        "cancelInvoice",
+        "issueCreditNote",
+        "issueInvoice",
+        "listInvoices",
+        "markInvoicePaid",
+        "showInvoice",
+        "showInvoicePdf"
+      ]
+    },
+    "billing.payments": {
+      "shell": "tenant",
+      "operations": [
+        "listPayments",
+        "refundPayment",
+        "retryPayment",
+        "showPayment",
+        "startPayment"
+      ]
+    },
+    "billing.profile": {
+      "shell": "tenant",
+      "operations": [
+        "saveBillingProfile",
+        "showBillingProfile"
+      ]
+    },
+    "commerce.catalogue": {
+      "shell": "tenant",
+      "operations": [
+        "listFeatures",
+        "listOffers",
+        "listPlans",
+        "listProductFeatures",
+        "listProducts",
+        "showOffer",
+        "showProduct",
+        "showProductCatalogue",
+        "showProductConfiguration"
+      ]
+    },
+    "commerce.catalogue_authoring": {
+      "shell": "tenant",
+      "operations": [
+        "addOfferVersion",
+        "createOffer",
+        "listOfferVersions",
+        "publishOfferVersion",
+        "renameOffer"
+      ]
+    },
+    "commerce.checkout": {
+      "shell": "tenant",
+      "operations": [
+        "openCheckoutSession",
+        "showCheckoutSession"
+      ]
+    },
+    "console.admin.audit": {
+      "shell": "console",
+      "operations": [
+        "listAudit"
+      ]
+    },
+    "console.admin.directory": {
+      "shell": "console",
+      "operations": [
+        "listAdminInvoices",
+        "listAdminSubscriptions",
+        "listAdminTenants",
+        "listAdminUsers"
+      ]
+    },
+    "console.admin.erasure": {
+      "shell": "console",
+      "operations": [
+        "eraseUser"
+      ]
+    },
+    "console.admin.metrics": {
+      "shell": "console",
+      "operations": [
+        "showMetrics"
+      ]
+    },
+    "console.admin.queue": {
+      "shell": "console",
+      "operations": [
+        "listAdminJobs",
+        "showQueue"
+      ]
+    },
+    "console.support.access_log": {
+      "shell": "console",
+      "operations": [
+        "listAccessLog"
+      ]
+    },
+    "console.support.conversations": {
+      "shell": "console",
+      "operations": [
+        "closeSupportConversation",
+        "listSupportConversations",
+        "postSupportMessage",
+        "showSupportConversation"
+      ]
+    },
+    "console.support.tenants": {
+      "shell": "console",
+      "operations": [
+        "listTenantsForStaff",
+        "showTenantForStaff"
+      ]
+    },
+    "messaging.conversations": {
+      "shell": "tenant",
+      "operations": [
+        "addParticipant",
+        "closeConversation",
+        "deleteMessage",
+        "listConversations",
+        "listMessages",
+        "markRead",
+        "postMessage",
+        "removeParticipant",
+        "showConversation",
+        "startConversation"
+      ]
+    },
+    "sales.orders": {
+      "shell": "tenant",
+      "operations": [
+        "cancelOrder",
+        "fulfilOrder",
+        "listOrders",
+        "placeOrder",
+        "showOrder"
+      ]
+    },
+    "sales.quotes": {
+      "shell": "tenant",
+      "operations": [
+        "acceptQuote",
+        "createQuote",
+        "listQuotes",
+        "rejectQuote",
+        "showQuote"
+      ]
+    },
+    "tax.profile": {
+      "shell": "tenant",
+      "operations": [
+        "saveTaxProfile",
+        "showTaxProfile"
+      ]
+    },
+    "tax.rates": {
+      "shell": "tenant",
+      "operations": [
+        "calculateTax",
+        "listTaxRates"
+      ]
+    },
+    "tax.reports": {
+      "shell": "tenant",
+      "operations": [
+        "closeVatPeriod",
+        "listVatPeriods",
+        "listVatTransactions",
+        "showVatPeriod"
+      ]
+    },
+    "tenant.branding": {
+      "shell": "tenant",
+      "operations": [
+        "deleteSkinLogo",
+        "showSkin",
+        "updateSkin",
+        "uploadSkinLogo"
+      ]
+    },
+    "tenant.members": {
+      "shell": "tenant",
+      "operations": [
+        "addMember",
+        "listMembers",
+        "removeMember",
+        "updateMember"
+      ]
+    },
+    "tenant.organisation": {
+      "shell": "tenant",
+      "operations": [
+        "showCurrentTenant",
+        "showTenantUsage",
+        "updateCurrentTenant"
+      ]
+    },
+    "tenant.subscription": {
+      "shell": "tenant",
+      "operations": [
+        "cancelSubscription",
+        "changeOffer",
+        "listEntitlements",
+        "resumeSubscription",
+        "showSchedule",
+        "showSubscription",
+        "subscribe"
+      ]
+    },
+    "workspace.assets": {
+      "shell": "tenant",
+      "operations": [
+        "createAssetLink",
+        "deleteAsset",
+        "listAssets",
+        "requestExport",
+        "showAsset",
+        "uploadAsset"
+      ]
+    },
+    "workspace.geometry": {
+      "shell": "tenant",
+      "operations": [
+        "intersectGeometries",
+        "measureGeometry"
+      ]
+    },
+    "workspace.jobs": {
+      "shell": "tenant",
+      "operations": [
+        "cancelJob",
+        "listJobs",
+        "requestJob",
+        "showJob"
+      ]
+    },
+    "workspace.project": {
+      "shell": "tenant",
+      "operations": [
+        "createProjectVersion",
+        "deleteProject",
+        "duplicateProject",
+        "listProjectVersions",
+        "restoreProject",
+        "showProject",
+        "showProjectVersion",
+        "updateProject"
+      ]
+    },
+    "workspace.projects": {
+      "shell": "tenant",
+      "operations": [
+        "createProject",
+        "listProjects"
+      ]
+    }
+  },
+  "shell_bootstrap": {
+    "$comment": "Read by the shell to decide what exists for this person: which navigation entries appear, which actions are enabled, which empty state is honest. Not screens.",
+    "operations": {
+      "showMyEntitlements": "tenant",
+      "showMyPermissions": "tenant",
+      "showStaffIdentity": "console"
+    }
+  },
+  "not_in_ui": {
+    "downloadAsset": "Reached by browser navigation on a signed link that createAssetLink produced; the generated client never fetches these bytes itself.",
+    "einvoiceWebhook": "Server-to-server callback from the e-invoicing platform. No human origin, so no screen.",
+    "health": "Monitoring probe consumed by infrastructure, not by a person.",
+    "paymentWebhook": "Server-to-server callback from the payment provider. No human origin, so no screen."
+  }
+}

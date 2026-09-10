@@ -125,6 +125,14 @@ jobs:
       - name: The contract describes the API
         run: composer run gate:openapi
 
+      # The contract gate above checks the contract against the *router*, so an
+      # endpoint can be served, documented and reachable by nobody. This checks
+      # it against docs/ui-api-coverage.json: every operation has a screen area
+      # or a written reason for having none, and no area claims an operation
+      # that no longer exists.
+      - name: Every operation is reachable in the UI
+        run: composer run gate:ui
+
       # The time bound lives here, on the step, rather than in Composer's
       # 300-second default for the subprocesses it spawns. That default is
       # sized for downloading packages, and when the suite crossed it the job
