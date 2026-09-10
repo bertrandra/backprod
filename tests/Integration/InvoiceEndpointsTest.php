@@ -448,6 +448,176 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
         self::assertSame(400, $refused->getStatusCode());
     }
 
+    // --- The document (§7 GET /invoices/{id}/pdf) ----------------------------
+
+    public function testAnotherTenantsInvoiceHasNoDocument(): void
+    {
+        $invoiceId = $this->decode($this->issueSuccessfully())['id'] ?? null;
+        self::assertIsString($invoiceId);
+
+        $other = $this->id("INSERT INTO tenants (name, slug) VALUES ('Rival', 'rival') RETURNING id");
+
+        $this->override([
+            TenantMembershipRepository::class => new InMemoryTenantMembershipRepository([
+                new TenantMembership($other, $this->user, $this->product, ['TENANT_ADMIN'], ['billing.read']),
+            ]),
+        ]);
+
+        // 404 for the same reason the JSON is: a rival learning the invoice
+        // exists learns that Acme is a customer.
+        self::assertSame(404, $this->pdf($invoiceId)->getStatusCode());
+    }
+
+    public function testReadingADocumentNeedsThePermission(): void
+    {
+        $invoiceId = $this->decode($this->issueSuccessfully())['id'] ?? null;
+        self::assertIsString($invoiceId);
+
+        $this->override([
+            TenantMembershipRepository::class => new InMemoryTenantMembershipRepository([
+                new TenantMembership($this->tenant, $this->user, $this->product, ['USER'], ['subscription.read']),
+            ]),
+        ]);
+
+        $response = $this->pdf($invoiceId);
+
+        self::assertSame(403, $response->getStatusCode());
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM invoice_documents'));
+    }
+
+    public function testADraftHasNoDocument(): void
+    {
+        $this->saveProfile();
+        $this->subscribe();
+
+        // A draft raised without issuing: no number, so nothing that may be
+        // handed to somebody as an invoice.
+        $draftId = $this->id(
+            'INSERT INTO invoices (tenant_id, product_id, currency, status)'
+            . " VALUES (:t, :p, 'EUR', 'DRAFT') RETURNING id",
+            ['t' => $this->tenant, 'p' => $this->product],
+        );
+
+        $response = $this->pdf($draftId);
+
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame('INVOICE_NOT_RENDERABLE', $this->errorOf($response)['code'] ?? null);
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM invoice_documents'));
+    }
+
+    public function testTheDocumentIsAPdfServedAsAnAttachment(): void
+    {
+        $issued = $this->decode($this->issueSuccessfully());
+        $invoiceId = $issued['id'] ?? null;
+        self::assertIsString($invoiceId);
+
+        $number = $issued['number'] ?? null;
+        self::assertIsString($number);
+
+        $response = $this->pdf($invoiceId);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('application/pdf', $response->getHeaderLine('Content-Type'));
+        self::assertSame('nosniff', $response->getHeaderLine('X-Content-Type-Options'));
+
+        // Named after the legal number, and an attachment: a PDF viewer is a
+        // scripting engine, so these bytes are not rendered in this origin.
+        self::assertSame(
+            'attachment; filename="facture-' . $number . '.pdf"',
+            $response->getHeaderLine('Content-Disposition'),
+        );
+
+        $bytes = (string) $response->getBody();
+
+        self::assertStringStartsWith('%PDF-', $bytes);
+        self::assertSame((string) strlen($bytes), $response->getHeaderLine('Content-Length'));
+    }
+
+    public function testTheDocumentIsRenderedOnceAndServedFromStorageAfter(): void
+    {
+        $invoiceId = $this->decode($this->issueSuccessfully())['id'] ?? null;
+        self::assertIsString($invoiceId);
+
+        $first = (string) $this->pdf($invoiceId)->getBody();
+        $second = (string) $this->pdf($invoiceId)->getBody();
+
+        // mpdf stamps a creation time, so two renders would differ. Identical
+        // bytes are the proof that the second request rendered nothing.
+        self::assertSame($first, $second);
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM invoice_documents'));
+    }
+
+    public function testTheStoredChecksumIsOfTheBytesServed(): void
+    {
+        $invoiceId = $this->decode($this->issueSuccessfully())['id'] ?? null;
+        self::assertIsString($invoiceId);
+
+        $response = $this->pdf($invoiceId);
+        $bytes = (string) $response->getBody();
+
+        $recorded = $this->connection->fetchAssociative(
+            'SELECT byte_size, checksum, renderer FROM invoice_documents WHERE invoice_id = :id',
+            ['id' => $invoiceId],
+        );
+
+        self::assertIsArray($recorded);
+
+        $size = $recorded['byte_size'] ?? null;
+        $checksum = $recorded['checksum'] ?? null;
+        $renderer = $recorded['renderer'] ?? null;
+
+        self::assertIsNumeric($size);
+        self::assertIsString($checksum);
+        self::assertIsString($renderer);
+
+        self::assertSame(strlen($bytes), (int) $size);
+        self::assertSame(hash('sha256', $bytes), $checksum);
+        self::assertStringStartsWith('mpdf/', $renderer);
+
+        // The ETag is that checksum, so a conditional request has something
+        // stable to compare against.
+        self::assertSame('"' . $checksum . '"', $response->getHeaderLine('ETag'));
+    }
+
+    /**
+     * The reason the bytes are stored rather than re-derived. Nothing about
+     * the invoice can change after issue, so this asserts the weaker and more
+     * useful thing: whatever the tenant later becomes, the document does not
+     * move.
+     */
+    public function testTheDocumentDoesNotFollowTheTenantRenamingItself(): void
+    {
+        $invoiceId = $this->decode($this->issueSuccessfully())['id'] ?? null;
+        self::assertIsString($invoiceId);
+
+        $before = (string) $this->pdf($invoiceId)->getBody();
+
+        $this->saveProfile(['legal_name' => 'Acme Renamed SAS', 'city' => 'Marseille']);
+
+        self::assertSame($before, (string) $this->pdf($invoiceId)->getBody());
+    }
+
+    /**
+     * A legal name is customer-supplied and reaches an HTML parser on its way
+     * into the PDF. It must be escaped rather than closing a tag.
+     */
+    public function testAMarkupPayloadInThePartyNameDoesNotBreakTheDocument(): void
+    {
+        $this->saveProfile(['legal_name' => '</td></table><script>alert(1)</script>Acme']);
+        $this->subscribe();
+
+        $issued = $this->issue();
+        self::assertSame(201, $issued->getStatusCode());
+
+        $invoiceId = $this->decode($issued)['id'] ?? null;
+        self::assertIsString($invoiceId);
+
+        $response = $this->pdf($invoiceId);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertStringStartsWith('%PDF-', (string) $response->getBody());
+    }
+
     // --- Helpers -------------------------------------------------------------
 
     private function issueSuccessfully(): ResponseInterface
@@ -459,6 +629,15 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
         self::assertSame(201, $response->getStatusCode());
 
         return $response;
+    }
+
+    private function pdf(string $invoiceId): ResponseInterface
+    {
+        return $this->request(
+            'GET',
+            '/api/v1/billing/invoices/' . $invoiceId . '/pdf',
+            $this->headers(),
+        );
     }
 
     private function issue(): ResponseInterface

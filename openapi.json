@@ -5407,6 +5407,85 @@
         }
       }
     },
+    "/api/v1/billing/invoices/{invoiceId}/pdf": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "showInvoicePdf",
+        "summary": "One invoice as a PDF",
+        "description": "The document is rendered on the first request and stored, and every later request returns those same bytes — so what is served is what was sent. `ETag` is the SHA-256 of the stored document. A draft has no legal number and therefore no document, which is a 409 rather than a 404: the invoice exists, it is simply not issued yet. Behind `billing.read`, the same permission that returns the invoice as JSON.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The invoice document, as an attachment.",
+            "headers": {
+              "Content-Disposition": {
+                "description": "`attachment`, with a filename built from the legal number.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "description": "SHA-256 of the stored document. It never changes.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`INVOICE_NOT_RENDERABLE` — the invoice has no legal number yet, so there is no document.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/billing/invoices/{invoiceId}/pay": {
       "post": {
         "tags": [

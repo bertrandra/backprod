@@ -531,10 +531,25 @@ is the work that was left over rather than a theme somebody planned.
   `/checkout/sessions` and `/payments/{id}/retry`, composing the existing
   chain with no new table: a session **is** an order
 
-**Not built, and blocked rather than deferred:** `GET /invoices/{id}/pdf`.
-There is no PDF library in `composer.json` and `composer.lock` cannot be
-regenerated in this environment, so adding one is not a code change. The same
-constraint keeps Factur-X out of reach for R3, since that format is a PDF/A-3
+- **Invoice PDF** — *delivered*
+  ([ADR-035](adr/ADR-035-a-rendered-invoice-is-stored-not-re-rendered.md)).
+  `GET /invoices/{id}/pdf`, rendered once and kept, so what is served is what
+  was sent
+
+**A blocker recorded here was wrong.** This section said an invoice PDF could
+not be built because `composer.lock` could not be regenerated in this
+environment, and that the same constraint put Factur-X out of R3's reach. The
+lock regenerates fine: packagist resolves, and a package whose dist needs
+GitHub authentication installs from source instead. The claim was never
+tested, only repeated — including into a merged pull request and into the
+comment at the top of `tools/prove-openapi-covers-the-api.php`, which gave it
+as the reason the contract is JSON. Both are corrected.
+
+What remains true for R3 is unrelated to packaging: connecting a certified
+Plateforme Agréée needs a contract, a certification and a test environment.
+Factur-X itself is now reachable — mpdf renders PDF/A with associated files,
+which is the PDF/A-3 container that format is — and it is not built here
+because transmitting to a real platform is the part that matters, not the
 container.
 
 **Still unbuilt, and needing something this backend does not have:**
