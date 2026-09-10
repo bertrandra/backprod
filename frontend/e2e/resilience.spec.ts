@@ -1,4 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+
+import { expect, test } from './support/app';
 
 /**
  * What the application does when the API is not there, and how fast it is when

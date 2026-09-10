@@ -3,6 +3,7 @@ import { RouterProvider } from '@tanstack/react-router';
 import { useState, type ReactNode } from 'react';
 
 import { buildRouter, type AppRouter } from '@/app/router';
+import { SignInGate } from '@/features/auth/SignInGate';
 import { ApiError } from '@/queries/session';
 
 import { ApiProvider } from './ApiProvider';
@@ -57,13 +58,23 @@ export function AppProviders({
   );
 }
 
-/** The application, providers and router together. */
+/**
+ * The application, providers and router together.
+ *
+ * The gate sits between the providers and the router: inside, so the sign-in
+ * screen can use the same query client and the token it obtains reaches the API
+ * client through `ApiProvider`; outside the router, so no screen renders — and no
+ * query fires — before there is a session to fire it with. A gate inside the
+ * router would have every screen mount, request, and get a 401 first.
+ */
 export function App({ router }: { router?: AppRouter }) {
   const [resolved] = useState(() => router ?? buildRouter());
 
   return (
     <AppProviders>
-      <RouterProvider router={resolved} />
+      <SignInGate>
+        <RouterProvider router={resolved} />
+      </SignInGate>
     </AppProviders>
   );
 }

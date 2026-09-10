@@ -1,4 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+
+import { expect, test } from './support/app';
 
 /**
  * U3's first exit criterion, in a browser: **the unread badge is correct after

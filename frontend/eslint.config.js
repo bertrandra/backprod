@@ -11,6 +11,15 @@ import tseslint from 'typescript-eslint';
  */
 const API_CLIENT = 'src/api/client.ts';
 
+/**
+ * The identity provider's token endpoint is not in `openapi.json` and never will
+ * be — the backend verifies a JWT rather than issuing one (ADR-014) — so the
+ * generated client cannot express it. That makes a second door necessary, and a
+ * second door is only safe while it is *the* second door: named here, one file,
+ * two grant types.
+ */
+const AUTH_CLIENT = 'src/api/auth.ts';
+
 const NO_DIRECT_HTTP =
   'Reach the API through the generated client (src/api/client.ts). ' +
   'A hand-written request is a second contract that will drift from OpenAPI — see architecture-v2.md §8.1.';
@@ -37,7 +46,7 @@ export default tseslint.config(
   // --- The §8.1 rules -------------------------------------------------------
   {
     files: ['src/**/*.{ts,tsx}'],
-    ignores: [API_CLIENT],
+    ignores: [API_CLIENT, AUTH_CLIENT],
     rules: {
       'no-restricted-globals': [
         'error',
@@ -76,6 +85,32 @@ export default tseslint.config(
               group: ['**/api/generated/*'],
               message:
                 'Import types from @/api/client, which re-exports them. Reaching into the generated directory couples call sites to its layout.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // Only `fetch` is lifted for the auth module. It has no business importing a
+  // HTTP library or reaching into the generated contract, so those rules are
+  // re-imposed on it explicitly rather than lost with the rest of the block.
+  {
+    files: [AUTH_CLIENT],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            { name: 'axios', message: NO_DIRECT_HTTP },
+            { name: 'ky', message: NO_DIRECT_HTTP },
+            { name: 'superagent', message: NO_DIRECT_HTTP },
+          ],
+          patterns: [
+            {
+              group: ['**/api/generated/*', '**/api/client'],
+              message:
+                'The auth module exchanges credentials for a token and nothing else. It must not reach the API.',
             },
           ],
         },

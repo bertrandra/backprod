@@ -1,4 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+
+import { expect, test } from './support/app';
 
 /**
  * U5's exit criterion that only a browser can judge: **a checkout whose

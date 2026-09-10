@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './support/app';
 
 /**
  * The application builds, serves and mounts.
