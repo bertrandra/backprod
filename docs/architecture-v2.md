@@ -483,6 +483,13 @@ La régénération appartient à la chaîne de qualité (§ *Quality gates*) : s
 contrat a changé et que le client généré ne l'a pas suivi, l'écart doit faire
 échouer la CI, pas attendre d'être découvert à l'exécution.
 
+### Où vivent les écrans
+
+Les zones d'écran, les deux shells et le comportement responsive sont
+spécifiés dans [ui-spec.md](ui-spec.md), et la couverture de l'API par l'UI
+est vérifiée par `composer run gate:ui` — chaque opération du contrat a une
+zone d'écran, ou une raison écrite de n'en avoir aucune.
+
 ### Ce que cette règle ne dit pas
 
 Elle ne dit rien du **client state**. Zustand, les formulaires, l'état d'un
