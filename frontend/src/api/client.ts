@@ -83,6 +83,59 @@ export function contextMiddleware(context: ApiContext): Middleware {
   };
 }
 
+/**
+ * The code a failure that never reached the server carries.
+ *
+ * Not one of §10.4's — the backend cannot send it, by definition. It is minted
+ * here so that "the network is down" arrives at a screen in the same shape as
+ * every other failure, and every `ErrorSurface` in the application can say
+ * something true about it without 23 query modules learning about `fetch`.
+ */
+export const NETWORK_UNREACHABLE = 'NETWORK_UNREACHABLE';
+
+/**
+ * Turns a request that never arrived into an answer.
+ *
+ * `fetch` rejects when the network is unreachable — no response, no status, no
+ * envelope — and that rejection propagated raw through every query in this
+ * application. TanStack Query surfaced it as a plain `TypeError`, which
+ * `ErrorSurface` could only render as *"Something went wrong"*, and the one
+ * thing a person offline needs to be told is the one thing it could not say.
+ *
+ * So the rejection becomes a **synthetic 503** carrying the §10.4 envelope. It
+ * is honest about being synthetic — the `request_id` is empty, because there is
+ * no server log to key on — and it means offline handling is a property of the
+ * transport rather than something each screen remembers.
+ *
+ * 503 rather than 0 or 599: it is the status whose meaning is "the thing you
+ * asked is not reachable", and TanStack Query's retry logic already treats it
+ * as worth another attempt, which for a dropped connection is right.
+ */
+export function offlineMiddleware(): Middleware {
+  return {
+    onError({ error }) {
+      // An abort is not an outage. TanStack Query cancels in-flight queries when
+      // a component unmounts, and reporting that as "you are offline" would put
+      // a false alarm on screen every time somebody navigated.
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return;
+      }
+
+      return new Response(
+        JSON.stringify({
+          error: {
+            code: NETWORK_UNREACHABLE,
+            message: 'The request did not reach the server.',
+            details: {},
+            request_id: '',
+          },
+        }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } },
+      );
+    },
+  };
+}
+
 /** Thrown when a request needs a product and none has been chosen. */
 export class NoProductChosen extends Error {
   constructor() {
@@ -208,6 +261,9 @@ export function createApiClient({ baseUrl = DEFAULT_BASE_URL, context, fetch }: 
   const client = createClient<paths>(fetch === undefined ? { baseUrl } : { baseUrl, fetch });
 
   client.use(contextMiddleware(context));
+  // After the context middleware, so a request that was built correctly and
+  // then failed to travel is the case this handles.
+  client.use(offlineMiddleware());
 
   return client;
 }

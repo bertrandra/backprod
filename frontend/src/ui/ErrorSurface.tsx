@@ -45,6 +45,10 @@ const WORDING: Record<string, { title: string; hint?: string }> = {
     title: 'Too many requests',
     hint: 'Wait a moment and try again.',
   },
+  NETWORK_UNREACHABLE: {
+    title: 'The request did not reach the server',
+    hint: 'Your connection dropped, or the application is offline. Nothing was sent, so nothing was half-done — try again when it is back.',
+  },
   UNEXPECTED_RESPONSE: {
     title: 'The server answered unexpectedly',
     hint: 'This is usually a proxy or a gateway rather than the application.',

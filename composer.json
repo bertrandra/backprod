@@ -64,6 +64,7 @@
             "@gate:entitlements",
             "@gate:openapi",
             "@gate:ui",
+            "@gate:screens",
             "@gate:permissions",
             "@gate:money",
             "@test"
@@ -74,6 +75,7 @@
         "gate:entitlements": "@php tools/prove-entitlements-have-one-door.php",
         "gate:openapi": "@php tools/prove-openapi-covers-the-api.php",
         "gate:ui": "@php tools/prove-ui-covers-the-api.php",
+        "gate:screens": "@php tools/prove-screens-call-their-operations.php",
         "gate:permissions": "@php tools/prove-frontend-permissions-exist.php",
         "gate:money": "@php tools/prove-money-is-never-optimistic.php"
     },
@@ -83,6 +85,7 @@
         "migrate": "Apply pending database migrations",
         "gate:products": "Prove no code branches on product identity (§12.1)",
         "gate:plans": "Prove no code branches on a plan or tier name (§13)",
-        "gate:money": "Prove no mutation that moves money writes to the cache before the server answers (U6)"
+        "gate:money": "Prove no mutation that moves money writes to the cache before the server answers (U6)",
+        "gate:screens": "Prove every screen area has a route and calls every operation it claims (U9) \u2014 the check ui-spec.md \u00a77 could not make until a frontend existed"
     }
 }

@@ -1,9 +1,11 @@
 import { Link } from '@tanstack/react-router';
 
 import { can } from '@/app/access/access';
+import { ConnectionState } from '@/app/frame/ConnectionState';
 import { ProductSwitcher } from '@/app/frame/ProductSwitcher';
 import { useUnreadCount } from '@/queries/notifications';
 import { useSession } from '@/queries/session';
+import { touchTargetClass } from '@/ui/Field';
 import { cn } from '@/utils/cn';
 
 import type { NavEntry, NavSection } from './navigation';
@@ -28,10 +30,17 @@ export function ContextBar({
         {data?.tenantId.slice(0, 8) ?? 'No organisation'}
       </span>
 
+      {/* Whether what is on screen can still be trusted (U9). Renders nothing
+          when there is nothing to say. */}
+      <ConnectionState />
+
       <button
         type="button"
         onClick={onOpenPalette}
-        className="ml-auto rounded border border-neutral-300 px-2 py-1 text-xs text-neutral-700 focus-visible:outline-2 focus-visible:outline-offset-2 dark:border-neutral-700 dark:text-neutral-300"
+        className={cn(
+          touchTargetClass,
+          'ml-auto rounded border border-neutral-300 px-3 py-1 text-xs text-neutral-700 focus-visible:outline-2 focus-visible:outline-offset-2 dark:border-neutral-700 dark:text-neutral-300',
+        )}
       >
         Search
         <kbd className="ml-2 hidden text-[10px] text-neutral-500 sm:inline">⌘K</kbd>
@@ -43,7 +52,10 @@ export function ContextBar({
         <button
           type="button"
           onClick={onOpenMore}
-          className="rounded border border-neutral-300 px-2 py-1 text-xs md:hidden dark:border-neutral-700"
+          className={cn(
+            touchTargetClass,
+            'rounded border border-neutral-300 px-3 py-1 text-xs md:hidden dark:border-neutral-700',
+          )}
         >
           More
         </button>
