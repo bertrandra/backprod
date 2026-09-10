@@ -1,0 +1,5 @@
+@import 'tailwindcss';
+
+/* Design tokens land here in U1 with the shell. U0 ships no screens, so there
+   is nothing yet to theme — an empty token block would only be a guess about
+   what U1 needs. */
