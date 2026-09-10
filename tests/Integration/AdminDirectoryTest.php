@@ -224,12 +224,29 @@ final class AdminDirectoryTest extends DatabaseApiTestCase
         }
     }
 
-    public function testAnOutOfRangePageSizeIsClampedRatherThanRefused(): void
+    /**
+     * Every other paginated listing in the API refuses an out-of-range limit
+     * rather than quietly clamping it, because a caller who asked for 99999
+     * rows and silently got 200 has no way to tell a short page from the last
+     * page. The admin listings are not a special case.
+     */
+    public function testAnOutOfRangePageSizeIsRefusedRatherThanClamped(): void
     {
-        $body = $this->decode($this->get('/api/v1/admin/users?limit=99999', 'ops-token'));
+        $response = $this->get('/api/v1/admin/users?limit=99999', 'ops-token');
 
-        self::assertSame(200, $this->get('/api/v1/admin/users?limit=99999', 'ops-token')->getStatusCode());
-        self::assertSame(200, $body['limit'] ?? null);
+        self::assertSame(400, $response->getStatusCode());
+
+        $error = $this->errorOf($response);
+
+        self::assertSame('VALIDATION_FAILED', $error['code'] ?? null);
+        self::assertSame('limit', $error['details']['field'] ?? null);
+    }
+
+    public function testThePageSizeDefaultsWhenItIsNotAskedFor(): void
+    {
+        $body = $this->decode($this->get('/api/v1/admin/users', 'ops-token'));
+
+        self::assertSame(50, $body['limit'] ?? null);
     }
 
     // --- Helpers ------------------------------------------------------------

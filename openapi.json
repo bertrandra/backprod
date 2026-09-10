@@ -146,7 +146,7 @@
           "maximum": 200,
           "default": 50
         },
-        "description": "Page size. Out-of-range values are clamped, not refused."
+        "description": "Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped."
       },
       "DirectoryOffset": {
         "name": "offset",

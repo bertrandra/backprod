@@ -35,10 +35,22 @@ final class OfferAuthoringTest extends DatabaseApiTestCase
     private string $feature = '';
     private string $otherProduct = '';
     private string $otherPlan = '';
+    private string $author = '';
+    private string $reader = '';
 
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Real user rows: a membership is keyed by user id, and the token
+        // carries the auth subject, so anything else here would match nothing
+        // and every request would be a 403 for the wrong reason.
+        $this->author = $this->id(
+            "INSERT INTO users (auth_subject, email) VALUES ('sub-ada', 'ada@acme.test') RETURNING id",
+        );
+        $this->reader = $this->id(
+            "INSERT INTO users (auth_subject, email) VALUES ('sub-raj', 'raj@acme.test') RETURNING id",
+        );
 
         $this->product = $this->id(
             "INSERT INTO products (code, name, active) VALUES ('atlas', 'Atlas', true) RETURNING id",
@@ -81,12 +93,12 @@ final class OfferAuthoringTest extends DatabaseApiTestCase
                 // separating them.
                 new TenantMembership(
                     self::ACME,
-                    'sub-ada',
+                    $this->author,
                     $this->product,
                     ['TENANT_ADMIN'],
                     ['catalog.read', 'catalog.manage'],
                 ),
-                new TenantMembership(self::ACME, 'sub-raj', $this->product, ['USER'], ['catalog.read']),
+                new TenantMembership(self::ACME, $this->reader, $this->product, ['USER'], ['catalog.read']),
             ]),
         ]);
     }

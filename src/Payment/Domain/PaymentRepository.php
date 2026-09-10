@@ -39,6 +39,16 @@ interface PaymentRepository
     public function latestForInvoice(string $tenantId, string $productId, string $invoiceId): ?Payment;
 
     /**
+     * How many attempts an invoice has already had, settled or not.
+     *
+     * Used to build a provider reference that names the attempt rather than
+     * the invoice. It is a label, not a lock: two callers racing here both
+     * see the same count, and what stops the second attempt existing twice is
+     * the unique index on (provider, provider_payment_id), not this number.
+     */
+    public function attemptsForInvoice(string $invoiceId): int;
+
+    /**
      * @return list<Refund>
      */
     public function refundsOf(string $paymentId): array;

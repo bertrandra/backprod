@@ -163,13 +163,6 @@ final class SalesChainTest extends DatabaseApiTestCase
     {
         $quoteId = $this->quotedId();
 
-        // The offer is repriced after the quote went out — the exact thing a
-        // quote exists to protect the customer from.
-        $this->connection->executeStatement(
-            'UPDATE offer_versions SET price_minor_units = 9900 WHERE id = :version',
-            ['version' => $this->offerVersion],
-        );
-
         $orderId = $this->decode($this->accept($quoteId))['id'] ?? null;
         self::assertIsString($orderId);
 
@@ -181,6 +174,56 @@ final class SalesChainTest extends DatabaseApiTestCase
         );
 
         self::assertSame(['minor_units' => 3480, 'currency' => 'EUR'], $invoice['gross'] ?? null);
+
+        // And now the offer becomes something else, the way production does
+        // it: the sold version retires and a dearer one takes its place on
+        // sale. Repricing the sold version in place is the blunter version of
+        // this and ADR-033 has made it impossible, so the legal sequence is
+        // the strongest form left.
+        $this->connection->executeStatement(
+            "UPDATE offer_versions SET status = 'EXPIRED', valid_until = now() WHERE id = :version",
+            ['version' => $this->offerVersion],
+        );
+        $this->connection->executeStatement(
+            'INSERT INTO offer_versions'
+            . ' (offer_id, version, status, billing_period, price_minor_units, currency, valid_from)'
+            . " VALUES (:offer, 2, 'ACTIVE', 'MONTHLY', 9900, 'EUR', now())",
+            ['offer' => $this->offer],
+        );
+
+        $reread = $this->decode(
+            $this->request('GET', '/api/v1/billing/invoices/' . $invoiceId, $this->headers()),
+        );
+
+        self::assertSame($invoice['gross'] ?? null, $reread['gross'] ?? null);
+    }
+
+    /**
+     * The guard in InvoiceThenSubscribe matches on the version the order
+     * recorded, not on "the offer still has something on sale". Withdrawal is
+     * covered below; this is the case a reader actually worries about, where
+     * a dearer version stands ready to be picked up silently.
+     */
+    public function testAnOrderIsNotSilentlyRepricedOntoANewerOfferVersion(): void
+    {
+        $orderId = $this->orderedId();
+
+        $this->connection->executeStatement(
+            "UPDATE offer_versions SET status = 'EXPIRED', valid_until = now() WHERE id = :version",
+            ['version' => $this->offerVersion],
+        );
+        $this->connection->executeStatement(
+            'INSERT INTO offer_versions'
+            . ' (offer_id, version, status, billing_period, price_minor_units, currency, valid_from)'
+            . " VALUES (:offer, 2, 'ACTIVE', 'MONTHLY', 9900, 'EUR', now())",
+            ['offer' => $this->offer],
+        );
+
+        $response = $this->fulfil($orderId);
+
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame('OFFER_NO_LONGER_ON_SALE', $this->errorOf($response)['code'] ?? null);
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM invoices'));
     }
 
     public function testAnOrderCanBePlacedWithoutAQuote(): void

@@ -122,6 +122,20 @@ final class PostgresPaymentRepository implements PaymentRepository
         return $row === false ? null : self::toPayment($row);
     }
 
+    public function attemptsForInvoice(string $invoiceId): int
+    {
+        if (!Uuid::isValid($invoiceId)) {
+            return 0;
+        }
+
+        $count = $this->connection->fetchOne(
+            'SELECT count(*) FROM payments WHERE invoice_id = :invoiceId',
+            ['invoiceId' => $invoiceId],
+        );
+
+        return is_numeric($count) ? (int) $count : 0;
+    }
+
     public function findByReference(string $provider, string $providerPaymentId): ?Payment
     {
         $row = $this->connection->fetchAssociative(
