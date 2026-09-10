@@ -73,6 +73,25 @@ mean one component holding both authorities.
 `ui-api-coverage.json`, which the gate checks. This section says what each
 area is *for* — the part a JSON file cannot carry.
 
+### 3.0 Signing in — the screen this document forgot
+
+Not one of the 34, and not in `ui-api-coverage.json`, because it calls **no API
+operation**: the token comes from the identity provider, and this platform only
+ever verifies one (ADR-014). That is also why nothing noticed it was missing until
+U11. Every area here was written as "which endpoints does this screen call", the
+gates check exactly that, and the one screen with no endpoints fell through the
+gap — so a deployed build rendered all 34 areas and could sign nobody in.
+
+It has **no route**. `SignInGate` renders it instead of the shell for whatever URL
+was asked for, the way `AccessMotiveGate` renders instead of a tenant detail
+(§3.2): redirecting to `/sign-in` would drop the deep link somebody followed, and
+then getting them back to it needs state that only exists because of the redirect.
+
+The lesson worth keeping is about the coverage gates rather than about sign-in: they
+prove every operation has a screen, and they are silent about a screen that needs
+no operation. There is one such screen. If a second ever appears, this section is
+where it goes.
+
 ### 3.1 Tenant application — product workspace
 
 Product-scoped. This is the only group that changes when a second product is

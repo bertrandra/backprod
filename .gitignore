@@ -1,5 +1,8 @@
 /vendor/
 /var/
+# Build output of bin/build-dist.sh. A 48 MB bundle is not a source file, and the
+# script rebuilds it from the commit it names in BUNDLE.txt.
+/dist/
 .env
 .env.*
 !.env.example

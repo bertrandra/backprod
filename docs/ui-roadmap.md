@@ -618,6 +618,43 @@ project.
 
 ---
 
+### U11 — Sign-in, and a bundle that deploys — *delivered*
+
+Asked for as "a dist for SiteGround with full PHP to UI", and the first thing the
+question turned up was that there was nothing to deploy *to* a person: `signIn`
+was exported from `state/session.ts` and **called by nothing**. The platform
+verified Supabase JWTs, the store had somewhere to put one, and no screen ever
+obtained one. Every gate was green.
+
+**The sign-in path.** `api/auth.ts` is the second and only other file ESLint
+permits `fetch` in — the provider's token endpoint is not in `openapi.json` and
+never will be. Two grant types, no dependency added. The access token stays in
+memory, the refresh token is exchanged on every load and rotated, a refused one is
+forgotten rather than retried forever, and renewal happens a minute before expiry
+so a request in flight is not authorised on the way out and rejected on arrival.
+`restoring` is a real state because "no token" was two things wearing one face.
+
+All 178 browser tests were suddenly looking at a sign-in form, which is the gate
+working. They now get a session the way a returning visitor does — a seeded
+refresh token and a stubbed provider, in one fixture — so every spec exercises the
+restore path instead of bypassing it.
+
+**The bundle.** `public_html/` is the built UI plus one 40-line PHP file;
+`backprod-app/` goes *beside* the document root, so `src/`, `vendor/` and `.env`
+are somewhere no URL can address rather than somewhere a rewrite rule protects.
+Everything the platform serves is under `/api`, which makes the routing two rules.
+`bin/verify-dist.sh` serves a bundle and interrogates it — 37 checks — and
+`--browser` runs the whole Playwright suite against it, which is the only thing
+that proves the Content-Security-Policy does not break the application. 97 tests
+pass against the served bundle.
+
+**Two defects found by asking what a host would do with it.** A deployment with no
+`DATABASE_DSN` answered **200 with a stack trace and 58 absolute filesystem
+paths** whenever the host had `display_errors` on — the container fails during
+construction, before any middleware exists, so `ErrorHandlerMiddleware`'s "never
+serialise a trace" guarantee did not cover it. It is now a 503 carrying the §10.4
+envelope. And the first bundle was 273 MB, of which 231 MB was `.git`.
+
 ### U10 — Demo, decisions and readiness — *delivered*
 
 **Goal:** the two open design decisions, a world to look at, and an honest answer

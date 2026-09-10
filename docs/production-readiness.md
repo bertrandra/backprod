@@ -28,6 +28,18 @@ list is the one that matters when somebody is deciding whether to launch.
 
 ## 2. Built, and rehearsable here
 
+**`bin/build-dist.sh` and `bin/verify-dist.sh`** — the bundle, and proof it serves.
+
+The build puts the UI and one PHP file in the document root and everything else
+*beside* it, so `src/`, `vendor/` and `.env` are not protected by a rewrite rule
+somebody could delete — they are somewhere no URL can address. The verification
+unpacks a bundle, serves it, and asks it questions: does the shim find the
+application, does a deep link reach the shell, is `/.env` refused, does an
+unconfigured deployment answer with the documented envelope rather than a stack
+trace, does mPDF still render after the vendor tree was trimmed. `--browser` runs
+the whole Playwright suite against the served bundle, which is the only thing that
+proves the Content-Security-Policy does not break the application.
+
 **`composer run preflight`** — what this deployment can and cannot do.
 
 Every secret defaults to "off", deliberately: an empty `SUPABASE_JWKS` verifies
@@ -63,8 +75,14 @@ from the gapless sequence.
 
 Stated plainly, because a readiness document that omits these is worse than none.
 
-- **No deployment.** There is no pipeline, no target environment, no staging.
-  Nothing here has ever run outside a test container.
+- **No staging, and no pipeline.** A deployment *procedure* now exists and is
+  checked on every CI run — `bin/build-dist.sh` produces a bundle for any Apache
+  host with PHP 8.3, `bin/verify-dist.sh` serves it and interrogates it over HTTP,
+  and `docs/deploying-to-siteground.md` is the operator's copy. What does not
+  exist is a *place*: no staging environment, nothing that deploys on merge, and
+  no bundle has yet been uploaded to a host anybody uses. The verification is also
+  explicit that it is not Apache — it mirrors the `.htaccess` rules in PHP, so the
+  first real proof of those rules is a `curl` against a live URL.
 - **No observability.** Logging is structured and carries a request id; nothing
   collects, stores or alerts on it. There is no dashboard and no on-call signal.
 - **No backup schedule.** The drill above proves the *procedure*; nothing takes a
@@ -73,6 +91,11 @@ Stated plainly, because a readiness document that omits these is worse than none
   a route against a stubbed API. Nobody knows what this does under concurrency.
 - **No secret management.** Secrets come from `.env`. There is no vault, no
   rotation, and no audit of who read one.
+- **The browser's refresh token is in `localStorage`** (U11). It does not survive
+  an XSS; neither would a readable cookie. The shape that would is an `HttpOnly`
+  cookie, which requires PHP to own the token exchange rather than only verify a
+  bearer token — an architecture change, and the first one to make after a
+  deployment exists.
 - **No certified e-invoicing platform** (R3). The four transmission states are
   real and the adapter is a stub. The first French obligation is dated
   **1 September 2026**, which has passed.

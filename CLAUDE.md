@@ -565,6 +565,18 @@ composed to. Assert what a value *does*.
 enforces it. `src/api/generated/` is generated: never edit it, regenerate it
 (ADR-036).
 
+**One other file may use `fetch`, and only one.** `src/api/auth.ts` exchanges
+credentials for a token at the identity provider — which is not in `openapi.json`
+and never will be, because the backend verifies a JWT rather than issuing one
+(ADR-014). Two grant types against one URL. If you need a third HTTP call from
+the browser, it belongs in the contract, not in a third file: two named doors is
+a design, three is a habit.
+
+Where the token then lives is `src/state/session.ts`'s decision alone: the access
+token in memory, the refresh token in `localStorage`, and nothing about timers or
+requests in the store. `SignInGate` renders instead of the router when there is no
+session, so no screen ever mounts unauthenticated.
+
 Every request needs a product: pass `ambientParams(sessionSnapshot)` as the
 call's init. The contract declares `X-Product` required, so a call that omits it
 does not compile — which is the point (ADR-037). The bearer token is different:
