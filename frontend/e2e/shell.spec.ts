@@ -29,6 +29,14 @@ async function signedIn(page: Page, session: Record<string, unknown> = SESSION) 
   await page.route('**/api/v1/me', async (route) => {
     await route.fulfill({ json: session });
   });
+
+  // Region A's product switcher reads this (U5). Stubbed so the shell makes no
+  // request that falls through to a backend these tests deliberately do not run.
+  await page.route(/\/api\/v1\/products$/, async (route) => {
+    await route.fulfill({
+      json: { products: [{ id: session.product_id, code: 'atlas', name: 'Atlas' }] },
+    });
+  });
 }
 
 const REGIONS = ['context-bar', 'primary-nav', 'view-body', 'status-strip', 'overlay'] as const;

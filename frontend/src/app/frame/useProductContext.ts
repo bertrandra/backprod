@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-import { useSessionStore } from '@/state/session';
+import { rememberedProduct, useSessionStore } from '@/state/session';
 
 /**
  * How U1 learns which product it is in.
@@ -12,7 +12,14 @@ import { useSessionStore } from '@/state/session';
  * when it has neither. The switcher arrives with the list that feeds it.
  *
  * `?product=` is read once on mount and then lives in the store, so it does not
- * have to be carried through every subsequent link.
+ * have to be carried through every subsequent link — and is remembered in
+ * `localStorage` so it survives a reload, because the router drops the parameter
+ * the moment somebody navigates and a reload would otherwise land on an empty
+ * state with nothing wrong.
+ *
+ * The order is deliberate: an explicit `?product=` in the URL wins over what the
+ * browser remembers, which wins over the configured default. A link is somebody
+ * saying which product they mean *now*.
  */
 export function useProductContext(): { productCode: string | null } {
   const productCode = useSessionStore((s) => s.productCode);
@@ -25,7 +32,8 @@ export function useProductContext(): { productCode: string | null } {
 
     const fromUrl = new URLSearchParams(window.location.search).get('product');
     const configured = import.meta.env.VITE_DEFAULT_PRODUCT;
-    const next = fromUrl ?? (typeof configured === 'string' ? configured : null);
+    const next =
+      fromUrl ?? rememberedProduct() ?? (typeof configured === 'string' ? configured : null);
 
     if (next !== null && next !== '') {
       chooseProduct(next);

@@ -31,8 +31,19 @@ export const keys = {
     preferences: ['notifications', 'preferences'] as const,
     consents: ['notifications', 'consents'] as const,
   },
-  products: {
-    configuration: (id: string) => ['products', id, 'configuration'] as const,
+  catalogue: {
+    products: ['catalogue', 'products'] as const,
+    product: (id: string) => ['catalogue', 'products', id] as const,
+    productCatalogue: (id: string) => ['catalogue', 'products', id, 'catalog'] as const,
+    productFeatures: (id: string) => ['catalogue', 'products', id, 'features'] as const,
+    configuration: (id: string) => ['catalogue', 'products', id, 'configuration'] as const,
+    plans: ['catalogue', 'plans'] as const,
+    features: ['catalogue', 'features'] as const,
+    offers: ['catalogue', 'offers'] as const,
+    offer: (id: string) => ['catalogue', 'offers', id] as const,
+    // Authoring reads the same offer with every version it has, drafts
+    // included — a different answer from the sale view, so a different key.
+    authored: (id: string) => ['catalogue', 'authoring', id] as const,
   },
   projects: {
     lists: ['projects', 'list'] as const,
@@ -45,6 +56,19 @@ export const keys = {
   },
   assets: {
     one: (id: string) => ['assets', id] as const,
+  },
+  sales: {
+    quoteLists: ['sales', 'quotes'] as const,
+    quoteList: (limit: number, offset: number) => ['sales', 'quotes', limit, offset] as const,
+    quote: (id: string) => ['sales', 'quote', id] as const,
+    orderLists: ['sales', 'orders'] as const,
+    orderList: (limit: number, offset: number) => ['sales', 'orders', limit, offset] as const,
+    order: (id: string) => ['sales', 'order', id] as const,
+  },
+  checkout: {
+    // Keyed by the session id, which *is* the order id (ADR-034). One key,
+    // because there is one thing.
+    session: (id: string) => ['checkout', id] as const,
   },
   jobs: {
     lists: ['jobs', 'list'] as const,

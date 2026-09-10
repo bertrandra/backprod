@@ -47,6 +47,10 @@ async function inbox(page: Page, session: Record<string, unknown> = SESSION) {
   // to an unstubbed request.
   await page.route(/\/api\/v1\/me$/, (route) => route.fulfill({ json: session }));
 
+  await page.route(/\/api\/v1\/products$/, (route) =>
+    route.fulfill({ json: { products: [{ id: 'p-1', code: 'atlas', name: 'Atlas' }] } }),
+  );
+
   await page.route(/\/api\/v1\/notifications\/unread-count/, (route) =>
     route.fulfill({
       json: { unread: Math.max(0, state.unread - state.readHere - state.readElsewhere) },

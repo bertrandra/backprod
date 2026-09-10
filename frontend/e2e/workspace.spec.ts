@@ -67,6 +67,13 @@ async function workspace(page: Page, session: Record<string, unknown> = SESSION)
 
   await page.route(/\/api\/v1\/me$/, (route) => route.fulfill({ json: session }));
 
+  // The product switcher in region A (U5).
+  await page.route(/\/api\/v1\/products$/, (route) =>
+    route.fulfill({
+      json: { products: [{ id: session.product_id, code: 'atlas', name: 'Atlas' }] },
+    }),
+  );
+
   await page.route(/\/api\/v1\/products\/[^/]+\/configuration/, (route) =>
     route.fulfill({ json: { configuration: { project_schema_versions: { supported: [7] } } } }),
   );

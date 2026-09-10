@@ -296,7 +296,7 @@ if the version is hard-coded.
 
 ---
 
-### U5 — Commerce & sales — 5 areas, 26 operations
+### U5 — Commerce & sales — 5 areas, 26 operations — *delivered*
 
 **Goal:** the buying path, and the first irreversible confirmations.
 
@@ -310,11 +310,62 @@ if the version is hard-coded.
 - Orders: place, fulfil, cancel
 - Catalogue authoring (TENANT_ADMIN, `catalog.manage`): draft a version, publish it. **A published version is frozen** (ADR-033), so the UI offers no edit affordance on one — the absence is the design, not an omission
 
-**Exit criteria**
-- A checkout whose connection drops leaves a findable order, and the UI leads back to it
-- A published offer version has no editable field anywhere in the UI
-- `OFFER_NO_LONGER_ON_SALE` and the other 409s read as explanations, not as failures
+**Exit criteria** — met
+- A checkout whose connection drops leaves a findable order, and the UI leads back to it — asserted by reloading mid-checkout in a browser (`e2e/commerce.spec.ts`): the page comes back from the id alone, no second session is opened, and the order is reachable from `/orders` and links back
+- A published offer version has no editable field anywhere in the UI — asserted by sweeping the published row for `input`, `select`, `textarea` **and** `button`, rather than by naming one field. Proven by adding an input to it
+- `OFFER_NO_LONGER_ON_SALE` and the other 409s read as explanations — through the same `ErrorSurface` that renders §10.4 by code, so a refusal is a sentence rather than a stack
 - 26 operations covered
+
+**Three defects found, two of them older than this milestone.**
+
+**Every request went to the wrong URL.** The contract's paths already begin with
+`/api/v1`, and `DEFAULT_BASE_URL` was `/api/v1` — so the client composed
+`/api/v1/api/v1/me` and every live request would have 404'd against the real
+backend. It shipped from U0 to U5 unnoticed, and the reason is worth keeping:
+the unit tests replace the client wholesale so they never compose a URL, the
+Playwright route patterns match a doubled path just as happily as a correct one,
+and the one test that looked at this asserted `DEFAULT_BASE_URL === '/api/v1'` —
+describing the value rather than what it did, and so enshrining the defect
+instead of catching it. A vite proxy error in an otherwise *passing* run is what
+gave it away. The base is now empty, the client takes an injectable `fetch` so
+the composition can be observed at all, and an E2E test watches every request
+the application makes for a repeated prefix.
+
+**The product did not survive a reload.** `?product=` seeds the first visit, but
+the router validates search params through `parseViewState` and drops anything it
+does not know — so after one in-app navigation the parameter was gone, and a
+reload landed on "No product selected" with everything working and nothing
+visible. Present since U1, and invisible until now because every earlier E2E test
+navigated with `?product=` in the URL. The chosen product is now remembered in
+`localStorage` (URL wins over remembered, remembered over the configured
+default), cleared on sign-out, and every access guarded — a private window must
+not stop the application from starting.
+
+**The contract promised a `billing_period` the database refuses.**
+`OfferVersion.billing_period` listed `ONE_OFF`; no migration, no domain code and
+no CHECK constraint has ever accepted it. A client handling that case was writing
+dead code for a value the platform cannot produce. Removed from the contract, the
+client regenerated.
+
+**U1's deferral closed.** The product switcher needed `listProducts`, which the
+coverage map assigns to `commerce.catalogue` — so it arrives here rather than
+leaving `useProducts` as dead code. Switching **clears the query cache
+completely**: every cached answer was scoped to the previous product, and a
+partial invalidation would render one product's data under another's name for as
+long as the refetch took. One option means no control, because a menu that does
+nothing is worse than a label.
+
+**Where money is rendered.** `ui/Money.tsx` converts minor units for display
+only, and asks `Intl` for the exponent rather than dividing by 100: that constant
+is right for EUR, under-reports JPY by a hundredfold and over-reports TND tenfold.
+VAT rates come from basis points the same way, so 550 reads as 5.5% with the half
+intact. Nothing in the frontend adds two amounts together — every total on screen
+is the server's.
+
+**What is deliberately absent.** There is no `updateOfferVersion` anywhere,
+because the contract has none: changing published terms means adding a version
+and publishing it. The screen says so in words, so the absence reads as ADR-033
+rather than as an unbuilt feature.
 
 ---
 
@@ -490,7 +541,7 @@ contract:
 U2   4 areas    13 operations
 U3   3 areas    20 operations   delivered
 U4   5 areas    22 operations   delivered
-U5   5 areas    26 operations
+U5   5 areas    26 operations   delivered
 U6   6 areas    24 operations
 U7   3 areas     8 operations
 U8   8 areas    16 operations

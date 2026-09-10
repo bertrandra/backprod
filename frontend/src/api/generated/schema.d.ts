@@ -2445,8 +2445,11 @@ export interface components {
             /** Format: uuid */
             id: string;
             version: number;
-            /** @enum {string} */
-            billing_period: "MONTHLY" | "YEARLY" | "ONE_OFF" | "CUSTOM";
+            /**
+             * @description The same three the database allows. `ONE_OFF` was listed here and nowhere else — no migration, no domain code and no CHECK constraint has ever accepted it, so it promised a value the platform could not produce and a client that handled it was writing dead code.
+             * @enum {string}
+             */
+            billing_period: "MONTHLY" | "YEARLY" | "CUSTOM";
             price: components["schemas"]["Money"];
             /**
              * Format: date-time

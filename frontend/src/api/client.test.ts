@@ -3,11 +3,13 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import {
   ambientParams,
   contextMiddleware,
+  createApiClient,
   DEFAULT_BASE_URL,
   NoProductChosen,
   PRODUCT_HEADER,
   TENANT_HEADER,
   type ApiContext,
+  type paths,
   type Schemas,
 } from './client';
 
@@ -135,7 +137,6 @@ describe('the request context as a parameter', () => {
 
 describe('the generated contract', () => {
   it('is same-origin by default, so no request is cross-origin', () => {
-    expect(DEFAULT_BASE_URL).toBe('/api/v1');
     expect(DEFAULT_BASE_URL.startsWith('http')).toBe(false);
   });
 
@@ -149,5 +150,64 @@ describe('the generated contract', () => {
     // contract makes both required. Checking the field rather than the shape,
     // because a Money that had lost its amount would still be an object.
     expectTypeOf<Schemas['Money']['minor_units']>().toEqualTypeOf<number>();
+  });
+});
+
+describe('the URL a request actually goes to', () => {
+  /**
+   * The check that was missing.
+   *
+   * The old assertion here read `expect(DEFAULT_BASE_URL).toBe('/api/v1')` — it
+   * described the value rather than what the value *did*, and so it enshrined a
+   * defect instead of catching it: the contract's paths already begin with
+   * `/api/v1`, so that base composed `/api/v1/api/v1/me` and every live request
+   * would have 404'd. Nothing else could see it, because the screen tests
+   * replace the client and never compose a URL at all.
+   */
+  async function pathFor(baseUrl: string): Promise<string> {
+    let seen = '';
+
+    const client = createApiClient({
+      baseUrl,
+      context: contextOf('t', 'atlas'),
+      fetch: (request) => {
+        seen = request.url;
+
+        return Promise.resolve(
+          new Response('{}', { headers: { 'content-type': 'application/json' } }),
+        );
+      },
+    });
+
+    await client.GET('/api/v1/me', { params: { header: { 'X-Product': 'atlas' } } });
+
+    return new URL(seen).pathname;
+  }
+
+  it('does not repeat a prefix the contract already carries', () => {
+    // Every path in the generated contract begins with /api/v1 — this is one of
+    // them, named as the types name it.
+    const contractPath: keyof paths = '/api/v1/me';
+    expect(contractPath.startsWith('/api/v1')).toBe(true);
+
+    // So the base must not also carry it. This is the assertion that would have
+    // caught the doubled prefix, and the one the old test should have been.
+    expect(DEFAULT_BASE_URL).not.toContain('/api/v1');
+  });
+
+  /**
+   * An explicit origin, because Node cannot build a `Request` from a relative
+   * URL — a browser resolves it against the document and this environment
+   * refuses it. The composition being asserted is the same one either way: the
+   * client adds the base and nothing else.
+   */
+  it('carries the contract path exactly once', async () => {
+    expect(await pathFor('https://example.test')).toBe('/api/v1/me');
+  });
+
+  it('would double the prefix if the base carried one — which is why it must not', async () => {
+    // The defect, reproduced deliberately: this is what the application did on
+    // every request from U0 to U5.
+    expect(await pathFor('https://example.test/api/v1')).toBe('/api/v1/api/v1/me');
   });
 });

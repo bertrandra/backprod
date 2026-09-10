@@ -9,6 +9,9 @@ import { expect, test } from '@playwright/test';
  * all, and a failure here means the build is broken rather than the shell.
  */
 test('the application mounts', async ({ page }) => {
+  // Nothing is stubbed here on purpose — this test is the check that the bundle
+  // executes at all. The shell's own reads fail against no backend, which is
+  // exactly the state it must still render in.
   await page.goto('/');
 
   await expect(page.locator('[data-region="context-bar"]')).toBeVisible();
