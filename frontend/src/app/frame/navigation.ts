@@ -151,6 +151,15 @@ export const CONSOLE_NAV: readonly NavSection[] = [
       { id: 'directory', label: 'Directory', to: '/console/directory', permission: 'admin.directory.read' },
       { id: 'queue', label: 'Queue', to: '/console/queue', permission: 'admin.health.read' },
       { id: 'audit', label: 'Audit', to: '/console/audit', permission: 'admin.audit.read', secondary: true },
+      // Its own entry and its own permission: reading the directory and erasing
+      // somebody out of it are not the same authority.
+      {
+        id: 'erasure',
+        label: 'Erasure',
+        to: '/console/erasure',
+        permission: 'admin.privacy.erase',
+        secondary: true,
+      },
     ],
   },
 ];

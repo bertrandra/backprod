@@ -5,8 +5,7 @@ import { AppFrame } from '@/app/frame/AppFrame';
 import { CommandPalette, usePaletteShortcut } from '@/app/frame/CommandPalette';
 import { bottomBarEntries, CONSOLE_NAV, visibleNav } from '@/app/frame/navigation';
 import { BottomNav, PrimaryNav } from '@/app/frame/regions';
-import { StatusStrip } from '@/app/frame/StatusStrip';
-import { useSession } from '@/queries/session';
+import { staffAccess, useStaffIdentity } from '@/queries/staff';
 
 /**
  * The platform console's shell.
@@ -19,15 +18,28 @@ import { useSession } from '@/queries/session';
  * It imports `CONSOLE_NAV` and nothing from the tenant navigation. U8 asserts
  * that no navigation module is shared; keeping the two disjoint from the start
  * is what makes that assertion pass rather than a refactor.
+ *
+ * **It reads `GET /staff/me`, not `GET /me`.** U1 wired this to the tenant
+ * session because `showStaffIdentity` had no screen to belong to yet, and that
+ * was wrong in a way no test caught: a platform role never grants tenant
+ * membership (non-negotiable #22), so `/me` answers for somebody this shell is
+ * not built for — and for real staff it would not answer at all. The permissions
+ * gating the console navigation are now the staff permissions, which is what
+ * they were always named after.
+ *
+ * **No status strip.** Region E watches the *tenant's* jobs through `/jobs`,
+ * which is scoped to a tenant this person is not in. The queue has its own
+ * screen here, reading the platform's own liveness signal — a strip that
+ * silently showed nothing would have been worse than none at all.
  */
 export function ConsoleShell() {
-  const { data } = useSession();
+  const { data } = useStaffIdentity();
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const openPalette = useCallback(() => setPaletteOpen(true), []);
 
-  usePaletteShortcut(openPalette);
+  usePaletteShortcut(useCallback(() => setPaletteOpen(true), []));
 
-  const sections = visibleNav(CONSOLE_NAV, data);
+  const access = staffAccess(data);
+  const sections = visibleNav(CONSOLE_NAV, access);
 
   return (
     <AppFrame
@@ -39,12 +51,20 @@ export function ConsoleShell() {
           >
             PLATFORM CONSOLE
           </span>
-          <span className="truncate text-sm text-neutral-600 dark:text-neutral-400">
-            Acting as platform staff
+          <span
+            data-testid="staff-identity"
+            className="truncate text-sm text-neutral-600 dark:text-neutral-400"
+          >
+            {/* Named, not "Acting as platform staff": an access log entry has a
+                user id on it, and the person making the entry should be able to
+                see whose it will be. */}
+            {data === undefined
+              ? 'Acting as platform staff'
+              : `Acting as platform staff · ${data.roles.join(', ')}`}
           </span>
           <button
             type="button"
-            onClick={openPalette}
+            onClick={() => setPaletteOpen(true)}
             className="ml-auto rounded border border-neutral-300 px-2 py-1 text-xs dark:border-neutral-700"
           >
             Search
@@ -52,10 +72,18 @@ export function ConsoleShell() {
         </>
       }
       primaryNav={<PrimaryNav sections={sections} />}
-      bottomNav={<BottomNav entries={bottomBarEntries(CONSOLE_NAV, data)} />}
-      statusStrip={<StatusStrip />}
+      bottomNav={<BottomNav entries={bottomBarEntries(CONSOLE_NAV, access)} />}
       overlay={<CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
     >
+      {/* A band under the bar, so the amber is not only in one corner. */}
+      <div
+        data-testid="console-band"
+        className="mb-4 rounded border border-amber-400 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+      >
+        Every read you make here crosses a tenant boundary and is recorded — who
+        looked, at what, and under which permission. The access log shows it back to you.
+      </div>
+
       <Outlet />
     </AppFrame>
   );

@@ -18,10 +18,20 @@ import type { components, paths } from './generated/schema';
  */
 
 /** Re-exported so no call site reaches into the generated directory. */
-export type { components, paths } from './generated/schema';
+export type { components, operations, paths } from './generated/schema';
+
+import type { operations as generatedOperations } from './generated/schema';
 
 /** `Schemas['Invoice']` rather than a hand-written `Invoice`. */
 export type Schemas = components['schemas'];
+
+/**
+ * The operations, for a response shape the contract declares **inline** rather
+ * than as a named schema — `eraseUser`'s report, say. Restating such a shape by
+ * hand compiles and then goes on compiling after the contract changes, which is
+ * the one failure mode generating the client was meant to remove.
+ */
+export type Operations = generatedOperations;
 
 /**
  * How the client learns the request context.

@@ -32,6 +32,14 @@ import { VatReportsScreen } from '@/features/tax/VatReportsScreen';
 import { JobsScreen } from '@/features/workspace/JobsScreen';
 import { ProjectScreen } from '@/features/workspace/ProjectScreen';
 import { ProjectsScreen } from '@/features/workspace/ProjectsScreen';
+import { AccessLogScreen } from '@/features/console/AccessLogScreen';
+import { AuditScreen } from '@/features/console/AuditScreen';
+import { DirectoryScreen } from '@/features/console/DirectoryScreen';
+import { ErasureScreen } from '@/features/console/ErasureScreen';
+import { MetricsScreen } from '@/features/console/MetricsScreen';
+import { QueueScreen } from '@/features/console/QueueScreen';
+import { StaffTenantsScreen } from '@/features/console/StaffTenantsScreen';
+import { SupportConversationsScreen } from '@/features/console/SupportConversationsScreen';
 import { ConsoleShell } from '@/app/shells/ConsoleShell';
 import { TenantShell } from '@/app/shells/TenantShell';
 import { EmptyState } from '@/ui/EmptyState';
@@ -51,25 +59,9 @@ import { EmptyState } from '@/ui/EmptyState';
 
 const rootRoute = createRootRoute({ component: () => <Outlet /> });
 
-/** U1 ships no screens; each route renders a placeholder naming its milestone. */
-function Placeholder({ area, milestone }: { area: string; milestone: string }) {
-  return (
-    <EmptyState
-      title={`${area} arrives in ${milestone}`}
-      description="The shell, its regions and this route exist. The screen does not yet."
-    />
-  );
-}
-
 const validateSearch = (search: Record<string, unknown>): ViewState => parseViewState(search);
 
-interface Placeholded {
-  path: string;
-  area: string;
-  milestone: string;
-}
-
-/** The areas that have a real screen. Placeholders below are what is still to come. */
+/** The tenant application's screens. Every area U2–U7 scheduled now has one. */
 const SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element }[] = [
   // U2
   { path: '/profile', component: ProfileScreen },
@@ -101,14 +93,21 @@ const SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element
   { path: '/tax/reports', component: VatReportsScreen },
 ];
 
-const CONSOLE_ROUTES: readonly Placeholded[] = [
-  { path: '/console/tenants', area: 'Tenants', milestone: 'U8' },
-  { path: '/console/conversations', area: 'Conversations', milestone: 'U8' },
-  { path: '/console/access-log', area: 'Access log', milestone: 'U8' },
-  { path: '/console/metrics', area: 'Metrics', milestone: 'U8' },
-  { path: '/console/directory', area: 'Directory', milestone: 'U8' },
-  { path: '/console/queue', area: 'Queue', milestone: 'U8' },
-  { path: '/console/audit', area: 'Audit', milestone: 'U8' },
+/**
+ * The console's screens. **A separate array, under a separate shell route** — the
+ * two trees share the root and nothing else, which is what makes U8's "a
+ * tenant-app route is unreachable from the console and vice versa" a property of
+ * the router rather than a convention.
+ */
+const CONSOLE_SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element }[] = [
+  { path: '/console/tenants', component: StaffTenantsScreen },
+  { path: '/console/conversations', component: SupportConversationsScreen },
+  { path: '/console/access-log', component: AccessLogScreen },
+  { path: '/console/metrics', component: MetricsScreen },
+  { path: '/console/directory', component: DirectoryScreen },
+  { path: '/console/queue', component: QueueScreen },
+  { path: '/console/audit', component: AuditScreen },
+  { path: '/console/erasure', component: ErasureScreen },
 ];
 
 const tenantShellRoute = createRoute({
@@ -123,23 +122,25 @@ const consoleShellRoute = createRoute({
   component: ConsoleShell,
 });
 
+/**
+ * The tenant application's landing.
+ *
+ * It used to say "the workspace arrives in U4", which was true when U1 wrote it
+ * and false from U4 onwards — a placeholder outliving its milestone is a small
+ * lie that nothing fails on. There are no placeholders left in either tree now,
+ * so this points at the navigation rather than at a date.
+ */
 const indexRoute = createRoute({
   getParentRoute: () => tenantShellRoute,
   path: '/',
   validateSearch,
-  component: () => <Placeholder area="The workspace" milestone="U4" />,
+  component: () => (
+    <EmptyState
+      title="Choose an area"
+      description="Everything this product offers is in the navigation. What you can reach is what your permissions and your plan allow."
+    />
+  ),
 });
-
-function placeholderRoutes(parent: AnyRoute, defs: readonly Placeholded[]): AnyRoute[] {
-  return defs.map(({ path, area, milestone }) =>
-    createRoute({
-      getParentRoute: () => parent,
-      path,
-      validateSearch,
-      component: () => <Placeholder area={area} milestone={milestone} />,
-    }),
-  );
-}
 
 /**
  * A catch-all inside the tenant shell.
@@ -235,7 +236,11 @@ const routeTree = rootRoute.addChildren([
     invoiceRoute,
     notFoundRoute,
   ]),
-  consoleShellRoute.addChildren(placeholderRoutes(consoleShellRoute, CONSOLE_ROUTES)),
+  consoleShellRoute.addChildren(
+    CONSOLE_SCREEN_ROUTES.map(({ path, component }) =>
+      createRoute({ getParentRoute: () => consoleShellRoute, path, validateSearch, component }),
+    ),
+  ),
 ]);
 
 export function buildRouter() {
