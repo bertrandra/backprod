@@ -32,9 +32,19 @@ export default defineConfig({
     { name: 'mobile', use: { ...devices['Pixel 7'], ...launchOptions } },
   ],
   webServer: {
-    command: 'npm run preview -- --port 4173 --strictPort',
+    // `--host 127.0.0.1` explicitly. Vite's preview default is `localhost`,
+    // which on a dual-stack machine resolves to ::1 first — so the server binds
+    // to IPv6 while this waits on IPv4 and the whole thing times out after two
+    // minutes saying nothing useful. That is exactly how this first failed in
+    // CI, having worked locally.
+    command: 'npm run preview -- --host 127.0.0.1 --port 4173 --strictPort',
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: 60_000,
+    // Piped, not swallowed. A webServer that fails to start is the least
+    // self-explanatory failure in this toolchain, and silence turns a one-line
+    // cause into a guessing game.
+    stdout: 'pipe',
+    stderr: 'pipe',
   },
 });
