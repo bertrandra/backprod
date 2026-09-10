@@ -193,7 +193,8 @@ Full rule, with the reasoning: `docs/architecture-v2.md` §8.1. Non-negotiable
 
 ## UI structure
 
-Full specification: `docs/ui-spec.md`. The parts that constrain every change:
+Full specification: `docs/ui-spec.md`; build order and exit criteria:
+`docs/ui-roadmap.md`. The parts that constrain every change:
 
 **Two shells, never merged.** The tenant application (one product, one tenant)
 and the platform console (`/admin/*`, `/staff/*`) are separate shells with
