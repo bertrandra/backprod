@@ -1,16 +1,34 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import {
+  ambientParams,
   contextMiddleware,
   DEFAULT_BASE_URL,
+  NoProductChosen,
   PRODUCT_HEADER,
+  TENANT_HEADER,
   type ApiContext,
   type Schemas,
 } from './client';
 
 /**
+ * What only this layer can get wrong.
+ *
+ * The generated types are not tested here — they are regenerated and compared by
+ * `gate:client`, which is a stronger check than any assertion about them could
+ * be. What is tested is the configuration this file adds on top.
+ *
+ * The split is the thing to keep straight: the **token** is a security scheme in
+ * the contract, so it is ambient and the middleware attaches it. **`X-Product`**
+ * is a required *parameter*, so the generated types demand it at the call site
+ * and `ambientParams` supplies the value. Middleware attaching the product would
+ * satisfy that requirement invisibly, and a call site that had forgotten it
+ * would still compile.
+ */
+
+/**
  * Derived from the function under test rather than imported from
- * `openapi-fetch` — which the §8.1 lint rule forbids here, and rightly: a test
+ * `openapi-fetch`, which the §8.1 lint rule forbids here — and rightly: a test
  * that reached for the library directly would keep passing after the client
  * stopped using it.
  */
@@ -18,28 +36,17 @@ type OnRequestParams = Parameters<
   NonNullable<ReturnType<typeof contextMiddleware>['onRequest']>
 >[0];
 
-/**
- * What only this layer can get wrong.
- *
- * The generated types are not tested here — they are regenerated and compared
- * by `gate:client`, which is a stronger check than any assertion about them
- * could be. What is tested is the configuration this file adds on top: the
- * ambient context reaching every request, and the generated contract actually
- * being connected to the client rather than merely present in the repository.
- */
-
 function contextOf(token: string | null, product: string | null): ApiContext {
   return { token: () => token, product: () => product };
 }
 
-/** Runs the middleware over a request and hands back the headers it produced. */
 async function headersFor(context: ApiContext): Promise<Headers> {
   const middleware = contextMiddleware(context);
   const request = new Request('https://example.test/api/v1/me');
 
-  // openapi-fetch hands its hooks a merged-options object it does not export
-  // and this middleware never reads. Built to the shape the hook actually uses
-  // and cast once, rather than reconstructing a private type.
+  // openapi-fetch hands its hooks a merged-options object it does not export and
+  // this middleware never reads. Built to the shape the hook actually uses and
+  // cast once, rather than reconstructing a private type.
   const result = await middleware.onRequest?.({
     request,
     schemaPath: '/api/v1/me',
@@ -50,42 +57,79 @@ async function headersFor(context: ApiContext): Promise<Headers> {
   return result instanceof Request ? result.headers : request.headers;
 }
 
-describe('the request context', () => {
-  it('carries the token and the product on every request', async () => {
+describe('the bearer token', () => {
+  it('is attached to every request, because it is a security scheme', async () => {
+    // `bearerAuth` is declared globally in the contract, so it applies to
+    // everything and no call site should be repeating it.
     const headers = await headersFor(contextOf('tok-abc', 'atlas'));
 
     expect(headers.get('Authorization')).toBe('Bearer tok-abc');
-    expect(headers.get(PRODUCT_HEADER)).toBe('atlas');
   });
 
-  it('omits a header it has no value for rather than sending an empty one', async () => {
-    const headers = await headersFor(contextOf(null, null));
-
-    // An empty Authorization is a malformed credential and an empty X-Product
-    // claims a product that does not exist. Both would be refused, but this
-    // layer should not be the thing building a request nobody meant to send.
-    expect(headers.has('Authorization')).toBe(false);
-    expect(headers.has(PRODUCT_HEADER)).toBe(false);
-  });
-
-  it('treats an empty string as no value', async () => {
-    const headers = await headersFor(contextOf('', ''));
+  it('is omitted rather than sent empty when there is none', async () => {
+    // An empty Authorization is a malformed credential. The backend refuses it
+    // either way, but it should be refusing a request nobody meant to send.
+    const headers = await headersFor(contextOf(null, 'atlas'));
 
     expect(headers.has('Authorization')).toBe(false);
-    expect(headers.has(PRODUCT_HEADER)).toBe(false);
   });
 
-  it('reads the context on each request rather than capturing it once', async () => {
+  it('treats an empty string as no token', async () => {
+    expect((await headersFor(contextOf('', 'atlas'))).has('Authorization')).toBe(false);
+  });
+
+  it('is read per request, not captured once', async () => {
+    let token = 'first';
+    const context: ApiContext = { token: () => token, product: () => 'atlas' };
+
+    expect((await headersFor(context)).get('Authorization')).toBe('Bearer first');
+
+    // Tokens refresh while the application runs.
+    token = 'second';
+
+    expect((await headersFor(context)).get('Authorization')).toBe('Bearer second');
+  });
+
+  it('does not attach the product — that is a parameter, not a scheme', async () => {
+    const headers = await headersFor(contextOf('tok', 'atlas'));
+
+    expect(headers.has(PRODUCT_HEADER)).toBe(false);
+  });
+});
+
+describe('the request context as a parameter', () => {
+  it('carries the product the contract requires', () => {
+    expect(ambientParams(contextOf('tok', 'atlas'))).toEqual({
+      params: { header: { [PRODUCT_HEADER]: 'atlas' } },
+    });
+  });
+
+  it('refuses to build a request with no product rather than sending one', () => {
+    // A resource request without a product is meaningless (§12.1). Failing here
+    // gives a far better message than a 400 from the far end.
+    expect(() => ambientParams(contextOf('tok', null))).toThrow(NoProductChosen);
+    expect(() => ambientParams(contextOf('tok', ''))).toThrow(NoProductChosen);
+  });
+
+  it('includes the tenant only when there is one to name', () => {
+    const withTenant = ambientParams(contextOf('tok', 'atlas'), 'tenant-1');
+    const without = ambientParams(contextOf('tok', 'atlas'), null);
+
+    expect(withTenant.params.header[TENANT_HEADER]).toBe('tenant-1');
+    expect(TENANT_HEADER in without.params.header).toBe(false);
+    expect(TENANT_HEADER in ambientParams(contextOf('tok', 'atlas'), '').params.header).toBe(false);
+  });
+
+  it('reads the product per call, so switching product takes effect', () => {
     let product = 'atlas';
     const context: ApiContext = { token: () => 'tok', product: () => product };
 
-    expect((await headersFor(context)).get(PRODUCT_HEADER)).toBe('atlas');
+    expect(ambientParams(context).params.header[PRODUCT_HEADER]).toBe('atlas');
 
-    // The product switcher in region A changes this while the app runs, so a
-    // client that had captured the value would keep addressing the old product.
+    // The product switcher in region A changes this while the app runs.
     product = 'orbit';
 
-    expect((await headersFor(context)).get(PRODUCT_HEADER)).toBe('orbit');
+    expect(ambientParams(context).params.header[PRODUCT_HEADER]).toBe('orbit');
   });
 });
 

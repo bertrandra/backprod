@@ -124,7 +124,7 @@ the newest of each would not have worked.
 
 ---
 
-### U1 — Shell & context
+### U1 — Shell & context — *delivered ([ADR-037](adr/ADR-037-the-shell-and-what-it-offers.md))*
 
 **Goal:** the frame from ui-spec.md §4, at both breakpoints, deriving what it
 offers from data rather than from a hardcoded list. This is the U1 of this plan
@@ -140,12 +140,22 @@ for the same reason M1 was the backend's: everything later inherits it.
 - Region E wired to nothing yet, but present
 - Command palette shell (region F)
 
-**Exit criteria**
-- All six regions render at 1440 px and 375 px; none is absent at either
-- Navigation entries appear and disappear with `/me/permissions` — proven by a test that changes the fixture, not by inspection
-- A deep link restores filter, tab and selection
-- Keyboard reaches every interactive element; focus is visible
+**Exit criteria** — all met
+- All six regions render at 1440 px and 375 px; none is absent at either. Both navigations are in the DOM at every width and CSS decides which is visible, asserted in one spec across both viewports
+- Navigation entries appear and disappear with the permission list — 15 unit tests that change the fixture, including one proving a session with *every* tenant permission still sees no console entry
+- A deep link restores filter, tab, selection and panel; a nonsense query string opens the page rather than breaking it
+- Keyboard reaches interactive elements, the palette opens on ⌘K, focus moves into it and Escape closes it
 - 3 shell-bootstrap operations consumed; **0 of 129 area operations**
+
+**Decided here:** UD3 TanStack Router with validated search params; UD4 two
+route trees sharing no navigation; UD5 token in memory. **UD6 was revised**: the
+product is a required *parameter* in the contract, so it is passed as one rather
+than attached by middleware — a call site that forgets now fails to build
+instead of working until the middleware changes.
+
+**Deferred with a reason:** the product switcher needs `listProducts`, which the
+coverage map assigns to `commerce.catalogue` (U5). U1 takes the product from the
+URL or configuration instead of borrowing the operation early.
 
 ---
 
