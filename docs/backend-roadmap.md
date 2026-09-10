@@ -563,7 +563,7 @@ backend — [ADR-032](adr/ADR-032-geometry-over-core-postgresql.md)),
 
 Every endpoint in every milestone follows the CLAUDE.md sequence — no exceptions:
 
-`openapi.json` describes all 116 operations, and `gate:openapi` fails CI if
+`openapi.json` describes all 136 operations, and `gate:openapi` fails CI if
 the contract and the router ever disagree — in either direction. There is no
 allowlist: a new endpoint cannot ship undocumented, and a documented path that
 stops being routed is caught as the promise nothing keeps.

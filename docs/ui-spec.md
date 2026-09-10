@@ -6,6 +6,7 @@
 Query), §8.1 (frontend API data flow), §9 (forms), §34 (frontend structure)
 **Enforced by:** `tools/prove-ui-covers-the-api.php` against
 `ui-api-coverage.json`
+**Built in the order set by:** [ui-roadmap.md](ui-roadmap.md)
 
 ---
 
