@@ -1,4 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+
+import { expect, test } from './support/app';
 
 /**
  * §37.4's chain, in a browser: **quote → order → invoice → payment →

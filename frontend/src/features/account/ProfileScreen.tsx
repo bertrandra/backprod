@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { useUpdateProfile } from '@/queries/account';
+import { useSessionStore } from '@/state/session';
 import { useSession } from '@/queries/session';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { ErrorSurface } from '@/ui/ErrorSurface';
@@ -25,6 +26,7 @@ type Values = z.infer<typeof schema>;
 export function ProfileScreen() {
   const session = useSession();
   const update = useUpdateProfile();
+  const signOut = useSessionStore((state) => state.signOut);
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -87,6 +89,19 @@ export function ProfileScreen() {
           )}
         </div>
       </form>
+
+      {/* Sign out lives on the account screen, which is the one place a person
+          looks for it, and is a `<form>`-free button rather than a nav entry:
+          navigation is where you can go, and this is something you do.
+
+          Region A's "More" sheet has it too, because that sheet is the phone's
+          only route to anything the bottom bar could not fit — and an account
+          you cannot leave on a phone is a worse defect than one extra control. */}
+      <div className="border-t border-neutral-200 pt-4 dark:border-neutral-800">
+        <Button type="button" variant="secondary" onClick={signOut}>
+          Sign out
+        </Button>
+      </div>
     </div>
   );
 }

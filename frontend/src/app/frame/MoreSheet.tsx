@@ -1,3 +1,6 @@
+import { useSessionStore } from '@/state/session';
+import { Button } from '@/ui/Field';
+
 import type { NavSection } from './navigation';
 
 /**
@@ -15,6 +18,8 @@ export function MoreSheet({
   onClose: () => void;
   sections: readonly NavSection[];
 }) {
+  const signOut = useSessionStore((state) => state.signOut);
+
   if (!open) {
     return null;
   }
@@ -49,6 +54,16 @@ export function MoreSheet({
             </ul>
           </div>
         ))}
+
+        {/* Last, and separated: it is not a section of the application, it is
+            the way out of it. On a phone this sheet is the only place the
+            control fits — the bottom bar holds five destinations and none of
+            them is an action. */}
+        <div className="border-t border-neutral-200 pt-3 dark:border-neutral-800">
+          <Button type="button" variant="secondary" onClick={signOut}>
+            Sign out
+          </Button>
+        </div>
       </div>
     </div>
   );

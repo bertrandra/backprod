@@ -17,6 +17,7 @@
     "e2e": "playwright test",
     "gates": "npm run lint && npm run typecheck && npm run test && npm run gate:client",
     "build": "npm run gates && vite build",
+    "build:e2e": "vite build --mode e2e",
     "preview": "vite preview"
   },
   "dependencies": {
