@@ -23,7 +23,7 @@
 #     whether cron runs. `bin/preflight.php` on the host answers those.
 #
 # Usage:
-#   bin/verify-dist.sh dist/backprod-x.y.z.tar.gz
+#   bin/verify-dist.sh dist/backprod-x.y.z.zip
 #   bin/verify-dist.sh dist/bundle
 #   DATABASE_DSN=... bin/verify-dist.sh dist/bundle    # also exercises the API
 #   bin/verify-dist.sh dist/bundle --browser           # the real bundle, real browser
@@ -92,6 +92,13 @@ mkdir -p "$BUNDLE"
 if [ -d "$TARGET" ]; then
     cp -R "$TARGET/." "$BUNDLE/"
     say "Verifying the tree at $TARGET"
+elif [ "${TARGET%.zip}" != "$TARGET" ]; then
+    # Whichever container the operator is going to upload is the one worth
+    # checking: a zip and a tarball of the same tree can still differ in what
+    # they carry, and the point of this script is to check the artefact rather
+    # than the intention.
+    unzip -q "$TARGET" -d "$BUNDLE"
+    say "Verifying the zip $TARGET"
 else
     tar -xzf "$TARGET" -C "$BUNDLE"
     say "Verifying the archive $TARGET"
@@ -163,6 +170,16 @@ if [ "$DEV_TOOLS" -eq 0 ]; then
     pass "no development dependencies (--no-dev held)"
 fi
 
+# The bundle is public, so a credential shaped like a secret inside it is not a
+# risk — it is already published. The build refuses one; this catches a bundle that
+# got one by any other route, including a hand-edited asset or a bundle built
+# before that guard existed.
+if grep -rlE 'sb_secret_|service_role' "$DOCROOT" >/dev/null 2>&1; then
+    fail "the document root contains something shaped like a SECRET key — rotate it, then rebuild"
+else
+    pass "nothing in the document root looks like a secret credential"
+fi
+
 # One PHP file in the document root, and it is the shim. Anything else there is
 # either reachable by URL when it should not be, or a copy of something that
 # already exists in the application directory.
@@ -181,10 +198,22 @@ check "the application is outside the document root" \
 
 say "Apache configuration"
 
-if grep -q '@@AUTH_ORIGIN@@' "$DOCROOT/.htaccess"; then
-    fail "the CSP still contains the @@AUTH_ORIGIN@@ placeholder"
+if grep -q '@@' "$DOCROOT/.htaccess"; then
+    fail "the .htaccess still contains an unreplaced @@PLACEHOLDER@@"
 else
-    pass "the CSP names a real origin"
+    pass "no unreplaced placeholders in the .htaccess"
+fi
+
+# `'none'` beside another source is invalid, and an invalid directive behaves
+# differently in each browser and identically in no test. It happened: appending
+# a provider origin to `'self'` produced `connect-src 'self' 'none'` whenever a
+# bundle was built with --no-auth.
+CONNECT_SRC_LINE="$(grep -o "connect-src [^\"]*" "$DOCROOT/.htaccess" | tail -1)"
+
+if printf '%s' "$CONNECT_SRC_LINE" | grep -q "'none'" && [ "$CONNECT_SRC_LINE" != "connect-src 'none'" ]; then
+    fail "connect-src mixes 'none' with another source, which is invalid: $CONNECT_SRC_LINE"
+else
+    pass "connect-src is a valid source list ($CONNECT_SRC_LINE)"
 fi
 
 check "the API is routed to PHP before anything else" \

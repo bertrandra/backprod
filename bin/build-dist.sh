@@ -67,6 +67,67 @@ MESSAGE
     exit 1
 fi
 
+# --- Refuse a key that must never reach a browser ----------------------------
+#
+# This bundle is public. Every byte of it is served to anybody who asks, and the
+# key configured here is compiled into the JavaScript — so a *secret* key put in
+# this variable is not a leak waiting to happen, it is a leak, published, with
+# full read and write access to every table and row-level security bypassed.
+#
+# Asked for the anon key, somebody pasted `sb_secret_…`. The prefix says what it
+# is; the mistake is still easy, because a dashboard lists both keys on the same
+# page and the difference is one word. Nothing about the build would have failed:
+# sign-in would have worked, and the deployment would have been catastrophically
+# open in a way no test and no gate could see.
+#
+# Two shapes are refused. The new-style secret key names itself. The legacy
+# `service_role` key is a JWT whose payload says so, so the payload is decoded and
+# read — a check on the prefix alone would have missed the older of the two.
+decode_jwt_payload() {
+    local payload="${1#*.}"
+    payload="${payload%%.*}"
+    payload="$(printf '%s' "$payload" | tr '_-' '/+')"
+
+    # `base64 -d` refuses input whose length is not a multiple of four, and JWT
+    # segments are unpadded by design.
+    while [ $(( ${#payload} % 4 )) -ne 0 ]; do
+        payload="${payload}="
+    done
+
+    printf '%s' "$payload" | base64 -d 2>/dev/null || true
+}
+
+refuse_secret_key() {
+    cat >&2 <<'MESSAGE'
+
+Refusing to build: SUPABASE_ANON_KEY looks like a SECRET key.
+
+That key would be compiled into the JavaScript and served to every visitor. A
+secret key bypasses row-level security, so publishing it grants anybody who views
+source full read and write access to your database.
+
+Use the publishable key instead — `sb_publishable_…`, or the legacy `anon` JWT:
+
+  Dashboard -> Project Settings -> API keys -> publishable / anon
+
+If a secret key has already been pasted somewhere it does not belong, rotate it on
+that same page. Rotation is the only fix; a secret that has been shown once is
+spent.
+MESSAGE
+
+    exit 1
+}
+
+if [ -n "$SUPABASE_ANON_KEY" ]; then
+    case "$SUPABASE_ANON_KEY" in
+        sb_secret_*) refuse_secret_key ;;
+    esac
+
+    if decode_jwt_payload "$SUPABASE_ANON_KEY" | grep -q 'service_role'; then
+        refuse_secret_key
+    fi
+fi
+
 # The provider's origin — for the Content-Security-Policy, and for the bundle.
 #
 # A Supabase dashboard shows several URLs for one project, and the *REST* endpoint
@@ -80,7 +141,9 @@ fi
 # it again at runtime (`authConfig`), because a value can also arrive from an
 # environment this script never saw — but it is announced here so that whoever
 # built the bundle learns what was configured rather than being quietly corrected.
-AUTH_ORIGIN="'none'"
+# The whole `connect-src` list. `'self'` covers the API, which is same-origin;
+# a provider adds exactly one more source, and no provider adds none at all.
+CONNECT_SRC="'self'"
 
 if [ -n "$SUPABASE_URL" ]; then
     ORIGIN="$(printf '%s' "$SUPABASE_URL" | sed -E 's#^(https?://[^/]+).*#\1#')"
@@ -91,7 +154,7 @@ if [ -n "$SUPABASE_URL" ]; then
     fi
 
     SUPABASE_URL="$ORIGIN"
-    AUTH_ORIGIN="$ORIGIN"
+    CONNECT_SRC="'self' $ORIGIN"
 fi
 
 VERSION="$(git -C "$ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)"
@@ -225,7 +288,7 @@ mkdir -p "$APP/var/assets" "$APP/var/pdf"
 cp "$ROOT/deploy/siteground/env.production.example" "$APP/.env.example"
 cp "$ROOT/deploy/siteground/docroot-index.php" "$DOCROOT/index.php"
 
-sed "s#@@AUTH_ORIGIN@@#${AUTH_ORIGIN}#" \
+sed "s#@@CONNECT_SRC@@#${CONNECT_SRC}#" \
     "$ROOT/deploy/siteground/htaccess.template" > "$DOCROOT/.htaccess"
 
 cp "$ROOT/docs/deploying-to-siteground.md" "$STAGE/DEPLOY.md"
@@ -259,6 +322,29 @@ mkdir -p "$OUT"
 ARCHIVE="$OUT/backprod-${VERSION}.tar.gz"
 tar -czf "$ARCHIVE" -C "$STAGE" .
 
+# A zip as well, because that is what a hosting file manager offers to extract.
+# SiteGround's does handle tar.gz, but zip is the one every panel takes, and an
+# operator halfway through their first deployment should not have to find out
+# which. Same bytes, two containers.
+ZIP="$OUT/backprod-${VERSION}.zip"
+rm -f "$ZIP"
+
+if command -v zip >/dev/null 2>&1; then
+    ( cd "$STAGE" && zip -qr "$ZIP" . )
+else
+    # No `zip` binary on a build machine is common enough to be worth handling,
+    # and Python's is in the standard library.
+    ( cd "$STAGE" && python3 -c "
+import os, sys, zipfile
+
+with zipfile.ZipFile(sys.argv[1], 'w', zipfile.ZIP_DEFLATED) as archive:
+    for root, _, files in os.walk('.'):
+        for name in sorted(files):
+            path = os.path.join(root, name)
+            archive.write(path, os.path.relpath(path, '.'))
+" "$ZIP" )
+fi
+
 # Left as a tree as well as an archive: an operator with only a file manager
 # uploads a directory, and comparing a suspect deployment against it is a diff
 # rather than an unpack.
@@ -268,7 +354,8 @@ cp -R "$STAGE/." "$OUT/bundle/"
 
 say "Done"
 
-printf '  archive   %s (%s)\n' "$ARCHIVE" "$(du -h "$ARCHIVE" | cut -f1)"
+printf '  zip       %s (%s)\n' "$ZIP" "$(du -h "$ZIP" | cut -f1)"
+printf '  tar.gz    %s (%s)\n' "$ARCHIVE" "$(du -h "$ARCHIVE" | cut -f1)"
 printf '  tree      %s\n' "$OUT/bundle"
 printf '  files     %s\n' "$(find "$OUT/bundle" -type f | wc -l | tr -d ' ')"
-printf '\n  Verify it before uploading:  bin/verify-dist.sh %s\n\n' "$ARCHIVE"
+printf '\n  Verify it before uploading:  bin/verify-dist.sh %s\n\n' "$ZIP"
