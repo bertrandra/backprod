@@ -69,6 +69,21 @@ export const TENANT_NAV: readonly NavSection[] = [
     entries: [
       { id: 'subscription', label: 'Subscription', to: '/subscription', permission: 'subscription.read' },
       { id: 'invoices', label: 'Invoices', to: '/invoices', permission: 'billing.read' },
+      { id: 'payments', label: 'Payments', to: '/payments', permission: 'payments.read', secondary: true },
+      {
+        id: 'credit-notes',
+        label: 'Credit notes',
+        to: '/credit-notes',
+        permission: 'billing.read',
+        secondary: true,
+      },
+      {
+        id: 'billing-profile',
+        label: 'Billing identity',
+        to: '/billing-profile',
+        permission: 'billing.read',
+        secondary: true,
+      },
       { id: 'tax', label: 'Tax', to: '/tax', permission: 'tax.read', secondary: true },
     ],
   },

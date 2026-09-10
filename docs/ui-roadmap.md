@@ -369,7 +369,7 @@ rather than as an unbuilt feature.
 
 ---
 
-### U6 — Subscription & billing — 6 areas, 24 operations
+### U6 — Subscription & billing — 6 areas, 24 operations — *delivered*
 
 **Goal:** the money. The milestone where optimistic updates are wrong.
 
@@ -388,12 +388,31 @@ pointed at documents with legal numbers.
 - E-invoicing: transmit, and the four transmission states shown as a progression with the current state named
 - **No optimistic mutation anywhere in this milestone.** Issuing an invoice allocates a gapless legal number; a screen that assumes success has invented a document. Every mutation here shows pending honestly and reconciles from the server
 
-**Exit criteria**
-- Issuing an invoice shows a real pending state and never a provisional number
-- A failed payment leads to retry, and the UI makes clear it is a new attempt
-- Money is rendered from `minor_units` throughout — no float arithmetic anywhere in the frontend
-- Amounts and VAT rates match the invoice PDF exactly, checked against one issued invoice
+**Exit criteria** — three met, one met as far as a stubbed suite can carry it
+- Issuing an invoice shows a real pending state and never a provisional number — asserted in a browser with the response held open, so the window an optimistic implementation would fill is real time rather than a mocked promise. Proven by adding the optimistic write and watching it fail
+- A failed payment leads to retry, and the UI makes clear it is a new attempt — the words are asserted ("new", "stays failed", "cannot be resumed"), and the fresh `client_secret` is checked absent from the DOM, both storages and the URL
+- Money is rendered from `minor_units` throughout — asserted by sweeping every rendered amount in the page for the integer it came from
+- Amounts and VAT rates match the invoice PDF exactly — **met by construction, not by comparison.** ADR-035 renders the PDF once, at issue, from the invoice document, and this screen renders the same document: the test asserts the screen is faithful to it, with a fixture whose line nets deliberately do *not* sum to the invoice total, so a screen doing its own arithmetic fails. A real page-against-paper diff needs a live backend and belongs in U9
 - 24 operations covered
+
+**A gate, because a docblock is a promise.** "No optimistic mutation anywhere in
+this milestone" was a paragraph — the same kind of promise the six wrong
+permission codes in U1 were. `composer run gate:money` now proves it: `onMutate`,
+TanStack Query's optimistic hook, must not appear in any module that carries
+money. It also fails when a *new* `queries/*.ts` mentions `minor_units` and is
+not in its list, because a rule that stops applying the moment somebody adds a
+screen is not a rule. Proven both ways by breaking it.
+
+`queries/conversations.ts` is deliberately outside that scope: posting a message
+is the case optimism is for, and the exclusion is the statement.
+
+**What the screens refuse to do.** No invoice number is ever invented — a draft
+says it has none, because the contract says *"inventing a placeholder is how a
+gap enters a sequence that must not have one"*. No total is summed in the
+browser. No expiry, entitlement limit or cancellation effect is recomputed: they
+are all derived server-side and read as answers. And a **cancellation is a
+decision** — the rule that decided, when it takes effect, and how many months are
+still owed — never a boolean.
 
 ---
 
@@ -542,7 +561,7 @@ U2   4 areas    13 operations
 U3   3 areas    20 operations   delivered
 U4   5 areas    22 operations   delivered
 U5   5 areas    26 operations   delivered
-U6   6 areas    24 operations
+U6   6 areas    24 operations   delivered
 U7   3 areas     8 operations
 U8   8 areas    16 operations
             ───────────────

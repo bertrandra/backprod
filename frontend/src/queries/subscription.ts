@@ -1,0 +1,203 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+import { ambientParams, type Schemas } from '@/api/client';
+import { useApiClient } from '@/app/providers/ApiProvider';
+import { sessionSnapshot } from '@/state/session';
+
+import { keys } from './keys';
+import { toApiError } from './session';
+
+/**
+ * The subscription, and the two things §13.1 refuses to conflate.
+ *
+ * **Periodicity is not commitment** (non-negotiable #23). How often somebody is
+ * billed and how long they agreed to stay are different facts, and a screen that
+ * showed one number would be answering a question nobody asked. So both travel
+ * separately here and are rendered separately above.
+ *
+ * **A cancellation is a decision, not a boolean.** `CancellationDecision` carries
+ * the rule that decided, when it takes effect, how many months of commitment are
+ * still owed and the reasons in plain words — because what a customer needs is
+ * not `cancelled: true` but *when*, and which rule says so. All of it is shown.
+ *
+ * Nothing in this file is optimistic. Cancelling and changing offer both move
+ * money, and every one of them reconciles from the server.
+ */
+
+export type Subscription = Schemas['Subscription'];
+export type CancellationDecision = Schemas['CancellationDecision'];
+export type Entitlement = Schemas['Entitlement'];
+
+export function useSubscription() {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.subscription.current,
+    queryFn: async () => {
+      const { data, error, response } = await client.GET(
+        '/api/v1/subscription',
+        ambientParams(sessionSnapshot),
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+  });
+}
+
+/**
+ * The schedule, and what cancelling *now* would do.
+ *
+ * `if_cancelled_now` is a preview the backend computes, which is the only
+ * honest way to answer "what happens if I leave": the rules live in the Core and
+ * a frontend working it out from `current_period_end` would produce a second
+ * answer that disagrees at every commitment boundary.
+ */
+export function useSchedule() {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.subscription.schedule,
+    queryFn: async () => {
+      const { data, error, response } = await client.GET(
+        '/api/v1/subscription/schedule',
+        ambientParams(sessionSnapshot),
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+  });
+}
+
+export function useEntitlements() {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.subscription.entitlements,
+    queryFn: async (): Promise<readonly Entitlement[]> => {
+      const { data, error, response } = await client.GET(
+        '/api/v1/entitlements',
+        ambientParams(sessionSnapshot),
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.entitlements;
+    },
+  });
+}
+
+/** Everything a change to the subscription may have altered. */
+async function refreshSubscription(
+  queryClient: ReturnType<typeof useQueryClient>,
+): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: keys.subscription.current }),
+    queryClient.invalidateQueries({ queryKey: keys.subscription.schedule }),
+    // Entitlements come from the subscription's grants, so a changed offer
+    // changes what the tenant may do. Asking again is the only way to know.
+    queryClient.invalidateQueries({ queryKey: keys.subscription.entitlements }),
+    // And it may have raised an invoice.
+    queryClient.invalidateQueries({ queryKey: keys.billing.invoiceLists }),
+  ]);
+}
+
+export function useSubscribe() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { offer_id: string; seat?: boolean }): Promise<Subscription> => {
+      const { data, error, response } = await client.POST('/api/v1/subscription', {
+        ...ambientParams(sessionSnapshot),
+        body: input,
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    onSuccess: () => refreshSubscription(queryClient),
+  });
+}
+
+export function useChangeOffer() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (offerId: string): Promise<Subscription> => {
+      const { data, error, response } = await client.POST('/api/v1/subscription/change-offer', {
+        ...ambientParams(sessionSnapshot),
+        body: { offer_id: offerId },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    onSuccess: () => refreshSubscription(queryClient),
+  });
+}
+
+/**
+ * Cancelling.
+ *
+ * `immediately` is a **request**, not an instruction — the contract says so and
+ * the screen must too: "the policy still decides; asking does not make it so".
+ * The answer comes back as a decision, and the decision is what gets shown.
+ */
+export function useCancelSubscription() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { immediately?: boolean; seat?: boolean }) => {
+      const { data, error, response } = await client.POST('/api/v1/subscription/cancel', {
+        ...ambientParams(sessionSnapshot),
+        body: input,
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    onSuccess: () => refreshSubscription(queryClient),
+  });
+}
+
+export function useResumeSubscription() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (): Promise<Subscription> => {
+      const { data, error, response } = await client.POST(
+        '/api/v1/subscription/resume',
+        ambientParams(sessionSnapshot),
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    onSuccess: () => refreshSubscription(queryClient),
+  });
+}

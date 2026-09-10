@@ -608,6 +608,22 @@ pins the version that priced it, and that guarantee is worth nothing if the
 version can move. Changing published terms means adding a version and publishing
 it.
 
+**Money mutations are never optimistic**, and `composer run gate:money` proves
+it rather than trusting it: `onMutate` must not appear in any module that carries
+money. Issuing an invoice allocates a gapless legal number, and a screen that
+assumed success would have invented a document — the number either collides with
+a real one or leaves a hole in a sequence that must not have one. Optimism
+belongs where nothing binding is created (`queries/conversations.ts`).
+
+**A document's number is never invented.** `Invoice.number` is null until issued
+and a draft says so. No placeholder, no "pending number", nothing written into
+the cache ahead of the server.
+
+**Periodicity is not commitment** (non-negotiable #23). How often somebody is
+billed and how long they agreed to stay are separate facts, shown separately. A
+cancellation is a **decision** — rule id, effect, effective date, chargeable
+months, reasons — never `cancelled: true`.
+
 **Derived fields are the server's answer, not a local calculation.** `open` on a
 quote, `status` on a checkout session, `unread` on a notification: all derived on
 read. A screen that recomputed one from a date or a count would disagree with the
@@ -647,6 +663,7 @@ Typecheck
 → OpenAPI validation
 → Every operation is reachable in the UI (composer run gate:ui)
 → The frontend gates on permissions that exist (composer run gate:permissions)
+→ No money mutation is optimistic (composer run gate:money)
 → Generated client matches OpenAPI (npm run gate:client)
 → Playwright when applicable
 ```
