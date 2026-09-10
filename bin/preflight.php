@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Auth\Infrastructure\LocalJwtTokenIssuer;
 use Doctrine\DBAL\Connection;
 use Dotenv\Dotenv;
 use Psr\Container\ContainerInterface;
@@ -73,9 +74,18 @@ final class Capability
 $capabilities = [
     new Capability(
         'Authentication',
-        configured('SUPABASE_JWKS') && configured('SUPABASE_ISSUER'),
-        'No JWK set or issuer is configured, so no token verifies and the API authenticates nobody. '
-        . 'Every request is anonymous and every resource endpoint refuses it.',
+        // Either way of doing it counts. U12 made the platform able to issue its
+        // own tokens; ADR-014's external provider still works, and a deployment
+        // with neither authenticates nobody.
+        // Length checked, not just presence: HS256 refuses a key shorter than the
+        // hash, so a 20-character secret is a deployment that answers 503 on
+        // sign-in and would otherwise be reported here as ready.
+        (strlen(env('AUTH_SIGNING_SECRET')) >= LocalJwtTokenIssuer::MINIMUM_SECRET_BYTES)
+        || (configured('SUPABASE_JWKS') && configured('SUPABASE_ISSUER')),
+        'No signing secret of at least ' . LocalJwtTokenIssuer::MINIMUM_SECRET_BYTES . ' characters, and no external '
+        . 'JWK set either — so nobody can sign in and no token verifies. Every request is anonymous and every '
+        . 'resource endpoint refuses it. Generate one with: '
+        . "php -r 'echo bin2hex(random_bytes(32)), PHP_EOL;'",
         required: true,
     ),
     new Capability(

@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useSessionStore } from '@/state/session';
+import { recordingClient, renderWith, stubClient } from '@/test-utils';
 
 import { SignInGate } from './SignInGate';
 
@@ -9,17 +10,27 @@ import { SignInGate } from './SignInGate';
  * The reload, which is where "no token" being two things stopped being academic.
  *
  * A first paint with no token is either "not signed in" or "one round trip from
- * being signed in". Rendering the form for the second is the bug this file
- * exists to prevent, and it is invisible in a test that starts from a decided
- * state — so every test here starts from `restoring`, which is what a real page
- * load starts from.
+ * being signed in". Rendering the form for the second is the bug this file exists
+ * to prevent, and it is invisible in a test that starts from a decided state — so
+ * every test here starts from `restoring`, which is what a real page load starts
+ * from.
+ *
+ * **What U12 changed:** this no longer looks in storage to decide whether there is
+ * anything to resume. It asks the server, and the browser attaches an `HttpOnly`
+ * cookie the tests never see. So "a returning visitor" is stubbed as *the server
+ * answering 200*, and "not signed in" as the server answering 401 — which is what
+ * the real thing distinguishes too, rather than guessing from a storage key.
  */
-function configure(): void {
-  vi.stubEnv('VITE_SUPABASE_URL', 'https://project.supabase.test');
-  vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'anon-key');
-}
+const REFRESH = 'POST /api/v1/auth/refresh';
 
-const GRANT = { access_token: 'access', refresh_token: 'rotated', expires_in: 3600 };
+const SESSION = { access_token: 'access', token_type: 'Bearer', expires_in: 3600 };
+
+const REFUSED = {
+  status: 401,
+  error: {
+    error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.', details: {}, request_id: 'r' },
+  },
+};
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -27,22 +38,16 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.unstubAllEnvs();
+  vi.useRealTimers();
 });
 
-describe('a page load with a stored refresh token', () => {
-  it('exchanges it and renders the application, never the sign-in form', async () => {
-    configure();
-    window.localStorage.setItem('backprod.refresh', 'stored');
-    vi.stubGlobal('fetch', () =>
-      Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(GRANT) } as Response),
-    );
-
-    render(
+describe('a page load with a session the server still honours', () => {
+  it('resumes it and renders the application, never the sign-in form', async () => {
+    renderWith(
       <SignInGate>
         <p>The application</p>
       </SignInGate>,
+      stubClient({ [REFRESH]: { data: SESSION } }),
     );
 
     // Before the exchange answers, the honest thing is on screen — not a form
@@ -55,52 +60,60 @@ describe('a page load with a stored refresh token', () => {
     expect(useSessionStore.getState().token).toBe('access');
   });
 
-  it('keeps the rotated refresh token, not the one it arrived with', async () => {
-    configure();
-    window.localStorage.setItem('backprod.refresh', 'stored');
-    vi.stubGlobal('fetch', () =>
-      Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(GRANT) } as Response),
-    );
+  it('sends no body, because the credential is a cookie no script can read', async () => {
+    const { client, requests } = recordingClient({ [REFRESH]: { data: SESSION } });
 
-    render(
+    renderWith(
       <SignInGate>
         <p>The application</p>
       </SignInGate>,
+      client,
     );
 
     await waitFor(() => {
-      expect(window.localStorage.getItem('backprod.refresh')).toBe('rotated');
+      expect(requests).toHaveLength(1);
     });
+    // A body field here would mean a script had read the refresh token, which is
+    // exactly what `HttpOnly` exists to prevent — so accepting one would quietly
+    // reopen the hole the cookie closes.
+    expect(requests[0]?.body).toBeUndefined();
   });
+});
 
-  it('falls back to the form when the provider refuses the token, and forgets it', async () => {
-    configure();
-    window.localStorage.setItem('backprod.refresh', 'revoked');
-    vi.stubGlobal('fetch', () =>
-      Promise.resolve({ ok: false, status: 400, json: () => Promise.resolve({}) } as Response),
-    );
-
-    render(
+describe('a page load with no session', () => {
+  it('shows the form once the server says so', async () => {
+    renderWith(
       <SignInGate>
         <p>The application</p>
       </SignInGate>,
+      stubClient({ [REFRESH]: REFUSED }),
     );
 
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeDefined();
-    // Left in place it would be retried on every load, forever, against a
-    // provider that has already said no.
-    expect(window.localStorage.getItem('backprod.refresh')).toBeNull();
   });
 
-  it('falls back to the form when the provider cannot be reached at all', async () => {
-    configure();
-    window.localStorage.setItem('backprod.refresh', 'stored');
-    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')));
-
-    render(
+  it('renders nothing of the application behind the form', async () => {
+    renderWith(
       <SignInGate>
         <p>The application</p>
       </SignInGate>,
+      stubClient({ [REFRESH]: REFUSED }),
+    );
+
+    await screen.findByRole('button', { name: 'Sign in' });
+
+    // Not merely hidden: the children never mount, so no screen fires a query that
+    // would come back 401. That is the reason the gate is above the router rather
+    // than inside a shell.
+    expect(screen.queryByText('The application')).toBeNull();
+  });
+
+  it('shows the form when the server cannot be reached at all', async () => {
+    renderWith(
+      <SignInGate>
+        <p>The application</p>
+      </SignInGate>,
+      stubClient({ [REFRESH]: { status: 503, error: { error: { code: 'X', message: 'x', details: {}, request_id: 'r' } } } }),
     );
 
     // Waiting inside a blank page would not fix an outage. A form the person can
@@ -109,87 +122,30 @@ describe('a page load with a stored refresh token', () => {
   });
 });
 
-describe('a page load with nothing stored', () => {
-  it('goes straight to the form without asking the provider anything', async () => {
-    configure();
-    const calls: string[] = [];
-
-    vi.stubGlobal('fetch', (url: string) => {
-      calls.push(url);
-
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(GRANT) } as Response);
-    });
-
-    render(
-      <SignInGate>
-        <p>The application</p>
-      </SignInGate>,
-    );
-
-    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeDefined();
-    expect(calls).toEqual([]);
-  });
-
-  it('renders nothing of the application behind the form', async () => {
-    configure();
-
-    render(
-      <SignInGate>
-        <p>The application</p>
-      </SignInGate>,
-    );
-
-    await screen.findByRole('button', { name: 'Sign in' });
-
-    // Not merely hidden: the children never mount, so no screen fires a query
-    // that would come back 401. That is the whole reason the gate is above the
-    // router rather than inside a shell.
-    expect(screen.queryByText('The application')).toBeNull();
-  });
-});
-
-describe('a session that is already signed in', () => {
-  it('renders the application and asks the provider nothing', () => {
-    configure();
-    const calls: string[] = [];
-
-    vi.stubGlobal('fetch', (url: string) => {
-      calls.push(url);
-
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(GRANT) } as Response);
-    });
+describe('a session already in hand', () => {
+  it('renders the application and asks the server nothing', () => {
+    const { client, requests } = recordingClient({ [REFRESH]: { data: SESSION } });
 
     useSessionStore.setState({ token: 'access', status: 'signed-in', expiresAt: null });
 
-    render(
+    renderWith(
       <SignInGate>
         <p>The application</p>
       </SignInGate>,
+      client,
     );
 
     expect(screen.getByText('The application')).toBeDefined();
     // `expiresAt` is null, so there is nothing to schedule and nothing to renew.
-    expect(calls).toEqual([]);
+    expect(requests).toEqual([]);
   });
 });
 
 describe('renewal', () => {
   it('renews shortly before the token expires rather than after it has', async () => {
-    configure();
     vi.useFakeTimers();
-    window.localStorage.setItem('backprod.refresh', 'stored');
 
-    const calls: string[] = [];
-
-    vi.stubGlobal('fetch', (url: string) => {
-      calls.push(url);
-
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({ ...GRANT, expires_in: 3600 }),
-      } as Response);
-    });
+    const { client, requests } = recordingClient({ [REFRESH]: { data: SESSION } });
 
     useSessionStore.setState({
       token: 'access',
@@ -199,41 +155,35 @@ describe('renewal', () => {
       expiresAt: Date.now() + 90_000,
     });
 
-    render(
+    renderWith(
       <SignInGate>
         <p>The application</p>
       </SignInGate>,
+      client,
     );
 
-    expect(calls).toEqual([]);
+    expect(requests).toEqual([]);
 
     await vi.advanceTimersByTimeAsync(31_000);
 
-    expect(calls).toHaveLength(1);
-    expect(calls[0]).toContain('grant_type=refresh_token');
-
-    vi.useRealTimers();
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.path).toBe('/api/v1/auth/refresh');
   });
 
   it('signs the person out when the renewal is refused', async () => {
-    configure();
     vi.useFakeTimers();
-    window.localStorage.setItem('backprod.refresh', 'stored');
-    vi.stubGlobal('fetch', () =>
-      Promise.resolve({ ok: false, status: 400, json: () => Promise.resolve({}) } as Response),
-    );
 
     useSessionStore.setState({ token: 'access', status: 'signed-in', expiresAt: Date.now() + 90_000 });
 
-    render(
+    renderWith(
       <SignInGate>
         <p>The application</p>
       </SignInGate>,
+      stubClient({ [REFRESH]: REFUSED }),
     );
 
     await vi.advanceTimersByTimeAsync(31_000);
 
     expect(useSessionStore.getState().status).toBe('anonymous');
-    vi.useRealTimers();
   });
 });

@@ -73,24 +73,32 @@ mean one component holding both authorities.
 `ui-api-coverage.json`, which the gate checks. This section says what each
 area is *for* — the part a JSON file cannot carry.
 
-### 3.0 Signing in — the screen this document forgot
+### 3.0 `identity.sign_in` — signing in
 
-Not one of the 34, and not in `ui-api-coverage.json`, because it calls **no API
-operation**: the token comes from the identity provider, and this platform only
-ever verifies one (ADR-014). That is also why nothing noticed it was missing until
-U11. Every area here was written as "which endpoints does this screen call", the
-gates check exactly that, and the one screen with no endpoints fell through the
-gap — so a deployed build rendered all 34 areas and could sign nobody in.
+The 35th area, and the only one that was ever missing. Until U11 there was no
+sign-in screen at all: a deployed build rendered every other area and left every
+visitor anonymous. Nothing caught it, and the reason is worth keeping.
 
-It has **no route**. `SignInGate` renders it instead of the shell for whatever URL
-was asked for, the way `AccessMotiveGate` renders instead of a tenant detail
-(§3.2): redirecting to `/sign-in` would drop the deep link somebody followed, and
-then getting them back to it needs state that only exists because of the redirect.
+**Every area here is defined as "which endpoints does this screen call", and the
+gates check exactly that.** While the token came from an external provider, this
+screen called *no* endpoint — so it could not appear in `ui-api-coverage.json`, and
+a screen absent from the map is a screen no gate has an opinion about. The hole was
+the shape of the map, not a mistake in filling it in.
 
-The lesson worth keeping is about the coverage gates rather than about sign-in: they
-prove every operation has a screen, and they are silent about a screen that needs
-no operation. There is one such screen. If a second ever appears, this section is
-where it goes.
+ADR-038 closed it by making signing in this platform's own work: `signIn`,
+`refreshSession` and `signOut` are contract operations, so the area is an ordinary
+area and `gate:screens` proves the screen calls all three.
+
+It has a route, `/sign-in`, and **nothing links to it.** `SignInGate` renders the
+screen instead of the shell for whatever URL was asked for, the way
+`AccessMotiveGate` renders instead of a tenant detail (§3.2): redirecting would
+drop the deep link somebody followed, and getting them back to it needs state that
+only exists because of the redirect. The route exists so the screen is addressable
+and so this area can declare one.
+
+It is outside both shells, which `router.test.ts` names as the single deliberate
+exception: somebody signing in has no session, so a shell would be a frame around
+nothing it could fill in.
 
 ### 3.1 Tenant application — product workspace
 

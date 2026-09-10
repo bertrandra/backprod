@@ -11,6 +11,9 @@ use App\Admin\Controller\ListAdminUsersController;
 use App\Admin\Controller\ListAuditController;
 use App\Admin\Controller\ShowMetricsController;
 use App\Admin\Controller\ShowQueueController;
+use App\Auth\Controller\RefreshSessionController;
+use App\Auth\Controller\SignInController;
+use App\Auth\Controller\SignOutController;
 use App\Billing\Controller\CancelInvoiceController;
 use App\Billing\Controller\IssueCreditNoteController;
 use App\Billing\Controller\IssueInvoiceController;
@@ -156,6 +159,16 @@ use FastRoute\RouteCollector;
  */
 return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/health', HealthController::class);
+
+    // --- Signing in (U12) -------------------------------------------------
+    // Three public routes, and the only ones besides /health and the two
+    // signature-verifying prefixes. This platform issues its own tokens now
+    // (superseding ADR-014's "verify, never issue"), because the deployment
+    // target offers PHP, PostgreSQL and JavaScript and an external issuer was
+    // the one thing reaching outside all three.
+    $routes->addRoute('POST', '/api/v1/auth/token', SignInController::class);
+    $routes->addRoute('POST', '/api/v1/auth/refresh', RefreshSessionController::class);
+    $routes->addRoute('POST', '/api/v1/auth/sign-out', SignOutController::class);
 
     $routes->addRoute('GET', '/api/v1/me', MeController::class);
     $routes->addRoute('PATCH', '/api/v1/me', UpdateMeController::class);

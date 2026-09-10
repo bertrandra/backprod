@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 
-import { expect, test } from './support/app';
+import { expect, stubSession, test } from './support/app';
 
 /**
  * §37.4's chain, in a browser: **quote → order → invoice → payment →
@@ -164,6 +164,11 @@ async function chain(page: Page): Promise<Chain> {
   await page.route(/\/api\/v1\//, (route) =>
     route.fulfill({ json: { total: 0, limit: 25, offset: 0, unread: 0 } }),
   );
+
+  // Re-registered after the catch-all above, which would otherwise answer the
+  // session refresh and leave every test in this file on the sign-in form.
+  // Playwright uses the most recently registered route (U9).
+  await stubSession(page);
 
   await page.route(/\/api\/v1\/me$/, (route) => route.fulfill({ json: SESSION }));
   await page.route(/\/api\/v1\/products$/, (route) =>

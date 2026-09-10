@@ -1,10 +1,22 @@
 {
-  "$comment": "Single source for UI coverage of the API. docs/ui-spec.md explains the areas and the reasoning; tools/prove-ui-covers-the-api.php checks this file against openapi.json in both directions, and tools/prove-screens-call-their-operations.php checks it against the frontend \u2014 that every area's routes exist and that every operation an area claims is actually called through the generated client.",
+  "$comment": "Single source for UI coverage of the API. docs/ui-spec.md explains the areas and the reasoning; tools/prove-ui-covers-the-api.php checks this file against openapi.json in both directions, and tools/prove-screens-call-their-operations.php checks it against the frontend — that every area's routes exist and that every operation an area claims is actually called through the generated client.",
   "shells": {
     "tenant": "The product application: one product, one tenant, scoped by X-Product and the caller's membership.",
     "console": "The platform console. A separate shell because a platform role never grants tenant membership (non-negotiable #22)."
   },
   "areas": {
+    "identity.sign_in": {
+      "shell": "tenant",
+      "$comment": "The screen U11 found missing and U12 made this platform's own. It has a route so it is addressable and so this area can declare one, but nothing links to it: SignInGate renders it *instead of* the shell for whatever URL was asked for, which is how a deep link survives signing in.",
+      "routes": [
+        "/sign-in"
+      ],
+      "operations": [
+        "refreshSession",
+        "signIn",
+        "signOut"
+      ]
+    },
     "account.notification_settings": {
       "shell": "tenant",
       "routes": [

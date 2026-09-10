@@ -170,14 +170,14 @@ if [ "$DEV_TOOLS" -eq 0 ]; then
     pass "no development dependencies (--no-dev held)"
 fi
 
-# The bundle is public, so a credential shaped like a secret inside it is not a
-# risk — it is already published. The build refuses one; this catches a bundle that
-# got one by any other route, including a hand-edited asset or a bundle built
-# before that guard existed.
-if grep -rlE 'sb_secret_|service_role' "$DOCROOT" >/dev/null 2>&1; then
-    fail "the document root contains something shaped like a SECRET key — rotate it, then rebuild"
+# Kept after U12 removed the only credential a bundle ever carried. Nothing should
+# put one here now — the browser holds no key at all — which is exactly when a
+# check like this earns its keep: it is looking for something that has no reason to
+# exist, so a hit means something went wrong upstream of the build.
+if grep -rlE 'sb_secret_|service_role|AUTH_SIGNING_SECRET' "$DOCROOT" >/dev/null 2>&1; then
+    fail "the document root contains something shaped like a secret — nothing should, since U12"
 else
-    pass "nothing in the document root looks like a secret credential"
+    pass "no credential of any kind in the document root"
 fi
 
 # One PHP file in the document root, and it is the shim. Anything else there is
@@ -534,7 +534,7 @@ fi
 
 if [ "$BROWSER" -eq 1 ]; then
     say "In a browser"
-    note "The bundle must have been built with --mode e2e for its stubbed provider."
+    note "No special build is needed since U12: signing in is stubbed like any other API call."
 
     if ( cd "$ROOT/frontend" && PLAYWRIGHT_DIST_URL="http://127.0.0.1:$PORT" \
         npx playwright test --config=playwright.dist.config.ts >"$SCRATCH/playwright.log" 2>&1 ); then

@@ -40,6 +40,7 @@ import { MetricsScreen } from '@/features/console/MetricsScreen';
 import { QueueScreen } from '@/features/console/QueueScreen';
 import { StaffTenantsScreen } from '@/features/console/StaffTenantsScreen';
 import { SupportConversationsScreen } from '@/features/console/SupportConversationsScreen';
+import { SignInScreen } from '@/features/auth/SignInScreen';
 import { ConsoleShell } from '@/app/shells/ConsoleShell';
 import { TenantShell } from '@/app/shells/TenantShell';
 import { EmptyState } from '@/ui/EmptyState';
@@ -109,6 +110,25 @@ const CONSOLE_SCREEN_ROUTES: readonly { path: string; component: () => React.JSX
   { path: '/console/audit', component: AuditScreen },
   { path: '/console/erasure', component: ErasureScreen },
 ];
+
+/**
+ * Signing in, addressable but unlinked.
+ *
+ * Outside both shells, because a person here has no session and therefore no
+ * navigation, no product and no permissions — a shell around this screen would be
+ * a frame full of things that cannot be filled in.
+ *
+ * **Nothing navigates here.** `SignInGate` renders the same screen instead of the
+ * shell for whatever URL was asked for, which is what lets a deep link survive
+ * signing in. This route exists so the screen has an address of its own, and so
+ * `identity.sign_in` can declare a route the way `gate:screens` requires of every
+ * area.
+ */
+const signInRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/sign-in',
+  component: SignInScreen,
+});
 
 const tenantShellRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -228,6 +248,8 @@ const invoiceRoute = createRoute({
 });
 
 const routeTree = rootRoute.addChildren([
+  // First, and a sibling of both shells rather than a child of either.
+  signInRoute,
   tenantShellRoute.addChildren([
     indexRoute,
     ...screenRoutes,

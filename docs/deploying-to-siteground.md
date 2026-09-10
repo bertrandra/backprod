@@ -16,16 +16,18 @@ nothing else.
 Both of these can stop the deployment dead, and both are cheaper to check now
 than after an upload.
 
-**PostgreSQL is not something SiteGround hosts.** Their databases are MySQL, and
+**PostgreSQL is the only thing this deployment needs from outside the host** —
+and it is not something SiteGround provides. Their databases are MySQL, and
 this platform is PostgreSQL throughout — JSONB columns, partial indexes, triggers
 that freeze a closed VAT period, `FOR UPDATE SKIP LOCKED` in the job queue, a
 gapless invoice sequence. None of that ports to MySQL by changing a DSN, and
 ADR-016's hand-written SQL is not portable by design. So **the database lives
 somewhere else**, reached over TLS.
 
-The obvious somewhere is the Supabase project that already issues your tokens:
-then there is one vendor for identity and storage rather than two, and the JWKS
-and the DSN come from the same dashboard.
+Supabase, Neon, Railway, or your own server — anything that speaks PostgreSQL over
+TLS. Nothing else about the platform reaches outside SiteGround: since ADR-038 it
+issues its own sessions, so there is no identity provider, no key in the browser,
+and nothing to configure at build time.
 
 **`pdo_pgsql` must be enabled on the host's PHP.** Without it PHP cannot speak to
 PostgreSQL at all and every API request fails identically. Check it in Site Tools
@@ -45,25 +47,19 @@ before uploading 60 MB is the point of asking first.
 ## 1. Build the bundle
 
 ```sh
-SUPABASE_URL=https://YOURPROJECT.supabase.co \
-SUPABASE_ANON_KEY=eyJhbGciOi... \
-DEFAULT_PRODUCT=atlas \
-  bin/build-dist.sh
+DEFAULT_PRODUCT=atlas bin/build-dist.sh --slim-fonts
 ```
 
-Both Supabase values are **public** — the anon key ships inside every bundle and
-grants nothing on its own; row-level security and this platform's own
-authorisation are what stand behind it. They are baked in at build time because
-the browser is what needs them. Do not put the *service-role* key anywhere near
-this: it bypasses row-level security and must never reach a browser.
+**No keys, and nothing else to decide.** The browser holds no credential of any
+kind, so a bundle built today works against any deployment — and the only thing
+that ever configures identity is `.env` on the host.
 
 `DEFAULT_PRODUCT` is the product code to act in when a URL does not name one. A
 single-product install should set it, or every link needs `?product=CODE`.
 
-The build refuses to run without the two Supabase values. That is deliberate: a
-bundle without them renders all 34 screen areas and can sign nobody in. Pass
-`--no-auth` if you genuinely mean it — a UI embedded in something else that
-injects its own token.
+`--slim-fonts` keeps only the DejaVu family mPDF actually uses: 8.9 MB instead of
+47 MB, at the cost of a blank where a non-Latin legal name would go on an invoice
+PDF.
 
 You get:
 
@@ -163,16 +159,31 @@ explains every value and what its absence costs. The four that are required:
 | Value | Without it |
 |---|---|
 | `DATABASE_DSN` | nothing can be read or written; the API answers 503 |
-| `SUPABASE_JWKS` | no token verifies — people sign in and every screen still refuses them |
-| `SUPABASE_ISSUER` | same |
+| `AUTH_SIGNING_SECRET` | nobody can sign in: `/auth/token` answers 503 and says so. **At least 32 characters** — HS256 refuses less |
 | `ASSET_LINK_SIGNING_SECRET` | no download link can be signed, so exports and uploads cannot be handed out |
+
+Generate both secrets on the host:
+
+```sh
+php -r 'echo bin2hex(random_bytes(32)), PHP_EOL;'
+```
+
+Changing `AUTH_SIGNING_SECRET` signs everybody out at once, which is also how you
+revoke every session in an emergency.
 
 Set `ASSET_STORAGE_ROOT` and `PDF_TEMPORARY_ROOT` to the `var/` paths as well.
 Unset, uploads go to the system temporary directory, which shared hosting sweeps —
 so they vanish at a time unrelated to anything anybody did.
 
-`SUPABASE_JWKS` is the one people get wrong: it is the JSON from
-`https://YOURPROJECT.supabase.co/auth/v1/.well-known/jwks.json`, on one line.
+### Somebody to sign in as
+
+There is no registration screen and no password reset (ADR-038): an operator
+creates accounts. `composer run demo:seed` makes three, and prints the password.
+For a real one, insert a `users` row, set its `auth_subject` to `'local:' || id`,
+and add a `local_credentials` row whose `password_hash` comes from
+`password_hash($password, PASSWORD_BCRYPT)`. The database refuses a
+`password_hash` that is not a hash, so a mistake here fails rather than storing a
+plaintext password.
 
 ## 6. Select PHP 8.3
 
@@ -243,7 +254,7 @@ will see it doing so.
 | UI (React) | SiteGround, static | Fingerprinted; cached forever. One 726 kB JS file, 200 kB gzipped |
 | API (PHP 8.3) | SiteGround | Everything under `/api`; needs `pdo_pgsql` and `gd` |
 | Database | External PostgreSQL | Not SiteGround. Supabase or any managed Postgres, over TLS |
-| Identity | Supabase Auth | The browser gets a token; PHP only ever verifies one (ADR-014) |
+| Identity | SiteGround, in PHP | This platform issues and verifies its own tokens (ADR-038). No external provider |
 | Jobs | SiteGround cron | One minute is the shortest interval that matters |
 | Uploaded files | `backprod-app/var/assets` | Swap `StorageProvider` for S3 when the disk stops being enough |
 | Invoice PDFs | mPDF, in-process | Needs `gd` and a few MB of `PDF_TEMPORARY_ROOT` |
@@ -253,11 +264,9 @@ will see it doing so.
 Stated here rather than discovered later. `docs/production-readiness.md` is the
 fuller list; these are the ones specific to shipping it this way.
 
-- **The refresh token lives in `localStorage`.** It is reachable by script, so it
-  does not survive an XSS. The shape that would is an `HttpOnly` cookie, and that
-  requires PHP to own the token exchange — the API authenticates a bearer token
-  today (ADR-014), so that is an architecture change rather than a storage one. It
-  is the first thing to do after this deployment exists.
+- **No password reset, no email verification, no registration, no second factor**
+  (ADR-038). Accounts are created by an operator, which is honest for a platform
+  whose tenants are too — and the first thing to build if anybody self-registers.
 - **No observability.** Logs are structured and carry a request id; on shared
   hosting they go to the host's error log and nothing collects or alerts on them.
   A failing cron job is silent unless you read `jobs.log`.
@@ -280,8 +289,9 @@ fuller list; these are the ones specific to shipping it this way.
 | Every page is the raw `index.html` with no styling | `assets/` did not upload, or `mod_rewrite` is off |
 | Deep links 404 but `/` works | The last `.htaccess` rule is missing, or `AllowOverride` is off |
 | `503 SERVICE_UNAVAILABLE` on every API call | The platform could not start. `DATABASE_DSN`, almost always. The reason is in the host's error log, never in the response |
-| Sign-in works, every screen says you are not authorised | `SUPABASE_JWKS` or `SUPABASE_ISSUER` is wrong. The provider issued a token this backend will not verify |
-| "This deployment has no identity provider configured" | The *bundle* was built without `SUPABASE_URL`. A rebuild, not a `.env` change |
+| Sign-in answers 503 | `AUTH_SIGNING_SECRET` is missing or under 32 characters. The response says which |
+| Everybody was signed out at once | `AUTH_SIGNING_SECRET` changed. Every existing token was minted with the old one |
+| Signing in works and the next page asks again | The refresh cookie is not coming back. It is `Secure`, so the site must be https — check that SiteGround's certificate is live and that you are not on a plain-http URL |
 | Uploads succeed and the files disappear later | `ASSET_STORAGE_ROOT` is unset, so they went to a swept temporary directory |
 | Everything works; nothing queued ever happens | No cron entry for `bin/run-jobs.php` |
 | Legitimate users are throttled together | `TRUSTED_PROXIES` is unset, so every visitor shares one bucket behind the host's proxy |

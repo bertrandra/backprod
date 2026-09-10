@@ -51,6 +51,45 @@ final class JsonBody
     }
 
     /**
+     * A secret, **not trimmed**, with its length measured in bytes.
+     *
+     * `requiredString` trims, which is right for a display name and wrong for a
+     * password: a password may legitimately begin or end with a space, and
+     * trimming it changes the credential. Worse, it changes it *silently and
+     * asymmetrically* — whichever of the two paths trims decides what was stored,
+     * so somebody whose password ends in a space could set it successfully and
+     * then never be able to sign in.
+     *
+     * The 72-byte ceiling is bcrypt's, not a preference. `password_hash` with
+     * bcrypt ignores everything past 72 bytes: an 80-character password verifies
+     * against its own first 72, so the last eight characters are decoration and
+     * the person believes they have a longer password than they do. Refusing at
+     * the boundary is honest; silently keeping a prefix is not. Moving to Argon2id
+     * would lift the limit, and would also mean a hash that only verifies where
+     * Argon2id is compiled in — which on shared hosting is not a given.
+     */
+    public function requiredSecret(string $field, int $minimumBytes = 12, int $maximumBytes = 72): string
+    {
+        $value = $this->value($field);
+
+        if (!is_string($value)) {
+            throw $this->invalid($field, 'must be a string');
+        }
+
+        $length = strlen($value);
+
+        if ($length < $minimumBytes) {
+            throw $this->invalid($field, "must be at least {$minimumBytes} characters");
+        }
+
+        if ($length > $maximumBytes) {
+            throw $this->invalid($field, "must be at most {$maximumBytes} characters");
+        }
+
+        return $value;
+    }
+
+    /**
      * A non-empty string, trimmed. Absent, null, wrong type and blank are all
      * rejected — a name of spaces is not a name.
      */

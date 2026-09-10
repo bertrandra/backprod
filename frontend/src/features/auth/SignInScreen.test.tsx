@@ -1,39 +1,29 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { useSessionStore } from '@/state/session';
+import { recordingClient, renderWith, stubClient } from '@/test-utils';
 
 import { SignInScreen } from './SignInScreen';
 
 /**
- * The screen that had to exist for any of the other thirty-four to be reachable
- * by a real person.
+ * The screen U11 found missing and U12 made this platform's own.
  *
- * What is asserted here is what the person sees, not what was sent — the request
- * itself is `api/auth.test.ts`'s subject. The three that matter: a failure says
- * one sentence rather than the provider's, the password does not survive a failed
- * attempt, and an unconfigured deployment says so instead of offering a form that
- * cannot work.
+ * The request is now an ordinary contract operation, so these tests assert it the
+ * way every other screen's tests assert theirs — through the recording client,
+ * with no `fetch` stub anywhere. That is the readable summary of the whole change.
+ *
+ * The three that matter: a failure says one sentence rather than the server's, the
+ * password does not survive a failed attempt, and the password is sent exactly as
+ * typed.
  */
-function configure(): void {
-  vi.stubEnv('VITE_SUPABASE_URL', 'https://project.supabase.test');
-  vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'anon-key');
-}
+const TOKEN = 'POST /api/v1/auth/token';
 
-function answerWith(response: Partial<Response>): void {
-  vi.stubGlobal('fetch', () => Promise.resolve(response as Response));
-}
-
-const GRANT = { access_token: 'access', refresh_token: 'refresh', expires_in: 3600 };
+const SESSION = { access_token: 'access', token_type: 'Bearer', expires_in: 3600 };
 
 beforeEach(() => {
   window.localStorage.clear();
   useSessionStore.setState({ token: null, productCode: null, status: 'anonymous', expiresAt: null });
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.unstubAllEnvs();
 });
 
 function fillIn(email: string, password: string): void {
@@ -41,101 +31,156 @@ function fillIn(email: string, password: string): void {
   fireEvent.change(screen.getByLabelText('Password'), { target: { value: password } });
 }
 
+function submit(): void {
+  fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+}
+
 describe('signing in', () => {
   it('puts the token in the session, which is the only thing the API needs', async () => {
-    configure();
-    answerWith({ ok: true, status: 200, json: () => Promise.resolve(GRANT) });
+    renderWith(<SignInScreen />, stubClient({ [TOKEN]: { data: SESSION } }));
 
-    render(<SignInScreen />);
-    fillIn('ada@acme.test', 'correct horse');
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    fillIn('ada@acme.test', 'correct horse battery');
+    submit();
 
     await waitFor(() => {
       expect(useSessionStore.getState().status).toBe('signed-in');
     });
     expect(useSessionStore.getState().token).toBe('access');
+
+    // No *credential* is stored anywhere a script can read. The one key that is
+    // there is `backprod.product` — which `renderWith` sets, and which is a
+    // per-browser convenience about what this tab is acting as rather than a
+    // secret. Asserting "storage is empty" instead would have been asserting that
+    // the product is not remembered, which is a different feature.
+    expect(window.localStorage.getItem('backprod.refresh')).toBeNull();
+    expect(Object.keys(window.localStorage)).toEqual(['backprod.product']);
+  });
+
+  it('sends the password exactly as typed, spaces and all', async () => {
+    const { client, requests } = recordingClient({ [TOKEN]: { data: SESSION } });
+
+    renderWith(<SignInScreen />, client);
+    // Leading and trailing spaces, which are legitimate characters in a password.
+    // Trimming would change the credential — and asymmetrically, since whichever
+    // end trimmed would decide what was stored.
+    fillIn('ada@acme.test', '  spaces at both ends  ');
+    submit();
+
+    await waitFor(() => {
+      expect(requests).toHaveLength(1);
+    });
+    expect(requests[0]?.body).toEqual({
+      email: 'ada@acme.test',
+      password: '  spaces at both ends  ',
+    });
   });
 
   it('says one sentence about a rejected credential', async () => {
-    configure();
-    answerWith({
-      ok: false,
-      status: 400,
-      json: () => Promise.resolve({ msg: 'Invalid login credentials' }),
-    });
+    renderWith(
+      <SignInScreen />,
+      stubClient({ [TOKEN]: {
+            status: 401,
+            error: { error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.', details: {}, request_id: 'r' } },
+          },
+      }),
+    );
 
-    render(<SignInScreen />);
-    fillIn('ada@acme.test', 'wrong');
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    fillIn('ada@acme.test', 'wrong password here');
+    submit();
 
-    // Announced: somebody using a screen reader finds out that the attempt
-    // failed without going looking for the reason.
+    // The server refuses to say whether it was the address or the password — that
+    // difference is how somebody learns which addresses have accounts — and the
+    // screen does not invent the distinction.
     const alert = await screen.findByRole('alert');
 
     expect(alert.textContent).toBe('That email and password do not match an account.');
-    expect(useSessionStore.getState().status).toBe('anonymous');
   });
 
   it('distinguishes being throttled from being wrong', async () => {
-    configure();
-    answerWith({ ok: false, status: 429, json: () => Promise.resolve({}) });
+    renderWith(
+      <SignInScreen />,
+      stubClient({ [TOKEN]: {
+            status: 429,
+            error: { error: { code: 'TOO_MANY_REQUESTS', message: 'Slow down.', details: {}, request_id: 'r' } },
+          },
+      }),
+    );
 
-    render(<SignInScreen />);
-    fillIn('ada@acme.test', 'correct horse');
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    fillIn('ada@acme.test', 'correct horse battery');
+    submit();
 
-    // Telling somebody their password is wrong when it is right is how people
-    // end up resetting a password they did not need to.
+    // Telling somebody their password is wrong when it is right is how people end
+    // up resetting a password they did not need to.
     expect((await screen.findByRole('alert')).textContent).toContain('Too many attempts');
   });
 
-  it('clears the password after a failure', async () => {
-    configure();
-    answerWith({ ok: false, status: 400, json: () => Promise.resolve({}) });
+  it('says plainly when the deployment cannot issue sessions at all', async () => {
+    renderWith(
+      <SignInScreen />,
+      stubClient({ [TOKEN]: {
+            status: 503,
+            error: { error: { code: 'AUTHENTICATION_NOT_CONFIGURED', message: 'No signing secret.', details: {}, request_id: 'r' } },
+          },
+      }),
+    );
 
-    render(<SignInScreen />);
-    fillIn('ada@acme.test', 'wrong');
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    fillIn('ada@acme.test', 'correct horse battery');
+    submit();
+
+    // A deployment fault, not a credential one. No amount of retrying or password
+    // resetting will help, and saying "wrong password" would send somebody to do
+    // both.
+    expect((await screen.findByRole('alert')).textContent).toContain('no signing secret');
+  });
+
+  it('clears the password after a failure', async () => {
+    renderWith(
+      <SignInScreen />,
+      stubClient({ [TOKEN]: {
+            status: 401,
+            error: { error: { code: 'UNAUTHENTICATED', message: 'no', details: {}, request_id: 'r' } },
+          },
+      }),
+    );
+
+    fillIn('ada@acme.test', 'wrong password here');
+    submit();
 
     await screen.findByRole('alert');
 
-    // A form that still looks ready invites Enter, which resubmits the same
-    // wrong password — and Supabase throttles, so the third one costs a minute.
     expect(screen.getByLabelText<HTMLInputElement>('Password').value).toBe('');
     expect(screen.getByLabelText<HTMLInputElement>('Email').value).toBe('ada@acme.test');
   });
 
-  it('validates the address before sending anything', async () => {
-    configure();
-    const calls: string[] = [];
+  it('checks the address and the length before sending anything', async () => {
+    const { client, requests } = recordingClient({ [TOKEN]: { data: SESSION } });
 
-    vi.stubGlobal('fetch', (url: string) => {
-      calls.push(url);
+    renderWith(<SignInScreen />, client);
+    fillIn('not-an-address', 'short');
+    submit();
 
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(GRANT) } as Response);
-    });
+    // Both fields object, so there are two alerts. `findByRole` throws on two,
+    // which is a fair complaint about the test rather than about the screen: what
+    // this asserts is that each field said its own thing.
+    const alerts = await screen.findAllByRole('alert');
 
-    render(<SignInScreen />);
-    fillIn('not-an-address', 'correct horse');
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
-
-    expect((await screen.findByRole('alert')).textContent).toBe('That is not an email address.');
-    expect(calls).toEqual([]);
+    expect(alerts.map((alert) => alert.textContent)).toEqual([
+      'That is not an email address.',
+      'A password is at least 12 characters.',
+    ]);
+    expect(requests).toEqual([]);
   });
-});
 
-describe('a deployment with no identity provider', () => {
-  it('says so, and offers no form that could not work', () => {
-    // The backend's own default: an empty SUPABASE_JWKS verifies no key and
-    // authenticates nobody. Before this screen existed, that fact reached the
-    // person as thirty screens each explaining a 401.
-    vi.stubEnv('VITE_SUPABASE_URL', '');
-    vi.stubEnv('VITE_SUPABASE_ANON_KEY', '');
+  it('rejects a password longer than bcrypt will actually hash', async () => {
+    const { client, requests } = recordingClient({ [TOKEN]: { data: SESSION } });
 
-    render(<SignInScreen />);
+    renderWith(<SignInScreen />, client);
+    // 80 characters. bcrypt ignores everything past 72, so this would verify
+    // against its own first 72 and the last eight would be decoration.
+    fillIn('ada@acme.test', 'a'.repeat(80));
+    submit();
 
-    expect(screen.getByText(/no identity provider configured/)).toBeDefined();
-    expect(screen.queryByLabelText('Email')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull();
+    expect((await screen.findByRole('alert')).textContent).toContain('at most 72');
+    expect(requests).toEqual([]);
   });
 });

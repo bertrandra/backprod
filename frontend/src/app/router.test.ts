@@ -57,8 +57,18 @@ function pathsByShell(): { tenant: string[]; console: string[] } {
   };
 }
 
+/**
+ * The one route that is legitimately outside both shells.
+ *
+ * Enumerated rather than exempted by a pattern, and listed here rather than
+ * loosened inside the assertion: the check below is about a route accidentally
+ * escaping its frame, and the way to keep it meaningful is for every deliberate
+ * escape to be a line somebody had to write.
+ */
+const OUTSIDE_BOTH_SHELLS = ['/sign-in'];
+
 describe('the two shells', () => {
-  it('are the only children of the root, so every route belongs to exactly one', () => {
+  it('are the only children of the root, apart from signing in', () => {
     const ids = routeIds();
     const unaccounted = ids.filter(
       (id) =>
@@ -69,10 +79,12 @@ describe('the two shells', () => {
         !id.startsWith(`${CONSOLE_SHELL}/`),
     );
 
-    // A route outside both shells would render with no frame at all — no
-    // navigation, no context bar, and in the console's case no warning that a
-    // tenant boundary is being crossed.
-    expect(unaccounted).toEqual([]);
+    // A route outside both shells renders with no frame at all — no navigation, no
+    // context bar, and in the console's case no warning that a tenant boundary is
+    // being crossed. That is wrong for every screen in the application and right
+    // for exactly one: somebody signing in has no session, so a shell would be a
+    // frame around nothing it could fill in.
+    expect(unaccounted).toEqual(OUTSIDE_BOTH_SHELLS);
   });
 
   it('put every /console/ path under the console shell and nothing else there', () => {

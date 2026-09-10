@@ -565,17 +565,22 @@ composed to. Assert what a value *does*.
 enforces it. `src/api/generated/` is generated: never edit it, regenerate it
 (ADR-036).
 
-**One other file may use `fetch`, and only one.** `src/api/auth.ts` exchanges
-credentials for a token at the identity provider — which is not in `openapi.json`
-and never will be, because the backend verifies a JWT rather than issuing one
-(ADR-014). Two grant types against one URL. If you need a third HTTP call from
-the browser, it belongs in the contract, not in a third file: two named doors is
-a design, three is a habit.
+**One door, and no exceptions.** U11 briefly needed a second (`src/api/auth.ts`)
+because Supabase issued the token and its endpoint could not be in `openapi.json`.
+ADR-038 moved issuance into PHP, so signing in is three contract operations and
+that file is gone. If you need an HTTP call the generated client cannot make, the
+answer is to put it in the contract.
 
-Where the token then lives is `src/state/session.ts`'s decision alone: the access
-token in memory, the refresh token in `localStorage`, and nothing about timers or
-requests in the store. `SignInGate` renders instead of the router when there is no
-session, so no screen ever mounts unauthenticated.
+Signing in: `POST /api/v1/auth/token` returns an access token for the page to hold
+in memory, and sets the refresh token as an `HttpOnly` cookie the page cannot read.
+`state/session.ts` holds the access token and **nothing durable** — no browser
+store has a credential in it. `SignInGate` renders instead of the router when there
+is no session, so no screen ever mounts unauthenticated, and a reload resumes by
+asking `/auth/refresh` rather than by reading storage.
+
+A refresh rotates the token and revokes the one it was given. Presenting a spent
+one revokes every session for that account: replay and theft are indistinguishable
+from the server, and their costs are not (ADR-038).
 
 Every request needs a product: pass `ambientParams(sessionSnapshot)` as the
 call's init. The contract declares `X-Product` required, so a call that omits it

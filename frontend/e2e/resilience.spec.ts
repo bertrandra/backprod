@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 
-import { expect, test } from './support/app';
+import { expect, stubSession, test } from './support/app';
 
 /**
  * What the application does when the API is not there, and how fast it is when
@@ -76,6 +76,11 @@ async function online(page: Page, latencyMs = 0) {
       },
     });
   });
+
+  // Re-registered after the catch-all above, which would otherwise answer the
+  // session refresh and leave every test in this file on the sign-in form.
+  // Playwright uses the most recently registered route (U9).
+  await stubSession(page);
 
   await page.route(/\/api\/v1\/me$/, (route) => route.fulfill({ json: SESSION }));
   await page.route(/\/api\/v1\/products$/, (route) =>

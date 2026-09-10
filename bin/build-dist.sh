@@ -13,18 +13,17 @@
 # instructions. Any Apache host with mod_rewrite and PHP 8.3 takes this bundle.
 #
 # Usage:
-#   SUPABASE_URL=https://abc.supabase.co \
-#   SUPABASE_ANON_KEY=eyJhbGci... \
-#   DEFAULT_PRODUCT=atlas \
-#   bin/build-dist.sh [--out DIR] [--mode MODE] [--skip-gates] [--slim-fonts]
+#   DEFAULT_PRODUCT=atlas bin/build-dist.sh [--out DIR] [--skip-gates] [--slim-fonts]
+#
+# **No keys, and nothing to configure at build time.** U11 required a Supabase URL
+# and anon key, because the browser fetched its token from one. U12 issues tokens
+# from PHP, so the only thing a deployment configures is its own `.env` on the
+# host — and a bundle built today works against any deployment.
 #
 # This checkout is never modified: dependencies are installed into the bundle, so
 # an interrupted build leaves your working tree exactly as it was. Set
 # COMPOSER_PREFER=--prefer-source on a network where zipballs are unreliable.
-#
-# The two Supabase values are required, and deliberately: a bundle built without
-# them renders every screen and can sign nobody in, which is the defect U11 part 1
-# existed to fix. `--no-auth` says you mean it.
+
 
 set -euo pipefail
 
@@ -32,130 +31,28 @@ cd "$(dirname "$0")/.."
 ROOT="$PWD"
 
 OUT="$ROOT/dist"
-MODE="production"
 SKIP_GATES=0
-NO_AUTH=0
 SLIM_FONTS=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --out) OUT="$2"; shift 2 ;;
-        --mode) MODE="$2"; shift 2 ;;
         --skip-gates) SKIP_GATES=1; shift ;;
-        --no-auth) NO_AUTH=1; shift ;;
         --slim-fonts) SLIM_FONTS=1; shift ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
 done
 
-SUPABASE_URL="${SUPABASE_URL:-}"
-SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-}"
 DEFAULT_PRODUCT="${DEFAULT_PRODUCT:-}"
 
-if [ "$NO_AUTH" -eq 0 ] && { [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; }; then
-    cat >&2 <<'MESSAGE'
-Refusing to build: SUPABASE_URL and SUPABASE_ANON_KEY are not both set.
-
-Both are public values — the anon key ships in every bundle and grants nothing on
-its own — and the browser is what needs them, so they are baked in at build time
-rather than read from the server's .env.
-
-Without them the bundle's sign-in screen says the deployment has no identity
-provider, which is true and useless. Pass --no-auth if that is genuinely what you
-want (a UI embedded in something else that injects its own token).
-MESSAGE
-    exit 1
-fi
-
-# --- Refuse a key that must never reach a browser ----------------------------
+# `connect-src 'self'`, always.
 #
-# This bundle is public. Every byte of it is served to anybody who asks, and the
-# key configured here is compiled into the JavaScript — so a *secret* key put in
-# this variable is not a leak waiting to happen, it is a leak, published, with
-# full read and write access to every table and row-level security bypassed.
-#
-# Asked for the anon key, somebody pasted `sb_secret_…`. The prefix says what it
-# is; the mistake is still easy, because a dashboard lists both keys on the same
-# page and the difference is one word. Nothing about the build would have failed:
-# sign-in would have worked, and the deployment would have been catastrophically
-# open in a way no test and no gate could see.
-#
-# Two shapes are refused. The new-style secret key names itself. The legacy
-# `service_role` key is a JWT whose payload says so, so the payload is decoded and
-# read — a check on the prefix alone would have missed the older of the two.
-decode_jwt_payload() {
-    local payload="${1#*.}"
-    payload="${payload%%.*}"
-    payload="$(printf '%s' "$payload" | tr '_-' '/+')"
-
-    # `base64 -d` refuses input whose length is not a multiple of four, and JWT
-    # segments are unpadded by design.
-    while [ $(( ${#payload} % 4 )) -ne 0 ]; do
-        payload="${payload}="
-    done
-
-    printf '%s' "$payload" | base64 -d 2>/dev/null || true
-}
-
-refuse_secret_key() {
-    cat >&2 <<'MESSAGE'
-
-Refusing to build: SUPABASE_ANON_KEY looks like a SECRET key.
-
-That key would be compiled into the JavaScript and served to every visitor. A
-secret key bypasses row-level security, so publishing it grants anybody who views
-source full read and write access to your database.
-
-Use the publishable key instead — `sb_publishable_…`, or the legacy `anon` JWT:
-
-  Dashboard -> Project Settings -> API keys -> publishable / anon
-
-If a secret key has already been pasted somewhere it does not belong, rotate it on
-that same page. Rotation is the only fix; a secret that has been shown once is
-spent.
-MESSAGE
-
-    exit 1
-}
-
-if [ -n "$SUPABASE_ANON_KEY" ]; then
-    case "$SUPABASE_ANON_KEY" in
-        sb_secret_*) refuse_secret_key ;;
-    esac
-
-    if decode_jwt_payload "$SUPABASE_ANON_KEY" | grep -q 'service_role'; then
-        refuse_secret_key
-    fi
-fi
-
-# The provider's origin — for the Content-Security-Policy, and for the bundle.
-#
-# A Supabase dashboard shows several URLs for one project, and the *REST* endpoint
-# is the most prominent: `https://<ref>.supabase.co/rest/v1/`. Someone pasted that
-# here, which is the natural mistake, and until this line existed it produced a
-# bundle that asked for a token at `/rest/v1/auth/v1/token` — a 404, reported to
-# the person as "that email and password do not match an account". A deployment
-# fault wearing a credential fault's message.
-#
-# So the origin is taken once, here, and used for both. The application normalises
-# it again at runtime (`authConfig`), because a value can also arrive from an
-# environment this script never saw — but it is announced here so that whoever
-# built the bundle learns what was configured rather than being quietly corrected.
-# The whole `connect-src` list. `'self'` covers the API, which is same-origin;
-# a provider adds exactly one more source, and no provider adds none at all.
+# U11 had to name an identity provider's origin here, because the browser fetched
+# its token from one — and the build had to refuse a *secret* key, validate a URL,
+# and normalise it to an origin. U12 issues tokens from PHP, so every request the
+# page makes is same-origin: the policy needs no third party, and the build needs
+# no keys, no arguments, and no way to get any of it wrong.
 CONNECT_SRC="'self'"
-
-if [ -n "$SUPABASE_URL" ]; then
-    ORIGIN="$(printf '%s' "$SUPABASE_URL" | sed -E 's#^(https?://[^/]+).*#\1#')"
-
-    if [ "$ORIGIN" != "$SUPABASE_URL" ]; then
-        printf '\nNote: using the origin %s rather than %s.\n' "$ORIGIN" "$SUPABASE_URL"
-        printf 'The identity provider is addressed at its origin; the path is not part of it.\n'
-    fi
-
-    SUPABASE_URL="$ORIGIN"
-    CONNECT_SRC="'self' $ORIGIN"
-fi
 
 VERSION="$(git -C "$ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)"
 STAGE="$(mktemp -d)"
@@ -172,7 +69,7 @@ say() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 # Built first. It is the half most likely to fail, and failing before a PHP
 # dependency tree has been assembled saves a minute on every mistake.
 
-say "Building the UI ($MODE)"
+say "Building the UI"
 
 pushd "$ROOT/frontend" >/dev/null
 
@@ -186,10 +83,8 @@ if [ "$SKIP_GATES" -eq 0 ]; then
     npm run gates
 fi
 
-VITE_SUPABASE_URL="$SUPABASE_URL" \
-VITE_SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
 VITE_DEFAULT_PRODUCT="$DEFAULT_PRODUCT" \
-    npx vite build --mode "$MODE" --outDir "$DOCROOT" --emptyOutDir
+    npx vite build --outDir "$DOCROOT" --emptyOutDir
 
 popd >/dev/null
 
@@ -303,8 +198,7 @@ Backprod deployment bundle
 
   built            $(date -u '+%Y-%m-%d %H:%M:%SZ')
   from             $VERSION
-  vite mode        $MODE
-  identity         $([ -n "$SUPABASE_URL" ] && echo "$SUPABASE_URL" || echo 'NONE — this bundle can sign nobody in')
+  identity         this platform's own (U12): set AUTH_SIGNING_SECRET in .env on the host
   default product  $([ -n "$DEFAULT_PRODUCT" ] && echo "$DEFAULT_PRODUCT" || echo 'none — links need ?product=CODE')
   php required     8.3+, with pdo_pgsql, gd, mbstring, openssl, json
   fonts            $([ "$SLIM_FONTS" -eq 1 ] && echo 'DejaVu only — non-Latin scripts render blank in PDFs' || echo 'complete mPDF set')
