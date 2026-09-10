@@ -97,6 +97,31 @@ final class PostgresPaymentRepository implements PaymentRepository
         return $row === false ? null : self::toPayment($row);
     }
 
+    public function latestForInvoice(string $tenantId, string $productId, string $invoiceId): ?Payment
+    {
+        // Ordered by creation, not by status: a retry is a later row, and the
+        // question this answers is "what happened last", not "did anything
+        // work". The id breaks a tie two attempts in the same instant would
+        // otherwise leave unordered.
+        if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId) || !Uuid::isValid($invoiceId)) {
+            return null;
+        }
+
+        $row = $this->connection->fetchAssociative(
+            'SELECT ' . self::COLUMNS . <<<'SQL'
+                 FROM payments
+                WHERE tenant_id = :tenantId
+                  AND product_id = :productId
+                  AND invoice_id = :invoiceId
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                SQL,
+            ['tenantId' => $tenantId, 'productId' => $productId, 'invoiceId' => $invoiceId],
+        );
+
+        return $row === false ? null : self::toPayment($row);
+    }
+
     public function findByReference(string $provider, string $providerPaymentId): ?Payment
     {
         $row = $this->connection->fetchAssociative(

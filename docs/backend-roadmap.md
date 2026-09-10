@@ -501,6 +501,49 @@ a deletion request preserves records under legal retention.
 
 ---
 
+### Catalogue, admin, white label and checkout
+
+**Goal:** close the gap between §7's endpoint catalogue and the router.
+
+**Deliberately not numbered.** M8 was the last planned milestone and remains
+so; this is not M9. It came out of diffing §7's catalogue against
+`config/routes.php` once the OpenAPI contract made that diff possible, and it
+is the work that was left over rather than a theme somebody planned.
+
+**Deliverables**
+- **Offer authoring** — *delivered
+  ([ADR-033](adr/ADR-033-a-published-offer-version-is-frozen.md))*. The
+  catalogue was read-only, so the whole commerce chain needed a DBA to sell
+  anything. `POST/PATCH /offers`, `POST /offers/{id}/versions`,
+  `GET /offers/{id}/versions`, `POST /offers/{id}/publish`, with §12's
+  "a change creates a version" enforced by a trigger rather than by convention
+- **Admin read surfaces** — *delivered*. `/admin/tenants`, `/users`,
+  `/subscriptions`, `/invoices`, `/jobs`, behind three different permissions,
+  because money, the queue and the customer directory are not one audience.
+  `/admin/users` is the only admin surface returning personal data and
+  PLATFORM_ADMIN alone holds it
+- **White label** — *delivered*. `/tenant/skin` and its logo, gated by the
+  `skin.manage` permission **and** the `white_label` entitlement, which do not
+  imply each other. Colours constrained to `#rrggbb` by the database, because
+  they end up in a stylesheet
+- **Checkout** — *delivered
+  ([ADR-034](adr/ADR-034-a-checkout-session-is-an-order.md))*.
+  `/checkout/sessions` and `/payments/{id}/retry`, composing the existing
+  chain with no new table: a session **is** an order
+
+**Not built, and blocked rather than deferred:** `GET /invoices/{id}/pdf`.
+There is no PDF library in `composer.json` and `composer.lock` cannot be
+regenerated in this environment, so adding one is not a code change. The same
+constraint keeps Factur-X out of reach for R3, since that format is a PDF/A-3
+container.
+
+**Still unbuilt, and needing something this backend does not have:**
+`/projects/{id}/parcel*` (a cadastre source), `/geometry/buffer` (a spatial
+backend — [ADR-032](adr/ADR-032-geometry-over-core-postgresql.md)),
+`/photogrammetry/*` and `/3d/exports` (a processing backend).
+
+---
+
 ## 3. Per-endpoint execution loop
 
 Every endpoint in every milestone follows the CLAUDE.md sequence — no exceptions:

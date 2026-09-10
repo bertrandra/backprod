@@ -20,6 +20,9 @@ use App\Billing\Controller\PayInvoiceController;
 use App\Billing\Controller\SaveBillingProfileController;
 use App\Billing\Controller\ShowBillingProfileController;
 use App\Billing\Controller\ShowInvoiceController;
+use App\Checkout\Controller\OpenCheckoutSessionController;
+use App\Checkout\Controller\RetryPaymentController;
+use App\Checkout\Controller\ShowCheckoutSessionController;
 use App\Commerce\Controller\CancelSubscriptionController;
 use App\Commerce\Controller\ChangeOfferController;
 use App\Commerce\Controller\CreateOfferController;
@@ -218,6 +221,21 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/billing/payments/{paymentId}', ShowPaymentController::class);
     $routes->addRoute('POST', '/api/v1/billing/invoices/{invoiceId}/payments', StartPaymentController::class);
     $routes->addRoute('POST', '/api/v1/billing/payments/{paymentId}/refund', RefundPaymentController::class);
+
+    // Checkout (§7). A session is an order — there is no checkout_sessions
+    // table and no second lifecycle to keep in step: everything a session
+    // would hold is already on the order, the invoice and the payment.
+    //
+    // It composes the existing chain rather than adding a path beside it, so
+    // payment-gated activation still holds: the subscription starts when the
+    // money arrives, not when the session opens.
+    $routes->addRoute('POST', '/api/v1/checkout/sessions', OpenCheckoutSessionController::class);
+    $routes->addRoute('GET', '/api/v1/checkout/sessions/{sessionId}', ShowCheckoutSessionController::class);
+
+    // A retry is a new attempt with its own provider reference, never a
+    // resurrection: PaymentStatus is one-way, because the customer may have
+    // used a different instrument and the two must be told apart.
+    $routes->addRoute('POST', '/api/v1/payments/{paymentId}/retry', RetryPaymentController::class);
 
     // How a finalised invoice is corrected. Never by editing it: it has a
     // legal number in an unbroken sequence, and editing or deleting leaves a

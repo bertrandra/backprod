@@ -40,6 +40,18 @@ final class Payment
         return PaymentStatus::isSettled($this->status);
     }
 
+    /**
+     * Whether anything can still happen to this payment.
+     *
+     * Asked before a retry: a payment still in flight may yet settle, and
+     * authorizing a second one against the same invoice risks collecting
+     * twice for one debt.
+     */
+    public function isFinal(): bool
+    {
+        return PaymentStatus::isFinal($this->status);
+    }
+
     public function permits(string $status): bool
     {
         return PaymentStatus::permits($this->status, $status);

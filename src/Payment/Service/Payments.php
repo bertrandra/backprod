@@ -45,6 +45,16 @@ final class Payments
         ];
     }
 
+    /**
+     * The latest attempt against an invoice, or null if nothing was ever
+     * started. Not an error: an invoice with nothing collected yet is an
+     * ordinary state, not a missing thing.
+     */
+    public function latestFor(string $tenantId, string $productId, string $invoiceId): ?Payment
+    {
+        return $this->payments->latestForInvoice($tenantId, $productId, $invoiceId);
+    }
+
     public function show(string $tenantId, string $productId, string $paymentId): Payment
     {
         $payment = $this->payments->find($tenantId, $productId, $paymentId);
