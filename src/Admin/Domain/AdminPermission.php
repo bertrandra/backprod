@@ -38,6 +38,14 @@ final class AdminPermission
     public const HEALTH_READ = 'admin.health.read';
 
     /**
+     * PLATFORM_ADMIN alone, because of `/admin/users`: it is the only admin
+     * surface that returns personal data, and a list of every person on the
+     * platform answers no support question. Support already has the audited
+     * per-tenant read it needs at `/staff/tenants/{id}`.
+     */
+    public const DIRECTORY_READ = 'admin.directory.read';
+
+    /**
      * PLATFORM_ADMIN alone, and not SUPPORT_ADMIN. Support answers a
      * customer's questions; this destroys their identity irreversibly, and
      * the two are not the same authority however close the conversation that

@@ -30,6 +30,25 @@ interface PaymentRepository
     public function findByReference(string $provider, string $providerPaymentId): ?Payment;
 
     /**
+     * The most recent attempt against one invoice, whatever became of it.
+     *
+     * "Most recent" rather than "the successful one" on purpose: a caller
+     * asking how a checkout is going needs to see the attempt that failed,
+     * not be told there is no payment. An invoice never collected has none.
+     */
+    public function latestForInvoice(string $tenantId, string $productId, string $invoiceId): ?Payment;
+
+    /**
+     * How many attempts an invoice has already had, settled or not.
+     *
+     * Used to build a provider reference that names the attempt rather than
+     * the invoice. It is a label, not a lock: two callers racing here both
+     * see the same count, and what stops the second attempt existing twice is
+     * the unique index on (provider, provider_payment_id), not this number.
+     */
+    public function attemptsForInvoice(string $invoiceId): int;
+
+    /**
      * @return list<Refund>
      */
     public function refundsOf(string $paymentId): array;

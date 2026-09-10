@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Admin\Domain\AdminDirectory;
+use App\Admin\Infrastructure\PostgresAdminDirectory;
 use App\Admin\Service\AuditTrail;
 use App\Admin\Service\FinancialDashboard;
 use App\Audit\Domain\AuditLog;
@@ -21,9 +23,11 @@ use App\Billing\Infrastructure\PostgresCreditNoteRepository;
 use App\Billing\Infrastructure\PostgresInvoiceRepository;
 use App\Commerce\Domain\CatalogueRepository;
 use App\Commerce\Domain\EarlyTerminationCharge;
+use App\Commerce\Domain\OfferAuthoringRepository;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Infrastructure\PostgresCatalogueRepository;
 use App\Commerce\Infrastructure\PostgresEntitlementRepository;
+use App\Commerce\Infrastructure\PostgresOfferAuthoringRepository;
 use App\Commerce\Infrastructure\PostgresSubscriptionRepository;
 use App\EInvoice\Domain\TransmissionEffect;
 use App\EInvoice\Domain\TransmissionRepository;
@@ -87,6 +91,8 @@ use App\Shared\Http\MiddlewarePipeline;
 use App\Shared\Http\Router;
 use App\Shared\Logging\ErrorLogLogger;
 use App\Shared\Throttle\RateLimitMiddleware;
+use App\Skin\Domain\SkinRepository;
+use App\Skin\Infrastructure\PostgresSkinRepository;
 use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffRepository;
 use App\Staff\Domain\TenantDirectory;
@@ -192,6 +198,11 @@ return static function (array $overrides = []): ContainerInterface {
         ProductRepository::class => autowire(PostgresProductRepository::class),
         ProductRegistry::class => autowire(PostgresProductRegistry::class),
         CatalogueRepository::class => autowire(PostgresCatalogueRepository::class),
+
+        // Writing the catalogue is a second port, not more methods on the
+        // first: Sales, subscription and every other reader depends on
+        // CatalogueRepository, and none of them may publish.
+        OfferAuthoringRepository::class => autowire(PostgresOfferAuthoringRepository::class),
         SubscriptionRepository::class => autowire(PostgresSubscriptionRepository::class),
 
         // One adapter, two ports. Writing happens everywhere and reading on
@@ -200,6 +211,13 @@ return static function (array $overrides = []): ContainerInterface {
         AuditLog::class => autowire(PostgresAuditLog::class),
         AuditReader::class => autowire(PostgresAuditLog::class),
         AuditTrail::class => autowire(),
+
+        // The five operational listings of §7's /admin block. Read-only, and
+        // deliberately its own port: the dashboard aggregates, this
+        // enumerates, and one interface doing both would tempt a caller to
+        // page through every invoice to compute a total the aggregates
+        // already hold.
+        AdminDirectory::class => autowire(PostgresAdminDirectory::class),
 
         // The rollups the dashboard reads and the job fills. One interface
         // for both: unlike the audit trail there is no privilege to separate
@@ -285,6 +303,8 @@ return static function (array $overrides = []): ContainerInterface {
         ),
 
         AssetRepository::class => autowire(PostgresAssetRepository::class),
+
+        SkinRepository::class => autowire(PostgresSkinRepository::class),
 
         // The spatial backend of §19 phase 1: core PostgreSQL, no PostGIS,
         // because §19 will not depend on an extension the deployment target

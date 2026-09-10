@@ -45,6 +45,16 @@ final class Payments
         ];
     }
 
+    /**
+     * The latest attempt against an invoice, or null if nothing was ever
+     * started. Not an error: an invoice with nothing collected yet is an
+     * ordinary state, not a missing thing.
+     */
+    public function latestFor(string $tenantId, string $productId, string $invoiceId): ?Payment
+    {
+        return $this->payments->latestForInvoice($tenantId, $productId, $invoiceId);
+    }
+
     public function show(string $tenantId, string $productId, string $paymentId): Payment
     {
         $payment = $this->payments->find($tenantId, $productId, $paymentId);
@@ -90,7 +100,16 @@ final class Payments
         }
 
         $provider = $this->providers->default();
-        $started = $provider->authorize($invoice->gross, $invoice->number ?? $invoice->id);
+
+        // The reference names the attempt, not the invoice. Handing the same
+        // reference over twice would ask the provider to authorize the same
+        // thing again — an idempotent provider would hand back the intent
+        // that already failed, and the unique index on (provider,
+        // provider_payment_id) would refuse the row outright.
+        $attempt = $this->payments->attemptsForInvoice($invoice->id) + 1;
+        $reference = sprintf('%s/%d', $invoice->number ?? $invoice->id, $attempt);
+
+        $started = $provider->authorize($invoice->gross, $reference);
 
         $payment = $this->payments->start(
             $tenantId,

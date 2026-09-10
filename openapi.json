@@ -136,6 +136,27 @@
           "default": 0
         },
         "description": "How many to skip."
+      },
+      "DirectoryLimit": {
+        "name": "limit",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50
+        },
+        "description": "Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped."
+      },
+      "DirectoryOffset": {
+        "name": "offset",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000,
+          "default": 0
+        }
       }
     },
     "schemas": {
@@ -475,12 +496,10 @@
       },
       "SubscriptionTerms": {
         "type": "object",
-        "description": "Snapshotted when the subscription was taken out, not read from the offer now — which is the whole point of snapshotting them (§13.1). Changing an offer never rewrites what somebody already agreed to.",
+        "description": "What a subscription commits to (§13.1). The distinction this exists to hold is the one that costs the most to lose: **the payment period is not the commitment**. A 24-month subscription billed monthly is one 24-month commitment billed 24 times, not 24 one-month subscriptions in a row.",
         "required": [
           "term_months",
-          "term_ends_at",
           "commitment_months",
-          "commitment_ends_at",
           "cancellation_policy",
           "renewal",
           "early_termination",
@@ -492,25 +511,13 @@
               "integer",
               "null"
             ],
-            "description": "How long the contract runs. Null means no fixed term."
-          },
-          "term_ends_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
+            "minimum": 1,
+            "description": "How long the contract runs. Null is open-ended."
           },
           "commitment_months": {
             "type": "integer",
-            "description": "How much of the term the customer cannot leave. Never longer than the term; the database refuses it."
-          },
-          "commitment_ends_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
+            "minimum": 0,
+            "description": "Never more than `term_months`; a commitment longer than the contract is not a commitment."
           },
           "cancellation_policy": {
             "type": "string",
@@ -533,12 +540,11 @@
               "FORBIDDEN",
               "CHARGE_REMAINING",
               "FREE"
-            ],
-            "description": "What leaving before the commitment ends costs."
+            ]
           },
           "notice_days": {
             "type": "integer",
-            "description": "How long before the term ends the prior notice is due. Zero means none is configured, and none is sent."
+            "minimum": 0
           }
         }
       },
@@ -2870,6 +2876,558 @@
             "description": "Minimum separation in the input's linear units, zero when the shapes touch. **Null when `crs` is GEOGRAPHIC**, where a separation in degrees is not a distance. Null rather than absent, so one response shape serves both references."
           }
         }
+      },
+      "OfferDraft": {
+        "type": "object",
+        "description": "The terms of a version being written. Always born `DRAFT` — no field here can say otherwise, because publishing is a separate and deliberate act.",
+        "required": [
+          "billing_period",
+          "price_minor_units",
+          "currency"
+        ],
+        "properties": {
+          "billing_period": {
+            "type": "string",
+            "enum": [
+              "MONTHLY",
+              "YEARLY",
+              "CUSTOM"
+            ]
+          },
+          "price_minor_units": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Zero is legitimate: a free tier is still an offer.",
+            "examples": [
+              2900
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "examples": [
+              "EUR"
+            ]
+          },
+          "valid_from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When this version may start being sold. Defaults to now. Not the subscriber's period — §12 keeps the two apart."
+          },
+          "valid_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When it stops being sellable. Null leaves the window open."
+          },
+          "terms": {
+            "$ref": "#/components/schemas/SubscriptionTerms"
+          },
+          "grants": {
+            "type": "array",
+            "maxItems": 100,
+            "description": "What this version entitles the subscriber to.",
+            "items": {
+              "type": "object",
+              "required": [
+                "feature_id"
+              ],
+              "properties": {
+                "feature_id": {
+                  "type": "string",
+                  "description": "A feature of this product. One belonging to another product is refused, not ignored."
+                },
+                "limit": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "description": "Null means unlimited for a quota, and is the only valid value for a boolean capability."
+                }
+              }
+            }
+          }
+        }
+      },
+      "AuthoredOfferVersion": {
+        "type": "object",
+        "description": "A version as its author sees it, carrying the status the sale view has no reason to mention.",
+        "required": [
+          "id",
+          "version",
+          "status",
+          "billing_period",
+          "price",
+          "valid_from",
+          "valid_until",
+          "grants",
+          "terms"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Assigned by the database as `max + 1`, never by the caller."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "ACTIVE",
+              "EXPIRED",
+              "ARCHIVED"
+            ]
+          },
+          "billing_period": {
+            "type": "string",
+            "enum": [
+              "MONTHLY",
+              "YEARLY",
+              "CUSTOM"
+            ]
+          },
+          "price": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "valid_from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "valid_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "terms": {
+            "$ref": "#/components/schemas/SubscriptionTerms"
+          }
+        }
+      },
+      "AuthoredOffer": {
+        "type": "object",
+        "description": "An offer with every version it has, drafts included.",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "plan",
+          "versions"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "description": "How documents name this offer. Not editable: an identifier that can change is not an identifier."
+          },
+          "name": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "object"
+          },
+          "versions": {
+            "type": "array",
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/AuthoredOfferVersion"
+            }
+          }
+        }
+      },
+      "DirectoryEnvelope": {
+        "type": "object",
+        "description": "One page and how much lies behind it. The total is counted rather than inferred from a short page — an operator needs to know whether they are looking at forty customers or four thousand, and \"the page came back short\" answers that only on the last one.",
+        "required": [
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          }
+        }
+      },
+      "AdminTenant": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "members": {
+            "type": "integer"
+          },
+          "active_subscriptions": {
+            "type": "integer"
+          },
+          "unpaid_invoices": {
+            "type": "integer"
+          }
+        }
+      },
+      "AdminUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "erased_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Set means anonymised: the identity is gone and the record is kept."
+          },
+          "tenants": {
+            "type": "integer"
+          }
+        }
+      },
+      "AdminSubscription": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "current_period_end": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cancel_at_period_end": {
+            "type": "boolean"
+          },
+          "term_ends_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "commitment_ends_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "offer_code": {
+            "type": "string"
+          },
+          "offer_version": {
+            "type": "integer"
+          },
+          "price_minor_units": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
+      "AdminInvoice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "net_minor_units": {
+            "type": "integer"
+          },
+          "vat_minor_units": {
+            "type": "integer"
+          },
+          "gross_minor_units": {
+            "type": "integer"
+          },
+          "issued_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "due_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "paid_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AdminJob": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "product_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "max_attempts": {
+            "type": "integer"
+          },
+          "run_after": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "leased_until": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "failure_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Skin": {
+        "type": "object",
+        "description": "How a tenant wants this product to look. Every field is present and null when unset, rather than absent — a client reading this to decide how to render needs one shape, and null means \"use the product's defaults\".\n\nKept per (tenant, product): §12.1 lets one tenant use several products, and a company white-labelling two of them has no reason to want the same shade in both.",
+        "required": [
+          "primary_color",
+          "accent_color",
+          "logo_asset_id"
+        ],
+        "properties": {
+          "primary_color": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^#[0-9a-f]{6}$",
+            "description": "Lower-case hex. The database refuses anything else: these values end up in a stylesheet, and a colour column accepting arbitrary text is a stylesheet injection with extra steps.",
+            "examples": [
+              "#1f4b99"
+            ]
+          },
+          "accent_color": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^#[0-9a-f]{6}$"
+          },
+          "logo_asset_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "An asset, fetched through the usual signed-link route. Storing the logo as an asset means it goes through the same sniffing and the same SVG refusal as every other upload."
+          }
+        }
+      },
+      "CheckoutSession": {
+        "type": "object",
+        "description": "**A checkout session is an order.** There is no `checkout_sessions` table and no separate lifecycle: `id` is the order's id, and everything a session would hold — is it paid, what was invoiced, did the subscription start — already lives on the order, the invoice and the payment. A second row tracking the same thing is a second answer that can disagree with the first, and the first is the one the money is attached to.\n\n`status` is derived on read for the same reason, never stored.",
+        "required": [
+          "id",
+          "order_id",
+          "status",
+          "invoice_id",
+          "subscription_id",
+          "payment_id",
+          "payment_status",
+          "net",
+          "vat",
+          "gross"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "order_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The same value as `id`, said plainly."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "AWAITING_PAYMENT",
+              "PAYMENT_FAILED",
+              "COMPLETED",
+              "CANCELLED"
+            ],
+            "description": "`PAYMENT_FAILED` means the order still awaits payment and the last attempt is dead — the state a retry exists for. Reporting it as AWAITING_PAYMENT would hide that nothing is coming."
+          },
+          "invoice_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Null only for an order with nothing to collect — a free offer."
+          },
+          "subscription_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Set once the money arrived: activation is payment-gated, so this stays null while the invoice is unpaid."
+          },
+          "payment_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "payment_status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "net": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "vat": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "gross": {
+            "$ref": "#/components/schemas/Money"
+          }
+        }
       }
     },
     "responses": {
@@ -3720,6 +4278,125 @@
             "$ref": "#/components/responses/InternalError"
           }
         }
+      },
+      "post": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "createOffer",
+        "summary": "Create an offer and its first draft version",
+        "description": "One call, because an offer with no version has no price and no terms — nothing can be sold, shown or quoted from it. Born `DRAFT`; publishing is a separate act.\n\nBehind `catalog.manage`, not `catalog.read`: reading what is on sale is something every member does, deciding what it costs is not.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/OfferDraft"
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "code",
+                      "name",
+                      "plan_id"
+                    ],
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "description": "Unique within the product, and permanent.",
+                        "examples": [
+                          "pro-monthly"
+                        ]
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "plan_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "A plan of this product. One from another product is refused."
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The offer, with its draft version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "offer"
+                  ],
+                  "properties": {
+                    "offer": {
+                      "$ref": "#/components/schemas/AuthoredOffer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is not a valid draft: an unknown billing period, a bad currency, a commitment longer than the term.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The plan, or a granted feature, does not belong to this product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`OFFER_CODE_TAKEN` — another offer in this product uses that code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     },
     "/api/v1/offers/{offerId}": {
@@ -3760,6 +4437,102 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "renameOffer",
+        "summary": "Rename an offer",
+        "description": "The name, and only the name. The `code` is how quotes, orders and invoices name this offer; price, terms and grants live in versions, and a version that has been sold is what somebody bought (§12). So what is editable here is the one field no document depends on.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The offer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "offer"
+                  ],
+                  "properties": {
+                    "offer": {
+                      "$ref": "#/components/schemas/AuthoredOffer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The name is missing or blank.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such offer in this product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
@@ -11172,6 +11945,1178 @@
           },
           "422": {
             "description": "`GEOMETRY_NOT_SIMPLE` — a ring crosses itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/offers/{offerId}/versions": {
+      "get": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "listOfferVersions",
+        "summary": "Every version of an offer, drafts included",
+        "description": "Behind `catalog.manage`, and that is the whole distinction: what a company is about to launch, and at what price, is commercial information. `GET /offers/{offerId}` answers what may be bought today and shows a draft to nobody.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The offer and all its versions, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "offer"
+                  ],
+                  "properties": {
+                    "offer": {
+                      "$ref": "#/components/schemas/AuthoredOffer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such offer in this product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "addOfferVersion",
+        "summary": "Add a draft version with new terms",
+        "description": "§12 as an endpoint: a change of price, quota or features **creates a version rather than rewriting history**. There is deliberately no way to edit a published version's price, so this is the only way to change what an offer costs.\n\nThe version number is not in the body — it is `max + 1`, assigned by the statement that writes the row, so two authors working at once get 4 and 5 rather than a collision.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfferDraft"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The offer, with the new draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "offer"
+                  ],
+                  "properties": {
+                    "offer": {
+                      "$ref": "#/components/schemas/AuthoredOffer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is not a valid draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such offer in this product, or a granted feature is not this product's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/offers/{offerId}/publish": {
+      "post": {
+        "tags": [
+          "Catalogue"
+        ],
+        "operationId": "publishOfferVersion",
+        "summary": "Put one draft version on sale",
+        "description": "The version is named in the body rather than the path because an offer can hold several drafts, and \"publish the offer\" would have to guess which one.\n\nTwo versions of one offer may not be on sale over the same period. That is an exclusion constraint in the database, not a check in the service, so it holds against concurrent publishes as well as careless ones.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "version"
+                ],
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The offer, with that version now ACTIVE.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "offer"
+                  ],
+                  "properties": {
+                    "offer": {
+                      "$ref": "#/components/schemas/AuthoredOffer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No version given.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`VERSION_NOT_PUBLISHABLE` — it is not a draft. Or `OFFER_ALREADY_ON_SALE` — another version covers that window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/tenants": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "listAdminTenants",
+        "summary": "Every tenant, with its operational standing",
+        "description": "Distinct from `/staff/tenants`, which support uses to answer one customer's question and which writes an access-log row for having looked. This is the operations view: every tenant with the counts that say whether an account is healthy, and nothing from inside any of them.\n\nRequires `admin.directory.read`.",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Matches name or slug. The caller's own `%` and `_` are literal, not wildcards."
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryLimit"
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryOffset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DirectoryEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tenant": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AdminTenant"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "listAdminUsers",
+        "summary": "People, across every tenant",
+        "description": "**The only admin surface that returns personal data**, which is why PLATFORM_ADMIN alone may call it: support already has an audited per-tenant read at `/staff/tenants/{tenantId}`, and a list of everyone answers no support question.\n\nAn erased person still appears, carrying `erased_at` and no identity. The row survives erasure by design (non-negotiables #14 and #15) — hiding it would make this directory disagree with every count beside it, and would suggest the person had been deleted when the whole point is that they were not.\n\nRequires `admin.directory.read`.",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Matches email or display name. An erased person matches neither, having neither."
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryLimit"
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryOffset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DirectoryEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AdminUser"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/subscriptions": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "listAdminSubscriptions",
+        "summary": "What is running, and on what terms",
+        "description": "Carries the offer version each subscription was **sold on**, not the version on sale today — §12's whole point is that those differ, and an operator looking at a customer's bill needs the terms that bill was priced against.\n\nRequires `admin.finance.read`.",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "One customer."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "ACTIVE, CANCELLED, ENDED."
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryLimit"
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryOffset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DirectoryEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "subscription": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AdminSubscription"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/invoices": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "listAdminInvoices",
+        "summary": "Every invoice raised, across tenants",
+        "description": "`/admin/metrics` answers \"how much\"; this answers \"which ones\", which is the question an unpaid balance actually raises.\n\nRequires `admin.finance.read`.",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "One customer."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "DRAFT, ISSUED, PAID, CANCELLED, CREDITED."
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryLimit"
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryOffset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DirectoryEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "invoice": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AdminInvoice"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/jobs": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "listAdminJobs",
+        "summary": "What the queue is carrying",
+        "description": "`/admin/queue` answers whether the runner is alive (R10); this answers what it is carrying, which is the next question when the answer to the first is \"yes, and something is still wrong\".\n\n**The payload is deliberately not returned.** It is whatever the caller handed the queue, it can carry anything, and \"which jobs are stuck\" does not need to know what is inside them.\n\nRequires `admin.health.read`.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "PENDING, RUNNING, SUCCEEDED, FAILED, CANCELLED."
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "The handler's name."
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryLimit"
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryOffset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DirectoryEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "job": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AdminJob"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tenant/skin": {
+      "get": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "showSkin",
+        "summary": "The tenant's colours and logo",
+        "description": "Needs nothing but membership. A client has to know how to render itself before it knows what the tenant bought, and a tenant that has never set a skin gets one with every field null rather than a 404 — which would make every client write a branch to mean what null already means.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The skin, set or not.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "skin"
+                  ],
+                  "properties": {
+                    "skin": {
+                      "$ref": "#/components/schemas/Skin"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "updateSkin",
+        "summary": "Set or clear the colours",
+        "description": "A PATCH, so a field the body does not mention keeps its value. **Omitting a field and sending it as `null` are different instructions**: the first leaves it alone, the second clears it — so a caller who wants to drop one colour without knowing the other can say so.\n\nThe logo is not settable here; it is bytes, and it has its own endpoint.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "primary_color": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^#[0-9a-f]{6}$"
+                  },
+                  "accent_color": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^#[0-9a-f]{6}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The skin as it now is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "skin"
+                  ],
+                  "properties": {
+                    "skin": {
+                      "$ref": "#/components/schemas/Skin"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A value that is not a `#rrggbb` colour, and not null.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`PERMISSION_DENIED` — the caller may not configure the tenant. Or `ENTITLEMENT_REQUIRED` — the tenant's plan does not include `white_label`. The two are separate checks and neither implies the other.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tenant/skin/logo": {
+      "post": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "uploadSkinLogo",
+        "summary": "Upload a logo",
+        "description": "**The raw bytes are the request**, as with an asset upload: a base64 field inside JSON would inflate the payload by a third and would put an image inside a document this platform elsewhere refuses to let images into (non-negotiable #9).\n\nThe type is sniffed from the bytes and checked **before anything is stored**, so a refused logo leaves no file behind and no orphaned row. Only PNG, JPEG, GIF and WebP are accepted — SVG is refused here as everywhere, being an image to a user and a script container to a browser.\n\n`X-Filename` is a label for humans and decides nothing.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "X-Filename",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "A label. The stored type comes from the bytes, never from this."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/gif": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The skin, now pointing at the new logo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "skin"
+                  ],
+                  "properties": {
+                    "skin": {
+                      "$ref": "#/components/schemas/Skin"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`UPLOAD_EMPTY` — the body is the file, and there was none.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`LOGO_NOT_AN_IMAGE` — the bytes sniffed as something else. Or the upload policy refused them outright.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`PERMISSION_DENIED` — the caller may not configure the tenant. Or `ENTITLEMENT_REQUIRED` — the tenant's plan does not include `white_label`. The two are separate checks and neither implies the other.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "deleteSkinLogo",
+        "summary": "Stop using the logo",
+        "description": "Clears it from the skin. **The asset itself stays**: this says \"this is no longer our logo\", which is not the same instruction as \"destroy this file\" — the file may be on a page somebody has open or inside a document already generated, and `/assets` is where a file is deleted deliberately.\n\n200 with the skin rather than 204, because the caller asked for a change and the useful answer is what the skin now is.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The skin, with no logo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "skin"
+                  ],
+                  "properties": {
+                    "skin": {
+                      "$ref": "#/components/schemas/Skin"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`PERMISSION_DENIED` — the caller may not configure the tenant. Or `ENTITLEMENT_REQUIRED` — the tenant's plan does not include `white_label`. The two are separate checks and neither implies the other.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/checkout/sessions": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "openCheckoutSession",
+        "summary": "Buy an offer in one call",
+        "description": "Places the order, raises its invoice and asks the provider to authorize — three calls a client could already make. What this adds is that the client no longer orchestrates them, and that a dropped connection leaves an order they can look up rather than a charge nobody can account for.\n\n**The body names an offer and nothing else.** No amount, because a client that could name a figure could name a smaller one; the price is the offer's. No instrument, because the customer gives that to the provider directly — card data never reaches this platform's database (§24).\n\n**It does not start the subscription.** That waits for the money, through the same webhook everything else arrives by. A checkout that activated on creation would extend credit to anyone who can reach this endpoint.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "offer_id"
+                ],
+                "properties": {
+                  "offer_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "An offer on sale in this product right now. A draft, an expired one, or one belonging to another product is not found."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The session, with the client secret if there is anything to pay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "session"
+                  ],
+                  "properties": {
+                    "session": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/CheckoutSession"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "client_secret": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "description": "Handed to the payment provider’s client SDK. **Returned here and nowhere else**: it is short-lived and it is a credential, so it is never stored (§31). Null when the provider uses a redirect rather than a secret. A caller who needs a fresh one retries the payment, which is a new attempt and gets its own."
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such offer on sale in this product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`BILLING_PROFILE_REQUIRED` — the tenant has no billing profile, so nothing can be invoiced to it. Refused before any document is raised, because numbering is gapless.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/checkout/sessions/{sessionId}": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "showCheckoutSession",
+        "summary": "Where the purchase got to",
+        "description": "The status is derived from the order and its latest payment rather than stored: the order knows whether it completed, the payment knows whether money moved, and a third status written down could disagree with both.\n\nNo `client_secret` — there is nothing to return it from.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The order id returned when the session was opened."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "session"
+                  ],
+                  "properties": {
+                    "session": {
+                      "$ref": "#/components/schemas/CheckoutSession"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session in this tenant and product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/payments/{paymentId}/retry": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "retryPayment",
+        "summary": "Try to collect an invoice again",
+        "description": "A **new** payment against the same invoice, never a resurrection of the old one. `PaymentStatus` is deliberately one-way and says why: the customer may have used a different instrument, and two attempts that must be told apart cannot share a provider reference.\n\nRefused while the previous attempt is still in flight — a second authorization then risks collecting twice for one debt — and refused if it succeeded, where there is nothing to retry.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "paymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The attempt that failed."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "A new payment, with its own client secret.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "client_secret": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Handed to the payment provider’s client SDK. **Returned here and nowhere else**: it is short-lived and it is a credential, so it is never stored (§31). Null when the provider uses a redirect rather than a secret. A caller who needs a fresh one retries the payment, which is a new attempt and gets its own."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such payment in this tenant and product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`PAYMENT_STILL_IN_FLIGHT` — it has not settled or failed yet. `PAYMENT_ALREADY_SETTLED` — it succeeded. `INVOICE_NOT_PAYABLE` — the invoice is no longer collectable.",
             "content": {
               "application/json": {
                 "schema": {

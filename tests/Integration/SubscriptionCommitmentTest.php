@@ -627,7 +627,7 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
                     (offer_id, version, status, billing_period, price_minor_units, currency,
                      valid_from, term_months, commitment_months, cancellation_policy,
                      renewal, early_termination)
-                VALUES (:offer, 1, 'ACTIVE', 'MONTHLY', 2900, 'EUR', now() - interval '1 day',
+                VALUES (:offer, 1, 'DRAFT', 'MONTHLY', 2900, 'EUR', now() - interval '1 day',
                         :term, :commitment, :policy, 'AUTO_RENEW', :earlyTermination)
                 RETURNING id
                 SQL,
@@ -647,6 +647,15 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
                 ['version' => $versionId, 'feature' => $featureId, 'limit' => $limit],
             );
         }
+
+        // Built the way the product builds one: DRAFT, then its grants, then
+        // published. A version's grants are frozen once it leaves DRAFT
+        // (ADR-033), so attaching them to an ACTIVE row is an order nothing
+        // in the platform actually uses.
+        $this->connection->executeStatement(
+            "UPDATE offer_versions SET status = 'ACTIVE' WHERE id = :id",
+            ['id' => $versionId],
+        );
 
         return $offerId;
     }

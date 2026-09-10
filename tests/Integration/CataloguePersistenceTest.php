@@ -6,6 +6,7 @@ namespace App\Tests\Integration;
 
 use App\Commerce\Domain\OfferGrant;
 use App\Commerce\Domain\OfferVersion;
+use App\Commerce\Infrastructure\OfferVersionLoader;
 use App\Commerce\Infrastructure\PostgresCatalogueRepository;
 use App\Shared\Database\Row;
 use Doctrine\DBAL\Exception\DriverException;
@@ -40,7 +41,7 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         $this->seedFeature($this->atlas, 'max_projects', 'QUOTA', 'projects');
         $this->seedPlan($this->beacon, 'PRO', 20);
 
-        $catalogue = new PostgresCatalogueRepository($this->connection);
+        $catalogue = $this->catalogue();
 
         // The same code in both products, and neither sees the other's row.
         self::assertCount(1, $catalogue->plansFor($this->atlas));
@@ -56,11 +57,12 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         $advanced = $this->seedFeature($this->atlas, 'advanced_3d', 'BOOLEAN', null);
 
         $offer = $this->seedOffer($this->atlas, $plan, 'pro-monthly');
-        $version = $this->seedVersion($offer, 1, OfferVersion::ACTIVE, 2900);
+        $version = $this->seedVersion($offer, 1, OfferVersion::DRAFT, 2900);
         $this->grant($version, $projects, 50);
         $this->grant($version, $advanced, null);
+        $this->promote($version, OfferVersion::ACTIVE);
 
-        $candidates = (new PostgresCatalogueRepository($this->connection))->offersFor($this->atlas);
+        $candidates = $this->catalogue()->offersFor($this->atlas);
 
         self::assertCount(1, $candidates);
         self::assertSame('PRO', $candidates[0]->plan->code);
@@ -90,10 +92,16 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         $plan = $this->seedPlan($this->atlas, 'ENTERPRISE', 40);
         $projects = $this->seedFeature($this->atlas, 'max_projects', 'QUOTA', 'projects');
 
-        $version = $this->seedVersion($this->seedOffer($this->atlas, $plan, 'enterprise'), 1, OfferVersion::ACTIVE, 0);
+        $version = $this->seedVersion(
+            $this->seedOffer($this->atlas, $plan, 'enterprise'),
+            1,
+            OfferVersion::DRAFT,
+            0,
+        );
         $this->grant($version, $projects, null);
+        $this->promote($version, OfferVersion::ACTIVE);
 
-        $candidates = (new PostgresCatalogueRepository($this->connection))->offersFor($this->atlas);
+        $candidates = $this->catalogue()->offersFor($this->atlas);
 
         self::assertTrue($candidates[0]->versions[0]->grants[0]->isUnlimited());
     }
@@ -112,7 +120,7 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         $this->seedVersion($offer, 2, OfferVersion::ACTIVE, 2900);
         $this->seedVersion($offer, 3, OfferVersion::DRAFT, 3900);
 
-        $candidates = (new PostgresCatalogueRepository($this->connection))->offersFor($this->atlas);
+        $candidates = $this->catalogue()->offersFor($this->atlas);
 
         self::assertCount(1, $candidates[0]->versions);
         self::assertSame(2, $candidates[0]->versions[0]->version);
@@ -127,11 +135,15 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         $plan = $this->seedPlan($this->atlas, 'PRO', 20);
         $offer = $this->seedOffer($this->atlas, $plan, 'pro-monthly');
 
-        $this->seedVersion($offer, 1, OfferVersion::ACTIVE, 1900);
-        $this->seedVersion($offer, 3, OfferVersion::ACTIVE, 3900);
-        $this->seedVersion($offer, 2, OfferVersion::ACTIVE, 2900);
+        // Consecutive, non-overlapping windows. Two ACTIVE versions of one
+        // offer may no longer be on sale over the same period — that is an
+        // exclusion constraint now — and what this test is about is the order
+        // rows come back in, not what happens when windows collide.
+        $this->seedVersion($offer, 1, OfferVersion::ACTIVE, 1900, '-3 days', '-2 days');
+        $this->seedVersion($offer, 3, OfferVersion::ACTIVE, 3900, '-1 day');
+        $this->seedVersion($offer, 2, OfferVersion::ACTIVE, 2900, '-2 days', '-1 day');
 
-        $candidates = (new PostgresCatalogueRepository($this->connection))->offersFor($this->atlas);
+        $candidates = $this->catalogue()->offersFor($this->atlas);
 
         self::assertSame(
             [3, 2, 1],
@@ -150,8 +162,9 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         $plan = $this->seedPlan($this->atlas, 'PRO', 20);
         $projects = $this->seedFeature($this->atlas, 'max_projects', 'QUOTA', 'projects');
         $offer = $this->seedOffer($this->atlas, $plan, 'pro-monthly');
-        $version = $this->seedVersion($offer, 1, OfferVersion::ACTIVE, 2900);
+        $version = $this->seedVersion($offer, 1, OfferVersion::DRAFT, 2900);
         $this->grant($version, $projects, 50);
+        $this->promote($version, OfferVersion::ACTIVE);
 
         $this->connection->executeStatement(
             "UPDATE offer_versions SET status = 'EXPIRED', valid_until = now() WHERE id = :id",
@@ -159,7 +172,7 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         );
 
         // Gone from the catalogue…
-        $candidates = (new PostgresCatalogueRepository($this->connection))->offersFor($this->atlas);
+        $candidates = $this->catalogue()->offersFor($this->atlas);
         self::assertSame([], $candidates[0]->versions);
 
         // …but the terms, and what they granted, are still there.
@@ -184,7 +197,7 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         $offer = $this->seedOffer($this->atlas, $plan, 'pro-monthly');
         $this->seedVersion($offer, 1, OfferVersion::ACTIVE, 2900);
 
-        $catalogue = new PostgresCatalogueRepository($this->connection);
+        $catalogue = $this->catalogue();
 
         self::assertNotNull($catalogue->findOffer($this->atlas, $offer));
         self::assertNull($catalogue->findOffer($this->beacon, $offer));
@@ -193,7 +206,7 @@ final class CataloguePersistenceTest extends DatabaseTestCase
     public function testAMalformedOfferIdIsNotFoundRatherThanADatabaseError(): void
     {
         self::assertNull(
-            (new PostgresCatalogueRepository($this->connection))->findOffer($this->atlas, 'not-a-uuid'),
+            $this->catalogue()->findOffer($this->atlas, 'not-a-uuid'),
         );
     }
 
@@ -273,8 +286,9 @@ final class CataloguePersistenceTest extends DatabaseTestCase
     {
         $plan = $this->seedPlan($this->atlas, 'PRO', 20);
         $projects = $this->seedFeature($this->atlas, 'max_projects', 'QUOTA', 'projects');
-        $version = $this->seedVersion($this->seedOffer($this->atlas, $plan, 'pro'), 1, OfferVersion::ACTIVE, 2900);
+        $version = $this->seedVersion($this->seedOffer($this->atlas, $plan, 'pro'), 1, OfferVersion::DRAFT, 2900);
         $this->grant($version, $projects, 50);
+        $this->promote($version, OfferVersion::ACTIVE);
 
         $this->expectException(DriverException::class);
 
@@ -353,16 +367,71 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         );
     }
 
-    private function seedVersion(string $offerId, int $version, string $status, int $price): string
-    {
-        return $this->id(
+    /**
+     * A version, built the way the product builds one.
+     *
+     * Always inserted as a DRAFT and promoted afterwards, because a version's
+     * grants are frozen the moment it leaves DRAFT (ADR-033) — so a fixture
+     * that seeds an ACTIVE row and attaches grants to it is using an order
+     * nothing in the platform actually uses.
+     *
+     * The window is a parameter because two ACTIVE versions of one offer may
+     * no longer overlap: that is an exclusion constraint now, not a
+     * publishing convention.
+     *
+     * An open window needs no CASE: adding a null interval to a timestamp is
+     * null, and the cast is what gives PostgreSQL a type to infer. A bare
+     * `:validUntil IS NULL` gives it none and it refuses the statement.
+     *
+     * Both bounds are anchored to `date_trunc('day', now())` rather than to
+     * `now()`, and that is load-bearing rather than tidy. `now()` is
+     * evaluated per statement, so one row's `valid_until` of "-1 day" lands a
+     * fraction of a millisecond after the next row's `valid_from` of the same
+     * "-1 day" — two windows meant to be adjacent then genuinely overlap, and
+     * the constraint is right to refuse them. A shared instant makes
+     * adjacency exact.
+     */
+    private function seedVersion(
+        string $offerId,
+        int $version,
+        string $status,
+        int $price,
+        string $validFrom = '-1 day',
+        ?string $validUntil = null,
+    ): string {
+        $id = $this->id(
             <<<'SQL'
                 INSERT INTO offer_versions
-                    (offer_id, version, status, billing_period, price_minor_units, currency, valid_from)
-                VALUES (:offer, :version, :status, 'MONTHLY', :price, 'EUR', now() - interval '1 day')
+                    (offer_id, version, status, billing_period, price_minor_units, currency,
+                     valid_from, valid_until)
+                VALUES (:offer, :version, 'DRAFT', 'MONTHLY', :price, 'EUR',
+                        date_trunc('day', now()) + CAST(:validFrom AS interval),
+                        date_trunc('day', now()) + CAST(:validUntil AS interval))
                 RETURNING id
                 SQL,
-            ['offer' => $offerId, 'version' => $version, 'status' => $status, 'price' => $price],
+            [
+                'offer' => $offerId,
+                'version' => $version,
+                'price' => $price,
+                'validFrom' => $validFrom,
+                'validUntil' => $validUntil,
+            ],
+        );
+
+        $this->promote($id, $status);
+
+        return $id;
+    }
+
+    private function promote(string $versionId, string $status): void
+    {
+        if ($status === OfferVersion::DRAFT) {
+            return;
+        }
+
+        $this->connection->executeStatement(
+            'UPDATE offer_versions SET status = :status WHERE id = :id',
+            ['id' => $versionId, 'status' => $status],
         );
     }
 
@@ -387,5 +456,20 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         self::assertIsString($id);
 
         return $id;
+    }
+
+    /**
+     * The read catalogue over this test's connection.
+     *
+     * Named rather than constructed at each call site: the repository needs a
+     * collaborator to map rows to versions, and nine `new` expressions would
+     * be nine places to update the next time it needs another.
+     */
+    private function catalogue(): PostgresCatalogueRepository
+    {
+        return new PostgresCatalogueRepository(
+            $this->connection,
+            new OfferVersionLoader($this->connection),
+        );
     }
 }

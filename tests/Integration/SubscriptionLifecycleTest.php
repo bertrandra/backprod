@@ -12,6 +12,7 @@ use App\Commerce\Domain\Offer;
 use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionEvent;
+use App\Commerce\Infrastructure\OfferVersionLoader;
 use App\Commerce\Infrastructure\PostgresCatalogueRepository;
 use App\Commerce\Infrastructure\PostgresEntitlementRepository;
 use App\Commerce\Infrastructure\PostgresSubscriptionRepository;
@@ -64,11 +65,13 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         $this->freeOffer = $this->seedOffer($free, 'free');
         $freeVersion = $this->seedVersion($this->freeOffer, 0, 'MONTHLY');
         $this->grant($freeVersion, $this->projectsFeature, 3);
+        $this->publish($freeVersion);
 
         $this->proOffer = $this->seedOffer($pro, 'pro');
         $proVersion = $this->seedVersion($this->proOffer, 2900, 'MONTHLY');
         $this->grant($proVersion, $this->projectsFeature, 50);
         $this->grant($proVersion, $advanced, null);
+        $this->publish($proVersion);
     }
 
     // --- Activation ---------------------------------------------------------
@@ -475,7 +478,10 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
 
     private function catalogue(): PostgresCatalogueRepository
     {
-        return new PostgresCatalogueRepository($this->connection);
+        return new PostgresCatalogueRepository(
+            $this->connection,
+            new OfferVersionLoader($this->connection),
+        );
     }
 
     private function entitlements(): PostgresEntitlementRepository
@@ -606,10 +612,26 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             <<<'SQL'
                 INSERT INTO offer_versions
                     (offer_id, version, status, billing_period, price_minor_units, currency, valid_from)
-                VALUES (:offer, 1, 'ACTIVE', :period, :price, 'EUR', now() - interval '1 day')
+                VALUES (:offer, 1, 'DRAFT', :period, :price, 'EUR', now() - interval '1 day')
                 RETURNING id
                 SQL,
             ['offer' => $offerId, 'period' => $period, 'price' => $price],
+        );
+    }
+
+    /**
+     * Publishes a version once its grants are attached.
+     *
+     * A version's grants are frozen the moment it leaves DRAFT (ADR-033), so
+     * a fixture has to build one the way the product does: draft, grant,
+     * publish. Seeding an ACTIVE row and attaching grants afterwards is an
+     * order nothing in the platform actually uses.
+     */
+    private function publish(string $versionId): void
+    {
+        $this->connection->executeStatement(
+            "UPDATE offer_versions SET status = 'ACTIVE' WHERE id = :id",
+            ['id' => $versionId],
         );
     }
 

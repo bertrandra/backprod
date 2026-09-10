@@ -190,11 +190,14 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
     /**
      * The milestone's exit criterion.
      *
-     * The offer is re-versioned *and* its old version repriced underneath —
-     * something production would never do, included precisely because it is
-     * the strongest available form of the assertion. An invoice that read
-     * its amounts through a reference would move; this one cannot, because
-     * there is no reference to read through.
+     * The offer is renamed and re-versioned underneath the invoice: the sold
+     * version retires and a cheaper one takes its place on sale. An invoice
+     * that read its amounts through a reference would move; this one cannot,
+     * because there is no reference to read through.
+     *
+     * Repricing the sold version in place would be the blunter form of the
+     * same assertion, and ADR-033 has made it impossible — the database
+     * refuses it, so there is nothing left here to assert about it.
      */
     public function testAnInvoiceIsUnchangedAfterItsOfferIsReVersioned(): void
     {
@@ -207,7 +210,7 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
             ['offer' => $this->offer],
         );
         $this->connection->executeStatement(
-            "UPDATE offer_versions SET status = 'EXPIRED', price_minor_units = 9900 WHERE id = :version",
+            "UPDATE offer_versions SET status = 'EXPIRED', valid_until = now() WHERE id = :version",
             ['version' => $this->offerVersion],
         );
         $this->connection->executeStatement(

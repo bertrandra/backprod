@@ -3,6 +3,11 @@
 declare(strict_types=1);
 
 use App\Admin\Controller\EraseUserController;
+use App\Admin\Controller\ListAdminInvoicesController;
+use App\Admin\Controller\ListAdminJobsController;
+use App\Admin\Controller\ListAdminSubscriptionsController;
+use App\Admin\Controller\ListAdminTenantsController;
+use App\Admin\Controller\ListAdminUsersController;
 use App\Admin\Controller\ListAuditController;
 use App\Admin\Controller\ShowMetricsController;
 use App\Admin\Controller\ShowQueueController;
@@ -15,18 +20,26 @@ use App\Billing\Controller\PayInvoiceController;
 use App\Billing\Controller\SaveBillingProfileController;
 use App\Billing\Controller\ShowBillingProfileController;
 use App\Billing\Controller\ShowInvoiceController;
+use App\Checkout\Controller\OpenCheckoutSessionController;
+use App\Checkout\Controller\RetryPaymentController;
+use App\Checkout\Controller\ShowCheckoutSessionController;
 use App\Commerce\Controller\CancelSubscriptionController;
 use App\Commerce\Controller\ChangeOfferController;
+use App\Commerce\Controller\CreateOfferController;
+use App\Commerce\Controller\CreateOfferVersionController;
 use App\Commerce\Controller\ListEntitlementsController;
 use App\Commerce\Controller\ListFeaturesController;
 use App\Commerce\Controller\ListOffersController;
+use App\Commerce\Controller\ListOfferVersionsController;
 use App\Commerce\Controller\ListPlansController;
+use App\Commerce\Controller\PublishOfferVersionController;
 use App\Commerce\Controller\ResumeSubscriptionController;
 use App\Commerce\Controller\ShowOfferController;
 use App\Commerce\Controller\ShowScheduleController;
 use App\Commerce\Controller\ShowSubscriptionController;
 use App\Commerce\Controller\SubscribeController;
 use App\Commerce\Controller\TenantUsageController;
+use App\Commerce\Controller\UpdateOfferController;
 use App\EInvoice\Controller\EInvoiceWebhookController;
 use App\EInvoice\Controller\ListTransmissionsController;
 use App\EInvoice\Controller\SubmitInvoiceController;
@@ -92,6 +105,10 @@ use App\Sales\Controller\PlaceOrderController;
 use App\Sales\Controller\RejectQuoteController;
 use App\Sales\Controller\ShowOrderController;
 use App\Sales\Controller\ShowQuoteController;
+use App\Skin\Controller\DeleteSkinLogoController;
+use App\Skin\Controller\ShowSkinController;
+use App\Skin\Controller\UpdateSkinController;
+use App\Skin\Controller\UploadSkinLogoController;
 use App\Staff\Controller\CloseSupportConversationController;
 use App\Staff\Controller\ListAccessLogController;
 use App\Staff\Controller\ListSupportConversationsController;
@@ -158,6 +175,19 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/offers', ListOffersController::class);
     $routes->addRoute('GET', '/api/v1/offers/{offerId}', ShowOfferController::class);
 
+    // Authoring the catalogue, behind `catalog.manage` rather than
+    // `catalog.read` (§10.2). Reading what is on sale is something every
+    // member does; deciding what it costs is not.
+    //
+    // There is no way to edit a published version's price here, and that is
+    // §12 rather than an omission: terms change by adding a version, because
+    // a subscription points at the version it was sold on.
+    $routes->addRoute('POST', '/api/v1/offers', CreateOfferController::class);
+    $routes->addRoute('PATCH', '/api/v1/offers/{offerId}', UpdateOfferController::class);
+    $routes->addRoute('GET', '/api/v1/offers/{offerId}/versions', ListOfferVersionsController::class);
+    $routes->addRoute('POST', '/api/v1/offers/{offerId}/versions', CreateOfferVersionController::class);
+    $routes->addRoute('POST', '/api/v1/offers/{offerId}/publish', PublishOfferVersionController::class);
+
     // What the tenant subscribed to, and what it consequently may use.
     $routes->addRoute('GET', '/api/v1/subscription', ShowSubscriptionController::class);
     $routes->addRoute('POST', '/api/v1/subscription', SubscribeController::class);
@@ -191,6 +221,21 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/billing/payments/{paymentId}', ShowPaymentController::class);
     $routes->addRoute('POST', '/api/v1/billing/invoices/{invoiceId}/payments', StartPaymentController::class);
     $routes->addRoute('POST', '/api/v1/billing/payments/{paymentId}/refund', RefundPaymentController::class);
+
+    // Checkout (§7). A session is an order — there is no checkout_sessions
+    // table and no second lifecycle to keep in step: everything a session
+    // would hold is already on the order, the invoice and the payment.
+    //
+    // It composes the existing chain rather than adding a path beside it, so
+    // payment-gated activation still holds: the subscription starts when the
+    // money arrives, not when the session opens.
+    $routes->addRoute('POST', '/api/v1/checkout/sessions', OpenCheckoutSessionController::class);
+    $routes->addRoute('GET', '/api/v1/checkout/sessions/{sessionId}', ShowCheckoutSessionController::class);
+
+    // A retry is a new attempt with its own provider reference, never a
+    // resurrection: PaymentStatus is one-way, because the customer may have
+    // used a different instrument and the two must be told apart.
+    $routes->addRoute('POST', '/api/v1/payments/{paymentId}/retry', RetryPaymentController::class);
 
     // How a finalised invoice is corrected. Never by editing it: it has a
     // legal number in an unbroken sequence, and editing or deleting leaves a
@@ -326,6 +371,18 @@ return static function (RouteCollector $routes): void {
 
     $routes->addRoute('GET', '/api/v1/tenants/current/usage', TenantUsageController::class);
 
+    // White label (§7). Reading needs only membership — a client has to know
+    // how to render itself before it knows what the tenant bought — while
+    // writing needs both the skin.manage permission and the `white_label`
+    // entitlement, which do not imply each other.
+    //
+    // The logo is bytes, so it takes the raw body like an asset upload, and
+    // its type is sniffed before anything is stored.
+    $routes->addRoute('GET', '/api/v1/tenant/skin', ShowSkinController::class);
+    $routes->addRoute('PATCH', '/api/v1/tenant/skin', UpdateSkinController::class);
+    $routes->addRoute('POST', '/api/v1/tenant/skin/logo', UploadSkinLogoController::class);
+    $routes->addRoute('DELETE', '/api/v1/tenant/skin/logo', DeleteSkinLogoController::class);
+
     // Platform staff (§12.2). Everything under /staff requires a platform
     // role, which no tenant membership grants — and grants nothing on the
     // tenant routes above. The tenant is named in the path here, the only
@@ -358,6 +415,21 @@ return static function (RouteCollector $routes): void {
     // creates a record of itself; the response is the receipt naming what was
     // kept, which is the half of an erasure somebody has to be able to prove.
     $routes->addRoute('POST', '/api/v1/admin/erasures', EraseUserController::class);
+
+    // The operational listings §7 names. Cross-tenant by definition — that is
+    // what makes them admin surfaces — and each returns records *about*
+    // tenant data rather than the data itself: that a subscription exists and
+    // what it is worth, never what is inside anybody's project.
+    //
+    // Three permissions, not one, because these are not one audience: money
+    // is admin.finance.read, the queue is admin.health.read, and the customer
+    // directory is admin.directory.read, which PLATFORM_ADMIN alone holds
+    // because /admin/users returns personal data.
+    $routes->addRoute('GET', '/api/v1/admin/tenants', ListAdminTenantsController::class);
+    $routes->addRoute('GET', '/api/v1/admin/users', ListAdminUsersController::class);
+    $routes->addRoute('GET', '/api/v1/admin/subscriptions', ListAdminSubscriptionsController::class);
+    $routes->addRoute('GET', '/api/v1/admin/invoices', ListAdminInvoicesController::class);
+    $routes->addRoute('GET', '/api/v1/admin/jobs', ListAdminJobsController::class);
 
     // Support: the platform's side of §12.3. Only SUPPORT threads are
     // reachable — the repository filters on kind in SQL, so a tenant's
