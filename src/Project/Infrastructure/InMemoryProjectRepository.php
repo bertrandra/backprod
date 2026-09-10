@@ -30,11 +30,18 @@ final class InMemoryProjectRepository implements ProjectRepository
     /** @var array<string, ProjectVersion> */
     private array $versions = [];
 
-    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset): array
-    {
+    public function listForTenant(
+        string $tenantId,
+        string $productId,
+        int $limit,
+        int $offset,
+        bool $deleted = false,
+    ): array {
         $matching = array_values(array_filter(
             $this->projects,
-            static fn (Project $p): bool => $p->tenantId === $tenantId && $p->productId === $productId,
+            static fn (Project $p): bool => $p->tenantId === $tenantId
+                && $p->productId === $productId
+                && $p->isDeleted() === $deleted,
         ));
 
         // Most recently touched first, id as the tie-break — the same order
@@ -46,11 +53,13 @@ final class InMemoryProjectRepository implements ProjectRepository
         return array_values(array_slice($matching, $offset, $limit));
     }
 
-    public function countForTenant(string $tenantId, string $productId): int
+    public function countForTenant(string $tenantId, string $productId, bool $deleted = false): int
     {
         return count(array_filter(
             $this->projects,
-            static fn (Project $p): bool => $p->tenantId === $tenantId && $p->productId === $productId,
+            static fn (Project $p): bool => $p->tenantId === $tenantId
+                && $p->productId === $productId
+                && $p->isDeleted() === $deleted,
         ));
     }
 
@@ -107,15 +116,39 @@ final class InMemoryProjectRepository implements ProjectRepository
         return $updated;
     }
 
-    public function delete(Project $project): void
+    /**
+     * Recoverable here too, and the versions stay (R13).
+     *
+     * This adapter used to `unset` the project *and its versions*, which mirrored
+     * the SQL cascade faithfully. Keeping the mirror faithful is the whole value
+     * of an in-memory adapter: if this one still destroyed history, a unit test
+     * would pass against behaviour the database no longer has.
+     */
+    public function delete(Project $project, ?string $deletedBy): void
     {
-        unset($this->projects[$project->id]);
+        $this->projects[$project->id] = $this->withDeletedAt($project, new DateTimeImmutable());
+    }
 
-        foreach ($this->versions as $id => $version) {
-            if ($version->projectId === $project->id) {
-                unset($this->versions[$id]);
-            }
-        }
+    public function undelete(Project $project): void
+    {
+        $this->projects[$project->id] = $this->withDeletedAt($project, null);
+    }
+
+    private function withDeletedAt(Project $project, ?DateTimeImmutable $deletedAt): Project
+    {
+        return new Project(
+            $project->id,
+            $project->tenantId,
+            $project->productId,
+            $project->name,
+            $project->description,
+            $project->schemaVersion,
+            $project->document,
+            $project->createdBy,
+            $project->createdAt,
+            $project->updatedAt,
+            $deletedAt,
+        );
     }
 
     public function listVersions(Project $project): array

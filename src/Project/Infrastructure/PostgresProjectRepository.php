@@ -34,7 +34,7 @@ final class PostgresProjectRepository implements ProjectRepository
 {
     private const PROJECT_COLUMNS = <<<'SQL'
         id, tenant_id, product_id, name, description, schema_version,
-        document::text AS document, created_by, created_at, updated_at
+        document::text AS document, created_by, created_at, updated_at, deleted_at
         SQL;
 
     private const VERSION_COLUMNS = <<<'SQL'
@@ -46,30 +46,46 @@ final class PostgresProjectRepository implements ProjectRepository
     {
     }
 
-    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset): array
+    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, bool $deleted = false): array
     {
         $rows = $this->connection->fetchAllAssociative(
             'SELECT ' . self::PROJECT_COLUMNS . <<<'SQL'
                  FROM projects
                 WHERE tenant_id = :tenantId AND product_id = :productId
+                  AND (deleted_at IS NULL) = NOT :deleted
                 ORDER BY updated_at DESC, id
                 LIMIT :limit OFFSET :offset
                 SQL,
-            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset],
+            [
+                'tenantId' => $tenantId,
+                'productId' => $productId,
+                'limit' => $limit,
+                'offset' => $offset,
+                'deleted' => $deleted,
+            ],
             // Bound as integers rather than left to inference: LIMIT and
             // OFFSET are the two places PostgreSQL will not take a text
             // parameter.
-            ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
+            [
+                'limit' => ParameterType::INTEGER,
+                'offset' => ParameterType::INTEGER,
+                'deleted' => ParameterType::BOOLEAN,
+            ],
         );
 
         return array_map($this->toProject(...), $rows);
     }
 
-    public function countForTenant(string $tenantId, string $productId): int
+    public function countForTenant(string $tenantId, string $productId, bool $deleted = false): int
     {
         $count = $this->connection->fetchOne(
-            'SELECT count(*) FROM projects WHERE tenant_id = :tenantId AND product_id = :productId',
-            ['tenantId' => $tenantId, 'productId' => $productId],
+            <<<'SQL'
+            SELECT count(*) FROM projects
+             WHERE tenant_id = :tenantId AND product_id = :productId
+               AND (deleted_at IS NULL) = NOT :deleted
+            SQL,
+            ['tenantId' => $tenantId, 'productId' => $productId, 'deleted' => $deleted],
+            ['deleted' => ParameterType::BOOLEAN],
         );
 
         return is_numeric($count) ? (int) $count : 0;
@@ -158,12 +174,55 @@ final class PostgresProjectRepository implements ProjectRepository
         return $this->requireRow($row, 'update a project');
     }
 
-    public function delete(Project $project): void
+    /**
+     * Deletion, which no longer destroys the history (R13).
+     *
+     * This was `DELETE FROM projects`, and `project_versions` followed through
+     * `ON DELETE CASCADE` — fifty snapshots gone with one click, and nothing
+     * said so until they were. Now the row stays and carries a date, so every
+     * foreign key pointing at it stays valid and `undelete` has something to
+     * restore.
+     *
+     * `updated_at` is deliberately **not** touched. It answers "when did this
+     * project last change", and deleting it is not a change to the project —
+     * moving it would reorder the restored list by an event that was not an
+     * edit.
+     */
+    public function delete(Project $project, ?string $deletedBy): void
     {
-        // Versions go with it through ON DELETE CASCADE: they are the
-        // project's history, not history of their own.
         $this->connection->executeStatement(
-            'DELETE FROM projects WHERE id = :id AND tenant_id = :tenantId AND product_id = :productId',
+            <<<'SQL'
+            UPDATE projects
+               SET deleted_at = now(), deleted_by = :deletedBy
+             WHERE id = :id AND tenant_id = :tenantId AND product_id = :productId
+               AND deleted_at IS NULL
+            SQL,
+            [
+                'id' => $project->id,
+                'tenantId' => $project->tenantId,
+                'productId' => $project->productId,
+                'deletedBy' => $deletedBy,
+            ],
+        );
+    }
+
+    /**
+     * Putting one back.
+     *
+     * Guarded on `deleted_at IS NOT NULL` so a second restore changes nothing
+     * rather than quietly clearing a date that was never set — the same shape
+     * as the delete above, and for the same reason: the database decides, not a
+     * check the caller remembered to write.
+     */
+    public function undelete(Project $project): void
+    {
+        $this->connection->executeStatement(
+            <<<'SQL'
+            UPDATE projects
+               SET deleted_at = NULL, deleted_by = NULL
+             WHERE id = :id AND tenant_id = :tenantId AND product_id = :productId
+               AND deleted_at IS NOT NULL
+            SQL,
             ['id' => $project->id, 'tenantId' => $project->tenantId, 'productId' => $project->productId],
         );
     }
@@ -341,6 +400,7 @@ final class PostgresProjectRepository implements ProjectRepository
             Row::nullableString($row, 'created_by'),
             Row::timestamp($row, 'created_at'),
             Row::timestamp($row, 'updated_at'),
+            Row::nullableTimestamp($row, 'deleted_at'),
         );
     }
 

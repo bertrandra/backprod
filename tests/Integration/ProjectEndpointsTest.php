@@ -623,6 +623,112 @@ final class ProjectEndpointsTest extends ApiTestCase
         self::assertSame('VALIDATION_FAILED', $this->errorOf($response)['code'] ?? null);
     }
 
+    // --- R13: deletion is recoverable ----------------------------------------
+
+    /**
+     * The whole of R13, through the API a client actually uses.
+     *
+     * Delete, confirm it is out of the live list and in the bin with a date,
+     * confirm its versions are still there, put it back, and confirm the
+     * document came back untouched.
+     */
+    public function testADeletedProjectIsInTheBinAndComesBackWithItsHistory(): void
+    {
+        $projectId = $this->createdProject();
+        $this->snapshot($projectId, 'before deleting');
+
+        $deleted = $this->request('DELETE', '/api/v1/projects/' . $projectId, $this->aliceHeaders());
+        self::assertSame(204, $deleted->getStatusCode());
+
+        // Out of the live list.
+        $live = $this->decode($this->request('GET', '/api/v1/projects', $this->aliceHeaders()));
+        self::assertSame(0, $live['total']);
+
+        // In the bin, with the date rather than a bare flag.
+        $binned = $this->decode(
+            $this->request('GET', '/api/v1/projects?deleted=true', $this->aliceHeaders()),
+        );
+        self::assertSame(1, $binned['total']);
+
+        // Narrowed rather than indexed through `mixed`: a decoded body is
+        // `mixed` all the way down, and asserting the shape is also what makes
+        // the failure readable when the shape changes.
+        $rows = $binned['projects'];
+        self::assertIsArray($rows);
+        $first = $rows[0];
+        self::assertIsArray($first);
+        self::assertSame($projectId, $first['id']);
+        self::assertIsString($first['deleted_at']);
+
+        // And gone from every read that is not the bin: a deleted project
+        // answers 404 exactly as one that never existed does.
+        $shown = $this->request('GET', '/api/v1/projects/' . $projectId, $this->aliceHeaders());
+        self::assertSame(404, $shown->getStatusCode());
+
+        $restored = $this->request(
+            'POST',
+            '/api/v1/projects/' . $projectId . '/undelete',
+            $this->aliceHeaders(),
+        );
+        self::assertSame(200, $restored->getStatusCode());
+
+        $project = $this->decode($restored);
+        self::assertNull($project['deleted_at']);
+        self::assertSame(['walls' => ['north']], $project['document']);
+
+        // The snapshot taken before deleting is still there. This is the
+        // assertion R13 exists for: the cascade used to take it.
+        $versions = $this->decode(
+            $this->request('GET', '/api/v1/projects/' . $projectId . '/versions', $this->aliceHeaders()),
+        );
+        $saved = $versions['versions'];
+        self::assertIsArray($saved);
+        self::assertCount(1, $saved);
+        $snapshot = $saved[0];
+        self::assertIsArray($snapshot);
+        self::assertSame('before deleting', $snapshot['label']);
+    }
+
+    /**
+     * Undeleting something that is not deleted is not a thing.
+     *
+     * 404 rather than 409, and deliberately: a 409 would confirm to somebody
+     * guessing at ids that this one is real.
+     */
+    public function testUndeletingALiveProjectIsNotFound(): void
+    {
+        $projectId = $this->createdProject();
+
+        $response = $this->request(
+            'POST',
+            '/api/v1/projects/' . $projectId . '/undelete',
+            $this->aliceHeaders(),
+        );
+
+        self::assertSame(404, $response->getStatusCode());
+    }
+
+    /**
+     * A mistyped filter answers the question it looks like.
+     *
+     * `?deleted=1`, `?deleted=yes`, `?deleted=` — none of them is `true`, and a
+     * client that sent one is asking for the live list whatever it meant. The
+     * alternative is a query string that silently returns somebody's bin.
+     */
+    public function testOnlyTheExactValueTrueAsksForTheBin(): void
+    {
+        $projectId = $this->createdProject();
+        $this->request('DELETE', '/api/v1/projects/' . $projectId, $this->aliceHeaders());
+
+        foreach (['1', 'yes', '', 'TRUE'] as $value) {
+            $page = $this->decode(
+                $this->request('GET', '/api/v1/projects?deleted=' . $value, $this->aliceHeaders()),
+            );
+
+            self::assertSame(0, $page['total'], sprintf('?deleted=%s should ask for live projects', $value));
+        }
+    }
+
     // --- Helpers ------------------------------------------------------------
 
     /**

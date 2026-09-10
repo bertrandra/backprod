@@ -47,7 +47,8 @@ export const keys = {
   },
   projects: {
     lists: ['projects', 'list'] as const,
-    list: (limit: number, offset: number) => ['projects', 'list', limit, offset] as const,
+    list: (limit: number, offset: number, deleted = false) =>
+      ['projects', 'list', limit, offset, deleted] as const,
     one: (id: string) => ['projects', 'one', id] as const,
     versions: (id: string) => ['projects', 'one', id, 'versions'] as const,
     version: (projectId: string, versionId: string) =>

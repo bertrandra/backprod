@@ -2075,7 +2075,8 @@
           "schema_version",
           "created_by",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "deleted_at"
         ],
         "properties": {
           "id": {
@@ -2109,6 +2110,14 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "deleted_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When somebody deleted it, or null while it is live. A deleted project keeps its versions, its assets and every job that referred to it — deletion is a date, not a cascade (R13)."
           }
         }
       },
@@ -8112,6 +8121,18 @@
           },
           {
             "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "name": "deleted",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            "description": "Ask for the deleted projects instead of the live ones. Only the exact value \"true\" does so: a mistyped query string answers the question it looks like, which is \"the live ones\"."
           }
         ],
         "responses": {
@@ -8424,7 +8445,7 @@
         ],
         "operationId": "deleteProject",
         "summary": "Delete a project",
-        "description": "Its versions and assets go with it.",
+        "description": "Recoverable since R13. The project leaves every list and keeps everything: its versions, its assets and the jobs that referred to it. `POST /projects/{projectId}/undelete` puts it back.\n\nThis was a hard delete, with `project_versions` following through ON DELETE CASCADE — a project with fifty snapshots left nothing behind, and nothing said so until it was gone.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
@@ -13209,6 +13230,60 @@
           },
           "403": {
             "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/undelete": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "undeleteProject",
+        "summary": "Put a deleted project back",
+        "description": "Named `undelete` rather than `restore` because `restoreProject` already exists and restores a project *to one of its versions* — a different operation that shares a word. The project returns with everything that never stopped pointing at it: its versions, its assets, its jobs.\n\nA project that is not deleted answers 404, exactly as one that never existed does. Undeleting a live project is not a thing, and a 409 would confirm that an id is real to somebody guessing at ids.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project, live again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"

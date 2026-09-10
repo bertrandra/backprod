@@ -1214,7 +1214,9 @@ export interface paths {
         post?: never;
         /**
          * Delete a project
-         * @description Its versions and assets go with it.
+         * @description Recoverable since R13. The project leaves every list and keeps everything: its versions, its assets and the jobs that referred to it. `POST /projects/{projectId}/undelete` puts it back.
+         *
+         *     This was a hard delete, with `project_versions` following through ON DELETE CASCADE — a project with fifty snapshots left nothing behind, and nothing said so until it was gone.
          */
         delete: operations["deleteProject"];
         options?: never;
@@ -2359,6 +2361,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{projectId}/undelete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Put a deleted project back
+         * @description Named `undelete` rather than `restore` because `restoreProject` already exists and restores a project *to one of its versions* — a different operation that shares a word. The project returns with everything that never stopped pointing at it: its versions, its assets, its jobs.
+         *
+         *     A project that is not deleted answers 404, exactly as one that never existed does. Undeleting a live project is not a thing, and a 409 would confirm that an id is real to somebody guessing at ids.
+         */
+        post: operations["undeleteProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2975,6 +2999,11 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+            /**
+             * Format: date-time
+             * @description When somebody deleted it, or null while it is live. A deleted project keeps its versions, its assets and every job that referred to it — deletion is a date, not a cascade (R13).
+             */
+            deleted_at: string | null;
         };
         /** @description The JSONB document. Key order is preserved and insignificant whitespace is gone — what is stored is what comes back, which is the guarantee snapshot and restore rest on. Large assets are refused here and belong in storage (non-negotiable #9). */
         ProjectDocument: {
@@ -6126,6 +6155,8 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 /** @description How many to skip. */
                 offset?: components["parameters"]["Offset"];
+                /** @description Ask for the deleted projects instead of the live ones. Only the exact value "true" does so: a mistyped query string answers the question it looks like, which is "the live ones". */
+                deleted?: "true";
             };
             header: {
                 /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
@@ -8965,6 +8996,38 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    undeleteProject: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The project, live again. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

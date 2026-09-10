@@ -25,13 +25,19 @@ import { ProjectCanvas } from './ProjectCanvas';
  * `workspace.project` — one project: rename, duplicate, snapshot, restore,
  * delete, its files and its canvas.
  *
- * **Restore means restoring to a version, not undeleting.** The roadmap's exit
- * criterion assumed a soft delete; the API has a hard one, and versions go with
- * the project through `ON DELETE CASCADE`. So this screen makes the delete say
- * what it really does — the project and its entire history, permanently — and
- * asks for the name to be typed, which is the confirmation a destructive and
- * unrecoverable action deserves. The mismatch is recorded in the roadmap rather
- * than papered over here.
+ * **Restore means restoring to a version. Undeleting is a different operation**,
+ * and now it exists. U4 shipped this screen against a *hard* delete — versions
+ * went with the project through `ON DELETE CASCADE` — so the confirmation said
+ * what was true then: permanent, unrecoverable, type the name. The mismatch with
+ * the roadmap's exit criterion was filed as R13 rather than papered over, and
+ * R13 has been closed: deletion is a date now, the versions stay, and
+ * `POST /projects/{projectId}/undelete` puts the project back.
+ *
+ * So the confirmation says what is true *now*. The typed name stays — deleting
+ * still takes a project out of everybody's list and out of every link, which
+ * deserves more than one click — but it no longer claims to destroy history it
+ * does not destroy. A warning that overstates is a warning people learn to
+ * dismiss.
  *
  * Restoring is safe in a way worth showing: the backend snapshots the current
  * state first, in the same transaction, so restoring can never be the operation
@@ -222,12 +228,15 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
       <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
         <h2 className="text-base font-semibold">Delete this project</h2>
 
-        {/* Hard, and said so. The API deletes the row and the versions cascade
-            with it, so there is nothing left to restore from afterwards —
-            "deleted" here does not mean "hidden". */}
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          The project and its {versions.data?.length ?? 0} snapshot
-          {versions.data?.length === 1 ? '' : 's'} are removed permanently. This cannot be undone.
+        {/* Recoverable, and said so (R13). It used to be a hard delete with the
+            versions cascading behind it, and the wording here said exactly that;
+            keeping that wording now would be scaring somebody with a
+            consequence that no longer happens. */}
+        <p data-testid="delete-explanation" className="text-sm text-neutral-600 dark:text-neutral-400">
+          The project leaves your list and keeps everything — its{' '}
+          {versions.data?.length ?? 0} snapshot
+          {versions.data?.length === 1 ? '' : 's'}, its files and its jobs. You can put it back from{' '}
+          <strong>Deleted projects</strong>.
         </p>
 
         {deleting ? (
@@ -235,7 +244,7 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
             <Field
               id="confirm-name"
               label={`Type “${current.name}” to confirm`}
-              hint="A destructive step should take more than one click."
+              hint="Recoverable, but it leaves every list and every link — so more than one click."
             >
               <input
                 id="confirm-name"

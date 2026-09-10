@@ -70,6 +70,8 @@
             "@test"
         ],
         "migrate": "doctrine-migrations migrate --no-interaction --allow-no-migration",
+        "demo:seed": "@php bin/seed-demo.php",
+        "demo:reset": "@php bin/seed-demo.php --reset",
         "gate:products": "@php tools/prove-no-product-branching.php",
         "gate:plans": "@php tools/prove-no-plan-branching.php",
         "gate:entitlements": "@php tools/prove-entitlements-have-one-door.php",
@@ -83,6 +85,8 @@
         "gates": "Run the full quality gate chain exactly as CI does",
         "gate:proof": "Prove the Deptrac gate actually rejects an illegal dependency",
         "migrate": "Apply pending database migrations",
+        "demo:seed": "Seed a demonstration world into an empty database, and read it back to prove it holds",
+        "demo:reset": "The same, wiping the business tables first (reference data untouched)",
         "gate:products": "Prove no code branches on product identity (§12.1)",
         "gate:plans": "Prove no code branches on a plan or tier name (§13)",
         "gate:money": "Prove no mutation that moves money writes to the cache before the server answers (U6)",

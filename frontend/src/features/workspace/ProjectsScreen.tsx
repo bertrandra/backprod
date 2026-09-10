@@ -1,9 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
+import { useState } from 'react';
 import { z } from 'zod';
 
-import { useCreateProject, useProjects } from '@/queries/projects';
+import { useCreateProject, useProjects, useUndeleteProject } from '@/queries/projects';
 import { supportedSchemaVersions, useProductConfiguration } from '@/queries/catalogue';
 import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
@@ -24,6 +25,13 @@ import { SkeletonRows } from '@/ui/Skeleton';
  * backend's intended failure, not a bug to route around, so the form is not
  * shown — a create button that always produced a 422 would be worse than the
  * sentence explaining why there is none.
+ *
+ * **The bin is a place you go** (R13). Deleting a project used to destroy its
+ * versions through a database cascade, and U4 shipped a confirmation that said
+ * so honestly because it was true. It is no longer true: a deleted project keeps
+ * everything and comes back. So there are two lists here rather than one list
+ * with a badge on some rows — a deleted project is not something anybody is
+ * browsing among their work.
  */
 const schema = z.object({
   name: z.string().trim().min(1, 'A project needs a name.'),
@@ -35,7 +43,9 @@ type Values = z.input<typeof schema>;
 
 export function ProjectsScreen() {
   const { data: session } = useSession();
-  const projects = useProjects();
+  const [showingBin, setShowingBin] = useState(false);
+  const projects = useProjects(25, 0, showingBin);
+  const undelete = useUndeleteProject();
   const configuration = useProductConfiguration(session?.productId ?? null);
   const create = useCreateProject();
 
@@ -62,17 +72,71 @@ export function ProjectsScreen() {
   return (
     <div className="max-w-4xl space-y-6">
       <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-lg font-semibold">Projects</h1>
+        <h1 className="text-lg font-semibold">{showingBin ? 'Deleted projects' : 'Projects'}</h1>
         <span className="text-sm text-neutral-600 dark:text-neutral-400">
-          {projects.data.total} in this product
+          {projects.data.total} {showingBin ? 'deleted' : 'in this product'}
+        </span>
+        {/* Wrapped rather than given `className`: `Button` sets its own and a
+            class passed in is silently dropped, which typechecks and does
+            nothing. */}
+        <span className="ml-auto">
+          <Button
+            type="button"
+            variant="secondary"
+            data-testid="toggle-bin"
+            onClick={() => setShowingBin(!showingBin)}
+          >
+            {showingBin ? 'Back to projects' : 'Deleted projects'}
+          </Button>
         </span>
       </div>
 
+      {undelete.error !== null && <ErrorSurface error={undelete.error} />}
+
       {projects.data.projects.length === 0 ? (
-        <EmptyState
-          title="No projects yet"
-          description="Everything else in the workspace hangs off a project — start with one."
-        />
+        showingBin ? (
+          <EmptyState
+            title="Nothing deleted"
+            description="A deleted project waits here with its versions, its assets and its jobs intact."
+          />
+        ) : (
+          <EmptyState
+            title="No projects yet"
+            description="Everything else in the workspace hangs off a project — start with one."
+          />
+        )
+      ) : showingBin ? (
+        <ul className="space-y-2">
+          {projects.data.projects.map((project) => (
+            <li
+              key={project.id}
+              data-project={project.id}
+              data-deleted="true"
+              className="flex flex-wrap items-center gap-3 rounded border border-neutral-200 p-3 dark:border-neutral-800"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">{project.name}</span>
+                <span data-testid="deleted-at" className="text-xs text-neutral-500">
+                  {/* Not a link: a deleted project has no screen to open, and a
+                      row that looked clickable and was not would be worse than
+                      one that plainly is not. */}
+                  deleted{' '}
+                  {project.deleted_at === null
+                    ? 'at some point'
+                    : new Date(project.deleted_at).toLocaleString()}
+                </span>
+              </span>
+
+              <Button
+                type="button"
+                pending={undelete.isPending && undelete.variables === project.id}
+                onClick={() => undelete.mutate(project.id)}
+              >
+                Put it back
+              </Button>
+            </li>
+          ))}
+        </ul>
       ) : (
         <ul className="space-y-2">
           {projects.data.projects.map((project) => (
@@ -98,6 +162,7 @@ export function ProjectsScreen() {
         </ul>
       )}
 
+      {!showingBin && (
       <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
         <h2 className="text-base font-semibold">New project</h2>
 
@@ -183,6 +248,7 @@ export function ProjectsScreen() {
           </form>
         )}
       </section>
+      )}
     </div>
   );
 }
