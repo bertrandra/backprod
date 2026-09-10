@@ -379,6 +379,10 @@ final class CataloguePersistenceTest extends DatabaseTestCase
      * no longer overlap: that is an exclusion constraint now, not a
      * publishing convention.
      *
+     * An open window needs no CASE: adding a null interval to a timestamp is
+     * null, and the cast is what gives PostgreSQL a type to infer. A bare
+     * `:validUntil IS NULL` gives it none and it refuses the statement.
+     *
      * Both bounds are anchored to `date_trunc('day', now())` rather than to
      * `now()`, and that is load-bearing rather than tidy. `now()` is
      * evaluated per statement, so one row's `valid_until` of "-1 day" lands a
@@ -402,8 +406,7 @@ final class CataloguePersistenceTest extends DatabaseTestCase
                      valid_from, valid_until)
                 VALUES (:offer, :version, 'DRAFT', 'MONTHLY', :price, 'EUR',
                         date_trunc('day', now()) + CAST(:validFrom AS interval),
-                        CASE WHEN :validUntil IS NULL THEN NULL
-                             ELSE date_trunc('day', now()) + CAST(:validUntil AS interval) END)
+                        date_trunc('day', now()) + CAST(:validUntil AS interval))
                 RETURNING id
                 SQL,
             [

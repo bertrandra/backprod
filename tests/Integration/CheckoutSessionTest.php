@@ -218,7 +218,16 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
         self::assertIsString($paymentId);
 
         $this->connection->executeStatement(
-            "UPDATE payments SET status = 'FAILED', failed_at = now() WHERE id = :id",
+            // `payments_failed_has_reason` requires a `failure_code` on any
+            // FAILED payment: a failure nobody can name is a dead end for
+            // whoever has to explain it to the customer. The prose reason is
+            // set alongside it because a code alone explains nothing.
+            <<<'SQL'
+                UPDATE payments
+                   SET status = 'FAILED', failed_at = now(),
+                       failure_code = 'card_declined', failure_reason = 'The card was declined.'
+                 WHERE id = :id
+                SQL,
             ['id' => $paymentId],
         );
 
@@ -248,7 +257,16 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
         self::assertIsString($paymentId);
 
         $this->connection->executeStatement(
-            "UPDATE payments SET status = 'FAILED', failed_at = now() WHERE id = :id",
+            // `payments_failed_has_reason` requires a `failure_code` on any
+            // FAILED payment: a failure nobody can name is a dead end for
+            // whoever has to explain it to the customer. The prose reason is
+            // set alongside it because a code alone explains nothing.
+            <<<'SQL'
+                UPDATE payments
+                   SET status = 'FAILED', failed_at = now(),
+                       failure_code = 'card_declined', failure_reason = 'The card was declined.'
+                 WHERE id = :id
+                SQL,
             ['id' => $paymentId],
         );
 
