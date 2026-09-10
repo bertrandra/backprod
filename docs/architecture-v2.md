@@ -366,10 +366,16 @@ Zustand
 
 TanStack Query gère le **server state**.
 
+Il ne parle **jamais** directement à l'API. Entre les deux il y a le client
+TypeScript généré depuis OpenAPI — voir §8.1, qui est la règle, ce diagramme
+n'en étant que le résumé :
+
 ```text
 React
   ↓
 TanStack Query
+  ↓
+Client API TypeScript généré
   ↓
 PHP API
   ↓
@@ -401,6 +407,92 @@ Fonctions exploitées :
 Règle :
 
 > **Zustand = état local/client. TanStack Query = état serveur.**
+
+---
+
+## 8.1 Frontend API Data Flow
+
+La séquence de construction, dans cet ordre et sans étape sautée :
+
+```text
+PHP API
+   ↓
+OpenAPI 3.1
+   ↓
+Types TypeScript + client API générés
+   ↓
+TanStack Query
+   ↓
+React
+```
+
+**OpenAPI est le contrat source.** Les types et le client API TypeScript sont
+générés à partir d'OpenAPI. TanStack Query consomme exclusivement ce client
+pour gérer le Server State. React consomme TanStack Query.
+
+### Ce qui est interdit
+
+```text
+React → fetch()                        ❌
+React → axios                          ❌
+TanStack Query → fetch()               ❌
+TanStack Query → URL écrite à la main  ❌
+DTO recopié à la main en TypeScript    ❌
+type Invoice = { … } écrit à la main   ❌
+```
+
+Chacune de ces lignes crée un **second contrat**, tenu à la main, qui peut
+diverger du premier. Et il divergera : le backend renomme un champ, le gate
+OpenAPI reste vert parce que le contrat et le routeur sont toujours d'accord,
+la génération reste verte parce que personne ne l'a relancée, et c'est le
+navigateur d'un client qui découvre la différence. Un contrat unique ne se
+défend pas par la discipline de celui qui écrit le `fetch()`, il se défend en
+n'ayant pas d'endroit où écrire le `fetch()`.
+
+### Ce qui est autorisé
+
+```text
+React → TanStack Query → client généré → PHP API
+```
+
+Une seule couche connaît une URL, un verbe HTTP, un en-tête ou une forme de
+réponse : le client généré. Elle n'est pas écrite, elle est produite.
+
+### Pourquoi cette direction, et pas l'inverse
+
+Le sens de la flèche est la décision. Partir de React et remonter vers l'API
+donne un contrat déduit de ce dont un écran a eu besoin un mardi ; partir de
+l'API et descendre donne des écrans contraints par ce que le backend garantit
+réellement. Les deux produisent du code qui marche le premier jour. Un seul
+survit au deuxième changement de schéma.
+
+C'est le même raisonnement que §25 applique aux factures et
+[ADR-035](adr/ADR-035-a-rendered-invoice-is-stored-not-re-rendered.md) au
+document rendu : une source, et tout le reste dérivé d'elle plutôt que
+re-saisi à côté.
+
+### Conséquence sur la génération
+
+Le code généré n'est pas modifié à la main. Un champ qui manque est un champ
+qui manque **dans OpenAPI** : on corrige le contrat, on régénère. Corriger la
+sortie plutôt que la source produit un fichier que la prochaine génération
+écrase, et une correction qui disparaît sans bruit est pire que l'absence de
+correction.
+
+La régénération appartient à la chaîne de qualité (§ *Quality gates*) : si le
+contrat a changé et que le client généré ne l'a pas suivi, l'écart doit faire
+échouer la CI, pas attendre d'être découvert à l'exécution.
+
+### Ce que cette règle ne dit pas
+
+Elle ne dit rien du **client state**. Zustand, les formulaires, l'état d'un
+panneau ouvert : rien de tout cela ne passe par cette chaîne, parce que rien
+de tout cela ne vient du serveur. La règle porte sur la donnée serveur et sur
+elle seule.
+
+Elle ne fait pas non plus de TanStack Query un moteur métier. Le Core
+TypeScript reste ce qu'il est (§5, §4) : TanStack Query transporte et met en
+cache, il ne calcule pas.
 
 ---
 
@@ -725,16 +817,24 @@ Le frontend doit transmettre ou établir le contexte produit de manière explici
 
 ## 10.6 Génération TypeScript
 
-Le contrat OpenAPI peut générer les types et clients TypeScript consommés par React. Le frontend ne doit pas recopier manuellement les DTO de l'API.
+Le contrat OpenAPI **génère** les types et le client TypeScript consommés par
+le frontend. Ce n'est pas une possibilité offerte, c'est le seul chemin
+autorisé : la règle complète, avec ce qu'elle interdit, est en §8.1.
 
 ```text
 OpenAPI
    │
    ├── PHP API contract tests
    ├── Swagger / Redoc
-   ├── TypeScript types
-   └── TypeScript API client
+   ├── TypeScript types            ← généré, jamais écrit
+   └── TypeScript API client       ← généré, jamais écrit
 ```
+
+Une version antérieure de cette section disait que le contrat « peut »
+générer ces artefacts et que le frontend « ne doit pas » recopier les DTO à la
+main. Formulé ainsi, cela laissait la génération optionnelle et la recopie
+simplement déconseillée — soit exactement la marge par laquelle un `fetch()`
+écrit à la main devient normal.
 
 # 11. Backend PHP
 
@@ -4619,6 +4719,11 @@ Le backend est un modular monolith et non un ensemble de scripts PHP.
 
 **Raison:** cache, mutations, synchronisation et gestion du cycle de vie des données API.
 
+**Conséquence:** TanStack Query n'atteint l'API qu'à travers le client
+TypeScript généré depuis OpenAPI (§8.1). Une `queryFn` qui appelle `fetch()`
+directement recrée un contrat à la main à côté de celui qui fait autorité, et
+c'est ce second contrat qui dérivera.
+
 ---
 
 ## ADR-007 — Zod
@@ -4695,6 +4800,7 @@ Le backend est un modular monolith et non un ensemble de scripts PHP.
 22. **Un rôle plateforme n'accorde jamais une appartenance à un tenant, et réciproquement.**
 23. **La périodicité de paiement d'un abonnement n'est pas sa durée d'engagement.**
 24. **Aucun envoi SMS ou WhatsApp sans consentement prouvable et révocable, et aucune notification de sécurité désactivable.**
+25. **OpenAPI est le contrat source du frontend : les types et le client API TypeScript en sont générés, TanStack Query ne consomme que ce client, et aucun `fetch()` ni DTO n'est écrit à la main (§8.1).**
 
 ---
 
