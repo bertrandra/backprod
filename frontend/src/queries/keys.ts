@@ -104,6 +104,32 @@ export const keys = {
     list: (limit: number, offset: number) => ['jobs', 'list', limit, offset] as const,
     one: (id: string) => ['jobs', 'one', id] as const,
   },
+  staff: {
+    identity: ['staff', 'me'] as const,
+    tenantLists: ['staff', 'tenants'] as const,
+    tenants: (limit: number, offset: number) => ['staff', 'tenants', limit, offset] as const,
+    tenant: (id: string) => ['staff', 'tenant', id] as const,
+    accessLog: (limit: number, offset: number) => ['staff', 'access-log', limit, offset] as const,
+    conversationLists: ['staff', 'conversations'] as const,
+    conversations: (limit: number, offset: number) =>
+      ['staff', 'conversations', limit, offset] as const,
+    conversation: (id: string) => ['staff', 'conversation', id] as const,
+  },
+  admin: {
+    metrics: (productId: string, months: number, month: string) =>
+      ['admin', 'metrics', productId, months, month] as const,
+    queue: (staleAfterSeconds: number) => ['admin', 'queue', staleAfterSeconds] as const,
+    jobs: (status: string, type: string, limit: number, offset: number) =>
+      ['admin', 'jobs', status, type, limit, offset] as const,
+    // The shared prefix, so an erasure invalidates every directory listing and
+    // every page of each — the user's row changes, and so do the counts beside
+    // the tenants they belonged to.
+    directories: ['admin', 'directory'] as const,
+    directory: (which: string, filter: string, limit: number, offset: number) =>
+      ['admin', 'directory', which, filter, limit, offset] as const,
+    audits: ['admin', 'audit'] as const,
+    audit: (limit: number, offset: number) => ['admin', 'audit', limit, offset] as const,
+  },
   conversations: {
     // Same shape as `notifications` above, and for the same reason: `lists` is
     // the shared prefix so a mutation invalidates every page, while a thread and

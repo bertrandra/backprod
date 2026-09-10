@@ -493,7 +493,7 @@ rule to do it.
 
 ---
 
-### U8 — Platform console — 8 areas, 16 operations
+### U8 — Platform console — 8 areas, 16 operations — *delivered*
 
 **Goal:** the second shell. Separate routes, separate navigation, no shared
 module with the tenant app.
@@ -512,11 +512,109 @@ module with the tenant app.
 - Audit trail
 - **RGPD erasure**, against legal retention (non-negotiable #15): the screen must show what will be anonymised and what the law requires be kept, because an operator who believes it deletes everything will promise that to a customer
 
-**Exit criteria**
-- A tenant-app route is unreachable from the console and vice versa; no navigation module is shared
-- An erased user still appears in the directory, carrying `erased_at` and no identity — the row surviving is the design
-- A staff read without a stated reason cannot be performed
-- 16 operations covered — **129/129 area operations complete**
+**Exit criteria** — three met, one **not met**, and the reason is the contract
+- A tenant-app route is unreachable from the console and vice versa; no navigation module is shared — met, and now checked at the level where it can actually fail. `navigation.test.ts` proves the two *menus* are disjoint; `router.test.ts` proves the two *route trees* are, which is a different claim: a console route accidentally parented to the tenant shell renders inside the tenant frame, with a product switcher and no amber band, and no navigation test would notice. Every route id carries its shell, so the property is checkable rather than conventional. Proven by parking `/console/audit` under the tenant shell, by renaming a route the nav points at, and by adding a route outside both shells
+- An erased user still appears in the directory, carrying `erased_at` and no identity — met. Proven three ways: by filtering erased rows out (three tests fail), by rendering an erased person as one with missing fields (two fail), and by feeding a person who merely has no display name, which must *not* read as erased
+- **A staff read without a stated reason cannot be performed — not met, because no endpoint accepts a reason.** See below
+- 16 operations covered — **129/129 area operations complete**, held true by `gate:ui`
+
+**The criterion that could not be met, and what shipped instead.** Non-negotiable
+#21 requires an access across the tenant boundary to be *traced, motivated and
+never silent*. The platform records who looked, at what, and **under which
+permission** — `StaffAccess` carries `permission` precisely so the log can answer
+"on what grounds?". That is the *authority* for the read. It is not the *reason
+for this particular read*, and there is nowhere to put one: `showTenantForStaff`,
+`showSupportConversation` and `listAccessLog` take no reason parameter, header or
+body, and `StaffRoute::permitted()` has no argument for it.
+
+So the frontend ships what is real and does not fake the rest. Before the click,
+every console screen says the read will be recorded and under what. After it, the
+detail confirms it, naming the permission. And the access log is a first-class
+screen that shows an operator their own crossings — an audit nobody can read is an
+audit nobody is accountable to. A free-text box that went nowhere would have been
+*worse* than none, because it would have looked like the control the
+non-negotiable asks for. Filed as **R14**, with the design question stated:
+mandatory free text collects "support" a thousand times and proves nothing, while
+a structured reference is only as good as the system it points at.
+
+**A bug U1 shipped and no test caught.** `ConsoleShell` read `GET /me` — the
+*tenant* session — because `showStaffIdentity` had no screen to belong to yet. A
+platform role never grants tenant membership (non-negotiable #22), so `/me`
+answers for somebody this shell is not built for, and for real staff would not
+answer at all: the console navigation was gated on permissions its own users could
+never hold. It reads `GET /staff/me` now, and the browser test makes `/me` answer
+403 throughout — a console still reaching for the tenant session finds nothing and
+renders an empty navigation.
+
+The status strip went with it. Region E watches the *tenant's* jobs through
+`/jobs`, scoped to a tenant this person is not in; the queue has its own screen
+here, reading the platform's own liveness signal. A strip that silently showed
+nothing would have been worse than none.
+
+**Three distinctions the numbers are worthless without**, each proven by
+collapsing it:
+- **a settled month against one still moving** (`closed`) — the same figure means
+  two different things on the 2nd and the 31st
+- **credits beside turnover, never subtracted from it** — netting them off
+  produces a third number matching neither the ledger nor the invoices
+- **"nothing came up for renewal" against "nothing renewed"** (`measured`) —
+  nothing auto-renews yet (R11), so a bare 0% reports an unbuilt feature as total
+  churn. A *measured* zero is still 0%, and the test insists on that too: saying
+  "nothing came up" there would hide real churn
+
+**A lapse is a fact about the clock.** The queue is cron-polled, so nothing writes
+"broken" anywhere when it stops — every counter stays where it was. `never_ran`
+exists *"because that state is all zeroes and reads exactly like a calm idle
+queue"*, and the test feeds exactly those zeroes. The staleness *verdict* is the
+server's: the screen sends `stale_after` and renders the answer, and a fixture
+with a 9 999-second silence and `stale: false` proves it is not doing its own
+arithmetic — a screen that disagreed with the platform about whether an incident
+is happening is worse than one that says nothing.
+
+**Three answers to "who", not two.** `actor` carries both the id and whether it
+was erased, and the contract is explicit: *"collapsing them into a bare null would
+turn every erasure into a system action."* A named actor, an erased actor (the act
+stands, the identity is gone) and a genuine system act render differently, and the
+test asserts three distinct values from three entries — two would mean one
+collapsed into another, and it is always the erasure that collapses.
+
+**Erasure states what the law keeps before the button, not after.** There is no
+dry run in the contract — the endpoint performs the erasure and reports what it
+did — so the five retention grounds are enumerated from the contract's own list
+and shown while the operator is still deciding. The report keeps two columns that
+are never merged: "42 records processed" is the exact confusion this screen exists
+to prevent, and a retained count without its legal ground reads as a failure to
+delete rather than as an obligation. Proven by summing the columns, by dropping the
+grounds, and by rendering a ground's enum name instead of its meaning.
+
+**Support answers are not optimistic, and that is not the same rule as U3's.** U3
+established that optimism is safe where nothing binding is created, and a member
+writing in their own thread qualifies. An answer here is written by somebody acting
+with platform authority into a company's thread and logged as such. The test holds
+the response open, waits on the *request*, and asserts the reply is absent from the
+message list while it is outstanding — scoped to the list rather than by text,
+because the draft is still in the textarea and a text query would have passed
+whatever the thread did.
+
+**Two empty message bodies that mean different things.** Deleted, and "the author
+was erased under RGPD". Both arrive as `body: ""`, both are said rather than
+rendered as silence, and treating one as the other fails a test.
+
+**One more test utility, and one fewer cast.** `recordingClient` (added in U7) does
+the work for the assertions about what a screen *sent* — that a staff read carries
+no ambient headers, that a threshold reaches the server, that a filter is not
+carried across directory tabs because "acme" as a slug and "acme" as a person are
+different questions. `Operations` is now exported from `api/client.ts` for the
+response shapes the contract declares **inline** rather than as a named schema:
+`eraseUser`'s report was restated by hand, which compiled — and would have gone on
+compiling after the contract changed, which is the one failure mode generating the
+client was meant to remove.
+
+**And the last placeholder is gone.** The tenant index still read "the workspace
+arrives in U4" — true when U1 wrote it, false from U4 onward, and nothing failed on
+it. A test now asserts no route renders a milestone placeholder at all, because a
+promise with no milestone behind it is the kind of small lie that survives a whole
+project.
 
 ---
 
@@ -621,7 +719,7 @@ U4   5 areas    22 operations   delivered
 U5   5 areas    26 operations   delivered
 U6   6 areas    24 operations   delivered
 U7   3 areas     8 operations   delivered
-U8   8 areas    16 operations
+U8   8 areas    16 operations   delivered
             ───────────────
             129 operations   in screen areas
             +  3             shell bootstrap (U1)
