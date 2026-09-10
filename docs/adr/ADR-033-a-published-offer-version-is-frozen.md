@@ -72,6 +72,25 @@ offer will fail this migration — which is the correct outcome, since that data
 already makes the catalogue ambiguous, but it is a migration that can fail on
 real data rather than one that cannot.
 
+**Two consequences surfaced only when the existing tests ran against it**, and
+both are worth stating because they are properties of the rule rather than of
+the tests.
+
+The first: **a fixture that seeds an ACTIVE version and then attaches grants
+is now refused**, and four of them did exactly that. The order they used is one
+the product itself never uses — authoring inserts a DRAFT, attaches grants,
+then publishes — so they were rewritten to build the way the product builds
+rather than the invariant being weakened to accommodate them.
+
+The second is sharper. **Adjacency has to be expressed against a shared
+instant.** `now()` is evaluated per statement, so one version's `valid_until`
+of "yesterday" lands a fraction of a millisecond after the next version's
+`valid_from` of the same "yesterday" — two windows meant to touch then
+genuinely overlap, and the constraint is right to refuse them. Anything that
+publishes consecutive windows must compute both bounds from one timestamp;
+computing each from its own `now()` produces a sub-millisecond overlap that
+looks like a constraint bug and is not.
+
 Every case was verified against a live PostgreSQL 16 before the endpoints were
 written: five refusals, four permitted paths, and each of the three
 cross-product refusals in the adapter's own statements. That replay found a

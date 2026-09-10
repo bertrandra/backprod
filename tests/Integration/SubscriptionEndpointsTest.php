@@ -400,7 +400,7 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
         $versionId = $this->id(
             'INSERT INTO offer_versions'
             . ' (offer_id, version, status, billing_period, price_minor_units, currency, valid_from)'
-            . " VALUES (:offer, 1, 'ACTIVE', 'MONTHLY', :price, 'EUR', now() - interval '1 day')"
+            . " VALUES (:offer, 1, 'DRAFT', 'MONTHLY', :price, 'EUR', now() - interval '1 day')"
             . ' RETURNING id',
             ['offer' => $offerId, 'price' => $price],
         );
@@ -414,6 +414,15 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
                 ['version' => $versionId, 'feature' => $featureId, 'limit' => $limit],
             );
         }
+
+        // Seeded the way the product builds one: DRAFT, then its grants,
+        // then published. A version's grants are frozen once it leaves DRAFT
+        // (ADR-033), so attaching them to an ACTIVE row is an order nothing
+        // in the platform actually uses.
+        $this->connection->executeStatement(
+            "UPDATE offer_versions SET status = 'ACTIVE' WHERE id = :id",
+            ['id' => $versionId],
+        );
 
         return $offerId;
     }
