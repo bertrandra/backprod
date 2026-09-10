@@ -37,7 +37,13 @@ declare(strict_types=1);
  * bigger check than this one and not built. So this gate proves the frontend's
  * vocabulary is real, not that each word is in the right place.
  *
- * Exit 0 means every permission the frontend believes in exists.
+ * Since U4 it checks **capabilities** the same way, against the
+ * `const CAPABILITY` a route class declares. `gis.access` is why: it looks like
+ * a permission, contains a dot, and is not one — and a misspelt capability
+ * hides a screen just as quietly.
+ *
+ * Exit 0 means every permission and every capability the frontend believes in
+ * exists.
  */
 
 $root = dirname(__DIR__);
@@ -199,6 +205,97 @@ if ($unknown !== []) {
     exit(1);
 }
 
+// --- Capabilities ------------------------------------------------------------
+//
+// The same hole, one level over. A capability is not a permission — it says what
+// the tenant's plan includes rather than what a role may do — and until U4 the
+// frontend used exactly one (`white_label`), so nothing checked them.
+//
+// `gis.access` made that worth closing: it *looks* like a permission, contains a
+// dot, and is not one. A misspelt capability hides a screen just as quietly as a
+// misspelt permission, and with two of them in the codebase the next one is
+// somebody's guess.
+//
+// The backend's list is authoritative and small: a route class declares
+// `const CAPABILITY = '…'` and requires it. That is where a capability comes
+// into existence, the way a migration is where a permission does.
+
+$capabilities = [];
+
+foreach ($filesIn($root . '/src', '.php') as $path) {
+    $source = file_get_contents($path);
+
+    if ($source === false) {
+        continue;
+    }
+
+    if (preg_match_all("/const\s+CAPABILITY\s*=\s*'([a-z][a-z_]*(?:\.[a-z][a-z_]*)*)'/", $source, $matches) === false) {
+        continue;
+    }
+
+    foreach ($matches[1] as $code) {
+        $capabilities[$code] = true;
+    }
+}
+
+$claimedCapabilities = [];
+
+foreach ($sources as $path) {
+    if (str_contains($path, '/api/generated/')) {
+        continue;
+    }
+
+    $source = file_get_contents($path);
+
+    if ($source === false) {
+        continue;
+    }
+
+    // Three shapes: the call itself, the third argument of `canAndEntitled`, and
+    // a named constant. The constant matters because a screen reads better with
+    // `GIS_CAPABILITY` than with a bare string, and a gate that only understood
+    // literals would quietly stop checking the moment somebody named one.
+    $capabilityPatterns = [
+        "/isEntitled\([^,)]*,\s*'([a-z][a-z_.]*)'/",
+        "/canAndEntitled\([^,)]*,[^,)]*,\s*'([a-z][a-z_.]*)'/",
+        "/[A-Z][A-Z_]*CAPABILITY\s*=\s*'([a-z][a-z_.]*)'/",
+    ];
+
+    foreach ($capabilityPatterns as $pattern) {
+        if (preg_match_all($pattern, $source, $matches) === false) {
+            continue;
+        }
+
+        foreach ($matches[1] as $code) {
+            $claimedCapabilities[$code][] = str_replace($root . '/', '', $path);
+        }
+    }
+}
+
+$unknownCapabilities = [];
+
+foreach ($claimedCapabilities as $code => $where) {
+    if (!isset($capabilities[$code])) {
+        $unknownCapabilities[$code] = array_values(array_unique($where));
+    }
+}
+
+if ($unknownCapabilities !== []) {
+    ksort($unknownCapabilities);
+
+    fwrite(STDERR, "FAIL: the frontend gates on capabilities the platform does not define.\n");
+    fwrite(STDERR, "No plan can grant these, so whatever they gate can never appear.\n\n");
+
+    foreach ($unknownCapabilities as $code => $where) {
+        fwrite(STDERR, sprintf("  %-28s %s\n", $code, implode(', ', $where)));
+    }
+
+    fwrite(STDERR, "\nCapabilities are declared as `const CAPABILITY` on the route class that\n");
+    fwrite(STDERR, "requires them. Correct the frontend, or add the capability to the platform.\n");
+
+    exit(1);
+}
+
 $unused = array_values(array_diff(array_keys($defined), array_keys($referenced)));
 sort($unused);
 
@@ -206,6 +303,12 @@ printf(
     "OK: all %d permissions the frontend gates on exist (%d defined by the platform).\n",
     count($referenced),
     count($defined),
+);
+
+printf(
+    "OK: all %d capabilities the frontend gates on exist (%d declared by the platform).\n",
+    count($claimedCapabilities),
+    count($capabilities),
 );
 
 if ($unused !== []) {

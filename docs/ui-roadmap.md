@@ -238,7 +238,7 @@ test, 126 reads instead of one.
 
 ---
 
-### U4 — Product workspace — 5 areas, 22 operations
+### U4 — Product workspace — 5 areas, 22 operations — *delivered*
 
 **Goal:** the product surface, and the first genuinely different mobile
 interaction.
@@ -254,12 +254,45 @@ interaction.
 - Canvas: full-bleed on mobile with a floating tool sheet; measurement and intersection called from it
 - Geometry through the Core (§4, §5): the canvas triggers, the Core computes, TanStack Query only transports
 
-**Exit criteria**
-- An export is requested, tracked in region E, and downloadable when done, without the page being reloaded
-- The canvas is usable one-handed at 375 px
-- Restoring a deleted project works, and the deleted state is visible rather than the row simply vanishing
-- No business calculation in a component — verified against §4's rule
+**Exit criteria** — three met, one wrong when it was written
+- An export is requested, tracked in region E, and downloadable when done, without the page being reloaded — asserted in a browser (`e2e/workspace.spec.ts`) with a stub that advances the job between polls, so a strip that rendered once fails it
+- The canvas is usable one-handed at 375 px — asserted on layout, which jsdom cannot judge: the surface takes the viewport width and every control is a 44 px target in a sheet along the bottom edge
+- ~~Restoring a deleted project works, and the deleted state is visible rather than the row simply vanishing~~ — **this criterion describes an API that does not exist.** See below
+- No business calculation in a component — the canvas test asserts the *Core's* numbers (4242 and 1337 over a hand-drawn triangle), so adding a shoelace formula fails it. Proven by adding one
 - 22 operations covered
+
+**The criterion that was wrong.** `DELETE /projects/{projectId}` is a hard
+delete, and `project_versions` goes with it through `ON DELETE CASCADE`. There is
+no soft-deleted state to make visible and nothing to restore a deleted project
+*from*; `restoreProject` restores a project **to one of its versions**, which is
+a different operation that happens to share the word.
+
+So U4 ships what the API has: restore-to-version, and a delete that says what it
+really does — the project and its snapshots, permanently, with the name typed to
+confirm. Making the original criterion true is a **backend** change (a
+`deleted_at`, a list filter, a contract field, and versions that survive the
+delete), and it is not smuggled into a frontend milestone. It belongs in the
+backlog as a decision about whether project deletion should be recoverable at
+all, and §15's retention rules are the place that argues it either way.
+
+**A gate widened, for the same reason U2 widened one.** U4 is the first
+milestone to gate a screen on a **capability** rather than a permission
+(`gis.access`, from `GeoRoute::CAPABILITY`), and `gate:permissions` checked
+permissions only. A capability with a dot in it looks exactly like a permission
+and is not one, and a misspelt capability hides a screen just as quietly as the
+six misspelt permissions did in U1. The gate now checks both, against the
+`const CAPABILITY` a route class declares. Proven by misspelling one in each of
+the two shapes the frontend uses — a named constant and an inline
+`isEntitled(…)`.
+
+**Where the schema version comes from.** Creating a project needs a
+`schema_version`, and the backend accepts only what the *product* has configured
+(`SchemaVersionPolicy`). A form that sent `1` would be UR5 exactly: one
+product's fact hard-coded into a client shared by all of them. So the versions
+are read from `GET /products/{productId}/configuration`, the newest is the
+default, and a product that has configured none is told plainly that it accepts
+no documents rather than being given a button that always fails. Four tests fail
+if the version is hard-coded.
 
 ---
 
@@ -456,7 +489,7 @@ contract:
 
 U2   4 areas    13 operations
 U3   3 areas    20 operations   delivered
-U4   5 areas    22 operations
+U4   5 areas    22 operations   delivered
 U5   5 areas    26 operations
 U6   6 areas    24 operations
 U7   3 areas     8 operations

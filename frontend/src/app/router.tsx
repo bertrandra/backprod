@@ -6,6 +6,7 @@ import {
   type AnyRoute,
 } from '@tanstack/react-router';
 
+import { useStringParam } from '@/app/frame/routeParams';
 import { parseViewState, type ViewState } from '@/app/frame/viewState';
 import { ProfileScreen } from '@/features/account/ProfileScreen';
 import { BrandingScreen } from '@/features/branding/BrandingScreen';
@@ -14,6 +15,9 @@ import { MembersScreen } from '@/features/members/MembersScreen';
 import { NotificationSettingsScreen } from '@/features/notifications/NotificationSettingsScreen';
 import { NotificationsScreen } from '@/features/notifications/NotificationsScreen';
 import { OrganisationScreen } from '@/features/organisation/OrganisationScreen';
+import { JobsScreen } from '@/features/workspace/JobsScreen';
+import { ProjectScreen } from '@/features/workspace/ProjectScreen';
+import { ProjectsScreen } from '@/features/workspace/ProjectsScreen';
 import { ConsoleShell } from '@/app/shells/ConsoleShell';
 import { TenantShell } from '@/app/shells/TenantShell';
 import { EmptyState } from '@/ui/EmptyState';
@@ -52,8 +56,6 @@ interface Placeholded {
 }
 
 const TENANT_ROUTES: readonly Placeholded[] = [
-  { path: '/projects', area: 'Projects', milestone: 'U4' },
-  { path: '/jobs', area: 'Jobs', milestone: 'U4' },
   { path: '/catalogue', area: 'Catalogue', milestone: 'U5' },
   { path: '/quotes', area: 'Quotes', milestone: 'U5' },
   { path: '/orders', area: 'Orders', milestone: 'U5' },
@@ -73,6 +75,9 @@ const SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element
   { path: '/notifications', component: NotificationsScreen },
   { path: '/notification-settings', component: NotificationSettingsScreen },
   { path: '/conversations', component: ConversationsScreen },
+  // U4
+  { path: '/projects', component: ProjectsScreen },
+  { path: '/jobs', component: JobsScreen },
 ];
 
 const CONSOLE_ROUTES: readonly Placeholded[] = [
@@ -135,10 +140,37 @@ const screenRoutes: AnyRoute[] = SCREEN_ROUTES.map(({ path, component }) =>
   createRoute({ getParentRoute: () => tenantShellRoute, path, validateSearch, component }),
 );
 
+/**
+ * The first route with a parameter in it.
+ *
+ * A project's id belongs in the path rather than in a search param: it is
+ * *which* record, not how it is being looked at (ui-spec.md §4.3). The
+ * distinction matters for the same reason `?selected=` does — a link has to
+ * open the same project for whoever follows it.
+ */
+const projectRoute = createRoute({
+  getParentRoute: () => tenantShellRoute,
+  path: '/projects/$projectId',
+  validateSearch,
+  component: function ProjectRoute() {
+    const projectId = useStringParam('projectId');
+
+    // Unreachable through this route, which cannot match without the segment —
+    // but the parameter is narrowed rather than asserted, so "no id" has an
+    // answer instead of a cast that would be wrong exactly once.
+    return projectId === null ? (
+      <EmptyState title="No such project" description="The link may be old, or mistyped." />
+    ) : (
+      <ProjectScreen projectId={projectId} />
+    );
+  },
+});
+
 const routeTree = rootRoute.addChildren([
   tenantShellRoute.addChildren([
     indexRoute,
     ...screenRoutes,
+    projectRoute,
     ...placeholderRoutes(tenantShellRoute, TENANT_ROUTES),
     notFoundRoute,
   ]),

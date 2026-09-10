@@ -4,7 +4,8 @@ import { useCallback, useState } from 'react';
 import { AppFrame } from '@/app/frame/AppFrame';
 import { CommandPalette, usePaletteShortcut } from '@/app/frame/CommandPalette';
 import { bottomBarEntries, CONSOLE_NAV, visibleNav } from '@/app/frame/navigation';
-import { BottomNav, PrimaryNav, StatusStrip } from '@/app/frame/regions';
+import { BottomNav, PrimaryNav } from '@/app/frame/regions';
+import { StatusStrip } from '@/app/frame/StatusStrip';
 import { useSession } from '@/queries/session';
 
 /**
