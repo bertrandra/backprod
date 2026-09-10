@@ -1,5 +1,5 @@
 {
-  "$comment": "Single source for UI coverage of the API. docs/ui-spec.md explains the areas and the reasoning; tools/prove-ui-covers-the-api.php checks this file against openapi.json in both directions. Add an operation to the contract and this file fails until a screen area claims it.",
+  "$comment": "Single source for UI coverage of the API. docs/ui-spec.md explains the areas and the reasoning; tools/prove-ui-covers-the-api.php checks this file against openapi.json in both directions, and tools/prove-screens-call-their-operations.php checks it against the frontend \u2014 that every area's routes exist and that every operation an area claims is actually called through the generated client.",
   "shells": {
     "tenant": "The product application: one product, one tenant, scoped by X-Product and the caller's membership.",
     "console": "The platform console. A separate shell because a platform role never grants tenant membership (non-negotiable #22)."
@@ -7,6 +7,9 @@
   "areas": {
     "account.notification_settings": {
       "shell": "tenant",
+      "routes": [
+        "/notification-settings"
+      ],
       "operations": [
         "grantConsent",
         "listConsents",
@@ -17,6 +20,9 @@
     },
     "account.notifications": {
       "shell": "tenant",
+      "routes": [
+        "/notifications"
+      ],
       "operations": [
         "listNotifications",
         "readAll",
@@ -27,6 +33,9 @@
     },
     "account.profile": {
       "shell": "tenant",
+      "routes": [
+        "/profile"
+      ],
       "operations": [
         "showMe",
         "updateMe"
@@ -34,12 +43,18 @@
     },
     "billing.credit_notes": {
       "shell": "tenant",
+      "routes": [
+        "/credit-notes"
+      ],
       "operations": [
         "listCreditNotes"
       ]
     },
     "billing.einvoicing": {
       "shell": "tenant",
+      "routes": [
+        "/invoices/$invoiceId"
+      ],
       "operations": [
         "listTransmissions",
         "submitInvoice"
@@ -47,6 +62,10 @@
     },
     "billing.invoices": {
       "shell": "tenant",
+      "routes": [
+        "/invoices",
+        "/invoices/$invoiceId"
+      ],
       "operations": [
         "cancelInvoice",
         "issueCreditNote",
@@ -59,6 +78,9 @@
     },
     "billing.payments": {
       "shell": "tenant",
+      "routes": [
+        "/payments"
+      ],
       "operations": [
         "listPayments",
         "refundPayment",
@@ -69,6 +91,9 @@
     },
     "billing.profile": {
       "shell": "tenant",
+      "routes": [
+        "/billing-profile"
+      ],
       "operations": [
         "saveBillingProfile",
         "showBillingProfile"
@@ -76,6 +101,9 @@
     },
     "commerce.catalogue": {
       "shell": "tenant",
+      "routes": [
+        "/catalogue"
+      ],
       "operations": [
         "listFeatures",
         "listOffers",
@@ -90,6 +118,9 @@
     },
     "commerce.catalogue_authoring": {
       "shell": "tenant",
+      "routes": [
+        "/offers"
+      ],
       "operations": [
         "addOfferVersion",
         "createOffer",
@@ -100,6 +131,9 @@
     },
     "commerce.checkout": {
       "shell": "tenant",
+      "routes": [
+        "/checkout/$sessionId"
+      ],
       "operations": [
         "openCheckoutSession",
         "showCheckoutSession"
@@ -107,12 +141,18 @@
     },
     "console.admin.audit": {
       "shell": "console",
+      "routes": [
+        "/console/audit"
+      ],
       "operations": [
         "listAudit"
       ]
     },
     "console.admin.directory": {
       "shell": "console",
+      "routes": [
+        "/console/directory"
+      ],
       "operations": [
         "listAdminInvoices",
         "listAdminSubscriptions",
@@ -122,18 +162,27 @@
     },
     "console.admin.erasure": {
       "shell": "console",
+      "routes": [
+        "/console/erasure"
+      ],
       "operations": [
         "eraseUser"
       ]
     },
     "console.admin.metrics": {
       "shell": "console",
+      "routes": [
+        "/console/metrics"
+      ],
       "operations": [
         "showMetrics"
       ]
     },
     "console.admin.queue": {
       "shell": "console",
+      "routes": [
+        "/console/queue"
+      ],
       "operations": [
         "listAdminJobs",
         "showQueue"
@@ -141,12 +190,18 @@
     },
     "console.support.access_log": {
       "shell": "console",
+      "routes": [
+        "/console/access-log"
+      ],
       "operations": [
         "listAccessLog"
       ]
     },
     "console.support.conversations": {
       "shell": "console",
+      "routes": [
+        "/console/conversations"
+      ],
       "operations": [
         "closeSupportConversation",
         "listSupportConversations",
@@ -156,6 +211,9 @@
     },
     "console.support.tenants": {
       "shell": "console",
+      "routes": [
+        "/console/tenants"
+      ],
       "operations": [
         "listTenantsForStaff",
         "showTenantForStaff"
@@ -163,6 +221,9 @@
     },
     "messaging.conversations": {
       "shell": "tenant",
+      "routes": [
+        "/conversations"
+      ],
       "operations": [
         "addParticipant",
         "closeConversation",
@@ -178,6 +239,9 @@
     },
     "sales.orders": {
       "shell": "tenant",
+      "routes": [
+        "/orders"
+      ],
       "operations": [
         "cancelOrder",
         "fulfilOrder",
@@ -188,6 +252,9 @@
     },
     "sales.quotes": {
       "shell": "tenant",
+      "routes": [
+        "/quotes"
+      ],
       "operations": [
         "acceptQuote",
         "createQuote",
@@ -198,6 +265,9 @@
     },
     "tax.profile": {
       "shell": "tenant",
+      "routes": [
+        "/tax"
+      ],
       "operations": [
         "saveTaxProfile",
         "showTaxProfile"
@@ -205,6 +275,9 @@
     },
     "tax.rates": {
       "shell": "tenant",
+      "routes": [
+        "/tax/rates"
+      ],
       "operations": [
         "calculateTax",
         "listTaxRates"
@@ -212,6 +285,9 @@
     },
     "tax.reports": {
       "shell": "tenant",
+      "routes": [
+        "/tax/reports"
+      ],
       "operations": [
         "closeVatPeriod",
         "listVatPeriods",
@@ -221,6 +297,9 @@
     },
     "tenant.branding": {
       "shell": "tenant",
+      "routes": [
+        "/branding"
+      ],
       "operations": [
         "deleteSkinLogo",
         "showSkin",
@@ -230,6 +309,9 @@
     },
     "tenant.members": {
       "shell": "tenant",
+      "routes": [
+        "/members"
+      ],
       "operations": [
         "addMember",
         "listMembers",
@@ -239,6 +321,9 @@
     },
     "tenant.organisation": {
       "shell": "tenant",
+      "routes": [
+        "/organisation"
+      ],
       "operations": [
         "showCurrentTenant",
         "showTenantUsage",
@@ -247,6 +332,9 @@
     },
     "tenant.subscription": {
       "shell": "tenant",
+      "routes": [
+        "/subscription"
+      ],
       "operations": [
         "cancelSubscription",
         "changeOffer",
@@ -259,6 +347,10 @@
     },
     "workspace.assets": {
       "shell": "tenant",
+      "routes": [
+        "/projects/$projectId",
+        "/jobs"
+      ],
       "operations": [
         "createAssetLink",
         "deleteAsset",
@@ -270,6 +362,9 @@
     },
     "workspace.geometry": {
       "shell": "tenant",
+      "routes": [
+        "/projects/$projectId"
+      ],
       "operations": [
         "intersectGeometries",
         "measureGeometry"
@@ -277,6 +372,9 @@
     },
     "workspace.jobs": {
       "shell": "tenant",
+      "routes": [
+        "/jobs"
+      ],
       "operations": [
         "cancelJob",
         "listJobs",
@@ -286,6 +384,9 @@
     },
     "workspace.project": {
       "shell": "tenant",
+      "routes": [
+        "/projects/$projectId"
+      ],
       "operations": [
         "createProjectVersion",
         "deleteProject",
@@ -299,6 +400,9 @@
     },
     "workspace.projects": {
       "shell": "tenant",
+      "routes": [
+        "/projects"
+      ],
       "operations": [
         "createProject",
         "listProjects"

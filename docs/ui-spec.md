@@ -324,12 +324,34 @@ enabled, and which empty state is honest. They shape every screen and are none.
 | `health` | monitoring probe consumed by infrastructure, not read by a person |
 | `downloadAsset` | reached by browser navigation on a signed link `createAssetLink` produced; the generated client never fetches those bytes |
 
-### What this gate does not prove
+### What this gate does not prove — and the one that does
 
 **It does not prove a screen was built.** It proves no operation was
 *forgotten* — that every one has a declared home and no home points at
 nothing. Whether `billing.einvoicing` has been implemented is a different
 question, and this gate will happily pass while it is empty.
+
+That sentence described a hole the size of a milestone, and U9 closed it.
+`tools/prove-screens-call-their-operations.php` (`composer run gate:screens`)
+checks the map against the **frontend**:
+
+- every area declares at least one `route`, and every route it declares exists
+  in the router. An area with no route is a screen nobody can open.
+- every operation an area claims is **called through the generated client**,
+  matched by the method and path the contract gives it rather than by its name
+  — so a call that goes to the wrong path fails even when a function nearby is
+  named after the right one.
+- and the reverse: nothing calls an operation no area claims. This is what holds
+  the `not_in_ui` reasons true. `downloadAsset` says *"the generated client
+  never fetches these bytes itself"*, and the gate quotes that sentence back at
+  whoever makes it false.
+
+What it still cannot prove is that a call is *reachable from* the route the area
+declares, or that a person can trigger it: a query module is shared between
+areas — `billing.ts` serves invoices, credit notes and the profile — so
+attributing a call to one area would need a module-per-area rule this codebase
+deliberately does not have. The Playwright suites are what prove a person can
+get there.
 
 That limit is deliberate rather than an oversight: a gate that tried to check
 implementation would need a frontend to inspect, and there is none in this

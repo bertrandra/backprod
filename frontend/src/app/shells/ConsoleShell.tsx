@@ -3,9 +3,12 @@ import { useCallback, useState } from 'react';
 
 import { AppFrame } from '@/app/frame/AppFrame';
 import { CommandPalette, usePaletteShortcut } from '@/app/frame/CommandPalette';
+import { ConnectionState } from '@/app/frame/ConnectionState';
 import { bottomBarEntries, CONSOLE_NAV, visibleNav } from '@/app/frame/navigation';
 import { BottomNav, PrimaryNav } from '@/app/frame/regions';
 import { staffAccess, useStaffIdentity } from '@/queries/staff';
+import { touchTargetClass } from '@/ui/Field';
+import { cn } from '@/utils/cn';
 
 /**
  * The platform console's shell.
@@ -62,10 +65,15 @@ export function ConsoleShell() {
               ? 'Acting as platform staff'
               : `Acting as platform staff · ${data.roles.join(', ')}`}
           </span>
+          <ConnectionState />
+
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}
-            className="ml-auto rounded border border-neutral-300 px-2 py-1 text-xs dark:border-neutral-700"
+            className={cn(
+              touchTargetClass,
+              'ml-auto rounded border border-neutral-300 px-3 py-1 text-xs dark:border-neutral-700',
+            )}
           >
             Search
           </button>

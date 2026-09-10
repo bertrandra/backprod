@@ -61,6 +61,20 @@ export const inputClass = (invalid = false): string =>
       : 'border-neutral-300 dark:border-neutral-700',
   );
 
+/**
+ * The minimum hit area, in one place.
+ *
+ * ui-spec.md §4.2 sets 44px, and `Button` has always carried it — but the
+ * frame's own controls are hand-rolled `<button>`s in region A rather than
+ * `Button`s, and they were 26px tall on a phone. Nothing failed: axe does not
+ * measure hit areas, and at desktop width nobody noticed.
+ *
+ * So the rule lives here now and the frame imports it. A compact control can
+ * still *look* compact — the padding is unchanged — while being tall enough to
+ * hit with a thumb.
+ */
+export const touchTargetClass = 'min-h-[44px] min-w-[44px]';
+
 export function Button({
   children,
   pending = false,

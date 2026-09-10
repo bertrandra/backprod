@@ -2,6 +2,8 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { useProducts } from '@/queries/catalogue';
 import { useSessionStore } from '@/state/session';
+import { touchTargetClass } from '@/ui/Field';
+import { cn } from '@/utils/cn';
 
 /**
  * Which product this browser is acting in — region A's first duty.
@@ -65,7 +67,10 @@ export function ProductSwitcher() {
           // Everything in the cache was answered for the previous product.
           queryClient.clear();
         }}
-        className="rounded bg-neutral-900 px-2 py-1 text-xs font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-neutral-100 dark:text-neutral-900"
+        className={cn(
+          touchTargetClass,
+          'rounded bg-neutral-900 px-2 py-1 text-xs font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-neutral-100 dark:text-neutral-900',
+        )}
       >
         {known.map((product) => (
           <option key={product.id} value={product.code}>

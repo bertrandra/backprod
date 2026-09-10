@@ -618,7 +618,7 @@ project.
 
 ---
 
-### U9 — Hardening & proof
+### U9 — Hardening & proof — *delivered*
 
 **Goal:** the claims this plan makes, verified rather than asserted.
 
@@ -629,10 +629,101 @@ project.
 - Playwright coverage of the §37.4 chains end to end: quote → order → invoice → payment → activation, and a failed payment retried
 - **A screen-level coverage gate**: every area in `ui-api-coverage.json` has a route, and every operation it claims is called through the generated client. This is the check ui-spec.md §7 names as impossible until a frontend exists — U9 is when it exists
 
-**Exit criteria**
-- The §37.4 chains pass in a browser, not only in PHPUnit
-- The screen-level gate is in the chain and proven by breaking it
-- Every area has a route; no area claims an operation it never calls
+**Exit criteria** — all met
+- The §37.4 chains pass in a browser, not only in PHPUnit — quote → order → invoice → payment → activation, walked as a person walks it. Proven by activating before the money arrives, by removing the navigation that follows an accepted quote to its order, and by collapsing the payment gate's two rows into one
+- The screen-level gate is in the chain and proven by breaking it — five ways: a route removed from the router, an operation no longer called, a call pointed at a path no operation has, an area left with no route, and the generated client fetching `downloadAsset`
+- Every area has a route; no area claims an operation it never calls — **34 areas, 129 operations, all called.** That is the first mechanical confirmation that U2–U8 built what they claimed
+
+**The gate ui-spec.md §7 said could not exist yet.** `gate:ui` proves the
+bookkeeping adds up and is explicit that it *"does not prove a screen was
+built"*. That was a hole the size of a milestone: an area could claim seven
+operations, ship a screen calling two, and both gates would pass while five
+endpoints had no caller anywhere. `gate:screens` closes it by checking the map
+against the frontend — routes exist, claimed operations are called, and nothing
+calls what no area claims. The last direction is what keeps the `not_in_ui`
+reasons honest: `downloadAsset` says *"the generated client never fetches these
+bytes itself"*, and the gate quotes that sentence back at whoever makes it
+false.
+
+It still cannot prove a call is *reachable from* the route its area declares —
+query modules are shared between areas by design — and the write-up says so
+rather than overclaiming.
+
+**Accessibility is a gate, not an audit.** `axe-core` at WCAG 2.1 A and AA runs
+against **all 30 routes in both shells on both viewports**, every CI run. A
+one-off audit is a document that goes stale the next time somebody adds a
+screen. All thirty pass.
+
+What axe cannot see is checked by hand beside it: the tab order from region A
+into region B, `role="alert"` on a failure, `aria-busy` on a skeleton,
+`prefers-reduced-motion` actually removing the pulse (asserted on the *computed*
+animation, because a class is a promise only the browser can keep), and the 44px
+hit area §4.2 requires.
+
+**And that last one found a real defect.** The Search and More buttons in region
+A were **26px tall on a phone** — the two controls a phone user reaches most,
+one of them the sheet holding every secondary navigation entry. Nothing had ever
+failed: axe does not measure hit areas and at desktop width nobody noticed. The
+44px rule now lives in one named place (`touchTargetClass`) that the frame
+imports, rather than in each control's class string. Proven by reverting it.
+
+**A keyboard trap that was not one.** The tab-order test failed first, showing
+focus cycling between the Search button and `body` and never reaching the
+navigation. That reads exactly like a WCAG 2.1.1 failure. It was the test
+tabbing before the session had loaded — the nav region is visible from the first
+paint because it holds the skeleton. The fix was to wait for a *link*, and the
+episode is recorded in the test, because a false positive that convincing is
+worth a comment.
+
+**Offline is now a property of the transport.** A request that never arrives
+becomes a **synthetic 503** carrying the §10.4 envelope (`offlineMiddleware`),
+so an outage reaches a screen in the same shape as every other failure and every
+`ErrorSurface` can say something true about it — without 23 query modules
+learning about `fetch`. An `AbortError` is deliberately excluded: TanStack
+cancels in-flight queries on unmount, and reporting that as an outage would put a
+false alarm on screen every time somebody navigated.
+
+**Three connection states, and the middle one was a discovery.** Region A carries
+one indicator in both shells:
+
+- **paused** — the browser is offline, so TanStack Query's default
+  `networkMode: 'online'` **queues** the request rather than sending it. Nothing
+  failed and nothing will be lost, which is a far better thing to be told than
+  "unreachable". This state exists because a test asserting "unreachable" watched
+  a mutation sit pending for six seconds with no error, and the honest reading of
+  that was that the library was right and the design was wrong.
+- **unreachable** — a request *was* sent and did not arrive. The server is down
+  rather than the machine being off the network, and the two want different
+  words: one is worth retrying now, the other is worth waiting out.
+- **updating** — a refresh in flight over data already shown, with the previous
+  figures still readable underneath.
+
+It reads `failureReason` as well as `error`, so the badge appears at the **first**
+failed attempt rather than after retries exhaust — which is when a person needs
+it, not three attempts later. And both states are computed straight off the query
+and mutation caches rather than through `useIsFetching`/`useIsMutating` filters,
+which combine a filter with their own notion of "in flight" and returned an
+answer that disagreed with the browser.
+
+**Performance budgets that measure the application, not the network.** Every
+route must paint its frame before its data, asserted against a stub held at
+800ms: a screen that renders its shell first is readable well inside that, and
+one that waits for its slowest query shows nothing until the last answer lands.
+The budgets are deliberately loose — their job is to fail when a screen starts
+blocking on something it should not, not to police milliseconds.
+
+**A trap worth naming, because it cost two suites.** Playwright matches the
+**most recently registered** route, so a catch-all added last silently answers
+every request above it. In the accessibility suite that meant half the screens
+were scanning an *error state* and passing, because an error surface is itself
+accessible. Both suites now register the catch-all first and say why.
+
+**The tests that were wrong before the code was.** Four assertions in this
+milestone failed against correct code and were fixed rather than the code: the
+tab order above; a `role="status"` locator that matched both the status strip and
+the screen; a refetch provoked by a synthetic focus event in an application where
+`refetchOnWindowFocus` is off; and a stale-data fixture that counted reads
+instead of flagging the write. Each is recorded where it happened.
 
 ---
 
