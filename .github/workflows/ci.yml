@@ -91,6 +91,14 @@ jobs:
       - name: Migrate
         run: composer run migrate
 
+      # First, and cheap. Everything below is a step that must exist, and this
+      # is what notices when one does not: `gate:screens` was in the chain and
+      # missing here for a whole milestone, passing locally and running in CI
+      # zero times. A chain nobody verifies against this file is two lists that
+      # drift, and the drift is invisible in exactly the direction that matters.
+      - name: CI runs every gate in the chain
+        run: composer run gate:ci
+
       - name: Coding standards
         run: composer run cs
 
@@ -136,6 +144,14 @@ jobs:
       # that no longer exists.
       - name: Every operation is reachable in the UI
         run: composer run gate:ui
+
+      # gate:ui proves the coverage map adds up and says outright that it "does
+      # not prove a screen was built". This checks the map against the frontend:
+      # every area has a route in the router, every operation it claims is called
+      # through the generated client — matched by the contract's method and path,
+      # not by name — and nothing calls an operation no area claims.
+      - name: Screens call the operations they claim
+        run: composer run gate:screens
 
       # The frontend decides what to offer from permission strings, which makes
       # those strings load-bearing data. Six of the first sixteen were wrong and
