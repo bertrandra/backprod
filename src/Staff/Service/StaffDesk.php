@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Staff\Service;
 
 use App\Shared\Exceptions\NotFoundException;
+use App\Staff\Domain\AccessMotive;
 use App\Staff\Domain\StaffAccess;
 use App\Staff\Domain\StaffAccessEntry;
 use App\Staff\Domain\StaffAccessLog;
@@ -63,7 +64,16 @@ final class StaffDesk
         ];
     }
 
-    public function tenant(StaffIdentity $staff, string $tenantId): Tenant
+    /**
+     * One tenant, and the reason somebody wanted it (R14).
+     *
+     * The motive is required here and not on `tenants()` above, and the line is
+     * where the boundary actually is: listing customers reveals no customer's
+     * data, while opening one does. A platform that demanded a ticket reference
+     * to page through a list would teach its staff to type "support" into
+     * everything, which is the failure mode R14 named.
+     */
+    public function tenant(StaffIdentity $staff, string $tenantId, AccessMotive $motive): Tenant
     {
         $tenant = $this->tenants->find($tenantId);
 
@@ -79,6 +89,10 @@ final class StaffDesk
                 'tenant',
                 $tenantId,
                 StaffPermission::TENANTS_READ,
+                [],
+                // Recorded on the miss too. Somebody probing for ids is exactly
+                // who would rather their stated reason were not kept.
+                $motive,
             ));
 
             throw new NotFoundException('Tenant not found.', [], 'TENANT_NOT_FOUND');
@@ -92,6 +106,8 @@ final class StaffDesk
             'tenant',
             $tenant->id,
             StaffPermission::TENANTS_READ,
+            [],
+            $motive,
         ));
 
         return $tenant;

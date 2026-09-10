@@ -62,6 +62,22 @@ const at = (id?: string) => ({
   ...(id === undefined ? {} : { initial: `/console/conversations?selected=${id}` }),
 });
 
+/**
+ * Answers the motive gate, the way a person does (R14).
+ *
+ * Every test below that opens a customer or a thread goes through this, because
+ * the platform requires a reason and the screen collects it *before* the read.
+ * A test that bypassed it would be testing a screen this application does not
+ * have.
+ */
+async function giveAMotive(): Promise<void> {
+  await waitFor(() => expect(screen.getByTestId('access-motive')).toBeTruthy());
+
+  fireEvent.change(screen.getByLabelText('Purpose'), { target: { value: 'SUPPORT_REQUEST' } });
+  fireEvent.change(screen.getByLabelText('Reference'), { target: { value: 'ticket HELP-4182' } });
+  fireEvent.click(screen.getByRole('button', { name: /^Open / }));
+}
+
 describe('a reply', () => {
   it('appears only once the server has taken it, and as the server tells it', async () => {
     let reads = 0;
@@ -95,6 +111,7 @@ describe('a reply', () => {
     });
 
     renderAtRoute(<SupportConversationsScreen />, client, at(THREAD.id));
+    await giveAMotive();
 
     await waitFor(() => expect(screen.getByLabelText('Reply')).toBeTruthy());
     fireEvent.change(screen.getByLabelText('Reply'), { target: { value: 'Looking into it.' } });
@@ -137,6 +154,7 @@ describe('a reply', () => {
     });
 
     renderAtRoute(<SupportConversationsScreen />, client, at(THREAD.id));
+    await giveAMotive();
 
     await waitFor(() => expect(screen.getByLabelText('Reply')).toBeTruthy());
     fireEvent.change(screen.getByLabelText('Reply'), { target: { value: '  Looking into it.  ' } });
@@ -150,6 +168,7 @@ describe('a reply', () => {
 
   it('cannot be empty', async () => {
     renderAtRoute(<SupportConversationsScreen />, clientFor(), at(THREAD.id));
+    await giveAMotive();
 
     await waitFor(() => expect(screen.getByLabelText('Reply')).toBeTruthy());
 
@@ -158,6 +177,7 @@ describe('a reply', () => {
 
   it('is not offered without support.respond', async () => {
     renderAtRoute(<SupportConversationsScreen />, clientFor(READER), at(THREAD.id));
+    await giveAMotive();
 
     await waitFor(() => expect(screen.getByTestId('cannot-respond')).toBeTruthy());
     expect(screen.queryByLabelText('Reply')).toBeNull();
@@ -177,6 +197,7 @@ describe('a closed thread', () => {
       }),
       at(THREAD.id),
     );
+    await giveAMotive();
 
     await waitFor(() => expect(screen.getByTestId('thread-closed')).toBeTruthy());
     expect(screen.queryByLabelText('Reply')).toBeNull();
@@ -188,6 +209,7 @@ describe('a closed thread', () => {
 describe('closing', () => {
   it('says what it does and does not do before doing it', async () => {
     renderAtRoute(<SupportConversationsScreen />, clientFor(), at(THREAD.id));
+    await giveAMotive();
 
     await waitFor(() => expect(screen.getByRole('button', { name: /Close the thread/ })).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: /Close the thread/ }));
@@ -212,6 +234,7 @@ describe('a message', () => {
       }),
       at(THREAD.id),
     );
+    await giveAMotive();
 
     await waitFor(() => expect(screen.getAllByTestId('author-kind')).toHaveLength(2));
     expect(screen.getAllByTestId('author-kind').map((n) => n.textContent)).toEqual([
@@ -230,6 +253,7 @@ describe('a message', () => {
       }),
       at(THREAD.id),
     );
+    await giveAMotive();
 
     await waitFor(() => expect(screen.getByTestId('deleted')).toBeTruthy());
     // The sequence never develops a hole where a reply used to be.
@@ -246,6 +270,7 @@ describe('a message', () => {
       }),
       at(THREAD.id),
     );
+    await giveAMotive();
 
     // Both come back with an empty body, and they are not the same fact.
     await waitFor(() => expect(screen.getByTestId('empty-body')).toBeTruthy());

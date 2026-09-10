@@ -40,7 +40,11 @@ final class ShowSupportConversationController implements RouteHandler
             PageRequest::bounded($query, 'limit', 50, 1, 200),
         );
 
-        $conversation = $this->support->show($context->identity, $conversationId);
+        $conversation = $this->support->show(
+            $context->identity,
+            $conversationId,
+            StaffRoute::motive($request),
+        );
         $shape = MessagingPresenter::conversation($conversation);
         $shape['tenant_id'] = $conversation->tenantId;
         $shape['product_id'] = $conversation->productId;

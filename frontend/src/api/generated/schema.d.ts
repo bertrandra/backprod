@@ -1699,7 +1699,9 @@ export interface paths {
         };
         /**
          * One tenant, as staff
-         * @description The tenant arrives as an explicit parameter rather than from a membership — there is none — so the handler must justify it, and the read is written to the access log in the same transaction.
+         * @description Requires a motive (R14): opening one customer reveals that customer’s data. Listing customers does not, and requires none — a platform that demanded a ticket reference to page through a list would teach its staff to type "support" into everything.
+         *
+         *     The tenant arrives as an explicit parameter rather than from a membership — there is none — so the handler must justify it, and the read is written to the access log in the same transaction.
          */
         get: operations["showTenantForStaff"];
         put?: never;
@@ -1759,7 +1761,9 @@ export interface paths {
         };
         /**
          * One support thread with its messages
-         * @description Carries the tenant and product it belongs to, because a staff surface resolves neither of its own. Every read is recorded.
+         * @description Requires a motive (R14). A conversation’s tenant appears on this detail and not on the list, so this is where the boundary is actually crossed.
+         *
+         *     Carries the tenant and product it belongs to, because a staff surface resolves neither of its own. Every read is recorded.
          */
         get: operations["showSupportConversation"];
         put?: never;
@@ -3132,6 +3136,13 @@ export interface components {
             };
             /** Format: date-time */
             occurred_at: string;
+            /**
+             * @description Why the read happened (R14). Null on rows written before R14, and on reads that cross no boundary — listing a queue, reading this log. Null means "not recorded", never "no reason".
+             * @enum {string|null}
+             */
+            purpose: "SUPPORT_REQUEST" | "BILLING_INVESTIGATION" | "INCIDENT" | "SECURITY_REVIEW" | "LEGAL_REQUEST" | null;
+            /** @description The specific reference the person gave. */
+            reason: string | null;
         };
         Job: {
             /** Format: uuid */
@@ -3507,6 +3518,14 @@ export interface components {
         /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
         DirectoryLimit: number;
         DirectoryOffset: number;
+        /**
+         * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
+         *
+         *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
+         */
+        AccessPurpose: "SUPPORT_REQUEST" | "BILLING_INVESTIGATION" | "INCIDENT" | "SECURITY_REVIEW" | "LEGAL_REQUEST";
+        /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
+        AccessReason: string;
     };
     requestBodies: never;
     headers: never;
@@ -7520,7 +7539,16 @@ export interface operations {
     showTenantForStaff: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /**
+                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
+                 *
+                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
+                 */
+                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
+                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
+                "X-Access-Reason": components["parameters"]["AccessReason"];
+            };
             path: {
                 tenantId: string;
             };
@@ -7542,6 +7570,15 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
+            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
@@ -7617,7 +7654,16 @@ export interface operations {
     showSupportConversation: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /**
+                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
+                 *
+                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
+                 */
+                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
+                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
+                "X-Access-Reason": components["parameters"]["AccessReason"];
+            };
             path: {
                 conversationId: string;
             };
@@ -7643,6 +7689,15 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
+            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

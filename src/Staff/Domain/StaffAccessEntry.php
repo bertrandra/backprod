@@ -29,6 +29,15 @@ final class StaffAccessEntry
         public readonly string $permission,
         public readonly array $detail,
         public readonly DateTimeImmutable $occurredAt,
+        /**
+         * Why the read happened, as the person gave it (R14).
+         *
+         * Null on every row written before R14, and on the reads that cross no
+         * boundary — listing a queue, reading this log. Null means "not
+         * recorded", never "no reason".
+         */
+        public readonly ?string $purpose = null,
+        public readonly ?string $reason = null,
     ) {
     }
 }

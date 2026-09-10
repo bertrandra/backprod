@@ -109,12 +109,20 @@ export const keys = {
     identity: ['staff', 'me'] as const,
     tenantLists: ['staff', 'tenants'] as const,
     tenants: (limit: number, offset: number) => ['staff', 'tenants', limit, offset] as const,
-    tenant: (id: string) => ['staff', 'tenant', id] as const,
+    // The motive is part of a read's key, so a read made for one reason is never
+    // served from the cache to a read made for another: an access this platform
+    // records has to actually happen (R14). `*Reads` is the prefix an
+    // invalidation uses, because it must match every motive.
+    tenantReads: (id: string) => ['staff', 'tenant', id] as const,
+    tenant: (id: string, purpose: string, reference: string) =>
+      ['staff', 'tenant', id, purpose, reference] as const,
     accessLog: (limit: number, offset: number) => ['staff', 'access-log', limit, offset] as const,
     conversationLists: ['staff', 'conversations'] as const,
     conversations: (limit: number, offset: number) =>
       ['staff', 'conversations', limit, offset] as const,
-    conversation: (id: string) => ['staff', 'conversation', id] as const,
+    conversationReads: (id: string) => ['staff', 'conversation', id] as const,
+    conversation: (id: string, purpose: string, reference: string) =>
+      ['staff', 'conversation', id, purpose, reference] as const,
   },
   admin: {
     metrics: (productId: string, months: number, month: string) =>

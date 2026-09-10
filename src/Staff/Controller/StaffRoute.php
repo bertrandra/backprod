@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Staff\Controller;
 
 use App\Shared\Context\StaffContext;
+use App\Staff\Domain\AccessMotive;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
@@ -24,6 +25,26 @@ final class StaffRoute
         $context->requirePermission($permission);
 
         return $context;
+    }
+
+    /**
+     * The motive for a read that crosses into a tenant's own data (R14).
+     *
+     * **Headers, not a body.** These are GETs, and a GET with a body is a
+     * request half the intermediaries between here and the caller will drop.
+     * Headers also mean the motive travels with the request rather than being a
+     * separate call somebody could forget to make — non-negotiable #21 wants the
+     * reason recorded *with* the access, not beside it.
+     *
+     * The header names carry `X-Access-` rather than `X-Reason`, so that reading
+     * a request in a proxy log makes the pair obvious.
+     */
+    public static function motive(ServerRequestInterface $request): AccessMotive
+    {
+        return AccessMotive::from(
+            $request->getHeaderLine('X-Access-Purpose'),
+            $request->getHeaderLine('X-Access-Reason'),
+        );
     }
 
     public static function id(ServerRequestInterface $request, string $attribute): string

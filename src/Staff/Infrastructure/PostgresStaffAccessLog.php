@@ -42,9 +42,10 @@ final class PostgresStaffAccessLog implements StaffAccessLog
             <<<'SQL'
                 INSERT INTO staff_access_log
                     (staff_user_id, tenant_id, product_id, action,
-                     resource_type, resource_id, permission, detail)
+                     resource_type, resource_id, permission, detail, purpose, reason)
                 VALUES (:staff, :tenant, :product, :action,
-                        :resourceType, :resourceId, :permission, CAST(:detail AS jsonb))
+                        :resourceType, :resourceId, :permission, CAST(:detail AS jsonb),
+                        :purpose, :reason)
                 SQL,
             [
                 'staff' => $access->staffUserId,
@@ -55,6 +56,11 @@ final class PostgresStaffAccessLog implements StaffAccessLog
                 'resourceId' => $access->resourceId,
                 'permission' => $access->permission,
                 'detail' => self::encode($access->detail),
+                // Both or neither — the table's own CHECK says so, and a row
+                // with a category and nothing in it would be worse than a row
+                // with no category (R14).
+                'purpose' => $access->motive?->purpose,
+                'reason' => $access->motive?->reference,
             ],
         );
     }
@@ -71,7 +77,8 @@ final class PostgresStaffAccessLog implements StaffAccessLog
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
                 SELECT id, staff_user_id, tenant_id, product_id, action,
-                       resource_type, resource_id, permission, detail, occurred_at
+                       resource_type, resource_id, permission, detail, occurred_at,
+                       purpose, reason
                   FROM staff_access_log
                  WHERE (CAST(:tenant AS UUID) IS NULL OR tenant_id = CAST(:tenant AS UUID))
                  ORDER BY occurred_at DESC, id
@@ -117,6 +124,8 @@ final class PostgresStaffAccessLog implements StaffAccessLog
             Row::string($row, 'permission'),
             self::decode($row, 'detail'),
             Row::timestamp($row, 'occurred_at'),
+            Row::nullableString($row, 'purpose'),
+            Row::nullableString($row, 'reason'),
         );
     }
 

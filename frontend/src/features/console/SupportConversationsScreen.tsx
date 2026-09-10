@@ -10,8 +10,11 @@ import {
   useStaffIdentity,
   useSupportConversation,
   useSupportConversations,
+  type AccessMotive,
   type Message,
 } from '@/queries/staff';
+
+import { AccessMotiveGate, MotiveInEffect } from './AccessMotiveGate';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
@@ -120,7 +123,7 @@ export function SupportConversationsScreen() {
               description="Opening one shows the messages and which tenant they belong to."
             />
           ) : (
-            <Thread conversationId={selected} />
+            <Thread key={selected} conversationId={selected} />
           )}
         </section>
       </div>
@@ -128,9 +131,18 @@ export function SupportConversationsScreen() {
   );
 }
 
+/**
+ * A thread, once somebody has said why they are opening it (R14).
+ *
+ * The contract puts a conversation's `tenant_id` on this detail and not on the
+ * list, which is exactly where the boundary is crossed — skimming the queue
+ * reveals no customer, opening a thread reveals which company is asking and what
+ * about. So the motive is required here and on no listing.
+ */
 function Thread({ conversationId }: { conversationId: string }) {
+  const [motive, setMotive] = useState<AccessMotive | null>(null);
   const { data: identity } = useStaffIdentity();
-  const thread = useSupportConversation(conversationId);
+  const thread = useSupportConversation(conversationId, motive);
   const post = usePostSupportMessage(conversationId);
   const close = useCloseSupportConversation(conversationId);
 
@@ -138,6 +150,10 @@ function Thread({ conversationId }: { conversationId: string }) {
   const [confirmingClose, setConfirmingClose] = useState(false);
 
   const mayRespond = can(staffAccess(identity), 'support.respond');
+
+  if (motive === null) {
+    return <AccessMotiveGate what="this thread" onGiven={setMotive} />;
+  }
 
   if (thread.isPending) {
     return <SkeletonRows rows={6} />;
@@ -158,6 +174,8 @@ function Thread({ conversationId }: { conversationId: string }) {
           tenant <code data-testid="thread-tenant">{conversation.tenant_id}</code> · opened{' '}
           {new Date(conversation.created_at).toLocaleDateString()}
         </p>
+
+        <MotiveInEffect motive={motive} onChange={() => setMotive(null)} />
       </header>
 
       {conversation.messages.length === 0 ? (
