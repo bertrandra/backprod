@@ -573,6 +573,28 @@ requires them, never from the endpoint's name: six were wrong in the first
 navigation table and every test passed anyway. `composer run gate:permissions`
 compares what the frontend gates on with what the migrations create.
 
+**Business calculation belongs to the Core, in the frontend too** (§4, §5).
+A component transports and renders; it never derives a quantity. Area, perimeter
+and every spatial relation come from `/geometry/*` — the shoelace formula is four
+lines of JavaScript, which is exactly why it must not be written: added once for
+a tooltip, it disagrees with PostgreSQL in the eleventh digit and leaves two
+numbers for one parcel with nothing to say which is right. Shaping a payload to
+the contract's format (closing a GeoJSON ring, mapping a tap to a coordinate) is
+presentation, not calculation.
+
+**Gate on a capability when the plan decides, on a permission when the role
+does.** `isEntitled('gis.access')`, not `can(...)`: geometry touches no tenant
+data, so there is no question of what a role may do with it. The two refusals
+read differently — one is answered by an administrator, the other by an upgrade.
+`composer run gate:permissions` now checks both vocabularies against the
+platform.
+
+**Product configuration is read, never assumed.** A project's `schema_version`
+must be one the product declares, so it comes from
+`GET /products/{productId}/configuration`. Hard-coding it is UR5: one product's
+fact baked into a shared client, which is `gate:products` in PHP moved somewhere
+the backend gates cannot see it.
+
 **What a mutation does to the cache** (established in U3,
 `src/queries/notifications.ts`):
 

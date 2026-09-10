@@ -154,18 +154,3 @@ export function BottomNav({ entries }: { entries: readonly NavEntry[] }) {
     </ul>
   );
 }
-
-/**
- * Region E. Wired to nothing in U1, present anyway.
- *
- * The roadmap has it become real in U4 with jobs and exports. It exists now so
- * no later screen has to introduce a region, and so the E2E suite can assert
- * six regions from the start.
- */
-export function StatusStrip() {
-  return (
-    <p data-testid="status-strip-idle" className="text-neutral-500">
-      No background work
-    </p>
-  );
-}

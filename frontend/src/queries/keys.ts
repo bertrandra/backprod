@@ -31,6 +31,26 @@ export const keys = {
     preferences: ['notifications', 'preferences'] as const,
     consents: ['notifications', 'consents'] as const,
   },
+  products: {
+    configuration: (id: string) => ['products', id, 'configuration'] as const,
+  },
+  projects: {
+    lists: ['projects', 'list'] as const,
+    list: (limit: number, offset: number) => ['projects', 'list', limit, offset] as const,
+    one: (id: string) => ['projects', 'one', id] as const,
+    versions: (id: string) => ['projects', 'one', id, 'versions'] as const,
+    version: (projectId: string, versionId: string) =>
+      ['projects', 'one', projectId, 'versions', versionId] as const,
+    assets: (id: string) => ['projects', 'one', id, 'assets'] as const,
+  },
+  assets: {
+    one: (id: string) => ['assets', id] as const,
+  },
+  jobs: {
+    lists: ['jobs', 'list'] as const,
+    list: (limit: number, offset: number) => ['jobs', 'list', limit, offset] as const,
+    one: (id: string) => ['jobs', 'one', id] as const,
+  },
   conversations: {
     // Same shape as `notifications` above, and for the same reason: `lists` is
     // the shared prefix so a mutation invalidates every page, while a thread and
