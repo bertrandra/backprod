@@ -44,18 +44,27 @@ of it needs to port anywhere. **Nothing in this deployment reaches outside
 SiteGround at all.** Since ADR-038 the platform also issues its own sessions, so
 there is no identity provider either.
 
-**One thing about it is easy to get wrong: the connection is never `localhost`,
-even for the app running on the same account.** SiteGround's PostgreSQL rejects
-local socket connections outright; every client — PHP on the same server
-included — connects over the network to the site's own public IP, on port 5432.
-Find that address at Site Tools → Site → Site Information → IP and Name Servers
-("Site IP"), and use it as `DATABASE_DSN`'s host. Then, in the PostgreSQL
-Manager's **Remote** tab, whitelist that same Site IP — the connection is remote
-as far as `pg_hba.conf` is concerned even though app and database are on the same
-account — and separately whitelist your own machine's IP so `composer run
-migrate` can run from wherever you are, without SSH. An IP range works too
-(`1.2.3.0` covers everything starting `1.2.3.`), and `0.0.0.0/0` allows any
-address, which is the wrong choice for anything but a five-minute test.
+**One thing about it is easy to get wrong: what host value to use is not the
+same on every SiteGround account.** An earlier version of this document said
+the connection is never `localhost`, even for the app running on the same
+account, and that every client connects over the network to the site's own
+public IP. That was true for the accounts it was checked against — but a real
+deployment's own SiteGround support ticket said the opposite for that
+account: use `localhost`. Ask your host's support which value applies to
+yours rather than assuming either. `setup.php` and `composer run migrate`
+both just try whatever host you give them and report a plain connection
+failure if it's wrong, rather than refusing a value on principle.
+
+If your account does need the Site IP, find it at Site Tools → Site → Site
+Information → IP and Name Servers ("Site IP"), use it as `DATABASE_DSN`'s
+host, and in the PostgreSQL Manager's **Remote** tab whitelist that same IP —
+the connection counts as remote as far as `pg_hba.conf` is concerned even
+though app and database are on the same account — and separately whitelist
+your own machine's IP so `composer run migrate` can run from wherever you
+are, without SSH. An IP range works too (`1.2.3.0` covers everything starting
+`1.2.3.`), and `0.0.0.0/0` allows any address, which is the wrong choice for
+anything but a five-minute test. None of this Remote-tab whitelisting applies
+if your account uses `localhost` instead.
 
 **Confirm the PostgreSQL major version before you migrate.** Every migration
 here calls `gen_random_uuid()`, which has been built into PostgreSQL since
@@ -149,16 +158,17 @@ extensions and cron are outside its reach. Step 7 is where those get proven.
 ## 3. Create the database and migrate — from your machine
 
 Create the database in Site Tools → Site → PostgreSQL → Create Database, and a
-user for it in the Users tab there. Whitelist your own machine's IP in the
-Remote tab (§0), then migrate without SSH, from wherever you are:
+user for it in the Users tab there. If your host value is the Site IP (§0),
+whitelist your own machine's IP in the Remote tab too, then migrate without
+SSH, from wherever you are:
 
 ```sh
-export DATABASE_DSN='postgresql://USER:PASSWORD@SITE_IP:5432/DBNAME'
+export DATABASE_DSN='postgresql://USER:PASSWORD@HOST:5432/DBNAME'
 composer run migrate
 ```
 
-`SITE_IP` is the address from §0 — never `localhost`, even once this runs on the
-same account. Leave `sslmode` unset unless you have confirmed SiteGround's
+`HOST` is whichever value §0 settled on for your account — the Site IP, or
+`localhost` if that's what your host's support told you. Leave `sslmode` unset unless you have confirmed SiteGround's
 PostgreSQL accepts TLS on this connection; if it does and you want it enforced,
 `sslmode=require` is stricter than the default `prefer`, but an unverified
 `require` fails the connection outright rather than degrading, so test it before
@@ -200,7 +210,7 @@ explains every value and what its absence costs. The four that are required:
 
 | Value | Without it |
 |---|---|
-| `DATABASE_DSN` | nothing can be read or written; the API answers 503. The host is the Site IP from §0, never `localhost` |
+| `DATABASE_DSN` | nothing can be read or written; the API answers 503. The host is whatever §0 settled on for your account — check before assuming |
 | `AUTH_SIGNING_SECRET` | nobody can sign in: `/auth/token` answers 503 and says so. **At least 32 characters** — HS256 refuses less |
 | `ASSET_LINK_SIGNING_SECRET` | no download link can be signed, so exports and uploads cannot be handed out |
 
@@ -295,7 +305,7 @@ will see it doing so.
 |---|---|---|
 | UI (React) | SiteGround, static | Fingerprinted; cached forever. One 726 kB JS file, 200 kB gzipped |
 | API (PHP 8.3) | SiteGround | Everything under `/api`; needs `pdo_pgsql` and `gd` |
-| Database | SiteGround PostgreSQL | Same account, reached over the Site IP on port 5432 — never `localhost` (§0) |
+| Database | SiteGround PostgreSQL | Same account, port 5432 — the host value depends on the account (§0) |
 | Identity | SiteGround, in PHP | This platform issues and verifies its own tokens (ADR-038). No external provider |
 | Jobs | SiteGround cron | One minute is the shortest interval that matters |
 | Uploaded files | `backprod-app/var/assets` | Swap `StorageProvider` for S3 when the disk stops being enough |
@@ -338,7 +348,7 @@ fuller list; these are the ones specific to shipping it this way.
 | Every page is the raw `index.html` with no styling | `assets/` did not upload, or `mod_rewrite` is off |
 | Deep links 404 but `/` works | The last `.htaccess` rule is missing, or `AllowOverride` is off |
 | `503 SERVICE_UNAVAILABLE` on every API call | The platform could not start. `DATABASE_DSN`, almost always. The reason is in the host's error log, never in the response |
-| Database connection refused, or `no pg_hba.conf entry for host` | `DATABASE_DSN` uses `localhost` — SiteGround's PostgreSQL rejects that from any client, the app included. Use the Site IP, and whitelist it in the PostgreSQL Manager's Remote tab (§0) |
+| Database connection refused, or `no pg_hba.conf entry for host` | Wrong host value for your account — try the other one (Site IP vs `localhost`, §0) and confirm with support. If using the Site IP, also check it's whitelisted in the PostgreSQL Manager's Remote tab |
 | `function gen_random_uuid() does not exist` during `composer run migrate` | The account's PostgreSQL predates version 13 and lacks `pgcrypto`. Ask support to confirm the version or enable the extension (§0) |
 | Sign-in answers 503 | `AUTH_SIGNING_SECRET` is missing or under 32 characters. The response says which |
 | Everybody was signed out at once | `AUTH_SIGNING_SECRET` changed. Every existing token was minted with the old one |
