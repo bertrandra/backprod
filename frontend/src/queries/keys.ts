@@ -117,6 +117,10 @@ export const keys = {
     tenant: (id: string, purpose: string, reference: string) =>
       ['staff', 'tenant', id, purpose, reference] as const,
     accessLog: (limit: number, offset: number) => ['staff', 'access-log', limit, offset] as const,
+    // No arguments, because the roster is unpaged: platform staff is a handful
+    // of people, and a list that needed pages would be the finding rather than
+    // the feature.
+    roster: ['staff', 'members'] as const,
     conversationLists: ['staff', 'conversations'] as const,
     conversations: (limit: number, offset: number) =>
       ['staff', 'conversations', limit, offset] as const,

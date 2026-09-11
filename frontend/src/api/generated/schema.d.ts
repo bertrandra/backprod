@@ -1949,6 +1949,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who holds platform authority
+         * @description Unpaged: platform staff is a handful of people, and a roster needing pages would itself be the finding. Behind `staff.grant`, which PLATFORM_ADMIN alone holds.
+         */
+        get: operations["listPlatformStaff"];
+        put?: never;
+        /**
+         * Appoint a staff member
+         * @description Takes a user id, not an email: resolving an address here would turn this into a way to ask whether an account exists for any address anybody tried. Idempotent — granting a role already held is the state asked for.
+         */
+        post: operations["grantPlatformRole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/members/{userId}/roles/{role}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a staff member's role
+         * @description Two refusals answer 409 and they are not the same: removing your own administrator role (ask a colleague) and removing the platform's last one (appoint somebody first). The second is the database's, not this service's.
+         */
+        delete: operations["revokePlatformRole"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/me": {
         parameters: {
             query?: never;
@@ -3527,6 +3571,26 @@ export interface components {
              * @example 3600
              */
             expires_in: number;
+        };
+        /** @description One person holding a platform role. `email` and `display_name` are null once §26's erasure has emptied them; the row stays, because authority nobody can see is authority nobody can revoke. */
+        StaffMember: {
+            /** Format: uuid */
+            user_id: string;
+            email: string | null;
+            display_name: string | null;
+            roles: string[];
+            /** Format: date-time */
+            granted_at: string;
+        };
+        /** @description A grantable platform role, as the database holds it. */
+        PlatformRole: {
+            code: string;
+            name: string;
+        };
+        /** @description The whole roster and the roles that may be granted. Returned by the two writes as well as the read, so a screen's next state is never guessed from a status code. */
+        StaffRoster: {
+            members: components["schemas"]["StaffMember"][];
+            roles: components["schemas"]["PlatformRole"][];
         };
     };
     responses: {
@@ -7974,6 +8038,113 @@ export interface operations {
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
             /** @description The thread is closed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listPlatformStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The roster, and the roles that may be granted. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffRoster"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    grantPlatformRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description Found through /admin/users.
+                     */
+                    user_id: string;
+                    /** @description A code from the roster's `roles`. */
+                    role: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Granted. The whole roster, as it now stands. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffRoster"];
+                };
+            };
+            /** @description `VALIDATION_FAILED` — no user id or no role given. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    revokePlatformRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+                role: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked. The whole roster, as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffRoster"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description `CANNOT_REVOKE_OWN_ADMIN` — ask another administrator. Or `LAST_PLATFORM_ADMIN` — appoint somebody else first. */
             409: {
                 headers: {
                     [name: string]: unknown;

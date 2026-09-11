@@ -3516,6 +3516,79 @@
           }
         },
         "description": "The refresh token is deliberately absent: it leaves in an `HttpOnly` cookie that no script can read, and putting it here as well would throw away the reason the cookie exists."
+      },
+      "StaffMember": {
+        "type": "object",
+        "description": "One person holding a platform role. `email` and `display_name` are null once §26's erasure has emptied them; the row stays, because authority nobody can see is authority nobody can revoke.",
+        "required": [
+          "user_id",
+          "email",
+          "display_name",
+          "roles",
+          "granted_at"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "display_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "granted_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PlatformRole": {
+        "type": "object",
+        "description": "A grantable platform role, as the database holds it.",
+        "required": [
+          "code",
+          "name"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "StaffRoster": {
+        "type": "object",
+        "description": "The whole roster and the roles that may be granted. Returned by the two writes as well as the read, so a screen's next state is never guessed from a status code.",
+        "required": [
+          "members",
+          "roles"
+        ],
+        "properties": {
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffMember"
+            }
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlatformRole"
+            }
+          }
+        }
       }
     },
     "responses": {
@@ -11340,6 +11413,176 @@
           },
           "409": {
             "description": "The thread is closed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/members": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "listPlatformStaff",
+        "summary": "Who holds platform authority",
+        "description": "Unpaged: platform staff is a handful of people, and a roster needing pages would itself be the finding. Behind `staff.grant`, which PLATFORM_ADMIN alone holds.",
+        "responses": {
+          "200": {
+            "description": "The roster, and the roles that may be granted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffRoster"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "grantPlatformRole",
+        "summary": "Appoint a staff member",
+        "description": "Takes a user id, not an email: resolving an address here would turn this into a way to ask whether an account exists for any address anybody tried. Idempotent — granting a role already held is the state asked for.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "user_id",
+                  "role"
+                ],
+                "properties": {
+                  "user_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Found through /admin/users."
+                  },
+                  "role": {
+                    "type": "string",
+                    "description": "A code from the roster's `roles`."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Granted. The whole roster, as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffRoster"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — no user id or no role given.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/members/{userId}/roles/{role}": {
+      "delete": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "revokePlatformRole",
+        "summary": "Remove a staff member's role",
+        "description": "Two refusals answer 409 and they are not the same: removing your own administrator role (ask a colleague) and removing the platform's last one (appoint somebody first). The second is the database's, not this service's.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "role",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoked. The whole roster, as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffRoster"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`CANNOT_REVOKE_OWN_ADMIN` — ask another administrator. Or `LAST_PLATFORM_ADMIN` — appoint somebody else first.",
             "content": {
               "application/json": {
                 "schema": {

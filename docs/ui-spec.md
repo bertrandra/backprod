@@ -162,6 +162,7 @@ and USER. Placing it in the console would have been the intuitive mistake.
 | `console.support.access_log` | what staff looked at, which is the record that makes the above acceptable |
 | `console.admin.metrics` | the financial dashboard, from aggregates |
 | `console.admin.directory` | tenants, users, subscriptions, invoices across the platform |
+| `console.admin.staff` | who holds a platform role, and appointing or removing them. The database keeps at least one administrator, so the last one is shown as protected rather than offered and then refused |
 | `console.admin.queue` | queue liveness and the job list — "has the runner run" |
 | `console.admin.audit` | the audit trail |
 | `console.admin.erasure` | RGPD erasure, against legal retention (non-negotiable #15) |

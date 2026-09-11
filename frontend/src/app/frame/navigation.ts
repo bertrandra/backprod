@@ -149,6 +149,9 @@ export const CONSOLE_NAV: readonly NavSection[] = [
     entries: [
       { id: 'metrics', label: 'Metrics', to: '/console/metrics', permission: 'admin.finance.read' },
       { id: 'directory', label: 'Directory', to: '/console/directory', permission: 'admin.directory.read' },
+      // PLATFORM_ADMIN alone holds `staff.grant`: it is the one permission that
+      // can turn any role into every role, by appointing somebody who holds it.
+      { id: 'staff', label: 'Staff', to: '/console/staff', permission: 'staff.grant' },
       { id: 'queue', label: 'Queue', to: '/console/queue', permission: 'admin.health.read' },
       { id: 'audit', label: 'Audit', to: '/console/audit', permission: 'admin.audit.read', secondary: true },
       // Its own entry and its own permission: reading the directory and erasing
