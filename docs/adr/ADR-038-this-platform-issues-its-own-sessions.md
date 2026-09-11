@@ -91,9 +91,12 @@ bundle works against any deployment; the only thing an operator sets is `.env`.
 existed to admit it. An injected script can still act as the person while the page
 is open — no design prevents that — but it cannot take a credential away with it.
 
-**PostgreSQL is now the only external service**, which was the point. A host that
-offers PHP, PostgreSQL and JavaScript can run all of this, and PostgreSQL is the
-one thing shared hosting generally does not provide.
+**Nothing external is needed at all**, which was the point. R1 in
+`docs/backend-roadmap.md` settled long before this ADR that SiteGround hosts
+PostgreSQL on the same account as PHP; what this ADR removes is the one thing
+that had since crept back in on the identity side. A host offering PHP,
+PostgreSQL and JavaScript can now run the whole platform with nothing beyond
+its own account.
 
 **What this does not do.** No password reset, no email verification, no
 registration endpoint, and no second factor. A person's credential is set by
