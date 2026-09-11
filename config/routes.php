@@ -122,6 +122,7 @@ use App\Staff\Controller\ListSupportConversationsController;
 use App\Staff\Controller\ListTenantsController;
 use App\Staff\Controller\PostSupportMessageController;
 use App\Staff\Controller\RevokeStaffRoleController;
+use App\Staff\Controller\SetOfferAuthoringController;
 use App\Staff\Controller\ShowSupportConversationController;
 use App\Staff\Controller\ShowTenantController;
 use App\Staff\Controller\StaffIdentityController;
@@ -432,6 +433,15 @@ return static function (RouteCollector $routes): void {
 
     $routes->addRoute('GET', '/api/v1/staff/tenants', ListTenantsController::class);
     $routes->addRoute('GET', '/api/v1/staff/tenants/{tenantId}', ShowTenantController::class);
+
+    // Lending the platform's catalogue to one tenant. A write on a tenant
+    // rather than a read of one, so it carries no motive header and its own
+    // permission: `staff.tenants.manage`, PLATFORM_ADMIN only.
+    $routes->addRoute(
+        'PUT',
+        '/api/v1/staff/tenants/{tenantId}/offer-authoring',
+        SetOfferAuthoringController::class,
+    );
     $routes->addRoute('GET', '/api/v1/staff/access-log', ListAccessLogController::class);
 
     // Admin / operations (§10.1). Same platform identity as /staff, a

@@ -240,8 +240,10 @@
       ],
       "operations": [
         "listTenantsForStaff",
+        "setTenantOfferAuthoring",
         "showTenantForStaff"
-      ]
+      ],
+      "$comment": "A tenant as support sees it, and the one thing the platform may change about them: whether the catalogue is lent to them. The toggle sits here rather than on a screen of its own because the decision is made while looking at the customer it concerns."
     },
     "messaging.conversations": {
       "shell": "tenant",

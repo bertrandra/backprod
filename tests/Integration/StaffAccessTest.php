@@ -194,7 +194,13 @@ final class StaffAccessTest extends DatabaseApiTestCase
         $response = $this->get('/api/v1/staff/tenants/' . $this->tenantB, 'sam-token');
 
         self::assertSame(200, $response->getStatusCode());
-        self::assertSame('Beta', $this->decode($response)['name'] ?? null);
+        $tenant = $this->decode($response)['tenant'] ?? null;
+
+        // Under `tenant`, not at the top level: the contract says so and the
+        // generated client reads it that way, and nothing here asserted it
+        // until a second endpoint on the same resource made the two disagree.
+        self::assertIsArray($tenant);
+        self::assertSame('Beta', $tenant['name'] ?? null);
     }
 
     public function testAnUnknownTenantIsNotFound(): void

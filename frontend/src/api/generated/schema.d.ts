@@ -2055,6 +2055,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/tenants/{tenantId}/offer-authoring": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Lend the catalogue to a tenant, or take it back
+         * @description PUT because it states a desired state rather than an act: sending the same value twice is the state asked for both times. No motive header, unlike the tenant read beside it — this reveals no customer data, it changes what a customer may do, and the trail records who decided.
+         */
+        put: operations["setTenantOfferAuthoring"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/subscription": {
         parameters: {
             query?: never;
@@ -3212,6 +3232,8 @@ export interface components {
             id: string;
             name: string;
             slug: string;
+            /** @description Whether the platform has lent this tenant the catalogue. False by default: offers are keyed on product, not tenant, so a tenant administrator editing them changes what every other customer of that product is sold on. When false, `catalog.manage` is not resolved for this tenant's members at all. */
+            may_author_offers: boolean;
         };
         Member: {
             /** Format: uuid */
@@ -8265,6 +8287,50 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setTenantOfferAuthoring: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    may_author_offers: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The tenant, as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tenant: components["schemas"]["Tenant"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `may_author_offers` absent or not a boolean. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

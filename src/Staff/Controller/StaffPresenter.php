@@ -57,6 +57,7 @@ final class StaffPresenter
             'id' => $tenant->id,
             'name' => $tenant->name,
             'slug' => $tenant->slug,
+            'may_author_offers' => $tenant->mayAuthorOffers,
         ];
     }
 

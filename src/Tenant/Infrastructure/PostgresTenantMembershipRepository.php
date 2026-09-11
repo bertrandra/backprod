@@ -30,6 +30,20 @@ final class PostgresTenantMembershipRepository implements TenantMembershipReposi
         //
         // Ordered by tenant_id so the list in a TENANT_SELECTION_REQUIRED
         // response is stable between requests.
+        //
+        // **`catalog.manage` is conditional on the tenant's own delegation.**
+        // Offers are keyed on product, not tenant — they are the platform's
+        // price list — so a tenant administrator holding this permission
+        // unconditionally could rewrite what every other customer of that
+        // product is sold on. `tenants.may_author_offers` decides, and it
+        // decides *here*, where a membership becomes permissions, rather than
+        // beside each authoring route: a permission that is never resolved
+        // refuses every route that asks for it, including the ones not yet
+        // written, and the UI's own permission gates hide the authoring
+        // controls without knowing the rule exists.
+        //
+        // The role is untouched. Somebody in this state is still TENANT_ADMIN
+        // — administrator of their organisation, not of the price list.
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
                 SELECT tm.tenant_id,
@@ -38,13 +52,16 @@ final class PostgresTenantMembershipRepository implements TenantMembershipReposi
                        array_to_json(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL)) AS roles,
                        array_to_json(array_agg(DISTINCT p.code) FILTER (WHERE p.code IS NOT NULL)) AS permissions
                 FROM tenant_members tm
+                JOIN tenants t ON t.id = tm.tenant_id
                 LEFT JOIN tenant_member_roles tmr
                        ON tmr.tenant_id = tm.tenant_id
                       AND tmr.user_id = tm.user_id
                       AND tmr.product_id = tm.product_id
                 LEFT JOIN roles r ON r.id = tmr.role_id
                 LEFT JOIN role_permissions rp ON rp.role_id = r.id
-                LEFT JOIN permissions p ON p.id = rp.permission_id
+                LEFT JOIN permissions p
+                       ON p.id = rp.permission_id
+                      AND (p.code <> 'catalog.manage' OR t.may_author_offers)
                 WHERE tm.user_id = :userId
                   AND tm.product_id = :productId
                 GROUP BY tm.tenant_id, tm.user_id, tm.product_id

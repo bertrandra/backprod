@@ -13,15 +13,33 @@ import { StaffTenantsScreen } from './StaffTenantsScreen';
  * the confirmation after it, and both name the permission the read was made
  * under rather than saying "this is logged" and leaving the grounds vague.
  */
-const TENANT = { id: 't-1', name: 'Acme Ltd', slug: 'acme' };
-const OTHER = { id: 't-2', name: 'Globex', slug: 'globex' };
+const TENANT = { id: 't-1', name: 'Acme Ltd', slug: 'acme', may_author_offers: false };
+const OTHER = { id: 't-2', name: 'Globex', slug: 'globex', may_author_offers: false };
+
+/** An administrator: the only staff identity that may change the flag. */
+const ADMIN = {
+  staff: {
+    user_id: 's-1',
+    roles: ['PLATFORM_ADMIN'],
+    permissions: ['staff.tenants.read', 'staff.tenants.manage'],
+  },
+};
+
+/** Support: may open a tenant, may not decide what it is allowed to do. */
+const SUPPORT = {
+  staff: { user_id: 's-2', roles: ['SUPPORT_ADMIN'], permissions: ['staff.tenants.read'] },
+};
 
 function clientFor(extra: Stubs = {}) {
   return stubClient({
+    'GET /api/v1/staff/me': { data: ADMIN },
     'GET /api/v1/staff/tenants': {
       data: { tenants: [TENANT, OTHER], total: 2, limit: 25, offset: 0 },
     },
     'GET /api/v1/staff/tenants/{tenantId}': { data: { tenant: TENANT } },
+    'PUT /api/v1/staff/tenants/{tenantId}/offer-authoring': {
+      data: { tenant: { ...TENANT, may_author_offers: true } },
+    },
     ...extra,
   });
 }
@@ -165,7 +183,7 @@ describe('the list', () => {
 describe('the reason for a read', () => {
   it('is asked for before anything is fetched', async () => {
     const { client, requests } = recordingClient({
-      'GET /api/v1/staff/me': { data: { staff: { user_id: 's-1', roles: ['SUPPORT'], permissions: ['staff.tenants.read'] } } },
+      'GET /api/v1/staff/me': { data: SUPPORT },
       'GET /api/v1/staff/tenants': {
         data: { tenants: [TENANT], total: 1, limit: 25, offset: 0 },
       },
@@ -211,7 +229,7 @@ describe('the reason for a read', () => {
 
   it('travels with the request as the headers the contract names', async () => {
     const { client, requests } = recordingClient({
-      'GET /api/v1/staff/me': { data: { staff: { user_id: 's-1', roles: ['SUPPORT'], permissions: ['staff.tenants.read'] } } },
+      'GET /api/v1/staff/me': { data: SUPPORT },
       'GET /api/v1/staff/tenants': {
         data: { tenants: [TENANT], total: 1, limit: 25, offset: 0 },
       },
@@ -270,5 +288,131 @@ describe('the reason for a read', () => {
 
     expect(gate).toMatch(/Nothing is read until you answer/i);
     expect(gate).toMatch(/access log your colleagues can read/i);
+  });
+});
+
+/**
+ * Lending the catalogue, and the two people who see it differently.
+ *
+ * The flag is not a display preference. `catalog.manage` is resolved from it, so
+ * a tenant role that names the permission grants nothing while it is off — which
+ * is why the screen states the consequence rather than labelling a switch, and
+ * why the control is behind a permission of its own.
+ */
+describe('offer authoring', () => {
+  it('says a tenant uses the platform catalogue when the flag is off', async () => {
+    renderAtRoute(<StaffTenantsScreen />, clientFor(), {
+      path: '/console/tenants',
+      initial: `/console/tenants?selected=${TENANT.id}`,
+    });
+    await giveAMotive();
+
+    await waitFor(() => expect(screen.getByTestId('offer-authoring')).toBeTruthy());
+
+    const panel = screen.getByTestId('offer-authoring');
+
+    expect(panel.getAttribute('data-may-author')).toBe('false');
+    // The consequence, not the switch: a tenant role naming catalog.manage
+    // grants nothing while this is off, and somebody deciding has to know that.
+    expect(panel.textContent).toMatch(/whatever their tenant role says/i);
+  });
+
+  it('offers to lend it, and sends the state rather than a toggle', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/me': { data: ADMIN },
+      'GET /api/v1/staff/tenants': {
+        data: { tenants: [TENANT], total: 1, limit: 25, offset: 0 },
+      },
+      'GET /api/v1/staff/tenants/{tenantId}': { data: { tenant: TENANT } },
+      'PUT /api/v1/staff/tenants/{tenantId}/offer-authoring': {
+        data: { tenant: { ...TENANT, may_author_offers: true } },
+      },
+    });
+
+    renderAtRoute(<StaffTenantsScreen />, client, {
+      path: '/console/tenants',
+      initial: `/console/tenants?selected=${TENANT.id}`,
+    });
+    await giveAMotive();
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Allow offer authoring/i })).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Allow offer authoring/i }));
+
+    await waitFor(() =>
+      expect(
+        requests.filter((r) => r.path === '/api/v1/staff/tenants/{tenantId}/offer-authoring'),
+      ).toHaveLength(1),
+    );
+
+    const write = requests.find(
+      (r) => r.path === '/api/v1/staff/tenants/{tenantId}/offer-authoring',
+    );
+
+    // A desired state, so clicking twice on a slow connection asks for the same
+    // thing twice rather than undoing the first click.
+    expect(write?.body).toEqual({ may_author_offers: true });
+    // No motive: R14 asks why somebody is reading a customer's data, and this
+    // reads none of it.
+    expect(write?.header).toBeUndefined();
+  });
+
+  it('offers to take it back once it is lent', async () => {
+    const lent = { ...TENANT, may_author_offers: true };
+
+    renderAtRoute(
+      <StaffTenantsScreen />,
+      clientFor({ 'GET /api/v1/staff/tenants/{tenantId}': { data: { tenant: lent } } }),
+      { path: '/console/tenants', initial: `/console/tenants?selected=${TENANT.id}` },
+    );
+    await giveAMotive();
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Withdraw offer authoring/i })).toBeTruthy(),
+    );
+
+    expect(screen.getByTestId('offer-authoring').getAttribute('data-may-author')).toBe('true');
+  });
+
+  it('shows support the answer without the means to change it', async () => {
+    renderAtRoute(<StaffTenantsScreen />, clientFor({ 'GET /api/v1/staff/me': { data: SUPPORT } }), {
+      path: '/console/tenants',
+      initial: `/console/tenants?selected=${TENANT.id}`,
+    });
+    await giveAMotive();
+
+    await waitFor(() => expect(screen.getByTestId('offer-authoring-readonly')).toBeTruthy());
+
+    // Answering "can they edit their prices?" is support's job. Deciding it is
+    // not, and a button that appeared and then answered 403 would teach nobody
+    // that.
+    expect(screen.getByTestId('offer-authoring').textContent).toMatch(/platform catalogue/i);
+    expect(screen.queryByRole('button', { name: /offer authoring/i })).toBeNull();
+    expect(screen.getByTestId('offer-authoring-readonly').textContent).toMatch(
+      /staff\.tenants\.manage/,
+    );
+  });
+
+  it('surfaces a refusal instead of leaving the panel looking changed', async () => {
+    renderAtRoute(
+      <StaffTenantsScreen />,
+      clientFor({
+        'PUT /api/v1/staff/tenants/{tenantId}/offer-authoring': {
+          status: 403,
+          error: { error: { code: 'FORBIDDEN', message: 'Not permitted.' } },
+        },
+      }),
+      { path: '/console/tenants', initial: `/console/tenants?selected=${TENANT.id}` },
+    );
+    await giveAMotive();
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Allow offer authoring/i })).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Allow offer authoring/i }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+    expect(screen.getByTestId('offer-authoring').getAttribute('data-may-author')).toBe('false');
   });
 });

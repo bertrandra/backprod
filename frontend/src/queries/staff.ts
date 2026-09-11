@@ -456,3 +456,38 @@ export function useRevokePlatformRole() {
     },
   });
 }
+
+/**
+ * Lending the platform's catalogue to a tenant, or taking it back.
+ *
+ * A write on a tenant rather than a read of one, so it carries no motive: R14
+ * asks why somebody is looking at a customer's data, and this looks at none.
+ * The invalidation is wide on purpose — `catalog.manage` is resolved from this
+ * flag, so the person whose tenant just changed has a different set of
+ * permissions than the one their browser is holding.
+ */
+export function useSetTenantOfferAuthoring(tenantId: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (mayAuthor: boolean) => {
+      const { data, error, response } = await client.PUT(
+        '/api/v1/staff/tenants/{tenantId}/offer-authoring',
+        { params: { path: { tenantId } }, body: { may_author_offers: mayAuthor } },
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.tenant;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.staff.tenantReads(tenantId) }),
+        queryClient.invalidateQueries({ queryKey: keys.staff.tenantLists }),
+      ]);
+    },
+  });
+}

@@ -119,7 +119,7 @@ added (§8).
 |---|---|
 | `commerce.catalogue` | what is for sale: offers, plans, features, and the product's own catalogue |
 | `commerce.checkout` | buying in one flow — a session **is** an order (ADR-034) |
-| `commerce.catalogue_authoring` | writing the catalogue: draft a version, publish it. `catalog.manage`, TENANT_ADMIN only |
+| `commerce.catalogue_authoring` | writing the catalogue: draft a version, publish it. `catalog.manage`, TENANT_ADMIN only — and only where the platform has lent this tenant the catalogue (ADR-040), since the permission is not resolved otherwise |
 | `sales.quotes` | a quote's life: raise, send, accept, reject |
 | `sales.orders` | an order's life: place, fulfil, cancel |
 
@@ -157,7 +157,7 @@ and USER. Placing it in the console would have been the intuitive mistake.
 
 | area | for |
 |---|---|
-| `console.support.tenants` | a tenant as support sees it — an audited, per-tenant read |
+| `console.support.tenants` | a tenant as support sees it — an audited, per-tenant read, and the one thing about a tenant staff may change: whether the platform lends it the catalogue. The state is shown to anybody who may open the tenant; the control appears only with `staff.tenants.manage` |
 | `console.support.conversations` | answering a thread, and closing it |
 | `console.support.access_log` | what staff looked at, which is the record that makes the above acceptable |
 | `console.admin.metrics` | the financial dashboard, from aggregates |

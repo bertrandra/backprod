@@ -114,6 +114,51 @@ final class StaffDesk
     }
 
     /**
+     * Lend the catalogue to a tenant, or take it back.
+     *
+     * Recorded, and recorded without a motive. R14 asks for one on the reads
+     * that reveal a tenant's own data, because those are the ones where "why
+     * were you looking?" is the question. This reveals nothing and changes
+     * what somebody may do — the interesting question is "who decided this?",
+     * which the trail answers by existing.
+     */
+    public function delegateOfferAuthoring(
+        StaffIdentity $staff,
+        string $tenantId,
+        bool $mayAuthor,
+    ): Tenant {
+        $tenant = $this->tenants->setOfferAuthoring($tenantId, $mayAuthor);
+
+        if ($tenant === null) {
+            $this->trail->record(new StaffAccess(
+                $staff->userId,
+                null,
+                null,
+                'UPDATE_MISS',
+                'tenant',
+                $tenantId,
+                StaffPermission::TENANTS_MANAGE,
+                ['may_author_offers' => $mayAuthor],
+            ));
+
+            throw new NotFoundException('Tenant not found.', [], 'TENANT_NOT_FOUND');
+        }
+
+        $this->trail->record(new StaffAccess(
+            $staff->userId,
+            $tenant->id,
+            null,
+            $mayAuthor ? 'DELEGATE' : 'REVOKE_DELEGATION',
+            'tenant',
+            $tenant->id,
+            StaffPermission::TENANTS_MANAGE,
+            ['may_author_offers' => $mayAuthor],
+        ));
+
+        return $tenant;
+    }
+
+    /**
      * @return array{entries: list<StaffAccessEntry>, total: int, limit: int, offset: int}
      */
     public function trail(StaffIdentity $staff, ?string $tenantId, int $limit, int $offset): array

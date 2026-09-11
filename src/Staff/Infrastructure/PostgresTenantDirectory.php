@@ -24,7 +24,7 @@ final class PostgresTenantDirectory implements TenantDirectory
         // tenants share a name.
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
-                SELECT id, name, slug
+                SELECT id, name, slug, may_author_offers
                   FROM tenants
                  ORDER BY name, id
                  LIMIT :limit OFFSET :offset
@@ -50,7 +50,7 @@ final class PostgresTenantDirectory implements TenantDirectory
         }
 
         $row = $this->connection->fetchAssociative(
-            'SELECT id, name, slug FROM tenants WHERE id = :id',
+            'SELECT id, name, slug, may_author_offers FROM tenants WHERE id = :id',
             ['id' => $tenantId],
         );
 
@@ -66,6 +66,30 @@ final class PostgresTenantDirectory implements TenantDirectory
             Row::string($row, 'id'),
             Row::string($row, 'name'),
             Row::string($row, 'slug'),
+            Row::boolean($row, 'may_author_offers'),
         );
+    }
+
+    public function setOfferAuthoring(string $tenantId, bool $mayAuthor): ?Tenant
+    {
+        if (!Uuid::isValid($tenantId)) {
+            return null;
+        }
+
+        // RETURNING rather than a write followed by a read: the caller needs
+        // the tenant as it now stands, and two statements could be separated
+        // by somebody else's.
+        $row = $this->connection->fetchAssociative(
+            <<<'SQL'
+                UPDATE tenants
+                   SET may_author_offers = :mayAuthor
+                 WHERE id = :id
+                RETURNING id, name, slug, may_author_offers
+                SQL,
+            ['id' => $tenantId, 'mayAuthor' => $mayAuthor],
+            ['mayAuthor' => ParameterType::BOOLEAN],
+        );
+
+        return $row === false ? null : self::toTenant($row);
     }
 }
