@@ -20,4 +20,11 @@ final class StaffPermission
     public const ACCESS_LOG_READ = 'staff.access_log.read';
     public const SUPPORT_READ = 'support.read';
     public const SUPPORT_RESPOND = 'support.respond';
+
+    /**
+     * Appointing and removing staff, which PLATFORM_ADMIN alone holds: a
+     * support engineer able to appoint support engineers could grant
+     * themselves anything by way of somebody else.
+     */
+    public const GRANT = 'staff.grant';
 }

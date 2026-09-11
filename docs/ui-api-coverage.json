@@ -200,6 +200,18 @@
         "showQueue"
       ]
     },
+    "console.admin.staff": {
+      "shell": "console",
+      "$comment": "Who holds platform authority. The screen that stops a fresh installation being a dead end: before it, appointing anybody meant an INSERT against production, which is exactly what an installer must never require.",
+      "routes": [
+        "/console/staff"
+      ],
+      "operations": [
+        "grantPlatformRole",
+        "listPlatformStaff",
+        "revokePlatformRole"
+      ]
+    },
     "console.support.access_log": {
       "shell": "console",
       "routes": [

@@ -115,10 +115,13 @@ use App\Skin\Controller\ShowSkinController;
 use App\Skin\Controller\UpdateSkinController;
 use App\Skin\Controller\UploadSkinLogoController;
 use App\Staff\Controller\CloseSupportConversationController;
+use App\Staff\Controller\GrantStaffRoleController;
 use App\Staff\Controller\ListAccessLogController;
+use App\Staff\Controller\ListStaffController;
 use App\Staff\Controller\ListSupportConversationsController;
 use App\Staff\Controller\ListTenantsController;
 use App\Staff\Controller\PostSupportMessageController;
+use App\Staff\Controller\RevokeStaffRoleController;
 use App\Staff\Controller\ShowSupportConversationController;
 use App\Staff\Controller\ShowTenantController;
 use App\Staff\Controller\StaffIdentityController;
@@ -409,6 +412,24 @@ return static function (RouteCollector $routes): void {
     // membership to derive one from; the role authorises, and the read is
     // recorded.
     $routes->addRoute('GET', '/api/v1/staff/me', StaffIdentityController::class);
+
+    // Who holds platform authority, and the two writes that change it. Behind
+    // `staff.grant`, which PLATFORM_ADMIN alone holds — the rest of /staff is
+    // reachable by every platform role, and appointing staff is the one act
+    // that could turn any of them into all of them.
+    //
+    // The role is in the path on the revoke rather than the body, because
+    // `platform_staff` is keyed on (user, role): the thing being deleted is
+    // that pair, and naming it in the URL is what makes the request
+    // addressable and the refusal explicable.
+    $routes->addRoute('GET', '/api/v1/staff/members', ListStaffController::class);
+    $routes->addRoute('POST', '/api/v1/staff/members', GrantStaffRoleController::class);
+    $routes->addRoute(
+        'DELETE',
+        '/api/v1/staff/members/{userId}/roles/{role}',
+        RevokeStaffRoleController::class,
+    );
+
     $routes->addRoute('GET', '/api/v1/staff/tenants', ListTenantsController::class);
     $routes->addRoute('GET', '/api/v1/staff/tenants/{tenantId}', ShowTenantController::class);
     $routes->addRoute('GET', '/api/v1/staff/access-log', ListAccessLogController::class);

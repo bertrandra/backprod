@@ -510,6 +510,29 @@ function handleSetup(): void
             ['tenant' => $tenantId, 'product' => $productId, 'user' => $userId, 'role' => $roleId],
         );
 
+        // And PLATFORM_ADMIN, which is the other half of what this person is.
+        //
+        // TENANT_ADMIN above administers the organisation just created; this
+        // administers the platform that hosts it — every tenant, the audit
+        // trail, and who else may hold a platform role. Whoever ran this
+        // installer is both, because on a self-hosted deployment there is
+        // nobody else to be the second one.
+        //
+        // Granted here rather than left to a later SQL statement typed by
+        // hand: without it the first sign-in lands on a console its owner
+        // cannot enter, with no route in that does not go through the
+        // database — which is the exact situation this installer exists to
+        // remove. `granted_by` is the same person, since the alternative is a
+        // null that says the platform appointed itself.
+        $platformRoleId = $connection->fetchOne(
+            "SELECT id FROM platform_roles WHERE code = 'PLATFORM_ADMIN'",
+        );
+
+        $connection->executeStatement(
+            'INSERT INTO platform_staff (user_id, platform_role_id, granted_by) VALUES (:user, :role, :user)',
+            ['user' => $userId, 'role' => $platformRoleId],
+        );
+
         $connection->commit();
     } catch (\Throwable $e) {
         $connection->rollBack();
@@ -527,7 +550,9 @@ function handleSetup(): void
     $host = htmlspecialchars(is_string($rawHost) ? $rawHost : 'your-domain');
 
     render('Set up', STYLE_BLOCK . '<p class="ok">Done. Migrations ran, and ' . htmlspecialchars($adminEmail)
-        . ' can sign in as an administrator of ' . htmlspecialchars($tenantName) . '.</p>'
+        . ' can sign in as an administrator of ' . htmlspecialchars($tenantName)
+        . ' <em>and</em> of the platform itself — the console, every tenant, and who else may hold '
+        . 'a platform role. Appoint colleagues from Console → Staff rather than in SQL.</p>'
         . '<p><a href="https://' . $host . '/">Open the sign-in screen</a>. The first time, add '
         . '<code>?product=' . htmlspecialchars($productCode) . '</code> to the address — after that, '
         . 'this browser remembers it.</p>'

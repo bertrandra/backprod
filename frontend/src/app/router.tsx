@@ -38,6 +38,7 @@ import { DirectoryScreen } from '@/features/console/DirectoryScreen';
 import { ErasureScreen } from '@/features/console/ErasureScreen';
 import { MetricsScreen } from '@/features/console/MetricsScreen';
 import { QueueScreen } from '@/features/console/QueueScreen';
+import { StaffMembersScreen } from '@/features/console/StaffMembersScreen';
 import { StaffTenantsScreen } from '@/features/console/StaffTenantsScreen';
 import { SupportConversationsScreen } from '@/features/console/SupportConversationsScreen';
 import { SignInScreen } from '@/features/auth/SignInScreen';
@@ -106,6 +107,7 @@ const CONSOLE_SCREEN_ROUTES: readonly { path: string; component: () => React.JSX
   { path: '/console/access-log', component: AccessLogScreen },
   { path: '/console/metrics', component: MetricsScreen },
   { path: '/console/directory', component: DirectoryScreen },
+  { path: '/console/staff', component: StaffMembersScreen },
   { path: '/console/queue', component: QueueScreen },
   { path: '/console/audit', component: AuditScreen },
   { path: '/console/erasure', component: ErasureScreen },

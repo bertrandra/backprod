@@ -380,3 +380,79 @@ export function useCloseSupportConversation(conversationId: string) {
     },
   });
 }
+
+/**
+ * The roster, and the two writes that change it.
+ *
+ * **Every one of these returns the whole roster**, writes included, and the
+ * mutations seed the cache with what came back rather than invalidating and
+ * fetching again. Revoking is the case that makes it worth doing: the response
+ * is the only authority on what the roster now looks like, and a refetch would
+ * ask a second time and could answer differently if somebody else was granting
+ * at that moment.
+ */
+export type StaffMember = Schemas['StaffMember'];
+export type PlatformRole = Schemas['PlatformRole'];
+export type StaffRoster = Schemas['StaffRoster'];
+
+export function useStaffRoster() {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.roster,
+    queryFn: async (): Promise<StaffRoster> => {
+      const { data, error, response } = await client.GET('/api/v1/staff/members');
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+  });
+}
+
+export function useGrantPlatformRole() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (grant: { userId: string; role: string }): Promise<StaffRoster> => {
+      const { data, error, response } = await client.POST('/api/v1/staff/members', {
+        body: { user_id: grant.userId, role: grant.role },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    onSuccess: (roster) => {
+      queryClient.setQueryData(keys.staff.roster, roster);
+    },
+  });
+}
+
+export function useRevokePlatformRole() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (grant: { userId: string; role: string }): Promise<StaffRoster> => {
+      const { data, error, response } = await client.DELETE(
+        '/api/v1/staff/members/{userId}/roles/{role}',
+        { params: { path: { userId: grant.userId, role: grant.role } } },
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    onSuccess: (roster) => {
+      queryClient.setQueryData(keys.staff.roster, roster);
+    },
+  });
+}

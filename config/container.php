@@ -107,9 +107,11 @@ use App\Skin\Domain\SkinRepository;
 use App\Skin\Infrastructure\PostgresSkinRepository;
 use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffRepository;
+use App\Staff\Domain\StaffRoster;
 use App\Staff\Domain\TenantDirectory;
 use App\Staff\Infrastructure\PostgresStaffAccessLog;
 use App\Staff\Infrastructure\PostgresStaffRepository;
+use App\Staff\Infrastructure\PostgresStaffRoster;
 use App\Staff\Infrastructure\PostgresTenantDirectory;
 use App\Storage\Domain\AssetRepository;
 use App\Storage\Domain\StorageProvider;
@@ -455,6 +457,7 @@ return static function (array $overrides = []): ContainerInterface {
         VatNumberValidator::class => autowire(StubVatNumberValidator::class),
 
         StaffRepository::class => autowire(PostgresStaffRepository::class),
+        StaffRoster::class => autowire(PostgresStaffRoster::class),
         StaffAccessLog::class => autowire(PostgresStaffAccessLog::class),
         TenantDirectory::class => autowire(PostgresTenantDirectory::class),
 
