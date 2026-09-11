@@ -2,21 +2,10 @@
   "$comment": "Single source for UI coverage of the API. docs/ui-spec.md explains the areas and the reasoning; tools/prove-ui-covers-the-api.php checks this file against openapi.json in both directions, and tools/prove-screens-call-their-operations.php checks it against the frontend — that every area's routes exist and that every operation an area claims is actually called through the generated client.",
   "shells": {
     "tenant": "The product application: one product, one tenant, scoped by X-Product and the caller's membership.",
-    "console": "The platform console. A separate shell because a platform role never grants tenant membership (non-negotiable #22)."
+    "console": "The platform console. A separate shell because a platform role never grants tenant membership (non-negotiable #22).",
+    "public": "The shop window. Outside both other shells and outside the sign-in gate, because the person reading it has no session, no product and no permissions — a shell around it would be a frame full of things that cannot be filled in."
   },
   "areas": {
-    "identity.sign_in": {
-      "shell": "tenant",
-      "$comment": "The screen U11 found missing and U12 made this platform's own. It has a route so it is addressable and so this area can declare one, but nothing links to it: SignInGate renders it *instead of* the shell for whatever URL was asked for, which is how a deep link survives signing in.",
-      "routes": [
-        "/sign-in"
-      ],
-      "operations": [
-        "refreshSession",
-        "signIn",
-        "signOut"
-      ]
-    },
     "account.notification_settings": {
       "shell": "tenant",
       "routes": [
@@ -212,6 +201,17 @@
         "revokePlatformRole"
       ]
     },
+    "console.admin.storefront": {
+      "shell": "console",
+      "$comment": "What the public page advertises. Behind staff.catalog.manage rather than catalog.manage: ADR-040 lets the platform lend the latter to a tenant, and a tenant authoring its own offers must not decide what a stranger is shown.",
+      "routes": [
+        "/console/storefront"
+      ],
+      "operations": [
+        "listStorefrontOffers",
+        "setOfferPublicListing"
+      ]
+    },
     "console.support.access_log": {
       "shell": "console",
       "routes": [
@@ -245,6 +245,19 @@
       ],
       "$comment": "A tenant as support sees it, and the one thing the platform may change about them: whether the catalogue is lent to them. The toggle sits here rather than on a screen of its own because the decision is made while looking at the customer it concerns."
     },
+    "identity.sign_in": {
+      "shell": "tenant",
+      "$comment": "The screen U11 found missing and U12 made this platform's own. It has a route so it is addressable and so this area can declare one, but nothing links to it: SignInGate renders it *instead of* the shell for whatever URL was asked for, which is how a deep link survives signing in. It also answers the confirmation link: verifying an address is something somebody does from a device that has never signed in, so it belongs on the one screen that works without a session.",
+      "routes": [
+        "/sign-in"
+      ],
+      "operations": [
+        "refreshSession",
+        "signIn",
+        "signOut",
+        "verifyEmail"
+      ]
+    },
     "messaging.conversations": {
       "shell": "tenant",
       "routes": [
@@ -261,6 +274,18 @@
         "removeParticipant",
         "showConversation",
         "startConversation"
+      ]
+    },
+    "public.storefront": {
+      "shell": "public",
+      "$comment": "The landing page and the account it creates. The product comes from ?product= rather than from a membership, and only offers marked publicly_listed appear — being on sale and being advertised are two different decisions. Choosing an offer opens the sign-up form; the checkout that follows runs on the session that creates and is therefore commerce.checkout's openCheckoutSession, not a second anonymous purchase flow with rules of its own.",
+      "routes": [
+        "/"
+      ],
+      "operations": [
+        "getPublicOffers",
+        "getPublicOffer",
+        "signUp"
       ]
     },
     "sales.orders": {

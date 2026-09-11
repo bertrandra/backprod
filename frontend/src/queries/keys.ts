@@ -10,6 +10,17 @@ export const keys = {
   session: {
     me: ['session', 'me'] as const,
   },
+  /**
+   * The shop window. Keyed by product code rather than product id, because
+   * the caller has no session and therefore no resolved product — the code in
+   * the URL is all there is.
+   */
+  storefront: {
+    window: (product: string) => ['storefront', 'offers', product] as const,
+    offer: (product: string, offerId: string) =>
+      ['storefront', 'offer', product, offerId] as const,
+    listing: (product: string) => ['storefront', 'listing', product] as const,
+  },
   organisation: {
     current: ['organisation', 'current'] as const,
     usage: ['organisation', 'usage'] as const,

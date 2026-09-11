@@ -14,6 +14,8 @@ use App\Admin\Controller\ShowQueueController;
 use App\Auth\Controller\RefreshSessionController;
 use App\Auth\Controller\SignInController;
 use App\Auth\Controller\SignOutController;
+use App\Auth\Controller\SignUpController;
+use App\Auth\Controller\VerifyEmailController;
 use App\Billing\Controller\CancelInvoiceController;
 use App\Billing\Controller\IssueCreditNoteController;
 use App\Billing\Controller\IssueInvoiceController;
@@ -36,6 +38,8 @@ use App\Commerce\Controller\ListFeaturesController;
 use App\Commerce\Controller\ListOffersController;
 use App\Commerce\Controller\ListOfferVersionsController;
 use App\Commerce\Controller\ListPlansController;
+use App\Commerce\Controller\PublicOfferController;
+use App\Commerce\Controller\PublicOffersController;
 use App\Commerce\Controller\PublishOfferVersionController;
 use App\Commerce\Controller\ResumeSubscriptionController;
 use App\Commerce\Controller\ShowOfferController;
@@ -118,11 +122,13 @@ use App\Staff\Controller\CloseSupportConversationController;
 use App\Staff\Controller\GrantStaffRoleController;
 use App\Staff\Controller\ListAccessLogController;
 use App\Staff\Controller\ListStaffController;
+use App\Staff\Controller\ListStorefrontOffersController;
 use App\Staff\Controller\ListSupportConversationsController;
 use App\Staff\Controller\ListTenantsController;
 use App\Staff\Controller\PostSupportMessageController;
 use App\Staff\Controller\RevokeStaffRoleController;
 use App\Staff\Controller\SetOfferAuthoringController;
+use App\Staff\Controller\SetPublicListingController;
 use App\Staff\Controller\ShowSupportConversationController;
 use App\Staff\Controller\ShowTenantController;
 use App\Staff\Controller\StaffIdentityController;
@@ -173,6 +179,32 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('POST', '/api/v1/auth/token', SignInController::class);
     $routes->addRoute('POST', '/api/v1/auth/refresh', RefreshSessionController::class);
     $routes->addRoute('POST', '/api/v1/auth/sign-out', SignOutController::class);
+
+    // The way in for somebody who has no account at all. Creates the user,
+    // their organisation and a TENANT_ADMIN membership of the named product in
+    // one transaction, and answers with a session — so the purchase that
+    // follows is an ordinary authenticated checkout rather than a second
+    // anonymous flow with rules of its own.
+    $routes->addRoute('POST', '/api/v1/auth/sign-up', SignUpController::class);
+
+    // Public because the person following the link may be on a device that has
+    // never signed in, which is half the point of confirming an address. It
+    // never issues a session: a link that did would be a credential living in
+    // an inbox.
+    $routes->addRoute('POST', '/api/v1/auth/verify-email', VerifyEmailController::class);
+
+    // --- The shop window --------------------------------------------------
+    // The only reads on this platform that answer somebody with no account.
+    // Everything under /api/v1/public is unauthenticated by policy, so what
+    // is mounted here must be safe to show a stranger by construction rather
+    // than by a permission check: these two show offers the platform has
+    // explicitly marked `publicly_listed`, and nothing else.
+    //
+    // The product arrives as `?product=`, not `X-Product`: there is no
+    // context chain on a public route to resolve a header, and the filter is
+    // what the caller is choosing between.
+    $routes->addRoute('GET', '/api/v1/public/offers', PublicOffersController::class);
+    $routes->addRoute('GET', '/api/v1/public/offers/{offerId}', PublicOfferController::class);
 
     $routes->addRoute('GET', '/api/v1/me', MeController::class);
     $routes->addRoute('PATCH', '/api/v1/me', UpdateMeController::class);
@@ -442,6 +474,17 @@ return static function (RouteCollector $routes): void {
         '/api/v1/staff/tenants/{tenantId}/offer-authoring',
         SetOfferAuthoringController::class,
     );
+    // What the public page advertises, and who decided. `staff.catalog.manage`
+    // rather than `catalog.manage`: ADR-040 lets the platform lend the latter
+    // to a tenant, and a tenant authoring its own offers must not thereby
+    // decide what a stranger is shown.
+    $routes->addRoute('GET', '/api/v1/staff/storefront/offers', ListStorefrontOffersController::class);
+    $routes->addRoute(
+        'PUT',
+        '/api/v1/staff/storefront/offers/{offerId}',
+        SetPublicListingController::class,
+    );
+
     $routes->addRoute('GET', '/api/v1/staff/access-log', ListAccessLogController::class);
 
     // Admin / operations (§10.1). Same platform identity as /staff, a

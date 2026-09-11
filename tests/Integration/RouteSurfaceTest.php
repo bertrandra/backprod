@@ -48,6 +48,28 @@ final class RouteSurfaceTest extends ApiTestCase
         'POST /api/v1/auth/token',
         'POST /api/v1/auth/refresh',
         'POST /api/v1/auth/sign-out',
+        // ADR-041. The two that break this list's usual pattern, and they are
+        // named here precisely so that is a deliberate act.
+        //
+        // `sign-up` authenticates nothing — there is nobody to authenticate
+        // yet, which is what a storefront selling to strangers means. What
+        // stands in for it is §31's public rate limit and the fact that the
+        // only thing it can create is an ordinary customer: no platform role,
+        // no offer authoring (ADR-040's flag stays false), one tenant.
+        //
+        // `verify-email` authenticates the *token in the link*, which is the
+        // usual pattern after all — 256 bits of CSPRNG, stored as a SHA-256,
+        // single-use and expiring. It issues no session, so following the link
+        // never turns a mail into a credential.
+        'POST /api/v1/auth/sign-up',
+        'POST /api/v1/auth/verify-email',
+        // The shop window (ADR-041). These authenticate nothing either, and
+        // they do not need to: what they return is only what somebody
+        // explicitly marked `publicly_listed` and that is inside its sale
+        // window, filtered in SQL rather than after the fetch — so a request
+        // with no session never pulls a private price out of storage.
+        'GET /api/v1/public/offers',
+        'GET /api/v1/public/offers/{offerId}',
         'POST /api/v1/webhooks/payments/{provider}',
         'POST /api/v1/webhooks/einvoice/{provider}',
         'GET /api/v1/downloads/{assetId}/content',

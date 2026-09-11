@@ -43,6 +43,26 @@ interface CatalogueRepository
     public function findOffer(string $productId, string $offerId): ?OfferCandidate;
 
     /**
+     * The same two reads, narrowed to what the platform advertises publicly.
+     *
+     * Separate methods rather than a flag on the two above, because the
+     * caller is separate: these answer a request with no session behind it.
+     * Filtering in storage means a private price is never loaded into memory
+     * on behalf of a stranger — a filter applied afterwards would be one
+     * forgotten `continue` away from publishing it.
+     *
+     * @return list<OfferCandidate>
+     */
+    public function publiclyListedOffersFor(string $productId): array;
+
+    /**
+     * Null covers "no such offer", "not this product's" *and* "not
+     * advertised" — indistinguishable on purpose, or an id becomes a way to
+     * ask whether a private offer exists.
+     */
+    public function findPubliclyListedOffer(string $productId, string $offerId): ?OfferCandidate;
+
+    /**
      * The offer owning a given version, carrying that version alone —
      * whatever its status, and without consulting the clock.
      *

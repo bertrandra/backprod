@@ -37,6 +37,21 @@ interface SessionState {
   expiresAt: number | null;
   signIn: (grant: Grant) => void;
   /**
+   * The token, without declaring the person signed in.
+   *
+   * One caller, and it needs exactly this: the storefront has just created an
+   * account and has one more authenticated call to make — the checkout for the
+   * offer that was chosen — and `signIn` would swap the whole page out from
+   * under that call, because `SignInGate` renders the application the instant
+   * the status flips. So the token becomes usable first and the status follows
+   * when the page navigates.
+   *
+   * Short-lived by construction: what ends this state is a real navigation,
+   * after which the session is restored from the refresh cookie like any
+   * other reload.
+   */
+  grantToken: (grant: Grant) => void;
+  /**
    * No token, locally.
    *
    * There is only one of these now. U11 had `signOut` (which revoked at the
@@ -124,6 +139,9 @@ export const useSessionStore = create<SessionState>((set) => ({
       expiresAt: Date.now() + grant.expiresIn * 1000,
       status: 'signed-in',
     });
+  },
+  grantToken: (grant) => {
+    set({ token: grant.accessToken, expiresAt: Date.now() + grant.expiresIn * 1000 });
   },
   // The product goes too. A token change is a different person, and keeping
   // the previous product would leave the next one acting inside a product they

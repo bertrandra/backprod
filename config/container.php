@@ -9,6 +9,7 @@ use App\Admin\Service\FinancialDashboard;
 use App\Audit\Domain\AuditLog;
 use App\Audit\Domain\AuditReader;
 use App\Audit\Infrastructure\PostgresAuditLog;
+use App\Auth\Domain\AccountRegistrar;
 use App\Auth\Domain\AuthProvider;
 use App\Auth\Domain\LocalCredentialRepository;
 use App\Auth\Domain\LocalTokens;
@@ -17,11 +18,13 @@ use App\Auth\Domain\TokenIssuer;
 use App\Auth\Infrastructure\LocalJwtAuthProvider;
 use App\Auth\Infrastructure\LocalJwtTokenIssuer;
 use App\Auth\Infrastructure\NullSigningKeySource;
+use App\Auth\Infrastructure\PostgresAccountRegistrar;
 use App\Auth\Infrastructure\PostgresLocalCredentialRepository;
 use App\Auth\Infrastructure\PostgresRefreshTokenRepository;
 use App\Auth\Infrastructure\SigningKeySource;
 use App\Auth\Infrastructure\StaticSigningKeySource;
 use App\Auth\Infrastructure\SupabaseJwtAuthProvider;
+use App\Auth\Service\Sessions;
 use App\Billing\Domain\BillingProfileRepository;
 use App\Billing\Domain\CreditNoteRepository;
 use App\Billing\Domain\InvoiceDocumentRepository;
@@ -36,10 +39,12 @@ use App\Billing\Infrastructure\PostgresInvoiceRepository;
 use App\Commerce\Domain\CatalogueRepository;
 use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\OfferAuthoringRepository;
+use App\Commerce\Domain\StorefrontListing;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Infrastructure\PostgresCatalogueRepository;
 use App\Commerce\Infrastructure\PostgresEntitlementRepository;
 use App\Commerce\Infrastructure\PostgresOfferAuthoringRepository;
+use App\Commerce\Infrastructure\PostgresStorefrontListing;
 use App\Commerce\Infrastructure\PostgresSubscriptionRepository;
 use App\EInvoice\Domain\TransmissionEffect;
 use App\EInvoice\Domain\TransmissionRepository;
@@ -246,6 +251,7 @@ return static function (array $overrides = []): ContainerInterface {
         ),
 
         LocalCredentialRepository::class => autowire(PostgresLocalCredentialRepository::class),
+        AccountRegistrar::class => autowire(PostgresAccountRegistrar::class),
         RefreshTokenRepository::class => autowire(PostgresRefreshTokenRepository::class),
 
         // --- Persistence ----------------------------------------------------
@@ -261,6 +267,7 @@ return static function (array $overrides = []): ContainerInterface {
         ProductRepository::class => autowire(PostgresProductRepository::class),
         ProductRegistry::class => autowire(PostgresProductRegistry::class),
         CatalogueRepository::class => autowire(PostgresCatalogueRepository::class),
+        StorefrontListing::class => autowire(PostgresStorefrontListing::class),
 
         // Writing the catalogue is a second port, not more methods on the
         // first: Sales, subscription and every other reader depends on
@@ -476,6 +483,8 @@ return static function (array $overrides = []): ContainerInterface {
                     '/api/v1/auth/token',
                     '/api/v1/auth/refresh',
                     '/api/v1/auth/sign-out',
+                    '/api/v1/auth/sign-up',
+                    '/api/v1/auth/verify-email',
                 ],
                 identityOnlyPaths: ['/api/v1/products'],
                 // Unauthenticated, because the sender is a payment provider
@@ -485,7 +494,13 @@ return static function (array $overrides = []): ContainerInterface {
                 // the caller: a payment provider signs with its own secret, a
                 // download link with ours. Nothing may be mounted under
                 // either that does not verify its own signature.
-                publicPrefixes: ['/api/v1/webhooks', '/api/v1/downloads'],
+                // `/api/v1/public` is the third, and the only one whose
+                // callers are people rather than machines. It verifies no
+                // signature because there is nothing to verify: what is
+                // mounted under it must be safe to show a stranger by
+                // construction. Today that is the storefront, which returns
+                // only offers somebody has explicitly marked as advertised.
+                publicPrefixes: ['/api/v1/webhooks', '/api/v1/downloads', '/api/v1/public'],
                 // Authenticated and requiring a platform role, which no
                 // membership grants. These routes resolve no tenant of their
                 // own: they take one explicitly and record having read it.
@@ -519,6 +534,13 @@ return static function (array $overrides = []): ContainerInterface {
         // shed load at very different points. The defaults are deliberately
         // generous — a limit that fires on ordinary use teaches people to
         // ignore it.
+        // Where this deployment answers, for the links it puts in emails. There
+        // is no sensible default: guessing from a request's Host header would
+        // let anybody who can reach the API decide where a confirmation link
+        // points.
+        Sessions::class => autowire(Sessions::class)
+            ->constructorParameter('appUrl', $env('APP_URL')),
+
         RateLimiter::class => autowire(PostgresRateLimiter::class),
 
         RateLimitMiddleware::class => autowire()

@@ -1,8 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-import { useSignIn } from '@/queries/auth';
+import { useSignIn, useVerifyEmail } from '@/queries/auth';
 import { Button, Field, inputClass } from '@/ui/Field';
 
 /**
@@ -23,6 +24,14 @@ import { Button, Field, inputClass } from '@/ui/Field';
  * Since U12 the token comes from this platform's own `POST /api/v1/auth/token`,
  * through the generated client like every other call. There is no second HTTP
  * door any more.
+ *
+ * **It also answers the confirmation link.** Somebody following
+ * `/sign-in?verify=…` from an email is on a device that may never have signed
+ * in — which is half the point of confirming an address — so the confirmation
+ * belongs on the one screen that works without a session. It is deliberately
+ * *not* a sign-in: the endpoint issues no token, because a link that did would
+ * be a credential living in an inbox. The address is confirmed and the form
+ * below is how they carry on.
  */
 const schema = z.object({
   // Validated here because the form has to say something before it sends, and
@@ -42,6 +51,24 @@ type Values = z.infer<typeof schema>;
 
 export function SignInScreen() {
   const signIn = useSignIn();
+  const verification = useVerifyEmail();
+
+  // Read from the address bar rather than from the router: this screen renders
+  // *instead of* the router when there is no session, so there are no route
+  // params to read.
+  const token = new URLSearchParams(window.location.search).get('verify');
+
+  // Guarded, because React runs effects twice in development and a
+  // confirmation token is single-use — the second call would answer "no longer
+  // valid" about a link that had just worked.
+  const attempted = useRef(false);
+
+  useEffect(() => {
+    if (token !== null && token !== '' && !attempted.current) {
+      attempted.current = true;
+      verification.mutate(token);
+    }
+  }, [token, verification]);
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -56,6 +83,20 @@ export function SignInScreen() {
           Use the email address your organisation was invited with.
         </p>
       </div>
+
+      {token !== null && token !== '' && (
+        <p
+          data-testid="verification"
+          role="status"
+          className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+        >
+          {verification.isSuccess
+            ? 'Your email address is confirmed. Sign in below.'
+            : verification.isError
+              ? 'That confirmation link is no longer valid — it may have been used already or expired. You can still sign in; ask for a new link from your profile.'
+              : 'Confirming your email address…'}
+        </p>
+      )}
 
       <form
         className="space-y-4"

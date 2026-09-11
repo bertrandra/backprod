@@ -2511,6 +2511,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The shop window for one product
+         * @description Unauthenticated. Returns only offers the platform has marked `publicly_listed` **and** that are inside their sale window. `product` comes back null whenever there is nothing to show — whether the code names no product, an inactive one, or one that advertises nothing — so this cannot be used to enumerate a deployment’s products.
+         */
+        get: operations["getPublicOffers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/offers/{offerId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One advertised offer, to a stranger
+         * @description Unauthenticated. What a shared link opens. Four situations answer 404 identically — no such offer, another product’s, not advertised, not on sale today — so ids cannot be tested against the private catalogue.
+         */
+        get: operations["getPublicOffer"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/storefront/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every offer of a product, advertised or not
+         * @description The unfiltered view behind `staff.catalog.manage`: deciding what a stranger sees means seeing what is currently hidden, drafts included.
+         */
+        get: operations["listStorefrontOffers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/storefront/offers/{offerId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Advertise an offer publicly, or stop
+         * @description PUT because it states a desired state: sending the same value twice is the state asked for both times. Withdrawing an offer from the public page does not withdraw it from sale — subscribers keep their terms and members keep seeing it in the catalogue. Recorded in the staff access trail as ADVERTISE or WITHDRAW_ADVERTISING.
+         */
+        put: operations["setOfferPublicListing"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sign-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create an account, an organisation and a session
+         * @description Public. The only endpoint that creates an account from nothing — user, credential, tenant, TENANT_ADMIN membership of the named product — in one transaction. `organisation` is optional: somebody buying for themselves has no company and the tenant takes their own name instead, which nothing downstream branches on. The address is **not** verified first: a session is issued immediately and `users.email_verified_at` stays null until the confirmation link is followed. Unlike signing in, this says plainly when an address is taken — a person who cannot be told cannot finish the purchase they came for — and the public rate limit is what bounds the enumeration that permits. A minimal billing profile is created alongside the tenant — a checkout refuses an order it cannot invoice, and an account that could not buy anything would make the storefront’s promise false.
+         */
+        post: operations["signUp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm an address from the emailed token
+         * @description Public, because the person following the link may be on a device that has never signed in. It never issues a session: a link that did would be a credential living in an inbox for as long as that mail is kept. Unknown, expired and already-used are one answer, so tokens cannot be probed.
+         */
+        post: operations["verifyEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3442,9 +3562,11 @@ export interface components {
             /** @description How documents name this offer. Not editable: an identifier that can change is not an identifier. */
             code: string;
             name: string;
-            plan: Record<string, unknown>;
+            plan: components["schemas"]["Plan"];
             /** @description Newest first. */
             versions: components["schemas"]["AuthoredOfferVersion"][];
+            /** @description Whether the public storefront advertises this offer. Distinct from being on sale: a price negotiated with one reseller is sellable and is nobody else’s business. Only `staff.catalog.manage` may change it. */
+            publicly_listed: boolean;
         };
         /** @description One page and how much lies behind it. The total is counted rather than inferred from a short page — an operator needs to know whether they are looking at forty customers or four thousand, and "the page came back short" answers that only on the last one. */
         DirectoryEnvelope: {
@@ -9494,6 +9616,282 @@ export interface operations {
                 };
             };
             /** @description Unreadable, or the signature did not verify. No detail is given: a probing caller learns nothing from it. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPublicOffers: {
+        parameters: {
+            query: {
+                /** @description The product code the storefront is about. A public route resolves no ambient product — there is no context chain on it — so the filter is named explicitly. */
+                product: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The window. Possibly empty, and never explaining why. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        product: {
+                            code: string;
+                            name: string;
+                        } | null;
+                        offers: components["schemas"]["Offer"][];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — no `product` was named. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPublicOffer: {
+        parameters: {
+            query: {
+                /** @description The product code the storefront is about. A public route resolves no ambient product — there is no context chain on it — so the filter is named explicitly. */
+                product: string;
+            };
+            header?: never;
+            path: {
+                offerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The offer, with the version on sale today. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        offer: components["schemas"]["Offer"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — no `product` was named. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listStorefrontOffers: {
+        parameters: {
+            query: {
+                /** @description The product code. A staff route resolves no product of its own — a platform role grants no membership — so the console names which one it is administering. */
+                product: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The product and all of its offers. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        product: {
+                            /** Format: uuid */
+                            id: string;
+                            code: string;
+                            name: string;
+                        };
+                        offers: components["schemas"]["AuthoredOffer"][];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — no `product` was named. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setOfferPublicListing: {
+        parameters: {
+            query: {
+                /** @description The product code. A staff route resolves no product of its own — a platform role grants no membership — so the console names which one it is administering. */
+                product: string;
+            };
+            header?: never;
+            path: {
+                offerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    publicly_listed: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The offer, as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        offer: components["schemas"]["AuthoredOffer"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `publicly_listed` absent or not a boolean, or no `product` named. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    signUp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: email */
+                    email: string;
+                    /** @description Measured in bytes. The ceiling is bcrypt’s, not a preference. */
+                    password: string;
+                    /** @description The product code this account is being created for. A membership is per product, so an account without one would have no way in. */
+                    product: string;
+                    display_name?: string | null;
+                    /** @description The company name, when there is one. Omitted for a consumer; the tenant is then named after the person. */
+                    organisation?: string | null;
+                    /** @description ISO 3166-1 alpha-2. Optional, and asked for because VAT depends on it rather than to make the form look complete. */
+                    country?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The account was created and a session issued. The refresh token leaves in a `Set-Cookie` header and never in the body. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        access_token: string;
+                        token_type: string;
+                        expires_in: number;
+                        /**
+                         * Format: uuid
+                         * @description The organisation just created. Returned because the checkout that follows resolves it anyway.
+                         */
+                        tenant_id: string;
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — a field is missing, the wrong type, or the password is outside 12–72 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description `EMAIL_TAKEN` — that address already has an account. Sign in instead. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    verifyEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The address is confirmed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        verified: boolean;
+                    };
+                };
+            };
+            /** @description `VERIFICATION_FAILED` — the token is unknown, expired or already used, or `VALIDATION_FAILED` if none was sent. */
             400: {
                 headers: {
                     [name: string]: unknown;

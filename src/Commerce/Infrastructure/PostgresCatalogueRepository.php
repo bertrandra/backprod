@@ -76,6 +76,20 @@ final class PostgresCatalogueRepository implements CatalogueRepository
         return $this->load($productId, $offerId)[0] ?? null;
     }
 
+    public function publiclyListedOffersFor(string $productId): array
+    {
+        return $this->load($productId, null, true);
+    }
+
+    public function findPubliclyListedOffer(string $productId, string $offerId): ?OfferCandidate
+    {
+        if (!Uuid::isValid($offerId)) {
+            return null;
+        }
+
+        return $this->load($productId, $offerId, true)[0] ?? null;
+    }
+
     public function findOfferByVersion(string $productId, string $offerVersionId): ?OfferCandidate
     {
         if (!Uuid::isValid($offerVersionId)) {
@@ -112,6 +126,7 @@ final class PostgresCatalogueRepository implements CatalogueRepository
             $candidate->name,
             $candidate->plan,
             $this->versionById($offerVersionId),
+            $candidate->publiclyListed,
         );
     }
 
@@ -128,7 +143,7 @@ final class PostgresCatalogueRepository implements CatalogueRepository
     /**
      * @return list<OfferCandidate>
      */
-    private function load(string $productId, ?string $offerId): array
+    private function load(string $productId, ?string $offerId, bool $publiclyListedOnly = false): array
     {
         // The optional filter is added rather than expressed as a null-check
         // on a bound parameter: that form needs the same placeholder twice
@@ -141,9 +156,16 @@ final class PostgresCatalogueRepository implements CatalogueRepository
             $parameters['offerId'] = $offerId;
         }
 
+        // Narrowed here rather than after the fetch, so a request with no
+        // session behind it never pulls a private price out of storage at
+        // all. `offers_publicly_listed_idx` is the partial index this hits.
+        if ($publiclyListedOnly) {
+            $conditions .= ' AND o.publicly_listed';
+        }
+
         $rows = $this->connection->fetchAllAssociative(
             <<<SQL
-                SELECT o.id, o.code, o.name,
+                SELECT o.id, o.code, o.name, o.publicly_listed,
                        pl.id AS plan_id, pl.code AS plan_code, pl.name AS plan_name, pl.rank AS plan_rank
                 FROM offers o
                 JOIN plans pl ON pl.id = o.plan_id
@@ -175,6 +197,7 @@ final class PostgresCatalogueRepository implements CatalogueRepository
                         Row::integer($row, 'plan_rank'),
                     ),
                     $versions[$id] ?? [],
+                    Row::boolean($row, 'publicly_listed'),
                 );
             },
             $rows,

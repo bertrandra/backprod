@@ -491,3 +491,57 @@ export function useSetTenantOfferAuthoring(tenantId: string) {
     },
   });
 }
+
+/**
+ * What the public storefront advertises, for one product.
+ *
+ * The unfiltered view — every offer, hidden ones included — because deciding
+ * what a stranger sees means seeing what is currently hidden. The product is a
+ * query parameter rather than `X-Product`: a staff route resolves no product
+ * of its own, since a platform role grants no membership.
+ */
+export function useStorefrontOffers(productCode: string | null) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.storefront.listing(productCode ?? ''),
+    enabled: productCode !== null && productCode !== '',
+    queryFn: async () => {
+      const { data, error, response } = await client.GET('/api/v1/staff/storefront/offers', {
+        params: { query: { product: productCode ?? '' } },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+  });
+}
+
+export function useSetOfferPublicListing(productCode: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (decision: { offerId: string; listed: boolean }) => {
+      const { data, error, response } = await client.PUT(
+        '/api/v1/staff/storefront/offers/{offerId}',
+        {
+          params: { path: { offerId: decision.offerId }, query: { product: productCode } },
+          body: { publicly_listed: decision.listed },
+        },
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.offer;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: keys.storefront.listing(productCode) });
+    },
+  });
+}

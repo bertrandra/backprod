@@ -35,4 +35,13 @@ final class StaffPermission
      * every other customer of that product pays.
      */
     public const TENANTS_MANAGE = 'staff.tenants.manage';
+
+    /**
+     * Deciding what the public storefront advertises — PLATFORM_ADMIN alone.
+     *
+     * Deliberately not `catalog.manage`, which ADR-040 lets the platform lend
+     * to a tenant. A tenant authoring its own offers must not thereby decide
+     * what the platform's public page shows to everybody.
+     */
+    public const CATALOG_MANAGE = 'staff.catalog.manage';
 }

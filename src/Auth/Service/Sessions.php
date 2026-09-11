@@ -4,15 +4,21 @@ declare(strict_types=1);
 
 namespace App\Auth\Service;
 
+use App\Auth\Domain\AccountRegistrar;
 use App\Auth\Domain\LocalCredentialRepository;
 use App\Auth\Domain\RefreshTokenRepository;
+use App\Auth\Domain\RegisteredAccount;
 use App\Auth\Domain\TokenIssuer;
+use App\Notification\Domain\Category;
+use App\Notification\Domain\Channel;
+use App\Notification\Domain\NotificationRepository;
+use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\UnauthenticatedException;
 use Psr\Log\LoggerInterface;
 use SensitiveParameter;
 
 /**
- * Signing in, staying signed in, and signing out (U12).
+ * Signing up, signing in, staying signed in, and signing out.
  *
  * The one place that decides whether a credential is good. Everything about how
  * a token is *shaped* is in Infrastructure; everything about what a browser does
@@ -34,12 +40,136 @@ final class Sessions
      */
     private const TIMING_EQUALISER = '$2y$12$C6UzMDM.H6dfI/f/IKcEe.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
+    /** Two days to click a link in an email. Long enough for a weekend, short enough to matter. */
+    public const VERIFICATION_LIFETIME = 172_800;
+
     public function __construct(
         private readonly LocalCredentialRepository $credentials,
         private readonly RefreshTokenRepository $refreshTokens,
         private readonly TokenIssuer $issuer,
         private readonly LoggerInterface $logger,
+        private readonly AccountRegistrar $registrar,
+        private readonly NotificationRepository $notifications,
+        /**
+         * Where this deployment is reachable, for the link in a confirmation
+         * email. Empty when nobody configured it, and the link is then
+         * relative — which is useless in a mail client and honest about it,
+         * where a guessed host would send people to somebody else's site.
+         */
+        private readonly string $appUrl = '',
     ) {
+    }
+
+    /**
+     * A stranger becomes a customer: account, organisation, and a session.
+     *
+     * **It lives here rather than in a service of its own** because signing up
+     * ends in exactly what signing in ends in — a token pair from `start()` —
+     * and a separate service would either duplicate that or depend on this
+     * one, which the layering forbids for good reason.
+     *
+     * **The session is issued immediately, before the address is confirmed.**
+     * That is the decision the storefront was built on: an interrupted
+     * purchase is a purchase that does not happen, and a verification link
+     * landing in a spam folder is not something to put between somebody and a
+     * subscription. `users.email_verified_at` records the doubt for whoever
+     * downstream needs to act on it.
+     *
+     * **The address being taken is answered plainly**, unlike signing in,
+     * where `TIMING_EQUALISER` exists precisely so that "no such account"
+     * cannot be told from "wrong password". The asymmetry is not an oversight:
+     * a person who cannot be told their address is already registered cannot
+     * complete the purchase they came for, and the sign-in form is one click
+     * away. What bounds the enumeration this permits is the rate limiter,
+     * which on a public route is the tighter allowance (§31).
+     *
+     * @return array{Session, RegisteredAccount}
+     *
+     * @throws ConflictException when the address already has an account
+     */
+    public function signUp(
+        string $email,
+        #[SensitiveParameter] string $password,
+        ?string $displayName,
+        ?string $organisation,
+        string $productCode,
+        ?string $countryCode = null,
+    ): array {
+        if ($this->registrar->emailIsTaken($email)) {
+            throw new ConflictException('EMAIL_TAKEN', 'That address already has an account.');
+        }
+
+        // B2C and B2B differ by one optional field and nothing else. Somebody
+        // buying for themselves has no company to name and must not be made to
+        // invent one, so the tenant takes their own name — an invoice still
+        // needs somebody to be addressed to, and that is who it is. Neither
+        // case is recorded as a *kind* of customer: nothing downstream should
+        // branch on it, and a column saying B2C would invite something to.
+        $organisationName = $organisation !== null && trim($organisation) !== ''
+            ? trim($organisation)
+            : ($displayName ?? $email);
+
+        $account = $this->registrar->register(
+            $email,
+            password_hash($password, PASSWORD_BCRYPT),
+            $displayName,
+            $organisationName,
+            $productCode,
+            $countryCode,
+        );
+
+        $this->askForConfirmation($account);
+
+        return [$this->start($account->userId, $account->authSubject, $account->email)[0], $account];
+    }
+
+    /**
+     * Confirms an address from the token in the link.
+     *
+     * Never says why a token failed — unknown, expired and spent are one
+     * answer — and never signs anybody in. A link that produced a session
+     * would be a credential sitting in an inbox, readable by anybody who ever
+     * gains access to it, for as long as the mail is kept.
+     */
+    public function confirmEmail(#[SensitiveParameter] string $rawToken): bool
+    {
+        return $rawToken !== '' && $this->registrar->confirmEmail($this->hash($rawToken));
+    }
+
+    /**
+     * The token, and the notice carrying it.
+     *
+     * ACCOUNT rather than SECURITY: this is not something that happened to an
+     * account somebody already has, which is what the unmutable category is
+     * for. A person who switches off account email has decided not to confirm
+     * their address, and the platform lets them.
+     *
+     * The raw token reaches the payload and the hash reaches the row, which is
+     * the same split `refresh_tokens` makes: what is stored must not be
+     * presentable as a credential.
+     */
+    private function askForConfirmation(RegisteredAccount $account): void
+    {
+        $raw = bin2hex(random_bytes(32));
+
+        $this->registrar->issueVerification($account->userId, $this->hash($raw), self::VERIFICATION_LIFETIME);
+
+        $this->notifications->raise(
+            $account->tenantId,
+            $account->productId,
+            $account->userId,
+            'account.email_verification',
+            Category::ACCOUNT,
+            [
+                'link' => rtrim($this->appUrl, '/') . '/sign-in?verify=' . $raw,
+                'email' => $account->email,
+            ],
+            // One live token per account, so one notice per account: asking
+            // again replaces both rather than adding to them.
+            'email-verification:' . $account->userId,
+            false,
+            [Channel::EMAIL],
+        );
     }
 
     /**
