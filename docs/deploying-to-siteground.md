@@ -14,6 +14,19 @@ the host needs neither** — no build step ever runs on SiteGround, which is the
 only arrangement that works on a host offering PHP, PostgreSQL and JavaScript and
 nothing else.
 
+**`deploy/siteground/setup.php` does §3's migration, §5's `.env`, and "Somebody
+to sign in as" in one browser form, from the host itself.** Upload it into
+`public_html/` alongside `index.php`, visit it, and fill in the database Site
+Tools just created — no whitelisting your own machine's IP, because nothing
+runs from anywhere but the account that already has the run of its own
+PostgreSQL. It writes `.env`, runs the migrations, and creates the first
+product, tenant and admin account, then makes itself inert: a completion marker
+refuses a second run even if you forget to delete the file, though deleting it
+once you have confirmed you can sign in is still the right thing to do — a page
+that can rewrite `.env` has no business staying reachable once it has nothing
+left to do. The sections below are what it automates; read them if you would
+rather do it by hand, or need to understand what it did.
+
 ---
 
 ## 0. Before anything else: three facts to establish

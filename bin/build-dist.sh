@@ -182,6 +182,7 @@ mkdir -p "$APP/var/assets" "$APP/var/pdf"
 
 cp "$ROOT/deploy/siteground/env.production.example" "$APP/.env.example"
 cp "$ROOT/deploy/siteground/docroot-index.php" "$DOCROOT/index.php"
+cp "$ROOT/deploy/siteground/setup.php" "$DOCROOT/setup.php"
 
 sed "s#@@CONNECT_SRC@@#${CONNECT_SRC}#" \
     "$ROOT/deploy/siteground/htaccess.template" > "$DOCROOT/.htaccess"
@@ -206,6 +207,11 @@ Backprod deployment bundle
 Upload public_html/ into the document root, backprod-app/ beside it, then read
 DEPLOY.md. Nothing in here contains a secret: the server's own configuration is
 .env, which you create on the host from .env.example.
+
+Visiting /setup.php does the rest from a browser — writes .env, migrates, and
+creates the first product, tenant and admin account — then locks itself: a
+completion marker refuses to do any of that again. Delete the file once you
+have confirmed you can sign in; there is no password reset yet (ADR-038).
 INFO
 
 # Checksums, so a half-finished FTP transfer is a failed check rather than a

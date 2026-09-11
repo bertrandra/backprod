@@ -174,22 +174,31 @@ fi
 # put one here now — the browser holds no key at all — which is exactly when a
 # check like this earns its keep: it is looking for something that has no reason to
 # exist, so a hit means something went wrong upstream of the build.
-if grep -rlE 'sb_secret_|service_role|AUTH_SIGNING_SECRET' "$DOCROOT" >/dev/null 2>&1; then
+#
+# setup.php is excluded from this scan on purpose: it is PHP source that writes
+# `AUTH_SIGNING_SECRET=` as an .env *key* it generates a value for at runtime
+# (`random_bytes`, never typed by a person or present in this file) — the same
+# reason `docs/deploying-to-siteground.md` names it in prose without being a leak.
+if grep -rlE 'sb_secret_|service_role|AUTH_SIGNING_SECRET' "$DOCROOT" --exclude=setup.php >/dev/null 2>&1; then
     fail "the document root contains something shaped like a secret — nothing should, since U12"
 else
     pass "no credential of any kind in the document root"
 fi
 
-# One PHP file in the document root, and it is the shim. Anything else there is
-# either reachable by URL when it should not be, or a copy of something that
-# already exists in the application directory.
+# Two PHP files in the document root: the shim, and the onboarding page that
+# deactivates itself once it has run (a completion marker, not just the delete
+# an operator is told to do afterwards). Anything else there is either reachable
+# by URL when it should not be, or a copy of something that already exists in
+# the application directory.
 PHP_IN_DOCROOT="$(find "$DOCROOT" -name '*.php' -type f | wc -l | tr -d ' ')"
 
-if [ "$PHP_IN_DOCROOT" = "1" ]; then
-    pass "exactly one PHP file in the document root"
+if [ "$PHP_IN_DOCROOT" = "2" ]; then
+    pass "exactly two PHP files in the document root (the shim and setup.php)"
 else
-    fail "$PHP_IN_DOCROOT PHP files in the document root; expected 1"
+    fail "$PHP_IN_DOCROOT PHP files in the document root; expected 2"
 fi
+
+check "setup.php is in the document root" [ -f "$DOCROOT/setup.php" ]
 
 check "the application is outside the document root" \
     bash -c "[ ! -d '$DOCROOT/../public_html/backprod-app' ] && [ -d '$APP' ]"
