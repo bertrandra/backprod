@@ -217,21 +217,17 @@ jobs:
       - name: Vitest
         run: npm run test
 
-      # Two builds, deliberately.
+      # One build, and it is the production one — no test values baked in.
       #
-      # The first proves a *production* bundle builds — the one a deployment
-      # actually ships, with no test values baked into it.
-      #
-      # The second is what Playwright serves. Since U11 the application has a gate
-      # above the router and renders nothing without a token, so the suite needs a
-      # bundle that knows about an identity provider; `--mode e2e` supplies a
-      # stubbed one. Serving the production build here would land all 194 tests on
-      # the sign-in screen, which is how this was first found.
+      # U11 needed a second, `--mode e2e` build here: the application has a gate
+      # above the router and renders nothing without a token, and the suite
+      # needed a bundle that knew about an identity provider to get past it.
+      # Since U12 the fixture in e2e/support/app.ts stubs the session at the
+      # browser level (`page.route('**/api/v1/auth/refresh', ...)`), the same way
+      # every other API call in these specs is stubbed — so the bundle Playwright
+      # serves needs nothing baked in either, and there is only one build to run.
       - name: Build
         run: npx vite build
-
-      - name: Build for the browser suite
-        run: npm run build:e2e
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
@@ -298,16 +294,17 @@ jobs:
       - name: Migrate
         run: composer run migrate
 
-      # `--mode e2e` so the bundle carries a stubbed identity provider and the
-      # verification can reach past the sign-in gate. `--skip-gates` because the
-      # frontend job above has already run every one of them, and running them
-      # twice buys nothing but minutes.
+      # `--skip-gates` because the frontend job above has already run every one
+      # of them, and running them twice buys nothing but minutes.
+      #
+      # No identity provider to stub: bin/verify-dist.sh's authenticated check
+      # is `GET /api/v1/me` over curl, answered 401 by the API itself rather than
+      # a browser session, so this is the one bundle U12 ever builds — the same
+      # one a deployment ships.
       - name: Build the bundle
         env:
-          SUPABASE_URL: https://project.supabase.test
-          SUPABASE_ANON_KEY: e2e-anon-key
           DEFAULT_PRODUCT: atlas
-        run: bin/build-dist.sh --mode e2e --skip-gates
+        run: bin/build-dist.sh --skip-gates
 
       # With DATABASE_DSN set, so the API half is exercised rather than only the
       # 503 an unconfigured deployment answers with.
