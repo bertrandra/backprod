@@ -38,8 +38,11 @@ use Doctrine\Migrations\AbstractMigration;
  * data that already exists and the wrong way to let new data be written: the
  * question "what does this offer cost today" would have two defensible
  * answers, and the one a customer saw would depend on which code path asked.
- * The exclusion constraint makes the overlap impossible instead, so the
- * tie-break becomes unreachable rather than load-bearing.
+ * A trigger makes the overlap impossible instead, so the tie-break becomes
+ * unreachable rather than load-bearing — the same guarantee a GiST exclusion
+ * constraint would give, without `btree_gist`: see the identical reasoning on
+ * `tax_rates_windows_do_not_overlap` in Version20260904040000, the migration
+ * that first needed this.
  */
 final class Version20260909100000 extends AbstractMigration
 {
@@ -166,29 +169,59 @@ final class Version20260909100000 extends AbstractMigration
                 FOR EACH ROW EXECUTE FUNCTION offer_version_grants_are_frozen()
             SQL);
 
-        // btree_gist is already installed by the tax migration; the guard
-        // keeps this migration standalone rather than ordering-dependent.
-        $this->addSql('CREATE EXTENSION IF NOT EXISTS btree_gist');
-
-        // Partial, because only an ACTIVE version is on sale. Two DRAFTs may
-        // sit in the same window — that is a plan, not a contradiction — and
-        // EXPIRED versions overlap by their nature, since a window that has
-        // closed still records when it was open.
+        // Checked only when the row being written is ACTIVE — that is the
+        // partiality a `WHERE (status = 'ACTIVE')` clause would give a GiST
+        // exclusion constraint. Two DRAFTs may sit in the same window — that
+        // is a plan, not a contradiction — and EXPIRED versions overlap by
+        // their nature, since a window that has closed still records when it
+        // was open.
+        //
+        // `pg_advisory_xact_lock` rather than `EXCLUDE USING gist`, and
+        // `btree_gist` with it: see the identical reasoning next to
+        // `tax_rates_no_overlapping_window` in Version20260904040000. The
+        // exception text keeps the constraint's old name as a substring on
+        // purpose — PostgresOfferAuthoringRepository::publishVersion() still
+        // matches against it to turn this into a 409, and neither that catch
+        // nor the behaviour it protects changed, only how the database
+        // reaches it.
         $this->addSql(<<<'SQL'
-            ALTER TABLE offer_versions
-                ADD CONSTRAINT offer_versions_one_on_sale_at_a_time
-                    EXCLUDE USING gist (
-                        offer_id WITH =,
-                        tstzrange(valid_from, valid_until) WITH &&
-                    ) WHERE (status = 'ACTIVE')
+            CREATE FUNCTION offer_versions_no_overlapping_sale_window() RETURNS trigger AS $$
+            BEGIN
+                IF NEW.status <> 'ACTIVE' THEN
+                    RETURN NEW;
+                END IF;
+
+                PERFORM pg_advisory_xact_lock(hashtextextended(NEW.offer_id::text, 0));
+
+                IF EXISTS (
+                    SELECT 1 FROM offer_versions
+                     WHERE offer_id = NEW.offer_id
+                       AND status = 'ACTIVE'
+                       AND id <> NEW.id
+                       AND NEW.valid_from < COALESCE(valid_until, 'infinity'::timestamptz)
+                       AND COALESCE(NEW.valid_until, 'infinity'::timestamptz) > valid_from
+                ) THEN
+                    RAISE EXCEPTION
+                        'offer_versions_one_on_sale_at_a_time: another version of this offer '
+                        'is already on sale over that period';
+                END IF;
+
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+            SQL);
+
+        $this->addSql(<<<'SQL'
+            CREATE TRIGGER offer_versions_one_on_sale_at_a_time
+                BEFORE INSERT OR UPDATE ON offer_versions
+                FOR EACH ROW EXECUTE FUNCTION offer_versions_no_overlapping_sale_window()
             SQL);
     }
 
     public function down(Schema $schema): void
     {
-        $this->addSql(
-            'ALTER TABLE offer_versions DROP CONSTRAINT IF EXISTS offer_versions_one_on_sale_at_a_time',
-        );
+        $this->addSql('DROP TRIGGER IF EXISTS offer_versions_one_on_sale_at_a_time ON offer_versions');
+        $this->addSql('DROP FUNCTION IF EXISTS offer_versions_no_overlapping_sale_window()');
 
         $this->addSql('DROP TRIGGER IF EXISTS offer_version_features_frozen ON offer_version_features');
         $this->addSql('DROP FUNCTION IF EXISTS offer_version_grants_are_frozen()');
