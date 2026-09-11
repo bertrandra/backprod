@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { useUpdateProfile } from '@/queries/account';
-import { useSessionStore } from '@/state/session';
+import { useSignOut } from '@/queries/auth';
 import { useSession } from '@/queries/session';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { ErrorSurface } from '@/ui/ErrorSurface';
@@ -26,7 +26,7 @@ type Values = z.infer<typeof schema>;
 export function ProfileScreen() {
   const session = useSession();
   const update = useUpdateProfile();
-  const signOut = useSessionStore((state) => state.signOut);
+  const signOut = useSignOut();
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -98,7 +98,12 @@ export function ProfileScreen() {
           only route to anything the bottom bar could not fit — and an account
           you cannot leave on a phone is a worse defect than one extra control. */}
       <div className="border-t border-neutral-200 pt-4 dark:border-neutral-800">
-        <Button type="button" variant="secondary" onClick={signOut}>
+        <Button
+          type="button"
+          variant="secondary"
+          pending={signOut.isPending}
+          onClick={() => signOut.mutate()}
+        >
           Sign out
         </Button>
       </div>

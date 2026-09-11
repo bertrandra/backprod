@@ -10,7 +10,15 @@ use App\Audit\Domain\AuditLog;
 use App\Audit\Domain\AuditReader;
 use App\Audit\Infrastructure\PostgresAuditLog;
 use App\Auth\Domain\AuthProvider;
+use App\Auth\Domain\LocalCredentialRepository;
+use App\Auth\Domain\LocalTokens;
+use App\Auth\Domain\RefreshTokenRepository;
+use App\Auth\Domain\TokenIssuer;
+use App\Auth\Infrastructure\LocalJwtAuthProvider;
+use App\Auth\Infrastructure\LocalJwtTokenIssuer;
 use App\Auth\Infrastructure\NullSigningKeySource;
+use App\Auth\Infrastructure\PostgresLocalCredentialRepository;
+use App\Auth\Infrastructure\PostgresRefreshTokenRepository;
 use App\Auth\Infrastructure\SigningKeySource;
 use App\Auth\Infrastructure\StaticSigningKeySource;
 use App\Auth\Infrastructure\SupabaseJwtAuthProvider;
@@ -176,18 +184,67 @@ return static function (array $overrides = []): ContainerInterface {
         LoggerInterface::class => autowire(ErrorLogLogger::class),
 
         // --- Identity -------------------------------------------------------
-        // Without configured keys this yields an empty key set, so every token
-        // fails and the API authenticates nobody (see NullSigningKeySource).
+        //
+        // Two providers, and the configuration chooses. `AUTH_SIGNING_SECRET`
+        // means this deployment issues its own tokens (U12) and needs nothing
+        // external; `SUPABASE_JWKS` means an external provider issues them and
+        // this platform only verifies (ADR-014). Neither means nobody can
+        // authenticate — which is the safe default for an unconfigured install,
+        // and `preflight` is what says so out loud.
+        //
+        // Local wins when both are set, deliberately: a deployment that has been
+        // given its own signing secret has been configured to be self-contained,
+        // and silently preferring the remote provider would make that setting a
+        // no-op nobody could see.
         SigningKeySource::class => factory(static function () use ($env): SigningKeySource {
             $jwks = $env('SUPABASE_JWKS');
 
             return $jwks === '' ? new NullSigningKeySource() : StaticSigningKeySource::fromJson($jwks);
         }),
 
-        AuthProvider::class => autowire(SupabaseJwtAuthProvider::class)
-            ->constructorParameter('keys', get(SigningKeySource::class))
-            ->constructorParameter('expectedIssuer', $env('SUPABASE_ISSUER'))
-            ->constructorParameter('expectedAudience', $env('SUPABASE_AUDIENCE', 'authenticated')),
+        AuthProvider::class => factory(static function (
+            ContainerInterface $container,
+        ) use ($env): AuthProvider {
+            $secret = $env('AUTH_SIGNING_SECRET');
+
+            /** @var LoggerInterface $logger */
+            $logger = $container->get(LoggerInterface::class);
+
+            if ($secret !== '') {
+                return new LocalJwtAuthProvider(
+                    $secret,
+                    $env('AUTH_ISSUER', LocalTokens::DEFAULT_ISSUER),
+                    $env('AUTH_AUDIENCE', LocalTokens::DEFAULT_AUDIENCE),
+                    $logger,
+                );
+            }
+
+            /** @var SigningKeySource $keys */
+            $keys = $container->get(SigningKeySource::class);
+
+            return new SupabaseJwtAuthProvider(
+                $keys,
+                $env('SUPABASE_ISSUER'),
+                $env('SUPABASE_AUDIENCE', 'authenticated'),
+                $logger,
+            );
+        }),
+
+        // The issuing half. Empty secret and it refuses to mint anything, which is
+        // why `Sessions` is unreachable rather than half-working on an
+        // unconfigured deployment: the sign-in endpoint answers 503 and says the
+        // deployment is not finished.
+        TokenIssuer::class => factory(
+            static fn (): TokenIssuer => new LocalJwtTokenIssuer(
+                $env('AUTH_SIGNING_SECRET'),
+                $env('AUTH_ISSUER', LocalTokens::DEFAULT_ISSUER),
+                $env('AUTH_AUDIENCE', LocalTokens::DEFAULT_AUDIENCE),
+                (int) ($env('AUTH_TOKEN_LIFETIME', (string) LocalJwtTokenIssuer::DEFAULT_LIFETIME)),
+            ),
+        ),
+
+        LocalCredentialRepository::class => autowire(PostgresLocalCredentialRepository::class),
+        RefreshTokenRepository::class => autowire(PostgresRefreshTokenRepository::class),
 
         // --- Persistence ----------------------------------------------------
         // DBAL connects lazily, so an unconfigured or unreachable database
@@ -407,7 +464,16 @@ return static function (array $overrides = []): ContainerInterface {
         // omission rather than by remembering to protect it.
         RoutePolicy::class => factory(
             static fn (): RoutePolicy => new RoutePolicy(
-                publicPaths: ['/api/v1/health'],
+                // Exact paths, which the class calls the safe kind: a fixed
+                // string cannot accidentally cover a route added later. The three
+                // auth routes authenticate the *request* — a password, or a
+                // rotating refresh cookie — which is what a public route must do.
+                publicPaths: [
+                    '/api/v1/health',
+                    '/api/v1/auth/token',
+                    '/api/v1/auth/refresh',
+                    '/api/v1/auth/sign-out',
+                ],
                 identityOnlyPaths: ['/api/v1/products'],
                 // Unauthenticated, because the sender is a payment provider
                 // rather than a person. Everything under it must verify its

@@ -24,6 +24,7 @@ list is the one that matters when somebody is deciding whether to launch.
 | Domain code cannot reach SQL | `deptrac` + `gate:proof`, which proves the gate itself rejects a violation |
 | The behaviour, against a real PostgreSQL 16 | 825 tests, 5 964 assertions |
 | Every route is usable without a mouse and passes WCAG 2.1 AA | 60 axe scans across both shells and both viewports |
+| A password becomes a session, and a spent refresh token revokes the account's sessions | `SignInTest` — 13 cases against the real database (ADR-038) |
 | The §37.4 chain works for a person, not only in PHPUnit | `e2e/sales-chain.spec.ts` |
 
 ## 2. Built, and rehearsable here
@@ -91,11 +92,10 @@ Stated plainly, because a readiness document that omits these is worse than none
   a route against a stubbed API. Nobody knows what this does under concurrency.
 - **No secret management.** Secrets come from `.env`. There is no vault, no
   rotation, and no audit of who read one.
-- **The browser's refresh token is in `localStorage`** (U11). It does not survive
-  an XSS; neither would a readable cookie. The shape that would is an `HttpOnly`
-  cookie, which requires PHP to own the token exchange rather than only verify a
-  bearer token — an architecture change, and the first one to make after a
-  deployment exists.
+- **No password reset, no email verification, no registration** (ADR-038). A
+  credential is set by `demo:seed` or by SQL. That is honest while tenants are
+  created by an operator and dishonest the moment anybody self-registers, which
+  makes it the next thing to build rather than a gap to live with.
 - **No certified e-invoicing platform** (R3). The four transmission states are
   real and the adapter is a stub. The first French obligation is dated
   **1 September 2026**, which has passed.

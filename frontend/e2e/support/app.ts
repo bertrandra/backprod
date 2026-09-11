@@ -1,52 +1,46 @@
-import { test as base } from '@playwright/test';
+import { test as base, type Page } from '@playwright/test';
 
 /**
  * The signed-in page every other spec starts from.
  *
- * U11 put a gate above the router: nothing renders without a token. That is the
- * point of it, and it means all 178 existing browser tests were suddenly looking
- * at a sign-in form. There were two ways out — weaken the gate for tests, or give
- * the tests a session — and only the second one leaves the gate meaning anything.
+ * U11 put a gate above the router: nothing renders without a token. All 178
+ * browser tests were suddenly looking at a sign-in form, and there were two ways
+ * out — weaken the gate for tests, or give the tests a session. Only the second
+ * leaves the gate meaning anything.
  *
- * **A session, obtained the way a returning visitor obtains one.** A refresh
- * token is seeded into storage before the page's first script runs, and the
- * provider's token endpoint answers it. So every spec exercises the restore path
- * on the way in rather than bypassing it, and a defect in that path fails
- * everywhere instead of nowhere.
- *
- * The URL is the one `--mode e2e` bakes into the bundle. A real Supabase project
- * is never contacted: nothing here leaves the browser.
+ * **U12 made this simpler and more honest.** The fixture used to seed a refresh
+ * token into `localStorage` and stub an external provider's token endpoint. There
+ * is no external provider now and nothing in storage to seed: the session resumes
+ * because `POST /api/v1/auth/refresh` answers, which is a route in this
+ * application's own contract. So the stub is an API stub like every other one in
+ * these specs, and each spec exercises the real restore path on the way in.
  */
-export const AUTH_ORIGIN = 'https://project.supabase.test';
-
-/** Long enough that no spec is interrupted by a renewal it did not ask for. */
-const GRANT = {
+const SESSION = {
   access_token: 'e2e-access-token',
-  refresh_token: 'e2e-refresh-token',
+  token_type: 'Bearer',
+  // Long enough that no spec is interrupted by a renewal it did not ask for.
   expires_in: 3600,
 };
 
+/**
+ * Answers the session refresh, wherever it is registered.
+ *
+ * **Exported as well as applied by the fixture, because of Playwright's ordering.**
+ * The most recently registered route wins — the trap U9 recorded — so a spec that
+ * registers a catch-all (`/\/api\/v1\//`) after the fixture ran would answer the
+ * refresh with whatever it answers everything with, and every test in that file
+ * would land on the sign-in form. Those specs call this again after their own
+ * stubs, which is a line each and visible where it matters.
+ */
+export async function stubSession(page: Page): Promise<void> {
+  await page.route('**/api/v1/auth/refresh', (route) =>
+    route.fulfill({ status: 200, json: SESSION }),
+  );
+}
+
 export const test = base.extend({
   page: async ({ page }, use) => {
-    // Before any application script, so the store's first read finds it. Setting
-    // it after `goto` would be a race the test loses about half the time.
-    await page.addInitScript(() => {
-      try {
-        window.localStorage.setItem('backprod.refresh', 'e2e-refresh-token');
-      } catch {
-        // A browser context with storage blocked is not what any of these specs
-        // are about, and the sign-in screen covers it.
-      }
-    });
-
-    // Registered here, which is *before* every stub a spec adds — and that is the
-    // right way round. Playwright matches the most recently registered route, so
-    // a spec's own catch-all (`/\/api\/v1\//`) wins over this only if it also
-    // matches this URL, which it deliberately does not: the identity provider is
-    // a different origin from the API.
-    await page.route(`${AUTH_ORIGIN}/auth/v1/token**`, (route) =>
-      route.fulfill({ status: 200, json: GRANT }),
-    );
+    await stubSession(page);
 
     await use(page);
   },

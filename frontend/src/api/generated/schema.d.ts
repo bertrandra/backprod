@@ -9,7 +9,7 @@
  */
 
 export interface paths {
-    "/api/v1/health": {
+    "/api/v1/admin/audit": {
         parameters: {
             query?: never;
             header?: never;
@@ -17,10 +17,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Liveness probe
-         * @description The one path reachable with no credential at all. It answers from the process alone: an unreachable database must not make the process look dead to an orchestrator, so this stays up when data is down.
+         * The audit trail
+         * @description Behind its own permission, and separate from the tenant surfaces entirely (#19).
          */
-        get: operations["health"];
+        get: operations["listAudit"];
         put?: never;
         post?: never;
         delete?: never;
@@ -29,237 +29,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/me": {
+    "/api/v1/admin/erasures": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * The caller, as this product and tenant see them
-         * @description Everything the §10.6 chain resolved: who, where, and what that combination permits. `roles` and `permissions` are the tenant's grant; `capabilities` are what the subscription bought. Authorisation asks about capabilities, never about a plan's name (§13).
-         */
-        get: operations["showMe"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Change the caller's own profile
-         * @description Partial by design: an absent `display_name` leaves it untouched, an explicit `null` clears it. Those are different requests and are not collapsed into one.
-         */
-        patch: operations["updateMe"];
-        trace?: never;
-    };
-    "/api/v1/me/permissions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The caller's roles and permissions here
-         * @description The authorisation half of `/me`, on its own, for a client that wants to refresh what is allowed without re-reading the profile.
-         */
-        get: operations["showMyPermissions"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/me/entitlements": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * What the caller's subscription bought
-         * @description Capability codes, resolved once by the context chain from what is in force now. A lapsed subscription grants nothing without anything having to sweep it first — entitlement asks the clock.
-         */
-        get: operations["showMyEntitlements"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/products": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Products this caller may use
-         * @description Runs before a product is resolved, and must: a client cannot send `X-Product` until it knows which products it may use, so requiring one here would make discovery depend on its own result. Authorisation is per product, from membership.
-         */
-        get: operations["listProducts"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/products/{productId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * One product
-         * @description Named in the path rather than the header, because this is discovery: the caller is asking about a product, not acting inside one.
-         */
-        get: operations["showProduct"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/products/{productId}/catalog": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * A product's features and configuration together
-         * @description One round trip for what a client needs to render a product before choosing it.
-         */
-        get: operations["showProductCatalogue"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/products/{productId}/features": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * What a product offers
-         * @description The catalogue of features a product defines, independent of what any tenant has bought.
-         */
-        get: operations["listProductFeatures"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/products/{productId}/configuration": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * A product's settings
-         * @description An object even when empty, so a client never has to tell `{}` from `null`.
-         */
-        get: operations["showProductConfiguration"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/plans": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The plans this product sells
-         * @description Ordered by `rank`, which is what an upgrade compares. Nothing in the platform branches on a plan's *name* (§13, and a CI gate says so).
-         */
-        get: operations["listPlans"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/features": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The capabilities this product sells
-         * @description The vocabulary entitlements are expressed in. A quota carries its unit; a boolean must not.
-         */
-        get: operations["listFeatures"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/offers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Offers currently on sale
-         * @description Only what may be sold *now*: an offer whose version's validity window has closed is absent rather than marked expired, because a client that can see it will eventually try to buy it.
-         */
-        get: operations["listOffers"];
+        get?: never;
         put?: never;
         /**
-         * Create an offer and its first draft version
-         * @description One call, because an offer with no version has no price and no terms — nothing can be sold, shown or quoted from it. Born `DRAFT`; publishing is a separate act.
+         * Forget a person, keeping what the law requires
+         * @description Non-negotiables #14 and #15. The person is **anonymised, never deleted** — the schema forbids the alternative: of twenty foreign keys into users, five RESTRICT and four CASCADE, so a delete would either be refused or would silently take notification history with it.
          *
-         *     Behind `catalog.manage`, not `catalog.read`: reading what is on sale is something every member does, deciding what it costs is not.
+         *     The response is the receipt. What was kept is counted and justified per category, because afterwards the question is not "did you delete everything?" — it did not, deliberately — but "what did you keep, and on what ground?"
+         *
+         *     **The invoice still names them afterwards.** Altering an issued invoice falsifies a legal document, which is a worse answer than keeping it.
          */
-        post: operations["createOffer"];
+        post: operations["eraseUser"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/offers/{offerId}": {
+    "/api/v1/admin/invoices": {
         parameters: {
             query?: never;
             header?: never;
@@ -267,23 +61,21 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * One offer on sale
-         * @description The offer with its plan and the version that prices it, including every grant that version carries.
+         * Every invoice raised, across tenants
+         * @description `/admin/metrics` answers "how much"; this answers "which ones", which is the question an unpaid balance actually raises.
+         *
+         *     Requires `admin.finance.read`.
          */
-        get: operations["showOffer"];
+        get: operations["listAdminInvoices"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /**
-         * Rename an offer
-         * @description The name, and only the name. The `code` is how quotes, orders and invoices name this offer; price, terms and grants live in versions, and a version that has been sold is what somebody bought (§12). So what is editable here is the one field no document depends on.
-         */
-        patch: operations["renameOffer"];
+        patch?: never;
         trace?: never;
     };
-    "/api/v1/subscription": {
+    "/api/v1/admin/jobs": {
         parameters: {
             query?: never;
             header?: never;
@@ -291,23 +83,163 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The current subscription, its history and its events
-         * @description Three answers in one: what is in force now, everything that came before, and the transitions between them. `subscription` is null when the tenant has never subscribed — not the same as a cancelled one, and history tells them apart.
+         * What the queue is carrying
+         * @description `/admin/queue` answers whether the runner is alive (R10); this answers what it is carrying, which is the next question when the answer to the first is "yes, and something is still wrong".
+         *
+         *     **The payload is deliberately not returned.** It is whatever the caller handed the queue, it can carry anything, and "which jobs are stuck" does not need to know what is inside them.
+         *
+         *     Requires `admin.health.read`.
          */
-        get: operations["showSubscription"];
+        get: operations["listAdminJobs"];
         put?: never;
-        /**
-         * Take out a subscription
-         * @description `seat: true` subscribes the caller personally rather than the tenant. A tenant may hold one active subscription and a person one active seat — both are unique indexes, so two simultaneous requests cannot produce two.
-         */
-        post: operations["subscribe"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/subscription/change-offer": {
+    "/api/v1/admin/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Turnover, top offers and renewal
+         * @description Read from monthly rollups, never recomputed over the ledger — a dashboard that scans every transaction gets slower every month it succeeds (§25.2).
+         *
+         *     **Turnover is what was invoiced, not what was collected**, and currency is part of the grain: €100 and $100 are never added. A renewal rate is *null* when nothing came up for renewal, because zero would claim everybody left.
+         *
+         *     The product is named in the query because an admin surface resolves none of its own.
+         */
+        get: operations["showMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whether the job queue is still being polled
+         * @description A quiet queue and a cron that stopped firing produce the same silence, and this is what tells them apart (R10).
+         *
+         *     Three signals, because they are three different things to go and fix: `seconds_since_finished` ageing is a cron that stopped; an ageing `oldest_unfinished_seconds` is a runner that died mid-pass; a growing backlog while the clock looks healthy is a wedged handler.
+         *
+         *     **No staleness verdict is invented.** How often cron fires is deployment configuration this process does not know, so `stale` appears only when `?stale_after=` supplies the expectation.
+         */
+        get: operations["showQueue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What is running, and on what terms
+         * @description Carries the offer version each subscription was **sold on**, not the version on sale today — §12's whole point is that those differ, and an operator looking at a customer's bill needs the terms that bill was priced against.
+         *
+         *     Requires `admin.finance.read`.
+         */
+        get: operations["listAdminSubscriptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/tenants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every tenant, with its operational standing
+         * @description Distinct from `/staff/tenants`, which support uses to answer one customer's question and which writes an access-log row for having looked. This is the operations view: every tenant with the counts that say whether an account is healthy, and nothing from inside any of them.
+         *
+         *     Requires `admin.directory.read`.
+         */
+        get: operations["listAdminTenants"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * People, across every tenant
+         * @description **The only admin surface that returns personal data**, which is why PLATFORM_ADMIN alone may call it: support already has an audited per-tenant read at `/staff/tenants/{tenantId}`, and a list of everyone answers no support question.
+         *
+         *     An erased person still appears, carrying `erased_at` and no identity. The row survives erasure by design (non-negotiables #14 and #15) — hiding it would make this directory disagree with every count beside it, and would suggest the person had been deleted when the whole point is that they were not.
+         *
+         *     Requires `admin.directory.read`.
+         */
+        get: operations["listAdminUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assets/{assetId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One file's metadata
+         * @description Not its bytes — those come from a signed link.
+         */
+        get: operations["showAsset"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a file
+         * @description Removed from storage as well as from the index.
+         */
+        delete: operations["deleteAsset"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assets/{assetId}/link": {
         parameters: {
             query?: never;
             header?: never;
@@ -317,17 +249,19 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Move to a different offer
-         * @description The subscription keeps its identity and its history; only what it grants changes. An upgrade compares the plans' ranks, never their names (§13).
+         * Mint a signed download link
+         * @description Assets are private; this is the only way to read one. The link carries its own signature and expiry, which is why the download path below needs no credential — and why nothing may be mounted under that prefix that does not verify its own signature.
+         *
+         *     A body is optional: minting with the default lifetime needs nothing said, and demanding `{}` from a client with nothing to say is a rule that serves nobody.
          */
-        post: operations["changeOffer"];
+        post: operations["createAssetLink"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/subscription/cancel": {
+    "/api/v1/auth/refresh": {
         parameters: {
             query?: never;
             header?: never;
@@ -337,37 +271,17 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Cancel, or say why it cannot be cancelled
-         * @description Returns the subscription **and the decision**. A refusal is a 200 with `accepted: false` and the rule that refused it, not an error: the request was understood and answered, and the customer needs to know which term binds them. Where leaving early costs money, the buy-out invoice is raised in the same transaction and named here.
+         * Exchange the refresh cookie for a new session
+         * @description Takes no body: the credential is the `HttpOnly` cookie, which the browser attaches by itself. A body field would mean a script had read the token, which is what the cookie exists to prevent. The refresh token is rotated on every call, so presenting a spent one is evidence of a copy and revokes every session for the account.
          */
-        post: operations["cancelSubscription"];
+        post: operations["refreshSession"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/subscription/schedule": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * What cancelling now would do
-         * @description The same decision the cancel endpoint would return, without performing it — so a client can show the consequence before the customer commits to it.
-         */
-        get: operations["showSchedule"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/subscription/resume": {
+    "/api/v1/auth/sign-out": {
         parameters: {
             query?: never;
             header?: never;
@@ -377,37 +291,37 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Undo a scheduled cancellation
-         * @description Only before it takes effect. Resuming clears the effective date as well as the flag — a subscription claiming to end on a date it no longer honours is refused by the database.
+         * End this session
+         * @description Always 204. An unknown token, an expired one, or no cookie at all all end with the caller signed out, because that is what they asked for. The refresh token is revoked server-side as well as cleared from the browser: clearing the cookie alone would leave the credential valid for anybody holding a copy.
          */
-        post: operations["resumeSubscription"];
+        post: operations["signOut"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/entitlements": {
+    "/api/v1/auth/token": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * What the tenant is entitled to
-         * @description Resolved from what is in force now, so a lapsed subscription grants nothing without anything having had to sweep it first. This is the *tenant's* view: a seat held by one colleague still appears here, which is a known gap rather than a design.
-         */
-        get: operations["listEntitlements"];
+        get?: never;
         put?: never;
-        post?: never;
+        /**
+         * Exchange an email and password for a session
+         * @description Public, and the most attacked endpoint any application has — which is why the rate limiter sits in front of authentication (§31) and the tighter public allowance applies here. A wrong address and a wrong password are answered identically, and the attempt is logged with the address so brute force is visible in the log rather than in the response.
+         */
+        post: operations["signIn"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/billing/profile": {
+    "/api/v1/billing/credit-notes": {
         parameters: {
             query?: never;
             header?: never;
@@ -415,15 +329,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The tenant's invoicing identity
-         * @description Every field is nullable: a tenant that has not filled this in yet gets nulls rather than a 404, because the profile is a property of the tenant and always exists conceptually.
+         * The tenant's credit notes
+         * @description Newest first, paginated.
          */
-        get: operations["showBillingProfile"];
-        /**
-         * Replace the invoicing identity
-         * @description PUT, not PATCH: this is the whole identity, and a partial update of a legal address is how half an address reaches an invoice. Only `legal_name` is required.
-         */
-        put: operations["saveBillingProfile"];
+        get: operations["listCreditNotes"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -475,46 +385,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/billing/invoices/{invoiceId}/pdf": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * One invoice as a PDF
-         * @description The document is rendered on the first request and stored, and every later request returns those same bytes — so what is served is what was sent. `ETag` is the SHA-256 of the stored document. A draft has no legal number and therefore no document, which is a 409 rather than a 404: the invoice exists, it is simply not issued yet. Behind `billing.read`, the same permission that returns the invoice as JSON.
-         */
-        get: operations["showInvoicePdf"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/billing/invoices/{invoiceId}/pay": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Record an invoice as paid
-         * @description For payment received outside the platform — a transfer, a cheque. Money taken through a PSP arrives by webhook instead and must not be recorded here as well.
-         */
-        post: operations["markInvoicePaid"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/billing/invoices/{invoiceId}/cancel": {
         parameters: {
             query?: never;
@@ -529,26 +399,6 @@ export interface paths {
          * @description Only while it is still a draft. A final invoice is corrected by a credit note, never cancelled — cancelling one that has been sent would leave a hole in the legal sequence.
          */
         post: operations["cancelInvoice"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/billing/invoices/{invoiceId}/payments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Begin a payment through the provider
-         * @description Returns the payment **and the provider's client secret**, which is what the browser needs to complete the charge. Card data never reaches this API (§24): the client talks to the provider directly and the platform learns the outcome by webhook.
-         */
-        post: operations["startPayment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -575,7 +425,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/billing/invoices/{invoiceId}/transmit": {
+    "/api/v1/billing/invoices/{invoiceId}/pay": {
         parameters: {
             query?: never;
             header?: never;
@@ -585,10 +435,50 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Send an invoice to the e-invoicing platform
-         * @description 202, not 200: submission is handed to the provider and settles later. Poll the transmissions below, or wait for the webhook. **Today this reaches a stub** — no certified platform is connected yet (R3).
+         * Record an invoice as paid
+         * @description For payment received outside the platform — a transfer, a cheque. Money taken through a PSP arrives by webhook instead and must not be recorded here as well.
          */
-        post: operations["submitInvoice"];
+        post: operations["markInvoicePaid"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/invoices/{invoiceId}/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Begin a payment through the provider
+         * @description Returns the payment **and the provider's client secret**, which is what the browser needs to complete the charge. Card data never reaches this API (§24): the client talks to the provider directly and the platform learns the outcome by webhook.
+         */
+        post: operations["startPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/invoices/{invoiceId}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One invoice as a PDF
+         * @description The document is rendered on the first request and stored, and every later request returns those same bytes — so what is served is what was sent. `ETag` is the SHA-256 of the stored document. A draft has no legal number and therefore no document, which is a 409 rather than a 404: the invoice exists, it is simply not issued yet. Behind `billing.read`, the same permission that returns the invoice as JSON.
+         */
+        get: operations["showInvoicePdf"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -609,6 +499,26 @@ export interface paths {
         get: operations["listTransmissions"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/invoices/{invoiceId}/transmit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send an invoice to the e-invoicing platform
+         * @description 202, not 200: submission is handed to the provider and settles later. Poll the transmissions below, or wait for the webhook. **Today this reaches a stub** — no certified platform is connected yet (R3).
+         */
+        post: operations["submitInvoice"];
         delete?: never;
         options?: never;
         head?: never;
@@ -675,7 +585,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/billing/credit-notes": {
+    "/api/v1/billing/profile": {
         parameters: {
             query?: never;
             header?: never;
@@ -683,11 +593,15 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The tenant's credit notes
-         * @description Newest first, paginated.
+         * The tenant's invoicing identity
+         * @description Every field is nullable: a tenant that has not filled this in yet gets nulls rather than a 404, because the profile is a property of the tenant and always exists conceptually.
          */
-        get: operations["listCreditNotes"];
-        put?: never;
+        get: operations["showBillingProfile"];
+        /**
+         * Replace the invoicing identity
+         * @description PUT, not PATCH: this is the whole identity, and a partial update of a legal address is how half an address reaches an invoice. Only `legal_name` is required.
+         */
+        put: operations["saveBillingProfile"];
         post?: never;
         delete?: never;
         options?: never;
@@ -695,564 +609,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tax/profile": {
+    "/api/v1/checkout/sessions": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
+        get?: never;
+        put?: never;
         /**
-         * The tenant's tax position
-         * @description What they claim, what was proved, and whether that adds up to a reverse charge.
-         */
-        get: operations["showTaxProfile"];
-        /**
-         * Set the tax position, and verify the VAT number
-         * @description Saving a VAT number checks it against the provider — but only when there is no evidence or the evidence is stale, so repeated saves do not spend the provider's rate limit to learn nothing.
+         * Buy an offer in one call
+         * @description Places the order, raises its invoice and asks the provider to authorize — three calls a client could already make. What this adds is that the client no longer orchestrates them, and that a dropped connection leaves an order they can look up rather than a charge nobody can account for.
          *
-         *     When it does not prove out, the person who entered it is told (R8): they typed a number expecting to be zero-rated and will otherwise discover the standard rate on an invoice, which is a legal document that cannot then be quietly recomputed.
-         */
-        put: operations["saveTaxProfile"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tax/rates": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The rates in force on a date
-         * @description `?on=` asks about a past date, which is what pricing a back-dated document needs. The clock picks the rate, never the current value of a row.
-         */
-        get: operations["listTaxRates"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tax/calculate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * What VAT would apply, and why
-         * @description A dry run against the tenant's tax profile. Returns the rule that decided, the regime, the legal mention where one is required, and the reasons in plain words — everything a quote needs to show before anything is invoiced.
-         */
-        post: operations["calculateTax"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tax/transactions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The fiscal facts behind the documents
-         * @description One row per taxed line of a document, with the rule that produced it. Paginated.
-         */
-        get: operations["listVatTransactions"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tax/reports": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The declaration periods
-         * @description Open and closed alike. A closed one cannot be reopened.
-         */
-        get: operations["listVatPeriods"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tax/reports/{periodId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * One period, with its totals
-         * @description An open period is totalled from the transactions as they stand now. A closed one reports **what was declared** instead — recomputing it would answer a different question than the one that was filed.
-         */
-        get: operations["showVatPeriod"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tax/reports/{periodId}/close": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Close a period and freeze its declaration
-         * @description One-way, and the database enforces it rather than the service remembering to. A period holding more than one currency is refused: summing across currencies would produce a figure that is not money.
-         */
-        post: operations["closeVatPeriod"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/sales/quotes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The tenant's quotes
-         * @description Newest first, paginated.
-         */
-        get: operations["listQuotes"];
-        put?: never;
-        /**
-         * Quote an offer
-         * @description Priced from the offer version on sale now and pinned to it, so a catalogue change cannot reprice a quote already sent. `validity_days` is clamped to the platform's maximum — a quote open for ever is a price open for ever.
-         */
-        post: operations["createQuote"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/sales/quotes/{quoteId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * One quote
-         * @description With its lines and the moment it stops being acceptable.
-         */
-        get: operations["showQuote"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/sales/quotes/{quoteId}/accept": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Accept a quote, creating an order
-         * @description 201, because an order is created. Accepting an expired quote is refused rather than honoured — the clock decides, not the status column, so a quote that lapsed a second ago is already closed.
-         */
-        post: operations["acceptQuote"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/sales/quotes/{quoteId}/reject": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Decline a quote
-         * @description Recorded rather than deleted: a quote that was refused is a commercial fact, and the date of the refusal is part of it.
-         */
-        post: operations["rejectQuote"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/sales/orders": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The tenant's orders
-         * @description Newest first, paginated.
-         */
-        get: operations["listOrders"];
-        put?: never;
-        /**
-         * Order an offer directly
-         * @description Without a quote. The resulting order carries a null `quote_id`, which is how the two routes stay distinguishable afterwards.
-         */
-        post: operations["placeOrder"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/sales/orders/{orderId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * One order
-         * @description Read `invoice_id` and `subscription_id` together to see how far through the gate it is.
-         */
-        get: operations["showOrder"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/sales/orders/{orderId}/fulfil": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Invoice the order
-         * @description Fulfilment raises the invoice and **stops**. The subscription is created when that invoice is paid, not here — provisioning before the money arrives is the failure this split exists to prevent (ADR-024). The order moves to AWAITING_PAYMENT.
-         */
-        post: operations["fulfilOrder"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/sales/orders/{orderId}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Cancel an order
-         * @description Before it completes. An order whose invoice is already paid cannot be cancelled here — that is a refund and a credit note, which are different documents with different consequences.
-         */
-        post: operations["cancelOrder"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/notifications": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The caller's notifications
-         * @description Theirs alone: another person's notification is not found rather than refused, because whether it exists is itself none of their business.
-         */
-        get: operations["listNotifications"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/notifications/unread-count": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * How many are unread
-         * @description A badge, on its own, so a client polling it does not fetch a page it will not render.
-         */
-        get: operations["unreadCount"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/notifications/read-all": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Mark everything read
-         * @description Returns how many changed, which is not the same as how many existed — one already read is not counted twice.
-         */
-        post: operations["readAll"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/notifications/{notificationId}/read": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Mark one read
-         * @description Reading twice keeps the first timestamp. When somebody first saw it is a fact; when they last clicked is not.
-         */
-        post: operations["readNotification"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/notifications/{notificationId}/deliveries": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * What happened on each channel
-         * @description Including the ones that were suppressed, and why. This is the endpoint that answers "did we tell them, and if not what stopped it?"
-         */
-        get: operations["showDeliveries"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/notifications/preferences": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Which categories reach which channels
-         * @description Defaults filled in, so a client never has to know what the platform would have done in the absence of a row.
-         */
-        get: operations["showPreferences"];
-        /**
-         * Turn one category-and-channel on or off
-         * @description SECURITY cannot be switched off, and the database says so rather than this endpoint remembering to (non-negotiable #21).
-         */
-        put: operations["savePreference"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/notifications/consents": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Consents given and withdrawn
-         * @description Both, deliberately: a withdrawn consent is evidence that permission once existed and when it ended.
-         */
-        get: operations["listConsents"];
-        put?: never;
-        /**
-         * Record an opt-in
-         * @description SMS and WhatsApp are attempted only against one of these. With none, the delivery is written SUPPRESSED with NO_CONSENT and nothing is tried — the same posture as VIES unreachable granting no reverse charge.
-         */
-        post: operations["grantConsent"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/notifications/consents/{consentId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Withdraw a consent
-         * @description Dated, not deleted. The row stays with a `revoked_at`, because proof that permission was once given is the point of keeping it.
-         */
-        delete: operations["revokeConsent"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/projects": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The tenant's projects
-         * @description Summaries without documents — a list that carried every JSONB body would be a list nobody could load.
-         */
-        get: operations["listProjects"];
-        put?: never;
-        /**
-         * Create a project
-         * @description Counts against the tenant's project quota, which is checked before the write rather than apologised for after it.
-         */
-        post: operations["createProject"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/projects/{projectId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** One project, with its document */
-        get: operations["showProject"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete a project
-         * @description Recoverable since R13. The project leaves every list and keeps everything: its versions, its assets and the jobs that referred to it. `POST /projects/{projectId}/undelete` puts it back.
+         *     **The body names an offer and nothing else.** No amount, because a client that could name a figure could name a smaller one; the price is the offer's. No instrument, because the customer gives that to the provider directly — card data never reaches this platform's database (§24).
          *
-         *     This was a hard delete, with `project_versions` following through ON DELETE CASCADE — a project with fifty snapshots left nothing behind, and nothing said so until it was gone.
+         *     **It does not start the subscription.** That waits for the money, through the same webhook everything else arrives by. A checkout that activated on creation would extend credit to anyone who can reach this endpoint.
          */
-        delete: operations["deleteProject"];
-        options?: never;
-        head?: never;
-        /**
-         * Change a project
-         * @description Partial: an absent field is untouched. Saving does not create a version — versioning is explicit, so an autosave cannot bury the snapshot somebody meant to keep.
-         */
-        patch: operations["updateProject"];
-        trace?: never;
-    };
-    "/api/v1/projects/{projectId}/versions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * A project's saved versions
-         * @description Summaries without documents, newest first.
-         */
-        get: operations["listProjectVersions"];
-        put?: never;
-        /**
-         * Snapshot the project as it is now
-         * @description Explicit, and numbered consecutively per project. A label is optional and is for people, never for identity.
-         */
-        post: operations["createProjectVersion"];
+        post: operations["openCheckoutSession"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{projectId}/versions/{versionId}": {
+    "/api/v1/checkout/sessions/{sessionId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1260,139 +641,14 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * One saved version, with its document
-         * @description What comes back is byte-for-byte what was stored — key order preserved, whitespace gone. That is the guarantee restore depends on.
-         */
-        get: operations["showProjectVersion"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/projects/{projectId}/duplicate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Copy a project
-         * @description A new project with its own identity and history. The copy counts against the quota like any other.
-         */
-        post: operations["duplicateProject"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/projects/{projectId}/restore": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Restore a saved version over the project
-         * @description The current document is replaced. Snapshot first if it matters — restoring does not version what it overwrites, because a restore that silently created a version would make the history a record of undo rather than of intent.
-         */
-        post: operations["restoreProject"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/projects/{projectId}/assets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** A project's files */
-        get: operations["listAssets"];
-        put?: never;
-        /**
-         * Upload a file
-         * @description The body is the raw bytes and `X-Filename` names it. The stored content type is **sniffed**, never the request's claim — a client that says image/png about a script is not believed, and what is stored is what was sniffed.
-         */
-        post: operations["uploadAsset"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/projects/{projectId}/exports": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Export a project
-         * @description 202 with a job: a long export must never block the request (M7's exit criterion). Poll the job for its result.
-         */
-        post: operations["requestExport"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/assets/{assetId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * One file's metadata
-         * @description Not its bytes — those come from a signed link.
-         */
-        get: operations["showAsset"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete a file
-         * @description Removed from storage as well as from the index.
-         */
-        delete: operations["deleteAsset"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/assets/{assetId}/link": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Mint a signed download link
-         * @description Assets are private; this is the only way to read one. The link carries its own signature and expiry, which is why the download path below needs no credential — and why nothing may be mounted under that prefix that does not verify its own signature.
+         * Where the purchase got to
+         * @description The status is derived from the order and its latest payment rather than stored: the order knows whether it completed, the payment knows whether money moved, and a third status written down could disagree with both.
          *
-         *     A body is optional: minting with the default lifetime needs nothing said, and demanding `{}` from a client with nothing to say is a rule that serves nobody.
+         *     No `client_secret` — there is nothing to return it from.
          */
-        post: operations["createAssetLink"];
+        get: operations["showCheckoutSession"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1504,26 +760,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/conversations/{conversationId}/read": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Move the read watermark
-         * @description It never goes backwards: marking an older message read cannot un-read a newer one.
-         */
-        post: operations["markRead"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/conversations/{conversationId}/participants": {
         parameters: {
             query?: never;
@@ -1564,217 +800,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tenants/current": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The tenant being acted inside
-         * @description Resolved from membership, never from what the client asked for.
-         */
-        get: operations["showCurrentTenant"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Rename the tenant
-         * @description Partial.
-         */
-        patch: operations["updateCurrentTenant"];
-        trace?: never;
-    };
-    "/api/v1/tenants/current/usage": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * How much of each quota is used
-         * @description Unmetered says unmetered. An offer can grant a quota nothing counts yet, and reporting that as "0 used" would tell a customer their limit is being enforced when nothing is enforcing it.
-         */
-        get: operations["showTenantUsage"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenants/current/members": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Who belongs to this tenant */
-        get: operations["listMembers"];
-        put?: never;
-        /**
-         * Add somebody to the tenant
-         * @description By email. Counts against the tenant's seat quota where one is configured.
-         */
-        post: operations["addMember"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenants/current/members/{userId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Remove somebody from the tenant */
-        delete: operations["removeMember"];
-        options?: never;
-        head?: never;
-        /**
-         * Change somebody's roles
-         * @description Replaces the set; roles are not merged.
-         */
-        patch: operations["updateMember"];
-        trace?: never;
-    };
-    "/api/v1/staff/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The caller's platform role
-         * @description A different identity model from a tenant membership: no membership grants these, and a tenant admin is refused outright.
-         */
-        get: operations["showStaffIdentity"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/staff/tenants": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Every tenant
-         * @description The one listing that crosses the boundary by design. Reading it is recorded (#21).
-         */
-        get: operations["listTenantsForStaff"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/staff/tenants/{tenantId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * One tenant, as staff
-         * @description Requires a motive (R14): opening one customer reveals that customer’s data. Listing customers does not, and requires none — a platform that demanded a ticket reference to page through a list would teach its staff to type "support" into everything.
-         *
-         *     The tenant arrives as an explicit parameter rather than from a membership — there is none — so the handler must justify it, and the read is written to the access log in the same transaction.
-         */
-        get: operations["showTenantForStaff"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/staff/access-log": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * What staff have read
-         * @description The evidence for #21. Append-only, and readable by staff who hold the permission for it.
-         */
-        get: operations["listAccessLog"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/staff/conversations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Support threads across tenants
-         * @description **Only SUPPORT threads.** A tenant's internal conversations are excluded by the query itself, not by remembering to filter them.
-         */
-        get: operations["listSupportConversations"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/staff/conversations/{conversationId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * One support thread with its messages
-         * @description Requires a motive (R14). A conversation’s tenant appears on this detail and not on the list, so this is where the boundary is actually crossed.
-         *
-         *     Carries the tenant and product it belongs to, because a staff surface resolves neither of its own. Every read is recorded.
-         */
-        get: operations["showSupportConversation"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/staff/conversations/{conversationId}/messages": {
+    "/api/v1/conversations/{conversationId}/read": {
         parameters: {
             query?: never;
             header?: never;
@@ -1784,34 +810,17 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Reply as support
-         * @description Recorded as a write in the access log, and authored as STAFF — which the message's own foreign key enforces.
+         * Move the read watermark
+         * @description It never goes backwards: marking an older message read cannot un-read a newer one.
          */
-        post: operations["postSupportMessage"];
+        post: operations["markRead"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/staff/conversations/{conversationId}/close": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Close a support thread */
-        post: operations["closeSupportConversation"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/audit": {
+    "/api/v1/downloads/{assetId}/content": {
         parameters: {
             query?: never;
             header?: never;
@@ -1819,10 +828,14 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The audit trail
-         * @description Behind its own permission, and separate from the tenant surfaces entirely (#19).
+         * Fetch a file's bytes with a signed link
+         * @description The only endpoint that returns something other than JSON, and one of four reachable with no credential — because the **link** carries the authority. It is minted with an expiry and a signature, and this verifies both before a byte is served.
+         *
+         *     That is why it lives under a public prefix and why nothing may be mounted there that does not authenticate its own request. An expired or tampered link is a 403 with no detail: telling a probing caller which half was wrong is telling them how to fix it.
+         *
+         *     `X-Content-Type-Options: nosniff` is set deliberately. The stored content type was sniffed from the bytes on upload rather than taken from the uploader's claim, and this stops a browser second-guessing that and executing something as a different type.
          */
-        get: operations["listAudit"];
+        get: operations["downloadAsset"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1831,7 +844,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/metrics": {
+    "/api/v1/entitlements": {
         parameters: {
             query?: never;
             header?: never;
@@ -1839,14 +852,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Turnover, top offers and renewal
-         * @description Read from monthly rollups, never recomputed over the ledger — a dashboard that scans every transaction gets slower every month it succeeds (§25.2).
-         *
-         *     **Turnover is what was invoiced, not what was collected**, and currency is part of the grain: €100 and $100 are never added. A renewal rate is *null* when nothing came up for renewal, because zero would claim everybody left.
-         *
-         *     The product is named in the query because an admin surface resolves none of its own.
+         * What the tenant is entitled to
+         * @description Resolved from what is in force now, so a lapsed subscription grants nothing without anything having had to sweep it first. This is the *tenant's* view: a seat held by one colleague still appears here, which is a known gap rather than a design.
          */
-        get: operations["showMetrics"];
+        get: operations["listEntitlements"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1855,7 +864,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/queue": {
+    "/api/v1/features": {
         parameters: {
             query?: never;
             header?: never;
@@ -1863,14 +872,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Whether the job queue is still being polled
-         * @description A quiet queue and a cron that stopped firing produce the same silence, and this is what tells them apart (R10).
-         *
-         *     Three signals, because they are three different things to go and fix: `seconds_since_finished` ageing is a cron that stopped; an ageing `oldest_unfinished_seconds` is a runner that died mid-pass; a growing backlog while the clock looks healthy is a wedged handler.
-         *
-         *     **No staleness verdict is invented.** How often cron fires is deployment configuration this process does not know, so `stale` appears only when `?stale_after=` supplies the expectation.
+         * The capabilities this product sells
+         * @description The vocabulary entitlements are expressed in. A quota carries its unit; a boolean must not.
          */
-        get: operations["showQueue"];
+        get: operations["listFeatures"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1879,7 +884,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/erasures": {
+    "/api/v1/geometry/intersections": {
         parameters: {
             query?: never;
             header?: never;
@@ -1889,14 +894,54 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Forget a person, keeping what the law requires
-         * @description Non-negotiables #14 and #15. The person is **anonymised, never deleted** — the schema forbids the alternative: of twenty foreign keys into users, five RESTRICT and four CASCADE, so a delete would either be refused or would silently take notification history with it.
+         * One shape against a set of candidate polygons
+         * @description Answers overlap, containment and proximity for each candidate, in the order they were sent. The candidates carry ids the caller chose and those ids come straight back, which is what makes this usable against a parcel register the platform has never seen: the caller holds the mapping and this side holds none of it.
          *
-         *     The response is the receipt. What was kept is counted and justified per category, because afterwards the question is not "did you delete everything?" — it did not, deliberately — but "what did you keep, and on what ground?"
-         *
-         *     **The invoice still names them afterwards.** Altering an issued invoice falsifies a legal document, which is a worse answer than keeping it.
+         *     A polygon subject asks what a footprint touches; a point subject asks which parcel holds an address. Accepted in either coordinate reference, because topology does not depend on the unit — but `distance` is withheld in degrees.
          */
-        post: operations["eraseUser"];
+        post: operations["intersectGeometries"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/geometry/measure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Area, perimeter and extent of a polygon
+         * @description Pure computation: no row is read and none is written, and two tenants asking the same question get the same answer. The door is the `gis.access` **entitlement** rather than a permission — what the plan bought, not what the role allows (§10.2) — which is why the refusal here is 403 `ENTITLEMENT_REQUIRED` and never 404.
+         *
+         *     Requires projected coordinates; see `CoordinateReference` for why degrees are refused rather than converted.
+         */
+        post: operations["measureGeometry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Liveness probe
+         * @description The one path reachable with no credential at all. It answers from the process alone: an unreachable database must not make the process look dead to an orchestrator, so this stays up when data is down.
+         */
+        get: operations["health"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1967,51 +1012,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/webhooks/payments/{provider}": {
+    "/api/v1/me": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
         /**
-         * A payment provider reporting an outcome
-         * @description Reachable with no credential, because the sender is a provider rather than a person — so the **request** authenticates itself: the signature is verified over the raw body before a single field is read. Nothing may be mounted under this prefix that does not.
-         *
-         *     Delivery is exactly-once by unique index on (provider, event id), not by a check two concurrent deliveries would both pass.
+         * The caller, as this product and tenant see them
+         * @description Everything the §10.6 chain resolved: who, where, and what that combination permits. `roles` and `permissions` are the tenant's grant; `capabilities` are what the subscription bought. Authorisation asks about capabilities, never about a plan's name (§13).
          */
-        post: operations["paymentWebhook"];
+        get: operations["showMe"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/webhooks/einvoice/{provider}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
         /**
-         * An e-invoicing platform reporting an outcome
-         * @description Reachable with no credential, because the sender is a provider rather than a person — so the **request** authenticates itself: the signature is verified over the raw body before a single field is read. Nothing may be mounted under this prefix that does not.
-         *
-         *     Delivery is exactly-once by unique index on (provider, event id), not by a check two concurrent deliveries would both pass.
+         * Change the caller's own profile
+         * @description Partial by design: an absent `display_name` leaves it untouched, an explicit `null` clears it. Those are different requests and are not collapsed into one.
          */
-        post: operations["einvoiceWebhook"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
+        patch: operations["updateMe"];
         trace?: never;
     };
-    "/api/v1/downloads/{assetId}/content": {
+    "/api/v1/me/entitlements": {
         parameters: {
             query?: never;
             header?: never;
@@ -2019,14 +1044,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Fetch a file's bytes with a signed link
-         * @description The only endpoint that returns something other than JSON, and one of four reachable with no credential — because the **link** carries the authority. It is minted with an expiry and a signature, and this verifies both before a byte is served.
-         *
-         *     That is why it lives under a public prefix and why nothing may be mounted there that does not authenticate its own request. An expired or tampered link is a 403 with no detail: telling a probing caller which half was wrong is telling them how to fix it.
-         *
-         *     `X-Content-Type-Options: nosniff` is set deliberately. The stored content type was sniffed from the bytes on upload rather than taken from the uploader's claim, and this stops a browser second-guessing that and executing something as a different type.
+         * What the caller's subscription bought
+         * @description Capability codes, resolved once by the context chain from what is in force now. A lapsed subscription grants nothing without anything having to sweep it first — entitlement asks the clock.
          */
-        get: operations["downloadAsset"];
+        get: operations["showMyEntitlements"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2035,29 +1056,115 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/geometry/measure": {
+    "/api/v1/me/permissions": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
         /**
-         * Area, perimeter and extent of a polygon
-         * @description Pure computation: no row is read and none is written, and two tenants asking the same question get the same answer. The door is the `gis.access` **entitlement** rather than a permission — what the plan bought, not what the role allows (§10.2) — which is why the refusal here is 403 `ENTITLEMENT_REQUIRED` and never 404.
-         *
-         *     Requires projected coordinates; see `CoordinateReference` for why degrees are refused rather than converted.
+         * The caller's roles and permissions here
+         * @description The authorisation half of `/me`, on its own, for a client that wants to refresh what is allowed without re-reading the profile.
          */
-        post: operations["measureGeometry"];
+        get: operations["showMyPermissions"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/geometry/intersections": {
+    "/api/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's notifications
+         * @description Theirs alone: another person's notification is not found rather than refused, because whether it exists is itself none of their business.
+         */
+        get: operations["listNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/consents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Consents given and withdrawn
+         * @description Both, deliberately: a withdrawn consent is evidence that permission once existed and when it ended.
+         */
+        get: operations["listConsents"];
+        put?: never;
+        /**
+         * Record an opt-in
+         * @description SMS and WhatsApp are attempted only against one of these. With none, the delivery is written SUPPRESSED with NO_CONSENT and nothing is tried — the same posture as VIES unreachable granting no reverse charge.
+         */
+        post: operations["grantConsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/consents/{consentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Withdraw a consent
+         * @description Dated, not deleted. The row stays with a `revoked_at`, because proof that permission was once given is the point of keeping it.
+         */
+        delete: operations["revokeConsent"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Which categories reach which channels
+         * @description Defaults filled in, so a client never has to know what the platform would have done in the absence of a row.
+         */
+        get: operations["showPreferences"];
+        /**
+         * Turn one category-and-channel on or off
+         * @description SECURITY cannot be switched off, and the database says so rather than this endpoint remembering to (non-negotiable #21).
+         */
+        put: operations["savePreference"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/read-all": {
         parameters: {
             query?: never;
             header?: never;
@@ -2067,12 +1174,142 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * One shape against a set of candidate polygons
-         * @description Answers overlap, containment and proximity for each candidate, in the order they were sent. The candidates carry ids the caller chose and those ids come straight back, which is what makes this usable against a parcel register the platform has never seen: the caller holds the mapping and this side holds none of it.
-         *
-         *     A polygon subject asks what a footprint touches; a point subject asks which parcel holds an address. Accepted in either coordinate reference, because topology does not depend on the unit — but `distance` is withheld in degrees.
+         * Mark everything read
+         * @description Returns how many changed, which is not the same as how many existed — one already read is not counted twice.
          */
-        post: operations["intersectGeometries"];
+        post: operations["readAll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How many are unread
+         * @description A badge, on its own, so a client polling it does not fetch a page it will not render.
+         */
+        get: operations["unreadCount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{notificationId}/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What happened on each channel
+         * @description Including the ones that were suppressed, and why. This is the endpoint that answers "did we tell them, and if not what stopped it?"
+         */
+        get: operations["showDeliveries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{notificationId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark one read
+         * @description Reading twice keeps the first timestamp. When somebody first saw it is a fact; when they last clicked is not.
+         */
+        post: operations["readNotification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Offers currently on sale
+         * @description Only what may be sold *now*: an offer whose version's validity window has closed is absent rather than marked expired, because a client that can see it will eventually try to buy it.
+         */
+        get: operations["listOffers"];
+        put?: never;
+        /**
+         * Create an offer and its first draft version
+         * @description One call, because an offer with no version has no price and no terms — nothing can be sold, shown or quoted from it. Born `DRAFT`; publishing is a separate act.
+         *
+         *     Behind `catalog.manage`, not `catalog.read`: reading what is on sale is something every member does, deciding what it costs is not.
+         */
+        post: operations["createOffer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/offers/{offerId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One offer on sale
+         * @description The offer with its plan and the version that prices it, including every grant that version carries.
+         */
+        get: operations["showOffer"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Rename an offer
+         * @description The name, and only the name. The `code` is how quotes, orders and invoices name this offer; price, terms and grants live in versions, and a version that has been sold is what somebody bought (§12). So what is editable here is the one field no document depends on.
+         */
+        patch: operations["renameOffer"];
+        trace?: never;
+    };
+    "/api/v1/offers/{offerId}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Put one draft version on sale
+         * @description The version is named in the body rather than the path because an offer can hold several drafts, and "publish the offer" would have to guess which one.
+         *
+         *     Two versions of one offer may not be on sale over the same period. That is an exclusion constraint in the database, not a check in the service, so it holds against concurrent publishes as well as careless ones.
+         */
+        post: operations["publishOfferVersion"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2105,7 +1342,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/offers/{offerId}/publish": {
+    "/api/v1/payments/{paymentId}/retry": {
         parameters: {
             query?: never;
             header?: never;
@@ -2115,19 +1352,19 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Put one draft version on sale
-         * @description The version is named in the body rather than the path because an offer can hold several drafts, and "publish the offer" would have to guess which one.
+         * Try to collect an invoice again
+         * @description A **new** payment against the same invoice, never a resurrection of the old one. `PaymentStatus` is deliberately one-way and says why: the customer may have used a different instrument, and two attempts that must be told apart cannot share a provider reference.
          *
-         *     Two versions of one offer may not be on sale over the same period. That is an exclusion constraint in the database, not a check in the service, so it holds against concurrent publishes as well as careless ones.
+         *     Refused while the previous attempt is still in flight — a second authorization then risks collecting twice for one debt — and refused if it succeeded, where there is nothing to retry.
          */
-        post: operations["publishOfferVersion"];
+        post: operations["retryPayment"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/tenants": {
+    "/api/v1/plans": {
         parameters: {
             query?: never;
             header?: never;
@@ -2135,12 +1372,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Every tenant, with its operational standing
-         * @description Distinct from `/staff/tenants`, which support uses to answer one customer's question and which writes an access-log row for having looked. This is the operations view: every tenant with the counts that say whether an account is healthy, and nothing from inside any of them.
-         *
-         *     Requires `admin.directory.read`.
+         * The plans this product sells
+         * @description Ordered by `rank`, which is what an upgrade compares. Nothing in the platform branches on a plan's *name* (§13, and a CI gate says so).
          */
-        get: operations["listAdminTenants"];
+        get: operations["listPlans"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2149,7 +1384,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/users": {
+    "/api/v1/products": {
         parameters: {
             query?: never;
             header?: never;
@@ -2157,14 +1392,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * People, across every tenant
-         * @description **The only admin surface that returns personal data**, which is why PLATFORM_ADMIN alone may call it: support already has an audited per-tenant read at `/staff/tenants/{tenantId}`, and a list of everyone answers no support question.
-         *
-         *     An erased person still appears, carrying `erased_at` and no identity. The row survives erasure by design (non-negotiables #14 and #15) — hiding it would make this directory disagree with every count beside it, and would suggest the person had been deleted when the whole point is that they were not.
-         *
-         *     Requires `admin.directory.read`.
+         * Products this caller may use
+         * @description Runs before a product is resolved, and must: a client cannot send `X-Product` until it knows which products it may use, so requiring one here would make discovery depend on its own result. Authorisation is per product, from membership.
          */
-        get: operations["listAdminUsers"];
+        get: operations["listProducts"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2173,7 +1404,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/subscriptions": {
+    "/api/v1/products/{productId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -2181,12 +1412,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * What is running, and on what terms
-         * @description Carries the offer version each subscription was **sold on**, not the version on sale today — §12's whole point is that those differ, and an operator looking at a customer's bill needs the terms that bill was priced against.
-         *
-         *     Requires `admin.finance.read`.
+         * One product
+         * @description Named in the path rather than the header, because this is discovery: the caller is asking about a product, not acting inside one.
          */
-        get: operations["listAdminSubscriptions"];
+        get: operations["showProduct"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2195,7 +1424,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/invoices": {
+    "/api/v1/products/{productId}/catalog": {
         parameters: {
             query?: never;
             header?: never;
@@ -2203,12 +1432,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Every invoice raised, across tenants
-         * @description `/admin/metrics` answers "how much"; this answers "which ones", which is the question an unpaid balance actually raises.
-         *
-         *     Requires `admin.finance.read`.
+         * A product's features and configuration together
+         * @description One round trip for what a client needs to render a product before choosing it.
          */
-        get: operations["listAdminInvoices"];
+        get: operations["showProductCatalogue"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2217,7 +1444,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/jobs": {
+    "/api/v1/products/{productId}/configuration": {
         parameters: {
             query?: never;
             header?: never;
@@ -2225,14 +1452,807 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * What the queue is carrying
-         * @description `/admin/queue` answers whether the runner is alive (R10); this answers what it is carrying, which is the next question when the answer to the first is "yes, and something is still wrong".
-         *
-         *     **The payload is deliberately not returned.** It is whatever the caller handed the queue, it can carry anything, and "which jobs are stuck" does not need to know what is inside them.
-         *
-         *     Requires `admin.health.read`.
+         * A product's settings
+         * @description An object even when empty, so a client never has to tell `{}` from `null`.
          */
-        get: operations["listAdminJobs"];
+        get: operations["showProductConfiguration"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{productId}/features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What a product offers
+         * @description The catalogue of features a product defines, independent of what any tenant has bought.
+         */
+        get: operations["listProductFeatures"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The tenant's projects
+         * @description Summaries without documents — a list that carried every JSONB body would be a list nobody could load.
+         */
+        get: operations["listProjects"];
+        put?: never;
+        /**
+         * Create a project
+         * @description Counts against the tenant's project quota, which is checked before the write rather than apologised for after it.
+         */
+        post: operations["createProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One project, with its document */
+        get: operations["showProject"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a project
+         * @description Recoverable since R13. The project leaves every list and keeps everything: its versions, its assets and the jobs that referred to it. `POST /projects/{projectId}/undelete` puts it back.
+         *
+         *     This was a hard delete, with `project_versions` following through ON DELETE CASCADE — a project with fifty snapshots left nothing behind, and nothing said so until it was gone.
+         */
+        delete: operations["deleteProject"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a project
+         * @description Partial: an absent field is untouched. Saving does not create a version — versioning is explicit, so an autosave cannot bury the snapshot somebody meant to keep.
+         */
+        patch: operations["updateProject"];
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A project's files */
+        get: operations["listAssets"];
+        put?: never;
+        /**
+         * Upload a file
+         * @description The body is the raw bytes and `X-Filename` names it. The stored content type is **sniffed**, never the request's claim — a client that says image/png about a script is not believed, and what is stored is what was sniffed.
+         */
+        post: operations["uploadAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Copy a project
+         * @description A new project with its own identity and history. The copy counts against the quota like any other.
+         */
+        post: operations["duplicateProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export a project
+         * @description 202 with a job: a long export must never block the request (M7's exit criterion). Poll the job for its result.
+         */
+        post: operations["requestExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore a saved version over the project
+         * @description The current document is replaced. Snapshot first if it matters — restoring does not version what it overwrites, because a restore that silently created a version would make the history a record of undo rather than of intent.
+         */
+        post: operations["restoreProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/undelete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Put a deleted project back
+         * @description Named `undelete` rather than `restore` because `restoreProject` already exists and restores a project *to one of its versions* — a different operation that shares a word. The project returns with everything that never stopped pointing at it: its versions, its assets, its jobs.
+         *
+         *     A project that is not deleted answers 404, exactly as one that never existed does. Undeleting a live project is not a thing, and a 409 would confirm that an id is real to somebody guessing at ids.
+         */
+        post: operations["undeleteProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A project's saved versions
+         * @description Summaries without documents, newest first.
+         */
+        get: operations["listProjectVersions"];
+        put?: never;
+        /**
+         * Snapshot the project as it is now
+         * @description Explicit, and numbered consecutively per project. A label is optional and is for people, never for identity.
+         */
+        post: operations["createProjectVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/versions/{versionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One saved version, with its document
+         * @description What comes back is byte-for-byte what was stored — key order preserved, whitespace gone. That is the guarantee restore depends on.
+         */
+        get: operations["showProjectVersion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The tenant's orders
+         * @description Newest first, paginated.
+         */
+        get: operations["listOrders"];
+        put?: never;
+        /**
+         * Order an offer directly
+         * @description Without a quote. The resulting order carries a null `quote_id`, which is how the two routes stay distinguishable afterwards.
+         */
+        post: operations["placeOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales/orders/{orderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One order
+         * @description Read `invoice_id` and `subscription_id` together to see how far through the gate it is.
+         */
+        get: operations["showOrder"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales/orders/{orderId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel an order
+         * @description Before it completes. An order whose invoice is already paid cannot be cancelled here — that is a refund and a credit note, which are different documents with different consequences.
+         */
+        post: operations["cancelOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales/orders/{orderId}/fulfil": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invoice the order
+         * @description Fulfilment raises the invoice and **stops**. The subscription is created when that invoice is paid, not here — provisioning before the money arrives is the failure this split exists to prevent (ADR-024). The order moves to AWAITING_PAYMENT.
+         */
+        post: operations["fulfilOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales/quotes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The tenant's quotes
+         * @description Newest first, paginated.
+         */
+        get: operations["listQuotes"];
+        put?: never;
+        /**
+         * Quote an offer
+         * @description Priced from the offer version on sale now and pinned to it, so a catalogue change cannot reprice a quote already sent. `validity_days` is clamped to the platform's maximum — a quote open for ever is a price open for ever.
+         */
+        post: operations["createQuote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales/quotes/{quoteId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One quote
+         * @description With its lines and the moment it stops being acceptable.
+         */
+        get: operations["showQuote"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales/quotes/{quoteId}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept a quote, creating an order
+         * @description 201, because an order is created. Accepting an expired quote is refused rather than honoured — the clock decides, not the status column, so a quote that lapsed a second ago is already closed.
+         */
+        post: operations["acceptQuote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales/quotes/{quoteId}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decline a quote
+         * @description Recorded rather than deleted: a quote that was refused is a commercial fact, and the date of the refusal is part of it.
+         */
+        post: operations["rejectQuote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/access-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What staff have read
+         * @description The evidence for #21. Append-only, and readable by staff who hold the permission for it.
+         */
+        get: operations["listAccessLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Support threads across tenants
+         * @description **Only SUPPORT threads.** A tenant's internal conversations are excluded by the query itself, not by remembering to filter them.
+         */
+        get: operations["listSupportConversations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/conversations/{conversationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One support thread with its messages
+         * @description Requires a motive (R14). A conversation’s tenant appears on this detail and not on the list, so this is where the boundary is actually crossed.
+         *
+         *     Carries the tenant and product it belongs to, because a staff surface resolves neither of its own. Every read is recorded.
+         */
+        get: operations["showSupportConversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/conversations/{conversationId}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Close a support thread */
+        post: operations["closeSupportConversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/conversations/{conversationId}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reply as support
+         * @description Recorded as a write in the access log, and authored as STAFF — which the message's own foreign key enforces.
+         */
+        post: operations["postSupportMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's platform role
+         * @description A different identity model from a tenant membership: no membership grants these, and a tenant admin is refused outright.
+         */
+        get: operations["showStaffIdentity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/tenants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every tenant
+         * @description The one listing that crosses the boundary by design. Reading it is recorded (#21).
+         */
+        get: operations["listTenantsForStaff"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/tenants/{tenantId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One tenant, as staff
+         * @description Requires a motive (R14): opening one customer reveals that customer’s data. Listing customers does not, and requires none — a platform that demanded a ticket reference to page through a list would teach its staff to type "support" into everything.
+         *
+         *     The tenant arrives as an explicit parameter rather than from a membership — there is none — so the handler must justify it, and the read is written to the access log in the same transaction.
+         */
+        get: operations["showTenantForStaff"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The current subscription, its history and its events
+         * @description Three answers in one: what is in force now, everything that came before, and the transitions between them. `subscription` is null when the tenant has never subscribed — not the same as a cancelled one, and history tells them apart.
+         */
+        get: operations["showSubscription"];
+        put?: never;
+        /**
+         * Take out a subscription
+         * @description `seat: true` subscribes the caller personally rather than the tenant. A tenant may hold one active subscription and a person one active seat — both are unique indexes, so two simultaneous requests cannot produce two.
+         */
+        post: operations["subscribe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscription/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel, or say why it cannot be cancelled
+         * @description Returns the subscription **and the decision**. A refusal is a 200 with `accepted: false` and the rule that refused it, not an error: the request was understood and answered, and the customer needs to know which term binds them. Where leaving early costs money, the buy-out invoice is raised in the same transaction and named here.
+         */
+        post: operations["cancelSubscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscription/change-offer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move to a different offer
+         * @description The subscription keeps its identity and its history; only what it grants changes. An upgrade compares the plans' ranks, never their names (§13).
+         */
+        post: operations["changeOffer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscription/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo a scheduled cancellation
+         * @description Only before it takes effect. Resuming clears the effective date as well as the flag — a subscription claiming to end on a date it no longer honours is refused by the database.
+         */
+        post: operations["resumeSubscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscription/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What cancelling now would do
+         * @description The same decision the cancel endpoint would return, without performing it — so a client can show the consequence before the customer commits to it.
+         */
+        get: operations["showSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tax/calculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * What VAT would apply, and why
+         * @description A dry run against the tenant's tax profile. Returns the rule that decided, the regime, the legal mention where one is required, and the reasons in plain words — everything a quote needs to show before anything is invoiced.
+         */
+        post: operations["calculateTax"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tax/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The tenant's tax position
+         * @description What they claim, what was proved, and whether that adds up to a reverse charge.
+         */
+        get: operations["showTaxProfile"];
+        /**
+         * Set the tax position, and verify the VAT number
+         * @description Saving a VAT number checks it against the provider — but only when there is no evidence or the evidence is stale, so repeated saves do not spend the provider's rate limit to learn nothing.
+         *
+         *     When it does not prove out, the person who entered it is told (R8): they typed a number expecting to be zero-rated and will otherwise discover the standard rate on an invoice, which is a legal document that cannot then be quietly recomputed.
+         */
+        put: operations["saveTaxProfile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tax/rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The rates in force on a date
+         * @description `?on=` asks about a past date, which is what pricing a back-dated document needs. The clock picks the rate, never the current value of a row.
+         */
+        get: operations["listTaxRates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tax/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The declaration periods
+         * @description Open and closed alike. A closed one cannot be reopened.
+         */
+        get: operations["listVatPeriods"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tax/reports/{periodId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One period, with its totals
+         * @description An open period is totalled from the transactions as they stand now. A closed one reports **what was declared** instead — recomputing it would answer a different question than the one that was filed.
+         */
+        get: operations["showVatPeriod"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tax/reports/{periodId}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close a period and freeze its declaration
+         * @description One-way, and the database enforces it rather than the service remembering to. A period holding more than one currency is refused: summing across currencies would produce a figure that is not money.
+         */
+        post: operations["closeVatPeriod"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tax/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The fiscal facts behind the documents
+         * @description One row per taxed line of a document, with the rule that produced it. Paginated.
+         */
+        get: operations["listVatTransactions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2297,7 +2317,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/checkout/sessions": {
+    "/api/v1/tenants/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The tenant being acted inside
+         * @description Resolved from membership, never from what the client asked for.
+         */
+        get: operations["showCurrentTenant"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Rename the tenant
+         * @description Partial.
+         */
+        patch: operations["updateCurrentTenant"];
+        trace?: never;
+    };
+    "/api/v1/tenants/current/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Who belongs to this tenant */
+        get: operations["listMembers"];
+        put?: never;
+        /**
+         * Add somebody to the tenant
+         * @description By email. Counts against the tenant's seat quota where one is configured.
+         */
+        post: operations["addMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/current/members/{userId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -2306,22 +2371,19 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Buy an offer in one call
-         * @description Places the order, raises its invoice and asks the provider to authorize — three calls a client could already make. What this adds is that the client no longer orchestrates them, and that a dropped connection leaves an order they can look up rather than a charge nobody can account for.
-         *
-         *     **The body names an offer and nothing else.** No amount, because a client that could name a figure could name a smaller one; the price is the offer's. No instrument, because the customer gives that to the provider directly — card data never reaches this platform's database (§24).
-         *
-         *     **It does not start the subscription.** That waits for the money, through the same webhook everything else arrives by. A checkout that activated on creation would extend credit to anyone who can reach this endpoint.
-         */
-        post: operations["openCheckoutSession"];
-        delete?: never;
+        post?: never;
+        /** Remove somebody from the tenant */
+        delete: operations["removeMember"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Change somebody's roles
+         * @description Replaces the set; roles are not merged.
+         */
+        patch: operations["updateMember"];
         trace?: never;
     };
-    "/api/v1/checkout/sessions/{sessionId}": {
+    "/api/v1/tenants/current/usage": {
         parameters: {
             query?: never;
             header?: never;
@@ -2329,12 +2391,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Where the purchase got to
-         * @description The status is derived from the order and its latest payment rather than stored: the order knows whether it completed, the payment knows whether money moved, and a third status written down could disagree with both.
-         *
-         *     No `client_secret` — there is nothing to return it from.
+         * How much of each quota is used
+         * @description Unmetered says unmetered. An offer can grant a quota nothing counts yet, and reporting that as "0 used" would tell a customer their limit is being enforced when nothing is enforcing it.
          */
-        get: operations["showCheckoutSession"];
+        get: operations["showTenantUsage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2343,7 +2403,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/payments/{paymentId}/retry": {
+    "/api/v1/webhooks/einvoice/{provider}": {
         parameters: {
             query?: never;
             header?: never;
@@ -2353,19 +2413,19 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Try to collect an invoice again
-         * @description A **new** payment against the same invoice, never a resurrection of the old one. `PaymentStatus` is deliberately one-way and says why: the customer may have used a different instrument, and two attempts that must be told apart cannot share a provider reference.
+         * An e-invoicing platform reporting an outcome
+         * @description Reachable with no credential, because the sender is a provider rather than a person — so the **request** authenticates itself: the signature is verified over the raw body before a single field is read. Nothing may be mounted under this prefix that does not.
          *
-         *     Refused while the previous attempt is still in flight — a second authorization then risks collecting twice for one debt — and refused if it succeeded, where there is nothing to retry.
+         *     Delivery is exactly-once by unique index on (provider, event id), not by a check two concurrent deliveries would both pass.
          */
-        post: operations["retryPayment"];
+        post: operations["einvoiceWebhook"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{projectId}/undelete": {
+    "/api/v1/webhooks/payments/{provider}": {
         parameters: {
             query?: never;
             header?: never;
@@ -2375,12 +2435,12 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Put a deleted project back
-         * @description Named `undelete` rather than `restore` because `restoreProject` already exists and restores a project *to one of its versions* — a different operation that shares a word. The project returns with everything that never stopped pointing at it: its versions, its assets, its jobs.
+         * A payment provider reporting an outcome
+         * @description Reachable with no credential, because the sender is a provider rather than a person — so the **request** authenticates itself: the signature is verified over the raw body before a single field is read. Nothing may be mounted under this prefix that does not.
          *
-         *     A project that is not deleted answers 404, exactly as one that never existed does. Undeleting a live project is not a thing, and a 409 would confirm that an id is real to somebody guessing at ids.
+         *     Delivery is exactly-once by unique index on (provider, event id), not by a check two concurrent deliveries would both pass.
          */
-        post: operations["undeleteProject"];
+        post: operations["paymentWebhook"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3456,6 +3516,18 @@ export interface components {
             vat: components["schemas"]["Money"];
             gross: components["schemas"]["Money"];
         };
+        /** @description The refresh token is deliberately absent: it leaves in an `HttpOnly` cookie that no script can read, and putting it here as well would throw away the reason the cookie exists. */
+        Session: {
+            /** @description Present it as `Authorization: Bearer <token>`. Hold it in memory; it is short-lived by design. */
+            access_token: string;
+            /** @example Bearer */
+            token_type: string;
+            /**
+             * @description Seconds from now. A duration rather than an instant, so a browser with a skewed clock still schedules its renewal correctly.
+             * @example 3600
+             */
+            expires_in: number;
+        };
     };
     responses: {
         /** @description No credential, or one that did not verify. */
@@ -3505,6 +3577,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description This deployment cannot issue sessions: no signing secret is configured. */
+        NotConfigured: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
     };
     parameters: {
         /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
@@ -3533,65 +3614,31 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    health: {
+    listAudit: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description How many to return. */
+                limit?: components["parameters"]["Limit"];
+                /** @description How many to skip. */
+                offset?: components["parameters"]["Offset"];
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description The process is up. */
+            /** @description A page of audit entries. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        /** @example ok */
-                        status: string;
-                    };
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showMe: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The resolved caller. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        user_id: string;
-                        /** Format: email */
-                        email: string | null;
-                        display_name: string | null;
-                        /** Format: uuid */
-                        product_id: string;
-                        /** Format: uuid */
-                        tenant_id: string;
-                        roles: string[];
-                        permissions: string[];
-                        /** @description Feature codes the tenant is entitled to here. */
-                        capabilities: string[];
+                        entries: components["schemas"]["AuditEntry"][];
+                        total: number;
+                        limit: number;
+                        offset: number;
                     };
                 };
             };
@@ -3601,561 +3648,10 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    updateMe: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @description Absent leaves it alone; null clears it. */
-                    display_name?: string | null;
-                };
-            };
-        };
-        responses: {
-            /** @description The updated profile. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        user_id: string;
-                        /** Format: email */
-                        email: string | null;
-                        display_name: string | null;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description The body was well-formed JSON but not acceptable — a display name past its length, say. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showMyPermissions: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Roles and permissions for this product and tenant. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        tenant_id: string;
-                        /** Format: uuid */
-                        product_id: string;
-                        roles: string[];
-                        permissions: string[];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showMyEntitlements: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The capabilities in force. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        capabilities: string[];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listProducts: {
+    eraseUser: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The products available to this caller. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        products: components["schemas"]["Product"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showProduct: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                productId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The product. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        product: components["schemas"]["Product"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showProductCatalogue: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                productId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Product, features and configuration. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        product: components["schemas"]["Product"];
-                        features: components["schemas"]["ProductFeature"][];
-                        configuration: components["schemas"]["ProductConfiguration"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listProductFeatures: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                productId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The product's features. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        features: components["schemas"]["ProductFeature"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showProductConfiguration: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                productId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The configuration. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        configuration: components["schemas"]["ProductConfiguration"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listPlans: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The plans. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        plans: components["schemas"]["Plan"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listFeatures: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The features. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        features: components["schemas"]["Feature"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listOffers: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The offers on sale. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        offers: components["schemas"]["Offer"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    createOffer: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OfferDraft"] & {
-                    /**
-                     * @description Unique within the product, and permanent.
-                     * @example pro-monthly
-                     */
-                    code: string;
-                    name: string;
-                    /**
-                     * Format: uuid
-                     * @description A plan of this product. One from another product is refused.
-                     */
-                    plan_id: string;
-                };
-            };
-        };
-        responses: {
-            /** @description The offer, with its draft version. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        offer: components["schemas"]["AuthoredOffer"];
-                    };
-                };
-            };
-            /** @description The body is not a valid draft: an unknown billing period, a bad currency, a commitment longer than the term. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description The plan, or a granted feature, does not belong to this product. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description `OFFER_CODE_TAKEN` — another offer in this product uses that code. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showOffer: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                offerId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The offer. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Offer"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    renameOffer: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                offerId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    name: string;
-                };
-            };
-        };
-        responses: {
-            /** @description The offer. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        offer: components["schemas"]["AuthoredOffer"];
-                    };
-                };
-            };
-            /** @description The name is missing or blank. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description No such offer in this product. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showSubscription: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The subscription, with history. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        subscription: components["schemas"]["Subscription"] | null;
-                        history: components["schemas"]["Subscription"][];
-                        events: components["schemas"]["SubscriptionEvent"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    subscribe: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
             path?: never;
             cookie?: never;
         };
@@ -4163,137 +3659,31 @@ export interface operations {
             content: {
                 "application/json": {
                     /** Format: uuid */
-                    offer_id: string;
-                    /**
-                     * @description Subscribe the caller personally instead of the tenant.
-                     * @default false
-                     */
-                    seat?: boolean;
+                    user_id: string;
                 };
             };
         };
         responses: {
-            /** @description The new subscription. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Subscription"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description Already subscribed, or the offer is not on sale. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Well-formed JSON, but not acceptable. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    changeOffer: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: uuid */
-                    offer_id: string;
-                };
-            };
-        };
-        responses: {
-            /** @description The subscription on its new offer. */
+            /** @description What was erased, and what was kept and why. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Subscription"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description No subscription to change, or the offer is not on sale. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    cancelSubscription: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    /**
-                     * @description Ask to end now rather than at the next boundary. The policy still decides; asking does not make it so.
-                     * @default false
-                     */
-                    immediately?: boolean;
-                    /**
-                     * @description Cancel the caller's own seat rather than the tenant's subscription.
-                     * @default false
-                     */
-                    seat?: boolean;
-                };
-            };
-        };
-        responses: {
-            /** @description The subscription and what cancelling did, or would do. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Subscription"] & {
-                        cancellation: components["schemas"]["CancellationDecision"] & {
-                            /**
-                             * Format: uuid
-                             * @description The early-termination invoice, when one was raised. Null when leaving cost nothing.
-                             */
-                            charge_invoice_id?: string | null;
+                    "application/json": {
+                        erasure: {
+                            /** Format: uuid */
+                            user_id: string;
+                            erased: {
+                                [key: string]: number;
+                            };
+                            retained: {
+                                [key: string]: {
+                                    count: number;
+                                    /** @enum {string} */
+                                    ground: "accounting_record" | "fiscal_record" | "audit_trail" | "legal_notice_given" | "commercial_traceability";
+                                };
+                            };
                         };
                     };
                 };
@@ -4301,73 +3691,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showSchedule: {
-        parameters: {
-            query?: {
-                /** @description Present asks about the caller's own seat rather than the tenant's subscription, matching the cancel endpoint it predicts. */
-                seat?: string;
-            };
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The subscription and the hypothetical decision. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        subscription: components["schemas"]["Subscription"];
-                        if_cancelled_now: components["schemas"]["CancellationDecision"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    resumeSubscription: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The subscription, no longer ending. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Subscription"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description Nothing was scheduled to end. */
+            /** @description Already erased. A second run would file a second, emptier account of the same act. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4380,28 +3704,31 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    listEntitlements: {
+    listAdminInvoices: {
         parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            query?: {
+                /** @description One customer. */
+                tenant_id?: string;
+                /** @description DRAFT, ISSUED, PAID, CANCELLED, CREDITED. */
+                status?: string;
+                /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
+                limit?: components["parameters"]["DirectoryLimit"];
+                offset?: components["parameters"]["DirectoryOffset"];
             };
+            header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description The entitlements in force. */
+            /** @description One page. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        entitlements: components["schemas"]["Entitlement"][];
+                    "application/json": components["schemas"]["DirectoryEnvelope"] & {
+                        invoice?: components["schemas"]["AdminInvoice"][];
                     };
                 };
             };
@@ -4411,28 +3738,31 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    showBillingProfile: {
+    listAdminJobs: {
         parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            query?: {
+                /** @description PENDING, RUNNING, SUCCEEDED, FAILED, CANCELLED. */
+                status?: string;
+                /** @description The handler's name. */
+                type?: string;
+                /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
+                limit?: components["parameters"]["DirectoryLimit"];
+                offset?: components["parameters"]["DirectoryOffset"];
             };
+            header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description The profile. */
+            /** @description One page. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        profile: components["schemas"]["BillingProfile"];
+                    "application/json": components["schemas"]["DirectoryEnvelope"] & {
+                        job?: components["schemas"]["AdminJob"][];
                     };
                 };
             };
@@ -4442,7 +3772,188 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    saveBillingProfile: {
+    showMetrics: {
+        parameters: {
+            query: {
+                product_id: string;
+                months?: number;
+                /** @description Which month the offers are ranked within. Top offers over a year and over last month are different questions. */
+                month?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The dashboard. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        product_id: string;
+                        months: number;
+                        turnover: {
+                            [key: string]: unknown;
+                        }[];
+                        top_offers: {
+                            [key: string]: unknown;
+                        };
+                        renewal: {
+                            [key: string]: unknown;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showQueue: {
+        parameters: {
+            query?: {
+                /** @description Seconds. Supplying it asks for a verdict; omitting it asks only for the clock. */
+                stale_after?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The liveness signal. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Said out loud, because that state is all zeroes and reads exactly like a calm idle queue. */
+                        never_ran: boolean;
+                        last_run: {
+                            [key: string]: unknown;
+                        };
+                        unfinished_runs: number;
+                        oldest_unfinished_seconds: number | null;
+                        backlog: {
+                            [key: string]: unknown;
+                        };
+                        stale_after_seconds?: number;
+                        /** @description Only present when a threshold was supplied. */
+                        stale?: boolean;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listAdminSubscriptions: {
+        parameters: {
+            query?: {
+                /** @description One customer. */
+                tenant_id?: string;
+                /** @description ACTIVE, CANCELLED, ENDED. */
+                status?: string;
+                /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
+                limit?: components["parameters"]["DirectoryLimit"];
+                offset?: components["parameters"]["DirectoryOffset"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryEnvelope"] & {
+                        subscription?: components["schemas"]["AdminSubscription"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listAdminTenants: {
+        parameters: {
+            query?: {
+                /** @description Matches name or slug. The caller's own `%` and `_` are literal, not wildcards. */
+                search?: string;
+                /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
+                limit?: components["parameters"]["DirectoryLimit"];
+                offset?: components["parameters"]["DirectoryOffset"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryEnvelope"] & {
+                        tenant?: components["schemas"]["AdminTenant"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listAdminUsers: {
+        parameters: {
+            query?: {
+                /** @description Matches email or display name. An erased person matches neither, having neither. */
+                search?: string;
+                /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
+                limit?: components["parameters"]["DirectoryLimit"];
+                offset?: components["parameters"]["DirectoryOffset"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryEnvelope"] & {
+                        user?: components["schemas"]["AdminUser"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showAsset: {
         parameters: {
             query?: never;
             header: {
@@ -4451,41 +3962,125 @@ export interface operations {
                 /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
                 "X-Tenant"?: components["parameters"]["TenantHeader"];
             };
-            path?: never;
+            path: {
+                assetId: string;
+            };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: never;
+        responses: {
+            /** @description The asset. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Asset"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    deleteAsset: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                assetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createAssetLink: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                assetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
             content: {
                 "application/json": {
-                    legal_name: string;
-                    vat_number?: string | null;
-                    registration_number?: string | null;
-                    address_line1?: string | null;
-                    address_line2?: string | null;
-                    postal_code?: string | null;
-                    city?: string | null;
-                    /** @description ISO 3166 alpha-2. */
-                    country_code?: string | null;
-                    /** Format: email */
-                    billing_email?: string | null;
+                    /** @description How long the link should last. Clamped to the platform maximum. */
+                    ttl_seconds?: number;
                 };
             };
         };
         responses: {
-            /** @description The saved profile. */
-            200: {
+            /** @description The link and when it stops working. */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        profile: components["schemas"]["BillingProfile"];
+                        /** Format: uri */
+                        url: string;
+                        /** Format: date-time */
+                        expires_at: string;
                     };
                 };
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
-            /** @description A field was present but unacceptable — a country code that is not two letters, say. */
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    refreshSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A session. */
+            200: {
+                headers: {
+                    /** @description The refresh token, as `HttpOnly; SameSite=Strict; Path=/api/v1/auth`. The browser sends it back to the refresh and sign-out endpoints and nothing else can read it. */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The address or the password is not of an acceptable shape. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4494,6 +4089,112 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["NotConfigured"];
+        };
+    };
+    signOut: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out. The cookie is cleared. */
+            204: {
+                headers: {
+                    /** @description The same cookie, emptied and expired. */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    signIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: email */
+                    email: string;
+                    /** @description Not trimmed: a password may legitimately begin or end with a space. The 72-byte ceiling is bcrypt's — it ignores everything past it, so a longer password would have a decorative tail. */
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description A session. */
+            200: {
+                headers: {
+                    /** @description The refresh token, as `HttpOnly; SameSite=Strict; Path=/api/v1/auth`. The browser sends it back to the refresh and sign-out endpoints and nothing else can read it. */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description The address or the password is not of an acceptable shape. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["NotConfigured"];
+        };
+    };
+    listCreditNotes: {
+        parameters: {
+            query?: {
+                /** @description How many to return. */
+                limit?: components["parameters"]["Limit"];
+                /** @description How many to skip. */
+                offset?: components["parameters"]["Offset"];
+            };
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of credit notes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        credit_notes: components["schemas"]["CreditNote"][];
+                        total: number;
+                        limit: number;
+                        offset: number;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
@@ -4607,92 +4308,6 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    showInvoicePdf: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                invoiceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The invoice document, as an attachment. */
-            200: {
-                headers: {
-                    /** @description `attachment`, with a filename built from the legal number. */
-                    "Content-Disposition"?: string;
-                    /** @description SHA-256 of the stored document. It never changes. */
-                    ETag?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/pdf": string;
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description `INVOICE_NOT_RENDERABLE` — the invoice has no legal number yet, so there is no document. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    markInvoicePaid: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                invoiceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The invoice, now paid. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Invoice"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description Not in a state that can be paid — a draft, or already paid. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
     cancelInvoice: {
         parameters: {
             query?: never;
@@ -4722,50 +4337,6 @@ export interface operations {
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
             /** @description Already final; issue a credit note instead. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    startPayment: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                invoiceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The pending payment and its client secret. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Payment"] & {
-                        /** @description Hand to the provider's client SDK. Never logged, never stored. */
-                        client_secret: string | null;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description The invoice cannot be paid — a draft, cancelled, or already settled. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4825,7 +4396,7 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    submitInvoice: {
+    markInvoicePaid: {
         parameters: {
             query?: never;
             header: {
@@ -4841,19 +4412,108 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Accepted for transmission. */
-            202: {
+            /** @description The invoice, now paid. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Transmission"];
+                    "application/json": components["schemas"]["Invoice"];
                 };
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description The invoice is not issued, or has already been transmitted. */
+            /** @description Not in a state that can be paid — a draft, or already paid. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    startPayment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                invoiceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pending payment and its client secret. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"] & {
+                        /** @description Hand to the provider's client SDK. Never logged, never stored. */
+                        client_secret: string | null;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description The invoice cannot be paid — a draft, cancelled, or already settled. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showInvoicePdf: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                invoiceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The invoice document, as an attachment. */
+            200: {
+                headers: {
+                    /** @description `attachment`, with a filename built from the legal number. */
+                    "Content-Disposition"?: string;
+                    /** @description SHA-256 of the stored document. It never changes. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description `INVOICE_NOT_RENDERABLE` — the invoice has no legal number yet, so there is no document. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4896,6 +4556,47 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    submitInvoice: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                invoiceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted for transmission. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transmission"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description The invoice is not issued, or has already been transmitted. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
@@ -5030,46 +4731,7 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    listCreditNotes: {
-        parameters: {
-            query?: {
-                /** @description How many to return. */
-                limit?: components["parameters"]["Limit"];
-                /** @description How many to skip. */
-                offset?: components["parameters"]["Offset"];
-            };
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description A page of credit notes. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        credit_notes: components["schemas"]["CreditNote"][];
-                        total: number;
-                        limit: number;
-                        offset: number;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showTaxProfile: {
+    showBillingProfile: {
         parameters: {
             query?: never;
             header: {
@@ -5090,7 +4752,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        profile: components["schemas"]["TaxProfile"];
+                        profile: components["schemas"]["BillingProfile"];
                     };
                 };
             };
@@ -5100,7 +4762,7 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    saveTaxProfile: {
+    saveBillingProfile: {
         parameters: {
             query?: never;
             header: {
@@ -5115,32 +4777,35 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /** @enum {string} */
-                    customer_kind: "B2B" | "B2C";
+                    legal_name: string;
+                    vat_number?: string | null;
+                    registration_number?: string | null;
+                    address_line1?: string | null;
+                    address_line2?: string | null;
+                    postal_code?: string | null;
+                    city?: string | null;
                     /** @description ISO 3166 alpha-2. */
                     country_code?: string | null;
-                    /** @default false */
-                    taxable_person?: boolean;
-                    /** @description Normalised before checking; "FR 123 456" is not what a verification service accepts. */
-                    vat_number?: string | null;
+                    /** Format: email */
+                    billing_email?: string | null;
                 };
             };
         };
         responses: {
-            /** @description The saved profile, with whatever the check concluded. */
+            /** @description The saved profile. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        profile: components["schemas"]["TaxProfile"];
+                        profile: components["schemas"]["BillingProfile"];
                     };
                 };
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
-            /** @description A field was unacceptable — a country code that is not two letters, say. */
+            /** @description A field was present but unacceptable — a country code that is not two letters, say. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5153,43 +4818,7 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    listTaxRates: {
-        parameters: {
-            query?: {
-                /** @description Defaults to now. */
-                on?: string;
-            };
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The rates, and the moment they were read for. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** Format: date-time */
-                        on: string;
-                        rates: components["schemas"]["TaxRate"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    calculateTax: {
+    openCheckoutSession: {
         parameters: {
             query?: never;
             header: {
@@ -5204,843 +4833,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    amount_minor_units: number;
-                    /** @description Defaults to the product's. */
-                    currency?: string;
-                    /** @description Goods, services, digital services — what is supplied changes where it is taxed. */
-                    supply_type?: string | null;
-                };
-            };
-        };
-        responses: {
-            /** @description The calculation. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        calculation: components["schemas"]["TaxCalculation"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description The amount or currency was unacceptable. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listVatTransactions: {
-        parameters: {
-            query?: {
-                /** @description How many to return. */
-                limit?: components["parameters"]["Limit"];
-                /** @description How many to skip. */
-                offset?: components["parameters"]["Offset"];
-            };
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description A page of VAT transactions. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        transactions: components["schemas"]["VatTransaction"][];
-                        total: number;
-                        limit: number;
-                        offset: number;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listVatPeriods: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The periods. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        periods: components["schemas"]["VatPeriod"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showVatPeriod: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                periodId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The period, its totals, and the declaration if it has one. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        period: components["schemas"]["VatPeriod"];
-                        totals: {
-                            [key: string]: unknown;
-                        };
-                        declaration: components["schemas"]["VatDeclaration"] | null;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    closeVatPeriod: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                periodId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The frozen declaration. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        declaration: components["schemas"]["VatDeclaration"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description Already closed, not yet ended, or holding more than one currency. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listQuotes: {
-        parameters: {
-            query?: {
-                /** @description How many to return. */
-                limit?: components["parameters"]["Limit"];
-                /** @description How many to skip. */
-                offset?: components["parameters"]["Offset"];
-            };
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description A page of quotes. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        quotes: components["schemas"]["Quote"][];
-                        total: number;
-                        limit: number;
-                        offset: number;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    createQuote: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: uuid */
-                    offer_id: string;
-                    /** @description Clamped to the platform maximum if larger. */
-                    validity_days?: number;
-                };
-            };
-        };
-        responses: {
-            /** @description The quote. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Quote"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description The offer is not on sale. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description A field was unacceptable. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showQuote: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                quoteId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The quote. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Quote"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    acceptQuote: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                quoteId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The order the quote became. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Order"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description No longer open — expired, or already decided. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    rejectQuote: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                quoteId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The rejected quote. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Quote"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description Already decided. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listOrders: {
-        parameters: {
-            query?: {
-                /** @description How many to return. */
-                limit?: components["parameters"]["Limit"];
-                /** @description How many to skip. */
-                offset?: components["parameters"]["Offset"];
-            };
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description A page of orders. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        orders: components["schemas"]["Order"][];
-                        total: number;
-                        limit: number;
-                        offset: number;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    placeOrder: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: uuid */
+                    /**
+                     * Format: uuid
+                     * @description An offer on sale in this product right now. A draft, an expired one, or one belonging to another product is not found.
+                     */
                     offer_id: string;
                 };
             };
         };
         responses: {
-            /** @description The order. */
+            /** @description The session, with the client secret if there is anything to pay. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Order"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description The offer is not on sale. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showOrder: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                orderId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The order. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Order"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    fulfilOrder: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                orderId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The order, now carrying an invoice. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Order"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description Not in a state that can be fulfilled. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    cancelOrder: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                orderId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The cancelled order. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Order"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description Already completed, or already cancelled. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listNotifications: {
-        parameters: {
-            query?: {
-                /** @description How many to return. */
-                limit?: components["parameters"]["Limit"];
-                /** @description How many to skip. */
-                offset?: components["parameters"]["Offset"];
-                /** @description Present narrows to unread. */
-                unread?: string;
-            };
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description A page of notifications. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
                     "application/json": {
-                        notifications: components["schemas"]["Notification"][];
-                        total: number;
-                        unread: number;
-                        limit: number;
-                        offset: number;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    unreadCount: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The count. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        unread: number;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    readAll: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description How many were marked. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        marked: number;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    readNotification: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                notificationId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The notification, now read. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Notification"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showDeliveries: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                notificationId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The deliveries. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        deliveries: components["schemas"]["Delivery"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showPreferences: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The preferences, keyed CATEGORY:CHANNEL. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        preferences: {
-                            [key: string]: boolean;
+                        session: components["schemas"]["CheckoutSession"] & {
+                            /** @description Handed to the payment provider’s client SDK. **Returned here and nowhere else**: it is short-lived and it is a credential, so it is never stored (§31). Null when the provider uses a redirect rather than a secret. A caller who needs a fresh one retries the payment, which is a new attempt and gets its own. */
+                            client_secret?: string | null;
                         };
                     };
                 };
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    savePreference: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @enum {string} */
-                    category: "BILLING" | "ACCOUNT" | "SECURITY" | "SUPPORT" | "MARKETING";
-                    /** @enum {string} */
-                    channel: "SCREEN" | "EMAIL" | "SMS" | "WHATSAPP";
-                    /** @default false */
-                    enabled?: boolean;
-                };
-            };
-        };
-        responses: {
-            /** @description The updated preferences. */
-            200: {
+            /** @description No such offer on sale in this product. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        preferences: {
-                            [key: string]: boolean;
-                        };
-                    };
+                    "application/json": components["schemas"]["Error"];
                 };
             };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description SECURITY notifications cannot be disabled. */
+            /** @description `BILLING_PROFILE_REQUIRED` — the tenant has no billing profile, so nothing can be invoiced to it. Refused before any document is raised, because numbering is gapless. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6053,7 +4880,7 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    listConsents: {
+    showCheckoutSession: {
         parameters: {
             query?: never;
             header: {
@@ -6062,68 +4889,29 @@ export interface operations {
                 /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
                 "X-Tenant"?: components["parameters"]["TenantHeader"];
             };
-            path?: never;
+            path: {
+                /** @description The order id returned when the session was opened. */
+                sessionId: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description The consents. */
+            /** @description The session. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        consents: components["schemas"]["Consent"][];
+                        session: components["schemas"]["CheckoutSession"];
                     };
                 };
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    grantConsent: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @enum {string} */
-                    channel: "EMAIL" | "SMS" | "WHATSAPP";
-                    purpose: string;
-                    /** @description Where the opt-in came from. The evidence, not just the claim. */
-                    source: string;
-                    evidence?: {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-        responses: {
-            /** @description The consent. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Consent"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description An unknown channel or purpose. */
-            422: {
+            /** @description No such session in this tenant and product. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6131,678 +4919,6 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    revokeConsent: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                consentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The revoked consent. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Consent"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listProjects: {
-        parameters: {
-            query?: {
-                /** @description How many to return. */
-                limit?: components["parameters"]["Limit"];
-                /** @description How many to skip. */
-                offset?: components["parameters"]["Offset"];
-                /** @description Ask for the deleted projects instead of the live ones. Only the exact value "true" does so: a mistyped query string answers the question it looks like, which is "the live ones". */
-                deleted?: "true";
-            };
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description A page of projects. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        projects: components["schemas"]["ProjectSummary"][];
-                        total: number;
-                        limit: number;
-                        offset: number;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    createProject: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    name: string;
-                    description?: string | null;
-                    schema_version: number;
-                    document: components["schemas"]["ProjectDocument"];
-                };
-            };
-        };
-        responses: {
-            /** @description The project. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Project"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description The quota for projects is already spent. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description The document is larger than JSONB will take inline; put large data in storage (non-negotiable #9). */
-            413: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description An unknown schema_version, or a malformed document. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showProject: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                projectId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The project. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Project"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    deleteProject: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                projectId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Deleted. */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    updateProject: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                projectId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    name?: string;
-                    description?: string | null;
-                    schema_version?: number;
-                    document?: components["schemas"]["ProjectDocument"];
-                };
-            };
-        };
-        responses: {
-            /** @description The updated project. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Project"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description The document is too large to store inline. */
-            413: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description An unknown schema_version, or a malformed document. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listProjectVersions: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                projectId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The versions. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        versions: components["schemas"]["ProjectVersionSummary"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    createProjectVersion: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                projectId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    label?: string | null;
-                };
-            };
-        };
-        responses: {
-            /** @description The new version. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectVersion"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showProjectVersion: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                projectId: string;
-                versionId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The version. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectVersion"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    duplicateProject: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                projectId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The copy. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Project"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description The quota for projects is already spent. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    restoreProject: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                projectId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: uuid */
-                    version_id: string;
-                };
-            };
-        };
-        responses: {
-            /** @description The project, as the version had it. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Project"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listAssets: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                projectId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The assets. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        assets: components["schemas"]["Asset"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    uploadAsset: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-                /** @description The original name. Sanitised before it reaches a filesystem or a Content-Disposition header. */
-                "X-Filename": string;
-            };
-            path: {
-                projectId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/octet-stream": string;
-            };
-        };
-        responses: {
-            /** @description The stored asset. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Asset"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description Larger than the platform accepts. */
-            413: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description A type this platform will not store. */
-            415: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    requestExport: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                projectId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The queued job. */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Job"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showAsset: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                assetId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The asset. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Asset"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    deleteAsset: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                assetId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Deleted. */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    createAssetLink: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                assetId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    /** @description How long the link should last. Clamped to the platform maximum. */
-                    ttl_seconds?: number;
-                };
-            };
-        };
-        responses: {
-            /** @description The link and when it stops working. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** Format: uri */
-                        url: string;
-                        /** Format: date-time */
-                        expires_at: string;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
@@ -7079,46 +5195,6 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    markRead: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                conversationId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    seq: number;
-                };
-            };
-        };
-        responses: {
-            /** @description The new watermark. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        last_read_seq: number;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
     addParticipant: {
         parameters: {
             query?: never;
@@ -7198,7 +5274,7 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    showCurrentTenant: {
+    markRead: {
         parameters: {
             query?: never;
             header: {
@@ -7207,505 +5283,6 @@ export interface operations {
                 /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
                 "X-Tenant"?: components["parameters"]["TenantHeader"];
             };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The tenant. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        tenant: components["schemas"]["Tenant"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    updateCurrentTenant: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    name?: string;
-                };
-            };
-        };
-        responses: {
-            /** @description The updated tenant. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        tenant: components["schemas"]["Tenant"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description A name that is not acceptable. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showTenantUsage: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Usage against entitlements. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        usage: {
-                            [key: string]: unknown;
-                        }[];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listMembers: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The members. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        members: components["schemas"]["Member"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    addMember: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: email */
-                    email: string;
-                    roles: string[];
-                };
-            };
-        };
-        responses: {
-            /** @description The member. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Member"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description Already a member, or the seat quota is spent. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description An unknown role, or a malformed email. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    removeMember: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                userId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Removed. */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    updateMember: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                userId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    roles: string[];
-                };
-            };
-        };
-        responses: {
-            /** @description The member. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Member"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description An unknown role. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showStaffIdentity: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The staff identity. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        staff: {
-                            /** Format: uuid */
-                            user_id: string;
-                            roles: string[];
-                            permissions: string[];
-                        };
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listTenantsForStaff: {
-        parameters: {
-            query?: {
-                /** @description How many to return. */
-                limit?: components["parameters"]["Limit"];
-                /** @description How many to skip. */
-                offset?: components["parameters"]["Offset"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description A page of tenants. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        tenants: components["schemas"]["Tenant"][];
-                        total: number;
-                        limit: number;
-                        offset: number;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showTenantForStaff: {
-        parameters: {
-            query?: never;
-            header: {
-                /**
-                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
-                 *
-                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
-                 */
-                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
-                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
-                "X-Access-Reason": components["parameters"]["AccessReason"];
-            };
-            path: {
-                tenantId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The tenant. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        tenant: components["schemas"]["Tenant"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listAccessLog: {
-        parameters: {
-            query?: {
-                /** @description How many to return. */
-                limit?: components["parameters"]["Limit"];
-                /** @description How many to skip. */
-                offset?: components["parameters"]["Offset"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description A page of access entries. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        entries: components["schemas"]["StaffAccessEntry"][];
-                        total: number;
-                        limit: number;
-                        offset: number;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listSupportConversations: {
-        parameters: {
-            query?: {
-                /** @description How many to return. */
-                limit?: components["parameters"]["Limit"];
-                /** @description How many to skip. */
-                offset?: components["parameters"]["Offset"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description A page of support threads. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        conversations: components["schemas"]["Conversation"][];
-                        total: number;
-                        limit: number;
-                        offset: number;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showSupportConversation: {
-        parameters: {
-            query?: never;
-            header: {
-                /**
-                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
-                 *
-                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
-                 */
-                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
-                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
-                "X-Access-Reason": components["parameters"]["AccessReason"];
-            };
-            path: {
-                conversationId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The thread and its messages. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Conversation"] & {
-                        /** Format: uuid */
-                        tenant_id: string;
-                        /** Format: uuid */
-                        product_id: string;
-                        messages: components["schemas"]["Message"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    postSupportMessage: {
-        parameters: {
-            query?: never;
-            header?: never;
             path: {
                 conversationId: string;
             };
@@ -7714,230 +5291,272 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    body: string;
+                    seq: number;
                 };
             };
         };
         responses: {
-            /** @description The message. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Message"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description The thread is closed. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    closeSupportConversation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                conversationId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The closed thread. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Conversation"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listAudit: {
-        parameters: {
-            query?: {
-                /** @description How many to return. */
-                limit?: components["parameters"]["Limit"];
-                /** @description How many to skip. */
-                offset?: components["parameters"]["Offset"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description A page of audit entries. */
+            /** @description The new watermark. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        entries: components["schemas"]["AuditEntry"][];
-                        total: number;
-                        limit: number;
-                        offset: number;
+                        last_read_seq: number;
                     };
                 };
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
     };
-    showMetrics: {
+    downloadAsset: {
         parameters: {
             query: {
-                product_id: string;
-                months?: number;
-                /** @description Which month the offers are ranked within. Top offers over a year and over last month are different questions. */
-                month?: string;
+                /** @description The signature minted by /assets/{assetId}/link. It carries its own expiry. */
+                token: string;
             };
             header?: never;
-            path?: never;
+            path: {
+                assetId: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description The dashboard. */
+            /** @description The file. Served as an attachment, with the sniffed content type and a sanitised filename. */
             200: {
+                headers: {
+                    /** @description The type sniffed at upload, never the one the uploader claimed. */
+                    "Content-Type"?: string;
+                    /** @description attachment, with the filename sanitised. */
+                    "Content-Disposition"?: string;
+                    /** @description Stops a browser overriding the sniffed type and running the file as something else. */
+                    "X-Content-Type-Options"?: "nosniff";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description The link expired, or its signature did not verify. No detail: a probing caller learns nothing from it. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        product_id: string;
-                        months: number;
-                        turnover: {
-                            [key: string]: unknown;
-                        }[];
-                        top_offers: {
-                            [key: string]: unknown;
-                        };
-                        renewal: {
-                            [key: string]: unknown;
-                        }[];
-                    };
+                    "application/json": components["schemas"]["Error"];
                 };
             };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
     };
-    showQueue: {
-        parameters: {
-            query?: {
-                /** @description Seconds. Supplying it asks for a verdict; omitting it asks only for the clock. */
-                stale_after?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The liveness signal. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description Said out loud, because that state is all zeroes and reads exactly like a calm idle queue. */
-                        never_ran: boolean;
-                        last_run: {
-                            [key: string]: unknown;
-                        };
-                        unfinished_runs: number;
-                        oldest_unfinished_seconds: number | null;
-                        backlog: {
-                            [key: string]: unknown;
-                        };
-                        stale_after_seconds?: number;
-                        /** @description Only present when a threshold was supplied. */
-                        stale?: boolean;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    eraseUser: {
+    listEntitlements: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The entitlements in force. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        entitlements: components["schemas"]["Entitlement"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listFeatures: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The features. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        features: components["schemas"]["Feature"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    intersectGeometries: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
                 "application/json": {
-                    /** Format: uuid */
-                    user_id: string;
+                    crs: components["schemas"]["CoordinateReference"];
+                    /** @description The shape being asked about. */
+                    subject: components["schemas"]["GeoJsonPolygon"] | components["schemas"]["GeoJsonPoint"];
+                    /** @description The parcels to test against. Ids must be distinct — two rows sharing one id would make the response impossible to index by, so a repeat is refused rather than resolved. */
+                    candidates: {
+                        /** @example parcel-AB-0142 */
+                        id: string;
+                        geometry: components["schemas"]["GeoJsonPolygon"];
+                    }[];
                 };
             };
         };
         responses: {
-            /** @description What was erased, and what was kept and why. */
+            /** @description One relation per candidate, in the order given. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        erasure: {
-                            /** Format: uuid */
-                            user_id: string;
-                            erased: {
-                                [key: string]: number;
-                            };
-                            retained: {
-                                [key: string]: {
-                                    count: number;
-                                    /** @enum {string} */
-                                    ground: "accounting_record" | "fiscal_record" | "audit_trail" | "legal_notice_given" | "commercial_traceability";
-                                };
-                            };
-                        };
+                        relations: components["schemas"]["SpatialRelation"][];
                     };
                 };
             };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description Already erased. A second run would file a second, emptier account of the same act. */
-            409: {
+            /** @description A geometry this backend does not represent, a candidate without an id, or two candidates sharing one. */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `GEOMETRY_NOT_SIMPLE` — a ring crosses itself. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    measureGeometry: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    crs: components["schemas"]["CoordinateReference"];
+                    geometry: components["schemas"]["GeoJsonPolygon"];
+                };
+            };
+        };
+        responses: {
+            /** @description The measurement. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        measurement: components["schemas"]["Measurement"];
+                    };
+                };
+            };
+            /** @description The geometry is not one this backend represents: a hole, a MultiPolygon, a Z ordinate, a ring that is not closed, or an unknown `crs`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `GEOMETRY_NOT_SIMPLE` — the ring crosses itself, which has no well-defined area. Or `PROJECTION_REQUIRED` — `crs` was GEOGRAPHIC. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    health: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The process is up. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @example ok */
+                        status: string;
+                    };
                 };
             };
             429: components["responses"]["TooManyRequests"];
@@ -8104,55 +5723,89 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    paymentWebhook: {
+    showMe: {
         parameters: {
             query?: never;
-            header?: never;
-            path: {
-                /** @description Which adapter the delivery is for. The domain never names a provider; this selects the one that verifies it. */
-                provider: string;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
             };
+            path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description Applied — this delivery changed something. */
+            /** @description The resolved caller. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        outcome: string;
-                        applied: boolean;
                         /** Format: uuid */
-                        payment_id?: string | null;
+                        user_id: string;
+                        /** Format: email */
+                        email: string | null;
+                        display_name: string | null;
                         /** Format: uuid */
-                        transmission_id?: string | null;
+                        product_id: string;
+                        /** Format: uuid */
+                        tenant_id: string;
+                        roles: string[];
+                        permissions: string[];
+                        /** @description Feature codes the tenant is entitled to here. */
+                        capabilities: string[];
                     };
                 };
             };
-            /** @description Understood and ignored — a replay, or an event arriving after the outcome was already final. Deliberately a success: a provider that got an error would keep redelivering something the platform has correctly decided not to apply twice. */
-            202: {
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateMe: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Absent leaves it alone; null clears it. */
+                    display_name?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The updated profile. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        outcome: string;
-                        /** @constant */
-                        applied: false;
+                        /** Format: uuid */
+                        user_id: string;
+                        /** Format: email */
+                        email: string | null;
+                        display_name: string | null;
                     };
                 };
             };
-            /** @description Unreadable, or the signature did not verify. No detail is given: a probing caller learns nothing from it. */
-            400: {
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description The body was well-formed JSON but not acceptable — a display name past its length, say. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8164,55 +5817,186 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    einvoiceWebhook: {
+    showMyEntitlements: {
         parameters: {
             query?: never;
-            header?: never;
-            path: {
-                /** @description Which adapter the delivery is for. The domain never names a provider; this selects the one that verifies it. */
-                provider: string;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
             };
+            path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description Applied — this delivery changed something. */
+            /** @description The capabilities in force. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        outcome: string;
-                        applied: boolean;
-                        /** Format: uuid */
-                        payment_id?: string | null;
-                        /** Format: uuid */
-                        transmission_id?: string | null;
+                        capabilities: string[];
                     };
                 };
             };
-            /** @description Understood and ignored — a replay, or an event arriving after the outcome was already final. Deliberately a success: a provider that got an error would keep redelivering something the platform has correctly decided not to apply twice. */
-            202: {
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showMyPermissions: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Roles and permissions for this product and tenant. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        outcome: string;
-                        /** @constant */
-                        applied: false;
+                        /** Format: uuid */
+                        tenant_id: string;
+                        /** Format: uuid */
+                        product_id: string;
+                        roles: string[];
+                        permissions: string[];
                     };
                 };
             };
-            /** @description Unreadable, or the signature did not verify. No detail is given: a probing caller learns nothing from it. */
-            400: {
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listNotifications: {
+        parameters: {
+            query?: {
+                /** @description How many to return. */
+                limit?: components["parameters"]["Limit"];
+                /** @description How many to skip. */
+                offset?: components["parameters"]["Offset"];
+                /** @description Present narrows to unread. */
+                unread?: string;
+            };
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of notifications. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        notifications: components["schemas"]["Notification"][];
+                        total: number;
+                        unread: number;
+                        limit: number;
+                        offset: number;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listConsents: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The consents. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        consents: components["schemas"]["Consent"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    grantConsent: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    channel: "EMAIL" | "SMS" | "WHATSAPP";
+                    purpose: string;
+                    /** @description Where the opt-in came from. The evidence, not just the claim. */
+                    source: string;
+                    evidence?: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description The consent. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Consent"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description An unknown channel or purpose. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8224,50 +6008,72 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    downloadAsset: {
+    revokeConsent: {
         parameters: {
-            query: {
-                /** @description The signature minted by /assets/{assetId}/link. It carries its own expiry. */
-                token: string;
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
             };
-            header?: never;
             path: {
-                assetId: string;
+                consentId: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description The file. Served as an attachment, with the sniffed content type and a sanitised filename. */
+            /** @description The revoked consent. */
             200: {
                 headers: {
-                    /** @description The type sniffed at upload, never the one the uploader claimed. */
-                    "Content-Type"?: string;
-                    /** @description attachment, with the filename sanitised. */
-                    "Content-Disposition"?: string;
-                    /** @description Stops a browser overriding the sniffed type and running the file as something else. */
-                    "X-Content-Type-Options"?: "nosniff";
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/octet-stream": string;
+                    "application/json": components["schemas"]["Consent"];
                 };
             };
-            /** @description The link expired, or its signature did not verify. No detail: a probing caller learns nothing from it. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
     };
-    measureGeometry: {
+    showPreferences: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The preferences, keyed CATEGORY:CHANNEL. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        preferences: {
+                            [key: string]: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    savePreference: {
         parameters: {
             query?: never;
             header: {
@@ -8282,36 +6088,33 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    crs: components["schemas"]["CoordinateReference"];
-                    geometry: components["schemas"]["GeoJsonPolygon"];
+                    /** @enum {string} */
+                    category: "BILLING" | "ACCOUNT" | "SECURITY" | "SUPPORT" | "MARKETING";
+                    /** @enum {string} */
+                    channel: "SCREEN" | "EMAIL" | "SMS" | "WHATSAPP";
+                    /** @default false */
+                    enabled?: boolean;
                 };
             };
         };
         responses: {
-            /** @description The measurement. */
+            /** @description The updated preferences. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        measurement: components["schemas"]["Measurement"];
+                        preferences: {
+                            [key: string]: boolean;
+                        };
                     };
-                };
-            };
-            /** @description The geometry is not one this backend represents: a hole, a MultiPolygon, a Z ordinate, a ring that is not closed, or an unknown `crs`. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
                 };
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
-            /** @description `GEOMETRY_NOT_SIMPLE` — the ring crosses itself, which has no well-defined area. Or `PROJECTION_REQUIRED` — `crs` was GEOGRAPHIC. */
-            422: {
+            /** @description SECURITY notifications cannot be disabled. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8323,7 +6126,166 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    intersectGeometries: {
+    readAll: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many were marked. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        marked: number;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    unreadCount: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The count. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        unread: number;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showDeliveries: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                notificationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The deliveries. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        deliveries: components["schemas"]["Delivery"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    readNotification: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                notificationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The notification, now read. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Notification"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listOffers: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The offers on sale. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        offers: components["schemas"]["Offer"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createOffer: {
         parameters: {
             query?: never;
             header: {
@@ -8337,32 +6299,34 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    crs: components["schemas"]["CoordinateReference"];
-                    /** @description The shape being asked about. */
-                    subject: components["schemas"]["GeoJsonPolygon"] | components["schemas"]["GeoJsonPoint"];
-                    /** @description The parcels to test against. Ids must be distinct — two rows sharing one id would make the response impossible to index by, so a repeat is refused rather than resolved. */
-                    candidates: {
-                        /** @example parcel-AB-0142 */
-                        id: string;
-                        geometry: components["schemas"]["GeoJsonPolygon"];
-                    }[];
+                "application/json": components["schemas"]["OfferDraft"] & {
+                    /**
+                     * @description Unique within the product, and permanent.
+                     * @example pro-monthly
+                     */
+                    code: string;
+                    name: string;
+                    /**
+                     * Format: uuid
+                     * @description A plan of this product. One from another product is refused.
+                     */
+                    plan_id: string;
                 };
             };
         };
         responses: {
-            /** @description One relation per candidate, in the order given. */
-            200: {
+            /** @description The offer, with its draft version. */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        relations: components["schemas"]["SpatialRelation"][];
+                        offer: components["schemas"]["AuthoredOffer"];
                     };
                 };
             };
-            /** @description A geometry this backend does not represent, a candidate without an id, or two candidates sharing one. */
+            /** @description The body is not a valid draft: an unknown billing period, a bad currency, a commitment longer than the term. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8373,8 +6337,163 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
-            /** @description `GEOMETRY_NOT_SIMPLE` — a ring crosses itself. */
-            422: {
+            /** @description The plan, or a granted feature, does not belong to this product. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `OFFER_CODE_TAKEN` — another offer in this product uses that code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showOffer: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                offerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The offer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Offer"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    renameOffer: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                offerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The offer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        offer: components["schemas"]["AuthoredOffer"];
+                    };
+                };
+            };
+            /** @description The name is missing or blank. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description No such offer in this product. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    publishOfferVersion: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                offerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The offer, with that version now ACTIVE. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        offer: components["schemas"]["AuthoredOffer"];
+                    };
+                };
+            };
+            /** @description No version given. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `VERSION_NOT_PUBLISHABLE` — it is not a draft. Or `OFFER_ALREADY_ON_SALE` — another version covers that window. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8483,7 +6602,7 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    publishOfferVersion: {
+    retryPayment: {
         parameters: {
             query?: never;
             header: {
@@ -8493,31 +6612,29 @@ export interface operations {
                 "X-Tenant"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                offerId: string;
+                /** @description The attempt that failed. */
+                paymentId: string;
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": {
-                    version: number;
-                };
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description The offer, with that version now ACTIVE. */
-            200: {
+            /** @description A new payment, with its own client secret. */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        offer: components["schemas"]["AuthoredOffer"];
+                        /** @description Handed to the payment provider’s client SDK. **Returned here and nowhere else**: it is short-lived and it is a credential, so it is never stored (§31). Null when the provider uses a redirect rather than a secret. A caller who needs a fresh one retries the payment, which is a new attempt and gets its own. */
+                        client_secret?: string | null;
                     };
                 };
             };
-            /** @description No version given. */
-            400: {
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description No such payment in this tenant and product. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8525,9 +6642,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description `VERSION_NOT_PUBLISHABLE` — it is not a draft. Or `OFFER_ALREADY_ON_SALE` — another version covers that window. */
+            /** @description `PAYMENT_STILL_IN_FLIGHT` — it has not settled or failed yet. `PAYMENT_ALREADY_SETTLED` — it succeeded. `INVOICE_NOT_PAYABLE` — the invoice is no longer collectable. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8540,29 +6655,28 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    listAdminTenants: {
+    listPlans: {
         parameters: {
-            query?: {
-                /** @description Matches name or slug. The caller's own `%` and `_` are literal, not wildcards. */
-                search?: string;
-                /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
-                limit?: components["parameters"]["DirectoryLimit"];
-                offset?: components["parameters"]["DirectoryOffset"];
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
             };
-            header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description One page. */
+            /** @description The plans. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DirectoryEnvelope"] & {
-                        tenant?: components["schemas"]["AdminTenant"][];
+                    "application/json": {
+                        plans: components["schemas"]["Plan"][];
                     };
                 };
             };
@@ -8572,29 +6686,177 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    listAdminUsers: {
+    listProducts: {
         parameters: {
-            query?: {
-                /** @description Matches email or display name. An erased person matches neither, having neither. */
-                search?: string;
-                /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
-                limit?: components["parameters"]["DirectoryLimit"];
-                offset?: components["parameters"]["DirectoryOffset"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description One page. */
+            /** @description The products available to this caller. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DirectoryEnvelope"] & {
-                        user?: components["schemas"]["AdminUser"][];
+                    "application/json": {
+                        products: components["schemas"]["Product"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The product. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        product: components["schemas"]["Product"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showProductCatalogue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Product, features and configuration. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        product: components["schemas"]["Product"];
+                        features: components["schemas"]["ProductFeature"][];
+                        configuration: components["schemas"]["ProductConfiguration"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showProductConfiguration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The configuration. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        configuration: components["schemas"]["ProductConfiguration"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listProductFeatures: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The product's features. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        features: components["schemas"]["ProductFeature"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listProjects: {
+        parameters: {
+            query?: {
+                /** @description How many to return. */
+                limit?: components["parameters"]["Limit"];
+                /** @description How many to skip. */
+                offset?: components["parameters"]["Offset"];
+                /** @description Ask for the deleted projects instead of the live ones. Only the exact value "true" does so: a mistyped query string answers the question it looks like, which is "the live ones". */
+                deleted?: "true";
+            };
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of projects. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        projects: components["schemas"]["ProjectSummary"][];
+                        total: number;
+                        limit: number;
+                        offset: number;
                     };
                 };
             };
@@ -8604,31 +6866,561 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    listAdminSubscriptions: {
+    createProject: {
         parameters: {
-            query?: {
-                /** @description One customer. */
-                tenant_id?: string;
-                /** @description ACTIVE, CANCELLED, ENDED. */
-                status?: string;
-                /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
-                limit?: components["parameters"]["DirectoryLimit"];
-                offset?: components["parameters"]["DirectoryOffset"];
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
             };
-            header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    description?: string | null;
+                    schema_version: number;
+                    document: components["schemas"]["ProjectDocument"];
+                };
+            };
+        };
+        responses: {
+            /** @description The project. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description The quota for projects is already spent. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description The document is larger than JSONB will take inline; put large data in storage (non-negotiable #9). */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description An unknown schema_version, or a malformed document. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showProject: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                projectId: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description One page. */
+            /** @description The project. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DirectoryEnvelope"] & {
-                        subscription?: components["schemas"]["AdminSubscription"][];
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    deleteProject: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateProject: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    description?: string | null;
+                    schema_version?: number;
+                    document?: components["schemas"]["ProjectDocument"];
+                };
+            };
+        };
+        responses: {
+            /** @description The updated project. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description The document is too large to store inline. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description An unknown schema_version, or a malformed document. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listAssets: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The assets. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        assets: components["schemas"]["Asset"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    uploadAsset: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+                /** @description The original name. Sanitised before it reaches a filesystem or a Content-Disposition header. */
+                "X-Filename": string;
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description The stored asset. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Asset"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description Larger than the platform accepts. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description A type this platform will not store. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    duplicateProject: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The copy. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description The quota for projects is already spent. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    requestExport: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The queued job. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    restoreProject: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    version_id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The project, as the version had it. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    undeleteProject: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The project, live again. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listProjectVersions: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The versions. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        versions: components["schemas"]["ProjectVersionSummary"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createProjectVersion: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    label?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The new version. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectVersion"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showProjectVersion: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                projectId: string;
+                versionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The version. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectVersion"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listOrders: {
+        parameters: {
+            query?: {
+                /** @description How many to return. */
+                limit?: components["parameters"]["Limit"];
+                /** @description How many to skip. */
+                offset?: components["parameters"]["Offset"];
+            };
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of orders. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        orders: components["schemas"]["Order"][];
+                        total: number;
+                        limit: number;
+                        offset: number;
                     };
                 };
             };
@@ -8638,31 +7430,195 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    listAdminInvoices: {
+    placeOrder: {
         parameters: {
-            query?: {
-                /** @description One customer. */
-                tenant_id?: string;
-                /** @description DRAFT, ISSUED, PAID, CANCELLED, CREDITED. */
-                status?: string;
-                /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
-                limit?: components["parameters"]["DirectoryLimit"];
-                offset?: components["parameters"]["DirectoryOffset"];
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
             };
-            header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    offer_id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The order. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description The offer is not on sale. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showOrder: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                orderId: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description One page. */
+            /** @description The order. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DirectoryEnvelope"] & {
-                        invoice?: components["schemas"]["AdminInvoice"][];
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    cancelOrder: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                orderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The cancelled order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description Already completed, or already cancelled. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    fulfilOrder: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                orderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The order, now carrying an invoice. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description Not in a state that can be fulfilled. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listQuotes: {
+        parameters: {
+            query?: {
+                /** @description How many to return. */
+                limit?: components["parameters"]["Limit"];
+                /** @description How many to skip. */
+                offset?: components["parameters"]["Offset"];
+            };
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of quotes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        quotes: components["schemas"]["Quote"][];
+                        total: number;
+                        limit: number;
+                        offset: number;
                     };
                 };
             };
@@ -8672,16 +7628,183 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    listAdminJobs: {
+    createQuote: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    offer_id: string;
+                    /** @description Clamped to the platform maximum if larger. */
+                    validity_days?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The quote. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Quote"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description The offer is not on sale. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description A field was unacceptable. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showQuote: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                quoteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The quote. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Quote"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    acceptQuote: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                quoteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The order the quote became. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description No longer open — expired, or already decided. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    rejectQuote: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                quoteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rejected quote. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Quote"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description Already decided. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listAccessLog: {
         parameters: {
             query?: {
-                /** @description PENDING, RUNNING, SUCCEEDED, FAILED, CANCELLED. */
-                status?: string;
-                /** @description The handler's name. */
-                type?: string;
-                /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
-                limit?: components["parameters"]["DirectoryLimit"];
-                offset?: components["parameters"]["DirectoryOffset"];
+                /** @description How many to return. */
+                limit?: components["parameters"]["Limit"];
+                /** @description How many to skip. */
+                offset?: components["parameters"]["Offset"];
             };
             header?: never;
             path?: never;
@@ -8689,14 +7812,870 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description One page. */
+            /** @description A page of access entries. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DirectoryEnvelope"] & {
-                        job?: components["schemas"]["AdminJob"][];
+                    "application/json": {
+                        entries: components["schemas"]["StaffAccessEntry"][];
+                        total: number;
+                        limit: number;
+                        offset: number;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listSupportConversations: {
+        parameters: {
+            query?: {
+                /** @description How many to return. */
+                limit?: components["parameters"]["Limit"];
+                /** @description How many to skip. */
+                offset?: components["parameters"]["Offset"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of support threads. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        conversations: components["schemas"]["Conversation"][];
+                        total: number;
+                        limit: number;
+                        offset: number;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showSupportConversation: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
+                 *
+                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
+                 */
+                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
+                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
+                "X-Access-Reason": components["parameters"]["AccessReason"];
+            };
+            path: {
+                conversationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The thread and its messages. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Conversation"] & {
+                        /** Format: uuid */
+                        tenant_id: string;
+                        /** Format: uuid */
+                        product_id: string;
+                        messages: components["schemas"]["Message"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    closeSupportConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The closed thread. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Conversation"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    postSupportMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    body: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The message. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Message"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description The thread is closed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showStaffIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The staff identity. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        staff: {
+                            /** Format: uuid */
+                            user_id: string;
+                            roles: string[];
+                            permissions: string[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listTenantsForStaff: {
+        parameters: {
+            query?: {
+                /** @description How many to return. */
+                limit?: components["parameters"]["Limit"];
+                /** @description How many to skip. */
+                offset?: components["parameters"]["Offset"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of tenants. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tenants: components["schemas"]["Tenant"][];
+                        total: number;
+                        limit: number;
+                        offset: number;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showTenantForStaff: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
+                 *
+                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
+                 */
+                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
+                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
+                "X-Access-Reason": components["parameters"]["AccessReason"];
+            };
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tenant. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tenant: components["schemas"]["Tenant"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showSubscription: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The subscription, with history. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        subscription: components["schemas"]["Subscription"] | null;
+                        history: components["schemas"]["Subscription"][];
+                        events: components["schemas"]["SubscriptionEvent"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    subscribe: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    offer_id: string;
+                    /**
+                     * @description Subscribe the caller personally instead of the tenant.
+                     * @default false
+                     */
+                    seat?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The new subscription. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description Already subscribed, or the offer is not on sale. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Well-formed JSON, but not acceptable. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    cancelSubscription: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description Ask to end now rather than at the next boundary. The policy still decides; asking does not make it so.
+                     * @default false
+                     */
+                    immediately?: boolean;
+                    /**
+                     * @description Cancel the caller's own seat rather than the tenant's subscription.
+                     * @default false
+                     */
+                    seat?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The subscription and what cancelling did, or would do. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"] & {
+                        cancellation: components["schemas"]["CancellationDecision"] & {
+                            /**
+                             * Format: uuid
+                             * @description The early-termination invoice, when one was raised. Null when leaving cost nothing.
+                             */
+                            charge_invoice_id?: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    changeOffer: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    offer_id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The subscription on its new offer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description No subscription to change, or the offer is not on sale. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    resumeSubscription: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The subscription, no longer ending. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description Nothing was scheduled to end. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showSchedule: {
+        parameters: {
+            query?: {
+                /** @description Present asks about the caller's own seat rather than the tenant's subscription, matching the cancel endpoint it predicts. */
+                seat?: string;
+            };
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The subscription and the hypothetical decision. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        subscription: components["schemas"]["Subscription"];
+                        if_cancelled_now: components["schemas"]["CancellationDecision"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    calculateTax: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    amount_minor_units: number;
+                    /** @description Defaults to the product's. */
+                    currency?: string;
+                    /** @description Goods, services, digital services — what is supplied changes where it is taxed. */
+                    supply_type?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The calculation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        calculation: components["schemas"]["TaxCalculation"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description The amount or currency was unacceptable. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showTaxProfile: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The profile. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        profile: components["schemas"]["TaxProfile"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    saveTaxProfile: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    customer_kind: "B2B" | "B2C";
+                    /** @description ISO 3166 alpha-2. */
+                    country_code?: string | null;
+                    /** @default false */
+                    taxable_person?: boolean;
+                    /** @description Normalised before checking; "FR 123 456" is not what a verification service accepts. */
+                    vat_number?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The saved profile, with whatever the check concluded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        profile: components["schemas"]["TaxProfile"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description A field was unacceptable — a country code that is not two letters, say. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listTaxRates: {
+        parameters: {
+            query?: {
+                /** @description Defaults to now. */
+                on?: string;
+            };
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rates, and the moment they were read for. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        on: string;
+                        rates: components["schemas"]["TaxRate"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listVatPeriods: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The periods. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        periods: components["schemas"]["VatPeriod"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showVatPeriod: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                periodId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The period, its totals, and the declaration if it has one. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        period: components["schemas"]["VatPeriod"];
+                        totals: {
+                            [key: string]: unknown;
+                        };
+                        declaration: components["schemas"]["VatDeclaration"] | null;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    closeVatPeriod: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                periodId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The frozen declaration. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        declaration: components["schemas"]["VatDeclaration"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description Already closed, not yet ended, or holding more than one currency. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listVatTransactions: {
+        parameters: {
+            query?: {
+                /** @description How many to return. */
+                limit?: components["parameters"]["Limit"];
+                /** @description How many to skip. */
+                offset?: components["parameters"]["Offset"];
+            };
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of VAT transactions. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        transactions: components["schemas"]["VatTransaction"][];
+                        total: number;
+                        limit: number;
+                        offset: number;
                     };
                 };
             };
@@ -8897,7 +8876,38 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    openCheckoutSession: {
+    showCurrentTenant: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tenant. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tenant: components["schemas"]["Tenant"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateCurrentTenant: {
         parameters: {
             query?: never;
             header: {
@@ -8912,33 +8922,26 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /**
-                     * Format: uuid
-                     * @description An offer on sale in this product right now. A draft, an expired one, or one belonging to another product is not found.
-                     */
-                    offer_id: string;
+                    name?: string;
                 };
             };
         };
         responses: {
-            /** @description The session, with the client secret if there is anything to pay. */
-            201: {
+            /** @description The updated tenant. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        session: components["schemas"]["CheckoutSession"] & {
-                            /** @description Handed to the payment provider’s client SDK. **Returned here and nowhere else**: it is short-lived and it is a credential, so it is never stored (§31). Null when the provider uses a redirect rather than a secret. A caller who needs a fresh one retries the payment, which is a new attempt and gets its own. */
-                            client_secret?: string | null;
-                        };
+                        tenant: components["schemas"]["Tenant"];
                     };
                 };
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
-            /** @description No such offer on sale in this product. */
-            404: {
+            /** @description A name that is not acceptable. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8946,7 +8949,75 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `BILLING_PROFILE_REQUIRED` — the tenant has no billing profile, so nothing can be invoiced to it. Refused before any document is raised, because numbering is gapless. */
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listMembers: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The members. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        members: components["schemas"]["Member"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    addMember: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: email */
+                    email: string;
+                    roles: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description The member. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description Already a member, or the seat quota is spent. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8955,11 +9026,20 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            /** @description An unknown role, or a malformed email. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
     };
-    showCheckoutSession: {
+    removeMember: {
         parameters: {
             query?: never;
             header: {
@@ -8969,120 +9049,222 @@ export interface operations {
                 "X-Tenant"?: components["parameters"]["TenantHeader"];
             };
             path: {
-                /** @description The order id returned when the session was opened. */
-                sessionId: string;
+                userId: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description The session. */
+            /** @description Removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateMember: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    roles: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description The member. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        session: components["schemas"]["CheckoutSession"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description No such session in this tenant and product. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    retryPayment: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                /** @description The attempt that failed. */
-                paymentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description A new payment, with its own client secret. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description Handed to the payment provider’s client SDK. **Returned here and nowhere else**: it is short-lived and it is a credential, so it is never stored (§31). Null when the provider uses a redirect rather than a secret. A caller who needs a fresh one retries the payment, which is a new attempt and gets its own. */
-                        client_secret?: string | null;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description No such payment in this tenant and product. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description `PAYMENT_STILL_IN_FLIGHT` — it has not settled or failed yet. `PAYMENT_ALREADY_SETTLED` — it succeeded. `INVOICE_NOT_PAYABLE` — the invoice is no longer collectable. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    undeleteProject: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                projectId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The project, live again. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Project"];
+                    "application/json": components["schemas"]["Member"];
                 };
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
+            /** @description An unknown role. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showTenantUsage: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Usage against entitlements. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        usage: {
+                            [key: string]: unknown;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    einvoiceWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Which adapter the delivery is for. The domain never names a provider; this selects the one that verifies it. */
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Applied — this delivery changed something. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        outcome: string;
+                        applied: boolean;
+                        /** Format: uuid */
+                        payment_id?: string | null;
+                        /** Format: uuid */
+                        transmission_id?: string | null;
+                    };
+                };
+            };
+            /** @description Understood and ignored — a replay, or an event arriving after the outcome was already final. Deliberately a success: a provider that got an error would keep redelivering something the platform has correctly decided not to apply twice. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        outcome: string;
+                        /** @constant */
+                        applied: false;
+                    };
+                };
+            };
+            /** @description Unreadable, or the signature did not verify. No detail is given: a probing caller learns nothing from it. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    paymentWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Which adapter the delivery is for. The domain never names a provider; this selects the one that verifies it. */
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Applied — this delivery changed something. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        outcome: string;
+                        applied: boolean;
+                        /** Format: uuid */
+                        payment_id?: string | null;
+                        /** Format: uuid */
+                        transmission_id?: string | null;
+                    };
+                };
+            };
+            /** @description Understood and ignored — a replay, or an event arriving after the outcome was already final. Deliberately a success: a provider that got an error would keep redelivering something the platform has correctly decided not to apply twice. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        outcome: string;
+                        /** @constant */
+                        applied: false;
+                    };
+                };
+            };
+            /** @description Unreadable, or the signature did not verify. No detail is given: a probing caller learns nothing from it. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

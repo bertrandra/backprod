@@ -87,6 +87,10 @@ const BUSINESS_TABLES = [
     'revenue_periods', 'offer_revenue_periods', 'renewal_periods',
     'tenant_skins', 'tenant_member_roles', 'tenant_members', 'tenants',
     'users', 'products',
+    // U12. Both cascade from `users`, so a reset that truncated users would take
+    // them anyway — named here so the list stays a readable inventory of what a
+    // reset removes rather than a list plus whatever happens to cascade.
+    'local_credentials', 'auth_refresh_tokens',
 ];
 
 /**
@@ -170,6 +174,41 @@ $staff = id(
     $connection,
     "INSERT INTO users (auth_subject, email, display_name) VALUES ('demo|sam', 'sam@backprod.test', 'Sam Support') RETURNING id",
 );
+
+/**
+ * Passwords, so somebody can actually sign in (U12).
+ *
+ * Until this existed the demo world was complete and unreachable: three people,
+ * two tenants, a live subscription with its invoice, and no way to open any of it
+ * in a browser. `auth_subject` becomes `local:<id>` — the same `prefix:id` shape
+ * erasure uses — because that is what a token this platform issues carries, and a
+ * subject the token cannot name is a person who cannot sign in.
+ *
+ * The password is in the output on purpose. This is demonstration data whose whole
+ * point is being opened; a secret nobody is told is a database nobody can look at.
+ * `demo:seed` refuses a non-empty database, which is what keeps it away from
+ * anything real.
+ */
+const DEMO_PASSWORD = 'demo-password-1234';
+
+foreach ([$ada, $grace, $staff] as $person) {
+    $connection->executeStatement(
+        "UPDATE users SET auth_subject = 'local:' || id WHERE id = :id",
+        ['id' => $person],
+    );
+
+    $connection->executeStatement(
+        <<<'SQL'
+            INSERT INTO local_credentials (user_id, email, password_hash)
+            SELECT id, email, :hash FROM users WHERE id = :id AND email IS NOT NULL
+            SQL,
+        // Hashed here rather than written as a literal: the database refuses a
+        // password_hash that does not start with `$`, so a seeder that stored the
+        // plaintext would fail rather than seed a world with a plaintext password
+        // in it.
+        ['id' => $person, 'hash' => password_hash(DEMO_PASSWORD, PASSWORD_BCRYPT)],
+    );
+}
 
 // Roles are migration data and are joined by id, not by code: the code is what
 // a person reads and the id is what the schema stores, and a seeder that
@@ -401,6 +440,8 @@ if ($failed !== []) {
     exit(1);
 }
 
-printf("\nSign in as ada@acme.test with X-Product: atlas.\n");
+printf("\nSign in at /sign-in as ada@acme.test with the password %s\n", DEMO_PASSWORD);
+printf("Also seeded: grace@acme.test (USER) and sam@backprod.test (platform support).\n");
+printf("The API needs AUTH_SIGNING_SECRET set to at least 32 characters, or sign-in answers 503.\n");
 
 exit(0);

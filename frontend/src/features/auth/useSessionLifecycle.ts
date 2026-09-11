@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
-import { refreshGrant } from '@/api/auth';
-import { rememberedRefreshToken, useSessionStore } from '@/state/session';
+import { useApiClient } from '@/app/providers/ApiProvider';
+import { useSessionStore } from '@/state/session';
 
 /**
  * How long before expiry a renewal is attempted.
@@ -15,17 +15,19 @@ const RENEW_MARGIN_MS = 60_000;
 /**
  * Keeps a signed-in session signed in, and recovers one across a reload.
  *
- * **Two effects rather than one**, because they answer different questions. The
- * first runs once: is there a refresh token from a previous visit, and does the
- * provider still honour it? The second runs whenever the token changes: when
- * should this one be renewed?
+ * **This hook no longer knows whether there is anything to recover**, and that is
+ * the U12 change. It used to read a refresh token out of `localStorage` and decide;
+ * now it simply asks `/api/v1/auth/refresh`, and the browser attaches an
+ * `HttpOnly` cookie that this code cannot see. A 401 means "not signed in", which
+ * is an answer rather than a guess — and one that cannot be wrong because storage
+ * was cleared, blocked, or read from the wrong key.
  *
- * This is a hook rather than logic inside the store deliberately. The store
- * holds what this browser is currently acting as and nothing else — no timers,
- * no requests — so it can be asserted in a test without a fake clock or a fake
- * network, and every existing test that pokes at it still works.
+ * Two effects, because they answer different questions. The first runs once: is
+ * there a session to resume? The second runs whenever the token changes: when
+ * should this one be renewed?
  */
 export function useSessionLifecycle(): void {
+  const client = useApiClient();
   const status = useSessionStore((state) => state.status);
   const expiresAt = useSessionStore((state) => state.expiresAt);
 
@@ -34,49 +36,38 @@ export function useSessionLifecycle(): void {
       return;
     }
 
-    const stored = rememberedRefreshToken();
-
-    if (stored === null) {
-      useSessionStore.getState().forget();
-
-      return;
-    }
-
     let cancelled = false;
 
     void (async () => {
-      try {
-        const grant = await refreshGrant(stored);
+      const { data } = await client.POST('/api/v1/auth/refresh', {});
 
-        if (!cancelled) {
-          useSessionStore.getState().signIn(grant);
-        }
-      } catch {
-        // Any failure lands on the sign-in form, and that is the right answer
-        // for all of them. A refused token is gone; an unreachable provider
-        // cannot be worked around by waiting inside a blank page; and either
-        // way the person can retry from a screen that says something.
-        if (!cancelled) {
-          useSessionStore.getState().forget();
-        }
+      if (cancelled) {
+        return;
       }
+
+      if (data === undefined) {
+        // Any failure lands on the sign-in form, and that is right for all of
+        // them: no cookie, a revoked one, or a provider that cannot be reached.
+        // Waiting inside a blank page fixes none of those, and a form at least
+        // says something.
+        useSessionStore.getState().forget();
+
+        return;
+      }
+
+      useSessionStore.getState().signIn({
+        accessToken: data.access_token,
+        expiresIn: data.expires_in,
+      });
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [status]);
+  }, [status, client]);
 
   useEffect(() => {
     if (status !== 'signed-in' || expiresAt === null) {
-      return;
-    }
-
-    const stored = rememberedRefreshToken();
-
-    if (stored === null) {
-      // Storage is blocked, so there is nothing to renew with. The session lasts
-      // as long as this token does, which is a fact rather than a fault.
       return;
     }
 
@@ -86,18 +77,25 @@ export function useSessionLifecycle(): void {
 
     const timer = setTimeout(() => {
       void (async () => {
-        try {
-          useSessionStore.getState().signIn(await refreshGrant(stored));
-        } catch {
-          // One attempt. A retry loop against a provider that has refused the
-          // token is noise, and the honest outcome is the sign-in form.
+        const { data } = await client.POST('/api/v1/auth/refresh', {});
+
+        if (data === undefined) {
+          // One attempt. Retrying against a server that has refused the cookie is
+          // noise, and the honest outcome is the sign-in form.
           useSessionStore.getState().forget();
+
+          return;
         }
+
+        useSessionStore.getState().signIn({
+          accessToken: data.access_token,
+          expiresIn: data.expires_in,
+        });
       })();
     }, delay);
 
     return () => {
       clearTimeout(timer);
     };
-  }, [status, expiresAt]);
+  }, [status, expiresAt, client]);
 }

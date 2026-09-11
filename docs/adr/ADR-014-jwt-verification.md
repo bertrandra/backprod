@@ -1,6 +1,6 @@
 # ADR-014 — Tokens are verified locally against a configured key set
 
-**Status:** accepted
+**Status:** accepted; the *issuance* half is superseded by [ADR-038](ADR-038-this-platform-issues-its-own-sessions.md) — this platform now mints its own tokens, and an external provider is one of two supported ways rather than the only one. Everything below about *verification* still holds, and is what made the change an adapter swap.
 **Decides:** D4 in `docs/backend-roadmap.md`
 **Relates to:** CLAUDE.md "Provider independence", Architecture V2 §31
 

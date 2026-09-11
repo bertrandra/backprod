@@ -48,6 +48,11 @@ abstract class ApiTestCase extends TestCase
      *                                            in $_SERVER — REMOTE_ADDR,
      *                                            for anything that has to know
      *                                            where a request came from
+     * @param array<string, string> $cookies      what the browser would send
+     *                                            back. Added for U12: the refresh
+     *                                            token is an HttpOnly cookie, so a
+     *                                            test that could not send one could
+     *                                            not exercise staying signed in
      */
     protected function request(
         string $method,
@@ -55,6 +60,7 @@ abstract class ApiTestCase extends TestCase
         array $headers = [],
         ?string $body = null,
         array $serverParams = [],
+        array $cookies = [],
     ): ResponseInterface {
         $uri = 'https://api.test' . $path;
 
@@ -77,6 +83,7 @@ abstract class ApiTestCase extends TestCase
             method: $method,
             body: $stream,
             queryParams: $query,
+            cookieParams: $cookies,
         );
 
         if ($body !== null) {

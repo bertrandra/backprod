@@ -1,7 +1,5 @@
 import { create } from 'zustand';
 
-import { revoke, type Grant } from '@/api/auth';
-
 /**
  * What the client needs on every request, and nothing else.
  *
@@ -24,6 +22,13 @@ import { revoke, type Grant } from '@/api/auth';
  */
 export type SessionStatus = 'restoring' | 'anonymous' | 'signed-in';
 
+/** What a successful exchange gives this browser to work with. */
+export interface Grant {
+  readonly accessToken: string;
+  /** Seconds. A duration, so a skewed clock schedules the renewal correctly anyway. */
+  readonly expiresIn: number;
+}
+
 interface SessionState {
   token: string | null;
   productCode: string | null;
@@ -31,8 +36,15 @@ interface SessionState {
   /** When the access token stops being accepted, so a renewal can be scheduled. */
   expiresAt: number | null;
   signIn: (grant: Grant) => void;
-  signOut: () => void;
-  /** No token, and not this browser's fault — a failed restore rather than a sign-out. */
+  /**
+   * No token, locally.
+   *
+   * There is only one of these now. U11 had `signOut` (which revoked at the
+   * provider) and `forget` (which did not), because the store itself made the
+   * network call. Revoking is `useSignOut`'s job now — a mutation, through the
+   * generated client, like every other write — so what is left here is the state
+   * change, and it is the same state change either way.
+   */
   forget: () => void;
   chooseProduct: (code: string) => void;
 }
@@ -61,53 +73,18 @@ interface SessionState {
 const PRODUCT_KEY = 'backprod.product';
 
 /**
- * Where the refresh token survives a reload, and why that is the least bad
- * place for it.
+ * Nothing about the refresh token is here any more, and that is the change.
  *
- * The access token stays in memory only: it is short-lived, and a reload can
- * fetch another. The refresh token has to outlive the tab or every reload is a
- * new sign-in, and a browser gives a page exactly three places to put it —
- * `localStorage`, a readable cookie, or nowhere.
+ * U11 kept it in `localStorage` because an external provider issued it and a
+ * browser has nowhere better: every store a page can reach, a script can reach.
+ * U12 moved issuance into PHP, so the server sets an `HttpOnly` cookie instead —
+ * unreadable by script, sent only to `/api/v1/auth`, and revocable server-side.
  *
- * **All three are reachable by script, so none of them survives XSS.** The one
- * shape that would is an `HttpOnly` cookie, and that requires the *server* to
- * own the exchange: PHP would take the credentials, hold the refresh token, and
- * hand out a session cookie the browser cannot read. That is a better design and
- * a different one — the API authenticates a bearer token today (ADR-014), so it
- * is an architecture change rather than a storage change, and it is written down
- * in `docs/deploying-to-siteground.md` as the next thing rather than pretended
- * away here.
- *
- * What is done about it meanwhile: the token is scoped to this origin, cleared
- * on sign-out and on any refresh the provider refuses, and revoked at the
- * provider rather than merely dropped.
+ * So this store holds the access token and nothing durable. A reload starts with
+ * no token, asks `/auth/refresh`, and the browser proves who it is with a cookie
+ * this code cannot see. The XSS caveat that was written into three documents is
+ * gone with it.
  */
-const REFRESH_KEY = 'backprod.refresh';
-
-/** The stored refresh token, or null — including when storage itself throws. */
-export function rememberedRefreshToken(): string | null {
-  try {
-    const stored = window.localStorage.getItem(REFRESH_KEY);
-
-    return stored === null || stored === '' ? null : stored;
-  } catch {
-    return null;
-  }
-}
-
-function rememberRefreshToken(token: string | null): void {
-  try {
-    if (token === null) {
-      window.localStorage.removeItem(REFRESH_KEY);
-    } else {
-      window.localStorage.setItem(REFRESH_KEY, token);
-    }
-  } catch {
-    // A private window blocks storage. Signing in still works for this tab; it
-    // just will not outlive a reload, which is a smaller loss than refusing to
-    // sign the person in at all.
-  }
-}
 
 export function rememberedProduct(): string | null {
   try {
@@ -140,35 +117,19 @@ export const useSessionStore = create<SessionState>((set) => ({
   status: 'restoring',
   expiresAt: null,
   signIn: (grant) => {
-    rememberRefreshToken(grant.refreshToken);
-    set({ token: grant.accessToken, expiresAt: grant.expiresAt, status: 'signed-in' });
+    set({
+      token: grant.accessToken,
+      // Computed here from the duration the server sent, against this browser's
+      // clock — the same clock the renewal timer will read.
+      expiresAt: Date.now() + grant.expiresIn * 1000,
+      status: 'signed-in',
+    });
   },
   // The product goes too. A token change is a different person, and keeping
   // the previous product would leave the next one acting inside a product they
   // may not have — including in storage, so a reload cannot bring it back.
-  signOut: () => {
-    // Best effort, and deliberately not awaited: the local session must end now
-    // whether or not the provider is reachable.
-    const token = useSessionStore.getState().token;
-
-    if (token !== null) {
-      void revoke(token);
-    }
-
-    remember(null);
-    rememberRefreshToken(null);
-    set({ token: null, productCode: null, expiresAt: null, status: 'anonymous' });
-  },
-  /**
-   * The same end state, without the revoke.
-   *
-   * Used when the provider has already refused the refresh token: there is
-   * nothing left to revoke, and asking it to would be one more failed request
-   * in front of a person who just wants the sign-in form.
-   */
   forget: () => {
     remember(null);
-    rememberRefreshToken(null);
     set({ token: null, productCode: null, expiresAt: null, status: 'anonymous' });
   },
   chooseProduct: (productCode) => {

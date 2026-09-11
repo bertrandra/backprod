@@ -1,5 +1,153 @@
 @import 'tailwindcss';
 
-/* Design tokens land here in U1 with the shell. U0 ships no screens, so there
-   is nothing yet to theme — an empty token block would only be a guess about
-   what U1 needs. */
+/**
+ * Default design tokens.
+ *
+ * "Default" because a tenant can override two of these — `primary_color` and
+ * `accent_color` on `tenant.branding` (U2) — and what is here is what renders
+ * before that screen is ever opened, or for a tenant whose plan does not
+ * include white-labelling at all. Nothing below reaches outside this file: no
+ * font is fetched from a third party, matching every other place this platform
+ * says it needs nothing beyond PHP, PostgreSQL and JavaScript on its own
+ * account (ADR-038) — a webfont import would be one more origin in
+ * `connect-src` for zero functional gain, since every OS already ships a
+ * professional sans-serif.
+ *
+ * The existing screens' own classes — `bg-neutral-900`, `text-red-700`, the
+ * monochrome primary button — are untouched by this file on purpose: those are
+ * this platform's considered choices, not a gap to fill. What was actually
+ * missing is what a screen gets for free without naming a colour: the focus
+ * ring a keyboard user tabs to, the text selection colour, the scrollbar, and
+ * numbers that line up in a column — all invisible until the day a screen
+ * skips a utility class or a person tabs through a form, and all previously
+ * whatever the browser felt like.
+ */
+
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+
+  /* A brand scale distinct from the neutral/red already in use, for whatever
+     a screen reaches for next — a link, a checked control, an informational
+     badge — none of which read well in the monochrome the primary button
+     deliberately uses. Full 50–950 rather than one shade, so text, a subtle
+     background tint and a border can all come from the same family instead of
+     three unrelated guesses. */
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+  --color-primary-800: #3730a3;
+  --color-primary-900: #312e81;
+  --color-primary-950: #1e1b4b;
+  --color-primary: var(--color-primary-600);
+
+  /* One name per meaning, for the day a status badge or a toast wants a colour
+     without a screen re-deriving "which red" from scratch. Not a replacement
+     for the reds and greens already inline — those stay exactly as they are. */
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+  --color-info: var(--color-primary-600);
+}
+
+@layer base {
+  html {
+    text-rendering: optimizeLegibility;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100;
+    /* This is a billing platform: prices, quantities and VAT rates sit in
+       columns on most screens (Money, formatVatRate), and proportional
+       figures make a column of them drift. Applied once, here, rather than
+       on every place a screen renders a number. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Every interactive element in this codebase already carries
+     `focus-visible:outline-2 outline-offset-2` (ui-spec.md §4.2) — what none
+     of them set is the colour, which left the browser's default: often a
+     colour this palette does not otherwise use, and in at least one browser,
+     `currentColor`, which vanishes against text of the same shade. */
+  :focus-visible {
+    outline-color: var(--color-primary-600);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :focus-visible {
+      outline-color: var(--color-primary-400);
+    }
+  }
+
+  ::selection {
+    background-color: var(--color-primary-200);
+    color: var(--color-primary-950);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    ::selection {
+      background-color: var(--color-primary-800);
+      color: var(--color-primary-50);
+    }
+  }
+
+  /* A link inherited the body's own colour before this — indistinguishable
+     from plain text except for the `underline decoration-dotted` a caller
+     remembered to add. This is the one place `<a>` and `Link` get a colour
+     without a screen naming one. */
+  a {
+    color: var(--color-primary-600);
+    text-underline-offset: 2px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    a {
+      color: var(--color-primary-400);
+    }
+  }
+
+  ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-neutral-300);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 9999px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    ::-webkit-scrollbar-thumb {
+      background-color: var(--color-neutral-700);
+    }
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-neutral-300) transparent;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    * {
+      scrollbar-color: var(--color-neutral-700) transparent;
+    }
+  }
+
+  :disabled,
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+}

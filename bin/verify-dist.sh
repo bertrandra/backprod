@@ -23,7 +23,7 @@
 #     whether cron runs. `bin/preflight.php` on the host answers those.
 #
 # Usage:
-#   bin/verify-dist.sh dist/backprod-x.y.z.tar.gz
+#   bin/verify-dist.sh dist/backprod-x.y.z.zip
 #   bin/verify-dist.sh dist/bundle
 #   DATABASE_DSN=... bin/verify-dist.sh dist/bundle    # also exercises the API
 #   bin/verify-dist.sh dist/bundle --browser           # the real bundle, real browser
@@ -92,6 +92,13 @@ mkdir -p "$BUNDLE"
 if [ -d "$TARGET" ]; then
     cp -R "$TARGET/." "$BUNDLE/"
     say "Verifying the tree at $TARGET"
+elif [ "${TARGET%.zip}" != "$TARGET" ]; then
+    # Whichever container the operator is going to upload is the one worth
+    # checking: a zip and a tarball of the same tree can still differ in what
+    # they carry, and the point of this script is to check the artefact rather
+    # than the intention.
+    unzip -q "$TARGET" -d "$BUNDLE"
+    say "Verifying the zip $TARGET"
 else
     tar -xzf "$TARGET" -C "$BUNDLE"
     say "Verifying the archive $TARGET"
@@ -163,16 +170,35 @@ if [ "$DEV_TOOLS" -eq 0 ]; then
     pass "no development dependencies (--no-dev held)"
 fi
 
-# One PHP file in the document root, and it is the shim. Anything else there is
-# either reachable by URL when it should not be, or a copy of something that
-# already exists in the application directory.
+# Kept after U12 removed the only credential a bundle ever carried. Nothing should
+# put one here now — the browser holds no key at all — which is exactly when a
+# check like this earns its keep: it is looking for something that has no reason to
+# exist, so a hit means something went wrong upstream of the build.
+#
+# setup.php is excluded from this scan on purpose: it is PHP source that writes
+# `AUTH_SIGNING_SECRET=` as an .env *key* it generates a value for at runtime
+# (`random_bytes`, never typed by a person or present in this file) — the same
+# reason `docs/deploying-to-siteground.md` names it in prose without being a leak.
+if grep -rlE 'sb_secret_|service_role|AUTH_SIGNING_SECRET' "$DOCROOT" --exclude=setup.php >/dev/null 2>&1; then
+    fail "the document root contains something shaped like a secret — nothing should, since U12"
+else
+    pass "no credential of any kind in the document root"
+fi
+
+# Two PHP files in the document root: the shim, and the onboarding page that
+# deactivates itself once it has run (a completion marker, not just the delete
+# an operator is told to do afterwards). Anything else there is either reachable
+# by URL when it should not be, or a copy of something that already exists in
+# the application directory.
 PHP_IN_DOCROOT="$(find "$DOCROOT" -name '*.php' -type f | wc -l | tr -d ' ')"
 
-if [ "$PHP_IN_DOCROOT" = "1" ]; then
-    pass "exactly one PHP file in the document root"
+if [ "$PHP_IN_DOCROOT" = "2" ]; then
+    pass "exactly two PHP files in the document root (the shim and setup.php)"
 else
-    fail "$PHP_IN_DOCROOT PHP files in the document root; expected 1"
+    fail "$PHP_IN_DOCROOT PHP files in the document root; expected 2"
 fi
+
+check "setup.php is in the document root" [ -f "$DOCROOT/setup.php" ]
 
 check "the application is outside the document root" \
     bash -c "[ ! -d '$DOCROOT/../public_html/backprod-app' ] && [ -d '$APP' ]"
@@ -181,10 +207,22 @@ check "the application is outside the document root" \
 
 say "Apache configuration"
 
-if grep -q '@@AUTH_ORIGIN@@' "$DOCROOT/.htaccess"; then
-    fail "the CSP still contains the @@AUTH_ORIGIN@@ placeholder"
+if grep -q '@@' "$DOCROOT/.htaccess"; then
+    fail "the .htaccess still contains an unreplaced @@PLACEHOLDER@@"
 else
-    pass "the CSP names a real origin"
+    pass "no unreplaced placeholders in the .htaccess"
+fi
+
+# `'none'` beside another source is invalid, and an invalid directive behaves
+# differently in each browser and identically in no test. It happened: appending
+# a provider origin to `'self'` produced `connect-src 'self' 'none'` whenever a
+# bundle was built with --no-auth.
+CONNECT_SRC_LINE="$(grep -o "connect-src [^\"]*" "$DOCROOT/.htaccess" | tail -1)"
+
+if printf '%s' "$CONNECT_SRC_LINE" | grep -q "'none'" && [ "$CONNECT_SRC_LINE" != "connect-src 'none'" ]; then
+    fail "connect-src mixes 'none' with another source, which is invalid: $CONNECT_SRC_LINE"
+else
+    pass "connect-src is a valid source list ($CONNECT_SRC_LINE)"
 fi
 
 check "the API is routed to PHP before anything else" \
@@ -505,7 +543,7 @@ fi
 
 if [ "$BROWSER" -eq 1 ]; then
     say "In a browser"
-    note "The bundle must have been built with --mode e2e for its stubbed provider."
+    note "No special build is needed since U12: signing in is stubbed like any other API call."
 
     if ( cd "$ROOT/frontend" && PLAYWRIGHT_DIST_URL="http://127.0.0.1:$PORT" \
         npx playwright test --config=playwright.dist.config.ts >"$SCRATCH/playwright.log" 2>&1 ); then

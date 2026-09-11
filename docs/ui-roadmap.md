@@ -618,6 +618,48 @@ project.
 
 ---
 
+### U12 — This platform issues its own sessions — *delivered*
+
+Asked for as "make it simple, without Supabase — I only want PHP, HTML, CSS, JS".
+Two thirds of that was already true: the bundle is 2 192 PHP files plus HTML, CSS
+and JS, with no Node runtime anywhere, and the server never made a network call to
+Supabase — it verified a signature against a key in `.env`. The whole coupling was
+one thing: **who issues the token**.
+
+PHP does now. `firebase/php-jwt` was already a dependency for verification, so
+issuing is the same library; three public routes replace the external endpoint, and
+because they are ordinary operations in `openapi.json`, **the second HTTP door U11
+had to open is deleted** and §8.1's "one module reaches the API" is a rule again.
+`vite build` takes no mode and no keys: one bundle, deployed anywhere.
+
+**The prize was the cookie.** While an external service issued the token, the page
+had to hold it, and a page has nowhere safe — `localStorage`, `sessionStorage` and a
+readable cookie are all reachable by injected script. U11 shipped it in
+`localStorage` and wrote the exposure into three documents as the first thing to
+fix. Now the server sets `HttpOnly; SameSite=Strict; Path=/api/v1/auth`, the store
+holds nothing durable, and those three paragraphs are gone rather than restated.
+
+**Rotation, with reuse treated as theft.** Every refresh revokes the token it was
+given and names its replacement, so presenting a spent one is detectable — and the
+answer is to revoke every session for that account, because replay and theft look
+identical from the server and their costs do not.
+
+**The invariants went into the database**, where nothing can route around them:
+`password_hash LIKE '$%'` so a plaintext password cannot be stored, and
+`token_hash ~ '^[0-9a-f]{64}$'` so a raw refresh token cannot. Both proved by
+trying.
+
+**Two findings from writing the tests.** `php-jwt` refuses to sign with a key under
+32 bytes — which would have reached an operator as a 500 on sign-in, so the length
+is checked where the answer names the requirement. And `/api/v1/me` is behind the
+full chain, so the first version of "the token opens a protected endpoint" got a 400
+about a missing product header and nothing to do with the token.
+
+Gates: 847 backend tests / 6 032 assertions, 362 unit tests, 194 browser tests,
+140 operations, 133 in 35 areas. Four security properties proven by breaking them;
+the timing equaliser is recorded as reasoning rather than claimed, because a
+stopwatch difference is not observable in a functional suite.
+
 ### U11 — Sign-in, and a bundle that deploys — *delivered*
 
 Asked for as "a dist for SiteGround with full PHP to UI", and the first thing the

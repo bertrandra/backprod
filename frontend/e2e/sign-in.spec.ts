@@ -1,24 +1,24 @@
 import AxeBuilder from '@axe-core/playwright';
 // The raw `test`, deliberately: `support/app` hands every other spec a session,
 // and this is the spec about not having one yet.
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Route } from '@playwright/test';
 
 /**
  * How a person gets in, in a browser.
  *
  * Before U11 the answer was "they do not": `signIn` was exported and called by
  * nothing, so a deployed build rendered all thirty-four areas and left every
- * visitor anonymous. Nothing failed — a token is not an API operation, so no gate
- * covered it, and `ui-spec.md` never named a screen for it.
+ * visitor anonymous. U11 built the screen against Supabase; **U12 moved issuance
+ * into PHP**, so what these tests drive is three routes in this application's own
+ * contract and there is no external service in the picture at all.
  *
- * The provider is stubbed rather than reached. What is asserted is the contract
- * between this application and Supabase's token endpoint — the grant type, the
- * key, and what happens to each answer — which is exactly the part a real project
- * would not exercise any better.
+ * The refresh token never appears here, and that is the assertion behind several
+ * of these: it is an `HttpOnly` cookie, so the page cannot read it, and neither
+ * can a test. What a test can check is that the browser sends it back — which is
+ * what "coming back later" does.
  */
-const AUTH_ORIGIN = 'https://project.supabase.test';
 
-const SESSION = {
+const ME = {
   user_id: '11111111-1111-4111-8111-111111111111',
   email: 'ada@acme.test',
   display_name: 'Ada',
@@ -36,36 +36,69 @@ const SESSION = {
  */
 async function stubApi(page: Page): Promise<void> {
   await page.route(/\/api\/v1\//, (route) => route.fulfill({ status: 404, json: { error: { code: 'NOT_FOUND' } } }));
-  await page.route(/\/api\/v1\/me$/, (route) => route.fulfill({ json: SESSION }));
+  await page.route(/\/api\/v1\/me$/, (route) => route.fulfill({ json: ME }));
   await page.route(/\/api\/v1\/me\/permissions$/, (route) =>
-    route.fulfill({ json: { permissions: SESSION.permissions } }),
+    route.fulfill({ json: { permissions: ME.permissions } }),
   );
   await page.route(/\/api\/v1\/products$/, (route) =>
-    route.fulfill({ json: { products: [{ id: SESSION.product_id, code: 'atlas', name: 'Atlas' }] } }),
+    route.fulfill({ json: { products: [{ id: ME.product_id, code: 'atlas', name: 'Atlas' }] } }),
   );
 }
 
-/** The provider's happy answer, and a counter so a test can prove it was asked once. */
-async function stubProvider(page: Page, answer: { status: number; json: object }): Promise<string[]> {
+/**
+ * The three auth routes, stubbed one at a time.
+ *
+ * **A single `**\/auth/**` pattern was the first attempt and it broke ten tests.**
+ * The application asks `/auth/refresh` on every load, so one stub answering the
+ * whole prefix with a session signed the page in before it could render the form —
+ * and every test about *not* having a session failed. The two routes mean opposite
+ * things here and have to be answerable separately: no session is `refresh → 401`,
+ * a returning visitor is `refresh → 200`.
+ *
+ * Three exact patterns rather than one prefix, so registration order does not
+ * matter between them.
+ */
+async function stubAuth(
+  page: Page,
+  answers: {
+    refresh?: { status: number; json?: object };
+    token?: { status: number; json?: object };
+    signOut?: { status: number; json?: object };
+  },
+): Promise<string[]> {
   const asked: string[] = [];
 
-  await page.route(`${AUTH_ORIGIN}/auth/v1/**`, (route) => {
+  const record = (answer: { status: number; json?: object }) => (route: Route) => {
     asked.push(route.request().url());
 
     return route.fulfill(answer);
-  });
+  };
+
+  // Registered after `stubApi`, so each wins over that catch-all — Playwright uses
+  // the most recently registered route (U9).
+  await page.route('**/api/v1/auth/refresh', record(answers.refresh ?? NO_SESSION));
+  await page.route('**/api/v1/auth/token', record(answers.token ?? NO_SESSION));
+  await page.route('**/api/v1/auth/sign-out', record(answers.signOut ?? { status: 204 }));
 
   return asked;
 }
 
-const GRANT = { access_token: 'access-token', refresh_token: 'refresh-token', expires_in: 3600 };
+/** What the API answers when there is no session, or the credential is wrong. */
+const NO_SESSION = {
+  status: 401,
+  json: {
+    error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.', details: {}, request_id: 'r' },
+  },
+};
+
+const SESSION = { access_token: 'access-token', token_type: 'Bearer', expires_in: 3600 };
 
 test.describe('arriving with no session', () => {
   test('is asked to sign in, and nothing behind the gate is fetched', async ({ page }) => {
     const apiCalls: string[] = [];
 
     await page.route(/\/api\//, (route) => {
-      apiCalls.push(route.request().url());
+      apiCalls.push(new URL(route.request().url()).pathname);
 
       return route.fulfill({ status: 401, json: { error: { code: 'UNAUTHENTICATED' } } });
     });
@@ -73,14 +106,20 @@ test.describe('arriving with no session', () => {
     await page.goto('/');
 
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
-    // The gate is above the router, so no screen mounted and no query fired.
-    // Thirty screens each explaining a 401 is the alternative.
-    expect(apiCalls).toEqual([]);
+
+    // Exactly one call, and it is the gate asking whether there is a session to
+    // resume. U11's version of this test asserted *no* calls, which was true when
+    // the answer came from `localStorage`; since U12 the question is asked of the
+    // server, so "nothing behind the gate ran" means nothing *else* ran.
+    //
+    // Thirty screens each explaining a 401 is still the alternative being ruled
+    // out, and that is what this now checks.
+    expect(apiCalls).toEqual(['/api/v1/auth/refresh']);
   });
 
   test('keeps the deep link it was asked for, and lands there after signing in', async ({ page }) => {
     await stubApi(page);
-    await stubProvider(page, { status: 200, json: GRANT });
+    await stubAuth(page, { token: { status: 200, json: SESSION } });
 
     // A URL somewhere inside the application, the way a person follows a link
     // from an email. `?product=` because a product is the root context and
@@ -100,9 +139,9 @@ test.describe('arriving with no session', () => {
     await expect(page.getByRole('heading', { name: 'Your profile' })).toBeVisible();
   });
 
-  test('asks the provider for a password grant, with the anon key', async ({ page }) => {
+  test('exchanges the password at this platform’s own token endpoint', async ({ page }) => {
     await stubApi(page);
-    const asked = await stubProvider(page, { status: 200, json: GRANT });
+    const asked = await stubAuth(page, { token: { status: 200, json: SESSION } });
 
     await page.goto('/');
     await page.getByLabel('Email').fill('ada@acme.test');
@@ -110,17 +149,24 @@ test.describe('arriving with no session', () => {
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeHidden();
-    expect(asked).toHaveLength(1);
-    expect(asked[0]).toContain('grant_type=password');
+
+    // Filtered, because `asked` also holds the refresh the gate makes on load —
+    // which is the right thing for it to hold, and not what this test is about.
+    // Same origin as everything else: no third-party request is made at any point,
+    // which is the whole reason U12 exists.
+    expect(asked.filter((url) => url.endsWith('/api/v1/auth/token'))).toHaveLength(1);
   });
 
   test('says one sentence when the credential is refused, and clears the password', async ({ page }) => {
     await stubApi(page);
-    await stubProvider(page, { status: 400, json: { msg: 'Invalid login credentials' } });
+    await stubAuth(page, {});
 
     await page.goto('/');
     await page.getByLabel('Email').fill('ada@acme.test');
-    await page.getByLabel('Password').fill('wrong');
+    // Long enough to pass the form's own minimum, so the server is what refuses
+    // it. Typing 'wrong' — which is what this test did first — never leaves the
+    // browser, and the assertion then reads the field's own message instead.
+    await page.getByLabel('Password').fill('wrong but long enough');
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     await expect(page.getByRole('alert')).toHaveText(
@@ -134,7 +180,7 @@ test.describe('arriving with no session', () => {
 
   test('passes an accessibility scan, like every other screen', async ({ page }) => {
     await stubApi(page);
-    await stubProvider(page, { status: 200, json: GRANT });
+    await stubAuth(page, { token: { status: 200, json: SESSION } });
     await page.goto('/');
     await page.getByRole('button', { name: 'Sign in' }).waitFor();
 
@@ -149,55 +195,38 @@ test.describe('arriving with no session', () => {
 });
 
 test.describe('coming back later', () => {
-  test('a stored refresh token signs the person straight in', async ({ page }) => {
+  test('a browser holding the cookie is signed straight in', async ({ page }) => {
     await stubApi(page);
-    const asked = await stubProvider(page, { status: 200, json: GRANT });
+    const asked = await stubAuth(page, { refresh: { status: 200, json: SESSION } });
 
-    await page.addInitScript(() => {
-      window.localStorage.setItem('backprod.refresh', 'stored-refresh-token');
-    });
-
+    // Nothing is seeded into storage, because there is nothing in storage to seed.
+    // The session resumes because the refresh endpoint answers — which is what a
+    // real browser holding the `HttpOnly` cookie causes.
     await page.goto('/profile?product=atlas');
 
     await expect(page.getByRole('heading', { name: 'Your profile' })).toBeVisible();
-    // Exchanged, not trusted: the stored value is a refresh token, and the API
-    // only ever sees an access token that the provider has just re-issued.
-    expect(asked[0]).toContain('grant_type=refresh_token');
+    expect(asked[0]).toContain('/api/v1/auth/refresh');
   });
 
-  test('a refresh token the provider has revoked lands on the form, and is not kept', async ({
-    page,
-  }) => {
+  test('a session the server no longer honours lands on the form', async ({ page }) => {
     await stubApi(page);
-    await stubProvider(page, { status: 400, json: { msg: 'Invalid Refresh Token' } });
-
-    await page.addInitScript(() => {
-      window.localStorage.setItem('backprod.refresh', 'revoked');
-    });
+    await stubAuth(page, {});
 
     await page.goto('/');
 
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
-    // Kept, it would be retried on every load forever against a provider that
-    // has already said no.
-    expect(await page.evaluate(() => window.localStorage.getItem('backprod.refresh'))).toBeNull();
+    // And there is nothing in storage to clear, because U12 put nothing there. The
+    // credential was a cookie, and the server is what decides it is spent.
+    expect(await page.evaluate(() => Object.keys(window.localStorage))).not.toContain(
+      'backprod.refresh',
+    );
   });
 });
 
 test.describe('signing out', () => {
-  test('ends the session, forgets the token and asks the provider to revoke it', async ({ page }) => {
+  test('ends the session and asks the server to revoke it', async ({ page }) => {
     await stubApi(page);
-    const asked: string[] = [];
-
-    await page.route(`${AUTH_ORIGIN}/auth/v1/**`, (route) => {
-      asked.push(route.request().url());
-
-      return route.fulfill({ status: 200, json: GRANT });
-    });
-
-    await page.addInitScript(() => {
-      window.localStorage.setItem('backprod.refresh', 'stored-refresh-token');
-    });
+    const asked = await stubAuth(page, { refresh: { status: 200, json: SESSION } });
 
     await page.goto('/profile?product=atlas');
     await page.getByRole('heading', { name: 'Your profile' }).waitFor();
@@ -205,8 +234,9 @@ test.describe('signing out', () => {
     await page.getByRole('button', { name: 'Sign out' }).click();
 
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
-    expect(await page.evaluate(() => window.localStorage.getItem('backprod.refresh'))).toBeNull();
-    // "Signed out" should mean the credential is dead rather than mislaid.
-    expect(asked.some((url) => url.endsWith('/auth/v1/logout'))).toBe(true);
+    // "Signed out" should mean the credential is dead rather than mislaid: the
+    // server revokes the refresh token, and clearing the cookie alone would leave
+    // it valid for anybody holding a copy.
+    expect(asked.some((url) => url.endsWith('/api/v1/auth/sign-out'))).toBe(true);
   });
 });

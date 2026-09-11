@@ -13,18 +13,17 @@
 # instructions. Any Apache host with mod_rewrite and PHP 8.3 takes this bundle.
 #
 # Usage:
-#   SUPABASE_URL=https://abc.supabase.co \
-#   SUPABASE_ANON_KEY=eyJhbGci... \
-#   DEFAULT_PRODUCT=atlas \
-#   bin/build-dist.sh [--out DIR] [--mode MODE] [--skip-gates] [--slim-fonts]
+#   DEFAULT_PRODUCT=atlas bin/build-dist.sh [--out DIR] [--skip-gates] [--slim-fonts]
+#
+# **No keys, and nothing to configure at build time.** U11 required a Supabase URL
+# and anon key, because the browser fetched its token from one. U12 issues tokens
+# from PHP, so the only thing a deployment configures is its own `.env` on the
+# host — and a bundle built today works against any deployment.
 #
 # This checkout is never modified: dependencies are installed into the bundle, so
 # an interrupted build leaves your working tree exactly as it was. Set
 # COMPOSER_PREFER=--prefer-source on a network where zipballs are unreliable.
-#
-# The two Supabase values are required, and deliberately: a bundle built without
-# them renders every screen and can sign nobody in, which is the defect U11 part 1
-# existed to fix. `--no-auth` says you mean it.
+
 
 set -euo pipefail
 
@@ -32,49 +31,28 @@ cd "$(dirname "$0")/.."
 ROOT="$PWD"
 
 OUT="$ROOT/dist"
-MODE="production"
 SKIP_GATES=0
-NO_AUTH=0
 SLIM_FONTS=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --out) OUT="$2"; shift 2 ;;
-        --mode) MODE="$2"; shift 2 ;;
         --skip-gates) SKIP_GATES=1; shift ;;
-        --no-auth) NO_AUTH=1; shift ;;
         --slim-fonts) SLIM_FONTS=1; shift ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
 done
 
-SUPABASE_URL="${SUPABASE_URL:-}"
-SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-}"
 DEFAULT_PRODUCT="${DEFAULT_PRODUCT:-}"
 
-if [ "$NO_AUTH" -eq 0 ] && { [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; }; then
-    cat >&2 <<'MESSAGE'
-Refusing to build: SUPABASE_URL and SUPABASE_ANON_KEY are not both set.
-
-Both are public values — the anon key ships in every bundle and grants nothing on
-its own — and the browser is what needs them, so they are baked in at build time
-rather than read from the server's .env.
-
-Without them the bundle's sign-in screen says the deployment has no identity
-provider, which is true and useless. Pass --no-auth if that is genuinely what you
-want (a UI embedded in something else that injects its own token).
-MESSAGE
-    exit 1
-fi
-
-# The provider's origin, for the Content-Security-Policy. `connect-src` names an
-# origin rather than a URL, so a path or a trailing slash here would produce a
-# policy that silently refuses every token request.
-AUTH_ORIGIN="'none'"
-
-if [ -n "$SUPABASE_URL" ]; then
-    AUTH_ORIGIN="$(printf '%s' "$SUPABASE_URL" | sed -E 's#^(https?://[^/]+).*#\1#')"
-fi
+# `connect-src 'self'`, always.
+#
+# U11 had to name an identity provider's origin here, because the browser fetched
+# its token from one — and the build had to refuse a *secret* key, validate a URL,
+# and normalise it to an origin. U12 issues tokens from PHP, so every request the
+# page makes is same-origin: the policy needs no third party, and the build needs
+# no keys, no arguments, and no way to get any of it wrong.
+CONNECT_SRC="'self'"
 
 VERSION="$(git -C "$ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)"
 STAGE="$(mktemp -d)"
@@ -91,7 +69,7 @@ say() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 # Built first. It is the half most likely to fail, and failing before a PHP
 # dependency tree has been assembled saves a minute on every mistake.
 
-say "Building the UI ($MODE)"
+say "Building the UI"
 
 pushd "$ROOT/frontend" >/dev/null
 
@@ -105,10 +83,8 @@ if [ "$SKIP_GATES" -eq 0 ]; then
     npm run gates
 fi
 
-VITE_SUPABASE_URL="$SUPABASE_URL" \
-VITE_SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
 VITE_DEFAULT_PRODUCT="$DEFAULT_PRODUCT" \
-    npx vite build --mode "$MODE" --outDir "$DOCROOT" --emptyOutDir
+    npx vite build --outDir "$DOCROOT" --emptyOutDir
 
 popd >/dev/null
 
@@ -206,8 +182,9 @@ mkdir -p "$APP/var/assets" "$APP/var/pdf"
 
 cp "$ROOT/deploy/siteground/env.production.example" "$APP/.env.example"
 cp "$ROOT/deploy/siteground/docroot-index.php" "$DOCROOT/index.php"
+cp "$ROOT/deploy/siteground/setup.php" "$DOCROOT/setup.php"
 
-sed "s#@@AUTH_ORIGIN@@#${AUTH_ORIGIN}#" \
+sed "s#@@CONNECT_SRC@@#${CONNECT_SRC}#" \
     "$ROOT/deploy/siteground/htaccess.template" > "$DOCROOT/.htaccess"
 
 cp "$ROOT/docs/deploying-to-siteground.md" "$STAGE/DEPLOY.md"
@@ -222,8 +199,7 @@ Backprod deployment bundle
 
   built            $(date -u '+%Y-%m-%d %H:%M:%SZ')
   from             $VERSION
-  vite mode        $MODE
-  identity         $([ -n "$SUPABASE_URL" ] && echo "$SUPABASE_URL" || echo 'NONE — this bundle can sign nobody in')
+  identity         this platform's own (U12): set AUTH_SIGNING_SECRET in .env on the host
   default product  $([ -n "$DEFAULT_PRODUCT" ] && echo "$DEFAULT_PRODUCT" || echo 'none — links need ?product=CODE')
   php required     8.3+, with pdo_pgsql, gd, mbstring, openssl, json
   fonts            $([ "$SLIM_FONTS" -eq 1 ] && echo 'DejaVu only — non-Latin scripts render blank in PDFs' || echo 'complete mPDF set')
@@ -231,6 +207,11 @@ Backprod deployment bundle
 Upload public_html/ into the document root, backprod-app/ beside it, then read
 DEPLOY.md. Nothing in here contains a secret: the server's own configuration is
 .env, which you create on the host from .env.example.
+
+Visiting /setup.php does the rest from a browser — writes .env, migrates, and
+creates the first product, tenant and admin account — then locks itself: a
+completion marker refuses to do any of that again. Delete the file once you
+have confirmed you can sign in; there is no password reset yet (ADR-038).
 INFO
 
 # Checksums, so a half-finished FTP transfer is a failed check rather than a
@@ -241,6 +222,29 @@ mkdir -p "$OUT"
 ARCHIVE="$OUT/backprod-${VERSION}.tar.gz"
 tar -czf "$ARCHIVE" -C "$STAGE" .
 
+# A zip as well, because that is what a hosting file manager offers to extract.
+# SiteGround's does handle tar.gz, but zip is the one every panel takes, and an
+# operator halfway through their first deployment should not have to find out
+# which. Same bytes, two containers.
+ZIP="$OUT/backprod-${VERSION}.zip"
+rm -f "$ZIP"
+
+if command -v zip >/dev/null 2>&1; then
+    ( cd "$STAGE" && zip -qr "$ZIP" . )
+else
+    # No `zip` binary on a build machine is common enough to be worth handling,
+    # and Python's is in the standard library.
+    ( cd "$STAGE" && python3 -c "
+import os, sys, zipfile
+
+with zipfile.ZipFile(sys.argv[1], 'w', zipfile.ZIP_DEFLATED) as archive:
+    for root, _, files in os.walk('.'):
+        for name in sorted(files):
+            path = os.path.join(root, name)
+            archive.write(path, os.path.relpath(path, '.'))
+" "$ZIP" )
+fi
+
 # Left as a tree as well as an archive: an operator with only a file manager
 # uploads a directory, and comparing a suspect deployment against it is a diff
 # rather than an unpack.
@@ -250,7 +254,8 @@ cp -R "$STAGE/." "$OUT/bundle/"
 
 say "Done"
 
-printf '  archive   %s (%s)\n' "$ARCHIVE" "$(du -h "$ARCHIVE" | cut -f1)"
+printf '  zip       %s (%s)\n' "$ZIP" "$(du -h "$ZIP" | cut -f1)"
+printf '  tar.gz    %s (%s)\n' "$ARCHIVE" "$(du -h "$ARCHIVE" | cut -f1)"
 printf '  tree      %s\n' "$OUT/bundle"
 printf '  files     %s\n' "$(find "$OUT/bundle" -type f | wc -l | tr -d ' ')"
-printf '\n  Verify it before uploading:  bin/verify-dist.sh %s\n\n' "$ARCHIVE"
+printf '\n  Verify it before uploading:  bin/verify-dist.sh %s\n\n' "$ZIP"

@@ -1,4 +1,4 @@
-import { useSessionStore } from '@/state/session';
+import { useSignOut } from '@/queries/auth';
 import { Button } from '@/ui/Field';
 
 import type { NavSection } from './navigation';
@@ -18,7 +18,7 @@ export function MoreSheet({
   onClose: () => void;
   sections: readonly NavSection[];
 }) {
-  const signOut = useSessionStore((state) => state.signOut);
+  const signOut = useSignOut();
 
   if (!open) {
     return null;
@@ -60,7 +60,12 @@ export function MoreSheet({
             control fits — the bottom bar holds five destinations and none of
             them is an action. */}
         <div className="border-t border-neutral-200 pt-3 dark:border-neutral-800">
-          <Button type="button" variant="secondary" onClick={signOut}>
+          <Button
+            type="button"
+            variant="secondary"
+            pending={signOut.isPending}
+            onClick={() => signOut.mutate()}
+          >
             Sign out
           </Button>
         </div>

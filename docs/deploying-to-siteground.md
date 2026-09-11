@@ -4,66 +4,101 @@ One origin serves both halves: the built UI is the document root, and everything
 under `/api` is PHP. The browser makes no cross-origin request, so §31's strict
 CORS never has to be relaxed, and there is nothing to configure about it.
 
+**Nothing here reaches outside the SiteGround account.** SiteGround hosts
+PostgreSQL alongside PHP and MySQL, and since ADR-038 this platform issues its
+own sessions — so the database, the API and the UI are all one account, with no
+third party in the picture at all.
+
 `bin/build-dist.sh` produces the bundle. **Your machine needs Node and Composer;
 the host needs neither** — no build step ever runs on SiteGround, which is the
 only arrangement that works on a host offering PHP, PostgreSQL and JavaScript and
 nothing else.
 
+**`deploy/siteground/setup.php` does §3's migration, §5's `.env`, and "Somebody
+to sign in as" in one browser form, from the host itself.** Upload it into
+`public_html/` alongside `index.php`, visit it, and fill in the database Site
+Tools just created — no whitelisting your own machine's IP, because nothing
+runs from anywhere but the account that already has the run of its own
+PostgreSQL. It writes `.env`, runs the migrations, and creates the first
+product, tenant and admin account, then makes itself inert: a completion marker
+refuses a second run even if you forget to delete the file, though deleting it
+once you have confirmed you can sign in is still the right thing to do — a page
+that can rewrite `.env` has no business staying reachable once it has nothing
+left to do. The sections below are what it automates; read them if you would
+rather do it by hand, or need to understand what it did.
+
 ---
 
-## 0. Before anything else: two facts to establish
+## 0. Before anything else: three facts to establish
 
-Both of these can stop the deployment dead, and both are cheaper to check now
-than after an upload.
+All three are cheaper to check now than after an upload — R1 in
+`docs/backend-roadmap.md` closed this question early in the project, and it is
+restated here because it is the fact the whole deployment depends on.
 
-**PostgreSQL is not something SiteGround hosts.** Their databases are MySQL, and
-this platform is PostgreSQL throughout — JSONB columns, partial indexes, triggers
-that freeze a closed VAT period, `FOR UPDATE SKIP LOCKED` in the job queue, a
-gapless invoice sequence. None of that ports to MySQL by changing a DSN, and
-ADR-016's hand-written SQL is not portable by design. So **the database lives
-somewhere else**, reached over TLS.
+**SiteGround hosts PostgreSQL, on the same account as the site.** Site Tools →
+Site → PostgreSQL Manager creates a database and a user the same way the MySQL
+manager does. That settles D2/R1: this platform is PostgreSQL throughout —
+JSONB columns, partial indexes, triggers that freeze a closed VAT period,
+`FOR UPDATE SKIP LOCKED` in the job queue, a gapless invoice sequence — and none
+of it needs to port anywhere. **Nothing in this deployment reaches outside
+SiteGround at all.** Since ADR-038 the platform also issues its own sessions, so
+there is no identity provider either.
 
-The obvious somewhere is the Supabase project that already issues your tokens:
-then there is one vendor for identity and storage rather than two, and the JWKS
-and the DSN come from the same dashboard.
+**One thing about it is easy to get wrong: the connection is never `localhost`,
+even for the app running on the same account.** SiteGround's PostgreSQL rejects
+local socket connections outright; every client — PHP on the same server
+included — connects over the network to the site's own public IP, on port 5432.
+Find that address at Site Tools → Site → Site Information → IP and Name Servers
+("Site IP"), and use it as `DATABASE_DSN`'s host. Then, in the PostgreSQL
+Manager's **Remote** tab, whitelist that same Site IP — the connection is remote
+as far as `pg_hba.conf` is concerned even though app and database are on the same
+account — and separately whitelist your own machine's IP so `composer run
+migrate` can run from wherever you are, without SSH. An IP range works too
+(`1.2.3.0` covers everything starting `1.2.3.`), and `0.0.0.0/0` allows any
+address, which is the wrong choice for anything but a five-minute test.
 
-**`pdo_pgsql` must be enabled on the host's PHP.** Without it PHP cannot speak to
-PostgreSQL at all and every API request fails identically. Check it in Site Tools
-→ Devs → PHP Manager, or over SSH:
+**Confirm the PostgreSQL major version before you migrate.** Every migration
+here calls `gen_random_uuid()`, which has been built into PostgreSQL since
+version 13; on an older version it exists only via the `pgcrypto` extension, and
+shared hosting sometimes restricts `CREATE EXTENSION` to a superuser nobody but
+the host has. Site Tools' PostgreSQL Manager states the version it provisions.
+If `composer run migrate` fails with `function gen_random_uuid() does not exist`,
+that is this: ask support to confirm or enable `pgcrypto`, or run
+`CREATE EXTENSION IF NOT EXISTS pgcrypto;` yourself if the account has the
+privilege.
+
+**`pdo_pgsql` must also be enabled on the host's PHP.** Without it PHP cannot
+speak to PostgreSQL at all and every API request fails identically. Check it in
+Site Tools → Devs → PHP Manager, or over SSH:
 
 ```sh
 php -m | grep -E 'pdo_pgsql|gd|mbstring|openssl'
 ```
 
 Four lines back is what you want. `pdo_pgsql` and `gd` are the two that are
-sometimes off — `gd` is what mPDF renders invoices with. If `pdo_pgsql` cannot be
-enabled on your plan, this host cannot run this platform, and finding that out
-before uploading 60 MB is the point of asking first.
+sometimes off — `gd` is what mPDF renders invoices with. This one genuinely can
+stop the deployment: if `pdo_pgsql` cannot be enabled on your plan, this host
+cannot run this platform, and finding that out before uploading 60 MB is the
+point of asking first.
 
 ---
 
 ## 1. Build the bundle
 
 ```sh
-SUPABASE_URL=https://YOURPROJECT.supabase.co \
-SUPABASE_ANON_KEY=eyJhbGciOi... \
-DEFAULT_PRODUCT=atlas \
-  bin/build-dist.sh
+DEFAULT_PRODUCT=atlas bin/build-dist.sh --slim-fonts
 ```
 
-Both Supabase values are **public** — the anon key ships inside every bundle and
-grants nothing on its own; row-level security and this platform's own
-authorisation are what stand behind it. They are baked in at build time because
-the browser is what needs them. Do not put the *service-role* key anywhere near
-this: it bypasses row-level security and must never reach a browser.
+**No keys, and nothing else to decide.** The browser holds no credential of any
+kind, so a bundle built today works against any deployment — and the only thing
+that ever configures identity is `.env` on the host.
 
 `DEFAULT_PRODUCT` is the product code to act in when a URL does not name one. A
 single-product install should set it, or every link needs `?product=CODE`.
 
-The build refuses to run without the two Supabase values. That is deliberate: a
-bundle without them renders all 34 screen areas and can sign nobody in. Pass
-`--no-auth` if you genuinely mean it — a UI embedded in something else that
-injects its own token.
+`--slim-fonts` keeps only the DejaVu family mPDF actually uses: 8.9 MB instead of
+47 MB, at the cost of a blank where a non-Latin legal name would go on an invoice
+PDF.
 
 You get:
 
@@ -113,18 +148,21 @@ extensions and cron are outside its reach. Step 7 is where those get proven.
 
 ## 3. Create the database and migrate — from your machine
 
-The database is external, so **migrations do not need to run on SiteGround at
-all**. This is the step people expect to need SSH for and do not:
+Create the database in Site Tools → Site → PostgreSQL → Create Database, and a
+user for it in the Users tab there. Whitelist your own machine's IP in the
+Remote tab (§0), then migrate without SSH, from wherever you are:
 
 ```sh
-export DATABASE_DSN='postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require'
+export DATABASE_DSN='postgresql://USER:PASSWORD@SITE_IP:5432/DBNAME'
 composer run migrate
 ```
 
-Use the **session pooler** port (5432) or the direct connection. Supabase's
-*transaction* pooler on 6543 does not support the prepared statements DBAL
-issues, and the failure looks like a driver bug rather than a configuration
-choice.
+`SITE_IP` is the address from §0 — never `localhost`, even once this runs on the
+same account. Leave `sslmode` unset unless you have confirmed SiteGround's
+PostgreSQL accepts TLS on this connection; if it does and you want it enforced,
+`sslmode=require` is stricter than the default `prefer`, but an unverified
+`require` fails the connection outright rather than degrading, so test it before
+committing to it in production.
 
 Optionally, a world to look at:
 
@@ -162,17 +200,32 @@ explains every value and what its absence costs. The four that are required:
 
 | Value | Without it |
 |---|---|
-| `DATABASE_DSN` | nothing can be read or written; the API answers 503 |
-| `SUPABASE_JWKS` | no token verifies — people sign in and every screen still refuses them |
-| `SUPABASE_ISSUER` | same |
+| `DATABASE_DSN` | nothing can be read or written; the API answers 503. The host is the Site IP from §0, never `localhost` |
+| `AUTH_SIGNING_SECRET` | nobody can sign in: `/auth/token` answers 503 and says so. **At least 32 characters** — HS256 refuses less |
 | `ASSET_LINK_SIGNING_SECRET` | no download link can be signed, so exports and uploads cannot be handed out |
+
+Generate both secrets on the host:
+
+```sh
+php -r 'echo bin2hex(random_bytes(32)), PHP_EOL;'
+```
+
+Changing `AUTH_SIGNING_SECRET` signs everybody out at once, which is also how you
+revoke every session in an emergency.
 
 Set `ASSET_STORAGE_ROOT` and `PDF_TEMPORARY_ROOT` to the `var/` paths as well.
 Unset, uploads go to the system temporary directory, which shared hosting sweeps —
 so they vanish at a time unrelated to anything anybody did.
 
-`SUPABASE_JWKS` is the one people get wrong: it is the JSON from
-`https://YOURPROJECT.supabase.co/auth/v1/.well-known/jwks.json`, on one line.
+### Somebody to sign in as
+
+There is no registration screen and no password reset (ADR-038): an operator
+creates accounts. `composer run demo:seed` makes three, and prints the password.
+For a real one, insert a `users` row, set its `auth_subject` to `'local:' || id`,
+and add a `local_credentials` row whose `password_hash` comes from
+`password_hash($password, PASSWORD_BCRYPT)`. The database refuses a
+`password_hash` that is not a hash, so a mistake here fails rather than storing a
+plaintext password.
 
 ## 6. Select PHP 8.3
 
@@ -242,8 +295,8 @@ will see it doing so.
 |---|---|---|
 | UI (React) | SiteGround, static | Fingerprinted; cached forever. One 726 kB JS file, 200 kB gzipped |
 | API (PHP 8.3) | SiteGround | Everything under `/api`; needs `pdo_pgsql` and `gd` |
-| Database | External PostgreSQL | Not SiteGround. Supabase or any managed Postgres, over TLS |
-| Identity | Supabase Auth | The browser gets a token; PHP only ever verifies one (ADR-014) |
+| Database | SiteGround PostgreSQL | Same account, reached over the Site IP on port 5432 — never `localhost` (§0) |
+| Identity | SiteGround, in PHP | This platform issues and verifies its own tokens (ADR-038). No external provider |
 | Jobs | SiteGround cron | One minute is the shortest interval that matters |
 | Uploaded files | `backprod-app/var/assets` | Swap `StorageProvider` for S3 when the disk stops being enough |
 | Invoice PDFs | mPDF, in-process | Needs `gd` and a few MB of `PDF_TEMPORARY_ROOT` |
@@ -253,18 +306,23 @@ will see it doing so.
 Stated here rather than discovered later. `docs/production-readiness.md` is the
 fuller list; these are the ones specific to shipping it this way.
 
-- **The refresh token lives in `localStorage`.** It is reachable by script, so it
-  does not survive an XSS. The shape that would is an `HttpOnly` cookie, and that
-  requires PHP to own the token exchange — the API authenticates a bearer token
-  today (ADR-014), so that is an architecture change rather than a storage one. It
-  is the first thing to do after this deployment exists.
+- **No password reset, no email verification, no registration, no second factor**
+  (ADR-038). Accounts are created by an operator, which is honest for a platform
+  whose tenants are too — and the first thing to build if anybody self-registers.
 - **No observability.** Logs are structured and carry a request id; on shared
   hosting they go to the host's error log and nothing collects or alerts on them.
   A failing cron job is silent unless you read `jobs.log`.
-- **No backup schedule.** `bin/restore-drill.sh` proves the *procedure* and needs
-  `pg_dump`, which shared hosting does not have — run it from your own machine
-  against a snapshot. Your Postgres provider's own backups are what you actually
-  depend on, and nothing here takes one.
+- **No backup schedule of its own.** `bin/restore-drill.sh` proves the
+  *procedure* and needs `pg_dump`, which shared hosting does not have — run it
+  from your own machine against a snapshot. What you actually depend on day to
+  day is whichever backup system your SiteGround plan includes; their
+  documentation is more specific about MySQL than about PostgreSQL, so confirm
+  with support that PostgreSQL databases are included before trusting it, rather
+  than discovering the gap during an incident.
+- **1 GB per database**, at least on the plans checked when this was written.
+  Nothing here is close to that yet, but `staff_access_log`, `notifications` and
+  the invoice tables grow without bound — worth a retention or export routine
+  before it becomes the reason a write starts failing.
 - **One JS bundle.** 726 kB, 200 kB gzipped, cached forever after the first load.
   Code-splitting by route would help the first visit; nothing does it yet.
 - **R3 — e-invoicing is a stub.** The four transmission states are real; no
@@ -280,8 +338,11 @@ fuller list; these are the ones specific to shipping it this way.
 | Every page is the raw `index.html` with no styling | `assets/` did not upload, or `mod_rewrite` is off |
 | Deep links 404 but `/` works | The last `.htaccess` rule is missing, or `AllowOverride` is off |
 | `503 SERVICE_UNAVAILABLE` on every API call | The platform could not start. `DATABASE_DSN`, almost always. The reason is in the host's error log, never in the response |
-| Sign-in works, every screen says you are not authorised | `SUPABASE_JWKS` or `SUPABASE_ISSUER` is wrong. The provider issued a token this backend will not verify |
-| "This deployment has no identity provider configured" | The *bundle* was built without `SUPABASE_URL`. A rebuild, not a `.env` change |
+| Database connection refused, or `no pg_hba.conf entry for host` | `DATABASE_DSN` uses `localhost` — SiteGround's PostgreSQL rejects that from any client, the app included. Use the Site IP, and whitelist it in the PostgreSQL Manager's Remote tab (§0) |
+| `function gen_random_uuid() does not exist` during `composer run migrate` | The account's PostgreSQL predates version 13 and lacks `pgcrypto`. Ask support to confirm the version or enable the extension (§0) |
+| Sign-in answers 503 | `AUTH_SIGNING_SECRET` is missing or under 32 characters. The response says which |
+| Everybody was signed out at once | `AUTH_SIGNING_SECRET` changed. Every existing token was minted with the old one |
+| Signing in works and the next page asks again | The refresh cookie is not coming back. It is `Secure`, so the site must be https — check that SiteGround's certificate is live and that you are not on a plain-http URL |
 | Uploads succeed and the files disappear later | `ASSET_STORAGE_ROOT` is unset, so they went to a swept temporary directory |
 | Everything works; nothing queued ever happens | No cron entry for `bin/run-jobs.php` |
 | Legitimate users are throttled together | `TRUSTED_PROXIES` is unset, so every visitor shares one bucket behind the host's proxy |

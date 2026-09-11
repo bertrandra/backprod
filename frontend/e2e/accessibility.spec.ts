@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 
-import { expect, test } from './support/app';
+import { expect, stubSession, test } from './support/app';
 
 /**
  * U9's accessibility pass, run rather than asserted.
@@ -120,6 +120,11 @@ async function stubbed(page: Page) {
       },
     });
   });
+
+  // Re-registered after the catch-all above, which would otherwise answer the
+  // session refresh and leave every test in this file on the sign-in form.
+  // Playwright uses the most recently registered route (U9).
+  await stubSession(page);
 
   await page.route(/\/api\/v1\/me$/, (route) => route.fulfill({ json: SESSION }));
   await page.route(/\/api\/v1\/staff\/me$/, (route) => route.fulfill({ json: STAFF }));
