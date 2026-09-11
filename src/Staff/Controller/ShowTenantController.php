@@ -29,15 +29,17 @@ final class ShowTenantController implements RouteHandler
     {
         $context = StaffRoute::permitted($request, StaffPermission::TENANTS_READ);
 
-        return new JsonResponse(
-            StaffPresenter::tenant(
-                $this->desk->tenant(
-                    $context->identity,
-                    StaffRoute::id($request, 'tenantId'),
-                    StaffRoute::motive($request),
-                ),
-            ),
-            200,
+        $tenant = $this->desk->tenant(
+            $context->identity,
+            StaffRoute::id($request, 'tenantId'),
+            StaffRoute::motive($request),
         );
+
+        // Wrapped under `tenant`, as the contract says and as every other
+        // envelope on this shell does. It was bare until the delegation
+        // endpoint was added beside it, which made the drift visible: the
+        // generated client reads `data.tenant`, so the console's detail panel
+        // was reading `undefined` from a 200.
+        return new JsonResponse(['tenant' => StaffPresenter::tenant($tenant)], 200);
     }
 }

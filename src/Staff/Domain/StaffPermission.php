@@ -27,4 +27,12 @@ final class StaffPermission
      * themselves anything by way of somebody else.
      */
     public const GRANT = 'staff.grant';
+
+    /**
+     * Changing what a tenant is allowed to do — today, whether the platform's
+     * catalogue is lent to them. PLATFORM_ADMIN alone, because a support
+     * engineer who could hand one customer the price list could change what
+     * every other customer of that product pays.
+     */
+    public const TENANTS_MANAGE = 'staff.tenants.manage';
 }

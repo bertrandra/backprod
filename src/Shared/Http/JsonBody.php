@@ -169,6 +169,25 @@ final class JsonBody
     }
 
     /**
+     * A real boolean that must be present.
+     *
+     * Distinct from {@see optionalBool} because absence is not the same as
+     * false when the field *is* the request: a PUT that sets a flag and
+     * arrives without one is a client bug, and defaulting it would quietly
+     * turn something off.
+     */
+    public function requiredBool(string $field): bool
+    {
+        $value = $this->value($field);
+
+        if (!is_bool($value)) {
+            throw $this->invalid($field, 'must be true or false');
+        }
+
+        return $value;
+    }
+
+    /**
      * A real boolean, or the default when absent.
      *
      * Rejects "true" and 1 rather than coercing them. A flag that decides

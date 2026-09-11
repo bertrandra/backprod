@@ -17,7 +17,7 @@ final class PostgresTenantRepository implements TenantRepository
     public function find(string $tenantId): ?Tenant
     {
         $row = $this->connection->fetchAssociative(
-            'SELECT id, name, slug FROM tenants WHERE id = :id',
+            'SELECT id, name, slug, may_author_offers FROM tenants WHERE id = :id',
             ['id' => $tenantId],
         );
 
@@ -33,7 +33,10 @@ final class PostgresTenantRepository implements TenantRepository
             return null;
         }
 
-        return new Tenant($id, $name, $slug);
+        // Read rather than left to the constructor's default: a tenant that
+        // reports `false` while the platform has delegated the catalogue to it
+        // is worse than one that reports nothing.
+        return new Tenant($id, $name, $slug, $row['may_author_offers'] === true);
     }
 
     public function rename(string $tenantId, string $name): void

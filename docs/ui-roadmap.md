@@ -308,7 +308,7 @@ if the version is hard-coded.
 - Checkout: **a session is an order** (ADR-034), so the screen shows one lifecycle and not two. `client_secret` is returned once and never stored — the UI must be built knowing a refresh cannot recover it, and that retrying is a new attempt
 - Quotes: raise, send, accept, reject — reject is the first confirmed irreversible action
 - Orders: place, fulfil, cancel
-- Catalogue authoring (TENANT_ADMIN, `catalog.manage`): draft a version, publish it. **A published version is frozen** (ADR-033), so the UI offers no edit affordance on one — the absence is the design, not an omission
+- Catalogue authoring (TENANT_ADMIN, `catalog.manage`): draft a version, publish it. **A published version is frozen** (ADR-033), so the UI offers no edit affordance on one — the absence is the design, not an omission. **The permission is lent, not owned** (ADR-040): it is resolved only for a tenant the platform has enabled, so these screens are absent by default and appear when a staff administrator turns offer authoring on
 
 **Exit criteria** — met
 - A checkout whose connection drops leaves a findable order, and the UI leads back to it — asserted by reloading mid-checkout in a browser (`e2e/commerce.spec.ts`): the page comes back from the id alone, no second session is opened, and the order is reachable from `/orders` and links back

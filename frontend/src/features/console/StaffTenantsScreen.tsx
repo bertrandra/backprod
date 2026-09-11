@@ -3,11 +3,18 @@ import { useNavigate } from '@tanstack/react-router';
 import { useViewState } from '@/app/frame/viewState';
 import { useState } from 'react';
 
-import { useStaffTenant, useStaffTenants, type AccessMotive } from '@/queries/staff';
+import {
+  useSetTenantOfferAuthoring,
+  useStaffIdentity,
+  useStaffTenant,
+  useStaffTenants,
+  type AccessMotive,
+} from '@/queries/staff';
 
 import { AccessMotiveGate, MotiveInEffect } from './AccessMotiveGate';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
+import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 
 /**
@@ -24,10 +31,17 @@ import { SkeletonRows } from '@/ui/Skeleton';
  * exception it looks like: the path names the tenant, the *platform role*
  * authorises the read, and the read is recorded either way.
  *
- * What is shown is deliberately thin: name, slug and id. A support agent needs
- * to confirm they have the right company, not to read its data. Anything more
- * would be a boundary crossing the contract has not authorised, and there is no
- * endpoint for it.
+ * What is *read* here is deliberately thin: name, slug and id. A support agent
+ * needs to confirm they have the right company, not to read its data. Anything
+ * more would be a boundary crossing the contract has not authorised, and there
+ * is no endpoint for it.
+ *
+ * The one thing that can be *changed* is whether the platform lends this
+ * customer its catalogue (`may_author_offers`). That is not the customer's data
+ * — it is a statement about what the platform permits them to do — which is why
+ * it lives on this screen and behind `staff.tenants.manage` rather than behind
+ * `staff.tenants.read`. Everybody who can open a tenant can see the answer;
+ * only an administrator can change it.
  */
 export function StaffTenantsScreen() {
   const { selected } = useViewState();
@@ -150,10 +164,67 @@ function TenantDetail({ tenantId }: { tenantId: string }) {
         </div>
       </dl>
 
+      <OfferAuthoring tenantId={tenantId} mayAuthor={tenant.data.may_author_offers} />
+
       <p data-testid="read-recorded" className="border-t border-neutral-200 pt-3 text-xs text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
         This read has been recorded under <code>staff.tenants.read</code>, with the reason you gave.
         It appears in the access log with your user id against it.
       </p>
     </div>
+  );
+}
+
+/**
+ * Whether this customer may author offers of their own.
+ *
+ * Off for every tenant that has ever been created, and it takes an
+ * administrator to turn it on — that is the whole point. The catalogue is the
+ * platform's: a tenant with `catalog.manage` in a role still cannot reach it
+ * until somebody here decides they may, because the permission is not resolved
+ * at all while the flag is false. So this control is not a convenience for
+ * hiding buttons; it is where the authority comes from.
+ *
+ * The state is shown to anybody who can open the tenant and the control only to
+ * somebody holding `staff.tenants.manage`. A support agent asked "can they edit
+ * their prices?" should be able to answer it without being able to change the
+ * answer.
+ */
+function OfferAuthoring({ tenantId, mayAuthor }: { tenantId: string; mayAuthor: boolean }) {
+  const me = useStaffIdentity();
+  const set = useSetTenantOfferAuthoring(tenantId);
+
+  const mayManage = me.data?.permissions.includes('staff.tenants.manage') ?? false;
+
+  return (
+    <section
+      data-testid="offer-authoring"
+      data-may-author={mayAuthor ? 'true' : 'false'}
+      className="space-y-2 border-t border-neutral-200 pt-3 dark:border-neutral-800"
+    >
+      <h3 className="text-sm font-medium">Offer authoring</h3>
+
+      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        {mayAuthor
+          ? 'This tenant may create and publish offers of their own. Members holding a role with catalog.manage can reach the catalogue.'
+          : 'This tenant uses the platform catalogue and cannot change it. Members see offers; nobody can author one, whatever their tenant role says.'}
+      </p>
+
+      {set.error !== null && <ErrorSurface error={set.error} />}
+
+      {mayManage ? (
+        <Button
+          type="button"
+          variant={mayAuthor ? 'danger' : 'primary'}
+          pending={set.isPending}
+          onClick={() => set.mutate(!mayAuthor)}
+        >
+          {mayAuthor ? 'Withdraw offer authoring' : 'Allow offer authoring'}
+        </Button>
+      ) : (
+        <p data-testid="offer-authoring-readonly" className="text-xs text-neutral-500">
+          Changing this needs <code>staff.tenants.manage</code>, which an administrator holds.
+        </p>
+      )}
+    </section>
   );
 }

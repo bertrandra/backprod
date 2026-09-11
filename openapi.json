@@ -2460,7 +2460,8 @@
         "required": [
           "id",
           "name",
-          "slug"
+          "slug",
+          "may_author_offers"
         ],
         "properties": {
           "id": {
@@ -2472,6 +2473,10 @@
           },
           "slug": {
             "type": "string"
+          },
+          "may_author_offers": {
+            "type": "boolean",
+            "description": "Whether the platform has lent this tenant the catalogue. False by default: offers are keyed on product, not tenant, so a tenant administrator editing them changes what every other customer of that product is sold on. When false, `catalog.manage` is not resolved for this tenant's members at all."
           }
         }
       },
@@ -11805,6 +11810,90 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/staff/tenants/{tenantId}/offer-authoring": {
+      "put": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "setTenantOfferAuthoring",
+        "summary": "Lend the catalogue to a tenant, or take it back",
+        "description": "PUT because it states a desired state rather than an act: sending the same value twice is the state asked for both times. No motive header, unlike the tenant read beside it — this reveals no customer data, it changes what a customer may do, and the trail records who decided.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "may_author_offers"
+                ],
+                "properties": {
+                  "may_author_offers": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The tenant, as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "tenant"
+                  ],
+                  "properties": {
+                    "tenant": {
+                      "$ref": "#/components/schemas/Tenant"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — `may_author_offers` absent or not a boolean.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
           }
         }
       }
