@@ -212,7 +212,7 @@ function resetPasswordForm(): string
     return '<form method="post" action="">'
         . '<input type="hidden" name="action" value="reset-password">'
         . '<fieldset><legend>Database</legend>'
-        . inputRow('Host (Site IP, not localhost)', 'db_host')
+        . inputRow('Host (the value your host gave you — often the Site IP, sometimes localhost)', 'db_host')
         . inputRow('Port', 'db_port', 'text', '5432', '5432')
         . inputRow('Database name', 'db_name')
         . inputRow('Username', 'db_user')
@@ -270,13 +270,14 @@ function handleResetPassword(): void
 
 function setupForm(): string
 {
-    return '<p class="hint">Runs once. Create the database in Site Tools → Site → PostgreSQL first, '
-        . 'and whitelist its Remote tab with the Site IP below and with your own machine’s IP if you are '
-        . 'filling this in remotely — see docs/deploying-to-siteground.md §0.</p>'
+    return '<p class="hint">Runs once. Create the database in Site Tools → Site → PostgreSQL first. '
+        . 'Ask your host what host value to use — some SiteGround accounts need the Site IP with its '
+        . 'Remote tab whitelisted, others use localhost; support can tell you which. '
+        . 'See docs/deploying-to-siteground.md §0.</p>'
         . '<form method="post" action="">'
         . '<input type="hidden" name="action" value="setup">'
         . '<fieldset><legend>Database</legend>'
-        . inputRow('Host (Site IP — never localhost)', 'db_host')
+        . inputRow('Host (the value your host gave you — often the Site IP, sometimes localhost)', 'db_host')
         . inputRow('Port', 'db_port', 'text', '5432', '5432')
         . inputRow('Database name', 'db_name')
         . inputRow('Username', 'db_user')
@@ -312,9 +313,11 @@ function connectOrFail(array $data): Connection
         fail(422, 'Fill in the database host, name and username.');
     }
 
-    if ($host === 'localhost' || $host === '127.0.0.1') {
-        fail(422, 'Use the Site IP, not localhost — SiteGround’s PostgreSQL refuses local socket connections, even from the app on the same account.');
-    }
+    // Not refused here. `localhost` was believed to always fail against
+    // SiteGround's PostgreSQL — remote connections only, even for the app on
+    // the same account — until a real deployment's own support ticket said
+    // the opposite for that account. Hosting setups vary by plan; the
+    // connection attempt below is the actual test, not a guess made here.
 
     // rawurlencode() on the credentials: a password containing "@", ":" or "/"
     // would otherwise be parsed as part of the host or the path rather than as
@@ -335,8 +338,9 @@ function connectOrFail(array $data): Connection
     } catch (\Throwable) {
         // The exception may carry the DSN, so nothing about it is shown (§31) —
         // only the checklist that actually gets somebody unstuck.
-        fail(502, 'Could not connect. Check the host (the Site IP, not localhost), port, database name, '
-            . 'username and password, and that this IP is whitelisted in the PostgreSQL Manager’s Remote tab.');
+        fail(502, 'Could not connect. Check the host, port, database name, username and password — ask '
+            . 'your host which host value to use if unsure — and, if using the Site IP, that it is '
+            . 'whitelisted in the PostgreSQL Manager’s Remote tab.');
     }
 
     return $connection;
