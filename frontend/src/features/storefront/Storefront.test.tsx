@@ -310,7 +310,11 @@ describe('creating the account', () => {
     await waitFor(() => expect(assign).toHaveBeenCalledWith('/checkout/order-1'));
   });
 
-  it('does not blame the sign-up when it is the checkout that failed', async () => {
+  it('puts them in the application when it is the checkout that failed', async () => {
+    const assign = vi.fn();
+
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign });
+
     renderWith(
       <Storefront onSignIn={() => undefined} />,
       clientFor({
@@ -329,10 +333,33 @@ describe('creating the account', () => {
 
     signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
 
-    // The account exists by now. Telling somebody their sign-up failed would
-    // send them to create a second one, which the first would then refuse.
-    await waitFor(() =>
-      expect(screen.getByText(/Your account was created/i)).toBeTruthy(),
-    );
+    // The account exists by now, so the worst outcome available is the
+    // catalogue — where the same purchase is one click away. Telling somebody
+    // their sign-up failed would send them to create a second account, which
+    // the first would then refuse.
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/catalogue'));
+  });
+
+  it('holds the token without declaring the person signed in, until it navigates', async () => {
+    const assign = vi.fn();
+
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign });
+
+    renderWith(<Storefront onSignIn={() => undefined} />, clientFor());
+
+    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
+    await waitFor(() => expect(screen.getByLabelText('Email')).toBeTruthy());
+
+    signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
+
+    await waitFor(() => expect(assign).toHaveBeenCalled());
+
+    // The token is usable — the checkout above needed it — and the status has
+    // *not* flipped, because `SignInGate` renders the application the instant
+    // it does, which would unmount this page mid-purchase. An E2E run found
+    // that; this is what keeps it fixed.
+    expect(useSessionStore.getState().token).toBe('access');
+    expect(useSessionStore.getState().status).toBe('anonymous');
   });
 });

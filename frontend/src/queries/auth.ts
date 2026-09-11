@@ -134,17 +134,21 @@ export interface NewAccount {
 }
 
 /**
- * A stranger becomes a customer, and is signed in by the same call.
+ * A stranger becomes a customer, and the token is usable immediately.
  *
- * The session lands in the store exactly as `useSignIn` puts it there, so
- * everything downstream — the shell, the API client's Authorization header,
- * the checkout — behaves as though the person had signed in normally. That is
- * the point: the purchase that follows is an ordinary authenticated one, not a
- * second anonymous flow with rules of its own.
+ * **`grantToken`, not `signIn`.** The difference is the whole reason that
+ * action exists: `SignInGate` renders the application the instant the status
+ * flips, which would swap the storefront out from under the checkout call it
+ * is about to make for the offer somebody just chose. The token becomes usable
+ * now; the status follows when the page navigates, and the session is restored
+ * from the refresh cookie on the other side like any other reload.
+ *
+ * Everything downstream is therefore an ordinary authenticated call — the
+ * purchase that follows is not a second anonymous flow with rules of its own.
  */
 export function useSignUp() {
   const client = useApiClient();
-  const signIn = useSessionStore((state) => state.signIn);
+  const grantToken = useSessionStore((state) => state.grantToken);
 
   return useMutation({
     mutationFn: async (account: NewAccount) => {
@@ -159,7 +163,7 @@ export function useSignUp() {
       return data;
     },
     onSuccess: (session) => {
-      signIn({ accessToken: session.access_token, expiresIn: session.expires_in });
+      grantToken({ accessToken: session.access_token, expiresIn: session.expires_in });
     },
   });
 }

@@ -93,6 +93,24 @@ const NO_SESSION = {
 
 const SESSION = { access_token: 'access-token', token_type: 'Bearer', expires_in: 3600 };
 
+/**
+ * Opens the sign-in form the way a person does since ADR-041.
+ *
+ * The landing page is the shop window now, and signing in is a line of text
+ * below the offers — so "go to the form" is two steps, and making the tests
+ * take both is what keeps them testing the route that exists rather than the
+ * one that used to.
+ *
+ * It matches the storefront's link by test id rather than by name: the form's
+ * own submit button is also called "Sign in", and a locator that matched both
+ * would pass for the wrong reason the day the click stopped working.
+ */
+async function openSignIn(page: Page): Promise<void> {
+  await page.goto('/');
+  await page.getByTestId('sign-in-link').click();
+  await page.getByLabel('Password').waitFor();
+}
+
 test.describe('arriving with no session', () => {
   test('is asked to sign in, and nothing behind the gate is fetched', async ({ page }) => {
     const apiCalls: string[] = [];
@@ -103,9 +121,12 @@ test.describe('arriving with no session', () => {
       return route.fulfill({ status: 401, json: { error: { code: 'UNAUTHENTICATED' } } });
     });
 
-    await page.goto('/');
+    // A path *behind* the gate. Since ADR-041 the landing page is the
+    // storefront — arriving is not asking to sign in — so this asks for
+    // something that genuinely requires a session.
+    await page.goto('/profile?product=atlas');
 
-    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+    await expect(page.getByLabel('Password')).toBeVisible();
 
     // Exactly one call, and it is the gate asking whether there is a session to
     // resume. U11's version of this test asserted *no* calls, which was true when
@@ -143,7 +164,7 @@ test.describe('arriving with no session', () => {
     await stubApi(page);
     const asked = await stubAuth(page, { token: { status: 200, json: SESSION } });
 
-    await page.goto('/');
+    await openSignIn(page);
     await page.getByLabel('Email').fill('ada@acme.test');
     await page.getByLabel('Password').fill('correct horse');
     await page.getByRole('button', { name: 'Sign in' }).click();
@@ -161,7 +182,7 @@ test.describe('arriving with no session', () => {
     await stubApi(page);
     await stubAuth(page, {});
 
-    await page.goto('/');
+    await openSignIn(page);
     await page.getByLabel('Email').fill('ada@acme.test');
     // Long enough to pass the form's own minimum, so the server is what refuses
     // it. Typing 'wrong' — which is what this test did first — never leaves the
@@ -181,8 +202,8 @@ test.describe('arriving with no session', () => {
   test('passes an accessibility scan, like every other screen', async ({ page }) => {
     await stubApi(page);
     await stubAuth(page, { token: { status: 200, json: SESSION } });
-    await page.goto('/');
-    await page.getByRole('button', { name: 'Sign in' }).waitFor();
+    await openSignIn(page);
+    await page.getByLabel('Password').waitFor();
 
     // The one screen the U9 suite could not reach, because that suite is signed
     // in by the time it scans anything.
@@ -212,9 +233,9 @@ test.describe('coming back later', () => {
     await stubApi(page);
     await stubAuth(page, {});
 
-    await page.goto('/');
+    await page.goto('/profile?product=atlas');
 
-    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+    await expect(page.getByLabel('Password')).toBeVisible();
     // And there is nothing in storage to clear, because U12 put nothing there. The
     // credential was a cookie, and the server is what decides it is spent.
     expect(await page.evaluate(() => Object.keys(window.localStorage))).not.toContain(
