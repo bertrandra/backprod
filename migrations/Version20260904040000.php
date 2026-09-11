@@ -34,9 +34,16 @@ use Doctrine\Migrations\AbstractMigration;
  *
  * A rate has a **window**, never a "current" flag. Correcting a rate closes
  * one window and opens another; it never overwrites a value, because a rate
- * that moves must not shift a single euro of VAT already invoiced. The
- * exclusion constraint makes overlapping windows for the same country
- * impossible rather than merely discouraged.
+ * that moves must not shift a single euro of VAT already invoiced. A trigger
+ * makes overlapping windows for the same country impossible rather than
+ * merely discouraged — not a GiST exclusion constraint, because that needs
+ * `btree_gist`, and a host's PostgreSQL build not carrying that extension is
+ * a real, observed failure (docs/deploying-to-siteground.md's troubleshooting
+ * table) with nothing this platform's own account can do about it. The
+ * trigger gets the same guarantee from core PostgreSQL alone: an advisory
+ * lock scoped to the country and rate kind serializes concurrent writers
+ * before the overlap check runs, closing the race a plain `SELECT`-then-write
+ * would otherwise have.
  *
  * A verification is stored **with its date**, as evidence. "The customer typed
  * a number" and "the number was verified" are different facts, and only the
@@ -156,14 +163,46 @@ final class Version20260904040000 extends AbstractMigration
         // Two rates of the same kind for the same country cannot overlap in
         // time. Without this, "the rate on that date" has two answers and the
         // invoice silently picks one.
-        $this->addSql('CREATE EXTENSION IF NOT EXISTS btree_gist');
+        //
+        // `pg_advisory_xact_lock` rather than a GiST exclusion constraint: the
+        // latter needs `btree_gist` to combine the equality columns with the
+        // range column in one index, and that extension is not guaranteed to
+        // exist on every host's PostgreSQL build. The lock is scoped to
+        // `(country_code, rate_kind)` and held for the transaction, so two
+        // concurrent inserts for the same pair serialize — one sees the
+        // other's row before its own overlap check runs, which is exactly
+        // what the exclusion constraint's index-level atomicity gave for
+        // free. A collision in the 64-bit hash would only serialize two
+        // unrelated pairs against each other, never miss a real overlap.
         $this->addSql(<<<'SQL'
-            ALTER TABLE tax_rates ADD CONSTRAINT tax_rates_windows_do_not_overlap
-                EXCLUDE USING gist (
-                    country_code WITH =,
-                    rate_kind WITH =,
-                    tstzrange(valid_from, valid_until) WITH &&
-                )
+            CREATE FUNCTION tax_rates_no_overlapping_window() RETURNS trigger AS $$
+            BEGIN
+                PERFORM pg_advisory_xact_lock(
+                    hashtextextended(NEW.country_code || ':' || NEW.rate_kind, 0)
+                );
+
+                IF EXISTS (
+                    SELECT 1 FROM tax_rates
+                     WHERE country_code = NEW.country_code
+                       AND rate_kind = NEW.rate_kind
+                       AND id <> NEW.id
+                       AND NEW.valid_from < COALESCE(valid_until, 'infinity'::timestamptz)
+                       AND COALESCE(NEW.valid_until, 'infinity'::timestamptz) > valid_from
+                ) THEN
+                    RAISE EXCEPTION
+                        'tax_rates_windows_do_not_overlap: two rates of the same kind for the '
+                        'same country cannot have overlapping validity windows';
+                END IF;
+
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+            SQL);
+
+        $this->addSql(<<<'SQL'
+            CREATE TRIGGER tax_rates_windows_do_not_overlap
+                BEFORE INSERT OR UPDATE ON tax_rates
+                FOR EACH ROW EXECUTE FUNCTION tax_rates_no_overlapping_window()
             SQL);
 
         // The declarable fiscal fact. Written once, never updated: a
@@ -363,6 +402,8 @@ final class Version20260904040000 extends AbstractMigration
         $this->addSql('DROP TABLE IF EXISTS vat_declarations');
         $this->addSql('DROP TABLE IF EXISTS vat_reporting_periods');
         $this->addSql('DROP TABLE IF EXISTS vat_transactions');
+        // The trigger itself goes with the table; the function does not.
+        $this->addSql('DROP FUNCTION IF EXISTS tax_rates_no_overlapping_window()');
         $this->addSql('DROP TABLE IF EXISTS tax_rates');
         $this->addSql('DROP TABLE IF EXISTS tax_identifications');
         $this->addSql('DROP TABLE IF EXISTS customer_tax_profiles');

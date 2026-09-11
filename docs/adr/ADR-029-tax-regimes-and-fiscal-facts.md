@@ -47,15 +47,24 @@ That constraint is risk R8 made unrepresentable. A check in one service does
 not survive the second code path.
 
 **A rate has a window, never a "current" flag.** Correcting a rate closes one
-window and opens another. A GiST exclusion constraint makes overlapping
-windows for the same country and kind impossible, so "the rate on that date"
-cannot have two answers:
+window and opens another. A trigger makes overlapping windows for the same
+country and kind impossible, so "the rate on that date" cannot have two
+answers — not a GiST exclusion constraint, because that needs `btree_gist`,
+and a real deployment hit a host whose PostgreSQL build did not carry it. An
+advisory lock scoped to the country and rate kind gets the same atomicity
+from core PostgreSQL alone:
 
 ```sql
-EXCLUDE USING gist (
-    country_code WITH =, rate_kind WITH =,
-    tstzrange(valid_from, valid_until) WITH &&
-)
+PERFORM pg_advisory_xact_lock(hashtextextended(NEW.country_code || ':' || NEW.rate_kind, 0));
+
+IF EXISTS (
+    SELECT 1 FROM tax_rates
+     WHERE country_code = NEW.country_code AND rate_kind = NEW.rate_kind AND id <> NEW.id
+       AND NEW.valid_from < COALESCE(valid_until, 'infinity'::timestamptz)
+       AND COALESCE(NEW.valid_until, 'infinity'::timestamptz) > valid_from
+) THEN
+    RAISE EXCEPTION 'tax_rates_windows_do_not_overlap: ...';
+END IF;
 ```
 
 This is the fifth application of the platform's recurring rule — offer
