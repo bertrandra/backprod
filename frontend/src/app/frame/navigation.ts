@@ -152,6 +152,15 @@ export const CONSOLE_NAV: readonly NavSection[] = [
       // PLATFORM_ADMIN alone holds `staff.grant`: it is the one permission that
       // can turn any role into every role, by appointing somebody who holds it.
       { id: 'staff', label: 'Staff', to: '/console/staff', permission: 'staff.grant' },
+      // What a stranger sees. Its own permission rather than `catalog.manage`,
+      // which ADR-040 lets the platform lend to a tenant — a tenant authoring
+      // its own offers must not decide what the public page advertises.
+      {
+        id: 'storefront',
+        label: 'Storefront',
+        to: '/console/storefront',
+        permission: 'staff.catalog.manage',
+      },
       { id: 'queue', label: 'Queue', to: '/console/queue', permission: 'admin.health.read' },
       { id: 'audit', label: 'Audit', to: '/console/audit', permission: 'admin.audit.read', secondary: true },
       // Its own entry and its own permission: reading the directory and erasing

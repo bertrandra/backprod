@@ -25,6 +25,16 @@ final class OfferCandidate
         public readonly string $name,
         public readonly Plan $plan,
         public readonly array $versions,
+        /**
+         * Whether the public storefront may show this offer.
+         *
+         * Defaults to false so a caller that has not asked storage about it
+         * — the authoring view, a test fixture written before the storefront
+         * existed — describes an offer as unadvertised rather than as
+         * advertised. Getting this default the other way round would publish
+         * a private price by omission.
+         */
+        public readonly bool $publiclyListed = false,
     ) {
     }
 
@@ -48,6 +58,6 @@ final class OfferCandidate
 
     public function withVersion(?OfferVersion $version): Offer
     {
-        return new Offer($this->id, $this->code, $this->name, $this->plan, $version);
+        return new Offer($this->id, $this->code, $this->name, $this->plan, $version, $this->publiclyListed);
     }
 }

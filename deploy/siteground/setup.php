@@ -411,13 +411,23 @@ function handleSetup(): void
     $assetsDir = realpath($assetsDir) ?: $assetsDir;
     $pdfDir = realpath($pdfDir) ?: $pdfDir;
 
+    // https unless this very request came in over plain http, in which case
+    // saying https would produce links that do not work.
+    $scheme = (($_SERVER['HTTPS'] ?? '') !== '' && ($_SERVER['HTTPS'] ?? '') !== 'off') ? 'https' : 'http';
+    $appUrl = $scheme . '://' . (is_string($_SERVER['HTTP_HOST'] ?? null) ? $_SERVER['HTTP_HOST'] : 'localhost');
+
     $env = 'DATABASE_DSN=postgresql://' . rawurlencode(field($_POST, 'db_user')) . ':' . rawurlencode(is_string($_POST['db_pass'] ?? null) ? $_POST['db_pass'] : '')
         . '@' . field($_POST, 'db_host') . ':' . (field($_POST, 'db_port') !== '' ? field($_POST, 'db_port') : '5432')
         . '/' . rawurlencode(field($_POST, 'db_name')) . "\n"
         . "AUTH_SIGNING_SECRET={$authSecret}\n"
         . "ASSET_LINK_SIGNING_SECRET={$assetSecret}\n"
         . "ASSET_STORAGE_ROOT={$assetsDir}\n"
-        . "PDF_TEMPORARY_ROOT={$pdfDir}\n";
+        . "PDF_TEMPORARY_ROOT={$pdfDir}\n"
+        // Where this deployment answers, taken from the address this very
+        // request arrived on — which is the one moment the platform can know
+        // it without guessing. It is what the links in its emails are built
+        // from, and it is a plain line in .env anybody can correct afterwards.
+        . 'APP_URL=' . $appUrl . "\n";
 
     if (file_put_contents(ENV_PATH, $env) === false) {
         fail(500, 'Could not write backprod-app/.env. Check backprod-app/ is writable.');

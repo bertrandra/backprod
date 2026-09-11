@@ -111,6 +111,11 @@ final class CataloguePresenter
             'code' => $offer->code,
             'name' => $offer->name,
             'plan' => self::plan($offer->plan),
+            // Whether the public storefront advertises it. Present in the
+            // authoring view and absent from the sale view, because somebody
+            // buying an offer is looking at it — "is this on the front page"
+            // is a question only its author has.
+            'publicly_listed' => $offer->publiclyListed,
             'versions' => array_map(self::authoredVersion(...), $offer->versions),
         ];
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Staff\Controller;
 
 use App\Shared\Context\StaffContext;
+use App\Shared\Exceptions\BadRequestException;
 use App\Staff\Domain\AccessMotive;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -45,6 +46,33 @@ final class StaffRoute
             $request->getHeaderLine('X-Access-Purpose'),
             $request->getHeaderLine('X-Access-Reason'),
         );
+    }
+
+    /**
+     * The product a storefront route is about.
+     *
+     * A query parameter rather than `X-Product`: a staff route resolves no
+     * product of its own — a platform role grants no membership, and §12.1's
+     * ambient product comes from one — so the product is named explicitly and
+     * the console says which one it is showing.
+     *
+     * Absent is refused rather than defaulted. A console that silently
+     * administered whichever product came first would eventually advertise
+     * the wrong one.
+     */
+    public static function productCode(ServerRequestInterface $request): string
+    {
+        $code = self::query($request)['product'] ?? null;
+
+        if (!is_string($code) || trim($code) === '' || mb_strlen($code) > 64) {
+            throw new BadRequestException(
+                'VALIDATION_FAILED',
+                'The query string is not valid.',
+                ['field' => 'product', 'requirement' => 'must name a product'],
+            );
+        }
+
+        return trim($code);
     }
 
     public static function id(ServerRequestInterface $request, string $attribute): string

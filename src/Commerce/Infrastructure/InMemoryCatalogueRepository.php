@@ -55,6 +55,21 @@ final class InMemoryCatalogueRepository implements CatalogueRepository
         return null;
     }
 
+    public function publiclyListedOffersFor(string $productId): array
+    {
+        return array_values(array_filter(
+            $this->offersFor($productId),
+            static fn (OfferCandidate $offer): bool => $offer->publiclyListed,
+        ));
+    }
+
+    public function findPubliclyListedOffer(string $productId, string $offerId): ?OfferCandidate
+    {
+        $offer = $this->findOffer($productId, $offerId);
+
+        return $offer !== null && $offer->publiclyListed ? $offer : null;
+    }
+
     public function findOfferByVersion(string $productId, string $offerVersionId): ?OfferCandidate
     {
         foreach ($this->offersFor($productId) as $offer) {
@@ -66,6 +81,7 @@ final class InMemoryCatalogueRepository implements CatalogueRepository
                         $offer->name,
                         $offer->plan,
                         [$version],
+                        $offer->publiclyListed,
                     );
                 }
             }

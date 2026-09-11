@@ -157,11 +157,13 @@ and USER. Placing it in the console would have been the intuitive mistake.
 
 | area | for |
 |---|---|
+| `public.storefront` | the shop window: offers the platform advertises for one product, and the account somebody creates while buying one. Outside both shells and outside the sign-in gate — the person reading it has no session, no product and no permissions (ADR-041) |
 | `console.support.tenants` | a tenant as support sees it — an audited, per-tenant read, and the one thing about a tenant staff may change: whether the platform lends it the catalogue. The state is shown to anybody who may open the tenant; the control appears only with `staff.tenants.manage` |
 | `console.support.conversations` | answering a thread, and closing it |
 | `console.support.access_log` | what staff looked at, which is the record that makes the above acceptable |
 | `console.admin.metrics` | the financial dashboard, from aggregates |
 | `console.admin.directory` | tenants, users, subscriptions, invoices across the platform |
+| `console.admin.storefront` | what a stranger sees. Being on sale and being advertised are two decisions; this is the only place the second is made, behind `staff.catalog.manage` rather than `catalog.manage` (ADR-041) |
 | `console.admin.staff` | who holds a platform role, and appointing or removing them. The database keeps at least one administrator, so the last one is shown as protected rather than offered and then refused |
 | `console.admin.queue` | queue liveness and the job list — "has the runner run" |
 | `console.admin.audit` | the audit trail |

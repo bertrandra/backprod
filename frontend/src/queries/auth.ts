@@ -82,6 +82,118 @@ export function useSignIn() {
 }
 
 /**
+ * What the server's message becomes on screen, for somebody creating an account.
+ *
+ * A different vocabulary from signing in, because the failures are different
+ * ones: signing in refuses to say whether an address exists, and signing up
+ * has to.
+ */
+function sayingForSignUp(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 409) {
+      // Said plainly, unlike every message about an existing account
+      // elsewhere. Somebody who cannot be told this cannot finish the
+      // purchase they came for, and the sign-in form is one click away.
+      return 'That address already has an account. Sign in instead.';
+    }
+
+    if (error.status === 404) {
+      return 'This link does not name a product that is on sale. Check the address you followed.';
+    }
+
+    if (error.status === 429) {
+      return 'Too many attempts. Wait a minute and try again.';
+    }
+
+    if (error.status === 400 || error.status === 422) {
+      return 'Check the form: an email address and a password of at least 12 characters.';
+    }
+
+    if (error.status === 503) {
+      return 'This deployment cannot create accounts yet: it has no signing secret configured.';
+    }
+  }
+
+  return 'Could not reach the sign-up service. Check your connection and try again.';
+}
+
+export class SignUpFailed extends Error {
+  constructor(cause: unknown) {
+    super(sayingForSignUp(cause));
+    this.name = 'SignUpFailed';
+  }
+}
+
+export interface NewAccount {
+  readonly email: string;
+  readonly password: string;
+  readonly product: string;
+  readonly display_name?: string | null;
+  readonly organisation?: string | null;
+  readonly country?: string | null;
+}
+
+/**
+ * A stranger becomes a customer, and is signed in by the same call.
+ *
+ * The session lands in the store exactly as `useSignIn` puts it there, so
+ * everything downstream — the shell, the API client's Authorization header,
+ * the checkout — behaves as though the person had signed in normally. That is
+ * the point: the purchase that follows is an ordinary authenticated one, not a
+ * second anonymous flow with rules of its own.
+ */
+export function useSignUp() {
+  const client = useApiClient();
+  const signIn = useSessionStore((state) => state.signIn);
+
+  return useMutation({
+    mutationFn: async (account: NewAccount) => {
+      const { data, error, response } = await client.POST('/api/v1/auth/sign-up', {
+        body: account,
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw new SignUpFailed(toApiError(response.status, error));
+      }
+
+      return data;
+    },
+    onSuccess: (session) => {
+      signIn({ accessToken: session.access_token, expiresIn: session.expires_in });
+    },
+  });
+}
+
+/**
+ * Confirms an address from the token in the emailed link.
+ *
+ * It deliberately produces **no session**: the endpoint issues none, because a
+ * link that did would be a credential sitting in an inbox for as long as that
+ * mail is kept. Somebody who follows it confirms their address and then signs
+ * in as themselves, which is the form already on the screen.
+ *
+ * Unknown, expired and already-used come back as one 400, so this says one
+ * thing about all three rather than inventing distinctions the API withheld.
+ */
+export function useVerifyEmail() {
+  const client = useApiClient();
+
+  return useMutation({
+    mutationFn: async (token: string) => {
+      const { data, error, response } = await client.POST('/api/v1/auth/verify-email', {
+        body: { token },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.verified;
+    },
+  });
+}
+
+/**
  * Ends the session, and empties the cache before the next person sees it.
  *
  * `clear()` rather than `invalidateQueries`: invalidation refetches, and

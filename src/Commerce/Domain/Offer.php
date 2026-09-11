@@ -19,6 +19,12 @@ final class Offer
         public readonly string $name,
         public readonly Plan $plan,
         public readonly ?OfferVersion $currentVersion,
+        /**
+         * Whether the platform advertises this offer to people with no
+         * account. Distinct from being on sale: a price negotiated with one
+         * reseller is sellable and is nobody else's business.
+         */
+        public readonly bool $publiclyListed = false,
     ) {
     }
 }

@@ -3091,7 +3091,8 @@
           "code",
           "name",
           "plan",
-          "versions"
+          "versions",
+          "publicly_listed"
         ],
         "properties": {
           "id": {
@@ -3106,7 +3107,7 @@
             "type": "string"
           },
           "plan": {
-            "type": "object"
+            "$ref": "#/components/schemas/Plan"
           },
           "versions": {
             "type": "array",
@@ -3114,6 +3115,10 @@
             "items": {
               "$ref": "#/components/schemas/AuthoredOfferVersion"
             }
+          },
+          "publicly_listed": {
+            "type": "boolean",
+            "description": "Whether the public storefront advertises this offer. Distinct from being on sale: a price negotiated with one reseller is sellable and is nobody else’s business. Only `staff.catalog.manage` may change it."
           }
         }
       },
@@ -13908,6 +13913,528 @@
           }
         },
         "security": []
+      }
+    },
+    "/api/v1/public/offers": {
+      "get": {
+        "tags": [
+          "Storefront"
+        ],
+        "operationId": "getPublicOffers",
+        "summary": "The shop window for one product",
+        "description": "Unauthenticated. Returns only offers the platform has marked `publicly_listed` **and** that are inside their sale window. `product` comes back null whenever there is nothing to show — whether the code names no product, an inactive one, or one that advertises nothing — so this cannot be used to enumerate a deployment’s products.",
+        "parameters": [
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code the storefront is about. A public route resolves no ambient product — there is no context chain on it — so the filter is named explicitly.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The window. Possibly empty, and never explaining why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "product",
+                    "offers"
+                  ],
+                  "properties": {
+                    "product": {
+                      "type": "object",
+                      "nullable": true,
+                      "required": [
+                        "code",
+                        "name"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "offers": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Offer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — no `product` was named.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/public/offers/{offerId}": {
+      "get": {
+        "tags": [
+          "Storefront"
+        ],
+        "operationId": "getPublicOffer",
+        "summary": "One advertised offer, to a stranger",
+        "description": "Unauthenticated. What a shared link opens. Four situations answer 404 identically — no such offer, another product’s, not advertised, not on sale today — so ids cannot be tested against the private catalogue.",
+        "parameters": [
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code the storefront is about. A public route resolves no ambient product — there is no context chain on it — so the filter is named explicitly.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The offer, with the version on sale today.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "offer"
+                  ],
+                  "properties": {
+                    "offer": {
+                      "$ref": "#/components/schemas/Offer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — no `product` was named.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/storefront/offers": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "listStorefrontOffers",
+        "summary": "Every offer of a product, advertised or not",
+        "description": "The unfiltered view behind `staff.catalog.manage`: deciding what a stranger sees means seeing what is currently hidden, drafts included.",
+        "parameters": [
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code. A staff route resolves no product of its own — a platform role grants no membership — so the console names which one it is administering.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product and all of its offers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "product",
+                    "offers"
+                  ],
+                  "properties": {
+                    "product": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "code",
+                        "name"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "offers": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuthoredOffer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — no `product` was named.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/storefront/offers/{offerId}": {
+      "put": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "setOfferPublicListing",
+        "summary": "Advertise an offer publicly, or stop",
+        "description": "PUT because it states a desired state: sending the same value twice is the state asked for both times. Withdrawing an offer from the public page does not withdraw it from sale — subscribers keep their terms and members keep seeing it in the catalogue. Recorded in the staff access trail as ADVERTISE or WITHDRAW_ADVERTISING.",
+        "parameters": [
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code. A staff route resolves no product of its own — a platform role grants no membership — so the console names which one it is administering.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "publicly_listed"
+                ],
+                "properties": {
+                  "publicly_listed": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The offer, as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "offer"
+                  ],
+                  "properties": {
+                    "offer": {
+                      "$ref": "#/components/schemas/AuthoredOffer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — `publicly_listed` absent or not a boolean, or no `product` named.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sign-up": {
+      "post": {
+        "tags": [
+          "Session"
+        ],
+        "operationId": "signUp",
+        "summary": "Create an account, an organisation and a session",
+        "description": "Public. The only endpoint that creates an account from nothing — user, credential, tenant, TENANT_ADMIN membership of the named product — in one transaction. `organisation` is optional: somebody buying for themselves has no company and the tenant takes their own name instead, which nothing downstream branches on. The address is **not** verified first: a session is issued immediately and `users.email_verified_at` stays null until the confirmation link is followed. Unlike signing in, this says plainly when an address is taken — a person who cannot be told cannot finish the purchase they came for — and the public rate limit is what bounds the enumeration that permits. A minimal billing profile is created alongside the tenant — a checkout refuses an order it cannot invoice, and an account that could not buy anything would make the storefront’s promise false.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "password",
+                  "product"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 320
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 12,
+                    "maxLength": 72,
+                    "description": "Measured in bytes. The ceiling is bcrypt’s, not a preference."
+                  },
+                  "product": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": "The product code this account is being created for. A membership is per product, so an account without one would have no way in."
+                  },
+                  "display_name": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 200
+                  },
+                  "organisation": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 200,
+                    "description": "The company name, when there is one. Omitted for a consumer; the tenant is then named after the person."
+                  },
+                  "country": {
+                    "type": "string",
+                    "nullable": true,
+                    "minLength": 2,
+                    "maxLength": 2,
+                    "description": "ISO 3166-1 alpha-2. Optional, and asked for because VAT depends on it rather than to make the form look complete."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The account was created and a session issued. The refresh token leaves in a `Set-Cookie` header and never in the body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "access_token",
+                    "token_type",
+                    "expires_in",
+                    "tenant_id"
+                  ],
+                  "properties": {
+                    "access_token": {
+                      "type": "string"
+                    },
+                    "token_type": {
+                      "type": "string"
+                    },
+                    "expires_in": {
+                      "type": "integer"
+                    },
+                    "tenant_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "The organisation just created. Returned because the checkout that follows resolves it anyway."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — a field is missing, the wrong type, or the password is outside 12–72 bytes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`EMAIL_TAKEN` — that address already has an account. Sign in instead.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/verify-email": {
+      "post": {
+        "tags": [
+          "Session"
+        ],
+        "operationId": "verifyEmail",
+        "summary": "Confirm an address from the emailed token",
+        "description": "Public, because the person following the link may be on a device that has never signed in. It never issues a session: a link that did would be a credential living in an inbox for as long as that mail is kept. Unknown, expired and already-used are one answer, so tokens cannot be probed.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "maxLength": 128
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The address is confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "verified"
+                  ],
+                  "properties": {
+                    "verified": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VERIFICATION_FAILED` — the token is unknown, expired or already used, or `VALIDATION_FAILED` if none was sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     }
   }
