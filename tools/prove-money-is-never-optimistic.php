@@ -57,6 +57,16 @@ $guarded = [
     // know them, so an optimistic write would not be a stale number but an
     // invented filing — and the period cannot be reopened to correct it.
     'frontend/src/queries/tax.ts',
+    // ADR-043. This module gained the act that *sets* a price and the act that
+    // puts one on sale: publishing an offer version freezes it (ADR-033), and
+    // every quote, order and subscription written afterwards prices from it.
+    // An optimistic write here would show a price as on sale before the
+    // database had agreed — and the database is the thing that refuses two
+    // versions on sale across the same window.
+    //
+    // The gate found this file itself, which is the whole point of it
+    // comparing the list against what the directory contains.
+    'frontend/src/queries/staff.ts',
 ];
 
 $missing = [];

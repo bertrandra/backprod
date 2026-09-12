@@ -119,7 +119,11 @@ use App\Skin\Controller\ShowSkinController;
 use App\Skin\Controller\UpdateSkinController;
 use App\Skin\Controller\UploadSkinLogoController;
 use App\Staff\Controller\CloseSupportConversationController;
+use App\Staff\Controller\CreateFeatureController;
+use App\Staff\Controller\CreatePlanController;
 use App\Staff\Controller\CreateProductController;
+use App\Staff\Controller\CreateStaffOfferController;
+use App\Staff\Controller\CreateStaffOfferVersionController;
 use App\Staff\Controller\GrantStaffRoleController;
 use App\Staff\Controller\ListAccessLogController;
 use App\Staff\Controller\ListPlatformProductsController;
@@ -128,12 +132,17 @@ use App\Staff\Controller\ListStorefrontOffersController;
 use App\Staff\Controller\ListSupportConversationsController;
 use App\Staff\Controller\ListTenantsController;
 use App\Staff\Controller\PostSupportMessageController;
+use App\Staff\Controller\PublishStaffOfferVersionController;
+use App\Staff\Controller\RenameFeatureController;
+use App\Staff\Controller\RenameStaffOfferController;
 use App\Staff\Controller\RevokeStaffRoleController;
 use App\Staff\Controller\SetOfferAuthoringController;
 use App\Staff\Controller\SetPublicListingController;
+use App\Staff\Controller\ShowCatalogueController;
 use App\Staff\Controller\ShowSupportConversationController;
 use App\Staff\Controller\ShowTenantController;
 use App\Staff\Controller\StaffIdentityController;
+use App\Staff\Controller\UpdatePlanController;
 use App\Staff\Controller\UpdateProductController;
 use App\Storage\Controller\CreateAssetLinkController;
 use App\Storage\Controller\DeleteAssetController;
@@ -485,6 +494,41 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/staff/products', ListPlatformProductsController::class);
     $routes->addRoute('POST', '/api/v1/staff/products', CreateProductController::class);
     $routes->addRoute('PATCH', '/api/v1/staff/products/{productId}', UpdateProductController::class);
+
+    // The platform's own catalogue, authored by the platform. ADR-040 made
+    // `catalog.manage` a delegation to a tenant, which left the platform able
+    // to price its own product only by lending it away and acting as the
+    // borrower. These are the door that should have existed first; the tenant
+    // routes keep the meaning ADR-040 gave them.
+    //
+    // Plans and features especially: nothing on this platform could create
+    // one, so an installation had a product and no way to build a catalogue
+    // on it at all.
+    $routes->addRoute('GET', '/api/v1/staff/catalogue', ShowCatalogueController::class);
+    $routes->addRoute('POST', '/api/v1/staff/catalogue/plans', CreatePlanController::class);
+    $routes->addRoute('PATCH', '/api/v1/staff/catalogue/plans/{planId}', UpdatePlanController::class);
+    $routes->addRoute('POST', '/api/v1/staff/catalogue/features', CreateFeatureController::class);
+    $routes->addRoute(
+        'PATCH',
+        '/api/v1/staff/catalogue/features/{featureId}',
+        RenameFeatureController::class,
+    );
+    $routes->addRoute('POST', '/api/v1/staff/catalogue/offers', CreateStaffOfferController::class);
+    $routes->addRoute(
+        'PATCH',
+        '/api/v1/staff/catalogue/offers/{offerId}',
+        RenameStaffOfferController::class,
+    );
+    $routes->addRoute(
+        'POST',
+        '/api/v1/staff/catalogue/offers/{offerId}/versions',
+        CreateStaffOfferVersionController::class,
+    );
+    $routes->addRoute(
+        'POST',
+        '/api/v1/staff/catalogue/offers/{offerId}/publish',
+        PublishStaffOfferVersionController::class,
+    );
 
     // What the public page advertises, and who decided. `staff.catalog.manage`
     // rather than `catalog.manage`: ADR-040 lets the platform lend the latter

@@ -2675,6 +2675,186 @@ export interface paths {
         patch: operations["updateProduct"];
         trace?: never;
     };
+    "/api/v1/staff/catalogue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The plans and features an offer is built out of
+         * @description Both in one read, because an offer needs both and a screen that fetched them separately would render half a form. The offers themselves come from `listStorefrontOffers`, which already answers the unfiltered authoring view.
+         */
+        get: operations["showStaffCatalogue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/catalogue/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a plan
+         * @description The first thing a catalogue needs, and the thing nothing on this platform could create: `INSERT INTO plans` appeared once in the whole repository, in the demo seeder. Without a plan, `createOffer` inserts `SELECT … FROM plans WHERE id = :planId` and matches nothing — so an installation had a product and no way to price it. **`rank` is chosen, not derived**: it is the only ordering this platform has, and an upgrade is a comparison of two integers, never of two names.
+         */
+        post: operations["createPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/catalogue/plans/{planId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Rename a plan, or move it
+         * @description PATCH because the fields are independent, and reordering is the one that matters: which plan sits above which is what an upgrade is measured by, so a rename must not move a plan by omission. There is no delete — offers point at plans by id, and those offers price live subscriptions. Recorded as RENAME or REORDER.
+         */
+        patch: operations["updatePlan"];
+        trace?: never;
+    };
+    "/api/v1/staff/catalogue/features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a billable capability
+         * @description `kind` is chosen here because it can never change: every grant written against a feature meant one kind or the other — a quota’s carries a limit, a boolean’s carries null — and flipping it would reinterpret rows already priced into live subscriptions. A feature that should have been the other kind is a new feature. `unit` is what a quota is counted in and is refused on a boolean.
+         */
+        post: operations["createFeature"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/catalogue/features/{featureId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Correct a feature’s name
+         * @description The only thing about a feature that may change. Its code is how grants and entitlements name it; its kind decides how every grant already written against it is read.
+         */
+        patch: operations["renameFeature"];
+        trace?: never;
+    };
+    "/api/v1/staff/catalogue/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The platform prices its own product
+         * @description The same act as `createOffer`, from the other side of the boundary. That one lives on the tenant shell behind `catalog.manage`, which ADR-040 made a delegation — so after ADR-040 the platform could price its own catalogue only by lending it to a tenant and acting as that tenant. Born DRAFT: publishing is a separate, deliberate act. The body is the same one the tenant route reads, so a term added to §13.1 cannot be accepted by one and dropped by the other.
+         */
+        post: operations["createStaffOffer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/catalogue/offers/{offerId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Correct an offer’s name
+         * @description The code is untouched — documents refer to this offer by it. The price is not here either: a price is a *version*, and editing a published one is what ADR-033 forbids.
+         */
+        patch: operations["renameStaffOffer"];
+        trace?: never;
+    };
+    "/api/v1/staff/catalogue/offers/{offerId}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Draft the next price
+         * @description A published version is frozen (ADR-033), so changing what an offer costs is always a new version rather than an edit. Numbered by the database, not the caller: two authors adding one at once must not both get number 4. DRAFT until published, so the price on sale does not move the moment a new one is written down.
+         */
+        post: operations["createStaffOfferVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/catalogue/offers/{offerId}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Put a price on sale
+         * @description The loudest act on this shell. From here on every quote, order and subscription written against this offer prices from that version, and ADR-033 freezes it the moment it happens. The database refuses two versions on sale across the same window, which is why this can answer 409 rather than leaving two prices for one offer.
+         */
+        post: operations["publishStaffOfferVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -10077,6 +10257,479 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showStaffCatalogue: {
+        parameters: {
+            query: {
+                /** @description The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The product, its plans in rank order, and its features. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        product: {
+                            /** Format: uuid */
+                            id: string;
+                            code: string;
+                            name: string;
+                        };
+                        plans: components["schemas"]["Plan"][];
+                        features: components["schemas"]["Feature"][];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — no `product` was named. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createPlan: {
+        parameters: {
+            query: {
+                /** @description The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Lowercased before validation. Chosen once and never editable. */
+                    code: string;
+                    name: string;
+                    /** @description Orders plans against each other. 0 is legitimate — a free tier at the bottom. */
+                    rank: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The plan. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        plan: components["schemas"]["Plan"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description `PLAN_CODE_TAKEN` — a plan of this product already uses that code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updatePlan: {
+        parameters: {
+            query: {
+                /** @description The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    rank?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The plan, as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        plan: components["schemas"]["Plan"];
+                    };
+                };
+            };
+            /** @description `NOTHING_TO_UPDATE` — neither field was sent — or `VALIDATION_FAILED`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createFeature: {
+        parameters: {
+            query: {
+                /** @description The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    code: string;
+                    name: string;
+                    /**
+                     * @description Uppercased before validation. Not editable afterwards.
+                     * @enum {string}
+                     */
+                    kind: "BOOLEAN" | "QUOTA";
+                    /** @description What a quota is counted in — "projects", "GB". Refused on a BOOLEAN. */
+                    unit?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The feature. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        feature: components["schemas"]["Feature"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — an unknown kind, a bad code, or a unit on a BOOLEAN. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description `FEATURE_CODE_TAKEN`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    renameFeature: {
+        parameters: {
+            query: {
+                /** @description The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path: {
+                featureId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The feature. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        feature: components["schemas"]["Feature"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createStaffOffer: {
+        parameters: {
+            query: {
+                /** @description The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OfferDraft"] & {
+                    /**
+                     * @description Unique within the product, and permanent.
+                     * @example pro-monthly
+                     */
+                    code: string;
+                    name: string;
+                    /**
+                     * Format: uuid
+                     * @description A plan of this product. One from another product is refused.
+                     */
+                    plan_id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The offer and its first DRAFT version. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        offer: components["schemas"]["AuthoredOffer"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description `OFFER_CODE_TAKEN`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    renameStaffOffer: {
+        parameters: {
+            query: {
+                /** @description The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path: {
+                offerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The offer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        offer: components["schemas"]["AuthoredOffer"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createStaffOfferVersion: {
+        parameters: {
+            query: {
+                /** @description The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path: {
+                offerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OfferDraft"];
+            };
+        };
+        responses: {
+            /** @description The offer with its new DRAFT version. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        offer: components["schemas"]["AuthoredOffer"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    publishStaffOfferVersion: {
+        parameters: {
+            query: {
+                /** @description The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path: {
+                offerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The offer, with that version ACTIVE. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        offer: components["schemas"]["AuthoredOffer"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description `OFFER_ALREADY_ON_SALE` — another version is on sale across the same window — or the version is not a draft. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

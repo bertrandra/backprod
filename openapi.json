@@ -14680,6 +14680,926 @@
           }
         }
       }
+    },
+    "/api/v1/staff/catalogue": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "showStaffCatalogue",
+        "summary": "The plans and features an offer is built out of",
+        "description": "Both in one read, because an offer needs both and a screen that fetched them separately would render half a form. The offers themselves come from `listStorefrontOffers`, which already answers the unfiltered authoring view.",
+        "parameters": [
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product, its plans in rank order, and its features.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "product",
+                    "plans",
+                    "features"
+                  ],
+                  "properties": {
+                    "product": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "code",
+                        "name"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "plans": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Plan"
+                      }
+                    },
+                    "features": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Feature"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — no `product` was named.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/catalogue/plans": {
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "createPlan",
+        "summary": "Create a plan",
+        "description": "The first thing a catalogue needs, and the thing nothing on this platform could create: `INSERT INTO plans` appeared once in the whole repository, in the demo seeder. Without a plan, `createOffer` inserts `SELECT … FROM plans WHERE id = :planId` and matches nothing — so an installation had a product and no way to price it. **`rank` is chosen, not derived**: it is the only ordering this platform has, and an upgrade is a comparison of two integers, never of two names.",
+        "parameters": [
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "name",
+                  "rank"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "pattern": "^[a-z0-9][a-z0-9_-]*$",
+                    "description": "Lowercased before validation. Chosen once and never editable."
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "rank": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Orders plans against each other. 0 is legitimate — a free tier at the bottom."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "plan"
+                  ],
+                  "properties": {
+                    "plan": {
+                      "$ref": "#/components/schemas/Plan"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`PLAN_CODE_TAKEN` — a plan of this product already uses that code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/catalogue/plans/{planId}": {
+      "patch": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "updatePlan",
+        "summary": "Rename a plan, or move it",
+        "description": "PATCH because the fields are independent, and reordering is the one that matters: which plan sits above which is what an upgrade is measured by, so a rename must not move a plan by omission. There is no delete — offers point at plans by id, and those offers price live subscriptions. Recorded as RENAME or REORDER.",
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "At least one of the two. The code is absent by omission: there is nothing that may change.",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "rank": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The plan, as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "plan"
+                  ],
+                  "properties": {
+                    "plan": {
+                      "$ref": "#/components/schemas/Plan"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`NOTHING_TO_UPDATE` — neither field was sent — or `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/catalogue/features": {
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "createFeature",
+        "summary": "Create a billable capability",
+        "description": "`kind` is chosen here because it can never change: every grant written against a feature meant one kind or the other — a quota’s carries a limit, a boolean’s carries null — and flipping it would reinterpret rows already priced into live subscriptions. A feature that should have been the other kind is a new feature. `unit` is what a quota is counted in and is refused on a boolean.",
+        "parameters": [
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "name",
+                  "kind"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "BOOLEAN",
+                      "QUOTA"
+                    ],
+                    "description": "Uppercased before validation. Not editable afterwards."
+                  },
+                  "unit": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 40,
+                    "description": "What a quota is counted in — \"projects\", \"GB\". Refused on a BOOLEAN."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The feature.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "feature"
+                  ],
+                  "properties": {
+                    "feature": {
+                      "$ref": "#/components/schemas/Feature"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — an unknown kind, a bad code, or a unit on a BOOLEAN.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`FEATURE_CODE_TAKEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/catalogue/features/{featureId}": {
+      "patch": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "renameFeature",
+        "summary": "Correct a feature’s name",
+        "description": "The only thing about a feature that may change. Its code is how grants and entitlements name it; its kind decides how every grant already written against it is read.",
+        "parameters": [
+          {
+            "name": "featureId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The feature.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "feature"
+                  ],
+                  "properties": {
+                    "feature": {
+                      "$ref": "#/components/schemas/Feature"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/catalogue/offers": {
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "createStaffOffer",
+        "summary": "The platform prices its own product",
+        "description": "The same act as `createOffer`, from the other side of the boundary. That one lives on the tenant shell behind `catalog.manage`, which ADR-040 made a delegation — so after ADR-040 the platform could price its own catalogue only by lending it to a tenant and acting as that tenant. Born DRAFT: publishing is a separate, deliberate act. The body is the same one the tenant route reads, so a term added to §13.1 cannot be accepted by one and dropped by the other.",
+        "parameters": [
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/OfferDraft"
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "code",
+                      "name",
+                      "plan_id"
+                    ],
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "description": "Unique within the product, and permanent.",
+                        "examples": [
+                          "pro-monthly"
+                        ]
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "plan_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "A plan of this product. One from another product is refused."
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The offer and its first DRAFT version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "offer"
+                  ],
+                  "properties": {
+                    "offer": {
+                      "$ref": "#/components/schemas/AuthoredOffer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`OFFER_CODE_TAKEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/catalogue/offers/{offerId}": {
+      "patch": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "renameStaffOffer",
+        "summary": "Correct an offer’s name",
+        "description": "The code is untouched — documents refer to this offer by it. The price is not here either: a price is a *version*, and editing a published one is what ADR-033 forbids.",
+        "parameters": [
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The offer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "offer"
+                  ],
+                  "properties": {
+                    "offer": {
+                      "$ref": "#/components/schemas/AuthoredOffer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/catalogue/offers/{offerId}/versions": {
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "createStaffOfferVersion",
+        "summary": "Draft the next price",
+        "description": "A published version is frozen (ADR-033), so changing what an offer costs is always a new version rather than an edit. Numbered by the database, not the caller: two authors adding one at once must not both get number 4. DRAFT until published, so the price on sale does not move the moment a new one is written down.",
+        "parameters": [
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfferDraft"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The offer with its new DRAFT version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "offer"
+                  ],
+                  "properties": {
+                    "offer": {
+                      "$ref": "#/components/schemas/AuthoredOffer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/catalogue/offers/{offerId}/publish": {
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "publishStaffOfferVersion",
+        "summary": "Put a price on sale",
+        "description": "The loudest act on this shell. From here on every quote, order and subscription written against this offer prices from that version, and ADR-033 freezes it the moment it happens. The database refuses two versions on sale across the same window, which is why this can answer 409 rather than leaving two prices for one offer.",
+        "parameters": [
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "version"
+                ],
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The offer, with that version ACTIVE.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "offer"
+                  ],
+                  "properties": {
+                    "offer": {
+                      "$ref": "#/components/schemas/AuthoredOffer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`OFFER_ALREADY_ON_SALE` — another version is on sale across the same window — or the version is not a draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
     }
   }
 }
