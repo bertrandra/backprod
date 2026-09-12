@@ -1,5 +1,7 @@
+import { Link } from '@tanstack/react-router';
+
+import { useViewState } from '@/app/frame/viewState';
 import { useSetOfferPublicListing, useStorefrontOffers } from '@/queries/staff';
-import { useSessionStore } from '@/state/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
@@ -23,12 +25,21 @@ import { SkeletonRows } from '@/ui/Skeleton';
  *
  * Every offer is listed, hidden ones included — choosing what to advertise
  * means seeing what you are choosing between.
+ *
+ * **The product comes from the URL**, as `?selected=`, the same way
+ * `console.support.tenants` carries the tenant somebody opened. It cannot come
+ * from an ambient context: a platform role grants no membership
+ * (non-negotiable #22), so §12.1's ambient product does not exist on this
+ * shell. Reading it from the browser's remembered tenant-app product — which
+ * this screen did when it shipped — made the console silently administer
+ * whichever product the person had last used the *application* in, and left it
+ * with nothing to show for anybody who had never opened the application at
+ * all. The URL is the honest place for it: it says which product is being
+ * administered, and a link opens the same one for whoever follows it.
  */
 export function StorefrontScreen() {
-  // The console resolves no product of its own: a platform role grants no
-  // membership, so §12.1's ambient product does not exist here. This is the
-  // code the operator chose, and the screen says which one it is showing.
-  const productCode = useSessionStore((state) => state.productCode);
+  const { selected } = useViewState();
+  const productCode = selected ?? null;
   const offers = useStorefrontOffers(productCode);
   const decide = useSetOfferPublicListing(productCode ?? '');
 
@@ -36,7 +47,15 @@ export function StorefrontScreen() {
     return (
       <EmptyState
         title="No product chosen"
-        description="Choose a product first — the storefront is per product, and there is no default."
+        description="The storefront is per product, and the console has no default. Pick one from Products."
+        action={
+          <Link
+            to="/console/products"
+            className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            Go to Products
+          </Link>
+        }
       />
     );
   }

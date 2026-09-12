@@ -393,6 +393,7 @@ export function useCloseSupportConversation(conversationId: string) {
  */
 export type StaffMember = Schemas['StaffMember'];
 export type PlatformRole = Schemas['PlatformRole'];
+export type PlatformProduct = Schemas['PlatformProduct'];
 export type StaffRoster = Schemas['StaffRoster'];
 
 export function useStaffRoster() {
@@ -542,6 +543,87 @@ export function useSetOfferPublicListing(productCode: string) {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: keys.storefront.listing(productCode) });
+    },
+  });
+}
+
+/**
+ * Every product on the platform — the question `useProducts` cannot answer.
+ *
+ * That one resolves through membership, and a platform role grants none
+ * (non-negotiable #22), so an administrator asking it what this deployment
+ * hosts is answered about their own tenant or not at all. This asks the other
+ * question, behind `staff.products.manage`, and includes retired products:
+ * they still carry tenants, subscriptions and invoices.
+ */
+export function usePlatformProducts() {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.products,
+    queryFn: async () => {
+      const { data, error, response } = await client.GET('/api/v1/staff/products', {});
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.products;
+    },
+  });
+}
+
+export function useCreateProduct() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (product: { code: string; name: string }) => {
+      const { data, error, response } = await client.POST('/api/v1/staff/products', {
+        body: product,
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.product;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: keys.staff.products });
+    },
+  });
+}
+
+/**
+ * Renames a product, retires it, or brings it back.
+ *
+ * The two fields are sent independently — the API is a PATCH for exactly that
+ * reason — so renaming never says anything about whether a product is active,
+ * and a form that forgot a checkbox cannot switch one off.
+ */
+export function useUpdateProduct() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (change: { productId: string; name?: string; active?: boolean }) => {
+      const { data, error, response } = await client.PATCH('/api/v1/staff/products/{productId}', {
+        params: { path: { productId: change.productId } },
+        body: {
+          ...(change.name !== undefined && { name: change.name }),
+          ...(change.active !== undefined && { active: change.active }),
+        },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.product;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: keys.staff.products });
     },
   });
 }

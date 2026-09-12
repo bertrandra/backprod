@@ -2631,6 +2631,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every product on the platform
+         * @description The question `listProducts` cannot answer: that one resolves through membership, and a platform role never grants membership, so an administrator asking it what this deployment hosts is answered about their own tenant or not at all. Behind `staff.products.manage`. Retired products are included — they still carry tenants, subscriptions and invoices.
+         */
+        get: operations["listPlatformProducts"];
+        put?: never;
+        /**
+         * Create a product
+         * @description Until this existed, the installer was the only thing on the platform that could create one — once, at install — so a second product meant an INSERT typed against production. The code is chosen here and never again.
+         */
+        post: operations["createProduct"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/products/{productId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Rename a product, or retire it
+         * @description PATCH rather than PUT because the two fields are independent: renaming says nothing about whether a product is active, and a PUT would make a form restate it — which is how a product gets switched off by a checkbox somebody forgot to send. **There is no delete.** A product carries tenants, subscriptions and invoices, and an invoice is a legal document; `active: false` closes every door into it and leaves the history where the law requires it. Recorded in the staff access trail as RENAME, RETIRE or REINSTATE.
+         */
+        patch: operations["updateProduct"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3735,6 +3779,16 @@ export interface components {
         StaffRoster: {
             members: components["schemas"]["StaffMember"][];
             roles: components["schemas"]["PlatformRole"][];
+        };
+        /** @description A product as the platform’s own administrator sees it. `active` appears here and nowhere else, because every other product shape has already filtered on it — the context chain treats an inactive product as absent, and so does the storefront. */
+        PlatformProduct: {
+            /** Format: uuid */
+            id: string;
+            /** @description What clients send as `X-Product` and the storefront takes as `?product=`. Chosen once, at creation, and never editable: an identifier that can change is not an identifier. */
+            code: string;
+            name: string;
+            /** @description A retired product keeps its tenants, subscriptions and invoices; what changes is that every door into it is closed. */
+            active: boolean;
         };
     };
     responses: {
@@ -9900,6 +9954,129 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listPlatformProducts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every product, newest first. Unpaged: a platform hosts a handful. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        products: components["schemas"]["PlatformProduct"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Lowercase letters, digits and hyphens. It travels in URLs and headers, so a code with a space in it is a code half the intermediaries mangle. Lowercased before validation. */
+                    code: string;
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The product, active. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        product: components["schemas"]["PlatformProduct"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — a field is missing, or the code is not a usable identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `PRODUCT_CODE_TAKEN` — a product already uses that code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    active?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The product, as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        product: components["schemas"]["PlatformProduct"];
+                    };
+                };
+            };
+            /** @description `NOTHING_TO_UPDATE` — neither field was sent — or `VALIDATION_FAILED`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

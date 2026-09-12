@@ -163,7 +163,8 @@ and USER. Placing it in the console would have been the intuitive mistake.
 | `console.support.access_log` | what staff looked at, which is the record that makes the above acceptable |
 | `console.admin.metrics` | the financial dashboard, from aggregates |
 | `console.admin.directory` | tenants, users, subscriptions, invoices across the platform |
-| `console.admin.storefront` | what a stranger sees. Being on sale and being advertised are two decisions; this is the only place the second is made, behind `staff.catalog.manage` rather than `catalog.manage` (ADR-041) |
+| `console.admin.products` | the top of the model: every product this deployment hosts, its code, and creating or retiring one. The only screen that can answer it — `listProducts` resolves through membership, which a platform role never grants (ADR-042) |
+| `console.admin.storefront` | what a stranger sees. Being on sale and being advertised are two decisions; this is the only place the second is made, behind `staff.catalog.manage` rather than `catalog.manage` (ADR-041). The product it administers is named in the URL as `?selected=`, because the console has no ambient product (ADR-042) |
 | `console.admin.staff` | who holds a platform role, and appointing or removing them. The database keeps at least one administrator, so the last one is shown as protected rather than offered and then refused |
 | `console.admin.queue` | queue liveness and the job list — "has the runner run" |
 | `console.admin.audit` | the audit trail |

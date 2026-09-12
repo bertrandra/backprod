@@ -149,6 +149,15 @@ export const CONSOLE_NAV: readonly NavSection[] = [
     entries: [
       { id: 'metrics', label: 'Metrics', to: '/console/metrics', permission: 'admin.finance.read' },
       { id: 'directory', label: 'Directory', to: '/console/directory', permission: 'admin.directory.read' },
+      // The top of the model, and the only screen that can answer "what does
+      // this deployment host?" — `listProducts` resolves through membership,
+      // which a platform role never grants.
+      {
+        id: 'products',
+        label: 'Products',
+        to: '/console/products',
+        permission: 'staff.products.manage',
+      },
       // PLATFORM_ADMIN alone holds `staff.grant`: it is the one permission that
       // can turn any role into every role, by appointing somebody who holds it.
       { id: 'staff', label: 'Staff', to: '/console/staff', permission: 'staff.grant' },

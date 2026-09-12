@@ -179,6 +179,18 @@
         "showMetrics"
       ]
     },
+    "console.admin.products": {
+      "shell": "console",
+      "$comment": "The top of the model. A product is what tenants belong to and what offers are priced for, and until this screen existed only the installer could create one and nothing at all could list them — listProducts resolves through membership, which a platform role never grants. There is no delete: a product carries invoices, and an invoice is a legal document.",
+      "routes": [
+        "/console/products"
+      ],
+      "operations": [
+        "listPlatformProducts",
+        "createProduct",
+        "updateProduct"
+      ]
+    },
     "console.admin.queue": {
       "shell": "console",
       "routes": [
@@ -203,7 +215,7 @@
     },
     "console.admin.storefront": {
       "shell": "console",
-      "$comment": "What the public page advertises. Behind staff.catalog.manage rather than catalog.manage: ADR-040 lets the platform lend the latter to a tenant, and a tenant authoring its own offers must not decide what a stranger is shown.",
+      "$comment": "What the public page advertises. Behind staff.catalog.manage rather than catalog.manage: ADR-040 lets the platform lend the latter to a tenant, and a tenant authoring its own offers must not decide what a stranger is shown. The product it administers comes from ?selected= in the URL, the way console.support.tenants carries the tenant somebody opened — the console has no ambient product, because a platform role grants no membership.",
       "routes": [
         "/console/storefront"
       ],
