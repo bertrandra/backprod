@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 
 import { can } from '@/app/access/access';
 import { ConnectionState } from '@/app/frame/ConnectionState';
+import { ConsoleDoor } from '@/app/frame/ConsoleDoor';
 import { ProductSwitcher } from '@/app/frame/ProductSwitcher';
 import { useUnreadCount } from '@/queries/notifications';
 import { useSession } from '@/queries/session';
@@ -33,6 +34,11 @@ export function ContextBar({
       {/* Whether what is on screen can still be trusted (U9). Renders nothing
           when there is nothing to say. */}
       <ConnectionState />
+
+      {/* The way into the console, for the people who have one. Renders
+          nothing for everybody else — and is not built from a tenant
+          permission, so #22's rule holds in the direction it was written for. */}
+      <ConsoleDoor />
 
       <button
         type="button"

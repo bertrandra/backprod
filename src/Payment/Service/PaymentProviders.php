@@ -63,6 +63,19 @@ final class PaymentProviders
     }
 
     /**
+     * Whether this deployment can take money at all.
+     *
+     * Asked rather than discovered through {@see self::default()}'s refusal:
+     * the console's setup chain reports what a product is still missing, and
+     * catching an exception to answer a question is how a report turns a
+     * missing provider into a page that failed to load.
+     */
+    public function isConfigured(): bool
+    {
+        return $this->providers !== [];
+    }
+
+    /**
      * The provider a webhook or an existing payment names.
      *
      * An unknown name is a 404 rather than anything more descriptive: the

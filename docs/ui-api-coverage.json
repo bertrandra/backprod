@@ -231,6 +231,17 @@
         "showQueue"
       ]
     },
+    "console.admin.readiness": {
+      "shell": "console",
+      "$comment": "The console's landing and the map of a maze. A fresh installation was navigable only by walking into its refusals — no plan so no offer, published but not advertised so an empty shop window, a checkout refusing with BILLING_NOT_CONFIGURED at the very end. Every refusal correct, together a maze. The chain is returned in dependency order so working down it never meets one, and the facts are read through the same ports the enforcing code reads.",
+      "routes": [
+        "/console",
+        "/console/readiness"
+      ],
+      "operations": [
+        "showProductReadiness"
+      ]
+    },
     "console.admin.staff": {
       "shell": "console",
       "$comment": "Who holds platform authority. The screen that stops a fresh installation being a dead end: before it, appointing anybody meant an INSERT against production, which is exactly what an installer must never require.",

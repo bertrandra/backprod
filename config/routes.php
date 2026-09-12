@@ -142,6 +142,7 @@ use App\Staff\Controller\SetPublicListingController;
 use App\Staff\Controller\SetTaxSettingsController;
 use App\Staff\Controller\ShowCatalogueController;
 use App\Staff\Controller\ShowConfigurationController;
+use App\Staff\Controller\ShowReadinessController;
 use App\Staff\Controller\ShowSupportConversationController;
 use App\Staff\Controller\ShowTenantController;
 use App\Staff\Controller\StaffIdentityController;
@@ -554,6 +555,12 @@ return static function (RouteCollector $routes): void {
         SetBillingIdentityController::class,
     );
     $routes->addRoute('PUT', '/api/v1/staff/configuration/tax', SetTaxSettingsController::class);
+
+    // The chain, in the order it has to be completed. A fresh installation used
+    // to be navigable only by walking into its refusals — no plan, so no offer;
+    // published but not advertised, so an empty shop window; all of it correct,
+    // and together a maze. This is the map.
+    $routes->addRoute('GET', '/api/v1/staff/readiness', ShowReadinessController::class);
 
     // What the public page advertises, and who decided. `staff.catalog.manage`
     // rather than `catalog.manage`: ADR-040 lets the platform lend the latter
