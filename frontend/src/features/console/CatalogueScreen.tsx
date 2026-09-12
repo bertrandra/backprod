@@ -11,6 +11,7 @@ import {
   useStaffCatalogue,
   useStorefrontOffers,
   useUpdatePlan,
+  type OfferGrantInput,
   type StaffFeature,
   type StaffPlan,
 } from '@/queries/staff';
@@ -89,6 +90,7 @@ export function CatalogueScreen() {
       <Offers
         productCode={productCode}
         plans={catalogue.data.plans}
+        features={catalogue.data.features}
         offers={offers.data?.offers ?? []}
         loading={offers.isPending}
         error={offers.error}
@@ -352,12 +354,14 @@ type AuthoredOffer = NonNullable<ReturnType<typeof useStorefrontOffers>['data']>
 function Offers({
   productCode,
   plans,
+  features,
   offers,
   loading,
   error,
 }: {
   productCode: string;
   plans: readonly StaffPlan[];
+  features: readonly StaffFeature[];
   offers: readonly AuthoredOffer[];
   loading: boolean;
   error: Error | null;
@@ -372,6 +376,7 @@ function Offers({
   const [price, setPrice] = useState('');
   const [currency, setCurrency] = useState('EUR');
   const [period, setPeriod] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
+  const [grants, setGrants] = useState<GrantDraft>({});
 
   return (
     <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
@@ -399,12 +404,18 @@ function Offers({
               offer={offer}
               pending={publish.isPending || addVersion.isPending}
               onPublish={(version) => publish.mutate({ offerId: offer.id, version })}
-              onRepeatPrice={(minorUnits, offerCurrency, billingPeriod) =>
+              onRepeatPrice={(minorUnits, offerCurrency, billingPeriod, carried) =>
                 addVersion.mutate({
                   offerId: offer.id,
                   price_minor_units: minorUnits,
                   currency: offerCurrency,
                   billing_period: billingPeriod,
+                  // Carried from the version being copied. Without this the new
+                  // draft granted nothing: the button says "from this", and a
+                  // version that kept the price and silently dropped every
+                  // entitlement would put something on sale that gives the
+                  // buyer less than what they compared it against.
+                  grants: carried,
                 })
               }
             />
@@ -433,12 +444,14 @@ function Offers({
                   // rounding is a cent an auditor asks about.
                   price_minor_units: Number(price),
                   currency: currency.trim().toUpperCase(),
+                  grants: grantsFrom(grants, features),
                 },
                 {
                   onSuccess: () => {
                     setCode('');
                     setName('');
                     setPrice('');
+                    setGrants({});
                   },
                 },
               );
@@ -515,6 +528,10 @@ function Offers({
           </Field>
 
           <div className="sm:col-span-2">
+            <GrantsEditor features={features} draft={grants} onChange={setGrants} />
+          </div>
+
+          <div className="sm:col-span-2">
             <Button
               type="submit"
               pending={create.isPending}
@@ -544,6 +561,7 @@ function OfferRow({
     minorUnits: number,
     currency: string,
     period: 'MONTHLY' | 'YEARLY' | 'CUSTOM',
+    grants: OfferGrantInput[],
   ) => void;
 }) {
   return (
@@ -598,6 +616,18 @@ function OfferRow({
               </Button>
             )}
 
+            {version.grants.length > 0 && (
+              <span data-testid="version-grants" className="text-neutral-500">
+                {version.grants
+                  .map((grant) =>
+                    grant.kind === 'QUOTA'
+                      ? `${grant.name} ${grant.unlimited ? 'unlimited' : String(grant.limit ?? 0)}`
+                      : grant.name,
+                  )
+                  .join(' · ')}
+              </span>
+            )}
+
             {version.status === 'ACTIVE' && (
               <Button
                 type="button"
@@ -608,6 +638,10 @@ function OfferRow({
                     version.price.minor_units,
                     version.price.currency,
                     version.billing_period,
+                    version.grants.map((grant) => ({
+                      feature_id: grant.feature_id,
+                      limit: grant.limit,
+                    })),
                   )
                 }
               >
@@ -623,5 +657,130 @@ function OfferRow({
         prices from it, and it can never be edited — only superseded.
       </p>
     </li>
+  );
+}
+
+/**
+ * What the offer being written grants, per feature.
+ *
+ * Keyed by feature id, because that is what the API takes: a grant names a
+ * feature of this product by id, and one belonging to another product is
+ * refused rather than ignored.
+ */
+type GrantDraft = Record<string, { readonly on: boolean; readonly limit: string }>;
+
+/**
+ * Turns the form's state into the list the API takes.
+ *
+ * A quota with an empty box is **unlimited**, not zero — the two are different
+ * entitlements and `limit: null` is how the platform says the first. A switch
+ * carries null always; it is on by being granted at all.
+ */
+function grantsFrom(draft: GrantDraft, features: readonly StaffFeature[]): OfferGrantInput[] {
+  const grants: OfferGrantInput[] = [];
+
+  for (const feature of features) {
+    const entry = draft[feature.id];
+
+    if (entry === undefined || !entry.on) {
+      continue;
+    }
+
+    if (feature.kind !== 'QUOTA' || entry.limit.trim() === '') {
+      grants.push({ feature_id: feature.id, limit: null });
+      continue;
+    }
+
+    grants.push({ feature_id: feature.id, limit: Number(entry.limit) });
+  }
+
+  return grants;
+}
+
+/**
+ * The grants half of the offer form — the half the API accepted and no screen
+ * ever sent.
+ *
+ * ADR-043 shipped the offer form without it, which meant every offer the console
+ * wrote granted nothing: it could be priced, published and bought, and the
+ * subscription it created resolved to no entitlements at all. The endpoint had
+ * taken `grants` since offers existed.
+ *
+ * Labelled with `aria-label` rather than a `<label>` per row: a feature's name
+ * appears twice in this section, and two controls sharing one label is a screen
+ * a keyboard or a screen reader cannot tell apart.
+ */
+function GrantsEditor({
+  features,
+  draft,
+  onChange,
+}: {
+  features: readonly StaffFeature[];
+  draft: GrantDraft;
+  onChange: (next: GrantDraft) => void;
+}) {
+  if (features.length === 0) {
+    return (
+      <p data-testid="no-features-to-grant" className="text-sm text-neutral-600 dark:text-neutral-400">
+        No features yet, so this offer grants access to the product and nothing more. That is a
+        legitimate offer — add features above if it should grant more than that.
+      </p>
+    );
+  }
+
+  const update = (id: string, change: Partial<{ on: boolean; limit: string }>) =>
+    onChange({
+      ...draft,
+      [id]: { on: false, limit: '', ...draft[id], ...change },
+    });
+
+  return (
+    <fieldset className="space-y-2">
+      <legend className="text-sm font-medium">What it grants</legend>
+      <p className="text-xs text-neutral-600 dark:text-neutral-400">
+        A quota left empty is <strong>unlimited</strong>, which is not the same as a limit of zero.
+        Grants belong to the version, so changing them later means publishing a new one — ADR-033
+        freezes what somebody bought.
+      </p>
+
+      <ul className="space-y-1" data-testid="grant-editor">
+        {features.map((feature) => {
+          const entry = draft[feature.id] ?? { on: false, limit: '' };
+
+          return (
+            <li key={feature.id} data-grant={feature.code} className="flex flex-wrap items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                aria-label={`Grant ${feature.name}`}
+                checked={entry.on}
+                onChange={(event) => update(feature.id, { on: event.target.checked })}
+              />
+              <span className="flex-1">{feature.name}</span>
+
+              {feature.kind === 'QUOTA' ? (
+                <>
+                  <input
+                    type="number"
+                    min={0}
+                    aria-label={`Limit for ${feature.name}`}
+                    placeholder="unlimited"
+                    className={`${inputClass()} w-28`}
+                    // Disabled rather than hidden while the feature is not
+                    // granted, so the rule is visible instead of being
+                    // discovered by typing into a box that does nothing.
+                    disabled={!entry.on}
+                    value={entry.limit}
+                    onChange={(event) => update(feature.id, { limit: event.target.value })}
+                  />
+                  <span className="text-xs text-neutral-500">{feature.unit ?? ''}</span>
+                </>
+              ) : (
+                <span className="text-xs text-neutral-500">switch</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </fieldset>
   );
 }

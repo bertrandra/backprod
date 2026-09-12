@@ -349,6 +349,149 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
         self::assertSame(0, $this->connection->fetchOne('SELECT count(*) FROM staff_access_log'));
     }
 
+    // --- What an offer grants ------------------------------------------------
+
+    public function testAnOfferCanBeWrittenWithWhatItGrants(): void
+    {
+        $planId = $this->planId($this->createPlan(['code' => 'pro', 'name' => 'Pro', 'rank' => 10]));
+
+        $projects = $this->featureId($this->createFeature(
+            ['code' => 'projects', 'name' => 'Projects', 'kind' => 'QUOTA', 'unit' => 'projects'],
+        ));
+        $sso = $this->featureId($this->createFeature(['code' => 'sso', 'name' => 'SSO', 'kind' => 'BOOLEAN']));
+
+        $offer = $this->request(
+            'POST',
+            '/api/v1/staff/catalogue/offers?product=atlas',
+            ['Authorization' => 'Bearer ola-token'],
+            $this->json([
+                'code' => 'pro-monthly',
+                'name' => 'Pro, monthly',
+                'plan_id' => $planId,
+                'billing_period' => 'MONTHLY',
+                'price_minor_units' => 2900,
+                'currency' => 'EUR',
+                'grants' => [
+                    ['feature_id' => $projects, 'limit' => 50],
+                    ['feature_id' => $sso, 'limit' => null],
+                ],
+            ]),
+        );
+
+        self::assertSame(201, $offer->getStatusCode(), (string) $offer->getBody());
+
+        $grants = $this->grantsOfFirstVersion($offer);
+
+        self::assertSame(['projects', 'sso'], array_column($grants, 'feature'));
+        self::assertSame(50, $grants[0]['limit'] ?? null);
+        // A switch carries null and is *not* an unlimited quota: the two are
+        // different entitlements and the flag is what tells them apart.
+        self::assertArrayHasKey('limit', $grants[1]);
+        self::assertNull($grants[1]['limit']);
+        self::assertFalse($grants[1]['unlimited'] ?? null);
+    }
+
+    public function testAQuotaWithNoLimitIsUnlimitedAndNotZero(): void
+    {
+        $planId = $this->planId($this->createPlan(['code' => 'pro', 'name' => 'Pro', 'rank' => 10]));
+        $projects = $this->featureId($this->createFeature(
+            ['code' => 'projects', 'name' => 'Projects', 'kind' => 'QUOTA', 'unit' => 'projects'],
+        ));
+
+        $grants = $this->grantsOfFirstVersion($this->offerGranting($planId, [
+            ['feature_id' => $projects, 'limit' => null],
+        ]));
+
+        self::assertTrue($grants[0]['unlimited'] ?? null);
+        self::assertArrayHasKey('limit', $grants[0]);
+        self::assertNull($grants[0]['limit']);
+    }
+
+    public function testTheAuthoringViewNamesEachFeatureByIdSoAVersionCanBeRepeated(): void
+    {
+        $planId = $this->planId($this->createPlan(['code' => 'pro', 'name' => 'Pro', 'rank' => 10]));
+        $projects = $this->featureId($this->createFeature(
+            ['code' => 'projects', 'name' => 'Projects', 'kind' => 'QUOTA', 'unit' => 'projects'],
+        ));
+
+        $created = $this->offerGranting($planId, [['feature_id' => $projects, 'limit' => 50]]);
+        $offerId = $this->offerId($created);
+
+        // The id, not only the code. ADR-033 freezes a published version, so a
+        // new price is a new version — and a console that knew only the codes
+        // could not name the features of the version it was copying from. It
+        // sent no grants at all, which put a price on sale that entitled the
+        // buyer to nothing.
+        $grants = $this->grantsOfFirstVersion($created);
+
+        self::assertSame($projects, $grants[0]['feature_id'] ?? null);
+
+        self::assertSame(200, $this->postJson(
+            '/api/v1/staff/catalogue/offers/' . $offerId . '/publish',
+            ['version' => 1],
+        )->getStatusCode());
+
+        $repeated = $this->request(
+            'POST',
+            '/api/v1/staff/catalogue/offers/' . $offerId . '/versions?product=atlas',
+            ['Authorization' => 'Bearer ola-token'],
+            $this->json([
+                'billing_period' => 'MONTHLY',
+                'price_minor_units' => 3400,
+                'currency' => 'EUR',
+                'grants' => array_map(
+                    static fn (array $grant): array => [
+                        'feature_id' => $grant['feature_id'],
+                        'limit' => $grant['limit'],
+                    ],
+                    $grants,
+                ),
+            ]),
+        );
+
+        self::assertSame(201, $repeated->getStatusCode(), (string) $repeated->getBody());
+
+        $versions = $this->itemIn($repeated, 'offer')['versions'] ?? null;
+
+        self::assertIsArray($versions);
+        self::assertCount(2, $versions);
+
+        // The new draft costs more and grants exactly what the old one did.
+        $second = $versions[1] ?? null;
+
+        self::assertIsArray($second);
+
+        $carried = $second['grants'] ?? null;
+
+        self::assertIsArray($carried);
+        self::assertCount(1, $carried);
+
+        $only = $carried[0] ?? null;
+
+        self::assertIsArray($only);
+        self::assertSame('projects', $only['feature'] ?? null);
+        self::assertSame(50, $only['limit'] ?? null);
+    }
+
+    public function testAFeatureOfAnotherProductCannotBeGranted(): void
+    {
+        $planId = $this->planId($this->createPlan(['code' => 'pro', 'name' => 'Pro', 'rank' => 10]));
+
+        $elsewhere = $this->id(
+            <<<'SQL'
+                INSERT INTO features (product_id, code, name, kind)
+                SELECT id, 'seats', 'Seats', 'QUOTA' FROM products WHERE code = 'orbit'
+                RETURNING id
+                SQL,
+        );
+
+        $refused = $this->offerGranting($planId, [['feature_id' => $elsewhere, 'limit' => 5]], 404);
+
+        // Refused rather than ignored. An offer that silently dropped a grant
+        // would be sold as granting something it does not.
+        self::assertSame('FEATURE_NOT_FOUND', $this->errorOf($refused)['code'] ?? null);
+    }
+
     // --- The whole point -----------------------------------------------------------
 
     public function testAFreshInstallationCanGoFromNothingToSomethingAStrangerCanBuy(): void
@@ -419,6 +562,54 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
             ['Authorization' => 'Bearer ola-token'],
             $this->json($body),
         );
+    }
+
+    /**
+     * An offer granting exactly what it is given, so the grant is the subject.
+     *
+     * @param list<array<string, mixed>> $grants
+     */
+    private function offerGranting(string $planId, array $grants, int $expected = 201): ResponseInterface
+    {
+        $response = $this->request(
+            'POST',
+            '/api/v1/staff/catalogue/offers?product=atlas',
+            ['Authorization' => 'Bearer ola-token'],
+            $this->json([
+                'code' => 'pro-monthly',
+                'name' => 'Pro, monthly',
+                'plan_id' => $planId,
+                'billing_period' => 'MONTHLY',
+                'price_minor_units' => 2900,
+                'currency' => 'EUR',
+                'grants' => $grants,
+            ]),
+        );
+
+        self::assertSame($expected, $response->getStatusCode(), (string) $response->getBody());
+
+        return $response;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function grantsOfFirstVersion(ResponseInterface $response): array
+    {
+        $versions = $this->itemIn($response, 'offer')['versions'] ?? null;
+
+        self::assertIsArray($versions);
+
+        $first = $versions[0] ?? null;
+
+        self::assertIsArray($first);
+
+        $grants = $first['grants'] ?? null;
+
+        self::assertIsArray($grants);
+
+        /** @var list<array<string, mixed>> $grants */
+        return $grants;
     }
 
     private function createOffer(string $planId): ResponseInterface

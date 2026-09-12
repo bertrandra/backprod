@@ -88,9 +88,11 @@ use App\Privacy\Infrastructure\PostgresErasureRepository;
 use App\Product\Domain\ProductDirectory;
 use App\Product\Domain\ProductRegistry;
 use App\Product\Domain\ProductRepository;
+use App\Product\Domain\ProductSettings;
 use App\Product\Infrastructure\PostgresProductDirectory;
 use App\Product\Infrastructure\PostgresProductRegistry;
 use App\Product\Infrastructure\PostgresProductRepository;
+use App\Product\Infrastructure\PostgresProductSettings;
 use App\Project\Domain\ProjectRepository;
 use App\Project\Infrastructure\PostgresProjectRepository;
 use App\Project\Infrastructure\ProjectUsageSource;
@@ -473,6 +475,10 @@ return static function (array $overrides = []): ContainerInterface {
         StaffAccessLog::class => autowire(PostgresStaffAccessLog::class),
         TenantDirectory::class => autowire(PostgresTenantDirectory::class),
         ProductDirectory::class => autowire(PostgresProductDirectory::class),
+        // A product's configuration, writable. Separate from ProductRegistry,
+        // whose other methods resolve through membership — which a platform
+        // role never grants (non-negotiable #22).
+        ProductSettings::class => autowire(PostgresProductSettings::class),
 
         // --- HTTP -----------------------------------------------------------
         // Four levels of protection, declared in one place. Anything not

@@ -251,6 +251,10 @@ describe('offers', () => {
       billing_period: 'MONTHLY',
       price_minor_units: 2900,
       currency: 'EUR',
+      // Empty, because this product has no features. Present rather than
+      // omitted: the form always says what the offer grants, and "nothing" is
+      // an answer.
+      grants: [],
     });
   });
 
@@ -358,5 +362,226 @@ describe('offers', () => {
     // Three sections all scoped to one product, and the console has no ambient
     // one — so it has to be visible.
     expect(screen.getByText(/Atlas/)).toBeTruthy();
+  });
+});
+
+/**
+ * What an offer grants — the half of the form ADR-043 shipped without.
+ *
+ * The API had taken `grants` since offers existed and no screen sent any, so
+ * every offer the console wrote granted nothing: it could be priced, published
+ * and bought, and the subscription it created resolved to no entitlements at
+ * all. And "new version from this" repeated the price while dropping them, which
+ * is worse than not offering the button.
+ */
+const SWITCH = { id: 'f-2', code: 'sso', name: 'SSO', kind: 'BOOLEAN', unit: null };
+
+const GRANTED = {
+  ...version(1, 'ACTIVE', 2900),
+  grants: [
+    {
+      feature_id: QUOTA.id,
+      feature: QUOTA.code,
+      name: QUOTA.name,
+      kind: 'QUOTA',
+      unit: 'projects',
+      limit: 50,
+      unlimited: false,
+    },
+  ],
+};
+
+describe('grants', () => {
+  it('offers a row per feature, with a limit only where a limit means something', async () => {
+    renderAtRoute(
+      <CatalogueScreen />,
+      clientFor({
+        'GET /api/v1/staff/catalogue': {
+          data: { product: PRODUCT, plans: [PRO], features: [QUOTA, SWITCH] },
+        },
+      }),
+      ROUTE,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('grant-editor')).toBeTruthy());
+
+    // A switch is on or off; only a quota is counted, so only a quota has a box.
+    expect(screen.getByLabelText('Limit for Projects')).toBeTruthy();
+    expect(screen.queryByLabelText('Limit for SSO')).toBeNull();
+  });
+
+  it('sends the limit of a granted quota', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/catalogue': {
+        data: { product: PRODUCT, plans: [PRO], features: [QUOTA] },
+      },
+      'GET /api/v1/staff/storefront/offers': { data: { product: PRODUCT, offers: [] } },
+      'POST /api/v1/staff/catalogue/offers': { status: 201, data: { offer: OFFER } },
+    });
+
+    renderAtRoute(<CatalogueScreen />, client, ROUTE);
+
+    await waitFor(() => expect(screen.getByLabelText('Offer code')).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText('Offer code'), { target: { value: 'pro-monthly' } });
+    fireEvent.change(screen.getByLabelText('Offer name'), { target: { value: 'Pro, monthly' } });
+    fireEvent.change(screen.getByLabelText('Plan'), { target: { value: PRO.id } });
+    fireEvent.change(screen.getByLabelText(/Price in minor units/i), { target: { value: '2900' } });
+    fireEvent.click(screen.getByLabelText('Grant Projects'));
+    fireEvent.change(screen.getByLabelText('Limit for Projects'), { target: { value: '50' } });
+    fireEvent.click(screen.getByRole('button', { name: /Add offer as a draft/i }));
+
+    await waitFor(() =>
+      expect(
+        requests.some((request) => request.path === '/api/v1/staff/catalogue/offers'),
+      ).toBe(true),
+    );
+
+    const sent = requests.find((request) => request.path === '/api/v1/staff/catalogue/offers');
+
+    expect((sent?.body as { grants?: unknown } | undefined)?.grants).toEqual([
+      { feature_id: QUOTA.id, limit: 50 },
+    ]);
+  });
+
+  it('sends a quota with an empty box as unlimited, which is not zero', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/catalogue': {
+        data: { product: PRODUCT, plans: [PRO], features: [QUOTA] },
+      },
+      'GET /api/v1/staff/storefront/offers': { data: { product: PRODUCT, offers: [] } },
+      'POST /api/v1/staff/catalogue/offers': { status: 201, data: { offer: OFFER } },
+    });
+
+    renderAtRoute(<CatalogueScreen />, client, ROUTE);
+
+    await waitFor(() => expect(screen.getByLabelText('Offer code')).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText('Offer code'), { target: { value: 'pro-monthly' } });
+    fireEvent.change(screen.getByLabelText('Offer name'), { target: { value: 'Pro, monthly' } });
+    fireEvent.change(screen.getByLabelText('Plan'), { target: { value: PRO.id } });
+    fireEvent.change(screen.getByLabelText(/Price in minor units/i), { target: { value: '2900' } });
+    fireEvent.click(screen.getByLabelText('Grant Projects'));
+    fireEvent.click(screen.getByRole('button', { name: /Add offer as a draft/i }));
+
+    await waitFor(() =>
+      expect(requests.some((request) => request.path === '/api/v1/staff/catalogue/offers')).toBe(
+        true,
+      ),
+    );
+
+    const sent = requests.find((request) => request.path === '/api/v1/staff/catalogue/offers');
+
+    // null, not 0. The two are different entitlements.
+    expect((sent?.body as { grants?: unknown } | undefined)?.grants).toEqual([
+      { feature_id: QUOTA.id, limit: null },
+    ]);
+  });
+
+  it('sends nothing for a feature nobody granted', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/catalogue': {
+        data: { product: PRODUCT, plans: [PRO], features: [QUOTA, SWITCH] },
+      },
+      'GET /api/v1/staff/storefront/offers': { data: { product: PRODUCT, offers: [] } },
+      'POST /api/v1/staff/catalogue/offers': { status: 201, data: { offer: OFFER } },
+    });
+
+    renderAtRoute(<CatalogueScreen />, client, ROUTE);
+
+    await waitFor(() => expect(screen.getByLabelText('Offer code')).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText('Offer code'), { target: { value: 'pro-monthly' } });
+    fireEvent.change(screen.getByLabelText('Offer name'), { target: { value: 'Pro, monthly' } });
+    fireEvent.change(screen.getByLabelText('Plan'), { target: { value: PRO.id } });
+    fireEvent.change(screen.getByLabelText(/Price in minor units/i), { target: { value: '2900' } });
+    // A limit typed into a box for a feature that was never ticked must not
+    // become a grant.
+    fireEvent.change(screen.getByLabelText('Limit for Projects'), { target: { value: '50' } });
+    fireEvent.click(screen.getByRole('button', { name: /Add offer as a draft/i }));
+
+    await waitFor(() =>
+      expect(requests.some((request) => request.path === '/api/v1/staff/catalogue/offers')).toBe(
+        true,
+      ),
+    );
+
+    const sent = requests.find((request) => request.path === '/api/v1/staff/catalogue/offers');
+
+    expect((sent?.body as { grants?: unknown } | undefined)?.grants).toEqual([]);
+  });
+
+  it('says so plainly when there are no features to grant', async () => {
+    renderAtRoute(
+      <CatalogueScreen />,
+      clientFor({
+        'GET /api/v1/staff/catalogue': {
+          data: { product: PRODUCT, plans: [PRO], features: [] },
+        },
+      }),
+      ROUTE,
+    );
+
+    const note = await waitFor(() => screen.getByTestId('no-features-to-grant'));
+
+    // An offer granting only access to the product is legitimate, so this says
+    // that rather than looking like a form that failed to load.
+    expect(note.textContent).toMatch(/legitimate offer/i);
+  });
+
+  it('shows what each version grants', async () => {
+    renderAtRoute(
+      <CatalogueScreen />,
+      clientFor({
+        'GET /api/v1/staff/storefront/offers': {
+          data: { product: PRODUCT, offers: [{ ...OFFER, versions: [GRANTED] }] },
+        },
+      }),
+      ROUTE,
+    );
+
+    const grants = await waitFor(() => screen.getByTestId('version-grants'));
+
+    expect(grants.textContent).toMatch(/Projects 50/);
+  });
+
+  it('carries the grants forward when a new version repeats a price', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/catalogue': {
+        data: { product: PRODUCT, plans: [PRO], features: [QUOTA] },
+      },
+      'GET /api/v1/staff/storefront/offers': {
+        data: { product: PRODUCT, offers: [{ ...OFFER, versions: [GRANTED] }] },
+      },
+      'POST /api/v1/staff/catalogue/offers/{offerId}/versions': {
+        status: 201,
+        data: { offer: OFFER },
+      },
+    });
+
+    renderAtRoute(<CatalogueScreen />, client, ROUTE);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /New version from this/i })).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: /New version from this/i }));
+
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (request) => request.path === '/api/v1/staff/catalogue/offers/{offerId}/versions',
+        ),
+      ).toBe(true),
+    );
+
+    const sent = requests.find(
+      (request) => request.path === '/api/v1/staff/catalogue/offers/{offerId}/versions',
+    );
+
+    // "From this" has to mean from this. A version that kept the price and
+    // dropped every entitlement would put something on sale giving the buyer
+    // less than what they compared it against.
+    expect((sent?.body as { grants?: unknown } | undefined)?.grants).toEqual([
+      { feature_id: QUOTA.id, limit: 50 },
+    ]);
   });
 });

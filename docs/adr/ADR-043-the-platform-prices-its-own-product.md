@@ -117,6 +117,12 @@ grants are not yet settable from this screen: an offer can be priced, but what
 its plan *grants* is `offer_version_features`, which the API accepts on a draft
 and the console does not yet ask for.
 
+**Both closed by [ADR-044](ADR-044-a-product-cannot-invoice-until-somebody-says-who-is-selling.md).**
+They turned out to be the same failure seen twice — the console could build
+something it could not finish selling — and the grants gap was worse than
+recorded here: "new version from this" repeated the price and dropped every
+grant, because this view named each feature by code and the API takes an id.
+
 ## Alternatives rejected
 
 **Move the tenant routes to the console and delete them from the tenant shell.**

@@ -136,9 +136,12 @@ use App\Staff\Controller\PublishStaffOfferVersionController;
 use App\Staff\Controller\RenameFeatureController;
 use App\Staff\Controller\RenameStaffOfferController;
 use App\Staff\Controller\RevokeStaffRoleController;
+use App\Staff\Controller\SetBillingIdentityController;
 use App\Staff\Controller\SetOfferAuthoringController;
 use App\Staff\Controller\SetPublicListingController;
+use App\Staff\Controller\SetTaxSettingsController;
 use App\Staff\Controller\ShowCatalogueController;
+use App\Staff\Controller\ShowConfigurationController;
 use App\Staff\Controller\ShowSupportConversationController;
 use App\Staff\Controller\ShowTenantController;
 use App\Staff\Controller\StaffIdentityController;
@@ -529,6 +532,28 @@ return static function (RouteCollector $routes): void {
         '/api/v1/staff/catalogue/offers/{offerId}/publish',
         PublishStaffOfferVersionController::class,
     );
+
+    // What a product needs configured before it can take money. ADR-042 gave
+    // the console a way to create a product and ADR-043 a way to price it, and
+    // a checkout against one created that way still refused with
+    // `BILLING_NOT_CONFIGURED`: an invoice must name its issuer, and the issuer
+    // lives in `product_configuration`, which only the demo seeder ever wrote.
+    //
+    // Two named keys rather than a JSONB editor. Every key in that table is read
+    // by code that names it, so an arbitrary-key writer would let a typo store
+    // configuration nothing reads — indistinguishable, on screen, from
+    // configuration that did not save.
+    //
+    // PUT rather than PATCH: the mandatory mentions of an invoice are one
+    // document, and a supplier that stops being liable for VAT has to be able to
+    // remove its VAT number — which "omitted means leave it" makes impossible.
+    $routes->addRoute('GET', '/api/v1/staff/configuration', ShowConfigurationController::class);
+    $routes->addRoute(
+        'PUT',
+        '/api/v1/staff/configuration/billing-identity',
+        SetBillingIdentityController::class,
+    );
+    $routes->addRoute('PUT', '/api/v1/staff/configuration/tax', SetTaxSettingsController::class);
 
     // What the public page advertises, and who decided. `staff.catalog.manage`
     // rather than `catalog.manage`: ADR-040 lets the platform lend the latter

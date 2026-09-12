@@ -2855,6 +2855,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/configuration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What a product needs configured before it can take money
+         * @description ADR-042 gave the console a way to create a product and ADR-043 a way to price it, and a checkout against one created that way still refused with `BILLING_NOT_CONFIGURED`: an invoice must name its issuer, and the issuer lives in `product_configuration` — a table only the demo seeder ever wrote. Both keys come back in one read, because the two are one decision: the supplier's country is the fallback for the tax jurisdiction, so a screen fetching them separately could show a regime that contradicted the issuer. `can_invoice` is computed from the same rule the invoice path applies, so the console cannot say ready where a checkout would refuse.
+         */
+        get: operations["showStaffConfiguration"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/configuration/billing-identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set who this product's invoices say is issuing them
+         * @description **PUT rather than PATCH**, unlike every other write in this console. The mandatory mentions are one document: a supplier that stops being liable for VAT has to be able to *remove* its VAT number, and under "omitted means leave it" removing anything would be impossible. Sending the whole identity makes clearing a field the same act as changing one.
+         *
+         *     An incomplete identity is **refused rather than stored**. The console exists to make invoicing possible, and saving something that cannot invoice while answering 200 is how a broken form looks like a working one — the failure would surface later, to a customer, at the checkout. Recorded in `staff_access_log` as `CONFIGURE_BILLING`, because an invoice carries a snapshot of this taken when it was raised.
+         */
+        put: operations["setBillingIdentity"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/configuration/tax": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the supplier's own fiscal position
+         * @description §25.3 keeps everything qualifying the supplier fiscally a human decision, configured and never derived. **Every field is required**: the reader of this key defaults what it cannot find, which is right for a document written before a field existed and wrong for a form — a screen omitting `oss_registered` would silently switch the OSS regime off. Recorded in `staff_access_log` as `CONFIGURE_TAX` in full, because all four decide how a cross-border sale is taxed and getting one wrong is a VAT return filed in the wrong country.
+         */
+        put: operations["setTaxSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2936,6 +2998,14 @@ export interface components {
             unit: string | null;
             limit: number | null;
             unlimited: boolean;
+        };
+        /** @description What one version of an offer grants, as its author sees it: the sale shape plus the feature's id. */
+        AuthoredOfferGrant: components["schemas"]["OfferGrant"] & {
+            /**
+             * Format: uuid
+             * @description The feature this grant is against. Present in the authoring view and absent from the sale view: ADR-033 freezes a published version, so changing what an offer grants means writing a new version from the old one — which needs the ids, not only the codes. A shop window read by strangers does not owe them the internal key of a catalogue row.
+             */
+            feature_id: string;
         };
         OfferVersion: {
             /** Format: uuid */
@@ -3776,7 +3846,7 @@ export interface components {
             valid_from: string;
             /** Format: date-time */
             valid_until: string | null;
-            grants: Record<string, unknown>[];
+            grants: components["schemas"]["AuthoredOfferGrant"][];
             terms: components["schemas"]["SubscriptionTerms"];
         };
         /** @description An offer with every version it has, drafts included. */
@@ -3969,6 +4039,50 @@ export interface components {
             name: string;
             /** @description A retired product keeps its tenants, subscriptions and invoices; what changes is that every door into it is closed. */
             active: boolean;
+        };
+        /** @description The mandatory mentions of an invoice's issuer (§25). Every field is present in a response, null included, so a form binding to it finds the same shape whether the product was configured years ago or never. `legal_name` and `country_code` are the two an invoice cannot be issued without — a supplier not liable for VAT legitimately has no number, and requiring one would exclude a whole class of French business. */
+        BillingSupplier: {
+            /** @example Atlas SAS */
+            legal_name: string | null;
+            /**
+             * @description Null for a supplier under the franchise en base, which invoices perfectly legally without one.
+             * @example FR12345678901
+             */
+            vat_number: string | null;
+            /**
+             * @description SIREN or SIRET.
+             * @example 123 456 789 00012
+             */
+            registration_number: string | null;
+            address_line1: string | null;
+            address_line2: string | null;
+            postal_code: string | null;
+            city: string | null;
+            /**
+             * @description Two letters, ISO 3166-1, upper-cased on the way in. It decides the VAT regime the invoice is issued under, so a value that is not a country code is refused rather than normalised — a guessed jurisdiction files somebody's VAT in the wrong country.
+             * @example FR
+             */
+            country_code: string | null;
+        };
+        /** @description The supplier's own fiscal position. §25.3 requires it to be configured and never derived: whether the supplier is registered for the One Stop Shop is a dated fact about the business, and crossing the distance-selling threshold changes the regime of subsequent sales only — deriving it from turnover would retroactively restate invoices already issued. */
+        TaxSettings: {
+            /**
+             * @description The jurisdiction VAT is filed in. Defaults to the billing supplier's country when the key has never been written.
+             * @example FR
+             */
+            country: string;
+            /** @description Decides how a cross-border consumer sale is taxed. */
+            oss_registered: boolean;
+            /**
+             * @description What is being supplied changes the place of taxation, so it is stated rather than assumed.
+             * @enum {string}
+             */
+            supply_type: "GOODS" | "SERVICES" | "DIGITAL_SERVICES";
+            /**
+             * @description The currency this product sells in.
+             * @example EUR
+             */
+            currency: string;
         };
     };
     responses: {
@@ -10730,6 +10844,142 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showStaffConfiguration: {
+        parameters: {
+            query: {
+                /** @description The product code this configuration belongs to. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The product, its billing identity, its tax position, and whether it can invoice. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        product: {
+                            /** Format: uuid */
+                            id: string;
+                            code: string;
+                            name: string;
+                        };
+                        billing_supplier: components["schemas"]["BillingSupplier"];
+                        tax: components["schemas"]["TaxSettings"];
+                        /** @description False while any mandatory mention is missing. A checkout against such a product refuses with `BILLING_NOT_CONFIGURED`. */
+                        can_invoice: boolean;
+                        /** @description The mandatory mentions that are absent, so the screen can say what to fix rather than only that something is wrong. */
+                        missing: string[];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — no `product` was named. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setBillingIdentity: {
+        parameters: {
+            query: {
+                /** @description The product code this configuration belongs to. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillingSupplier"];
+            };
+        };
+        responses: {
+            /** @description The stored identity. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        billing_supplier: components["schemas"]["BillingSupplier"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `details.missing` names the mandatory mentions that are absent, or `details.field` a value too long. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setTaxSettings: {
+        parameters: {
+            query: {
+                /** @description The product code this configuration belongs to. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaxSettings"];
+            };
+        };
+        responses: {
+            /** @description The stored settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tax: components["schemas"]["TaxSettings"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

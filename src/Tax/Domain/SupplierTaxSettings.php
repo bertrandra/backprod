@@ -56,4 +56,24 @@ final class SupplierTaxSettings
 
         return new self($country, ($tax['oss_registered'] ?? false) === true, $supply, $currency);
     }
+
+    /**
+     * The same settings as the JSON this platform stores them as.
+     *
+     * The inverse of {@see self::fromConfiguration()}, and here beside it for
+     * that reason: the console writes this key and the tax engine reads it, and
+     * a writer that spelled `oss_registered` differently would configure
+     * nothing while answering that it had.
+     *
+     * @return array<string, mixed>
+     */
+    public function toConfiguration(): array
+    {
+        return [
+            'country' => $this->countryCode,
+            'oss_registered' => $this->ossRegistered,
+            'supply_type' => $this->defaultSupplyType,
+            'currency' => $this->currency,
+        ];
+    }
 }
