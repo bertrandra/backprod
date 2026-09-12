@@ -125,10 +125,41 @@ final class CataloguePresenter
      */
     public static function authoredVersion(OfferVersion $version): array
     {
-        return self::version($version) + [
+        // array_merge and not `+`: the union operator keeps the *left* key, so
+        // the sale view's grants would win and the feature ids below would be
+        // silently discarded. An integration test caught this, which is the
+        // second time this operator has cost an afternoon.
+        return array_merge(self::version($version), [
             'status' => $version->status,
             'terms' => self::terms($version->terms),
-        ];
+            // The same grants as the sale view, plus the feature *id* of each.
+            //
+            // ADR-033 freezes a published version, so changing what an offer
+            // grants means writing a new version — and a screen that only knew
+            // each feature's code could not name the features of the version it
+            // was copying from, so "new version from this" silently dropped
+            // every grant and put a price on sale that entitled the buyer to
+            // nothing. The id is here and not in `version()` because the sale
+            // view is read by strangers on the public page, and the internal
+            // key of a catalogue row is not something a shop window owes them.
+            'grants' => array_map(self::authoredGrant(...), $version->grants),
+        ]);
+    }
+
+    /**
+     * @return array{
+     *     feature_id: string,
+     *     feature: string,
+     *     name: string,
+     *     kind: string,
+     *     unit: string|null,
+     *     limit: int|null,
+     *     unlimited: bool,
+     * }
+     */
+    public static function authoredGrant(OfferGrant $grant): array
+    {
+        return ['feature_id' => $grant->feature->id] + self::grant($grant);
     }
 
     /**

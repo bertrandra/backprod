@@ -409,6 +409,27 @@
           }
         }
       },
+      "AuthoredOfferGrant": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/OfferGrant"
+          },
+          {
+            "type": "object",
+            "required": [
+              "feature_id"
+            ],
+            "properties": {
+              "feature_id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "The feature this grant is against. Present in the authoring view and absent from the sale view: ADR-033 freezes a published version, so changing what an offer grants means writing a new version from the old one — which needs the ids, not only the codes. A shop window read by strangers does not owe them the internal key of a catalogue row."
+              }
+            }
+          }
+        ],
+        "description": "What one version of an offer grants, as its author sees it: the sale shape plus the feature's id."
+      },
       "OfferVersion": {
         "type": "object",
         "required": [
@@ -3075,7 +3096,7 @@
           "grants": {
             "type": "array",
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/AuthoredOfferGrant"
             }
           },
           "terms": {
@@ -3624,6 +3645,133 @@
           "active": {
             "type": "boolean",
             "description": "A retired product keeps its tenants, subscriptions and invoices; what changes is that every door into it is closed."
+          }
+        }
+      },
+      "BillingSupplier": {
+        "type": "object",
+        "description": "The mandatory mentions of an invoice's issuer (§25). Every field is present in a response, null included, so a form binding to it finds the same shape whether the product was configured years ago or never. `legal_name` and `country_code` are the two an invoice cannot be issued without — a supplier not liable for VAT legitimately has no number, and requiring one would exclude a whole class of French business.",
+        "required": [
+          "legal_name",
+          "vat_number",
+          "registration_number",
+          "address_line1",
+          "address_line2",
+          "postal_code",
+          "city",
+          "country_code"
+        ],
+        "properties": {
+          "legal_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200,
+            "examples": [
+              "Atlas SAS"
+            ]
+          },
+          "vat_number": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200,
+            "description": "Null for a supplier under the franchise en base, which invoices perfectly legally without one.",
+            "examples": [
+              "FR12345678901"
+            ]
+          },
+          "registration_number": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200,
+            "description": "SIREN or SIRET.",
+            "examples": [
+              "123 456 789 00012"
+            ]
+          },
+          "address_line1": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "address_line2": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "postal_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "country_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Two letters, ISO 3166-1, upper-cased on the way in. It decides the VAT regime the invoice is issued under, so a value that is not a country code is refused rather than normalised — a guessed jurisdiction files somebody's VAT in the wrong country.",
+            "examples": [
+              "FR"
+            ]
+          }
+        }
+      },
+      "TaxSettings": {
+        "type": "object",
+        "description": "The supplier's own fiscal position. §25.3 requires it to be configured and never derived: whether the supplier is registered for the One Stop Shop is a dated fact about the business, and crossing the distance-selling threshold changes the regime of subsequent sales only — deriving it from turnover would retroactively restate invoices already issued.",
+        "required": [
+          "country",
+          "oss_registered",
+          "supply_type",
+          "currency"
+        ],
+        "properties": {
+          "country": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "description": "The jurisdiction VAT is filed in. Defaults to the billing supplier's country when the key has never been written.",
+            "examples": [
+              "FR"
+            ]
+          },
+          "oss_registered": {
+            "type": "boolean",
+            "description": "Decides how a cross-border consumer sale is taxed."
+          },
+          "supply_type": {
+            "type": "string",
+            "enum": [
+              "GOODS",
+              "SERVICES",
+              "DIGITAL_SERVICES"
+            ],
+            "description": "What is being supplied changes the place of taxation, so it is stated rather than assumed."
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "The currency this product sells in.",
+            "examples": [
+              "EUR"
+            ]
           }
         }
       }
@@ -15585,6 +15733,265 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/configuration": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "showStaffConfiguration",
+        "summary": "What a product needs configured before it can take money",
+        "description": "ADR-042 gave the console a way to create a product and ADR-043 a way to price it, and a checkout against one created that way still refused with `BILLING_NOT_CONFIGURED`: an invoice must name its issuer, and the issuer lives in `product_configuration` — a table only the demo seeder ever wrote. Both keys come back in one read, because the two are one decision: the supplier's country is the fallback for the tax jurisdiction, so a screen fetching them separately could show a regime that contradicted the issuer. `can_invoice` is computed from the same rule the invoice path applies, so the console cannot say ready where a checkout would refuse.",
+        "parameters": [
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code this configuration belongs to. A staff route resolves no product of its own — a platform role grants no membership.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product, its billing identity, its tax position, and whether it can invoice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "product",
+                    "billing_supplier",
+                    "tax",
+                    "can_invoice",
+                    "missing"
+                  ],
+                  "properties": {
+                    "product": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "code",
+                        "name"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "billing_supplier": {
+                      "$ref": "#/components/schemas/BillingSupplier"
+                    },
+                    "tax": {
+                      "$ref": "#/components/schemas/TaxSettings"
+                    },
+                    "can_invoice": {
+                      "type": "boolean",
+                      "description": "False while any mandatory mention is missing. A checkout against such a product refuses with `BILLING_NOT_CONFIGURED`."
+                    },
+                    "missing": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "The mandatory mentions that are absent, so the screen can say what to fix rather than only that something is wrong."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — no `product` was named.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/configuration/billing-identity": {
+      "put": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "setBillingIdentity",
+        "summary": "Set who this product's invoices say is issuing them",
+        "description": "**PUT rather than PATCH**, unlike every other write in this console. The mandatory mentions are one document: a supplier that stops being liable for VAT has to be able to *remove* its VAT number, and under \"omitted means leave it\" removing anything would be impossible. Sending the whole identity makes clearing a field the same act as changing one.\n\nAn incomplete identity is **refused rather than stored**. The console exists to make invoicing possible, and saving something that cannot invoice while answering 200 is how a broken form looks like a working one — the failure would surface later, to a customer, at the checkout. Recorded in `staff_access_log` as `CONFIGURE_BILLING`, because an invoice carries a snapshot of this taken when it was raised.",
+        "parameters": [
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code this configuration belongs to. A staff route resolves no product of its own — a platform role grants no membership.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BillingSupplier"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored identity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "billing_supplier"
+                  ],
+                  "properties": {
+                    "billing_supplier": {
+                      "$ref": "#/components/schemas/BillingSupplier"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — `details.missing` names the mandatory mentions that are absent, or `details.field` a value too long.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/configuration/tax": {
+      "put": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "setTaxSettings",
+        "summary": "Set the supplier's own fiscal position",
+        "description": "§25.3 keeps everything qualifying the supplier fiscally a human decision, configured and never derived. **Every field is required**: the reader of this key defaults what it cannot find, which is right for a document written before a field existed and wrong for a form — a screen omitting `oss_registered` would silently switch the OSS regime off. Recorded in `staff_access_log` as `CONFIGURE_TAX` in full, because all four decide how a cross-border sale is taxed and getting one wrong is a VAT return filed in the wrong country.",
+        "parameters": [
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code this configuration belongs to. A staff route resolves no product of its own — a platform role grants no membership.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaxSettings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored settings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "tax"
+                  ],
+                  "properties": {
+                    "tax": {
+                      "$ref": "#/components/schemas/TaxSettings"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"

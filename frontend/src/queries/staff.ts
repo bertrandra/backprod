@@ -639,6 +639,18 @@ export function useUpdateProduct() {
 export type StaffPlan = Schemas['Plan'];
 export type StaffFeature = Schemas['Feature'];
 
+/**
+ * One line of what a version grants: a feature and, for a quota, how much of it.
+ *
+ * `limit: null` means two different things and the API keeps them apart by the
+ * feature's kind — unlimited for a quota, and the only valid value for a switch.
+ * The screen never has to choose, because it reads the kind off the feature.
+ */
+export interface OfferGrantInput {
+  readonly feature_id: string;
+  readonly limit: number | null;
+}
+
 export function useStaffCatalogue(productCode: string | null) {
   const client = useApiClient();
 
@@ -758,6 +770,10 @@ export function useCreateStaffOffer(productCode: string) {
       billing_period: 'MONTHLY' | 'YEARLY' | 'CUSTOM';
       price_minor_units: number;
       currency: string;
+      // What the version grants, which the API has always accepted and no
+      // screen sent. An offer with none is sellable — access to the product is
+      // itself worth something — so this stays optional.
+      grants?: OfferGrantInput[];
     }) => {
       const { data, error, response } = await client.POST('/api/v1/staff/catalogue/offers', {
         params: { query: { product: productCode } },
@@ -783,6 +799,7 @@ export function useCreateStaffOfferVersion(productCode: string) {
       billing_period: 'MONTHLY' | 'YEARLY' | 'CUSTOM';
       price_minor_units: number;
       currency: string;
+      grants?: OfferGrantInput[];
     }) => {
       const { offerId, ...terms } = version;
 
@@ -870,5 +887,108 @@ export function useRenameFeature(productCode: string) {
     }
 
     return data.feature;
+  });
+}
+
+/**
+ * What a product needs configured before it can take money.
+ *
+ * ADR-042 gave the console a way to create a product and ADR-043 a way to price
+ * it, and a checkout against one created that way still refused with
+ * `BILLING_NOT_CONFIGURED` — an invoice must name its issuer, and the issuer
+ * lives in `product_configuration`, a table only the demo seeder ever wrote.
+ *
+ * `can_invoice` comes from the backend rather than being computed here, and
+ * deliberately: it is the same rule the invoice path applies when a checkout
+ * runs, and a second answer computed in a screen would eventually say ready
+ * where the checkout refuses.
+ */
+export type BillingSupplier = Schemas['BillingSupplier'];
+export type TaxSettings = Schemas['TaxSettings'];
+
+export function useProductConfiguration(productCode: string | null) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.configuration(productCode ?? ''),
+    enabled: productCode !== null && productCode !== '',
+    queryFn: async () => {
+      const { data, error, response } = await client.GET('/api/v1/staff/configuration', {
+        params: { query: { product: productCode ?? '' } },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+  });
+}
+
+/**
+ * Both writes invalidate the same read, which carries `can_invoice`.
+ *
+ * Never an optimistic update. What an invoice will name is not a field to
+ * assume: an incomplete identity is refused by the backend, and a screen that
+ * had already painted it as saved would tell somebody their product could
+ * invoice when it cannot.
+ */
+function useConfigurationWrite<TVariables, TData>(
+  productCode: string,
+  mutationFn: (variables: TVariables) => Promise<TData>,
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: keys.staff.configuration(productCode) });
+    },
+  });
+}
+
+/**
+ * Sets who this product's invoices say is issuing them.
+ *
+ * The whole identity every time, because the endpoint is a PUT: a supplier that
+ * stops being liable for VAT has to be able to remove its VAT number, and
+ * "omitted means leave it" would make removing anything impossible.
+ */
+export function useSetBillingIdentity(productCode: string) {
+  const client = useApiClient();
+
+  return useConfigurationWrite(productCode, async (supplier: BillingSupplier) => {
+    const { data, error, response } = await client.PUT(
+      '/api/v1/staff/configuration/billing-identity',
+      {
+        params: { query: { product: productCode } },
+        body: supplier,
+      },
+    );
+
+    if (error !== undefined || data === undefined) {
+      throw toApiError(response.status, error);
+    }
+
+    return data.billing_supplier;
+  });
+}
+
+/** Sets the supplier's own fiscal position (§25.3), which is never derived. */
+export function useSetTaxSettings(productCode: string) {
+  const client = useApiClient();
+
+  return useConfigurationWrite(productCode, async (tax: TaxSettings) => {
+    const { data, error, response } = await client.PUT('/api/v1/staff/configuration/tax', {
+      params: { query: { product: productCode } },
+      body: tax,
+    });
+
+    if (error !== undefined || data === undefined) {
+      throw toApiError(response.status, error);
+    }
+
+    return data.tax;
   });
 }

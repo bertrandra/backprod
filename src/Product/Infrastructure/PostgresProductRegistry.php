@@ -93,26 +93,13 @@ final class PostgresProductRegistry implements ProductRegistry
 
     public function configuration(string $productId): array
     {
-        $rows = $this->connection->fetchAllAssociative(
+        // Decoded by the helper the console's writer shares, so that what a
+        // tenant's product reads and what an administrator saves cannot
+        // disagree about a malformed row.
+        return ConfigurationRows::decode($this->connection->fetchAllAssociative(
             'SELECT key, value FROM product_configuration WHERE product_id = :id ORDER BY key',
             ['id' => $productId],
-        );
-
-        $configuration = [];
-
-        foreach ($rows as $row) {
-            $key = $row['key'] ?? null;
-            $value = $row['value'] ?? null;
-
-            if (!is_string($key) || !is_string($value)) {
-                continue;
-            }
-
-            // Stored as JSONB, so the column comes back as JSON text.
-            $configuration[$key] = json_decode($value, true);
-        }
-
-        return $configuration;
+        ));
     }
 
     /**

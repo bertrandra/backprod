@@ -188,6 +188,18 @@
         "eraseUser"
       ]
     },
+    "console.admin.invoicing": {
+      "shell": "console",
+      "$comment": "What a product needs configured before it can take money. ADR-042 gave the console a way to create a product and ADR-043 a way to price it, and a checkout against one created that way still refused with BILLING_NOT_CONFIGURED: an invoice must name its issuer, and the issuer lives in product_configuration, which only the demo seeder ever wrote. Two named keys rather than a JSONB editor, because every key in that table is read by code that names it and a typo would store configuration nothing reads.",
+      "routes": [
+        "/console/invoicing"
+      ],
+      "operations": [
+        "showStaffConfiguration",
+        "setBillingIdentity",
+        "setTaxSettings"
+      ]
+    },
     "console.admin.metrics": {
       "shell": "console",
       "routes": [

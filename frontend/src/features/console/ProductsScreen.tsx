@@ -93,6 +93,9 @@ export function ProductsScreen() {
                 onCatalogue={() =>
                   void navigate({ to: '/console/catalogue', search: { selected: product.code } })
                 }
+                onInvoicing={() =>
+                  void navigate({ to: '/console/invoicing', search: { selected: product.code } })
+                }
               />
             ))}
           </ul>
@@ -169,6 +172,7 @@ function ProductRow({
   onSetActive,
   onStorefront,
   onCatalogue,
+  onInvoicing,
 }: {
   product: PlatformProduct;
   pending: boolean;
@@ -176,6 +180,7 @@ function ProductRow({
   onSetActive: (active: boolean) => void;
   onStorefront: () => void;
   onCatalogue: () => void;
+  onInvoicing: () => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(product.name);
@@ -243,6 +248,12 @@ function ProductRow({
           </Button>
           <Button type="button" variant="secondary" onClick={onStorefront}>
             Storefront
+          </Button>
+          {/* The step that is easy to forget and refuses last: a product can be
+              created, priced and advertised and still not raise an invoice,
+              because the issuer its documents must name is configuration. */}
+          <Button type="button" variant="secondary" onClick={onInvoicing}>
+            Invoicing
           </Button>
           <Button type="button" variant="secondary" onClick={() => setRenaming(true)}>
             Rename

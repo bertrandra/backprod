@@ -184,6 +184,16 @@ export const CONSOLE_NAV: readonly NavSection[] = [
         to: '/console/storefront',
         permission: 'staff.catalog.manage',
       },
+      // What a product needs before it can take money. `staff.products.manage`
+      // and not `staff.catalog.manage`: this is the legal identity the platform
+      // invoices under, not a price — somebody trusted with the shop window is
+      // not thereby trusted with who the documents say is selling.
+      {
+        id: 'invoicing',
+        label: 'Invoicing',
+        to: '/console/invoicing',
+        permission: 'staff.products.manage',
+      },
       { id: 'queue', label: 'Queue', to: '/console/queue', permission: 'admin.health.read' },
       { id: 'audit', label: 'Audit', to: '/console/audit', permission: 'admin.audit.read', secondary: true },
       // Its own entry and its own permission: reading the directory and erasing

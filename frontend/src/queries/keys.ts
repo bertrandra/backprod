@@ -137,6 +137,11 @@ export const keys = {
     products: ['staff', 'products'] as const,
     /** Plans and features of one product, which an offer is built out of. */
     catalogue: (product: string) => ['staff', 'catalogue', product] as const,
+    /**
+     * What one product needs configured before it can take money: the identity
+     * its invoices name, and the supplier's own fiscal position.
+     */
+    configuration: (product: string) => ['staff', 'configuration', product] as const,
     conversationLists: ['staff', 'conversations'] as const,
     conversations: (limit: number, offset: number) =>
       ['staff', 'conversations', limit, offset] as const,
