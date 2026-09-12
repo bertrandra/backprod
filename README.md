@@ -6,7 +6,9 @@ This is **not** the backend of a single product. One platform serves several
 products; `product_id` is a first-class request context alongside `tenant_id`.
 See [`CLAUDE.md`](CLAUDE.md) for the rules that govern changes here, and
 [`docs/architecture-v2.md`](docs/architecture-v2.md) for the architecture
-decisions behind them.
+decisions behind them. For who may do what —
+the two identities, the six roles and the 46 permissions between them —
+see [`docs/identities-and-permissions.md`](docs/identities-and-permissions.md).
 
 ## Stack
 
