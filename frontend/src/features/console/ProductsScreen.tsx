@@ -90,6 +90,9 @@ export function ProductsScreen() {
                 onStorefront={() =>
                   void navigate({ to: '/console/storefront', search: { selected: product.code } })
                 }
+                onCatalogue={() =>
+                  void navigate({ to: '/console/catalogue', search: { selected: product.code } })
+                }
               />
             ))}
           </ul>
@@ -165,12 +168,14 @@ function ProductRow({
   onRename,
   onSetActive,
   onStorefront,
+  onCatalogue,
 }: {
   product: PlatformProduct;
   pending: boolean;
   onRename: (name: string) => void;
   onSetActive: (active: boolean) => void;
   onStorefront: () => void;
+  onCatalogue: () => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(product.name);
@@ -233,6 +238,9 @@ function ProductRow({
         </form>
       ) : (
         <div className="mt-2 flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={onCatalogue}>
+            Catalogue
+          </Button>
           <Button type="button" variant="secondary" onClick={onStorefront}>
             Storefront
           </Button>

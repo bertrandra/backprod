@@ -627,3 +627,248 @@ export function useUpdateProduct() {
     },
   });
 }
+
+/**
+ * The platform's own catalogue — the plans and features an offer is built out
+ * of, for one product.
+ *
+ * Both in one read, because an offer needs both and a form that fetched them
+ * separately would render half of itself. The offers come from
+ * `useStorefrontOffers`, which already answers the unfiltered authoring view.
+ */
+export type StaffPlan = Schemas['Plan'];
+export type StaffFeature = Schemas['Feature'];
+
+export function useStaffCatalogue(productCode: string | null) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.catalogue(productCode ?? ''),
+    enabled: productCode !== null && productCode !== '',
+    queryFn: async () => {
+      const { data, error, response } = await client.GET('/api/v1/staff/catalogue', {
+        params: { query: { product: productCode ?? '' } },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+  });
+}
+
+/**
+ * Every write on the catalogue invalidates both reads.
+ *
+ * A new plan changes what an offer can be attached to, and a published version
+ * changes what the storefront list shows — so the two queries are refreshed
+ * together rather than each mutation reasoning about which it touched.
+ */
+function useCatalogueWrite<TVariables, TData>(
+  productCode: string,
+  mutationFn: (variables: TVariables) => Promise<TData>,
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.staff.catalogue(productCode) }),
+        queryClient.invalidateQueries({ queryKey: keys.storefront.listing(productCode) }),
+      ]);
+    },
+  });
+}
+
+export function useCreatePlan(productCode: string) {
+  const client = useApiClient();
+
+  return useCatalogueWrite(productCode, async (plan: { code: string; name: string; rank: number }) => {
+    const { data, error, response } = await client.POST('/api/v1/staff/catalogue/plans', {
+      params: { query: { product: productCode } },
+      body: plan,
+    });
+
+    if (error !== undefined || data === undefined) {
+      throw toApiError(response.status, error);
+    }
+
+    return data.plan;
+  });
+}
+
+export function useUpdatePlan(productCode: string) {
+  const client = useApiClient();
+
+  return useCatalogueWrite(
+    productCode,
+    async (change: { planId: string; name?: string; rank?: number }) => {
+      const { data, error, response } = await client.PATCH(
+        '/api/v1/staff/catalogue/plans/{planId}',
+        {
+          params: { path: { planId: change.planId }, query: { product: productCode } },
+          body: {
+            ...(change.name !== undefined && { name: change.name }),
+            ...(change.rank !== undefined && { rank: change.rank }),
+          },
+        },
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.plan;
+    },
+  );
+}
+
+export function useCreateFeature(productCode: string) {
+  const client = useApiClient();
+
+  return useCatalogueWrite(
+    productCode,
+    async (feature: { code: string; name: string; kind: 'BOOLEAN' | 'QUOTA'; unit: string | null }) => {
+      const { data, error, response } = await client.POST('/api/v1/staff/catalogue/features', {
+        params: { query: { product: productCode } },
+        body: feature,
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.feature;
+    },
+  );
+}
+
+export function useCreateStaffOffer(productCode: string) {
+  const client = useApiClient();
+
+  return useCatalogueWrite(
+    productCode,
+    async (offer: {
+      code: string;
+      name: string;
+      plan_id: string;
+      billing_period: 'MONTHLY' | 'YEARLY' | 'CUSTOM';
+      price_minor_units: number;
+      currency: string;
+    }) => {
+      const { data, error, response } = await client.POST('/api/v1/staff/catalogue/offers', {
+        params: { query: { product: productCode } },
+        body: offer,
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.offer;
+    },
+  );
+}
+
+export function useCreateStaffOfferVersion(productCode: string) {
+  const client = useApiClient();
+
+  return useCatalogueWrite(
+    productCode,
+    async (version: {
+      offerId: string;
+      billing_period: 'MONTHLY' | 'YEARLY' | 'CUSTOM';
+      price_minor_units: number;
+      currency: string;
+    }) => {
+      const { offerId, ...terms } = version;
+
+      const { data, error, response } = await client.POST(
+        '/api/v1/staff/catalogue/offers/{offerId}/versions',
+        {
+          params: { path: { offerId }, query: { product: productCode } },
+          body: terms,
+        },
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.offer;
+    },
+  );
+}
+
+/**
+ * The act that puts a price on sale.
+ *
+ * From here on every quote, order and subscription written against this offer
+ * prices from that version, and ADR-033 freezes it the moment it happens — so
+ * the screen asks before calling this, and nothing else on the console does.
+ */
+export function usePublishStaffOfferVersion(productCode: string) {
+  const client = useApiClient();
+
+  return useCatalogueWrite(
+    productCode,
+    async (publication: { offerId: string; version: number }) => {
+      const { data, error, response } = await client.POST(
+        '/api/v1/staff/catalogue/offers/{offerId}/publish',
+        {
+          params: { path: { offerId: publication.offerId }, query: { product: productCode } },
+          body: { version: publication.version },
+        },
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.offer;
+    },
+  );
+}
+
+export function useRenameStaffOffer(productCode: string) {
+  const client = useApiClient();
+
+  return useCatalogueWrite(productCode, async (change: { offerId: string; name: string }) => {
+    const { data, error, response } = await client.PATCH(
+      '/api/v1/staff/catalogue/offers/{offerId}',
+      {
+        params: { path: { offerId: change.offerId }, query: { product: productCode } },
+        body: { name: change.name },
+      },
+    );
+
+    if (error !== undefined || data === undefined) {
+      throw toApiError(response.status, error);
+    }
+
+    return data.offer;
+  });
+}
+
+export function useRenameFeature(productCode: string) {
+  const client = useApiClient();
+
+  return useCatalogueWrite(productCode, async (change: { featureId: string; name: string }) => {
+    const { data, error, response } = await client.PATCH(
+      '/api/v1/staff/catalogue/features/{featureId}',
+      {
+        params: { path: { featureId: change.featureId }, query: { product: productCode } },
+        body: { name: change.name },
+      },
+    );
+
+    if (error !== undefined || data === undefined) {
+      throw toApiError(response.status, error);
+    }
+
+    return data.feature;
+  });
+}

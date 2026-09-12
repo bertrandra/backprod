@@ -149,6 +149,24 @@
         "listAudit"
       ]
     },
+    "console.admin.catalogue": {
+      "shell": "console",
+      "$comment": "The platform pricing its own product. ADR-040 made catalog.manage a delegation to a tenant, which left the platform able to price its own catalogue only by lending it away and acting as the borrower; and plans and features could not be created at all, so a fresh installation had a product it could not price. Plans, features, offers and versions, with the product named in ?selected= because the console has no ambient product.",
+      "routes": [
+        "/console/catalogue"
+      ],
+      "operations": [
+        "showStaffCatalogue",
+        "createPlan",
+        "updatePlan",
+        "createFeature",
+        "renameFeature",
+        "createStaffOffer",
+        "renameStaffOffer",
+        "createStaffOfferVersion",
+        "publishStaffOfferVersion"
+      ]
+    },
     "console.admin.directory": {
       "shell": "console",
       "routes": [

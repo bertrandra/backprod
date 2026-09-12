@@ -36,11 +36,13 @@ use App\Billing\Infrastructure\PostgresBillingProfileRepository;
 use App\Billing\Infrastructure\PostgresCreditNoteRepository;
 use App\Billing\Infrastructure\PostgresInvoiceDocumentRepository;
 use App\Billing\Infrastructure\PostgresInvoiceRepository;
+use App\Commerce\Domain\CatalogueAdministration;
 use App\Commerce\Domain\CatalogueRepository;
 use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\OfferAuthoringRepository;
 use App\Commerce\Domain\StorefrontListing;
 use App\Commerce\Domain\SubscriptionRepository;
+use App\Commerce\Infrastructure\PostgresCatalogueAdministration;
 use App\Commerce\Infrastructure\PostgresCatalogueRepository;
 use App\Commerce\Infrastructure\PostgresEntitlementRepository;
 use App\Commerce\Infrastructure\PostgresOfferAuthoringRepository;
@@ -270,6 +272,7 @@ return static function (array $overrides = []): ContainerInterface {
         ProductRegistry::class => autowire(PostgresProductRegistry::class),
         CatalogueRepository::class => autowire(PostgresCatalogueRepository::class),
         StorefrontListing::class => autowire(PostgresStorefrontListing::class),
+        CatalogueAdministration::class => autowire(PostgresCatalogueAdministration::class),
 
         // Writing the catalogue is a second port, not more methods on the
         // first: Sales, subscription and every other reader depends on

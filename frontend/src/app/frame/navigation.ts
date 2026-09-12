@@ -164,6 +164,20 @@ export const CONSOLE_NAV: readonly NavSection[] = [
       // What a stranger sees. Its own permission rather than `catalog.manage`,
       // which ADR-040 lets the platform lend to a tenant — a tenant authoring
       // its own offers must not decide what the public page advertises.
+      // The platform pricing its own product. ADR-040 made `catalog.manage` a
+      // delegation to a tenant, which left the platform able to price its own
+      // catalogue only by lending it away — this is the door that should have
+      // existed first.
+      {
+        // `platform-catalogue`, not `catalogue`: the tenant navigation already
+        // has an entry by that name, and the two trees may share no id — which
+        // `navigation.test.ts` asserts so that a tenant permission can never
+        // reveal a console route (non-negotiable #22). The test caught this.
+        id: 'platform-catalogue',
+        label: 'Catalogue',
+        to: '/console/catalogue',
+        permission: 'staff.catalog.manage',
+      },
       {
         id: 'storefront',
         label: 'Storefront',
