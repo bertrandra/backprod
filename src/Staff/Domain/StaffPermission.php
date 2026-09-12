@@ -44,4 +44,15 @@ final class StaffPermission
      * what the platform's public page shows to everybody.
      */
     public const CATALOG_MANAGE = 'staff.catalog.manage';
+
+    /**
+     * Seeing every product on the platform, and creating or retiring one —
+     * PLATFORM_ADMIN alone.
+     *
+     * Not a read anybody else gets either: which products a deployment hosts
+     * is commercial information, which is why `ProductRegistry` answers only
+     * about the ones a person is a member of and why this permission exists
+     * to ask the other question.
+     */
+    public const PRODUCTS_MANAGE = 'staff.products.manage';
 }

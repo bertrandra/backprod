@@ -1,0 +1,134 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Staff\Service;
+
+use App\Product\Domain\Product;
+use App\Product\Domain\ProductDirectory;
+use App\Shared\Exceptions\NotFoundException;
+use App\Staff\Domain\StaffAccess;
+use App\Staff\Domain\StaffAccessLog;
+use App\Staff\Domain\StaffIdentity;
+use App\Staff\Domain\StaffPermission;
+
+/**
+ * The platform's own products, and who changed them.
+ *
+ * **Reads are not recorded, writes are** — the same line `StorefrontDesk`
+ * draws, for the same reason. Non-negotiable #21 traces staff crossing into a
+ * *tenant's* data; the list of what this platform sells is the platform's own,
+ * and an administrator looking at it has crossed nothing. Filing a row per
+ * look would bury the decisions among them.
+ *
+ * The writes are recorded because "who switched this product off?" is a
+ * question somebody will eventually ask at a bad moment, and `products.active`
+ * alone cannot answer it. Retiring a product does not touch its tenants,
+ * subscriptions or invoices — they stay exactly where they are — but it closes
+ * every door into it, and that is worth a name and a timestamp.
+ */
+final class ProductDesk
+{
+    public function __construct(
+        private readonly ProductDirectory $products,
+        private readonly StaffAccessLog $trail,
+    ) {
+    }
+
+    /**
+     * @return list<Product>
+     */
+    public function products(): array
+    {
+        return $this->products->all();
+    }
+
+    public function create(StaffIdentity $staff, string $code, string $name): Product
+    {
+        $product = $this->products->create($code, $name);
+
+        $this->record(
+            $staff,
+            $product->id,
+            $product->id,
+            'CREATE',
+            ['code' => $product->code, 'name' => $product->name],
+        );
+
+        return $product;
+    }
+
+    /**
+     * Renames a product, retires it, or brings it back.
+     *
+     * Three distinct actions in the trail rather than one `UPDATE` with a
+     * payload: somebody reading it later is asking whether a product was
+     * switched off, and a row saying only that it was edited cannot answer
+     * that. A call that does both records both.
+     */
+    public function update(StaffIdentity $staff, string $productId, ?string $name, ?bool $active): Product
+    {
+        $product = $this->products->update($productId, $name, $active);
+
+        if ($product === null) {
+            // Recorded even though nothing changed: a run of these against
+            // ids that match nothing is what somebody probing looks like, and
+            // a trail holding only successes cannot show it.
+            //
+            // **With no product id**, only the requested one as the resource.
+            // `staff_access_log.product_id` is a foreign key to `products`, so
+            // writing an id that matches nothing there would make the audit
+            // write fail and turn a 404 into a 500 — which is exactly what it
+            // did before an integration test asked for a product that does not
+            // exist. `resource_id` is plain text and is where a value somebody
+            // supplied belongs.
+            $this->record($staff, null, $productId, 'UPDATE_MISS', []);
+
+            throw new NotFoundException('Unknown product.', [], 'PRODUCT_NOT_FOUND');
+        }
+
+        if ($name !== null) {
+            $this->record($staff, $product->id, $product->id, 'RENAME', ['name' => $product->name]);
+        }
+
+        if ($active !== null) {
+            $this->record(
+                $staff,
+                $product->id,
+                $product->id,
+                $active ? 'REINSTATE' : 'RETIRE',
+                ['code' => $product->code],
+            );
+        }
+
+        return $product;
+    }
+
+    /**
+     * @param ?string $productId the foreign key, so null unless the product
+     *                           actually exists
+     * @param string  $resourceId what the caller named, which may be neither a
+     *                            product nor a uuid
+     * @param array<string, mixed> $detail
+     */
+    private function record(
+        StaffIdentity $staff,
+        ?string $productId,
+        string $resourceId,
+        string $action,
+        array $detail,
+    ): void {
+        $this->trail->record(new StaffAccess(
+            $staff->userId,
+            // No tenant. A product is what tenants belong to, and naming one
+            // here would invent a customer this decision was not about.
+            null,
+            $productId,
+            $action,
+            'product',
+            $resourceId,
+            StaffPermission::PRODUCTS_MANAGE,
+            $detail,
+        ));
+    }
+}

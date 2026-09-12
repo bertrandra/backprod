@@ -132,6 +132,9 @@ export const keys = {
     // of people, and a list that needed pages would be the finding rather than
     // the feature.
     roster: ['staff', 'members'] as const,
+    // Unpaged like the roster: a platform hosts a handful of products, and a
+    // cursor over five rows is machinery nobody needs.
+    products: ['staff', 'products'] as const,
     conversationLists: ['staff', 'conversations'] as const,
     conversations: (limit: number, offset: number) =>
       ['staff', 'conversations', limit, offset] as const,

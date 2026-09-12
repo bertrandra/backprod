@@ -119,8 +119,10 @@ use App\Skin\Controller\ShowSkinController;
 use App\Skin\Controller\UpdateSkinController;
 use App\Skin\Controller\UploadSkinLogoController;
 use App\Staff\Controller\CloseSupportConversationController;
+use App\Staff\Controller\CreateProductController;
 use App\Staff\Controller\GrantStaffRoleController;
 use App\Staff\Controller\ListAccessLogController;
+use App\Staff\Controller\ListPlatformProductsController;
 use App\Staff\Controller\ListStaffController;
 use App\Staff\Controller\ListStorefrontOffersController;
 use App\Staff\Controller\ListSupportConversationsController;
@@ -132,6 +134,7 @@ use App\Staff\Controller\SetPublicListingController;
 use App\Staff\Controller\ShowSupportConversationController;
 use App\Staff\Controller\ShowTenantController;
 use App\Staff\Controller\StaffIdentityController;
+use App\Staff\Controller\UpdateProductController;
 use App\Storage\Controller\CreateAssetLinkController;
 use App\Storage\Controller\DeleteAssetController;
 use App\Storage\Controller\DownloadAssetController;
@@ -474,6 +477,15 @@ return static function (RouteCollector $routes): void {
         '/api/v1/staff/tenants/{tenantId}/offer-authoring',
         SetOfferAuthoringController::class,
     );
+    // Products, which until now only the installer could create — and which
+    // `GET /api/v1/products` cannot even list for an administrator, because
+    // that route resolves through membership and a platform role grants none.
+    // There is no DELETE: a product carries tenants, subscriptions and
+    // invoices, and an invoice is a legal document. Retiring is `active`.
+    $routes->addRoute('GET', '/api/v1/staff/products', ListPlatformProductsController::class);
+    $routes->addRoute('POST', '/api/v1/staff/products', CreateProductController::class);
+    $routes->addRoute('PATCH', '/api/v1/staff/products/{productId}', UpdateProductController::class);
+
     // What the public page advertises, and who decided. `staff.catalog.manage`
     // rather than `catalog.manage`: ADR-040 lets the platform lend the latter
     // to a tenant, and a tenant authoring its own offers must not thereby

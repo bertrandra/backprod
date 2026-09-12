@@ -83,8 +83,10 @@ use App\Payment\Service\InvoiceSettlement;
 use App\Payment\Service\PaymentProviders;
 use App\Privacy\Domain\ErasureRepository;
 use App\Privacy\Infrastructure\PostgresErasureRepository;
+use App\Product\Domain\ProductDirectory;
 use App\Product\Domain\ProductRegistry;
 use App\Product\Domain\ProductRepository;
+use App\Product\Infrastructure\PostgresProductDirectory;
 use App\Product\Infrastructure\PostgresProductRegistry;
 use App\Product\Infrastructure\PostgresProductRepository;
 use App\Project\Domain\ProjectRepository;
@@ -467,6 +469,7 @@ return static function (array $overrides = []): ContainerInterface {
         StaffRoster::class => autowire(PostgresStaffRoster::class),
         StaffAccessLog::class => autowire(PostgresStaffAccessLog::class),
         TenantDirectory::class => autowire(PostgresTenantDirectory::class),
+        ProductDirectory::class => autowire(PostgresProductDirectory::class),
 
         // --- HTTP -----------------------------------------------------------
         // Four levels of protection, declared in one place. Anything not

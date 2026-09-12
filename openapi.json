@@ -3599,6 +3599,33 @@
             }
           }
         }
+      },
+      "PlatformProduct": {
+        "type": "object",
+        "description": "A product as the platform’s own administrator sees it. `active` appears here and nowhere else, because every other product shape has already filtered on it — the context chain treats an inactive product as absent, and so does the storefront.",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "active"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "description": "What clients send as `X-Product` and the storefront takes as `?product=`. Chosen once, at creation, and never editable: an identifier that can change is not an identifier."
+          },
+          "name": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "A retired product keeps its tenants, subscriptions and invoices; what changes is that every door into it is closed."
+          }
+        }
       }
     },
     "responses": {
@@ -14427,6 +14454,223 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/products": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "listPlatformProducts",
+        "summary": "Every product on the platform",
+        "description": "The question `listProducts` cannot answer: that one resolves through membership, and a platform role never grants membership, so an administrator asking it what this deployment hosts is answered about their own tenant or not at all. Behind `staff.products.manage`. Retired products are included — they still carry tenants, subscriptions and invoices.",
+        "responses": {
+          "200": {
+            "description": "Every product, newest first. Unpaged: a platform hosts a handful.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "products"
+                  ],
+                  "properties": {
+                    "products": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlatformProduct"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "createProduct",
+        "summary": "Create a product",
+        "description": "Until this existed, the installer was the only thing on the platform that could create one — once, at install — so a second product meant an INSERT typed against production. The code is chosen here and never again.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "name"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "pattern": "^[a-z0-9][a-z0-9-]*$",
+                    "description": "Lowercase letters, digits and hyphens. It travels in URLs and headers, so a code with a space in it is a code half the intermediaries mangle. Lowercased before validation."
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The product, active.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "product"
+                  ],
+                  "properties": {
+                    "product": {
+                      "$ref": "#/components/schemas/PlatformProduct"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — a field is missing, or the code is not a usable identifier.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`PRODUCT_CODE_TAKEN` — a product already uses that code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/products/{productId}": {
+      "patch": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "updateProduct",
+        "summary": "Rename a product, or retire it",
+        "description": "PATCH rather than PUT because the two fields are independent: renaming says nothing about whether a product is active, and a PUT would make a form restate it — which is how a product gets switched off by a checkbox somebody forgot to send. **There is no delete.** A product carries tenants, subscriptions and invoices, and an invoice is a legal document; `active: false` closes every door into it and leaves the history where the law requires it. Recorded in the staff access trail as RENAME, RETIRE or REINSTATE.",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "At least one of the two. The code is absent by omission rather than by refusal: there is nothing to send, because there is nothing that may change.",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "active": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The product, as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "product"
+                  ],
+                  "properties": {
+                    "product": {
+                      "$ref": "#/components/schemas/PlatformProduct"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`NOTHING_TO_UPDATE` — neither field was sent — or `VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"

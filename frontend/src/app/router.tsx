@@ -37,6 +37,7 @@ import { AuditScreen } from '@/features/console/AuditScreen';
 import { DirectoryScreen } from '@/features/console/DirectoryScreen';
 import { ErasureScreen } from '@/features/console/ErasureScreen';
 import { MetricsScreen } from '@/features/console/MetricsScreen';
+import { ProductsScreen } from '@/features/console/ProductsScreen';
 import { QueueScreen } from '@/features/console/QueueScreen';
 import { StaffMembersScreen } from '@/features/console/StaffMembersScreen';
 import { StaffTenantsScreen } from '@/features/console/StaffTenantsScreen';
@@ -108,6 +109,7 @@ const CONSOLE_SCREEN_ROUTES: readonly { path: string; component: () => React.JSX
   { path: '/console/access-log', component: AccessLogScreen },
   { path: '/console/metrics', component: MetricsScreen },
   { path: '/console/directory', component: DirectoryScreen },
+  { path: '/console/products', component: ProductsScreen },
   { path: '/console/staff', component: StaffMembersScreen },
   { path: '/console/storefront', component: StorefrontScreen },
   { path: '/console/queue', component: QueueScreen },

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Staff\Controller;
 
+use App\Product\Domain\Product;
 use App\Staff\Domain\StaffAccessEntry;
 use App\Staff\Domain\StaffIdentity;
 use App\Staff\Domain\StaffMember;
@@ -45,6 +46,27 @@ final class StaffPresenter
             'granted_at' => $member->grantedAt
                 ->setTimezone(new DateTimeZone('UTC'))
                 ->format(DateTimeInterface::RFC3339),
+        ];
+    }
+
+    /**
+     * A product as the platform's own administrator sees it.
+     *
+     * `active` is here and is absent from every other product shape on this
+     * platform, because every other one has already filtered on it — the
+     * context chain treats an inactive product as absent, and so does the
+     * storefront. This is the one view where a retired product is a row
+     * rather than a silence.
+     *
+     * @return array<string, mixed>
+     */
+    public static function product(Product $product): array
+    {
+        return [
+            'id' => $product->id,
+            'code' => $product->code,
+            'name' => $product->name,
+            'active' => $product->active,
         ];
     }
 

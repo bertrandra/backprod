@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { recordingClient, renderWith, stubClient, type Stubs } from '@/test-utils';
+import { recordingClient, renderAtRoute, stubClient, type Stubs } from '@/test-utils';
 
 import { StorefrontScreen } from './StorefrontScreen';
 
@@ -12,6 +12,14 @@ import { StorefrontScreen } from './StorefrontScreen';
  * and not advertised, and this screen is the only place that difference is
  * visible or changeable. A screen that showed only the advertised ones would
  * be a screen you cannot advertise anything from.
+ *
+ * Every test renders **at a route with `?selected=`**, because that is where
+ * the product comes from. It used to come from the browser's remembered
+ * tenant-app product, which meant the console silently administered whichever
+ * product the person had last used the *application* in — and showed nothing
+ * at all to anybody who had never opened the application. The URL says which
+ * product is being administered, and a link opens the same one for whoever
+ * follows it.
  */
 const PLAN = { id: 'plan-1', code: 'pro', name: 'Pro', rank: 10 };
 
@@ -36,6 +44,12 @@ const offer = (id: string, code: string, listed: boolean) => ({
   ],
 });
 
+/** The product being administered travels in the URL, not in an ambient context. */
+const ROUTE = {
+  path: '/console/storefront',
+  initial: '/console/storefront?selected=atlas',
+} as const;
+
 const ADVERTISED = offer('offer-1', 'pro-monthly', true);
 const PRIVATE = offer('offer-2', 'reseller', false);
 
@@ -53,7 +67,7 @@ function clientFor(extra: Stubs = {}) {
 
 describe('the storefront console', () => {
   it('lists what is hidden as well as what is not', async () => {
-    renderWith(<StorefrontScreen />, clientFor());
+    renderAtRoute(<StorefrontScreen />, clientFor(), ROUTE);
 
     await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
 
@@ -67,7 +81,7 @@ describe('the storefront console', () => {
   });
 
   it('counts what is public, so the answer is readable at a glance', async () => {
-    renderWith(<StorefrontScreen />, clientFor());
+    renderAtRoute(<StorefrontScreen />, clientFor(), ROUTE);
 
     await waitFor(() =>
       expect(screen.getByTestId('advertised-count').textContent).toBe(
@@ -77,7 +91,7 @@ describe('the storefront console', () => {
   });
 
   it('says that withdrawing does not stop an offer being sold', async () => {
-    renderWith(<StorefrontScreen />, clientFor());
+    renderAtRoute(<StorefrontScreen />, clientFor(), ROUTE);
 
     await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
 
@@ -100,7 +114,7 @@ describe('the storefront console', () => {
       },
     });
 
-    renderWith(<StorefrontScreen />, client);
+    renderAtRoute(<StorefrontScreen />, client, ROUTE);
 
     await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: 'Advertise' }));
@@ -121,14 +135,14 @@ describe('the storefront console', () => {
   });
 
   it('offers to withdraw what is already public', async () => {
-    renderWith(<StorefrontScreen />, clientFor());
+    renderAtRoute(<StorefrontScreen />, clientFor(), ROUTE);
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Withdraw' })).toBeTruthy());
     expect(screen.getByRole('button', { name: 'Advertise' })).toBeTruthy();
   });
 
   it('surfaces a refusal instead of looking as though it worked', async () => {
-    renderWith(
+    renderAtRoute(
       <StorefrontScreen />,
       clientFor({
         'PUT /api/v1/staff/storefront/offers/{offerId}': {
@@ -138,6 +152,7 @@ describe('the storefront console', () => {
           },
         },
       }),
+      ROUTE,
     );
 
     await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
@@ -150,13 +165,14 @@ describe('the storefront console', () => {
   });
 
   it('says there is nothing to advertise rather than showing an empty list', async () => {
-    renderWith(
+    renderAtRoute(
       <StorefrontScreen />,
       clientFor({
         'GET /api/v1/staff/storefront/offers': {
           data: { product: { id: 'p-1', code: 'atlas', name: 'Atlas' }, offers: [] },
         },
       }),
+      ROUTE,
     );
 
     await waitFor(() => expect(screen.getByText(/Nothing to advertise/i)).toBeTruthy());
