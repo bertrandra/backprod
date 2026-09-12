@@ -90,14 +90,19 @@ describe('the two shells', () => {
   it('put every /console/ path under the console shell and nothing else there', () => {
     const { tenant, console: consoleRoutes } = pathsByShell();
 
+    // `/console` itself, and not only `/console/...`: the console has a landing
+    // now, and the pattern was written when it did not. The intent is unchanged
+    // — every console route lives under that prefix — and the converse below is
+    // widened the same way, so a bare `/console` in the tenant tree would still
+    // be caught.
     for (const id of consoleRoutes) {
-      expect(id.replace(`${CONSOLE_SHELL}/`, '/')).toMatch(/^\/console\//);
+      expect(id.replace(`${CONSOLE_SHELL}/`, '/')).toMatch(/^\/console(\/|$)/);
     }
 
     // And the converse: no tenant route is a console path, which is what stops
     // `/console/audit` resolving inside the tenant frame.
     for (const id of tenant) {
-      expect(id.replace(`${TENANT_SHELL}/`, '/')).not.toMatch(/^\/console\//);
+      expect(id.replace(`${TENANT_SHELL}/`, '/')).not.toMatch(/^\/console(\/|$)/);
     }
   });
 

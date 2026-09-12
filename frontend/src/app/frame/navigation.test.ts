@@ -148,3 +148,35 @@ describe('the two navigations', () => {
     }
   });
 });
+
+/**
+ * The console's order is the order of operations.
+ *
+ * It used to open on support and put Products seventh, so the screen somebody
+ * needed first was the one they could not find. A menu whose order contradicts
+ * the order of operations teaches the wrong sequence every time it is read.
+ */
+describe('the console is ordered by dependency', () => {
+  it('opens on the chain a product has to complete, in that order', () => {
+    const setup = CONSOLE_NAV[0];
+
+    expect(setup?.id).toBe('setup');
+    expect(setup?.entries.map((entry) => entry.id)).toEqual([
+      'readiness',
+      'products',
+      'invoicing',
+      'platform-catalogue',
+      'storefront',
+    ]);
+  });
+
+  it('puts invoicing before the catalogue, because an invoice must name its issuer', () => {
+    const ids = CONSOLE_NAV.flatMap((section) => section.entries.map((entry) => entry.id));
+
+    // A product can be priced and advertised and still refuse at the checkout.
+    // Meeting that refusal after building a whole catalogue is the failure this
+    // order exists to prevent.
+    expect(ids.indexOf('invoicing')).toBeLessThan(ids.indexOf('platform-catalogue'));
+    expect(ids.indexOf('platform-catalogue')).toBeLessThan(ids.indexOf('storefront'));
+  });
+});

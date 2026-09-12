@@ -41,6 +41,7 @@ import { InvoicingScreen } from '@/features/console/InvoicingScreen';
 import { MetricsScreen } from '@/features/console/MetricsScreen';
 import { ProductsScreen } from '@/features/console/ProductsScreen';
 import { QueueScreen } from '@/features/console/QueueScreen';
+import { ReadinessScreen } from '@/features/console/ReadinessScreen';
 import { StaffMembersScreen } from '@/features/console/StaffMembersScreen';
 import { StaffTenantsScreen } from '@/features/console/StaffTenantsScreen';
 import { StorefrontScreen } from '@/features/console/StorefrontScreen';
@@ -106,6 +107,10 @@ const SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element
  * the router rather than a convention.
  */
 const CONSOLE_SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element }[] = [
+  // The landing, and the map: `/console` alone lands here too, so an
+  // address typed without a section is a useful page rather than a 404.
+  { path: '/console', component: ReadinessScreen },
+  { path: '/console/readiness', component: ReadinessScreen },
   { path: '/console/tenants', component: StaffTenantsScreen },
   { path: '/console/conversations', component: SupportConversationsScreen },
   { path: '/console/access-log', component: AccessLogScreen },

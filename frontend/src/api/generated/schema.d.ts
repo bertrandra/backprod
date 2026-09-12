@@ -2917,6 +2917,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What a product still needs before a stranger can buy from it
+         * @description A fresh installation used to be navigable only by walking into its refusals: no plan, so `createOffer` matches nothing; a published version and an empty shop window, because advertising is a separate decision (ADR-041); and a checkout that gets all the way through refusing with `BILLING_NOT_CONFIGURED` because an invoice must name its issuer (ADR-044). Every refusal is correct and together they are a maze.
+         *
+         *     Every fact here is read through the same port the enforcing code reads — `SupplierDetails` for the issuer, the catalogue repository for plans and offers, **the clock** for sellability — so this cannot report ready where a sale would refuse. `published` in particular asks whether a version is sellable *now*, not whether a status column says ACTIVE: a version can be ACTIVE and outside its window.
+         */
+        get: operations["showProductReadiness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4083,6 +4105,21 @@ export interface components {
              * @example EUR
              */
             currency: string;
+        };
+        /** @description One link in the chain a product has to complete before it can sell. Carries **facts, not sentences**: `key` names the step and `detail` carries what was counted or found missing, so the words belong to whatever renders it, in whatever language that surface speaks. */
+        SetupStep: {
+            /**
+             * @description Stable identifier. The array's order is the dependency order: following it top to bottom never meets a refusal.
+             * @enum {string}
+             */
+            key: "product" | "billing_identity" | "tax" | "plans" | "features" | "offers" | "published" | "advertised" | "payments";
+            done: boolean;
+            /** @description Whether a sale is impossible until this step is done. `tax` and `features` are listed and are not blocking — a supplier selling at home invoices correctly without a stated tax position, and an offer granting only access to the product is a legitimate offer. */
+            blocking: boolean;
+            /** @description What was counted or found missing — `count`, `missing`, `code`, `active`, `country` depending on the step. An object even when empty, so a client never has to tell `{}` from `null`. */
+            detail: {
+                [key: string]: unknown;
+            };
         };
     };
     responses: {
@@ -10969,6 +11006,55 @@ export interface operations {
                 };
             };
             /** @description `VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showProductReadiness: {
+        parameters: {
+            query: {
+                /** @description The product code this chain is about. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The chain in dependency order, with the first blocking step named. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        product: {
+                            /** Format: uuid */
+                            id: string;
+                            code: string;
+                            name: string;
+                        };
+                        steps: components["schemas"]["SetupStep"][];
+                        /** @description True when no blocking step remains. */
+                        sellable: boolean;
+                        /** @description The key of the first blocking step, or null when nothing blocks — which is what lets a screen say "done" rather than point at nowhere. */
+                        next: string | null;
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — no `product` was named. */
             400: {
                 headers: {
                     [name: string]: unknown;

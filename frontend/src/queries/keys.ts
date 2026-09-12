@@ -142,6 +142,12 @@ export const keys = {
      * its invoices name, and the supplier's own fiscal position.
      */
     configuration: (product: string) => ['staff', 'configuration', product] as const,
+    /**
+     * What a product still needs before it can sell. Invalidated by every write
+     * that could advance the chain, because the whole point is that it is
+     * current — a stale chain tells somebody to do what they just did.
+     */
+    readiness: (product: string) => ['staff', 'readiness', product] as const,
     conversationLists: ['staff', 'conversations'] as const,
     conversations: (limit: number, offset: number) =>
       ['staff', 'conversations', limit, offset] as const,

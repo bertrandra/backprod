@@ -690,6 +690,9 @@ function useCatalogueWrite<TVariables, TData>(
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: keys.staff.catalogue(productCode) }),
         queryClient.invalidateQueries({ queryKey: keys.storefront.listing(productCode) }),
+        // A plan, an offer or a publication moves the setup chain, and the
+        // chain's only value is being current.
+        queryClient.invalidateQueries({ queryKey: keys.staff.readiness(productCode) }),
       ]);
     },
   });
@@ -943,7 +946,10 @@ function useConfigurationWrite<TVariables, TData>(
   return useMutation({
     mutationFn,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: keys.staff.configuration(productCode) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.staff.configuration(productCode) }),
+        queryClient.invalidateQueries({ queryKey: keys.staff.readiness(productCode) }),
+      ]);
     },
   });
 }
@@ -990,5 +996,42 @@ export function useSetTaxSettings(productCode: string) {
     }
 
     return data.tax;
+  });
+}
+
+/**
+ * The chain a product has to complete before a stranger can buy from it.
+ *
+ * Read from the backend rather than assembled here from four separate calls.
+ * Two reasons, and the second is the important one: a screen that counted plans
+ * and offers itself would be a second implementation of "can this sell", and
+ * the first to drift would be the one the operator trusts. And `published` asks
+ * the *clock* whether a version is sellable now — a question a frontend cannot
+ * answer from a status field, because a version can be ACTIVE and outside its
+ * window.
+ */
+export type SetupStep = Schemas['SetupStep'];
+export type SetupStepKey = SetupStep['key'];
+
+export function useProductReadiness(productCode: string | null) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.readiness(productCode ?? ''),
+    enabled: productCode !== null && productCode !== '',
+    queryFn: async () => {
+      const { data, error, response } = await client.GET('/api/v1/staff/readiness', {
+        params: { query: { product: productCode ?? '' } },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    // Short, because this is the one read whose whole value is being current:
+    // somebody fixes a step on another screen and comes back to see it move.
+    staleTime: 0,
   });
 }

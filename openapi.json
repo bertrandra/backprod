@@ -3774,6 +3774,45 @@
             ]
           }
         }
+      },
+      "SetupStep": {
+        "type": "object",
+        "description": "One link in the chain a product has to complete before it can sell. Carries **facts, not sentences**: `key` names the step and `detail` carries what was counted or found missing, so the words belong to whatever renders it, in whatever language that surface speaks.",
+        "required": [
+          "key",
+          "done",
+          "blocking",
+          "detail"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "product",
+              "billing_identity",
+              "tax",
+              "plans",
+              "features",
+              "offers",
+              "published",
+              "advertised",
+              "payments"
+            ],
+            "description": "Stable identifier. The array's order is the dependency order: following it top to bottom never meets a refusal."
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "blocking": {
+            "type": "boolean",
+            "description": "Whether a sale is impossible until this step is done. `tax` and `features` are listed and are not blocking — a supplier selling at home invoices correctly without a stated tax position, and an offer granting only access to the product is a legitimate offer."
+          },
+          "detail": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "What was counted or found missing — `count`, `missing`, `code`, `active`, `country` depending on the step. An object even when empty, so a client never has to tell `{}` from `null`."
+          }
+        }
       }
     },
     "responses": {
@@ -15982,6 +16021,110 @@
           },
           "400": {
             "description": "`VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/readiness": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "showProductReadiness",
+        "summary": "What a product still needs before a stranger can buy from it",
+        "description": "A fresh installation used to be navigable only by walking into its refusals: no plan, so `createOffer` matches nothing; a published version and an empty shop window, because advertising is a separate decision (ADR-041); and a checkout that gets all the way through refusing with `BILLING_NOT_CONFIGURED` because an invoice must name its issuer (ADR-044). Every refusal is correct and together they are a maze.\n\nEvery fact here is read through the same port the enforcing code reads — `SupplierDetails` for the issuer, the catalogue repository for plans and offers, **the clock** for sellability — so this cannot report ready where a sale would refuse. `published` in particular asks whether a version is sellable *now*, not whether a status column says ACTIVE: a version can be ACTIVE and outside its window.",
+        "parameters": [
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code this chain is about. A staff route resolves no product of its own — a platform role grants no membership.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The chain in dependency order, with the first blocking step named.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "product",
+                    "steps",
+                    "sellable",
+                    "next"
+                  ],
+                  "properties": {
+                    "product": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "code",
+                        "name"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "steps": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SetupStep"
+                      }
+                    },
+                    "sellable": {
+                      "type": "boolean",
+                      "description": "True when no blocking step remains."
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "The key of the first blocking step, or null when nothing blocks — which is what lets a screen say \"done\" rather than point at nowhere."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — no `product` was named.",
             "content": {
               "application/json": {
                 "schema": {

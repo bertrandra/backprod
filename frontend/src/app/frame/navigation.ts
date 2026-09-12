@@ -132,42 +132,51 @@ export const TENANT_NAV: readonly NavSection[] = [
   },
 ];
 
-/** The console's sections. A separate tree, never merged (non-negotiable #22). */
+/**
+ * The console's sections. A separate tree, never merged (non-negotiable #22).
+ *
+ * **Ordered by dependency, not by importance.** The first section is the chain
+ * a product has to complete before it can sell, in the order it has to be
+ * completed: a product, then who its invoices name, then a catalogue to price,
+ * then what the public page shows. Working down it never meets a refusal.
+ *
+ * That ordering is the fix for a real failure. The console used to open on
+ * support and put Products seventh, so the screen somebody needed first was the
+ * one they could not find — twice, for the same operator. A menu whose order
+ * contradicts the order of operations teaches the wrong sequence every time it
+ * is read.
+ */
 export const CONSOLE_NAV: readonly NavSection[] = [
   {
-    id: 'support',
-    label: 'Support',
+    id: 'setup',
+    label: 'Set up',
     entries: [
-      { id: 'tenants', label: 'Tenants', to: '/console/tenants', permission: 'staff.tenants.read' },
-      { id: 'threads', label: 'Conversations', to: '/console/conversations', permission: 'support.read' },
-      { id: 'access-log', label: 'Access log', to: '/console/access-log', permission: 'staff.access_log.read', secondary: true },
-    ],
-  },
-  {
-    id: 'administration',
-    label: 'Administration',
-    entries: [
-      { id: 'metrics', label: 'Metrics', to: '/console/metrics', permission: 'admin.finance.read' },
-      { id: 'directory', label: 'Directory', to: '/console/directory', permission: 'admin.directory.read' },
-      // The top of the model, and the only screen that can answer "what does
-      // this deployment host?" — `listProducts` resolves through membership,
-      // which a platform role never grants.
+      // The map of the chain, and the console's landing. First because it is
+      // what tells somebody which of the four below to open.
+      {
+        id: 'readiness',
+        label: 'Setup',
+        to: '/console/readiness',
+        permission: 'staff.products.manage',
+      },
+      // The top of the model: a product is what tenants belong to and what
+      // offers are priced for. `listProducts` resolves through membership,
+      // which a platform role never grants, so this is the only screen that can
+      // answer "what does this deployment host?".
       {
         id: 'products',
         label: 'Products',
         to: '/console/products',
         permission: 'staff.products.manage',
       },
-      // PLATFORM_ADMIN alone holds `staff.grant`: it is the one permission that
-      // can turn any role into every role, by appointing somebody who holds it.
-      { id: 'staff', label: 'Staff', to: '/console/staff', permission: 'staff.grant' },
-      // What a stranger sees. Its own permission rather than `catalog.manage`,
-      // which ADR-040 lets the platform lend to a tenant — a tenant authoring
-      // its own offers must not decide what the public page advertises.
-      // The platform pricing its own product. ADR-040 made `catalog.manage` a
-      // delegation to a tenant, which left the platform able to price its own
-      // catalogue only by lending it away — this is the door that should have
-      // existed first.
+      // Before a catalogue, because an invoice must name its issuer: a product
+      // can be priced and advertised and still refuse at the checkout.
+      {
+        id: 'invoicing',
+        label: 'Invoicing',
+        to: '/console/invoicing',
+        permission: 'staff.products.manage',
+      },
       {
         // `platform-catalogue`, not `catalogue`: the tenant navigation already
         // has an entry by that name, and the two trees may share no id — which
@@ -178,24 +187,37 @@ export const CONSOLE_NAV: readonly NavSection[] = [
         to: '/console/catalogue',
         permission: 'staff.catalog.manage',
       },
+      // What a stranger sees. Its own permission rather than `catalog.manage`,
+      // which ADR-040 lets the platform lend to a tenant — a tenant authoring
+      // its own offers must not decide what the public page advertises.
       {
         id: 'storefront',
         label: 'Storefront',
         to: '/console/storefront',
         permission: 'staff.catalog.manage',
       },
-      // What a product needs before it can take money. `staff.products.manage`
-      // and not `staff.catalog.manage`: this is the legal identity the platform
-      // invoices under, not a price — somebody trusted with the shop window is
-      // not thereby trusted with who the documents say is selling.
-      {
-        id: 'invoicing',
-        label: 'Invoicing',
-        to: '/console/invoicing',
-        permission: 'staff.products.manage',
-      },
+    ],
+  },
+  {
+    id: 'customers',
+    label: 'Customers',
+    entries: [
+      { id: 'tenants', label: 'Tenants', to: '/console/tenants', permission: 'staff.tenants.read' },
+      { id: 'threads', label: 'Conversations', to: '/console/conversations', permission: 'support.read' },
+      { id: 'directory', label: 'Directory', to: '/console/directory', permission: 'admin.directory.read' },
+      { id: 'metrics', label: 'Metrics', to: '/console/metrics', permission: 'admin.finance.read' },
+    ],
+  },
+  {
+    id: 'platform',
+    label: 'Platform',
+    entries: [
+      // PLATFORM_ADMIN alone holds `staff.grant`: it is the one permission that
+      // can turn any role into every role, by appointing somebody who holds it.
+      { id: 'staff', label: 'Staff', to: '/console/staff', permission: 'staff.grant' },
       { id: 'queue', label: 'Queue', to: '/console/queue', permission: 'admin.health.read' },
       { id: 'audit', label: 'Audit', to: '/console/audit', permission: 'admin.audit.read', secondary: true },
+      { id: 'access-log', label: 'Access log', to: '/console/access-log', permission: 'staff.access_log.read', secondary: true },
       // Its own entry and its own permission: reading the directory and erasing
       // somebody out of it are not the same authority.
       {
