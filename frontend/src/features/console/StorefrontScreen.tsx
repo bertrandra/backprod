@@ -6,6 +6,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `console.admin.storefront` — what the public page advertises.
@@ -72,17 +73,24 @@ export function StorefrontScreen() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Storefront</h1>
-        <p className="text-sm text-muted">
-          What somebody with no account sees for <strong>{offers.data.product.name}</strong>. Being
-          on sale and being advertised are different decisions: an offer withdrawn from here stays
-          sellable, and everybody already subscribed to it keeps their terms.
-        </p>
-        <p data-testid="advertised-count" className="text-xs text-subtle">
-          {listed} of {offers.data.offers.length} advertised publicly.
-        </p>
-      </header>
+      <PageHeader
+        title="Storefront"
+        // The count sits on the title's baseline rather than under the
+        // paragraph: it is a fact about what is on screen, not part of the
+        // explanation, and reading the explanation to find it was backwards.
+        meta={
+          <span data-testid="advertised-count">
+            {listed} of {offers.data.offers.length} advertised publicly
+          </span>
+        }
+        description={
+          <>
+            What somebody with no account sees for <strong>{offers.data.product.name}</strong>.
+            Being on sale and being advertised are different decisions: an offer withdrawn from
+            here stays sellable, and everybody already subscribed to it keeps their terms.
+          </>
+        }
+      />
 
       {decide.error !== null && <ErrorSurface error={decide.error} />}
 

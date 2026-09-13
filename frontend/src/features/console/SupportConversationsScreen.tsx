@@ -19,6 +19,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `console.support.conversations` — answering, from the other side.
@@ -53,13 +54,10 @@ export function SupportConversationsScreen() {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Support conversations</h1>
-        <p className="text-sm text-muted">
-          Threads a customer opened with the platform. Opening one reveals which company is asking,
-          and that read is recorded.
-        </p>
-      </header>
+      <PageHeader
+        title={'Support conversations'}
+        description={'Threads a customer opened with the platform. Opening one reveals which company is asking, and that read is recorded.'}
+      />
 
       <div className="grid gap-8 lg:grid-cols-[22rem_1fr]">
         <section className="space-y-2">

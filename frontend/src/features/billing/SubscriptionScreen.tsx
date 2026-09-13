@@ -18,6 +18,7 @@ import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `tenant.subscription` — and the distinction §13.1 exists to protect.
@@ -79,12 +80,10 @@ export function SubscriptionScreen() {
 
   return (
     <div className="max-w-3xl space-y-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Subscription</h1>
-        <p className="text-sm text-muted">
-          {current.offer.name} · {current.offer.plan.name}
-        </p>
-      </header>
+      <PageHeader
+        title={'Subscription'}
+        description={<>{current.offer.name} · {current.offer.plan.name}</>}
+      />
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">

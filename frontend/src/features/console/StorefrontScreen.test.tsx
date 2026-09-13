@@ -84,8 +84,10 @@ describe('the storefront console', () => {
     renderAtRoute(<StorefrontScreen />, clientFor(), ROUTE);
 
     await waitFor(() =>
+      // No full stop: the count sits on the title's baseline now, where it is a
+      // label rather than a sentence.
       expect(screen.getByTestId('advertised-count').textContent).toBe(
-        '1 of 2 advertised publicly.',
+        '1 of 2 advertised publicly',
       ),
     );
   });

@@ -11,6 +11,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { panel } from '@/ui/tone';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `console.admin.queue` — has the runner run since Tuesday.
@@ -40,13 +41,10 @@ export function QueueScreen() {
 
   return (
     <div className="space-y-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Queue</h1>
-        <p className="text-sm text-muted">
-          The runner is polled by cron, so nothing announces that it has stopped. What is below is
-          the clock, and a verdict against a threshold you can change.
-        </p>
-      </header>
+      <PageHeader
+        title={'Queue'}
+        description={'The runner is polled by cron, so nothing announces that it has stopped. What is below is the clock, and a verdict against a threshold you can change.'}
+      />
 
       <section className="space-y-4">
         <div className="max-w-xs">

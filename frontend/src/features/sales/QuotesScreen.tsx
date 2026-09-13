@@ -8,6 +8,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { Amount, formatVatRate } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `sales.quotes` — and the first action in this application that cannot be undone.
@@ -44,12 +45,10 @@ export function QuotesScreen() {
 
   return (
     <div className="max-w-3xl space-y-4">
-      <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-2xl font-semibold">Quotes</h1>
-        <span className="text-sm text-muted">
-          {quotes.data.total} in this product
-        </span>
-      </div>
+      <PageHeader
+        title={'Quotes'}
+        meta={<>{quotes.data.total} in this product</>}
+      />
 
       {accept.error !== null && <ErrorSurface error={accept.error} />}
       {reject.error !== null && <ErrorSurface error={reject.error} />}

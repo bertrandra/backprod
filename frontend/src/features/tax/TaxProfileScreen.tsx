@@ -8,6 +8,8 @@ import { useSaveTaxProfile, useTaxProfile, type TaxProfile } from '@/queries/tax
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { pill, type Tone } from '@/ui/tone';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `tax.profile` — what the tenant *claims*, and what the platform *checked*.
@@ -41,7 +43,7 @@ const schema = z.object({
 type Values = z.infer<typeof schema>;
 
 /** What each verification outcome means, in the words §25.2 uses for it. */
-const STATUS: Record<string, { label: string; explanation: string; tone: string }> = {
+const STATUS: Record<string, { label: string; explanation: string; tone: Tone }> = {
   VERIFIED: {
     label: 'Verified',
     explanation: 'The number was checked against the registry and the registry recognised it.',
@@ -91,13 +93,10 @@ export function TaxProfileScreen() {
 
   return (
     <div className="max-w-2xl space-y-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Tax profile</h1>
-        <p className="text-sm text-muted">
-          What is recorded here decides which VAT regime applies to what you are invoiced. A VAT
-          number is a claim until the registry confirms it; the state below says which it is.
-        </p>
-      </header>
+      <PageHeader
+        title={'Tax profile'}
+        description={'What is recorded here decides which VAT regime applies to what you are invoiced. A VAT number is a claim until the registry confirms it; the state below says which it is.'}
+      />
 
       <Verification profile={current} />
 
@@ -220,7 +219,7 @@ function Verification({ profile }: { profile: TaxProfile }) {
         {status !== null && (
           <span
             data-testid="vat-status"
-            className={`rounded px-2 py-0.5 text-xs font-medium ${known?.tone ?? 'bg-well'}`}
+            className={pill(known?.tone ?? 'neutral')}
           >
             {known?.label ?? status}
           </span>

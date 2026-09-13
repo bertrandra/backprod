@@ -17,6 +17,7 @@ import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount, formatVatRate } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
+import { Table, TBody, Td, Th, THead, TR } from '@/ui/Table';
 
 import { InvoiceNumber, statusTone } from './InvoicesScreen';
 
@@ -95,51 +96,44 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Lines</h2>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-subtle">
-                <th className="py-1 pr-2">#</th>
-                <th className="py-1 pr-2">Description</th>
-                <th className="py-1 pr-2 text-right">Qty</th>
-                <th className="py-1 pr-2 text-right">Unit</th>
-                <th className="py-1 pr-2 text-right">Net</th>
-                <th className="py-1 pr-2 text-right">VAT</th>
-                <th className="py-1 text-right">Gross</th>
-              </tr>
-            </thead>
-            <tbody>
-              {current.lines.map((line) => (
-                <tr
-                  key={line.position}
-                  data-line={line.position}
-                  className="border-t border-line"
-                >
-                  <td className="py-1 pr-2 text-xs text-subtle">{line.position}</td>
-                  <td className="py-1 pr-2">{line.description}</td>
-                  <td className="py-1 pr-2 text-right">{line.quantity}</td>
-                  <td className="py-1 pr-2 text-right">
-                    <Amount money={line.unit_price} />
-                  </td>
-                  <td className="py-1 pr-2 text-right">
-                    <Amount money={line.net} />
-                  </td>
-                  <td className="py-1 pr-2 text-right">
-                    {/* The rate as basis points, rendered — and the amount the
-                        server computed from it, not a multiplication here. */}
-                    <span data-testid={`rate-${String(line.position)}`}>
-                      {formatVatRate(line.vat_rate_basis_points)}
-                    </span>{' '}
-                    <Amount money={line.vat} />
-                  </td>
-                  <td className="py-1 text-right">
-                    <Amount money={line.gross} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table caption="Invoice lines: description, quantity, unit price, net, VAT and gross">
+          <THead>
+            <Th>#</Th>
+            <Th>Description</Th>
+            <Th numeric>Qty</Th>
+            <Th numeric>Unit</Th>
+            <Th numeric>Net</Th>
+            <Th numeric>VAT</Th>
+            <Th numeric>Gross</Th>
+          </THead>
+
+          <TBody>
+            {current.lines.map((line) => (
+              <TR key={line.position} data-line={line.position}>
+                <Td className="text-xs text-subtle">{line.position}</Td>
+                <Td>{line.description}</Td>
+                <Td numeric>{line.quantity}</Td>
+                <Td numeric>
+                  <Amount money={line.unit_price} />
+                </Td>
+                <Td numeric>
+                  <Amount money={line.net} />
+                </Td>
+                <Td numeric>
+                  {/* The rate as basis points, rendered — and the amount the
+                      server computed from it, not a multiplication here. */}
+                  <span data-testid={`rate-${String(line.position)}`} className="text-muted">
+                    {formatVatRate(line.vat_rate_basis_points)}
+                  </span>{' '}
+                  <Amount money={line.vat} />
+                </Td>
+                <Td numeric className="font-medium">
+                  <Amount money={line.gross} />
+                </Td>
+              </TR>
+            ))}
+          </TBody>
+        </Table>
       </section>
 
       <section className="space-y-3">

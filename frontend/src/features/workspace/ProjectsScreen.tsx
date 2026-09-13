@@ -11,6 +11,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `workspace.projects` — the list a person lands on, and creating one.
@@ -71,15 +72,10 @@ export function ProjectsScreen() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-2xl font-semibold">{showingBin ? 'Deleted projects' : 'Projects'}</h1>
-        <span className="text-sm text-muted">
-          {projects.data.total} {showingBin ? 'deleted' : 'in this product'}
-        </span>
-        {/* Wrapped rather than given `className`: `Button` sets its own and a
-            class passed in is silently dropped, which typechecks and does
-            nothing. */}
-        <span className="ml-auto">
+      <PageHeader
+        title={showingBin ? 'Deleted projects' : 'Projects'}
+        meta={`${String(projects.data.total)} ${showingBin ? 'deleted' : 'in this product'}`}
+        actions={
           <Button
             type="button"
             variant="secondary"
@@ -88,8 +84,8 @@ export function ProjectsScreen() {
           >
             {showingBin ? 'Back to projects' : 'Deleted projects'}
           </Button>
-        </span>
-      </div>
+        }
+      />
 
       {undelete.error !== null && <ErrorSurface error={undelete.error} />}
 

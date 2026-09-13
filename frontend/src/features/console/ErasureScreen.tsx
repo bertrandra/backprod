@@ -4,6 +4,7 @@ import { RETENTION_GROUNDS, useEraseUser, type Erasure, type RetentionGround } f
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { panel } from '@/ui/tone';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `console.admin.erasure` — the right to be forgotten, against the duty to keep.
@@ -34,13 +35,10 @@ export function ErasureScreen() {
 
   return (
     <div className="max-w-2xl space-y-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Erase a person</h1>
-        <p className="text-sm text-muted">
-          This anonymises what may be anonymised and keeps what the law requires be kept. It is not
-          a delete, and describing it to a customer as one would be untrue.
-        </p>
-      </header>
+      <PageHeader
+        title={'Erase a person'}
+        description={'This anonymises what may be anonymised and keeps what the law requires be kept. It is not a delete, and describing it to a customer as one would be untrue.'}
+      />
 
       <section
         data-testid="retention-grounds"

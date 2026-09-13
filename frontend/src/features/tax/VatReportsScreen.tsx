@@ -18,7 +18,9 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { Amount, formatVatRate } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
-import { panel } from '@/ui/tone';
+import { panel, pill } from '@/ui/tone';
+import { Table, TBody, Td, Th, THead, TR } from '@/ui/Table';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `tax.reports` — periods, the figures behind them, and the one action in this
@@ -62,13 +64,10 @@ export function VatReportsScreen() {
 
   return (
     <div className="space-y-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">VAT periods</h1>
-        <p className="text-sm text-muted">
-          A period is open while its figures can still move. Closing one files a declaration and
-          freezes it — permanently, and by a rule the database enforces rather than this screen.
-        </p>
-      </header>
+      <PageHeader
+        title={'VAT periods'}
+        description={'A period is open while its figures can still move. Closing one files a declaration and freezes it — permanently, and by a rule the database enforces rather than this screen.'}
+      />
 
       <div className="grid gap-8 lg:grid-cols-[20rem_1fr]">
         <section className="space-y-2">
@@ -133,11 +132,7 @@ function StatusBadge({ period }: { period: VatPeriod }) {
     <span
       data-testid="period-status"
       data-status={period.status}
-      className={`rounded px-2 py-0.5 text-xs font-medium ${
-        isClosed(period)
-          ? 'neutral'
-          : 'success'
-      }`}
+      className={pill(isClosed(period) ? 'neutral' : 'success')}
     >
       {isClosed(period) ? 'Closed' : 'Open'}
     </span>
@@ -416,51 +411,49 @@ function Breakdown({ rows }: { rows: unknown }) {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table data-testid="breakdown" className="w-full text-sm">
-        <thead className="text-left text-xs uppercase tracking-wide text-subtle">
-          <tr>
-            <th className="py-1 pr-3">Regime</th>
-            <th className="py-1 pr-3">Rate</th>
-            <th className="py-1 pr-3">Base</th>
-            <th className="py-1 pr-3">VAT</th>
-            <th className="py-1">Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          {readable.map((row, index) => {
-            const currency = typeof row.currency === 'string' ? row.currency : 'EUR';
-            const rate = typeof row.rate === 'number' ? row.rate : null;
+    <Table caption="VAT declared, broken down by regime and rate">
+      <THead>
+        <Th>Regime</Th>
+        <Th numeric>Rate</Th>
+        <Th numeric>Base</Th>
+        <Th numeric>VAT</Th>
+        <Th numeric>Count</Th>
+      </THead>
 
-            return (
-              <tr
-                key={`${label(row.regime, 'unknown')}-${String(rate)}-${currency}-${index}`}
-                data-breakdown-row={label(row.regime, 'unknown')}
-                className="border-t border-line"
-              >
-                <td className="py-1.5 pr-3">{label(row.regime, '—')}</td>
-                <td className="py-1.5 pr-3">{rate === null ? '—' : formatVatRate(rate)}</td>
-                <td className="py-1.5 pr-3">
-                  {typeof row.base === 'number' ? (
-                    <Amount money={{ minor_units: row.base, currency }} />
-                  ) : (
-                    '—'
-                  )}
-                </td>
-                <td className="py-1.5 pr-3">
-                  {typeof row.vat === 'number' ? (
-                    <Amount money={{ minor_units: row.vat, currency }} />
-                  ) : (
-                    '—'
-                  )}
-                </td>
-                <td className="py-1.5">{typeof row.count === 'number' ? row.count : '—'}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+      <TBody>
+        {readable.map((row, index) => {
+          const currency = typeof row.currency === 'string' ? row.currency : 'EUR';
+          const rate = typeof row.rate === 'number' ? row.rate : null;
+
+          return (
+            <TR
+              key={`${label(row.regime, 'unknown')}-${String(rate)}-${currency}-${index}`}
+              data-breakdown-row={label(row.regime, 'unknown')}
+            >
+              <Td className="font-medium">{label(row.regime, '—')}</Td>
+              <Td numeric>{rate === null ? '—' : formatVatRate(rate)}</Td>
+              <Td numeric>
+                {typeof row.base === 'number' ? (
+                  <Amount money={{ minor_units: row.base, currency }} />
+                ) : (
+                  '—'
+                )}
+              </Td>
+              <Td numeric className="font-medium">
+                {typeof row.vat === 'number' ? (
+                  <Amount money={{ minor_units: row.vat, currency }} />
+                ) : (
+                  '—'
+                )}
+              </Td>
+              <Td numeric className="text-muted">
+                {typeof row.count === 'number' ? row.count : '—'}
+              </Td>
+            </TR>
+          );
+        })}
+      </TBody>
+    </Table>
   );
 }
 

@@ -10,6 +10,7 @@ import { Button } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `billing.invoices` — the list, and the one mutation that must never be
@@ -44,12 +45,10 @@ export function InvoicesScreen() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-2xl font-semibold">Invoices</h1>
-        <span className="text-sm text-muted">
-          {invoices.data.total} in this product
-        </span>
-      </div>
+      <PageHeader
+        title={'Invoices'}
+        meta={<>{invoices.data.total} in this product</>}
+      />
 
       {issue.error !== null && <ErrorSurface error={issue.error} />}
 

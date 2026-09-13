@@ -12,6 +12,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `console.admin.staff` — who holds platform authority.
@@ -50,14 +51,10 @@ export function StaffMembersScreen() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Staff</h1>
-        <p className="text-sm text-muted">
-          Who may act across tenants, and under which role. A platform role never grants membership
-          of anybody&rsquo;s tenant — it grants the console, and every crossing it allows is
-          recorded in the access log.
-        </p>
-      </header>
+      <PageHeader
+        title={'Staff'}
+        description={'Who may act across tenants, and under which role. A platform role never grants membership of anybody&rsquo;s tenant — it grants the console, and every crossing it allows is recorded in the access log.'}
+      />
 
       {grant.error !== null && <ErrorSurface error={grant.error} />}
       {revoke.error !== null && <ErrorSurface error={revoke.error} />}

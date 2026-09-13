@@ -9,6 +9,8 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount, formatVatRate, minorUnitDigits } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { Table, TBody, Td, Th, THead, TR } from '@/ui/Table';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `tax.rates` — the rates in force on a date, and the calculator that explains
@@ -71,14 +73,10 @@ export function TaxRatesScreen() {
 
   return (
     <div className="max-w-3xl space-y-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Rates and regimes</h1>
-        <p className="text-sm text-muted">
-          Rates are valid for a window rather than forever. A change closes one window and opens
-          another, so an invoice issued in the past is still explained by the rate that was in
-          force then.
-        </p>
-      </header>
+      <PageHeader
+        title={'Rates and regimes'}
+        description={'Rates are valid for a window rather than forever. A change closes one window and opens another, so an invoice issued in the past is still explained by the rate that was in force then.'}
+      />
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-end gap-3">
@@ -113,43 +111,39 @@ export function TaxRatesScreen() {
               As they stood on {new Date(rates.data.on).toLocaleDateString()}.
             </p>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-left text-xs uppercase tracking-wide text-subtle">
-                  <tr>
-                    <th className="py-1 pr-3">Country</th>
-                    <th className="py-1 pr-3">Kind</th>
-                    <th className="py-1 pr-3">Rate</th>
-                    <th className="py-1 pr-3">In force</th>
-                    <th className="py-1">Source</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rates.data.rates.map((rate) => (
-                    <tr
-                      key={`${rate.country_code}-${rate.rate_kind}-${rate.valid_from}`}
-                      data-rate={`${rate.country_code}:${rate.rate_kind}`}
-                      className="border-t border-line"
-                    >
-                      <td className="py-1.5 pr-3">{rate.country_code}</td>
-                      <td className="py-1.5 pr-3">{rate.rate_kind}</td>
-                      <td data-testid="rate-value" className="py-1.5 pr-3 font-medium">
-                        {formatVatRate(rate.basis_points)}
-                      </td>
-                      <td className="py-1.5 pr-3 text-xs text-muted">
-                        {new Date(rate.valid_from).toLocaleDateString()} —{' '}
-                        {rate.valid_until === null
-                          ? 'still'
-                          : new Date(rate.valid_until).toLocaleDateString()}
-                      </td>
-                      {/* Where the figure came from — a seed, not a fiscal
-                          authority, and the contract is explicit about that. */}
-                      <td className="py-1.5 text-xs text-subtle">{rate.source}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table caption="VAT rates by country and kind, with the period each was in force and where the figure came from">
+              <THead>
+                <Th>Country</Th>
+                <Th>Kind</Th>
+                <Th numeric>Rate</Th>
+                <Th>In force</Th>
+                <Th>Source</Th>
+              </THead>
+
+              <TBody>
+                {rates.data.rates.map((rate) => (
+                  <TR
+                    key={`${rate.country_code}-${rate.rate_kind}-${rate.valid_from}`}
+                    data-rate={`${rate.country_code}:${rate.rate_kind}`}
+                  >
+                    <Td className="font-medium">{rate.country_code}</Td>
+                    <Td className="text-muted">{rate.rate_kind}</Td>
+                    <Td data-testid="rate-value" numeric className="font-medium">
+                      {formatVatRate(rate.basis_points)}
+                    </Td>
+                    <Td className="text-xs text-muted">
+                      {new Date(rate.valid_from).toLocaleDateString()} —{' '}
+                      {rate.valid_until === null
+                        ? 'still'
+                        : new Date(rate.valid_until).toLocaleDateString()}
+                    </Td>
+                    {/* Where the figure came from — a seed, not a fiscal
+                        authority, and the contract is explicit about that. */}
+                    <Td className="text-xs text-subtle">{rate.source}</Td>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
           </>
         )}
       </section>

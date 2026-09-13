@@ -127,6 +127,49 @@ describe('every semantic class', () => {
     expect([...new Set(offenders)]).toEqual([]);
   });
 
+  it('is never a bare tone name sitting in a class string', () => {
+    // This one is written from a regression it did not catch. The codemod that
+    // introduced `tone.ts` rewrote the colour literal `'bg-amber-100 …'` to
+    // `'warning'` everywhere it appeared — including five places where the
+    // literal was an inline `className` fragment rather than a tone a function
+    // returned. The result was `class="rounded px-1.5 py-0.5 text-xs warning"`:
+    // a class that resolves to nothing, on five badges that silently lost their
+    // colour, one of them the connection badge in the frame.
+    //
+    // The check above could not see it, because `warning` carries no utility
+    // prefix — it looks like nothing rather than like a broken something. So
+    // this looks for the opposite shape: a tone name inside a template literal
+    // that is building a class string.
+    //
+    // `pill(closed ? 'neutral' : 'warning')` is the correct form and is not
+    // matched: the tone names are arguments there, not interpolated text.
+    const tones = '(?:success|warning|danger|info|neutral)';
+    const inClassString = new RegExp(
+      // `${ … 'warning' … }` inside a backtick string — the interpolation that
+      // ends up concatenated into a className.
+      String.raw`\$\{[^}]*'${tones}'[^}]*\}`,
+      'gs',
+    );
+
+    const offenders: string[] = [];
+
+    for (const path of sources(SRC)) {
+      const text = readFileSync(path, 'utf8');
+
+      for (const [whole = ''] of text.matchAll(inClassString)) {
+        // A tone passed to one of the tone helpers inside an interpolation is
+        // the intended use: `${pill('success')} gap-2`.
+        if (/\b(?:pill|panel|notice|ink|dot)\(/.test(whole)) {
+          continue;
+        }
+
+        offenders.push(`${path.replace(SRC, 'src')}: ${whole.replace(/\s+/g, ' ').slice(0, 70)}`);
+      }
+    }
+
+    expect([...new Set(offenders)]).toEqual([]);
+  });
+
   it('defines a wash for every tone that has an ink, and the reverse', () => {
     // `bg-success-wash text-success` is the pair a status badge needs. A tone
     // with only half of it defined is a badge nobody can build.

@@ -25,6 +25,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `commerce.catalogue_authoring` — drafting a version, and publishing it.
@@ -102,13 +103,10 @@ export function OfferAuthoringScreen() {
 
   return (
     <div className="max-w-3xl space-y-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Offer authoring</h1>
-        <p className="text-sm text-muted">
-          A published version is frozen: its terms can never be edited, only replaced by a newer
-          version. That is what lets a quote pin the version that priced it.
-        </p>
-      </header>
+      <PageHeader
+        title={'Offer authoring'}
+        description={'A published version is frozen: its terms can never be edited, only replaced by a newer version. That is what lets a quote pin the version that priced it.'}
+      />
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Offers</h2>

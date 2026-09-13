@@ -5,6 +5,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `workspace.jobs` — what is queued, what failed, and cancelling one.
@@ -50,12 +51,10 @@ export function JobsScreen() {
 
   return (
     <div className="max-w-4xl space-y-4">
-      <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-2xl font-semibold">Background work</h1>
-        <span className="text-sm text-muted">
-          {jobs.data.total} recorded
-        </span>
-      </div>
+      <PageHeader
+        title={'Background work'}
+        meta={<>{jobs.data.total} recorded</>}
+      />
 
       {cancel.error !== null && <ErrorSurface error={cancel.error} />}
       {link.error !== null && <ErrorSurface error={link.error} />}

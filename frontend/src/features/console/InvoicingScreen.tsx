@@ -14,6 +14,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { notice } from '@/ui/tone';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `console.admin.invoicing` — what a product needs configured before it can take
@@ -73,15 +74,10 @@ export function InvoicingScreen() {
 
   return (
     <div className="max-w-3xl space-y-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Invoicing</h1>
-        <p className="text-sm text-muted">
-          Who <strong>{product.name}</strong> invoices as, and under which VAT regime. Both are
-          configuration and neither is guessed: an invoice is a legal document with a permanent
-          number, so a product that cannot name its issuer refuses to raise one rather than issuing
-          a blank.
-        </p>
-      </header>
+      <PageHeader
+        title={'Invoicing'}
+        description={<>Who <strong>{product.name}</strong> invoices as, and under which VAT regime. Both are configuration and neither is guessed: an invoice is a legal document with a permanent number, so a product that cannot name its issuer refuses to raise one rather than issuing a blank.</>}
+      />
 
       {canInvoice ? (
         <p

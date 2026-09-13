@@ -16,6 +16,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `console.support.tenants` — a customer as support sees them.
@@ -54,13 +55,10 @@ export function StaffTenantsScreen() {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Tenants</h1>
-        <p className="text-sm text-muted">
-          Opening a tenant records an entry against your name, with the permission you used. That
-          record is the reason this access is allowed at all.
-        </p>
-      </header>
+      <PageHeader
+        title={'Tenants'}
+        description={'Opening a tenant records an entry against your name, with the permission you used. That record is the reason this access is allowed at all.'}
+      />
 
       <div className="grid gap-8 lg:grid-cols-[22rem_1fr]">
         <section className="space-y-2">
