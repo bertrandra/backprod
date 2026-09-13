@@ -29,7 +29,7 @@ declare(strict_types=1);
  *      operation, not by its name, so a call that goes to the wrong path fails
  *      even when a function nearby is named after the right one.
  *   3. The reverse: every client call in the frontend belongs to an operation
- *      that some area claims, or to the shell bootstrap. A call to an operation
+ *      that some area claims, or to the bootstrap. A call to an operation
  *      the map lists under `not_in_ui` is a violation of the reason written
  *      there — `downloadAsset` says outright that *"the generated client never
  *      fetches these bytes itself"*, and this is what holds that true.
@@ -167,7 +167,7 @@ foreach ($coverage['areas'] as $area => $entry) {
 
 // --- 3. and nothing calls what no area claims -------------------------------
 
-$bootstrap = array_keys($coverage['shell_bootstrap']['operations']);
+$bootstrap = array_keys($coverage['bootstrap']['operations']);
 $allowed = [];
 
 foreach ([...array_keys($claimed), ...$bootstrap] as $operation) {

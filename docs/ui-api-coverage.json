@@ -1,13 +1,14 @@
 {
   "$comment": "Single source for UI coverage of the API. docs/ui-spec.md explains the areas and the reasoning; tools/prove-ui-covers-the-api.php checks this file against openapi.json in both directions, and tools/prove-screens-call-their-operations.php checks it against the frontend — that every area's routes exist and that every operation an area claims is actually called through the generated client.",
-  "shells": {
-    "tenant": "The product application: one product, one tenant, scoped by X-Product and the caller's membership.",
-    "console": "The platform console. A separate shell because a platform role never grants tenant membership (non-negotiable #22).",
-    "public": "The shop window. Outside both other shells and outside the sign-in gate, because the person reading it has no session, no product and no permissions — a shell around it would be a frame full of things that cannot be filled in."
+  "authorities": {
+    "$comment": "Which authority a screen answers to, not which shell it lives in — there has been one shell since ADR-046. The same three words the navigation uses, so the file and the code describe the boundary in one vocabulary instead of two.",
+    "tenant": "Answers to a tenant's membership. One product, scoped by X-Product and by what the caller's membership grants (`GET /me/permissions`).",
+    "platform": "Answers to a platform role. Never derived from a membership and never granting one (non-negotiable #22); a separate catalogue, a separate identity (`GET /staff/me`), and every read that crosses into tenant data is traced.",
+    "public": "Answers to no authority. The shop window and signing up: the person reading has no session, no product and no permissions, so nothing here may depend on any."
   },
   "areas": {
     "account.notification_settings": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/notification-settings"
       ],
@@ -20,7 +21,7 @@
       ]
     },
     "account.notifications": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/notifications"
       ],
@@ -33,7 +34,7 @@
       ]
     },
     "account.profile": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/profile"
       ],
@@ -43,7 +44,7 @@
       ]
     },
     "billing.credit_notes": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/credit-notes"
       ],
@@ -52,7 +53,7 @@
       ]
     },
     "billing.einvoicing": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/invoices/$invoiceId"
       ],
@@ -62,7 +63,7 @@
       ]
     },
     "billing.invoices": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/invoices",
         "/invoices/$invoiceId"
@@ -78,7 +79,7 @@
       ]
     },
     "billing.payments": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/payments"
       ],
@@ -91,7 +92,7 @@
       ]
     },
     "billing.profile": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/billing-profile"
       ],
@@ -101,7 +102,7 @@
       ]
     },
     "commerce.catalogue": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/catalogue"
       ],
@@ -118,7 +119,7 @@
       ]
     },
     "commerce.catalogue_authoring": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/offers"
       ],
@@ -131,7 +132,7 @@
       ]
     },
     "commerce.checkout": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/checkout/$sessionId"
       ],
@@ -141,7 +142,7 @@
       ]
     },
     "console.admin.audit": {
-      "shell": "console",
+      "authority": "platform",
       "routes": [
         "/console/audit"
       ],
@@ -150,7 +151,7 @@
       ]
     },
     "console.admin.catalogue": {
-      "shell": "console",
+      "authority": "platform",
       "$comment": "The platform pricing its own product. ADR-040 made catalog.manage a delegation to a tenant, which left the platform able to price its own catalogue only by lending it away and acting as the borrower; and plans and features could not be created at all, so a fresh installation had a product it could not price. Plans, features, offers and versions, with the product named in ?selected= because the console has no ambient product.",
       "routes": [
         "/console/catalogue"
@@ -168,7 +169,7 @@
       ]
     },
     "console.admin.directory": {
-      "shell": "console",
+      "authority": "platform",
       "routes": [
         "/console/directory"
       ],
@@ -180,7 +181,7 @@
       ]
     },
     "console.admin.erasure": {
-      "shell": "console",
+      "authority": "platform",
       "routes": [
         "/console/erasure"
       ],
@@ -189,7 +190,7 @@
       ]
     },
     "console.admin.invoicing": {
-      "shell": "console",
+      "authority": "platform",
       "$comment": "What a product needs configured before it can take money. ADR-042 gave the console a way to create a product and ADR-043 a way to price it, and a checkout against one created that way still refused with BILLING_NOT_CONFIGURED: an invoice must name its issuer, and the issuer lives in product_configuration, which only the demo seeder ever wrote. Two named keys rather than a JSONB editor, because every key in that table is read by code that names it and a typo would store configuration nothing reads.",
       "routes": [
         "/console/invoicing"
@@ -201,7 +202,7 @@
       ]
     },
     "console.admin.metrics": {
-      "shell": "console",
+      "authority": "platform",
       "routes": [
         "/console/metrics"
       ],
@@ -210,7 +211,7 @@
       ]
     },
     "console.admin.products": {
-      "shell": "console",
+      "authority": "platform",
       "$comment": "The top of the model. A product is what tenants belong to and what offers are priced for, and until this screen existed only the installer could create one and nothing at all could list them — listProducts resolves through membership, which a platform role never grants. There is no delete: a product carries invoices, and an invoice is a legal document.",
       "routes": [
         "/console/products"
@@ -222,7 +223,7 @@
       ]
     },
     "console.admin.queue": {
-      "shell": "console",
+      "authority": "platform",
       "routes": [
         "/console/queue"
       ],
@@ -232,7 +233,7 @@
       ]
     },
     "console.admin.readiness": {
-      "shell": "console",
+      "authority": "platform",
       "$comment": "The console's landing and the map of a maze. A fresh installation was navigable only by walking into its refusals — no plan so no offer, published but not advertised so an empty shop window, a checkout refusing with BILLING_NOT_CONFIGURED at the very end. Every refusal correct, together a maze. The chain is returned in dependency order so working down it never meets one, and the facts are read through the same ports the enforcing code reads.",
       "routes": [
         "/console",
@@ -243,7 +244,7 @@
       ]
     },
     "console.admin.staff": {
-      "shell": "console",
+      "authority": "platform",
       "$comment": "Who holds platform authority. The screen that stops a fresh installation being a dead end: before it, appointing anybody meant an INSERT against production, which is exactly what an installer must never require.",
       "routes": [
         "/console/staff"
@@ -255,7 +256,7 @@
       ]
     },
     "console.admin.storefront": {
-      "shell": "console",
+      "authority": "platform",
       "$comment": "What the public page advertises. Behind staff.catalog.manage rather than catalog.manage: ADR-040 lets the platform lend the latter to a tenant, and a tenant authoring its own offers must not decide what a stranger is shown. The product it administers comes from ?selected= in the URL, the way console.support.tenants carries the tenant somebody opened — the console has no ambient product, because a platform role grants no membership.",
       "routes": [
         "/console/storefront"
@@ -266,7 +267,7 @@
       ]
     },
     "console.support.access_log": {
-      "shell": "console",
+      "authority": "platform",
       "routes": [
         "/console/access-log"
       ],
@@ -275,7 +276,7 @@
       ]
     },
     "console.support.conversations": {
-      "shell": "console",
+      "authority": "platform",
       "routes": [
         "/console/conversations"
       ],
@@ -287,7 +288,7 @@
       ]
     },
     "console.support.tenants": {
-      "shell": "console",
+      "authority": "platform",
       "routes": [
         "/console/tenants"
       ],
@@ -299,7 +300,7 @@
       "$comment": "A tenant as support sees it, and the one thing the platform may change about them: whether the catalogue is lent to them. The toggle sits here rather than on a screen of its own because the decision is made while looking at the customer it concerns."
     },
     "identity.sign_in": {
-      "shell": "tenant",
+      "authority": "tenant",
       "$comment": "The screen U11 found missing and U12 made this platform's own. It has a route so it is addressable and so this area can declare one, but nothing links to it: SignInGate renders it *instead of* the shell for whatever URL was asked for, which is how a deep link survives signing in. It also answers the confirmation link: verifying an address is something somebody does from a device that has never signed in, so it belongs on the one screen that works without a session.",
       "routes": [
         "/sign-in"
@@ -312,7 +313,7 @@
       ]
     },
     "messaging.conversations": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/conversations"
       ],
@@ -330,7 +331,7 @@
       ]
     },
     "public.storefront": {
-      "shell": "public",
+      "authority": "public",
       "$comment": "The landing page and the account it creates. The product comes from ?product= rather than from a membership, and only offers marked publicly_listed appear — being on sale and being advertised are two different decisions. Choosing an offer opens the sign-up form; the checkout that follows runs on the session that creates and is therefore commerce.checkout's openCheckoutSession, not a second anonymous purchase flow with rules of its own.",
       "routes": [
         "/"
@@ -342,7 +343,7 @@
       ]
     },
     "sales.orders": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/orders"
       ],
@@ -355,7 +356,7 @@
       ]
     },
     "sales.quotes": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/quotes"
       ],
@@ -368,7 +369,7 @@
       ]
     },
     "tax.profile": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/tax"
       ],
@@ -378,7 +379,7 @@
       ]
     },
     "tax.rates": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/tax/rates"
       ],
@@ -388,7 +389,7 @@
       ]
     },
     "tax.reports": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/tax/reports"
       ],
@@ -400,7 +401,7 @@
       ]
     },
     "tenant.branding": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/branding"
       ],
@@ -412,7 +413,7 @@
       ]
     },
     "tenant.members": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/members"
       ],
@@ -424,7 +425,7 @@
       ]
     },
     "tenant.organisation": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/organisation"
       ],
@@ -435,7 +436,7 @@
       ]
     },
     "tenant.subscription": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/subscription"
       ],
@@ -450,7 +451,7 @@
       ]
     },
     "workspace.assets": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/projects/$projectId",
         "/jobs"
@@ -465,7 +466,7 @@
       ]
     },
     "workspace.geometry": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/projects/$projectId"
       ],
@@ -475,7 +476,7 @@
       ]
     },
     "workspace.jobs": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/jobs"
       ],
@@ -487,7 +488,7 @@
       ]
     },
     "workspace.project": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/projects/$projectId"
       ],
@@ -503,7 +504,7 @@
       ]
     },
     "workspace.projects": {
-      "shell": "tenant",
+      "authority": "tenant",
       "routes": [
         "/projects"
       ],
@@ -514,12 +515,12 @@
       ]
     }
   },
-  "shell_bootstrap": {
+  "bootstrap": {
     "$comment": "Read by the shell to decide what exists for this person: which navigation entries appear, which actions are enabled, which empty state is honest. Not screens.",
     "operations": {
       "showMyEntitlements": "tenant",
       "showMyPermissions": "tenant",
-      "showStaffIdentity": "console"
+      "showStaffIdentity": "platform"
     }
   },
   "not_in_ui": {
