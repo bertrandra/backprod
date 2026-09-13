@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Billing\Service\Invoicing;
 use App\Commerce\Service\Subscriptions;
-use App\Shared\Database\Row;
 use Doctrine\DBAL\Connection;
 use Dotenv\Dotenv;
 use Psr\Container\ContainerInterface;
@@ -12,8 +11,13 @@ use Psr\Container\ContainerInterface;
 /**
  * A demonstration world, seeded into an empty database.
  *
- *     php bin/seed-demo.php            # seed, refusing a database that has data
- *     php bin/seed-demo.php --reset    # wipe the business tables first
+ *     php bin/seed-demo.php                       # seed `atlas`
+ *     php bin/seed-demo.php --product=licorne     # a world of its own, beside it
+ *     php bin/seed-demo.php --reset               # wipe the business tables first
+ *
+ * The world itself lives in `bin/demo-world.php`, which the installer calls too
+ * — this file is the command line around it, and that one is the definition of
+ * what a complete demonstration contains.
  *
  * **What this is for.** Until now the only way to see this platform run was to
  * read its tests. 811 of them pass and 178 browser tests walk the screens, and
@@ -59,6 +63,32 @@ $container = $containerFactory();
 $connection = $container->get(Connection::class);
 
 $reset = in_array('--reset', $argv, true);
+
+/**
+ * Which product this world is for.
+ *
+ * `atlas` when nobody says otherwise, which is what every existing invocation
+ * and both composer scripts expect. The installer passes `licorne`, and a second
+ * demo beside the first is `--product=…` away — every name in the world is
+ * derived from this, so two of them never collide.
+ */
+$option = static function (string $name, string $fallback) use ($argv): string {
+    foreach ($argv as $argument) {
+        if (str_starts_with($argument, "--{$name}=")) {
+            return substr($argument, strlen($name) + 3);
+        }
+    }
+
+    return $fallback;
+};
+
+$productCode = strtolower(trim($option('product', 'atlas')));
+$productName = trim($option('name', ucfirst($productCode)));
+
+if (preg_match('/^[a-z0-9][a-z0-9-]{0,62}$/', $productCode) !== 1) {
+    fwrite(STDERR, "--product must be a code: lower-case letters, digits and hyphens.\n");
+    exit(1);
+}
 
 /**
  * The business tables, in an order that respects the foreign keys.
@@ -122,14 +152,26 @@ function count_of(Connection $connection, string $sql, array $parameters = []): 
 }
 
 // --- Refuse to seed on top of something ---------------------------------------
+//
+// Narrowed from "this database has any data" to "this product code is taken".
+// The old guard was right when there was one demo world and it was the only
+// thing in the database; it is wrong now that the installer can seed a demo
+// beside a real product it has just created, and that two demo products can
+// coexist under codes of their own. What it was actually protecting against —
+// doubling a catalogue, leaving a demo nobody could trust — is exactly what the
+// unique product code catches, and catches per product rather than per database.
 
-$existing = count_of($connection, 'SELECT count(*) FROM products');
+$taken = count_of(
+    $connection,
+    'SELECT count(*) FROM products WHERE code = :code',
+    ['code' => $productCode],
+);
 
-if ($existing > 0 && !$reset) {
-    fwrite(STDERR, "This database already has data ({$existing} products).\n\n");
-    fwrite(STDERR, "Seeding on top would double a catalogue and leave a demo nobody could\n");
-    fwrite(STDERR, "trust. Pass --reset to wipe the business tables first, or point\n");
-    fwrite(STDERR, "DATABASE_DSN at an empty database.\n");
+if ($taken > 0 && !$reset) {
+    fwrite(STDERR, "A product with the code '{$productCode}' already exists.\n\n");
+    fwrite(STDERR, "Seeding on top would double its catalogue and leave a demo nobody\n");
+    fwrite(STDERR, "could trust. Pass --reset to wipe the business tables first, or\n");
+    fwrite(STDERR, "--product=<code> to seed a world of its own.\n");
     exit(1);
 }
 
@@ -141,307 +183,67 @@ if ($reset) {
     printf("reset: %d business tables truncated (reference data untouched)\n", count(BUSINESS_TABLES));
 }
 
-$connection->beginTransaction();
-
-// --- The product, and the people ----------------------------------------------
-
-$product = id(
-    $connection,
-    "INSERT INTO products (code, name, active) VALUES ('atlas', 'Atlas', true) RETURNING id",
-);
-
-$acme = id(
-    $connection,
-    "INSERT INTO tenants (name, slug) VALUES ('Acme Ltd', 'acme') RETURNING id",
-);
-
-$globex = id(
-    $connection,
-    "INSERT INTO tenants (name, slug) VALUES ('Globex SA', 'globex') RETURNING id",
-);
-
-$ada = id(
-    $connection,
-    "INSERT INTO users (auth_subject, email, display_name) VALUES ('demo|ada', 'ada@acme.test', 'Ada Lovelace') RETURNING id",
-);
-
-$grace = id(
-    $connection,
-    "INSERT INTO users (auth_subject, email, display_name) VALUES ('demo|grace', 'grace@acme.test', 'Grace Hopper') RETURNING id",
-);
-
-$staff = id(
-    $connection,
-    "INSERT INTO users (auth_subject, email, display_name) VALUES ('demo|sam', 'sam@backprod.test', 'Sam Support') RETURNING id",
-);
+// --- The world itself, which bin/demo-world.php owns --------------------------
 
 /**
- * Passwords, so somebody can actually sign in (U12).
+ * The shape `bin/demo-world.php` returns, restated here.
  *
- * Until this existed the demo world was complete and unreachable: three people,
- * two tenants, a live subscription with its invoice, and no way to open any of it
- * in a browser. `auth_subject` becomes `local:<id>` — the same `prefix:id` shape
- * erasure uses — because that is what a token this platform issues carries, and a
- * subject the token cannot name is a person who cannot sign in.
+ * `require` answers `mixed`, so without this every field below is an offset on
+ * an unknown value and PHPStan says so twenty times. Restated rather than
+ * imported because the two are files returning a closure, not classes — there
+ * is no type to import. A change there that is not made here fails the analysis
+ * rather than passing quietly, which is the property worth having.
  *
- * The password is in the output on purpose. This is demonstration data whose whole
- * point is being opened; a secret nobody is told is a database nobody can look at.
- * `demo:seed` refuses a non-empty database, which is what keeps it away from
- * anything real.
+ * @var callable(ContainerInterface, string, string): array{
+ *     product: string,
+ *     product_code: string,
+ *     password: string,
+ *     tenants: array{acme: string, globex: string},
+ *     people: array{admin: string, user: string, staff: string},
+ *     counts: array{plans: int, features: int, offers: int},
+ *     subscription: \App\Commerce\Domain\Subscription,
+ *     invoice: \App\Billing\Domain\Invoice,
+ *     checks: array<string, bool>
+ * } $seed
  */
-const DEMO_PASSWORD = 'demo-password-1234';
+$seed = require __DIR__ . '/demo-world.php';
 
-foreach ([$ada, $grace, $staff] as $person) {
-    $connection->executeStatement(
-        "UPDATE users SET auth_subject = 'local:' || id WHERE id = :id",
-        ['id' => $person],
-    );
-
-    $connection->executeStatement(
-        <<<'SQL'
-            INSERT INTO local_credentials (user_id, email, password_hash)
-            SELECT id, email, :hash FROM users WHERE id = :id AND email IS NOT NULL
-            SQL,
-        // Hashed here rather than written as a literal: the database refuses a
-        // password_hash that does not start with `$`, so a seeder that stored the
-        // plaintext would fail rather than seed a world with a plaintext password
-        // in it.
-        ['id' => $person, 'hash' => password_hash(DEMO_PASSWORD, PASSWORD_BCRYPT)],
-    );
-}
-
-// Roles are migration data and are joined by id, not by code: the code is what
-// a person reads and the id is what the schema stores, and a seeder that
-// invented either would authorise nobody.
-$roleId = static fn (string $code): string => id(
-    $connection,
-    'SELECT id FROM roles WHERE code = :code',
-    ['code' => $code],
-);
-
-foreach ([[$acme, $ada, 'TENANT_ADMIN'], [$acme, $grace, 'USER'], [$globex, $ada, 'TENANT_ADMIN']] as [$tenant, $user, $role]) {
-    $connection->executeStatement(
-        'INSERT INTO tenant_members (tenant_id, product_id, user_id) VALUES (:tenant, :product, :user)',
-        ['tenant' => $tenant, 'product' => $product, 'user' => $user],
-    );
-
-    $connection->executeStatement(
-        <<<'SQL'
-        INSERT INTO tenant_member_roles (tenant_id, product_id, user_id, role_id)
-        VALUES (:tenant, :product, :user, :role)
-        SQL,
-        ['tenant' => $tenant, 'product' => $product, 'user' => $user, 'role' => $roleId($role)],
-    );
-}
-
-// Platform staff: a separate identity, never a tenant membership
-// (non-negotiable #22). `granted_by` is themselves here, which is the honest
-// answer for a seeded world — there was nobody else to grant it.
-$connection->executeStatement(
-    <<<'SQL'
-    INSERT INTO platform_staff (user_id, platform_role_id, granted_by)
-    VALUES (:user, (SELECT id FROM platform_roles WHERE code = 'PLATFORM_ADMIN'), :user)
-    SQL,
-    ['user' => $staff],
-);
-
-// --- The catalogue ------------------------------------------------------------
-
-$plans = [];
-
-foreach ([['starter', 'Starter', 10], ['pro', 'Pro', 20], ['scale', 'Scale', 30]] as [$code, $name, $rank]) {
-    $plans[$code] = id(
-        $connection,
-        <<<'SQL'
-        INSERT INTO plans (product_id, code, name, rank)
-        VALUES (:product, :code, :name, :rank) RETURNING id
-        SQL,
-        ['product' => $product, 'code' => $code, 'name' => $name, 'rank' => $rank],
-    );
-}
-
-$features = [];
-
-foreach ([['projects', 'Projects', 'QUOTA', 'projects'], ['exports', 'Exports', 'QUOTA', 'exports'], ['white_label', 'White label', 'BOOLEAN', null]] as [$code, $name, $kind, $unit]) {
-    $features[$code] = id(
-        $connection,
-        <<<'SQL'
-        INSERT INTO features (product_id, code, name, kind, unit)
-        VALUES (:product, :code, :name, :kind, :unit) RETURNING id
-        SQL,
-        ['product' => $product, 'code' => $code, 'name' => $name, 'kind' => $kind, 'unit' => $unit],
-    );
-}
-
-/** @var array<string, string> $offers */
-$offers = [];
-
-foreach ([
-    ['starter-monthly', 'Starter, monthly', 'starter', 1_900, 'MONTHLY', ['projects' => 3, 'exports' => 10]],
-    ['pro-monthly', 'Pro, monthly', 'pro', 4_900, 'MONTHLY', ['projects' => 25, 'exports' => 200, 'white_label' => null]],
-    ['scale-yearly', 'Scale, yearly', 'scale', 49_000, 'YEARLY', ['projects' => null, 'exports' => null, 'white_label' => null]],
-] as [$code, $name, $plan, $price, $period, $grants]) {
-    $offer = id(
-        $connection,
-        <<<'SQL'
-        INSERT INTO offers (product_id, plan_id, code, name)
-        VALUES (:product, :plan, :code, :name) RETURNING id
-        SQL,
-        ['product' => $product, 'plan' => $plans[$plan] ?? throw new RuntimeException("unknown plan {$plan}"), 'code' => $code, 'name' => $name],
-    );
-
-    // Draft, grant, publish — the order the product actually uses. A version's
-    // grants freeze the moment it leaves DRAFT (ADR-033), so seeding an ACTIVE
-    // row and attaching grants afterwards would build a version the application
-    // cannot.
-    $version = id(
-        $connection,
-        <<<'SQL'
-        INSERT INTO offer_versions
-            (offer_id, version, status, billing_period, price_minor_units, currency, valid_from)
-        VALUES (:offer, 1, 'DRAFT', :period, :price, 'EUR', now() - interval '30 days')
-        RETURNING id
-        SQL,
-        ['offer' => $offer, 'period' => $period, 'price' => $price],
-    );
-
-    foreach ($grants as $feature => $limit) {
-        $connection->executeStatement(
-            <<<'SQL'
-            INSERT INTO offer_version_features (offer_version_id, feature_id, limit_value)
-            VALUES (:version, :feature, :limit)
-            SQL,
-            [
-                'version' => $version,
-                'feature' => $features[$feature] ?? throw new RuntimeException("unknown feature {$feature}"),
-                // A null limit is what this schema stores for "unlimited", and
-                // for a BOOLEAN feature it is the only meaningful value.
-                'limit' => $limit,
-            ],
-        );
-    }
-
-    $connection->executeStatement(
-        "UPDATE offer_versions SET status = 'ACTIVE' WHERE id = :id",
-        ['id' => $version],
-    );
-
-    $offers[$code] = $offer;
-}
-
-// --- The legal identity an invoice is issued against --------------------------
-
-$connection->executeStatement(
-    <<<'SQL'
-    INSERT INTO billing_profiles
-        (tenant_id, legal_name, vat_number, address_line1, postal_code, city, country_code, billing_email)
-    VALUES (:tenant, 'Acme Ltd', 'FR12345678901', '12 rue de la Paix', '75002', 'Paris', 'FR', 'billing@acme.test')
-    SQL,
-    ['tenant' => $acme],
-);
-
-$connection->executeStatement(
-    <<<'SQL'
-    INSERT INTO customer_tax_profiles (tenant_id, customer_kind, country_code, taxable_person)
-    VALUES (:tenant, 'B2B', 'FR', true)
-    SQL,
-    ['tenant' => $acme],
-);
-
-/**
- * The platform's own legal identity — the *supplier* on every invoice.
- *
- * Product configuration rather than a tenant's billing profile: the customer's
- * identity varies per tenant, the supplier's does not, and `Invoicing` refuses
- * to issue anything at all until this exists. That refusal is why it is here:
- * a demo world without it looks complete and cannot raise an invoice.
- */
-$connection->executeStatement(
-    <<<'SQL'
-    INSERT INTO product_configuration (product_id, key, value)
-    VALUES (:product, 'billing_supplier', CAST(:value AS jsonb))
-    SQL,
-    [
-        'product' => $product,
-        'value' => json_encode([
-            'legal_name' => 'Backprod SAS',
-            'vat_number' => 'FR99887766554',
-            'registration_number' => '912 345 678 R.C.S. Paris',
-            'address_line1' => '1 avenue du Code',
-            'address_line2' => null,
-            'postal_code' => '75011',
-            'city' => 'Paris',
-            'country_code' => 'FR',
-        ], JSON_THROW_ON_ERROR),
-    ],
-);
-
-$connection->commit();
-
-// --- The parts with invariants, through the services that own them ------------
-
-/** @var Subscriptions $subscriptions */
-$subscriptions = $container->get(Subscriptions::class);
-
-/** @var Invoicing $invoicing */
-$invoicing = $container->get(Invoicing::class);
-
-$subscription = $subscriptions->subscribe($acme, $product, $offers['pro-monthly'], $ada);
-$invoice = $invoicing->issueForSubscription($acme, $product, $ada);
+$world = $seed($container, $productCode, $productName);
 
 // --- What it made -------------------------------------------------------------
 
 printf("\nSeeded a demonstration world.\n\n");
-printf("  product      atlas  %s\n", $product);
-printf("  tenants      acme   %s\n", $acme);
-printf("               globex %s\n", $globex);
-printf("  people       ada@acme.test (TENANT_ADMIN), grace@acme.test (USER)\n");
-printf("  platform     sam@backprod.test (PLATFORM_ADMIN)\n");
-printf("  catalogue    %d plans, %d features, %d offers\n", count($plans), count($features), count($offers));
+printf("  product      %-8s %s\n", $productCode, $world['product']);
+printf("  tenants      acme     %s\n", $world['tenants']['acme']);
+printf("               globex   %s\n", $world['tenants']['globex']);
+printf("  people       %s (TENANT_ADMIN), %s (USER)\n", $world['people']['admin'], $world['people']['user']);
+printf("  platform     %s (PLATFORM_ADMIN)\n", $world['people']['staff']);
+printf(
+    "  catalogue    %d plans, %d features, %d offers, all advertised\n",
+    $world['counts']['plans'],
+    $world['counts']['features'],
+    $world['counts']['offers'],
+);
+
+$subscription = $world['subscription'];
+$invoice = $world['invoice'];
+
 printf("  subscription %s (%s)\n", $subscription->id, $subscription->status);
 printf("  invoice      %s  %s\n", $invoice->number ?? '(no number)', $invoice->id);
 
-// --- And reads it back --------------------------------------------------------
-//
-// Seeding and verifying in one pass. A seeder whose output nobody checks is a
-// fixture that drifts from the schema silently, and the first person to notice
-// is somebody demonstrating the product.
-
-$checks = [
-    'the subscription is active' => $subscriptions->current($acme, $product)?->status === 'ACTIVE',
-    'the invoice has a legal number' => is_string($invoice->number) && $invoice->number !== '',
-    'the invoice belongs to the tenant' => $invoice->tenantId === $acme,
-    'three offer versions are published' => 3 === count_of(
-        $connection,
-        "SELECT count(*) FROM offer_versions WHERE status = 'ACTIVE'",
-    ),
-    'entitlements were granted' => 0 < count_of(
-        $connection,
-        'SELECT count(*) FROM entitlements WHERE tenant_id = :tenant',
-        ['tenant' => $acme],
-    ),
-    'platform staff hold no tenant membership' => 0 === count_of(
-        $connection,
-        'SELECT count(*) FROM tenant_members WHERE user_id = :user',
-        ['user' => $staff],
-    ),
-];
-
-$failed = array_keys(array_filter($checks, static fn (bool $ok): bool => !$ok));
-
 printf("\n");
 
-foreach ($checks as $what => $ok) {
+foreach ($world['checks'] as $what => $ok) {
     printf("  %s %s\n", $ok ? 'ok  ' : 'FAIL', $what);
 }
 
-if ($failed !== []) {
+if (array_filter($world['checks'], static fn (bool $ok): bool => !$ok) !== []) {
     fwrite(STDERR, "\nThe seeded world does not hold. Nothing above can be trusted.\n");
     exit(1);
 }
 
-printf("\nSign in at /sign-in as ada@acme.test with the password %s\n", DEMO_PASSWORD);
-printf("Also seeded: grace@acme.test (USER) and sam@backprod.test (platform support).\n");
+printf("\nSign in at /sign-in?product=%s as %s with the password %s\n", $productCode, $world['people']['admin'], DEMO_PASSWORD);
+printf("Also seeded: %s (USER) and %s (platform support).\n", $world['people']['user'], $world['people']['staff']);
 printf("The API needs AUTH_SIGNING_SECRET set to at least 32 characters, or sign-in answers 503.\n");
 
 exit(0);
