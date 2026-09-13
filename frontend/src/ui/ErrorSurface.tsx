@@ -79,7 +79,7 @@ export function ErrorSurface({ error, onRetry }: { error: unknown; onRetry?: () 
       <p className="mt-1 text-red-800 dark:text-red-300">{message}</p>
 
       {chosen?.hint !== undefined && (
-        <p className="mt-1 text-red-700 dark:text-red-400">{chosen.hint}</p>
+        <p className="mt-1 text-danger">{chosen.hint}</p>
       )}
 
       {details.length > 0 && (
@@ -103,7 +103,7 @@ export function ErrorSurface({ error, onRetry }: { error: unknown; onRetry?: () 
 
         {api !== null && api.requestId !== '' && (
           // Selectable, because the point of it is being pasted into a report.
-          <code className="select-all text-xs text-red-700 dark:text-red-400">
+          <code className="select-all text-xs text-danger">
             request {api.requestId}
           </code>
         )}

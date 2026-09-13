@@ -66,9 +66,9 @@ export function CatalogueScreen() {
   return (
     <div className="max-w-4xl space-y-6">
       <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-lg font-semibold">Catalogue</h1>
+        <h1 className="text-2xl font-semibold">Catalogue</h1>
         {catalogue.data !== undefined && (
-          <span className="text-sm text-neutral-600 dark:text-neutral-400">
+          <span className="text-sm text-muted">
             {catalogue.data.product.name}
           </span>
         )}
@@ -89,10 +89,10 @@ export function CatalogueScreen() {
             .map(({ plan, offers: planOffers }) => (
               <section key={plan.id} data-plan={plan.code} className="space-y-3">
                 <div className="flex flex-wrap items-baseline gap-2">
-                  <h2 className="text-base font-semibold">{plan.name}</h2>
+                  <h2 className="text-xl font-semibold">{plan.name}</h2>
                   {/* The rank is shown because it is the real ordering, and
                       seeing it makes the sequence explicable rather than magic. */}
-                  <span className="text-xs text-neutral-500">
+                  <span className="text-xs text-subtle">
                     {plan.code} · rank {plan.rank}
                   </span>
                 </div>
@@ -137,8 +137,8 @@ export function CatalogueScreen() {
 
           {orphaned.length > 0 && (
             <section className="space-y-3">
-              <h2 className="text-base font-semibold">Other offers</h2>
-              <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              <h2 className="text-xl font-semibold">Other offers</h2>
+              <p className="text-sm text-muted">
                 On sale, but their plan is not in the plan list — shown rather than hidden.
               </p>
               <ul className="space-y-2">
@@ -185,11 +185,11 @@ function OfferRow({
   return (
     <li
       data-offer={offer.id}
-      className="rounded border border-neutral-200 p-3 md:flex md:items-center md:gap-4 dark:border-neutral-800"
+      className="rounded-card border border-line bg-surface p-4 shadow-raise md:flex md:items-center md:gap-4"
     >
       <div className="min-w-0 md:flex-1">
         <p className="font-medium">{offer.name}</p>
-        <p className="text-xs text-neutral-600 dark:text-neutral-400">
+        <p className="text-xs text-muted">
           <code>{offer.code}</code>
           {version !== null && ` · ${version.billing_period.toLowerCase()} · v${version.version}`}
         </p>
@@ -199,7 +199,7 @@ function OfferRow({
         // Typed nullable, so said plainly. A price rendered from nothing would
         // be a zero, and a zero is a legitimate price — the two must not look
         // alike.
-        <p data-testid="no-sellable-version" className="text-sm text-neutral-500">
+        <p data-testid="no-sellable-version" className="text-sm text-subtle">
           No sellable version
         </p>
       ) : (

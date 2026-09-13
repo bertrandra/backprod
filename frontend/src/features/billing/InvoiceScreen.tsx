@@ -66,7 +66,7 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
     <div className="max-w-3xl space-y-8">
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg font-semibold">Invoice</h1>
+          <h1 className="text-2xl font-semibold">Invoice</h1>
           <span
             data-testid="invoice-status"
             className={`rounded px-2 py-0.5 text-xs font-medium ${statusClass(current.status)}`}
@@ -75,14 +75,14 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
           </span>
           <InvoiceNumber invoice={current} />
           {!current.final && (
-            <span data-testid="not-final" className="text-xs text-neutral-500">
+            <span data-testid="not-final" className="text-xs text-subtle">
               can still change
             </span>
           )}
         </div>
 
         {current.period_start !== null && current.period_end !== null && (
-          <p className="text-xs text-neutral-500">
+          <p className="text-xs text-subtle">
             covers {new Date(current.period_start).toLocaleDateString()} —{' '}
             {new Date(current.period_end).toLocaleDateString()}
           </p>
@@ -92,12 +92,12 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
       <Parties invoice={current} />
 
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">Lines</h2>
+        <h2 className="text-xl font-semibold">Lines</h2>
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-neutral-500">
+              <tr className="text-left text-xs uppercase tracking-wide text-subtle">
                 <th className="py-1 pr-2">#</th>
                 <th className="py-1 pr-2">Description</th>
                 <th className="py-1 pr-2 text-right">Qty</th>
@@ -112,9 +112,9 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
                 <tr
                   key={line.position}
                   data-line={line.position}
-                  className="border-t border-neutral-200 dark:border-neutral-800"
+                  className="border-t border-line"
                 >
-                  <td className="py-1 pr-2 text-xs text-neutral-500">{line.position}</td>
+                  <td className="py-1 pr-2 text-xs text-subtle">{line.position}</td>
                   <td className="py-1 pr-2">{line.description}</td>
                   <td className="py-1 pr-2 text-right">{line.quantity}</td>
                   <td className="py-1 pr-2 text-right">
@@ -142,7 +142,7 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">Tax</h2>
+        <h2 className="text-xl font-semibold">Tax</h2>
 
         {/* One row per jurisdiction and rate. They sum to the invoice's VAT —
             the backend asserts it, and this renders both rather than checking. */}
@@ -154,7 +154,7 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
               <span className="min-w-0 flex-1">
                 {tax.jurisdiction} at {formatVatRate(tax.rate_basis_points)}
               </span>
-              <span className="text-neutral-600 dark:text-neutral-400">
+              <span className="text-muted">
                 on <Amount money={tax.taxable} />
               </span>
               <Amount money={tax.tax} />
@@ -162,21 +162,21 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
           ))}
         </ul>
 
-        <dl className="grid grid-cols-3 gap-3 border-t border-neutral-200 pt-3 text-sm dark:border-neutral-800">
+        <dl className="grid grid-cols-3 gap-3 border-t border-line pt-3 text-sm">
           <div>
-            <dt className="text-xs text-neutral-500">Net</dt>
+            <dt className="text-xs text-subtle">Net</dt>
             <dd>
               <Amount money={current.net} />
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-neutral-500">VAT</dt>
+            <dt className="text-xs text-subtle">VAT</dt>
             <dd>
               <Amount money={current.vat} />
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-neutral-500">Total</dt>
+            <dt className="text-xs text-subtle">Total</dt>
             <dd className="font-medium">
               <Amount money={current.gross} />
             </dd>
@@ -187,8 +187,8 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
       <InvoiceDocument invoiceId={invoiceId} issued={issued} />
 
       {mayManage && (
-        <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-          <h2 className="text-base font-semibold">Actions</h2>
+        <section className="space-y-3 border-t border-line pt-6">
+          <h2 className="text-xl font-semibold">Actions</h2>
 
           {cancel.error !== null && <ErrorSurface error={cancel.error} />}
           {markPaid.error !== null && <ErrorSurface error={markPaid.error} />}
@@ -234,7 +234,7 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
 
           {confirming === 'cancel' && (
             <div className="flex flex-wrap gap-2">
-              <span className="w-full text-xs text-neutral-700 dark:text-neutral-300">
+              <span className="w-full text-xs text-muted">
                 Cancelling cannot be undone.
               </span>
               <Button
@@ -255,7 +255,7 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
 
           {confirming === 'credit' && (
             <div className="max-w-md space-y-3">
-              <p className="text-xs text-neutral-700 dark:text-neutral-300">
+              <p className="text-xs text-muted">
                 A credit note is its own document, with its own number. The invoice keeps its
                 number and its totals.
               </p>
@@ -328,22 +328,22 @@ function Party({
 
   return (
     <div data-testid={testId}>
-      <p className="text-xs uppercase tracking-wide text-neutral-500">{label}</p>
+      <p className="text-xs uppercase tracking-wide text-subtle">{label}</p>
       <p className="font-medium">{text('legal_name') ?? '—'}</p>
       {text('vat_number') !== null && (
-        <p className="text-xs text-neutral-600 dark:text-neutral-400">
+        <p className="text-xs text-muted">
           VAT {text('vat_number')}
         </p>
       )}
       {text('address_line1') !== null && (
-        <p className="text-xs text-neutral-600 dark:text-neutral-400">
+        <p className="text-xs text-muted">
           {text('address_line1')}
           {text('postal_code') !== null && `, ${text('postal_code') ?? ''}`}
           {text('city') !== null && ` ${text('city') ?? ''}`}
           {text('country_code') !== null && ` (${text('country_code') ?? ''})`}
         </p>
       )}
-      <p className="text-xs text-neutral-500">as recorded when this was issued</p>
+      <p className="text-xs text-subtle">as recorded when this was issued</p>
     </div>
   );
 }
@@ -365,10 +365,10 @@ function InvoiceDocument({ invoiceId, issued }: { invoiceId: string; issued: boo
   if (!issued) {
     return (
       <section className="space-y-2">
-        <h2 className="text-base font-semibold">Document</h2>
+        <h2 className="text-xl font-semibold">Document</h2>
         {/* Not an error: an invoice with no number has no document, and asking
             for one answers 409 INVOICE_NOT_RENDERABLE. */}
-        <p data-testid="no-document" className="text-sm text-neutral-600 dark:text-neutral-400">
+        <p data-testid="no-document" className="text-sm text-muted">
           There is no document yet. One is rendered when the invoice is issued, and then never
           again — the stored file is the invoice.
         </p>
@@ -380,7 +380,7 @@ function InvoiceDocument({ invoiceId, issued }: { invoiceId: string; issued: boo
 
   return (
     <section className="space-y-2">
-      <h2 className="text-base font-semibold">Document</h2>
+      <h2 className="text-xl font-semibold">Document</h2>
 
       {pdf.isPending ? (
         <SkeletonRows rows={1} />
@@ -399,7 +399,7 @@ function InvoiceDocument({ invoiceId, issued }: { invoiceId: string; issued: boo
         </Button>
       )}
 
-      <p className="text-xs text-neutral-500">
+      <p className="text-xs text-subtle">
         Rendered once when the invoice was issued and stored — these are the same bytes every
         time, which is why they are fetched once and kept.
       </p>
@@ -452,8 +452,8 @@ function Transmissions({
   }
 
   return (
-    <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-      <h2 className="text-base font-semibold">E-invoicing</h2>
+    <section className="space-y-3 border-t border-line pt-6">
+      <h2 className="text-xl font-semibold">E-invoicing</h2>
 
       {submit.error !== null && <ErrorSurface error={submit.error} />}
 
@@ -473,7 +473,7 @@ function Transmissions({
               key={transmission.id}
               data-transmission={transmission.id}
               data-status={transmission.status}
-              className="space-y-2 rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+              className="space-y-2 rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{transmission.provider}</span>
@@ -484,7 +484,7 @@ function Transmissions({
                   {transmission.status}
                 </span>
                 {!transmission.settled && (
-                  <span className="text-xs text-neutral-500">still in flight</span>
+                  <span className="text-xs text-subtle">still in flight</span>
                 )}
               </div>
 
@@ -505,8 +505,8 @@ function Transmissions({
                       data-reached={index <= progressOf(transmission.status) ? 'true' : 'false'}
                       className={
                         index <= progressOf(transmission.status)
-                          ? 'font-medium text-neutral-900 dark:text-neutral-100'
-                          : 'text-neutral-400'
+                          ? 'font-medium text-ink'
+                          : 'text-subtle'
                       }
                     >
                       {state}
@@ -517,7 +517,7 @@ function Transmissions({
               )}
 
               {transmission.provider_document_id !== null && (
-                <p className="text-xs text-neutral-500">
+                <p className="text-xs text-subtle">
                   platform reference <code>{transmission.provider_document_id}</code>
                 </p>
               )}

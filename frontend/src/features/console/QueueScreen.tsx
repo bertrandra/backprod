@@ -40,8 +40,8 @@ export function QueueScreen() {
   return (
     <div className="space-y-8">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Queue</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Queue</h1>
+        <p className="text-sm text-muted">
           The runner is polled by cron, so nothing announces that it has stopped. What is below is
           the clock, and a verdict against a threshold you can change.
         </p>
@@ -83,9 +83,9 @@ export function QueueScreen() {
         )}
       </section>
 
-      <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
+      <section className="space-y-3 border-t border-line pt-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="text-base font-semibold">Jobs</h2>
+          <h2 className="text-xl font-semibold">Jobs</h2>
 
           <div className="w-48">
             <Field id="status" label="Status">
@@ -116,7 +116,7 @@ export function QueueScreen() {
           />
         ) : (
           <>
-            <p data-testid="job-count" className="text-xs text-neutral-500">
+            <p data-testid="job-count" className="text-xs text-subtle">
               Showing {jobs.data.job.length} of {jobs.data.total}.
             </p>
             <ul className="space-y-2">
@@ -197,13 +197,13 @@ function Liveness({ health }: { health: Health }) {
 
       <dl className="grid gap-3 sm:grid-cols-3">
         <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-500">Last pass finished</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">Last pass finished</dt>
           <dd data-testid="last-finished">
             {seconds(health.last_run.seconds_since_finished)} ago
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-500">Unfinished passes</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">Unfinished passes</dt>
           <dd data-testid="unfinished">
             {health.unfinished_runs}
             {health.oldest_unfinished_seconds !== null &&
@@ -211,7 +211,7 @@ function Liveness({ health }: { health: Health }) {
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-500">Backlog due</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">Backlog due</dt>
           <dd data-testid="backlog">
             {typeof health.backlog.due === 'number' ? health.backlog.due : '—'}
             {typeof health.backlog.oldest_due_seconds === 'number' &&
@@ -227,28 +227,28 @@ function JobRow({ job }: { job: AdminJob }) {
   return (
     <li
       data-job={job.id ?? ''}
-      className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+      className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium">{job.type ?? 'unknown'}</span>
         <span
           data-testid="job-status"
-          className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs dark:bg-neutral-800"
+          className="rounded bg-well px-1.5 py-0.5 text-xs"
         >
           {job.status ?? 'unknown'}
         </span>
-        <span className="text-xs text-neutral-600 dark:text-neutral-400">
+        <span className="text-xs text-muted">
           attempt {job.attempts ?? 0} of {job.max_attempts ?? 0}
         </span>
       </div>
 
       {job.failure_reason !== null && job.failure_reason !== undefined && (
-        <p data-testid="job-failure" className="mt-1 text-xs text-red-700 dark:text-red-400">
+        <p data-testid="job-failure" className="mt-1 text-xs text-danger">
           {job.failure_reason}
         </p>
       )}
 
-      <p className="mt-1 text-xs text-neutral-500">
+      <p className="mt-1 text-xs text-subtle">
         created {job.created_at === undefined ? '—' : new Date(job.created_at).toLocaleString()}
         {job.leased_until !== null &&
           job.leased_until !== undefined &&

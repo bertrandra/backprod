@@ -44,8 +44,8 @@ export function InvoicesScreen() {
   return (
     <div className="max-w-3xl space-y-6">
       <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-lg font-semibold">Invoices</h1>
-        <span className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Invoices</h1>
+        <span className="text-sm text-muted">
           {invoices.data.total} in this product
         </span>
       </div>
@@ -64,7 +64,7 @@ export function InvoicesScreen() {
               key={invoice.id}
               data-invoice={invoice.id}
               data-status={invoice.status}
-              className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+              className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <span
@@ -80,7 +80,7 @@ export function InvoicesScreen() {
                 </span>
               </div>
 
-              <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+              <p className="mt-1 text-xs text-muted">
                 net <Amount money={invoice.net} /> · VAT <Amount money={invoice.vat} />
                 {invoice.issued_at !== null &&
                   ` · issued ${new Date(invoice.issued_at).toLocaleDateString()}`}
@@ -103,9 +103,9 @@ export function InvoicesScreen() {
       )}
 
       {mayManage && (
-        <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-          <h2 className="text-base font-semibold">Issue an invoice</h2>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <section className="space-y-3 border-t border-line pt-6">
+          <h2 className="text-xl font-semibold">Issue an invoice</h2>
+          <p className="text-sm text-muted">
             Issuing allocates a legal number from a sequence that must have no gaps. It cannot be
             undone — a mistake is corrected by a credit note, not by deletion.
           </p>
@@ -132,7 +132,7 @@ export function InvoicesScreen() {
           {issue.isPending && (
             // A real pending state, said in words. The number does not exist yet
             // and this screen will not pretend otherwise.
-            <p data-testid="issuing" className="text-sm text-neutral-600 dark:text-neutral-400">
+            <p data-testid="issuing" className="text-sm text-muted">
               Allocating the number…
             </p>
           )}
@@ -152,7 +152,7 @@ export function InvoicesScreen() {
 export function InvoiceNumber({ invoice }: { invoice: Invoice }) {
   if (invoice.number === null) {
     return (
-      <span data-testid="no-number" className="text-xs text-neutral-500">
+      <span data-testid="no-number" className="text-xs text-subtle">
         no number yet — a draft has none
       </span>
     );
@@ -170,7 +170,7 @@ export function statusClass(status: string): string {
     case 'PAID':
       return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200';
     case 'CANCELLED':
-      return 'bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300';
+      return 'bg-well text-muted';
     case 'ISSUED':
       return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200';
     default:

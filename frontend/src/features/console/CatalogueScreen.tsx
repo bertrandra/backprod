@@ -76,8 +76,8 @@ export function CatalogueScreen() {
   return (
     <div className="max-w-3xl space-y-8">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Catalogue</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Catalogue</h1>
+        <p className="text-sm text-muted">
           What <strong>{catalogue.data.product.name}</strong> sells. A plan groups offers and orders
           them; a feature is a capability a plan grants; an offer is a plan with a price. You need a
           plan before you can write an offer.
@@ -109,8 +109,8 @@ function Plans({ productCode, plans }: { productCode: string; plans: readonly St
 
   return (
     <section className="space-y-3">
-      <h2 className="text-base font-semibold">Plans</h2>
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+      <h2 className="text-xl font-semibold">Plans</h2>
+      <p className="text-sm text-muted">
         Ordered by <strong>rank</strong>, which is the only ordering this platform has — an upgrade
         is a comparison of two numbers, never of two names. A plan cannot be deleted: offers point
         at it, and those offers price live subscriptions.
@@ -130,14 +130,14 @@ function Plans({ productCode, plans }: { productCode: string; plans: readonly St
             <li
               key={plan.id}
               data-plan={plan.code}
-              className="rounded border border-neutral-200 p-3 text-sm sm:flex sm:items-center sm:gap-3 dark:border-neutral-800"
+              className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm sm:flex sm:items-center sm:gap-3"
             >
               <span className="font-medium sm:flex-1">{plan.name}</span>
-              <code className="select-all text-xs text-neutral-600 dark:text-neutral-400">
+              <code className="select-all text-xs text-muted">
                 {plan.code}
               </code>
               <label className="mt-2 flex items-center gap-2 sm:mt-0">
-                <span className="text-xs text-neutral-500">rank</span>
+                <span className="text-xs text-subtle">rank</span>
                 <input
                   aria-label={`Rank of ${plan.name}`}
                   type="number"
@@ -235,9 +235,9 @@ function Features({
   const [unit, setUnit] = useState('');
 
   return (
-    <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-      <h2 className="text-base font-semibold">Features</h2>
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+    <section className="space-y-3 border-t border-line pt-6">
+      <h2 className="text-xl font-semibold">Features</h2>
+      <p className="text-sm text-muted">
         What a plan grants. A <strong>quota</strong> is counted in a unit; a <strong>switch</strong>{' '}
         is on or off. The kind cannot be changed afterwards — every grant written against a feature
         meant one or the other, and flipping it would reinterpret prices somebody is already paying.
@@ -256,13 +256,13 @@ function Features({
             <li
               key={feature.id}
               data-feature={feature.code}
-              className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+              className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
             >
               <span className="font-medium">{feature.name}</span>{' '}
-              <code className="select-all text-xs text-neutral-600 dark:text-neutral-400">
+              <code className="select-all text-xs text-muted">
                 {feature.code}
               </code>
-              <span className="ml-2 text-xs text-neutral-500">
+              <span className="ml-2 text-xs text-subtle">
                 {feature.kind === 'QUOTA' ? `quota in ${feature.unit ?? '—'}` : 'switch'}
               </span>
             </li>
@@ -379,9 +379,9 @@ function Offers({
   const [grants, setGrants] = useState<GrantDraft>({});
 
   return (
-    <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-      <h2 className="text-base font-semibold">Offers</h2>
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+    <section className="space-y-3 border-t border-line pt-6">
+      <h2 className="text-xl font-semibold">Offers</h2>
+      <p className="text-sm text-muted">
         A plan with a price. An offer is born a <strong>draft</strong> and is not on sale until it
         is published — and a published version is frozen, so a new price is always a new version
         rather than an edit.
@@ -424,7 +424,7 @@ function Offers({
       )}
 
       {plans.length === 0 ? (
-        <p data-testid="needs-a-plan" className="text-sm text-neutral-600 dark:text-neutral-400">
+        <p data-testid="needs-a-plan" className="text-sm text-muted">
           Add a plan first — an offer is a plan with a price, and it cannot be written without one.
         </p>
       ) : (
@@ -567,18 +567,18 @@ function OfferRow({
   return (
     <li
       data-offer={offer.code}
-      className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+      className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
     >
       <div className="flex flex-wrap items-baseline gap-2">
         <span className="font-medium">{offer.name}</span>
-        <code className="select-all text-xs text-neutral-600 dark:text-neutral-400">
+        <code className="select-all text-xs text-muted">
           {offer.code}
         </code>
-        <span className="text-xs text-neutral-500">{offer.plan.name}</span>
+        <span className="text-xs text-subtle">{offer.plan.name}</span>
         {offer.publicly_listed && (
           <span
             data-testid="advertised"
-            className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs dark:bg-neutral-800"
+            className="rounded bg-well px-1.5 py-0.5 text-xs"
           >
             on the public page
           </span>
@@ -593,14 +593,14 @@ function OfferRow({
             data-status={version.status}
             className="flex flex-wrap items-center gap-2 text-xs"
           >
-            <span className="text-neutral-500">v{version.version}</span>
+            <span className="text-subtle">v{version.version}</span>
             <Amount money={version.price} className="font-medium" />
-            <span className="text-neutral-500">{version.billing_period.toLowerCase()}</span>
+            <span className="text-subtle">{version.billing_period.toLowerCase()}</span>
             <span
               className={
                 version.status === 'ACTIVE'
-                  ? 'rounded bg-neutral-900 px-1.5 py-0.5 text-white dark:bg-neutral-100 dark:text-neutral-900'
-                  : 'rounded bg-neutral-200 px-1.5 py-0.5 dark:bg-neutral-800'
+                  ? 'rounded bg-inverse px-1.5 py-0.5 text-white dark:bg-well dark:text-ink'
+                  : 'rounded bg-well px-1.5 py-0.5'
               }
             >
               {version.status.toLowerCase()}
@@ -617,7 +617,7 @@ function OfferRow({
             )}
 
             {version.grants.length > 0 && (
-              <span data-testid="version-grants" className="text-neutral-500">
+              <span data-testid="version-grants" className="text-subtle">
                 {version.grants
                   .map((grant) =>
                     grant.kind === 'QUOTA'
@@ -652,7 +652,7 @@ function OfferRow({
         ))}
       </ul>
 
-      <p className="mt-2 text-xs text-neutral-500">
+      <p className="mt-2 text-xs text-subtle">
         Publishing puts this price on sale: every quote, order and subscription written afterwards
         prices from it, and it can never be edited — only superseded.
       </p>
@@ -721,7 +721,7 @@ function GrantsEditor({
 }) {
   if (features.length === 0) {
     return (
-      <p data-testid="no-features-to-grant" className="text-sm text-neutral-600 dark:text-neutral-400">
+      <p data-testid="no-features-to-grant" className="text-sm text-muted">
         No features yet, so this offer grants access to the product and nothing more. That is a
         legitimate offer — add features above if it should grant more than that.
       </p>
@@ -737,7 +737,7 @@ function GrantsEditor({
   return (
     <fieldset className="space-y-2">
       <legend className="text-sm font-medium">What it grants</legend>
-      <p className="text-xs text-neutral-600 dark:text-neutral-400">
+      <p className="text-xs text-muted">
         A quota left empty is <strong>unlimited</strong>, which is not the same as a limit of zero.
         Grants belong to the version, so changing them later means publishing a new one — ADR-033
         freezes what somebody bought.
@@ -772,10 +772,10 @@ function GrantsEditor({
                     value={entry.limit}
                     onChange={(event) => update(feature.id, { limit: event.target.value })}
                   />
-                  <span className="text-xs text-neutral-500">{feature.unit ?? ''}</span>
+                  <span className="text-xs text-subtle">{feature.unit ?? ''}</span>
                 </>
               ) : (
-                <span className="text-xs text-neutral-500">switch</span>
+                <span className="text-xs text-subtle">switch</span>
               )}
             </li>
           );

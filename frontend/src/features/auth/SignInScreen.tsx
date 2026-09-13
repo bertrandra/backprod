@@ -78,8 +78,8 @@ export function SignInScreen() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-4">
       <div className="space-y-1">
-        <h1 className="text-lg font-semibold">Sign in</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Sign in</h1>
+        <p className="text-sm text-muted">
           Use the email address your organisation was invited with.
         </p>
       </div>
@@ -88,7 +88,7 @@ export function SignInScreen() {
         <p
           data-testid="verification"
           role="status"
-          className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+          className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
         >
           {verification.isSuccess
             ? 'Your email address is confirmed. Sign in below.'
@@ -141,7 +141,7 @@ export function SignInScreen() {
             server refuses to say whether it was the address or the password, and
             the screen does not invent that distinction. */}
         {signIn.error !== null && (
-          <p role="alert" className="text-sm text-red-700 dark:text-red-400">
+          <p role="alert" className="text-sm text-danger">
             {signIn.error.message}
           </p>
         )}

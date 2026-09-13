@@ -50,8 +50,8 @@ export function OrdersScreen() {
   return (
     <div className="max-w-3xl space-y-4">
       <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-lg font-semibold">Orders</h1>
-        <span className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Orders</h1>
+        <span className="text-sm text-muted">
           {orders.data.total} in this product
         </span>
       </div>
@@ -73,8 +73,8 @@ export function OrdersScreen() {
               data-status={order.status}
               className={
                 selected === order.id
-                  ? 'rounded border border-neutral-400 bg-neutral-50 p-3 text-sm dark:border-neutral-600 dark:bg-neutral-900'
-                  : 'rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800'
+                  ? 'rounded border border-accent bg-accent-wash p-3 text-sm'
+                  : 'rounded-card border border-line bg-surface p-4 shadow-raise text-sm'
               }
             >
               <div className="flex flex-wrap items-center gap-2">
@@ -84,16 +84,16 @@ export function OrdersScreen() {
                   {order.status.replace(/_/g, ' ')}
                 </span>
                 {order.quote_id !== null && (
-                  <span className="text-xs text-neutral-500">from a quote</span>
+                  <span className="text-xs text-subtle">from a quote</span>
                 )}
-                <span className="ml-auto text-xs text-neutral-500">
+                <span className="ml-auto text-xs text-subtle">
                   {new Date(order.created_at).toLocaleString()}
                 </span>
               </div>
 
               <div className="mt-2 flex flex-wrap items-baseline gap-3">
                 <Amount money={order.gross} className="font-medium" />
-                <span className="text-xs text-neutral-500">
+                <span className="text-xs text-subtle">
                   net <Amount money={order.net} /> · VAT <Amount money={order.vat} />
                 </span>
               </div>
@@ -104,7 +104,7 @@ export function OrdersScreen() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   {confirming === order.id ? (
                     <>
-                      <span className="w-full text-xs text-neutral-700 dark:text-neutral-300">
+                      <span className="w-full text-xs text-muted">
                         Cancelling an order cannot be undone.
                       </span>
                       <Button
@@ -175,7 +175,7 @@ function PaymentGate({ order }: { order: Order }) {
     <ol className="mt-2 space-y-1 text-xs" data-testid="payment-gate">
       <li data-testid="gate-invoice">
         {order.invoice_id === null ? (
-          <span className="text-neutral-500">Not invoiced</span>
+          <span className="text-subtle">Not invoiced</span>
         ) : (
           <>
             Invoiced — <code>{order.invoice_id}</code>
@@ -184,7 +184,7 @@ function PaymentGate({ order }: { order: Order }) {
       </li>
       <li data-testid="gate-subscription">
         {order.subscription_id === null ? (
-          <span className="text-neutral-500">
+          <span className="text-subtle">
             Not provisioned — nothing starts before the invoice is paid
           </span>
         ) : (
@@ -202,7 +202,7 @@ function statusClass(status: Order['status']): string {
     case 'COMPLETED':
       return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200';
     case 'CANCELLED':
-      return 'bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300';
+      return 'bg-well text-muted';
     case 'AWAITING_PAYMENT':
       return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200';
     default:

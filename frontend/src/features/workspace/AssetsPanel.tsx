@@ -49,7 +49,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   return (
     <section className="space-y-3" data-testid="assets-panel">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-base font-semibold">Files</h2>
+        <h2 className="text-xl font-semibold">Files</h2>
 
         <Button
           type="button"
@@ -62,7 +62,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
         </Button>
       </div>
 
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+      <p className="text-sm text-muted">
         An export is queued rather than produced here — watch it finish in the status strip, then
         download it from this list.
       </p>
@@ -77,7 +77,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
           ref={fileInput}
           id="asset-file"
           type="file"
-          className="block w-full text-sm file:mr-3 file:min-h-[44px] file:rounded file:border-0 file:bg-neutral-900 file:px-3 file:text-sm file:text-white dark:file:bg-neutral-100 dark:file:text-neutral-900"
+          className="block w-full text-sm file:mr-3 file:min-h-[44px] file:rounded file:border-0 file:bg-inverse file:px-3 file:text-sm file:text-white dark:file:bg-well dark:file:text-ink"
           onChange={(event) => {
             const file = event.target.files?.[0];
 
@@ -109,11 +109,11 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
             <li
               key={asset.id}
               data-asset={asset.id}
-              className="rounded border border-neutral-200 p-3 text-sm md:flex md:items-center md:gap-3 dark:border-neutral-800"
+              className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm md:flex md:items-center md:gap-3"
             >
               <div className="min-w-0 md:flex-1">
                 <p className="truncate font-medium">{asset.filename}</p>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                <p className="text-xs text-muted">
                   {/* The sniffed type and the stored size, both the server's
                       answers. The checksum is shown because it is what makes a
                       corrupted download detectable. */}

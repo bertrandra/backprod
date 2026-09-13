@@ -28,7 +28,7 @@ export function statusClass(status: Job['status']): string {
     case 'FAILED':
       return 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200';
     case 'CANCELLED':
-      return 'bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300';
+      return 'bg-well text-muted';
     default:
       return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200';
   }
@@ -50,8 +50,8 @@ export function JobsScreen() {
   return (
     <div className="max-w-4xl space-y-4">
       <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-lg font-semibold">Background work</h1>
-        <span className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Background work</h1>
+        <span className="text-sm text-muted">
           {jobs.data.total} recorded
         </span>
       </div>
@@ -74,7 +74,7 @@ export function JobsScreen() {
                 key={job.id}
                 data-job={job.id}
                 data-status={job.status}
-                className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+                className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span
@@ -84,12 +84,12 @@ export function JobsScreen() {
                   </span>
                   <code className="text-xs">{job.type}</code>
 
-                  <span className="ml-auto text-xs text-neutral-500">
+                  <span className="ml-auto text-xs text-subtle">
                     {new Date(job.created_at).toLocaleString()}
                   </span>
                 </div>
 
-                <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+                <p className="mt-1 text-xs text-muted">
                   attempt {job.attempts} of {job.max_attempts}
                   {isUnfinished(job) && ` · not before ${new Date(job.run_after).toLocaleString()}`}
                 </p>

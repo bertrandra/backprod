@@ -32,13 +32,13 @@ export function CreditNotesScreen() {
   return (
     <div className="max-w-3xl space-y-4">
       <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-lg font-semibold">Credit notes</h1>
-        <span className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Credit notes</h1>
+        <span className="text-sm text-muted">
           {creditNotes.data.total} issued
         </span>
       </div>
 
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+      <p className="text-sm text-muted">
         A credit note corrects an invoice that is already final. Its number comes from its own
         sequence, and the invoice it corrects keeps its own number and totals.
       </p>
@@ -54,7 +54,7 @@ export function CreditNotesScreen() {
             <li
               key={note.id}
               data-credit-note={note.id}
-              className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+              className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <code data-testid="credit-note-number" className="text-xs">
@@ -63,7 +63,7 @@ export function CreditNotesScreen() {
                 {/* Stated, not inferred from a sign. */}
                 <span
                   data-testid="direction"
-                  className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs font-medium dark:bg-neutral-800"
+                  className="rounded bg-well px-1.5 py-0.5 text-xs font-medium"
                 >
                   {note.direction}
                 </span>
@@ -72,22 +72,22 @@ export function CreditNotesScreen() {
                 </span>
               </div>
 
-              <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+              <p className="mt-1 text-xs text-muted">
                 net <Amount money={note.net} /> · VAT <Amount money={note.vat} /> · issued{' '}
                 {new Date(note.issued_at).toLocaleDateString()}
               </p>
 
-              <p className="mt-1 text-xs text-neutral-500">
+              <p className="mt-1 text-xs text-subtle">
                 corrects invoice <code>{note.invoice_id}</code>
                 {note.reason !== null && ` — ${note.reason}`}
               </p>
 
               {note.lines.length > 0 && (
-                <ul className="mt-2 space-y-1 border-t border-neutral-200 pt-2 text-xs dark:border-neutral-800">
+                <ul className="mt-2 space-y-1 border-t border-line pt-2 text-xs">
                   {note.lines.map((line) => (
                     <li key={line.position} className="flex flex-wrap gap-2">
                       <span className="min-w-0 flex-1 truncate">{line.description}</span>
-                      <span className="text-neutral-500">
+                      <span className="text-subtle">
                         VAT {formatVatRate(line.vat_rate_basis_points)}
                       </span>
                       <Amount money={line.net} />

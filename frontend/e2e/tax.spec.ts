@@ -235,7 +235,15 @@ test.describe('closing a period', () => {
 
     // In flight: nothing claims a declaration exists, because its figures are
     // the server's to compute and this client cannot know them.
-    await expect(page.getByRole('button', { name: 'Working…' })).toBeVisible();
+    //
+    // Asserted on the *state* rather than on a label. The button used to rename
+    // itself to "Working…" while a write was in flight, which lost the person
+    // what they had pressed; it now keeps its label, turns a spinner and says
+    // `aria-busy`, which is what a screen reader needs and what this checks.
+    await expect(page.getByRole('button', { name: 'Close it permanently' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
     await expect(page.getByTestId('declaration')).toHaveCount(0);
 
     await expect(page.getByTestId('declaration')).toBeVisible({ timeout: 10_000 });

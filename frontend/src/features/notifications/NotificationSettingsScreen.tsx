@@ -66,7 +66,7 @@ export function NotificationSettingsScreen() {
   return (
     <div className="max-w-3xl space-y-8">
       <section className="space-y-3">
-        <h1 className="text-lg font-semibold">Notification settings</h1>
+        <h1 className="text-2xl font-semibold">Notification settings</h1>
 
         {save.error !== null && <ErrorSurface error={save.error} />}
 
@@ -74,13 +74,13 @@ export function NotificationSettingsScreen() {
           <table className="w-full text-sm">
             <thead>
               <tr>
-                <th className="py-2 pr-4 text-left text-xs uppercase tracking-wide text-neutral-500">
+                <th className="py-2 pr-4 text-left text-xs uppercase tracking-wide text-subtle">
                   Category
                 </th>
                 {CHANNELS.map((channel) => (
                   <th
                     key={channel}
-                    className="px-2 py-2 text-center text-xs uppercase tracking-wide text-neutral-500"
+                    className="px-2 py-2 text-center text-xs uppercase tracking-wide text-subtle"
                   >
                     {channel}
                   </th>
@@ -89,11 +89,11 @@ export function NotificationSettingsScreen() {
             </thead>
             <tbody>
               {CATEGORIES.map((category) => (
-                <tr key={category} className="border-t border-neutral-200 dark:border-neutral-800">
+                <tr key={category} className="border-t border-line">
                   <th scope="row" className="py-2 pr-4 text-left font-medium">
                     {category}
                     {isUndisableable(category) && (
-                      <span className="ml-2 text-xs font-normal text-neutral-500">always on</span>
+                      <span className="ml-2 text-xs font-normal text-subtle">always on</span>
                     )}
                   </th>
                   {CHANNELS.map((channel) => {
@@ -125,9 +125,9 @@ export function NotificationSettingsScreen() {
         </div>
       </section>
 
-      <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-        <h2 className="text-base font-semibold">Consents</h2>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+      <section className="space-y-3 border-t border-line pt-6">
+        <h2 className="text-xl font-semibold">Consents</h2>
+        <p className="text-sm text-muted">
           SMS and WhatsApp need consent that can be proved and revoked. Revoking records a
           date — the row stays, because deleting it would destroy the proof that permission once
           existed.
@@ -146,13 +146,13 @@ export function NotificationSettingsScreen() {
                 key={consent.id}
                 data-testid="consent"
                 data-live={consent.live ? 'true' : 'false'}
-                className="rounded border border-neutral-200 p-3 text-sm md:flex md:items-center md:gap-4 dark:border-neutral-800"
+                className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm md:flex md:items-center md:gap-4"
               >
                 <div className="min-w-0 md:flex-1">
                   <p className="font-medium">
                     {consent.channel} — {consent.purpose}
                   </p>
-                  <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                  <p className="text-xs text-muted">
                     granted {new Date(consent.granted_at).toLocaleDateString()} via {consent.source}
                     {consent.revoked_at !== null &&
                       ` · revoked ${new Date(consent.revoked_at).toLocaleDateString()}`}
@@ -169,7 +169,7 @@ export function NotificationSettingsScreen() {
                     Revoke
                   </Button>
                 ) : (
-                  <span className="text-xs text-neutral-500">Revoked</span>
+                  <span className="text-xs text-subtle">Revoked</span>
                 )}
               </li>
             ))}

@@ -73,13 +73,13 @@ export function StorefrontScreen() {
   return (
     <div className="max-w-3xl space-y-6">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Storefront</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Storefront</h1>
+        <p className="text-sm text-muted">
           What somebody with no account sees for <strong>{offers.data.product.name}</strong>. Being
           on sale and being advertised are different decisions: an offer withdrawn from here stays
           sellable, and everybody already subscribed to it keeps their terms.
         </p>
-        <p data-testid="advertised-count" className="text-xs text-neutral-500">
+        <p data-testid="advertised-count" className="text-xs text-subtle">
           {listed} of {offers.data.offers.length} advertised publicly.
         </p>
       </header>
@@ -98,11 +98,11 @@ export function StorefrontScreen() {
               key={offer.id}
               data-offer={offer.id}
               data-advertised={offer.publicly_listed ? 'true' : 'false'}
-              className="rounded border border-neutral-200 p-3 text-sm sm:flex sm:items-center sm:gap-4 dark:border-neutral-800"
+              className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm sm:flex sm:items-center sm:gap-4"
             >
               <div className="min-w-0 sm:flex-1">
                 <p className="font-medium">{offer.name}</p>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                <p className="text-xs text-muted">
                   <code>{offer.code}</code> · {offer.plan.name} · {offer.versions.length} version
                   {offer.versions.length === 1 ? '' : 's'}
                 </p>
@@ -111,7 +111,7 @@ export function StorefrontScreen() {
               <div className="mt-3 flex items-center gap-3 sm:mt-0">
                 <span
                   data-testid="listing-state"
-                  className="text-xs text-neutral-600 dark:text-neutral-400"
+                  className="text-xs text-muted"
                 >
                   {offer.publicly_listed ? 'On the public page' : 'Not advertised'}
                 </span>

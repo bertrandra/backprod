@@ -43,11 +43,11 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
   return (
     <div className="max-w-2xl space-y-6">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Checkout</h1>
+        <h1 className="text-2xl font-semibold">Checkout</h1>
         {/* Said out loud rather than hidden behind the word "session": the id is
             the order's, so somebody comparing this screen with /orders sees the
             same number in both places. */}
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-subtle">
           This is order <code>{current.order_id}</code>.
         </p>
       </header>
@@ -66,7 +66,7 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
             // Polling, and saying so. Activation is payment-gated and the money
             // arrives through a webhook, so the page is waiting on something
             // that is genuinely elsewhere.
-            <span data-testid="checkout-waiting" className="text-xs text-neutral-500">
+            <span data-testid="checkout-waiting" className="text-xs text-subtle">
               waiting for the payment to be confirmed…
             </span>
           )}
@@ -74,19 +74,19 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
 
         <dl className="grid grid-cols-3 gap-3 text-sm">
           <div>
-            <dt className="text-xs text-neutral-500">Net</dt>
+            <dt className="text-xs text-subtle">Net</dt>
             <dd>
               <Amount money={current.net} />
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-neutral-500">VAT</dt>
+            <dt className="text-xs text-subtle">VAT</dt>
             <dd>
               <Amount money={current.vat} />
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-neutral-500">Total</dt>
+            <dt className="text-xs text-subtle">Total</dt>
             <dd className="font-medium">
               <Amount money={current.gross} />
             </dd>
@@ -94,15 +94,15 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
         </dl>
       </section>
 
-      <section className="space-y-2 border-t border-neutral-200 pt-4 text-sm dark:border-neutral-800">
-        <h2 className="text-base font-semibold">What has happened</h2>
+      <section className="space-y-2 border-t border-line pt-4 text-sm">
+        <h2 className="text-xl font-semibold">What has happened</h2>
 
         {/* Two steps, never collapsed into one. An invoice exists from fulfilment;
             a subscription only once the money arrived. */}
         <ol className="space-y-1">
           <li data-testid="step-invoice">
             {current.invoice_id === null ? (
-              <span className="text-neutral-500">
+              <span className="text-subtle">
                 Not invoiced yet
                 <span className="ml-1 text-xs">
                   (or nothing to collect — a free offer raises no invoice)
@@ -116,7 +116,7 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
           </li>
           <li data-testid="step-subscription">
             {current.subscription_id === null ? (
-              <span className="text-neutral-500">
+              <span className="text-subtle">
                 Not started — nothing is provisioned before the money arrives
               </span>
             ) : (
@@ -141,7 +141,7 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
             The order is intact and nothing has been charged. Retrying starts a new attempt — the
             credential from the last one is deliberately not kept, so it cannot be resumed.
           </p>
-          <p className="text-xs text-neutral-600 dark:text-neutral-400">
+          <p className="text-xs text-muted">
             Retrying a payment is on the payment itself, which arrives with billing.
           </p>
         </section>
@@ -164,7 +164,7 @@ function statusClass(status: string): string {
     case 'PAYMENT_FAILED':
       return 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200';
     case 'CANCELLED':
-      return 'bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300';
+      return 'bg-well text-muted';
     default:
       return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200';
   }

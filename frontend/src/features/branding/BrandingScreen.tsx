@@ -67,7 +67,7 @@ export function BrandingScreen() {
 
   return (
     <div className="max-w-lg space-y-6">
-      <h1 className="text-lg font-semibold">Branding</h1>
+      <h1 className="text-2xl font-semibold">Branding</h1>
 
       {/* The two refusals, told apart. Shown above the form rather than instead
           of it, because the current values are worth seeing either way. */}
@@ -117,7 +117,7 @@ export function BrandingScreen() {
               <span
                 aria-hidden="true"
                 data-testid={`${which}-swatch`}
-                className="size-9 shrink-0 rounded border border-neutral-300 dark:border-neutral-700"
+                className="size-9 shrink-0 rounded-card border border-line bg-surface shadow-raise-strong"
                 style={{ backgroundColor: HEX.test(form.watch(which)) ? form.watch(which) : undefined }}
               />
             </div>
@@ -133,10 +133,10 @@ export function BrandingScreen() {
         )}
       </form>
 
-      <section className="space-y-3 border-t border-neutral-200 pt-4 dark:border-neutral-800">
-        <h2 className="text-base font-semibold">Logo</h2>
+      <section className="space-y-3 border-t border-line pt-4">
+        <h2 className="text-xl font-semibold">Logo</h2>
 
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <p className="text-sm text-muted">
           {skin.data.logo_asset_id === null
             ? 'No logo. The product’s own is used.'
             : 'A logo is set.'}

@@ -49,10 +49,12 @@ export function AppFrame({
     // `min-h-dvh` rather than `min-h-screen`: on mobile Safari `100vh` is taller
     // than the visible viewport, which puts the bottom nav under the browser
     // chrome — the one-handed reach §4.2 asks for, lost to a unit.
-    <div className="flex min-h-dvh flex-col bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+    <div className="flex min-h-dvh flex-col bg-canvas text-ink">
       <header
         data-region="context-bar"
-        className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-neutral-200 bg-white px-3 md:px-4 dark:border-neutral-800 dark:bg-neutral-900"
+        // A blur behind a translucent bar, so content scrolling under it stays
+        // faintly visible instead of disappearing at a hard edge.
+        className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-line bg-surface/85 px-3 backdrop-blur-md md:px-5"
       >
         {contextBar}
       </header>
@@ -64,7 +66,10 @@ export function AppFrame({
           // Hidden below md, where the bottom bar carries the same entries. Not
           // removed from the tree at build time — the same component, one
           // presentation per width.
-          className="hidden w-56 shrink-0 overflow-y-auto border-r border-neutral-200 p-3 md:block dark:border-neutral-800"
+          // Wider, on its own surface, and scrolling independently: a sidebar
+          // flush with the page ground is a list of links, and a sidebar that is
+          // a surface is a place.
+          className="hidden w-60 shrink-0 overflow-y-auto border-r border-line bg-surface px-3 py-4 md:block"
         >
           {primaryNav}
         </nav>
@@ -73,7 +78,7 @@ export function AppFrame({
           {viewHeader !== undefined && (
             <div
               data-region="view-header"
-              className="flex min-h-14 flex-wrap items-center gap-3 border-b border-neutral-200 px-3 py-2 md:px-4 dark:border-neutral-800"
+              className="flex min-h-14 flex-wrap items-center gap-3 border-b border-line bg-surface px-3 py-2 md:px-5"
             >
               {viewHeader}
             </div>
@@ -86,7 +91,10 @@ export function AppFrame({
               // Bottom padding on a phone so the last row is not sitting under
               // the bottom bar.
               className={cn(
-                'min-w-0 flex-1 overflow-y-auto p-3 md:p-4',
+                // Room to breathe, and a measure the eye can follow. The old
+                // 16px on a 1400px screen put a form's label a third of a metre
+                // from its field.
+                'min-w-0 flex-1 overflow-y-auto p-4 md:p-6 lg:p-8',
                 bottomNav !== undefined && 'pb-24 md:pb-4',
               )}
             >
@@ -101,7 +109,7 @@ export function AppFrame({
                 // flow — a sheet with snap points replaces this in the screens
                 // that need one, which is a per-screen decision rather than the
                 // frame's.
-                className="w-full shrink-0 overflow-y-auto border-t border-neutral-200 p-3 lg:w-80 lg:border-t-0 lg:border-l lg:p-4 dark:border-neutral-800"
+                className="w-full shrink-0 overflow-y-auto border-t border-line bg-surface p-4 lg:w-80 lg:border-t-0 lg:border-l lg:p-5"
               >
                 {inspector}
               </aside>
@@ -115,7 +123,7 @@ export function AppFrame({
           data-region="status-strip"
           // Above the bottom nav on a phone, so both stay reachable.
           className={cn(
-            'shrink-0 border-t border-neutral-200 bg-white px-3 py-1.5 text-xs md:px-4 dark:border-neutral-800 dark:bg-neutral-900',
+            'shrink-0 border-t border-line bg-white px-3 py-1.5 text-xs md:px-4',
             bottomNav !== undefined && 'mb-16 md:mb-0',
           )}
         >
@@ -127,7 +135,7 @@ export function AppFrame({
         <nav
           data-region="bottom-nav"
           aria-label="Sections"
-          className="fixed inset-x-0 bottom-0 z-30 border-t border-neutral-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden dark:border-neutral-800 dark:bg-neutral-900"
+          className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] md:hidden"
         >
           {bottomNav}
         </nav>

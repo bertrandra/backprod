@@ -164,7 +164,7 @@ export function ConnectionState() {
           ? 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200'
           : state === 'paused'
             ? 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200'
-            : 'bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'
+            : 'bg-well text-muted'
       }`}
     >
       {state === 'paused'

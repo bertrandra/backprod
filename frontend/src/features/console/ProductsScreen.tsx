@@ -59,8 +59,8 @@ export function ProductsScreen() {
   return (
     <div className="max-w-3xl space-y-6">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Products</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Products</h1>
+        <p className="text-sm text-muted">
           Everything this platform hosts. A product is what tenants belong to and what offers are
           priced for — its <strong>code</strong> is what clients send as <code>X-Product</code> and
           what the public storefront reads from <code>?product=</code>.
@@ -102,10 +102,10 @@ export function ProductsScreen() {
         )}
       </section>
 
-      <section className="space-y-3 border-t border-neutral-200 pt-4 dark:border-neutral-800">
-        <h2 className="text-base font-semibold">Add a product</h2>
+      <section className="space-y-3 border-t border-line pt-4">
+        <h2 className="text-xl font-semibold">Add a product</h2>
 
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <p className="text-sm text-muted">
           The code cannot be changed afterwards. A new product starts with no plans, no offers and
           no tenants — nothing is copied from an existing one.
         </p>
@@ -189,7 +189,7 @@ function ProductRow({
     <li
       data-product={product.code}
       data-active={product.active ? 'true' : 'false'}
-      className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+      className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
     >
       <div className="flex flex-wrap items-baseline gap-2">
         <span className="font-medium">{product.name}</span>
@@ -197,14 +197,14 @@ function ProductRow({
         {/* Selectable, because copying it is the single commonest reason
             anybody opens this screen: it is what a deployment's
             VITE_DEFAULT_PRODUCT and every `?product=` link have to match. */}
-        <code data-testid="product-code" className="select-all rounded bg-neutral-100 px-1.5 py-0.5 text-xs dark:bg-neutral-900">
+        <code data-testid="product-code" className="select-all rounded bg-well px-1.5 py-0.5 text-xs">
           {product.code}
         </code>
 
         {!product.active && (
           <span
             data-testid="retired"
-            className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs dark:bg-neutral-800"
+            className="rounded bg-well px-1.5 py-0.5 text-xs"
           >
             retired
           </span>
@@ -270,12 +270,12 @@ function ProductRow({
       )}
 
       {product.active ? (
-        <p className="mt-2 text-xs text-neutral-500">
+        <p className="mt-2 text-xs text-subtle">
           Retiring closes every door into this product. Its tenants, subscriptions and invoices
           stay — an invoice is a legal document and nothing here deletes one.
         </p>
       ) : (
-        <p data-testid="retired-note" className="mt-2 text-xs text-neutral-500">
+        <p data-testid="retired-note" className="mt-2 text-xs text-subtle">
           Nobody can sign in to this product or buy from it. Its records are untouched.
         </p>
       )}

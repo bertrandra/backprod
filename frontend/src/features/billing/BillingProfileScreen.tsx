@@ -72,8 +72,8 @@ export function BillingProfileScreen() {
   return (
     <div className="max-w-md space-y-6">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Billing identity</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Billing identity</h1>
+        <p className="text-sm text-muted">
           This is what appears on invoices. It is copied onto each document when the document is
           issued, so changing it here affects future invoices and never one already sent.
         </p>
@@ -169,7 +169,7 @@ export function BillingProfileScreen() {
         </Button>
 
         {save.isSuccess && (
-          <p data-testid="saved" className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p data-testid="saved" className="text-sm text-muted">
             Saved. Invoices issued from now on will carry this.
           </p>
         )}

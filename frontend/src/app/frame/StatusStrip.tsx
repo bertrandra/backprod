@@ -84,7 +84,7 @@ export function StatusStrip() {
 
   if (!allowed || (running.length === 0 && finished.length === 0)) {
     return (
-      <p data-testid="status-strip-idle" className="text-neutral-500">
+      <p data-testid="status-strip-idle" className="text-subtle">
         No background work
       </p>
     );

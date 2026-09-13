@@ -75,8 +75,8 @@ export function SignUpForm({
   return (
     <main className="mx-auto max-w-sm space-y-6 p-4 py-10">
       <div className="space-y-1">
-        <h1 className="text-lg font-semibold">Create your account</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Create your account</h1>
+        <p className="text-sm text-muted">
           You will be able to pay straight after. We will email you a link to confirm your address —
           your account works in the meantime.
         </p>
@@ -84,7 +84,7 @@ export function SignUpForm({
 
       <div
         data-testid="chosen-offer"
-        className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+        className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
       >
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <span className="font-medium">{offer.name}</span>
@@ -196,7 +196,7 @@ export function SignUpForm({
             sentence comes from `queries/auth.ts`, which is the one place that
             turns a status into words. */}
         {signUp.error !== null && (
-          <p role="alert" className="text-sm text-red-700 dark:text-red-400">
+          <p role="alert" className="text-sm text-danger">
             {signUp.error.message}
           </p>
         )}
@@ -206,7 +206,7 @@ export function SignUpForm({
         </Button>
       </form>
 
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+      <p className="text-sm text-muted">
         Already have an account?{' '}
         <button
           type="button"

@@ -72,8 +72,8 @@ export function ProjectsScreen() {
   return (
     <div className="max-w-4xl space-y-6">
       <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-lg font-semibold">{showingBin ? 'Deleted projects' : 'Projects'}</h1>
-        <span className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">{showingBin ? 'Deleted projects' : 'Projects'}</h1>
+        <span className="text-sm text-muted">
           {projects.data.total} {showingBin ? 'deleted' : 'in this product'}
         </span>
         {/* Wrapped rather than given `className`: `Button` sets its own and a
@@ -112,11 +112,11 @@ export function ProjectsScreen() {
               key={project.id}
               data-project={project.id}
               data-deleted="true"
-              className="flex flex-wrap items-center gap-3 rounded border border-neutral-200 p-3 dark:border-neutral-800"
+              className="flex flex-wrap items-center gap-3 rounded-card border border-line bg-surface p-4 shadow-raise"
             >
               <span className="min-w-0 flex-1">
                 <span className="block font-medium">{project.name}</span>
-                <span data-testid="deleted-at" className="text-xs text-neutral-500">
+                <span data-testid="deleted-at" className="text-xs text-subtle">
                   {/* Not a link: a deleted project has no screen to open, and a
                       row that looked clickable and was not would be worse than
                       one that plainly is not. */}
@@ -144,15 +144,15 @@ export function ProjectsScreen() {
               <Link
                 to="/projects/$projectId"
                 params={{ projectId: project.id }}
-                className="block rounded border border-neutral-200 p-3 hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 dark:border-neutral-800 dark:hover:bg-neutral-900"
+                className="block rounded-card border border-line bg-surface p-4 shadow-raise hover:bg-canvas focus-visible:outline-2 focus-visible:outline-offset-2 dark:hover:bg-inverse"
               >
                 <span className="block font-medium">{project.name}</span>
                 {project.description !== null && (
-                  <span className="block truncate text-sm text-neutral-600 dark:text-neutral-400">
+                  <span className="block truncate text-sm text-muted">
                     {project.description}
                   </span>
                 )}
-                <span className="text-xs text-neutral-500">
+                <span className="text-xs text-subtle">
                   schema v{project.schema_version} · updated{' '}
                   {new Date(project.updated_at).toLocaleString()}
                 </span>
@@ -163,8 +163,8 @@ export function ProjectsScreen() {
       )}
 
       {!showingBin && (
-      <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-        <h2 className="text-base font-semibold">New project</h2>
+      <section className="space-y-3 border-t border-line pt-6">
+        <h2 className="text-xl font-semibold">New project</h2>
 
         {configuration.isPending ? (
           <SkeletonRows rows={2} />
@@ -235,7 +235,7 @@ export function ProjectsScreen() {
               // One choice is not a choice. Shown, because the version ends up
               // on the row and someone reading it later should know where it
               // came from.
-              <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              <p className="text-sm text-muted">
                 Document schema v{newest} — the only version this product accepts.
               </p>
             )}

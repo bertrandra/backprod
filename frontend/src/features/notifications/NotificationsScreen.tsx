@@ -31,8 +31,8 @@ export function NotificationsScreen() {
   return (
     <div className="max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-lg font-semibold">Notifications</h1>
-        <span className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Notifications</h1>
+        <span className="text-sm text-muted">
           {inbox.data.unread} unread of {inbox.data.total}
         </span>
         {inbox.data.unread > 0 && (
@@ -64,12 +64,12 @@ export function NotificationsScreen() {
               data-unread={notification.read_at === null ? 'true' : 'false'}
               className={
                 notification.read_at === null
-                  ? 'rounded border-l-4 border-l-neutral-900 border-y border-r border-neutral-200 p-3 dark:border-neutral-800 dark:border-l-neutral-100'
-                  : 'rounded border border-neutral-200 p-3 dark:border-neutral-800'
+                  ? 'rounded border-l-4 border-l-accent border-y border-r border-line p-3'
+                  : 'rounded-card border border-line bg-surface p-4 shadow-raise'
               }
             >
               <div className="flex flex-wrap items-baseline gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                <span className="text-xs font-semibold uppercase tracking-wide text-subtle">
                   {notification.category}
                 </span>
                 <code className="text-xs">{notification.type}</code>
@@ -80,7 +80,7 @@ export function NotificationsScreen() {
                     legal notice
                   </span>
                 )}
-                <time className="ml-auto text-xs text-neutral-500" dateTime={notification.created_at}>
+                <time className="ml-auto text-xs text-subtle" dateTime={notification.created_at}>
                   {new Date(notification.created_at).toLocaleString()}
                 </time>
               </div>
@@ -105,7 +105,7 @@ export function NotificationsScreen() {
               </div>
 
               {expanded === notification.id && (
-                <div className="mt-3 rounded bg-neutral-100 p-2 text-xs dark:bg-neutral-900">
+                <div className="mt-3 rounded bg-well p-2 text-xs">
                   {deliveries.isPending ? (
                     <SkeletonRows rows={2} />
                   ) : deliveries.error !== null ? (
