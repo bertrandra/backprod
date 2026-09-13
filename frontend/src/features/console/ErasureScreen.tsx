@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { RETENTION_GROUNDS, useEraseUser, type Erasure, type RetentionGround } from '@/queries/admin';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { panel } from '@/ui/tone';
 
 /**
  * `console.admin.erasure` — the right to be forgotten, against the duty to keep.
@@ -43,7 +44,7 @@ export function ErasureScreen() {
 
       <section
         data-testid="retention-grounds"
-        className="space-y-3 rounded border border-amber-300 p-4 text-sm dark:border-amber-800"
+        className={`${panel('warning')} space-y-3`}
       >
         <h2 className="font-semibold">What will be kept, and why</h2>
         <p className="text-muted">

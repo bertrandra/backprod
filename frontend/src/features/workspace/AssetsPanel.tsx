@@ -77,7 +77,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
           ref={fileInput}
           id="asset-file"
           type="file"
-          className="block w-full text-sm file:mr-3 file:min-h-[44px] file:rounded file:border-0 file:bg-inverse file:px-3 file:text-sm file:text-white dark:file:bg-well dark:file:text-ink"
+          className="block w-full text-sm file:mr-3 file:min-h-[44px] file:rounded-control file:border-0 file:bg-inverse file:px-3 file:text-sm file:text-on-inverse"
           onChange={(event) => {
             const file = event.target.files?.[0];
 

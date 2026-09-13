@@ -45,18 +45,18 @@ const STATUS: Record<string, { label: string; explanation: string; tone: string 
   VERIFIED: {
     label: 'Verified',
     explanation: 'The number was checked against the registry and the registry recognised it.',
-    tone: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200',
+    tone: 'success',
   },
   INVALID: {
     label: 'Invalid',
     explanation: 'The registry was asked and answered that this number is not one of its own.',
-    tone: 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200',
+    tone: 'danger',
   },
   UNAVAILABLE: {
     label: 'Unavailable',
     explanation:
       'The registry was asked and gave no answer. That is not a refusal and not a verification — the number stays unproved until the check succeeds.',
-    tone: 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200',
+    tone: 'warning',
   },
 };
 

@@ -18,6 +18,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { Amount, formatVatRate } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { panel } from '@/ui/tone';
 
 /**
  * `tax.reports` — periods, the figures behind them, and the one action in this
@@ -134,8 +135,8 @@ function StatusBadge({ period }: { period: VatPeriod }) {
       data-status={period.status}
       className={`rounded px-2 py-0.5 text-xs font-medium ${
         isClosed(period)
-          ? 'bg-well text-muted'
-          : 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200'
+          ? 'neutral'
+          : 'success'
       }`}
     >
       {isClosed(period) ? 'Closed' : 'Open'}
@@ -247,7 +248,7 @@ function CloseSection({ period, mayManage }: { period: VatPeriod; mayManage: boo
   }
 
   return (
-    <div className="space-y-3 rounded border border-amber-300 p-4 dark:border-amber-800">
+    <div className={`${panel('warning')} space-y-3`}>
       <h3 className="text-sm font-semibold">Close this period</h3>
 
       {close.error !== null && <ErrorSurface error={close.error} />}
@@ -377,7 +378,7 @@ function Totals({ totals }: { totals: Record<string, unknown> }) {
       {/* A declaration carries one currency, so a period holding two cannot be
           closed. Said here rather than discovered from a 409. */}
       {currencies.length > 1 && (
-        <p data-testid="mixed-currencies" className="text-amber-800 dark:text-amber-300">
+        <p data-testid="mixed-currencies" className="text-warning">
           This period holds transactions in {currencies.join(', ')}. A declaration carries one
           currency, so it cannot be closed while that is true.
         </p>

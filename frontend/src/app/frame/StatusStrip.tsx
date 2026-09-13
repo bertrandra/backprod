@@ -5,6 +5,7 @@ import { can } from '@/app/access/access';
 import { exportedAssetId, useCreateAssetLink } from '@/queries/assets';
 import { isUnfinished, useJobs, type Job } from '@/queries/jobs';
 import { useSession } from '@/queries/session';
+import { pill } from '@/ui/tone';
 
 /**
  * Region E, made real.
@@ -95,7 +96,7 @@ export function StatusStrip() {
       {running.length > 0 && (
         <span
           data-testid="running-count"
-          className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-200"
+          className={pill('warning')}
         >
           {running.length} running
         </span>
@@ -108,7 +109,7 @@ export function StatusStrip() {
           <span
             key={job.id}
             data-finished={job.id}
-            className="flex items-center gap-2 rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200"
+            className={`${pill('success')} gap-2`}
           >
             {job.type} {job.status.toLowerCase()}
             {assetId !== null && (

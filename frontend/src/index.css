@@ -110,6 +110,12 @@
   --color-warning-wash: var(--ds-warning-wash);
   --color-danger: var(--ds-danger);
   --color-danger-wash: var(--ds-danger-wash);
+  /* Neither good nor bad: in flight. A job running, an invoice sent, an order
+     awaiting payment. It is a token of its own and not the accent, because the
+     accent is a *tenant's* colour to override — a brand set to pink would
+     otherwise repaint every “running” badge in the application. */
+  --color-info: var(--ds-info);
+  --color-info-wash: var(--ds-info-wash);
 
   --radius-card: 0.625rem;
   --radius-control: 0.5rem;
@@ -160,6 +166,8 @@
   --ds-warning-wash: #fdefd9;
   --ds-danger: #a52131;
   --ds-danger-wash: #fbe6e8;
+  --ds-info: #17548c;
+  --ds-info-wash: #e4eefa;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -192,6 +200,8 @@
     --ds-warning-wash: #2e2008;
     --ds-danger: #ff8794;
     --ds-danger-wash: #35151b;
+    --ds-info: #79c0f7;
+    --ds-info-wash: #0c2438;
 
     --shadow-raise: 0 1px 2px 0 rgb(0 0 0 / 0.5);
     --shadow-float: 0 10px 30px -10px rgb(0 0 0 / 0.7), 0 2px 8px -2px rgb(0 0 0 / 0.5);

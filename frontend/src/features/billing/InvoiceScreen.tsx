@@ -16,8 +16,9 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount, formatVatRate } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { pill, type Tone } from '@/ui/tone';
 
-import { InvoiceNumber, statusClass } from './InvoicesScreen';
+import { InvoiceNumber, statusTone } from './InvoicesScreen';
 
 /**
  * One invoice: the document, its money, and everything that can happen to it.
@@ -69,7 +70,7 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
           <h1 className="text-2xl font-semibold">Invoice</h1>
           <span
             data-testid="invoice-status"
-            className={`rounded px-2 py-0.5 text-xs font-medium ${statusClass(current.status)}`}
+            className={pill(statusTone(current.status))}
           >
             {current.status}
           </span>
@@ -479,7 +480,7 @@ function Transmissions({
                 <span className="font-medium">{transmission.provider}</span>
                 <span
                   data-testid="transmission-state"
-                  className={`rounded px-1.5 py-0.5 text-xs font-medium ${transmissionClass(transmission.status)}`}
+                  className={pill(transmissionTone(transmission.status))}
                 >
                   {transmission.status}
                 </span>
@@ -489,7 +490,7 @@ function Transmissions({
               </div>
 
               {transmission.status === 'REJECTED' ? (
-                <p data-testid="rejection" className="text-xs text-red-700 dark:text-red-300">
+                <p data-testid="rejection" className="text-xs text-danger">
                   Rejected
                   {transmission.rejection_code !== null && ` (${transmission.rejection_code})`}
                   {transmission.rejection_reason !== null && `: ${transmission.rejection_reason}`}
@@ -535,15 +536,15 @@ function Transmissions({
   );
 }
 
-function transmissionClass(status: string): string {
+function transmissionTone(status: string): Tone {
   switch (status) {
     case 'ACCEPTED':
-      return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200';
+      return 'success';
     case 'REJECTED':
-      return 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200';
+      return 'danger';
     case 'SUBMITTED':
-      return 'bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-200';
+      return 'info';
     default:
-      return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200';
+      return 'warning';
   }
 }

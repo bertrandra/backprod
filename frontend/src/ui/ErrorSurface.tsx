@@ -1,4 +1,5 @@
 import { ApiError } from '@/queries/session';
+import { panel } from '@/ui/tone';
 
 /**
  * A failure, rendered as something a person can act on.
@@ -73,17 +74,17 @@ export function ErrorSurface({ error, onRetry }: { error: unknown; onRetry?: () 
   return (
     <div
       role="alert"
-      className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm dark:border-red-900 dark:bg-red-950/40"
+      className={panel('danger')}
     >
-      <p className="font-medium text-red-900 dark:text-red-200">{title}</p>
-      <p className="mt-1 text-red-800 dark:text-red-300">{message}</p>
+      <p className="font-medium text-danger">{title}</p>
+      <p className="mt-1 text-danger">{message}</p>
 
       {chosen?.hint !== undefined && (
         <p className="mt-1 text-danger">{chosen.hint}</p>
       )}
 
       {details.length > 0 && (
-        <ul className="mt-2 list-inside list-disc text-red-800 dark:text-red-300">
+        <ul className="mt-2 list-inside list-disc text-danger">
           {details.map((line) => (
             <li key={line}>{line}</li>
           ))}
@@ -95,7 +96,7 @@ export function ErrorSurface({ error, onRetry }: { error: unknown; onRetry?: () 
           <button
             type="button"
             onClick={onRetry}
-            className="rounded border border-red-400 px-2 py-1 font-medium text-red-900 hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:text-red-200 dark:hover:bg-red-900/40"
+            className="rounded-control border border-danger/40 px-2.5 py-1 font-medium text-danger transition-colors hover:bg-danger/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
           >
             Try again
           </button>

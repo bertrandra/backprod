@@ -161,10 +161,10 @@ export function ConnectionState() {
       aria-live="polite"
       className={`rounded px-2 py-0.5 text-xs font-medium ${
         state === 'unreachable'
-          ? 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200'
+          ? 'danger'
           : state === 'paused'
-            ? 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200'
-            : 'bg-well text-muted'
+            ? 'warning'
+            : 'neutral'
       }`}
     >
       {state === 'paused'

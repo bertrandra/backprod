@@ -108,22 +108,38 @@ export function ReadinessScreen() {
         </p>
       </header>
 
+      {/*
+        One card, and a dot that says which state it is in.
+
+        The two branches used to be different objects — a surface card for
+        “can be bought” and a raw amber block for “not yet” — so the page
+        changed shape on the transition that matters most, and the amber was the
+        last thing on this screen still painted outside the token system. The
+        card is the same either way; the colour is carried by 6px of dot, the
+        way the platform band carries its own.
+      */}
       {sellable ? (
         <p
           data-testid="sellable"
-          className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
+          className="flex items-start gap-2.5 rounded-card border border-line bg-surface p-4 text-sm shadow-raise"
         >
-          <strong>This product can be bought.</strong> Somebody with no account can reach the public
-          page, choose an offer, create an account and pay for it.
+          <span aria-hidden="true" className="mt-1.5 size-1.5 shrink-0 rounded-full bg-success" />
+          <span>
+            <strong>This product can be bought.</strong> Somebody with no account can reach the
+            public page, choose an offer, create an account and pay for it.
+          </span>
         </p>
       ) : (
         <p
           data-testid="not-sellable"
           role="status"
-          className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100"
+          className="flex items-start gap-2.5 rounded-card border border-line bg-surface p-4 text-sm shadow-raise"
         >
-          <strong>Not on sale yet.</strong> {blockingCount(steps)} step
-          {blockingCount(steps) === 1 ? '' : 's'} left before a stranger can buy from this product.
+          <span aria-hidden="true" className="mt-1.5 size-1.5 shrink-0 rounded-full bg-warning" />
+          <span>
+            <strong>Not on sale yet.</strong> {blockingCount(steps)} step
+            {blockingCount(steps) === 1 ? '' : 's'} left before a stranger can buy from this product.
+          </span>
         </p>
       )}
 

@@ -17,6 +17,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { pill, type Tone } from '@/ui/tone';
 
 /**
  * `tenant.subscription` — and the distinction §13.1 exists to protect.
@@ -90,7 +91,7 @@ export function SubscriptionScreen() {
           <span
             data-testid="subscription-status"
             data-status={current.status}
-            className={`rounded px-2 py-0.5 text-xs font-medium ${statusClass(current.status)}`}
+            className={pill(statusTone(current.status))}
           >
             {current.status}
           </span>
@@ -366,13 +367,13 @@ function TermsSummary({ terms }: { terms: Record<string, unknown> }) {
   );
 }
 
-function statusClass(status: string): string {
+function statusTone(status: string): Tone {
   switch (status) {
     case 'ACTIVE':
-      return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200';
+      return 'success';
     case 'CANCELLED':
-      return 'bg-well text-muted';
+      return 'neutral';
     default:
-      return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200';
+      return 'warning';
   }
 }

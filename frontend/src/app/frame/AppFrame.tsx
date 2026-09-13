@@ -123,7 +123,7 @@ export function AppFrame({
           data-region="status-strip"
           // Above the bottom nav on a phone, so both stay reachable.
           className={cn(
-            'shrink-0 border-t border-line bg-white px-3 py-1.5 text-xs md:px-4',
+            'shrink-0 border-t border-line bg-surface px-3 py-1.5 text-xs md:px-4',
             bottomNav !== undefined && 'mb-16 md:mb-0',
           )}
         >
@@ -135,7 +135,7 @@ export function AppFrame({
         <nav
           data-region="bottom-nav"
           aria-label="Sections"
-          className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] md:hidden"
+          className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
         >
           {bottomNav}
         </nav>
