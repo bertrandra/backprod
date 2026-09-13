@@ -65,7 +65,7 @@ export function SubscriptionScreen() {
   if (current === null) {
     return (
       <div className="max-w-3xl space-y-6">
-        <h1 className="text-lg font-semibold">Subscription</h1>
+        <h1 className="text-2xl font-semibold">Subscription</h1>
         <EmptyState
           title="No subscription"
           description="Nothing is subscribed in this product yet. An offer from the catalogue starts one."
@@ -79,8 +79,8 @@ export function SubscriptionScreen() {
   return (
     <div className="max-w-3xl space-y-8">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Subscription</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Subscription</h1>
+        <p className="text-sm text-muted">
           {current.offer.name} · {current.offer.plan.name}
         </p>
       </header>
@@ -95,7 +95,7 @@ export function SubscriptionScreen() {
             {current.status}
           </span>
           {current.cancel_at_period_end && (
-            <span data-testid="cancelling" className="text-xs text-neutral-500">
+            <span data-testid="cancelling" className="text-xs text-subtle">
               ends at the period boundary
             </span>
           )}
@@ -104,12 +104,12 @@ export function SubscriptionScreen() {
         {/* The two facts, side by side and never merged. */}
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-xs uppercase tracking-wide text-neutral-500">Billed</dt>
+            <dt className="text-xs uppercase tracking-wide text-subtle">Billed</dt>
             <dd data-testid="periodicity">
               {current.offer.version.billing_period.toLowerCase()} ·{' '}
               <Amount money={current.offer.version.price} />
             </dd>
-            <dd className="text-xs text-neutral-500">
+            <dd className="text-xs text-subtle">
               period {new Date(current.current_period_start).toLocaleDateString()} —{' '}
               {current.current_period_end === null
                 ? 'open'
@@ -118,11 +118,11 @@ export function SubscriptionScreen() {
           </div>
 
           <div>
-            <dt className="text-xs uppercase tracking-wide text-neutral-500">Commitment</dt>
+            <dt className="text-xs uppercase tracking-wide text-subtle">Commitment</dt>
             <dd data-testid="commitment">
               {/* A different question from how often it is billed. */}
               {terms === null || terms === undefined ? (
-                <span className="text-neutral-500">None recorded</span>
+                <span className="text-subtle">None recorded</span>
               ) : (
                 <TermsSummary terms={terms} />
               )}
@@ -131,8 +131,8 @@ export function SubscriptionScreen() {
         </dl>
       </section>
 
-      <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-        <h2 className="text-base font-semibold">Entitlements</h2>
+      <section className="space-y-3 border-t border-line pt-6">
+        <h2 className="text-xl font-semibold">Entitlements</h2>
 
         {entitlements.isPending ? (
           <SkeletonRows rows={3} />
@@ -152,7 +152,7 @@ export function SubscriptionScreen() {
                 className="flex flex-wrap gap-2"
               >
                 <span className="min-w-0 flex-1">{entitlement.name}</span>
-                <span className="text-neutral-600 dark:text-neutral-400">
+                <span className="text-muted">
                   {/* `limit` null means two different things and `unlimited`
                       says which — so both are read rather than one guessed. */}
                   {entitlement.kind === 'BOOLEAN'
@@ -161,7 +161,7 @@ export function SubscriptionScreen() {
                       ? 'unlimited'
                       : `${String(entitlement.limit ?? 0)}${entitlement.unit === null ? '' : ` ${entitlement.unit}`}`}
                 </span>
-                <span className="text-xs text-neutral-500">from {entitlement.source}</span>
+                <span className="text-xs text-subtle">from {entitlement.source}</span>
               </li>
             ))}
           </ul>
@@ -170,8 +170,8 @@ export function SubscriptionScreen() {
 
       {mayManage && (
         <>
-          <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-            <h2 className="text-base font-semibold">Change offer</h2>
+          <section className="space-y-3 border-t border-line pt-6">
+            <h2 className="text-xl font-semibold">Change offer</h2>
 
             {changeOffer.error !== null && <ErrorSurface error={changeOffer.error} />}
 
@@ -204,8 +204,8 @@ export function SubscriptionScreen() {
             </div>
           </section>
 
-          <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-            <h2 className="text-base font-semibold">
+          <section className="space-y-3 border-t border-line pt-6">
+            <h2 className="text-xl font-semibold">
               {current.cancel_at_period_end ? 'Cancellation' : 'Cancel'}
             </h2>
 
@@ -244,7 +244,7 @@ export function SubscriptionScreen() {
                   />
                   Ask to end immediately
                 </label>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                <p className="text-xs text-muted">
                   Asking does not make it so — the cancellation policy decides, and the answer
                   below is what it decided.
                 </p>
@@ -301,7 +301,7 @@ function Decision({ decision, label }: { decision: CancellationDecision; label: 
       data-testid="cancellation-decision"
       data-effect={decision.effect}
       data-rule={decision.rule_id}
-      className="space-y-1 rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+      className="space-y-1 rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
     >
       <p className="font-medium">{label}</p>
 
@@ -325,14 +325,14 @@ function Decision({ decision, label }: { decision: CancellationDecision; label: 
       )}
 
       {decision.reasons.length > 0 && (
-        <ul className="list-inside list-disc text-xs text-neutral-600 dark:text-neutral-400">
+        <ul className="list-inside list-disc text-xs text-muted">
           {decision.reasons.map((reason) => (
             <li key={reason}>{reason}</li>
           ))}
         </ul>
       )}
 
-      <p className="text-xs text-neutral-500">
+      <p className="text-xs text-subtle">
         Rule <code>{decision.rule_id}</code>
       </p>
     </div>
@@ -357,10 +357,10 @@ function TermsSummary({ terms }: { terms: Record<string, unknown> }) {
           {months} month{months === 1 ? '' : 's'}
         </>
       ) : (
-        <span className="text-neutral-500">not recorded</span>
+        <span className="text-subtle">not recorded</span>
       )}
       {typeof notice === 'number' && (
-        <span className="text-xs text-neutral-500"> · {notice} days notice</span>
+        <span className="text-xs text-subtle"> · {notice} days notice</span>
       )}
     </span>
   );
@@ -371,7 +371,7 @@ function statusClass(status: string): string {
     case 'ACTIVE':
       return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200';
     case 'CANCELLED':
-      return 'bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300';
+      return 'bg-well text-muted';
     default:
       return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200';
   }

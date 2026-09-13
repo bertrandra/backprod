@@ -55,8 +55,8 @@ export function StaffTenantsScreen() {
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Tenants</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Tenants</h1>
+        <p className="text-sm text-muted">
           Opening a tenant records an entry against your name, with the permission you used. That
           record is the reason this access is allowed at all.
         </p>
@@ -72,7 +72,7 @@ export function StaffTenantsScreen() {
             <EmptyState title="No tenants" description="Nothing is registered on this platform." />
           ) : (
             <>
-              <p data-testid="tenant-count" className="text-xs text-neutral-500">
+              <p data-testid="tenant-count" className="text-xs text-subtle">
                 {/* Counted, not inferred from a short page. */}
                 Showing {tenants.data.tenants.length} of {tenants.data.total}.
               </p>
@@ -87,12 +87,12 @@ export function StaffTenantsScreen() {
                       onClick={() => select(tenant.id)}
                       className={`w-full rounded border p-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-2 ${
                         selected === tenant.id
-                          ? 'border-neutral-900 dark:border-neutral-100'
-                          : 'border-neutral-200 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900'
+                          ? 'border-ink'
+                          : 'border-line hover:bg-canvas dark:hover:bg-inverse'
                       }`}
                     >
                       <span className="block font-medium">{tenant.name}</span>
-                      <span className="block text-xs text-neutral-600 dark:text-neutral-400">
+                      <span className="block text-xs text-muted">
                         {tenant.slug}
                       </span>
                     </button>
@@ -145,19 +145,19 @@ function TenantDetail({ tenantId }: { tenantId: string }) {
   return (
     <div
       data-testid="tenant-detail"
-      className="space-y-4 rounded border border-neutral-200 p-4 text-sm dark:border-neutral-800"
+      className="space-y-4 rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
     >
-      <h2 className="text-base font-semibold">{tenant.data.name}</h2>
+      <h2 className="text-xl font-semibold">{tenant.data.name}</h2>
 
       <MotiveInEffect motive={motive} onChange={() => setMotive(null)} />
 
       <dl className="grid gap-3 sm:grid-cols-2">
         <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-500">Slug</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">Slug</dt>
           <dd>{tenant.data.slug}</dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-500">Identifier</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">Identifier</dt>
           <dd>
             <code className="select-all text-xs">{tenant.data.id}</code>
           </dd>
@@ -166,7 +166,7 @@ function TenantDetail({ tenantId }: { tenantId: string }) {
 
       <OfferAuthoring tenantId={tenantId} mayAuthor={tenant.data.may_author_offers} />
 
-      <p data-testid="read-recorded" className="border-t border-neutral-200 pt-3 text-xs text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
+      <p data-testid="read-recorded" className="border-t border-line pt-3 text-xs text-muted">
         This read has been recorded under <code>staff.tenants.read</code>, with the reason you gave.
         It appears in the access log with your user id against it.
       </p>
@@ -199,11 +199,11 @@ function OfferAuthoring({ tenantId, mayAuthor }: { tenantId: string; mayAuthor: 
     <section
       data-testid="offer-authoring"
       data-may-author={mayAuthor ? 'true' : 'false'}
-      className="space-y-2 border-t border-neutral-200 pt-3 dark:border-neutral-800"
+      className="space-y-2 border-t border-line pt-3"
     >
       <h3 className="text-sm font-medium">Offer authoring</h3>
 
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+      <p className="text-sm text-muted">
         {mayAuthor
           ? 'This tenant may create and publish offers of their own. Members holding a role with catalog.manage can reach the catalogue.'
           : 'This tenant uses the platform catalogue and cannot change it. Members see offers; nobody can author one, whatever their tenant role says.'}
@@ -221,7 +221,7 @@ function OfferAuthoring({ tenantId, mayAuthor }: { tenantId: string; mayAuthor: 
           {mayAuthor ? 'Withdraw offer authoring' : 'Allow offer authoring'}
         </Button>
       ) : (
-        <p data-testid="offer-authoring-readonly" className="text-xs text-neutral-500">
+        <p data-testid="offer-authoring-readonly" className="text-xs text-subtle">
           Changing this needs <code>staff.tenants.manage</code>, which an administrator holds.
         </p>
       )}

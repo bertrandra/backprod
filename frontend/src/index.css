@@ -1,59 +1,201 @@
 @import 'tailwindcss';
 
+/* Self-hosted, and it has to be: the deployment's Content-Security-Policy sets
+   `font-src 'self'`, so a webfont from any other origin is blocked with no
+   visible error. These are npm packages Vite emits as fingerprinted assets
+   beside the bundle, which is the same origin as everything else — no third
+   party appears at runtime, which is the property `ADR-038` cares about.
+
+   This reverses a judgement, deliberately. The previous version of this file
+   argued that "every OS already ships a professional sans-serif" and used the
+   system stack. True, and it is also why the application looked like a system
+   dialog: a system stack renders differently on every machine, so no spacing,
+   weight or figure width can be relied on. A variable font is one decision that
+   holds everywhere, and its weight axis is what makes a type scale possible at
+   all. */
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+
 /**
- * Default design tokens.
+ * The design system.
  *
- * "Default" because a tenant can override two of these — `primary_color` and
- * `accent_color` on `tenant.branding` (U2) — and what is here is what renders
- * before that screen is ever opened, or for a tenant whose plan does not
- * include white-labelling at all. Nothing below reaches outside this file: no
- * font is fetched from a third party, matching every other place this platform
- * says it needs nothing beyond PHP, PostgreSQL and JavaScript on its own
- * account (ADR-038) — a webfont import would be one more origin in
- * `connect-src` for zero functional gain, since every OS already ships a
- * professional sans-serif.
+ * **Why this file grew.** Before it, the whole application was two greys and a
+ * red, written by hand: 102 places repeated `border-neutral-200` beside
+ * `dark:border-neutral-800`, 141 repeated `text-neutral-600 dark:text-neutral-400`,
+ * 144 repeated `text-neutral-500`. Every one of them was a correct local choice
+ * and together they were flat — there was no third surface level, no elevation,
+ * no accent that belonged to the product, and no way to change any of it without
+ * touching four hundred call sites.
  *
- * The existing screens' own classes — `bg-neutral-900`, `text-red-700`, the
- * monochrome primary button — are untouched by this file on purpose: those are
- * this platform's considered choices, not a gap to fill. What was actually
- * missing is what a screen gets for free without naming a colour: the focus
- * ring a keyboard user tabs to, the text selection colour, the scrollbar, and
- * numbers that line up in a column — all invisible until the day a screen
- * skips a utility class or a person tabs through a form, and all previously
- * whatever the browser felt like.
+ * So the palette is **semantic and runtime-switched**. `@theme` maps Tailwind's
+ * colour utilities onto `--ds-*` variables, and those variables — not the
+ * utilities — are what a theme redefines. `border-line` therefore carries both
+ * themes in one class, and the pair that used to be written twice is written
+ * once. A future palette change is this file.
+ *
+ * **A tenant can still override two of them.** `primary_color` and
+ * `accent_color` on `tenant.branding` (U2) set `--ds-accent` and
+ * `--ds-accent-strong` at runtime, which is why nothing below hard-codes an
+ * accent into a component: the one place a brand colour lands is a variable.
+ *
+ * **Every value here is answerable to the contrast scan.** `accessibility.spec.ts`
+ * runs axe over every route in both themes; a token pair that fails WCAG AA fails
+ * the suite, which is why `--ds-ink-subtle` is darker than it looks like it needs
+ * to be — it has to clear 4.5:1 against `--ds-canvas`, not only against white.
  */
 
 @theme {
-  --font-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
 
-  /* A brand scale distinct from the neutral/red already in use, for whatever
-     a screen reaches for next — a link, a checked control, an informational
-     badge — none of which read well in the monochrome the primary button
-     deliberately uses. Full 50–950 rather than one shade, so text, a subtle
-     background tint and a border can all come from the same family instead of
-     three unrelated guesses. */
-  --color-primary-50: #eef2ff;
-  --color-primary-100: #e0e7ff;
-  --color-primary-200: #c7d2fe;
-  --color-primary-300: #a5b4fc;
-  --color-primary-400: #818cf8;
-  --color-primary-500: #6366f1;
-  --color-primary-600: #4f46e5;
-  --color-primary-700: #4338ca;
-  --color-primary-800: #3730a3;
-  --color-primary-900: #312e81;
-  --color-primary-950: #1e1b4b;
-  --color-primary: var(--color-primary-600);
+  /* A type scale, rather than the six sizes Tailwind ships and a screen picking
+     whichever looked right that afternoon. Line heights are set with the size
+     because a heading and a paragraph do not want the same one, and tracking
+     tightens as the size grows — which is the whole difference between large
+     text that reads as designed and large text that reads as zoomed. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-2xs--letter-spacing: 0.04em;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.3125rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.4375rem;
+  --text-lg: 1rem;
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.65rem;
+  --text-xl--letter-spacing: -0.012em;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 1.85rem;
+  --text-2xl--letter-spacing: -0.018em;
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 2.15rem;
+  --text-3xl--letter-spacing: -0.022em;
 
-  /* One name per meaning, for the day a status badge or a toast wants a colour
-     without a screen re-deriving "which red" from scratch. Not a replacement
-     for the reds and greens already inline — those stay exactly as they are. */
-  --color-success: #059669;
-  --color-warning: #d97706;
-  --color-danger: #dc2626;
-  --color-info: var(--color-primary-600);
+  /* Surfaces, in levels. Depth is what a flat application has none of: a page
+     ground, a card that sits on it, and a well that sits inside the card. */
+  --color-canvas: var(--ds-canvas);
+  --color-surface: var(--ds-surface);
+  --color-well: var(--ds-well);
+  --color-raised: var(--ds-raised);
+
+  /* Ink, in three weights. `ink` for what is being read, `muted` for what
+     explains it, `subtle` for what is only there when looked for. */
+  --color-ink: var(--ds-ink);
+  --color-muted: var(--ds-ink-muted);
+  --color-subtle: var(--ds-ink-subtle);
+
+  --color-line: var(--ds-line);
+  --color-line-strong: var(--ds-line-strong);
+
+  /* The product's own colour, and a tenant's if their plan includes one. */
+  --color-accent: var(--ds-accent);
+  --color-accent-strong: var(--ds-accent-strong);
+  --color-accent-wash: var(--ds-accent-wash);
+  --color-on-accent: var(--ds-on-accent);
+
+  /* The monochrome the primary button has always used, named rather than
+     spelled `bg-neutral-900 dark:bg-neutral-100 dark:text-neutral-900` in
+     five places. */
+  --color-inverse: var(--ds-inverse);
+  --color-on-inverse: var(--ds-on-inverse);
+
+  /* Meaning, not decoration. Each has an ink for text, a wash for a background
+     and a line for a border, so a status never needs three unrelated guesses. */
+  --color-success: var(--ds-success);
+  --color-success-wash: var(--ds-success-wash);
+  --color-warning: var(--ds-warning);
+  --color-warning-wash: var(--ds-warning-wash);
+  --color-danger: var(--ds-danger);
+  --color-danger-wash: var(--ds-danger-wash);
+
+  --radius-card: 0.625rem;
+  --radius-control: 0.5rem;
+
+  /* Two levels, and no more. A shadow on everything flattens a page as surely
+     as a shadow on nothing — these are for what actually floats. */
+  --shadow-raise: 0 1px 2px 0 rgb(13 20 32 / 0.04), 0 1px 3px 0 rgb(13 20 32 / 0.06);
+  --shadow-float: 0 8px 24px -8px rgb(13 20 32 / 0.18), 0 2px 6px -2px rgb(13 20 32 / 0.08);
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* --- Light, and the definitions every other theme overrides ---------------- */
+
+:root {
+  color-scheme: light;
+
+  /* Not pure white: a page that is #fff gives a white card nothing to sit on,
+     which is exactly how depth disappears. */
+  --ds-canvas: #f5f7f9;
+  --ds-surface: #ffffff;
+  --ds-well: #f1f4f7;
+  --ds-raised: #ffffff;
+
+  --ds-ink: #0e1520;
+  --ds-ink-muted: #495566;
+  /* 4.9:1 on the canvas, not only on white. The scan checks the real ground. */
+  --ds-ink-subtle: #64707f;
+
+  --ds-line: #e2e6ec;
+  --ds-line-strong: #c8d0da;
+
+  /* Petrol blue. Chosen against what the palette already means: green is
+     success, amber is the platform's own administration, red is a refusal — so
+     the product's colour is none of those, and is not the indigo every admin
+     template reaches for either. */
+  --ds-accent: #0b6e99;
+  --ds-accent-strong: #075274;
+  --ds-accent-wash: #e4f1f8;
+  --ds-on-accent: #ffffff;
+
+  --ds-inverse: #111826;
+  --ds-on-inverse: #ffffff;
+
+  --ds-success: #0b6b4f;
+  --ds-success-wash: #e0f2ea;
+  --ds-warning: #8a5300;
+  --ds-warning-wash: #fdefd9;
+  --ds-danger: #a52131;
+  --ds-danger-wash: #fbe6e8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --ds-canvas: #0a0e14;
+    --ds-surface: #111823;
+    --ds-well: #0d141d;
+    --ds-raised: #18202c;
+
+    --ds-ink: #e9eef6;
+    --ds-ink-muted: #9ca8ba;
+    --ds-ink-subtle: #838e9f;
+
+    --ds-line: #1f2836;
+    --ds-line-strong: #303c4c;
+
+    --ds-accent: #4cc2ee;
+    --ds-accent-strong: #8ad9f5;
+    --ds-accent-wash: #0a2b39;
+    --ds-on-accent: #04202c;
+
+    --ds-inverse: #e9eef6;
+    --ds-on-inverse: #0a0e14;
+
+    --ds-success: #4bd6a0;
+    --ds-success-wash: #0a2b20;
+    --ds-warning: #f0b355;
+    --ds-warning-wash: #2e2008;
+    --ds-danger: #ff8794;
+    --ds-danger-wash: #35151b;
+
+    --shadow-raise: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+    --shadow-float: 0 10px 30px -10px rgb(0 0 0 / 0.7), 0 2px 8px -2px rgb(0 0 0 / 0.5);
+  }
 }
 
 @layer base {
@@ -63,59 +205,54 @@
   }
 
   body {
-    @apply bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100;
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
     /* This is a billing platform: prices, quantities and VAT rates sit in
-       columns on most screens (Money, formatVatRate), and proportional
-       figures make a column of them drift. Applied once, here, rather than
-       on every place a screen renders a number. */
+       columns on most screens, and proportional figures make a column of them
+       drift. Applied once, here, rather than at every place a number renders. */
     font-variant-numeric: tabular-nums;
   }
 
-  /* Every interactive element in this codebase already carries
-     `focus-visible:outline-2 outline-offset-2` (ui-spec.md §4.2) — what none
-     of them set is the colour, which left the browser's default: often a
-     colour this palette does not otherwise use, and in at least one browser,
-     `currentColor`, which vanishes against text of the same shade. */
-  :focus-visible {
-    outline-color: var(--color-primary-600);
+  /* Headings carry the scale's tracking and weight rather than each screen
+     choosing. A screen still picks *which* size; it no longer picks how a size
+     is set. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    color: var(--color-ink);
+    font-weight: 600;
+    text-wrap: balance;
   }
 
-  @media (prefers-color-scheme: dark) {
-    :focus-visible {
-      outline-color: var(--color-primary-400);
-    }
+  /* Every interactive element carries `focus-visible:outline-2 outline-offset-2`
+     (ui-spec.md §4.2) and none of them set the colour, which left the browser's
+     default — in one browser `currentColor`, which vanishes against text of the
+     same shade. */
+  :focus-visible {
+    outline-color: var(--color-accent);
   }
 
   ::selection {
-    background-color: var(--color-primary-200);
-    color: var(--color-primary-950);
+    background-color: var(--color-accent-wash);
+    color: var(--color-accent-strong);
   }
 
-  @media (prefers-color-scheme: dark) {
-    ::selection {
-      background-color: var(--color-primary-800);
-      color: var(--color-primary-50);
-    }
-  }
-
-  /* A link inherited the body's own colour before this — indistinguishable
-     from plain text except for the `underline decoration-dotted` a caller
-     remembered to add. This is the one place `<a>` and `Link` get a colour
-     without a screen naming one. */
   a {
-    color: var(--color-primary-600);
+    color: var(--color-accent);
     text-underline-offset: 2px;
   }
 
-  @media (prefers-color-scheme: dark) {
-    a {
-      color: var(--color-primary-400);
-    }
+  /* A hairline that belongs to the palette rather than to the browser. */
+  hr {
+    border-color: var(--color-line);
   }
 
   ::-webkit-scrollbar {
-    width: 12px;
-    height: 12px;
+    width: 11px;
+    height: 11px;
   }
 
   ::-webkit-scrollbar-track {
@@ -123,31 +260,29 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: var(--color-neutral-300);
+    background-color: var(--color-line-strong);
     border: 3px solid transparent;
     background-clip: content-box;
     border-radius: 9999px;
   }
 
-  @media (prefers-color-scheme: dark) {
-    ::-webkit-scrollbar-thumb {
-      background-color: var(--color-neutral-700);
-    }
-  }
-
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--color-neutral-300) transparent;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    * {
-      scrollbar-color: var(--color-neutral-700) transparent;
-    }
+    scrollbar-color: var(--color-line-strong) transparent;
   }
 
   :disabled,
   [aria-disabled='true'] {
     cursor: not-allowed;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }

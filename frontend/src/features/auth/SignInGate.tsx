@@ -45,7 +45,7 @@ export function SignInGate({ children }: { children: ReactNode }) {
     // one round trip here, and an empty page for that long reads as broken.
     return (
       <main className="mx-auto flex min-h-dvh max-w-sm items-center justify-center p-4">
-        <p role="status" aria-busy="true" className="text-sm text-neutral-600 dark:text-neutral-400">
+        <p role="status" aria-busy="true" className="text-sm text-muted">
           Restoring your session…
         </p>
       </main>

@@ -18,14 +18,15 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="grid place-items-center rounded-lg border border-dashed border-neutral-300 p-10 text-center dark:border-neutral-700">
-      <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">{title}</p>
+    // A surface, not a dashed outline. A dashed box reads as a drop target or as
+    // something unfinished; an empty state is neither — it is a place with
+    // nothing in it yet, and saying so calmly is the whole job.
+    <div className="grid place-items-center rounded-card border border-line bg-surface px-8 py-14 text-center shadow-raise">
+      <p className="text-lg font-semibold text-ink">{title}</p>
       {description !== undefined && (
-        <p className="mt-1 max-w-prose text-sm text-neutral-600 dark:text-neutral-400">
-          {description}
-        </p>
+        <p className="mt-2 max-w-[46ch] text-base text-muted">{description}</p>
       )}
-      {action !== undefined && <div className="mt-4">{action}</div>}
+      {action !== undefined && <div className="mt-5">{action}</div>}
     </div>
   );
 }

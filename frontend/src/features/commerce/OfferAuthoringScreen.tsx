@@ -103,15 +103,15 @@ export function OfferAuthoringScreen() {
   return (
     <div className="max-w-3xl space-y-8">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Offer authoring</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Offer authoring</h1>
+        <p className="text-sm text-muted">
           A published version is frozen: its terms can never be edited, only replaced by a newer
           version. That is what lets a quote pin the version that priced it.
         </p>
       </header>
 
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">Offers</h2>
+        <h2 className="text-xl font-semibold">Offers</h2>
 
         {offers.data.length === 0 ? (
           <EmptyState title="No offers yet" description="Create one below." />
@@ -123,12 +123,12 @@ export function OfferAuthoringScreen() {
                   href={`?selected=${offer.id}`}
                   className={
                     selected === offer.id
-                      ? 'block rounded border border-neutral-400 bg-neutral-100 p-3 dark:border-neutral-600 dark:bg-neutral-800'
-                      : 'block rounded border border-neutral-200 p-3 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900'
+                      ? 'block rounded border border-accent bg-accent-wash p-3'
+                      : 'block rounded-card border border-line bg-surface p-4 shadow-raise hover:bg-canvas dark:hover:bg-inverse'
                   }
                 >
                   <span className="block font-medium">{offer.name}</span>
-                  <span className="text-xs text-neutral-600 dark:text-neutral-400">
+                  <span className="text-xs text-muted">
                     <code>{offer.code}</code> · {offer.plan.name}
                   </span>
                 </a>
@@ -140,8 +140,8 @@ export function OfferAuthoringScreen() {
 
       {selected !== undefined && <OfferVersions offerId={selected} />}
 
-      <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-        <h2 className="text-base font-semibold">New offer</h2>
+      <section className="space-y-3 border-t border-line pt-6">
+        <h2 className="text-xl font-semibold">New offer</h2>
 
         <form
           className="max-w-md space-y-4"
@@ -271,7 +271,7 @@ function DraftFields<T extends DraftValues>({ form }: { form: UseFormReturn<T> }
       </Field>
 
       {showable && (
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <p className="text-sm text-muted">
           That is <Amount money={{ minor_units: minor, currency }} />.
         </p>
       )}
@@ -304,11 +304,11 @@ function OfferVersions({ offerId }: { offerId: string }) {
   const offer = authored.data;
 
   return (
-    <section className="space-y-4 border-t border-neutral-200 pt-6 dark:border-neutral-800">
+    <section className="space-y-4 border-t border-line pt-6">
       <div className="space-y-1">
-        <h2 className="text-base font-semibold">{offer.name}</h2>
+        <h2 className="text-xl font-semibold">{offer.name}</h2>
         {/* Shown, not editable: the code is identity. */}
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-subtle">
           <code>{offer.code}</code> — permanent
         </p>
       </div>
@@ -356,7 +356,7 @@ function OfferVersions({ offerId }: { offerId: string }) {
 
       {adding ? (
         <form
-          className="max-w-md space-y-4 rounded border border-neutral-200 p-3 dark:border-neutral-800"
+          className="max-w-md space-y-4 rounded-card border border-line bg-surface p-4 shadow-raise"
           onSubmit={(event) => {
             void versionForm.handleSubmit((values) =>
               addVersion.mutate(
@@ -375,7 +375,7 @@ function OfferVersions({ offerId }: { offerId: string }) {
             )(event);
           }}
         >
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-muted">
             A new version is born a draft — publishing it is a separate step.
           </p>
 
@@ -423,14 +423,14 @@ function VersionRow({
     <li
       data-version={version.version}
       data-status={version.status}
-      className="rounded border border-neutral-200 p-3 text-sm md:flex md:items-center md:gap-3 dark:border-neutral-800"
+      className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm md:flex md:items-center md:gap-3"
     >
       <div className="min-w-0 md:flex-1">
         <p className="font-medium">
           v{version.version}{' '}
-          <span className="text-xs font-normal text-neutral-500">{version.status}</span>
+          <span className="text-xs font-normal text-subtle">{version.status}</span>
         </p>
-        <p className="text-xs text-neutral-600 dark:text-neutral-400">
+        <p className="text-xs text-muted">
           {version.billing_period.toLowerCase()} · <Amount money={version.price} /> · sellable from{' '}
           {new Date(version.valid_from).toLocaleDateString()}
           {version.valid_until !== null &&
@@ -444,7 +444,7 @@ function VersionRow({
         </Button>
       ) : (
         // No control, and a reason. The absence is the design.
-        <span data-testid="frozen" className="text-xs text-neutral-500">
+        <span data-testid="frozen" className="text-xs text-subtle">
           Published versions are frozen
         </span>
       )}

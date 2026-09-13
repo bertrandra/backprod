@@ -29,8 +29,8 @@ export function AccessLogScreen() {
   return (
     <div className="space-y-4">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Access log</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Access log</h1>
+        <p className="text-sm text-muted">
           Every crossing of a tenant boundary by platform staff: who looked, at what, and under
           which permission. Your own reads appear here too.
         </p>
@@ -43,7 +43,7 @@ export function AccessLogScreen() {
         />
       ) : (
         <>
-          <p data-testid="entry-count" className="text-xs text-neutral-500">
+          <p data-testid="entry-count" className="text-xs text-subtle">
             Showing {log.data.entries.length} of {log.data.total}.
           </p>
 
@@ -62,7 +62,7 @@ function Entry({ entry }: { entry: StaffAccessEntry }) {
   return (
     <li
       data-access-entry={entry.id}
-      className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+      className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
     >
       <div className="flex flex-wrap items-center gap-2">
         <span data-testid="access-action" className="font-medium">
@@ -76,18 +76,18 @@ function Entry({ entry }: { entry: StaffAccessEntry }) {
           className={`rounded px-1.5 py-0.5 text-xs ${
             entry.permission === null
               ? 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200'
-              : 'bg-neutral-200 dark:bg-neutral-800'
+              : 'bg-well'
           }`}
         >
           {entry.permission ?? 'no permission recorded'}
         </span>
 
-        <span className="ml-auto text-xs text-neutral-500">
+        <span className="ml-auto text-xs text-subtle">
           {new Date(entry.occurred_at).toLocaleString()}
         </span>
       </div>
 
-      <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+      <p className="mt-1 text-xs text-muted">
         staff <code>{entry.staff_user_id}</code>
         {entry.tenant_id !== null && (
           <>

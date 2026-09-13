@@ -55,14 +55,14 @@ export function DirectoryScreen() {
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Directory</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Directory</h1>
+        <p className="text-sm text-muted">
           Every tenant, person, subscription and invoice on the platform. Counts are counted, not
           inferred from a short page.
         </p>
       </header>
 
-      <nav className="flex flex-wrap gap-1 border-b border-neutral-200 dark:border-neutral-800">
+      <nav className="flex flex-wrap gap-1 border-b border-line">
         {TABS.map((name) => (
           <button
             key={name}
@@ -72,8 +72,8 @@ export function DirectoryScreen() {
             onClick={() => choose(name)}
             className={`min-h-[44px] rounded-t px-3 py-2 text-sm capitalize focus-visible:outline-2 focus-visible:outline-offset-2 ${
               current === name
-                ? 'border-b-2 border-neutral-900 font-medium dark:border-neutral-100'
-                : 'text-neutral-600 dark:text-neutral-400'
+                ? 'border-b-2 border-accent font-medium text-accent-strong'
+                : 'text-muted'
             }`}
           >
             {name}
@@ -112,7 +112,7 @@ export function DirectoryScreen() {
 
 function Count({ shown, total }: { shown: number; total: number }) {
   return (
-    <p data-testid="directory-count" className="text-xs text-neutral-500">
+    <p data-testid="directory-count" className="text-xs text-subtle">
       Showing {shown} of {total}.
     </p>
   );
@@ -143,13 +143,13 @@ function Tenants({ search }: { search: string }) {
           <li
             key={tenant.id ?? ''}
             data-directory-row={tenant.id ?? ''}
-            className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+            className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
           >
             <div className="flex flex-wrap items-baseline gap-2">
               <span className="font-medium">{tenant.name}</span>
-              <span className="text-xs text-neutral-500">{tenant.slug}</span>
+              <span className="text-xs text-subtle">{tenant.slug}</span>
             </div>
-            <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+            <p className="mt-1 text-xs text-muted">
               {tenant.members ?? 0} members · {tenant.active_subscriptions ?? 0} active
               subscriptions · {tenant.unpaid_invoices ?? 0} unpaid invoices
             </p>
@@ -194,28 +194,28 @@ function Users({ search }: { search: string }) {
               key={user.id ?? ''}
               data-directory-row={user.id ?? ''}
               data-erased={String(erased)}
-              className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+              className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
             >
               <div className="flex flex-wrap items-baseline gap-2">
                 {/* The row survives; the identity does not. Rendered as erased
                     rather than as a person with missing fields. */}
                 {erased ? (
-                  <span data-testid="erased-identity" className="italic text-neutral-500">
+                  <span data-testid="erased-identity" className="italic text-subtle">
                     erased — this person asked to be forgotten
                   </span>
                 ) : (
                   <>
                     <span className="font-medium">{user.display_name ?? 'no name'}</span>
-                    <span className="text-xs text-neutral-500">{user.email ?? 'no email'}</span>
+                    <span className="text-xs text-subtle">{user.email ?? 'no email'}</span>
                   </>
                 )}
 
-                <span className="ml-auto text-xs text-neutral-500">
+                <span className="ml-auto text-xs text-subtle">
                   {user.tenants ?? 0} organisation{user.tenants === 1 ? '' : 's'}
                 </span>
               </div>
 
-              <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+              <p className="mt-1 text-xs text-muted">
                 <code className="select-all">{user.id}</code>
                 {erased && user.erased_at !== null && user.erased_at !== undefined && (
                   <> · erased {new Date(user.erased_at).toLocaleDateString()}</>
@@ -254,14 +254,14 @@ function Subscriptions({ status }: { status: string }) {
           <li
             key={subscription.id ?? ''}
             data-directory-row={subscription.id ?? ''}
-            className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+            className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
           >
             <div className="flex flex-wrap items-baseline gap-2">
               <span className="font-medium">{subscription.tenant_name}</span>
-              <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs dark:bg-neutral-800">
+              <span className="rounded bg-well px-1.5 py-0.5 text-xs">
                 {subscription.status}
               </span>
-              <span className="text-xs text-neutral-500">
+              <span className="text-xs text-subtle">
                 {subscription.offer_code} v{subscription.offer_version}
               </span>
               <span className="ml-auto">
@@ -276,7 +276,7 @@ function Subscriptions({ status }: { status: string }) {
 
             {/* Periodicity and commitment, side by side and never added
                 together (non-negotiable #23). */}
-            <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+            <p className="mt-1 text-xs text-muted">
               period ends{' '}
               {subscription.current_period_end === null ||
               subscription.current_period_end === undefined
@@ -321,17 +321,17 @@ function Invoices({ status }: { status: string }) {
           <li
             key={invoice.id ?? ''}
             data-directory-row={invoice.id ?? ''}
-            className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+            className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
           >
             <div className="flex flex-wrap items-baseline gap-2">
               {/* A draft has no legal number, and no placeholder is invented. */}
               <code data-testid="invoice-number" className="text-xs">
                 {invoice.number ?? 'no number yet'}
               </code>
-              <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs dark:bg-neutral-800">
+              <span className="rounded bg-well px-1.5 py-0.5 text-xs">
                 {invoice.status}
               </span>
-              <span className="text-xs text-neutral-500">{invoice.tenant_name}</span>
+              <span className="text-xs text-subtle">{invoice.tenant_name}</span>
               <span className="ml-auto font-medium">
                 <Amount
                   money={{
@@ -342,7 +342,7 @@ function Invoices({ status }: { status: string }) {
               </span>
             </div>
 
-            <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+            <p className="mt-1 text-xs text-muted">
               net{' '}
               <Amount
                 money={{

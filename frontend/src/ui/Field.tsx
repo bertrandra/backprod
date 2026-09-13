@@ -37,7 +37,7 @@ export function Field({
       </label>
 
       {hint !== undefined && (
-        <p id={`${id}-hint`} className="text-xs text-neutral-600 dark:text-neutral-400">
+        <p id={`${id}-hint`} className="text-xs text-muted">
           {hint}
         </p>
       )}
@@ -45,7 +45,7 @@ export function Field({
       <div aria-describedby={describedBy === '' ? undefined : describedBy}>{children}</div>
 
       {error !== undefined && (
-        <p id={`${id}-error`} role="alert" className="text-xs text-red-700 dark:text-red-400">
+        <p id={`${id}-error`} role="alert" className="text-xs text-danger">
           {error}
         </p>
       )}
@@ -55,10 +55,16 @@ export function Field({
 
 export const inputClass = (invalid = false): string =>
   cn(
-    'w-full rounded border px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-neutral-950',
+    // A control reads as a control: its own surface, a hairline that darkens on
+    // hover, and a focus ring that is the accent rather than the browser's
+    // guess. `transition-colors` is the only motion — a field that animated its
+    // size would move the label under somebody's cursor.
+    'w-full rounded-control border bg-surface px-3 py-2 text-base text-ink shadow-raise transition-colors',
+    'placeholder:text-subtle focus-visible:outline-2 focus-visible:outline-offset-1',
+    'disabled:bg-well disabled:text-subtle disabled:shadow-none',
     invalid
-      ? 'border-red-400 dark:border-red-700'
-      : 'border-neutral-300 dark:border-neutral-700',
+      ? 'border-danger focus-visible:outline-danger'
+      : 'border-line-strong hover:border-ink/25 focus-visible:border-accent',
   );
 
 /**
@@ -90,15 +96,41 @@ export function Button({
       // Disabled while pending, because a second submit is a second write — and
       // for a mutation that allocates something, two is one too many.
       disabled={rest.disabled === true || pending}
+      // The label stays put while the spinner turns, so somebody watching does
+      // not lose what they pressed. That leaves the busy state invisible to a
+      // screen reader unless it is said out loud, which is what this does — the
+      // label used to change to "Working…" and carried it by accident.
+      aria-busy={pending || undefined}
       className={cn(
         // 44px minimum, so the same control works on a phone (ui-spec.md §4.2).
-        'min-h-[44px] rounded px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60',
-        variant === 'primary' && 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900',
-        variant === 'secondary' && 'border border-neutral-300 dark:border-neutral-700',
-        variant === 'danger' && 'border border-red-400 text-red-800 dark:text-red-300',
+        'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-control px-3.5 py-2',
+        'text-base font-medium whitespace-nowrap transition-[background-color,border-color,box-shadow,transform]',
+        'duration-150 ease-out-quart focus-visible:outline-2 focus-visible:outline-offset-2',
+        // Pressed, not merely hovered. A control that acknowledges the press is
+        // the cheapest possible signal that a write is under way, and it costs a
+        // single transform.
+        'active:translate-y-px disabled:translate-y-0 disabled:opacity-55 disabled:shadow-none',
+        // **The primary action is the accent now, not the monochrome.** The old
+        // one was `bg-neutral-900` inverting to near-white in dark, which read
+        // as a print button rather than as the thing to press: on a page where
+        // every border is grey, the only saturated element should be the action.
+        variant === 'primary' &&
+          'bg-accent text-on-accent shadow-raise hover:bg-accent-strong hover:shadow-float',
+        variant === 'secondary' &&
+          'border border-line-strong bg-surface text-ink shadow-raise hover:border-ink/25 hover:bg-well',
+        variant === 'danger' &&
+          'border border-danger/45 bg-danger-wash text-danger shadow-raise hover:border-danger',
       )}
     >
-      {pending ? 'Working…' : children}
+      {pending && (
+        <span
+          aria-hidden="true"
+          // Motion, not a word swap: "Working…" replaced the label, so a person
+          // lost what they had pressed at the moment they most wanted to know.
+          className="size-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent"
+        />
+      )}
+      {children}
     </button>
   );
 }

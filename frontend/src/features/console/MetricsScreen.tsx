@@ -43,8 +43,8 @@ export function MetricsScreen() {
   return (
     <div className="space-y-8">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Metrics</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Metrics</h1>
+        <p className="text-sm text-muted">
           Turnover, the offers that earned it, and renewal — for one product. There is no combined
           figure across products: different currencies and different catalogues do not add up.
         </p>
@@ -126,14 +126,14 @@ function Turnover({ rows }: { rows: readonly Record<string, unknown>[] }) {
 
   return (
     <section className="space-y-3">
-      <h2 className="text-base font-semibold">Turnover</h2>
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+      <h2 className="text-xl font-semibold">Turnover</h2>
+      <p className="text-sm text-muted">
         What was invoiced, month by month. Credits are shown beside it and never subtracted from it.
       </p>
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="text-left text-xs uppercase tracking-wide text-neutral-500">
+          <thead className="text-left text-xs uppercase tracking-wide text-subtle">
             <tr>
               <th className="py-1 pr-3">Month</th>
               <th className="py-1 pr-3">Net</th>
@@ -155,7 +155,7 @@ function Turnover({ rows }: { rows: readonly Record<string, unknown>[] }) {
                   key={month}
                   data-turnover-month={month}
                   data-closed={String(closed)}
-                  className="border-t border-neutral-200 dark:border-neutral-800"
+                  className="border-t border-line"
                 >
                   <td className="py-1.5 pr-3">{month}</td>
                   <td className="py-1.5 pr-3">
@@ -170,7 +170,7 @@ function Turnover({ rows }: { rows: readonly Record<string, unknown>[] }) {
                   <td className="py-1.5 pr-3">
                     <Money value={integer(row.credited_minor_units)} currency={currency} />
                   </td>
-                  <td className="py-1.5 pr-3 text-xs text-neutral-600 dark:text-neutral-400">
+                  <td className="py-1.5 pr-3 text-xs text-muted">
                     {integer(row.invoices_issued) ?? '—'} issued ·{' '}
                     {integer(row.invoices_paid) ?? '—'} paid
                   </td>
@@ -181,7 +181,7 @@ function Turnover({ rows }: { rows: readonly Record<string, unknown>[] }) {
                       data-testid="month-state"
                       className={`rounded px-1.5 py-0.5 text-xs ${
                         closed
-                          ? 'bg-neutral-200 dark:bg-neutral-800'
+                          ? 'bg-well'
                           : 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200'
                       }`}
                     >
@@ -207,11 +207,11 @@ function TopOffers({ offers }: { offers: Record<string, unknown> }) {
   const month = text(offers.month, '');
 
   return (
-    <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-      <h2 className="text-base font-semibold">Top offers</h2>
+    <section className="space-y-3 border-t border-line pt-6">
+      <h2 className="text-xl font-semibold">Top offers</h2>
       {/* Which month, stated: over a year and over last month are different
           questions, and the contract separates them for that reason. */}
-      <p data-testid="offers-month" className="text-sm text-neutral-600 dark:text-neutral-400">
+      <p data-testid="offers-month" className="text-sm text-muted">
         {month === '' ? 'Ranked over the window.' : `Ranked within ${month}.`}
       </p>
 
@@ -229,7 +229,7 @@ function TopOffers({ offers }: { offers: Record<string, unknown> }) {
                 className="flex flex-wrap items-baseline gap-2"
               >
                 <span className="min-w-0 flex-1">{text(offer.name, text(offer.code, '—'))}</span>
-                <span className="text-xs text-neutral-500">
+                <span className="text-xs text-subtle">
                   {integer(offer.lines_billed) ?? '—'} lines
                 </span>
                 <Money value={integer(offer.net_minor_units)} currency={text(offer.currency, 'EUR')} />
@@ -244,9 +244,9 @@ function TopOffers({ offers }: { offers: Record<string, unknown> }) {
 
 function Renewal({ rows }: { rows: readonly Record<string, unknown>[] }) {
   return (
-    <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-      <h2 className="text-base font-semibold">Renewal</h2>
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+    <section className="space-y-3 border-t border-line pt-6">
+      <h2 className="text-xl font-semibold">Renewal</h2>
+      <p className="text-sm text-muted">
         A month in which nothing came up for renewal has no rate. That is not 0% — nothing
         auto-renews yet, and reporting an unbuilt feature as total churn would be worse than
         reporting nothing.
@@ -269,7 +269,7 @@ function Renewal({ rows }: { rows: readonly Record<string, unknown>[] }) {
                 className="flex flex-wrap items-baseline gap-2"
               >
                 <span className="w-24">{month}</span>
-                <span className="text-xs text-neutral-600 dark:text-neutral-400">
+                <span className="text-xs text-muted">
                   {integer(row.due) ?? 0} due · {integer(row.renewed) ?? 0} renewed ·{' '}
                   {integer(row.ended) ?? 0} ended
                 </span>

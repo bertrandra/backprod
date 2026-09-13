@@ -62,8 +62,8 @@ export function VatReportsScreen() {
   return (
     <div className="space-y-8">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">VAT periods</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">VAT periods</h1>
+        <p className="text-sm text-muted">
           A period is open while its figures can still move. Closing one files a declaration and
           freezes it — permanently, and by a rule the database enforces rather than this screen.
         </p>
@@ -91,15 +91,15 @@ export function VatReportsScreen() {
                     onClick={() => select(period.id)}
                     className={`w-full rounded border p-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-2 ${
                       selected === period.id
-                        ? 'border-neutral-900 dark:border-neutral-100'
-                        : 'border-neutral-200 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900'
+                        ? 'border-ink'
+                        : 'border-line hover:bg-canvas dark:hover:bg-inverse'
                     }`}
                   >
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="font-medium">{period.jurisdiction}</span>
                       <StatusBadge period={period} />
                     </span>
-                    <span className="mt-1 block text-xs text-neutral-600 dark:text-neutral-400">
+                    <span className="mt-1 block text-xs text-muted">
                       {period.period_kind} · {new Date(period.starts_on).toLocaleDateString()} —{' '}
                       {new Date(period.ends_on).toLocaleDateString()}
                     </span>
@@ -134,7 +134,7 @@ function StatusBadge({ period }: { period: VatPeriod }) {
       data-status={period.status}
       className={`rounded px-2 py-0.5 text-xs font-medium ${
         isClosed(period)
-          ? 'bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'
+          ? 'bg-well text-muted'
           : 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200'
       }`}
     >
@@ -161,7 +161,7 @@ function PeriodDetail({ periodId, mayManage }: { periodId: string; mayManage: bo
     <div className="space-y-6">
       <header className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-base font-semibold">
+          <h2 className="text-xl font-semibold">
             {current.jurisdiction} · {new Date(current.starts_on).toLocaleDateString()} —{' '}
             {new Date(current.ends_on).toLocaleDateString()}
           </h2>
@@ -169,7 +169,7 @@ function PeriodDetail({ periodId, mayManage }: { periodId: string; mayManage: bo
         </div>
 
         {closed && current.closed_at !== null && (
-          <p data-testid="closed-at" className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p data-testid="closed-at" className="text-sm text-muted">
             Closed on {new Date(current.closed_at).toLocaleDateString()}. The figures below are the
             ones that were declared, not a recount — a later correction belongs in a later period.
           </p>
@@ -189,7 +189,7 @@ function PeriodDetail({ periodId, mayManage }: { periodId: string; mayManage: bo
         // disable, and a greyed button would suggest otherwise.
         <p
           data-testid="no-reopen"
-          className="rounded border border-neutral-200 p-3 text-sm text-neutral-600 dark:border-neutral-800 dark:text-neutral-400"
+          className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm text-muted"
         >
           This period cannot be reopened. Nothing here can change it, and neither can support —
           the database refuses the change. A figure that turns out to be wrong is corrected in a
@@ -231,7 +231,7 @@ function CloseSection({ period, mayManage }: { period: VatPeriod; mayManage: boo
 
   if (!mayManage) {
     return (
-      <p data-testid="cannot-close" className="text-sm text-neutral-600 dark:text-neutral-400">
+      <p data-testid="cannot-close" className="text-sm text-muted">
         Closing a period needs <code>tax.manage</code>.
       </p>
     );
@@ -239,7 +239,7 @@ function CloseSection({ period, mayManage }: { period: VatPeriod; mayManage: boo
 
   if (!ended) {
     return (
-      <p data-testid="not-ended" className="text-sm text-neutral-600 dark:text-neutral-400">
+      <p data-testid="not-ended" className="text-sm text-muted">
         This period has not ended yet, so it cannot be closed. Closing freezes figures that are
         still moving, and it cannot be undone afterwards to fix that.
       </p>
@@ -258,7 +258,7 @@ function CloseSection({ period, mayManage }: { period: VatPeriod; mayManage: boo
               a one-way action needs to learn something at the confirmation
               they did not know at the button. */}
           <p>Closing this period does the following, and none of it can be undone:</p>
-          <ul className="list-inside list-disc text-neutral-700 dark:text-neutral-300">
+          <ul className="list-inside list-disc text-muted">
             <li>the figures are frozen as a declaration and stop tracking new transactions</li>
             <li>this period can never be reopened — there is no operation that does it</li>
             <li>
@@ -283,7 +283,7 @@ function CloseSection({ period, mayManage }: { period: VatPeriod; mayManage: boo
         </div>
       ) : (
         <>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-muted">
             The period has ended. Closing it files the declaration.
           </p>
           <Button type="button" variant="danger" onClick={() => setConfirming(true)}>
@@ -303,32 +303,32 @@ function Declaration({ declaration }: { declaration: VatDeclaration }) {
   return (
     <section
       data-testid="declaration"
-      className="space-y-3 rounded border border-neutral-200 p-4 text-sm dark:border-neutral-800"
+      className="space-y-3 rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
     >
       <h3 className="font-semibold">Declared</h3>
 
       <dl className="grid gap-3 sm:grid-cols-3">
         <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-500">Taxable base</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">Taxable base</dt>
           <dd data-testid="declared-base">
             <Amount money={base} />
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-500">VAT</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">VAT</dt>
           <dd data-testid="declared-vat">
             <Amount money={vat} />
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-500">Transactions</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">Transactions</dt>
           <dd>{declaration.transaction_count}</dd>
         </div>
       </dl>
 
       <Breakdown rows={declaration.breakdown} />
 
-      <p className="text-xs text-neutral-500">
+      <p className="text-xs text-subtle">
         Declaration <code>{declaration.id}</code> · filed{' '}
         {new Date(declaration.created_at).toLocaleDateString()}
       </p>
@@ -347,29 +347,29 @@ function Totals({ totals }: { totals: Record<string, unknown> }) {
   return (
     <section
       data-testid="totals"
-      className="space-y-3 rounded border border-neutral-200 p-4 text-sm dark:border-neutral-800"
+      className="space-y-3 rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
     >
       <h3 className="font-semibold">As it stands today</h3>
-      <p className="text-xs text-neutral-600 dark:text-neutral-400">
+      <p className="text-xs text-muted">
         Not a declaration. These figures move while the period is open, and a transaction booked
         tomorrow changes them.
       </p>
 
       <dl className="grid gap-3 sm:grid-cols-3">
         <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-500">Taxable base</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">Taxable base</dt>
           <dd data-testid="running-base">
             <Amount money={{ minor_units: base, currency }} />
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-500">VAT</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">VAT</dt>
           <dd data-testid="running-vat">
             <Amount money={{ minor_units: vat, currency }} />
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-500">Transactions</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">Transactions</dt>
           <dd>{count}</dd>
         </div>
       </dl>
@@ -417,7 +417,7 @@ function Breakdown({ rows }: { rows: unknown }) {
   return (
     <div className="overflow-x-auto">
       <table data-testid="breakdown" className="w-full text-sm">
-        <thead className="text-left text-xs uppercase tracking-wide text-neutral-500">
+        <thead className="text-left text-xs uppercase tracking-wide text-subtle">
           <tr>
             <th className="py-1 pr-3">Regime</th>
             <th className="py-1 pr-3">Rate</th>
@@ -435,7 +435,7 @@ function Breakdown({ rows }: { rows: unknown }) {
               <tr
                 key={`${label(row.regime, 'unknown')}-${String(rate)}-${currency}-${index}`}
                 data-breakdown-row={label(row.regime, 'unknown')}
-                className="border-t border-neutral-200 dark:border-neutral-800"
+                className="border-t border-line"
               >
                 <td className="py-1.5 pr-3">{label(row.regime, '—')}</td>
                 <td className="py-1.5 pr-3">{rate === null ? '—' : formatVatRate(rate)}</td>
@@ -478,9 +478,9 @@ function Transactions() {
   const transactions = useVatTransactions();
 
   return (
-    <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-      <h2 className="text-base font-semibold">VAT transactions</h2>
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+    <section className="space-y-3 border-t border-line pt-6">
+      <h2 className="text-xl font-semibold">VAT transactions</h2>
+      <p className="text-sm text-muted">
         Every taxable event, newest first — across all periods, not only the one selected above.
         Each carries the rule that decided its regime.
       </p>
@@ -496,7 +496,7 @@ function Transactions() {
         />
       ) : (
         <>
-          <p data-testid="transaction-count" className="text-xs text-neutral-500">
+          <p data-testid="transaction-count" className="text-xs text-subtle">
             Showing {transactions.data.transactions.length} of {transactions.data.total}.
           </p>
 
@@ -505,17 +505,17 @@ function Transactions() {
               <li
                 key={transaction.id}
                 data-transaction={transaction.id}
-                className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+                className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{transaction.country}</span>
                   <span
                     data-testid="transaction-regime"
-                    className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs dark:bg-neutral-800"
+                    className="rounded bg-well px-1.5 py-0.5 text-xs"
                   >
                     {transaction.vat_regime}
                   </span>
-                  <span className="text-xs text-neutral-600 dark:text-neutral-400">
+                  <span className="text-xs text-muted">
                     {formatVatRate(transaction.vat_rate)} · {transaction.supply_type}
                   </span>
                   <span className="ml-auto">
@@ -536,7 +536,7 @@ function Transactions() {
                   </span>
                 </div>
 
-                <p className="mt-1 text-xs text-neutral-500">
+                <p className="mt-1 text-xs text-subtle">
                   {new Date(transaction.transaction_date).toLocaleDateString()} ·{' '}
                   {transaction.invoice_id === null
                     ? `credit note ${transaction.credit_note_id ?? '—'}`

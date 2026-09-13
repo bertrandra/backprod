@@ -94,12 +94,12 @@ export function ConversationsScreen() {
                   onClick={() => select(conversation.id)}
                   className={
                     selected === conversation.id
-                      ? 'w-full rounded border border-neutral-400 bg-neutral-100 p-2 text-left text-sm dark:border-neutral-600 dark:bg-neutral-800'
-                      : 'w-full rounded border border-neutral-200 p-2 text-left text-sm dark:border-neutral-800'
+                      ? 'w-full rounded border border-accent bg-accent-wash p-2 text-left text-sm'
+                      : 'w-full rounded-card border border-line bg-surface shadow-raise p-2 text-left text-sm'
                   }
                 >
                   <span className="block truncate font-medium">{conversation.subject}</span>
-                  <span className="text-xs text-neutral-500">
+                  <span className="text-xs text-subtle">
                     {conversation.kind} · {conversation.status}
                     {conversation.unread !== undefined &&
                       conversation.unread > 0 &&
@@ -112,7 +112,7 @@ export function ConversationsScreen() {
         )}
 
         <form
-          className="mt-4 space-y-3 border-t border-neutral-200 pt-4 dark:border-neutral-800"
+          className="mt-4 space-y-3 border-t border-line pt-4"
           onSubmit={(event) => {
             void startForm.handleSubmit((values) =>
               start.mutate(values, {
@@ -201,8 +201,8 @@ function Thread({ conversationId, onBack }: { conversationId: string; onBack: ()
         <Button type="button" variant="secondary" onClick={onBack} className="lg:hidden">
           Back
         </Button>
-        <h2 className="text-base font-semibold">{conversation.data.subject}</h2>
-        <span className="text-xs text-neutral-500">{conversation.data.status}</span>
+        <h2 className="text-xl font-semibold">{conversation.data.subject}</h2>
+        <span className="text-xs text-subtle">{conversation.data.status}</span>
 
         {open && (
           <Button
@@ -231,11 +231,11 @@ function Thread({ conversationId, onBack }: { conversationId: string; onBack: ()
               data-pending={message.seq === 0 ? 'true' : 'false'}
               className={
                 message.seq === 0
-                  ? 'rounded border border-dashed border-neutral-300 p-3 text-sm opacity-70 dark:border-neutral-700'
-                  : 'rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800'
+                  ? 'rounded border border-dashed border-line-strong p-3 text-sm opacity-70'
+                  : 'rounded-card border border-line bg-surface p-4 shadow-raise text-sm'
               }
             >
-              <div className="flex items-baseline gap-2 text-xs text-neutral-500">
+              <div className="flex items-baseline gap-2 text-xs text-subtle">
                 <span>{message.author_kind}</span>
                 {message.seq === 0 ? <span>sending…</span> : <span>#{message.seq}</span>}
 
@@ -257,7 +257,7 @@ function Thread({ conversationId, onBack }: { conversationId: string; onBack: ()
               {message.deleted ? (
                 // Kept in place rather than removed: the sequence never develops a
                 // hole where a reply used to be.
-                <p className="italic text-neutral-500">This message was deleted.</p>
+                <p className="italic text-subtle">This message was deleted.</p>
               ) : (
                 <p className="whitespace-pre-wrap">{message.body}</p>
               )}
@@ -286,7 +286,7 @@ function Thread({ conversationId, onBack }: { conversationId: string; onBack: ()
           </Button>
         </form>
       ) : (
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <p className="text-sm text-muted">
           This thread is closed. Start a new one to continue.
         </p>
       )}
@@ -357,7 +357,7 @@ function Participants({
   });
 
   return (
-    <section className="space-y-3 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+    <section className="space-y-3 border-t border-line pt-4">
       <h3 className="text-sm font-semibold">Participants</h3>
 
       <ul className="space-y-1 text-sm">
@@ -369,14 +369,14 @@ function Participants({
             className="flex flex-wrap items-center gap-2"
           >
             <code className="text-xs">{participant.user_id.slice(0, 8)}</code>
-            <span className="text-xs text-neutral-500">
+            <span className="text-xs text-subtle">
               {participant.kind} · read to #{participant.last_read_seq}
             </span>
 
             {participant.left_at !== null ? (
               // Left rather than gone: the messages they wrote stay attributed,
               // so removing them from the list would leave those unexplained.
-              <span className="text-xs text-neutral-500">left</span>
+              <span className="text-xs text-subtle">left</span>
             ) : (
               canChange && (
                 <button

@@ -154,7 +154,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
 
   return (
     <section className="space-y-3" data-testid="project-canvas">
-      <h2 className="text-base font-semibold">Canvas</h2>
+      <h2 className="text-xl font-semibold">Canvas</h2>
 
       {/* Full-bleed on a phone: the surface is square and takes the width it is
           given, and the controls sit under it rather than beside it. */}
@@ -165,7 +165,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
         role="application"
         aria-label={`Drawing surface for ${projectName}`}
         onPointerDown={addPoint}
-        className="aspect-square w-full max-w-full touch-none rounded border border-neutral-300 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900"
+        className="aspect-square w-full max-w-full touch-none rounded-card border border-line bg-surface shadow-raise-strong bg-canvas"
       >
         {shapes.map((shape) => (
           <polygon
@@ -174,8 +174,8 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
             points={shape.points.map(([x, y]) => `${String(x)},${String(EXTENT - y)}`).join(' ')}
             className={
               shape.id === selected
-                ? 'fill-neutral-900/20 stroke-neutral-900 dark:fill-neutral-100/20 dark:stroke-neutral-100'
-                : 'fill-neutral-500/10 stroke-neutral-500'
+                ? 'fill-accent/20 stroke-accent'
+                : 'fill-subtle/10 stroke-subtle'
             }
             strokeWidth={0.6}
             onPointerDown={(event) => {
@@ -192,7 +192,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
           <polyline
             data-testid="drawing"
             points={drawing.map(([x, y]) => `${String(x)},${String(EXTENT - y)}`).join(' ')}
-            className="fill-none stroke-neutral-900 dark:stroke-neutral-100"
+            className="fill-none stroke-ink"
             strokeWidth={0.6}
             strokeDasharray="2 1"
           />
@@ -204,7 +204,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
             cx={x}
             cy={EXTENT - y}
             r={1.2}
-            className="fill-neutral-900 dark:fill-neutral-100"
+            className="fill-ink"
           />
         ))}
       </svg>
@@ -213,7 +213,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
           thumb while the surface scrolls; inline from `sm` upward. */}
       <div
         data-testid="tool-sheet"
-        className="sticky bottom-0 z-10 space-y-3 rounded border border-neutral-200 bg-white/95 p-3 backdrop-blur sm:static sm:bg-transparent sm:backdrop-blur-none dark:border-neutral-800 dark:bg-neutral-950/95 sm:dark:bg-transparent"
+        className="sticky bottom-0 z-10 space-y-3 rounded-card border border-line bg-surface shadow-raise bg-white/95 p-3 backdrop-blur sm:static sm:bg-transparent sm:backdrop-blur-none/95 sm:dark:bg-transparent"
       >
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" onClick={finish} disabled={drawing.length < MIN_RING}>
@@ -237,7 +237,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
           </Button>
         </div>
 
-        <p className="text-xs text-neutral-600 dark:text-neutral-400">
+        <p className="text-xs text-muted">
           Tap the surface to place a corner, then finish the shape. Shapes are a scratch pad — they
           are not saved into the project.
         </p>
@@ -253,7 +253,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
         ) : (
           <>
             <fieldset className="space-y-1">
-              <legend className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+              <legend className="text-xs font-semibold uppercase tracking-wide text-subtle">
                 Coordinate reference
               </legend>
               {/* Stated, never inferred. The same ring is a valid answer in
@@ -306,7 +306,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
               // longitude is a different length in Lille and in Marseille, so
               // there is no area to report. Topology still works, which is why
               // intersection stays available.
-              <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              <p className="text-sm text-muted">
                 Area and perimeter are not defined in degrees, so measurement needs projected
                 coordinates. Intersection still works here.
               </p>
@@ -321,15 +321,15 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
                     label because there is no unit to report: the caller chose
                     the projection and knows whether it is metres or feet. */}
                 <div>
-                  <dt className="text-xs text-neutral-500">Corners</dt>
+                  <dt className="text-xs text-subtle">Corners</dt>
                   <dd data-testid="vertices">{measurement.vertices}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-neutral-500">Area</dt>
+                  <dt className="text-xs text-subtle">Area</dt>
                   <dd data-testid="area">{measurement.area}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-neutral-500">Perimeter</dt>
+                  <dt className="text-xs text-subtle">Perimeter</dt>
                   <dd data-testid="perimeter">{measurement.perimeter}</dd>
                 </div>
               </dl>
@@ -343,7 +343,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
                     {/* Four answers, not one: a footprint that clips a parcel,
                         one that swallows it, and one swallowed by it are
                         different facts about the same pair. */}
-                    <span className="text-neutral-600 dark:text-neutral-400">
+                    <span className="text-muted">
                       {relation.intersects ? 'intersects' : 'disjoint'}
                       {relation.contains && ' · contains it'}
                       {relation.within && ' · inside it'}

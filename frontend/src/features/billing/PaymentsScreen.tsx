@@ -59,8 +59,8 @@ export function PaymentsScreen() {
   return (
     <div className="max-w-3xl space-y-4">
       <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-lg font-semibold">Payments</h1>
-        <span className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Payments</h1>
+        <span className="text-sm text-muted">
           {payments.data.total} recorded
         </span>
       </div>
@@ -80,7 +80,7 @@ export function PaymentsScreen() {
               key={payment.id}
               data-payment={payment.id}
               data-status={payment.status}
-              className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+              className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <span
@@ -88,9 +88,9 @@ export function PaymentsScreen() {
                 >
                   {payment.status.replace(/_/g, ' ')}
                 </span>
-                <span className="text-xs text-neutral-500">{payment.provider}</span>
+                <span className="text-xs text-subtle">{payment.provider}</span>
                 {payment.method !== null && (
-                  <span className="text-xs text-neutral-500">{payment.method}</span>
+                  <span className="text-xs text-subtle">{payment.method}</span>
                 )}
                 <span className="ml-auto">
                   <Amount money={payment.amount} className="font-medium" />
@@ -133,7 +133,7 @@ export function PaymentsScreen() {
               {retried === payment.id && (
                 // Said explicitly. This attempt is still failed; a different one
                 // has begun.
-                <p data-testid="new-attempt" className="mt-2 text-xs text-neutral-700 dark:text-neutral-300">
+                <p data-testid="new-attempt" className="mt-2 text-xs text-muted">
                   A <strong>new</strong> attempt has started. This one stays failed — it is the
                   record of what happened — and the card details are asked for again because the
                   previous attempt cannot be resumed.
@@ -161,7 +161,7 @@ export function PaymentsScreen() {
                     </select>
                   </Field>
 
-                  <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                  <p className="text-xs text-muted">
                     The whole refundable amount is returned. The money leaves asynchronously, so
                     this is accepted rather than done.
                   </p>
@@ -209,7 +209,7 @@ function Failure({ payment }: { payment: Payment }) {
     <p data-testid="failure" className="mt-1 text-xs text-red-700 dark:text-red-300">
       {payment.failure_reason ?? 'The attempt failed.'}
       {payment.failure_code !== null && (
-        <span className="text-neutral-500"> ({payment.failure_code})</span>
+        <span className="text-subtle"> ({payment.failure_code})</span>
       )}
     </p>
   );
@@ -223,7 +223,7 @@ function statusClass(status: Payment['status']): string {
       return 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200';
     case 'REFUNDED':
     case 'CHARGED_BACK':
-      return 'bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300';
+      return 'bg-well text-muted';
     default:
       return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200';
   }

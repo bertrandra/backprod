@@ -47,7 +47,7 @@ export function StorefrontScreen({
         <h1 className="text-2xl font-semibold">
           {storefront.data?.product?.name ?? 'What we sell'}
         </h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <p className="text-sm text-muted">
           Choose a plan to get started. You will create your account as part of the purchase —
           there is nothing to set up first.
         </p>
@@ -82,8 +82,8 @@ export function StorefrontScreen({
         </ul>
       )}
 
-      <footer className="border-t border-neutral-200 pt-4 text-sm dark:border-neutral-800">
-        <p className="text-neutral-600 dark:text-neutral-400">
+      <footer className="border-t border-line pt-4 text-sm">
+        <p className="text-muted">
           Already have an account?{' '}
           <button
             type="button"
@@ -105,11 +105,11 @@ function OfferCard({ offer, onChoose }: { offer: PublicOffer; onChoose: () => vo
   return (
     <li
       data-offer={offer.id}
-      className="rounded border border-neutral-200 p-4 sm:flex sm:items-center sm:gap-4 dark:border-neutral-800"
+      className="rounded-card border border-line bg-surface p-4 shadow-raise sm:flex sm:items-center sm:gap-4"
     >
       <div className="min-w-0 sm:flex-1">
         <p className="font-medium">{offer.name}</p>
-        <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+        <p className="mt-1 text-xs text-muted">
           {offer.plan.name}
           {version !== null && ` · billed ${version.billing_period.toLowerCase()}`}
         </p>
@@ -118,7 +118,7 @@ function OfferCard({ offer, onChoose }: { offer: PublicOffer; onChoose: () => vo
       {version === null ? (
         // Typed nullable in the contract, so said plainly rather than
         // rendered as a zero — and a zero is a legitimate price.
-        <p data-testid="no-price" className="mt-3 text-sm text-neutral-500 sm:mt-0">
+        <p data-testid="no-price" className="mt-3 text-sm text-subtle sm:mt-0">
           Price on request
         </p>
       ) : (

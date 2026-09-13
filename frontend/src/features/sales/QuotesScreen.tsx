@@ -45,8 +45,8 @@ export function QuotesScreen() {
   return (
     <div className="max-w-3xl space-y-4">
       <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-lg font-semibold">Quotes</h1>
-        <span className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Quotes</h1>
+        <span className="text-sm text-muted">
           {quotes.data.total} in this product
         </span>
       </div>
@@ -69,34 +69,34 @@ export function QuotesScreen() {
               data-open={quote.open ? 'true' : 'false'}
               className={
                 selected === quote.id
-                  ? 'rounded border border-neutral-400 bg-neutral-50 p-3 text-sm dark:border-neutral-600 dark:bg-neutral-900'
-                  : 'rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800'
+                  ? 'rounded border border-accent bg-accent-wash p-3 text-sm'
+                  : 'rounded-card border border-line bg-surface p-4 shadow-raise text-sm'
               }
             >
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs font-medium dark:bg-neutral-800">
+                <span className="rounded bg-well px-1.5 py-0.5 text-xs font-medium">
                   {quote.status}
                 </span>
                 {/* Both facts, because they answer different questions: what the
                     document says, and whether it can still be acted on now. */}
                 {!quote.open && quote.status === 'SENT' && (
-                  <span data-testid="expired" className="text-xs text-neutral-500">
+                  <span data-testid="expired" className="text-xs text-subtle">
                     no longer open — the validity date has passed
                   </span>
                 )}
-                <span className="ml-auto text-xs text-neutral-500">
+                <span className="ml-auto text-xs text-subtle">
                   valid until {new Date(quote.valid_until).toLocaleDateString()}
                 </span>
               </div>
 
               <div className="mt-2 flex flex-wrap items-baseline gap-3">
                 <Amount money={quote.gross} className="font-medium" />
-                <span className="text-xs text-neutral-500">
+                <span className="text-xs text-subtle">
                   net <Amount money={quote.net} /> · VAT <Amount money={quote.vat} />
                 </span>
               </div>
 
-              <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+              <p className="mt-1 text-xs text-muted">
                 {/* The pinned version, which is why a catalogue change cannot
                     reprice this quote. */}
                 priced by offer version <code>{quote.offer_version_id}</code>
@@ -106,7 +106,7 @@ export function QuotesScreen() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   {confirming === quote.id ? (
                     <>
-                      <span className="w-full text-xs text-neutral-700 dark:text-neutral-300">
+                      <span className="w-full text-xs text-muted">
                         Rejecting a quote cannot be undone. A new quote would have to be raised.
                       </span>
                       <Button
@@ -171,14 +171,14 @@ function QuoteLines({ quote }: { quote: Quote }) {
   }
 
   return (
-    <ul className="mt-3 space-y-1 border-t border-neutral-200 pt-2 text-xs dark:border-neutral-800">
+    <ul className="mt-3 space-y-1 border-t border-line pt-2 text-xs">
       {quote.lines.map((line) => (
         // Keyed by `position`, which the document defines and the API guarantees
         // — an array index would renumber the lines if the order ever changed.
         <li key={line.position} className="flex flex-wrap gap-2">
           <span className="min-w-0 flex-1 truncate">{line.description}</span>
-          <span className="text-neutral-500">×{line.quantity}</span>
-          <span className="text-neutral-500">VAT {formatVatRate(line.vat_rate_basis_points)}</span>
+          <span className="text-subtle">×{line.quantity}</span>
+          <span className="text-subtle">VAT {formatVatRate(line.vat_rate_basis_points)}</span>
           {/* Rendered, never summed: every total is the server's and appears above. */}
           <Amount money={line.net} />
         </li>

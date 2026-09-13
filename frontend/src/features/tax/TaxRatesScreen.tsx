@@ -72,8 +72,8 @@ export function TaxRatesScreen() {
   return (
     <div className="max-w-3xl space-y-8">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Rates and regimes</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Rates and regimes</h1>
+        <p className="text-sm text-muted">
           Rates are valid for a window rather than forever. A change closes one window and opens
           another, so an invoice issued in the past is still explained by the rate that was in
           force then.
@@ -109,13 +109,13 @@ export function TaxRatesScreen() {
           />
         ) : (
           <>
-            <p data-testid="rates-as-of" className="text-sm text-neutral-600 dark:text-neutral-400">
+            <p data-testid="rates-as-of" className="text-sm text-muted">
               As they stood on {new Date(rates.data.on).toLocaleDateString()}.
             </p>
 
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="text-left text-xs uppercase tracking-wide text-neutral-500">
+                <thead className="text-left text-xs uppercase tracking-wide text-subtle">
                   <tr>
                     <th className="py-1 pr-3">Country</th>
                     <th className="py-1 pr-3">Kind</th>
@@ -129,14 +129,14 @@ export function TaxRatesScreen() {
                     <tr
                       key={`${rate.country_code}-${rate.rate_kind}-${rate.valid_from}`}
                       data-rate={`${rate.country_code}:${rate.rate_kind}`}
-                      className="border-t border-neutral-200 dark:border-neutral-800"
+                      className="border-t border-line"
                     >
                       <td className="py-1.5 pr-3">{rate.country_code}</td>
                       <td className="py-1.5 pr-3">{rate.rate_kind}</td>
                       <td data-testid="rate-value" className="py-1.5 pr-3 font-medium">
                         {formatVatRate(rate.basis_points)}
                       </td>
-                      <td className="py-1.5 pr-3 text-xs text-neutral-600 dark:text-neutral-400">
+                      <td className="py-1.5 pr-3 text-xs text-muted">
                         {new Date(rate.valid_from).toLocaleDateString()} —{' '}
                         {rate.valid_until === null
                           ? 'still'
@@ -144,7 +144,7 @@ export function TaxRatesScreen() {
                       </td>
                       {/* Where the figure came from — a seed, not a fiscal
                           authority, and the contract is explicit about that. */}
-                      <td className="py-1.5 text-xs text-neutral-500">{rate.source}</td>
+                      <td className="py-1.5 text-xs text-subtle">{rate.source}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -154,10 +154,10 @@ export function TaxRatesScreen() {
         )}
       </section>
 
-      <section className="space-y-4 border-t border-neutral-200 pt-6 dark:border-neutral-800">
+      <section className="space-y-4 border-t border-line pt-6">
         <div className="space-y-1">
-          <h2 className="text-base font-semibold">What would be applied, and why</h2>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h2 className="text-xl font-semibold">What would be applied, and why</h2>
+          <p className="text-sm text-muted">
             A diagnostic. It charges nothing and creates nothing — it answers which rule your tax
             profile puts a supply under, and shows the reasoning it used to get there.
           </p>
@@ -234,51 +234,51 @@ function Explanation({ calculation }: { calculation: TaxCalculation }) {
       data-testid="calculation"
       data-regime={calculation.regime}
       data-rule={calculation.rule_id}
-      className="space-y-3 rounded border border-neutral-200 p-4 text-sm dark:border-neutral-800"
+      className="space-y-3 rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
     >
       <div className="flex flex-wrap items-baseline gap-3">
-        <span data-testid="regime" className="rounded bg-neutral-200 px-2 py-0.5 text-xs font-medium dark:bg-neutral-800">
+        <span data-testid="regime" className="rounded bg-well px-2 py-0.5 text-xs font-medium">
           {calculation.regime.replaceAll('_', ' ')}
         </span>
         <span data-testid="calculated-rate" className="font-medium">
           {formatVatRate(calculation.rate_basis_points)}
         </span>
-        <span className="text-neutral-600 dark:text-neutral-400">
+        <span className="text-muted">
           taxed in {calculation.country_of_taxation}
         </span>
       </div>
 
       <dl className="grid gap-2 sm:grid-cols-2">
         <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-500">Taxable base</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">Taxable base</dt>
           <dd>
             <Amount money={base} />
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-500">VAT</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">VAT</dt>
           <dd>
             <Amount money={vat} />
           </dd>
         </div>
       </dl>
 
-      <p data-testid="customer-status" className="text-neutral-600 dark:text-neutral-400">
+      <p data-testid="customer-status" className="text-muted">
         Read as <strong>{calculation.customer_tax_status}</strong>
         {calculation.reverse_charge && ' — you account for the VAT, not the supplier'}.
       </p>
 
       {/* Not decoration: this is the sentence the invoice is obliged to carry. */}
       {calculation.legal_mention !== null && (
-        <p data-testid="legal-mention" className="rounded bg-neutral-100 p-2 text-xs dark:bg-neutral-900">
+        <p data-testid="legal-mention" className="rounded bg-well p-2 text-xs">
           The invoice must state: “{calculation.legal_mention}”
         </p>
       )}
 
       {calculation.reasons.length > 0 && (
         <div className="space-y-1">
-          <p className="text-xs uppercase tracking-wide text-neutral-500">Why</p>
-          <ul data-testid="reasons" className="list-inside list-disc text-neutral-700 dark:text-neutral-300">
+          <p className="text-xs uppercase tracking-wide text-subtle">Why</p>
+          <ul data-testid="reasons" className="list-inside list-disc text-muted">
             {calculation.reasons.map((reason) => (
               <li key={reason}>{reason}</li>
             ))}
@@ -286,7 +286,7 @@ function Explanation({ calculation }: { calculation: TaxCalculation }) {
         </div>
       )}
 
-      <p className="text-xs text-neutral-500">
+      <p className="text-xs text-subtle">
         Rule <code data-testid="rule-id">{calculation.rule_id}</code> — quote it if you disagree
         with this answer.
       </p>

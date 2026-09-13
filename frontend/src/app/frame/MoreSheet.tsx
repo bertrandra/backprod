@@ -31,12 +31,12 @@ export function MoreSheet({
         aria-modal="true"
         aria-label="All sections"
         data-testid="more-sheet"
-        className="max-h-[70dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] dark:bg-neutral-900"
+        className="max-h-[70dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
         onClick={(event) => event.stopPropagation()}
       >
         {sections.map((section) => (
           <div key={section.id} className="mb-4">
-            <p className="pb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+            <p className="pb-1 text-[11px] font-semibold uppercase tracking-wide text-subtle">
               {section.label}
             </p>
             <ul>
@@ -45,7 +45,7 @@ export function MoreSheet({
                   <a
                     href={entry.to}
                     data-nav-more={entry.id}
-                    className="block min-h-[44px] py-2 text-sm text-neutral-800 dark:text-neutral-200"
+                    className="block min-h-[44px] py-2 text-sm text-ink"
                   >
                     {entry.label}
                   </a>
@@ -59,7 +59,7 @@ export function MoreSheet({
             the way out of it. On a phone this sheet is the only place the
             control fits — the bottom bar holds five destinations and none of
             them is an action. */}
-        <div className="border-t border-neutral-200 pt-3 dark:border-neutral-800">
+        <div className="border-t border-line pt-3">
           <Button
             type="button"
             variant="secondary"

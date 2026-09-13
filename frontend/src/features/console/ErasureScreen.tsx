@@ -34,8 +34,8 @@ export function ErasureScreen() {
   return (
     <div className="max-w-2xl space-y-8">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Erase a person</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Erase a person</h1>
+        <p className="text-sm text-muted">
           This anonymises what may be anonymised and keeps what the law requires be kept. It is not
           a delete, and describing it to a customer as one would be untrue.
         </p>
@@ -46,7 +46,7 @@ export function ErasureScreen() {
         className="space-y-3 rounded border border-amber-300 p-4 text-sm dark:border-amber-800"
       >
         <h2 className="font-semibold">What will be kept, and why</h2>
-        <p className="text-neutral-700 dark:text-neutral-300">
+        <p className="text-muted">
           These are not exceptions the platform chose. Each is a record it is obliged to retain, and
           each survives an erasure with the person&rsquo;s identity stripped from it:
         </p>
@@ -54,20 +54,20 @@ export function ErasureScreen() {
         <ul className="space-y-1">
           {(Object.keys(RETENTION_GROUNDS) as RetentionGround[]).map((ground) => (
             <li key={ground} data-ground={ground} className="flex gap-2">
-              <span className="text-neutral-500">·</span>
+              <span className="text-subtle">·</span>
               <span>{RETENTION_GROUNDS[ground]}</span>
             </li>
           ))}
         </ul>
 
-        <p className="text-xs text-neutral-600 dark:text-neutral-400">
+        <p className="text-xs text-muted">
           What is removed is the identity: the name, the email, the credentials. The person keeps a
           row in the directory carrying <code>erased_at</code> and nothing else — the row surviving
           is what keeps every invoice and audit entry pointing at it meaningful.
         </p>
       </section>
 
-      <section className="space-y-4 border-t border-neutral-200 pt-6 dark:border-neutral-800">
+      <section className="space-y-4 border-t border-line pt-6">
         <Field
           id="user_id"
           label="User identifier"
@@ -89,7 +89,7 @@ export function ErasureScreen() {
         {confirming ? (
           <div data-testid="erasure-confirmation" className="space-y-3 text-sm">
             <p>Erasing this person does the following, and none of it can be undone:</p>
-            <ul className="list-inside list-disc text-neutral-700 dark:text-neutral-300">
+            <ul className="list-inside list-disc text-muted">
               <li>the name, email and credentials are removed and cannot be recovered</li>
               <li>no search will ever find this person again, having neither name nor email</li>
               <li>
@@ -125,7 +125,7 @@ export function ErasureScreen() {
         )}
 
         {!valid && userId.trim() !== '' && (
-          <p role="alert" className="text-xs text-red-700 dark:text-red-400">
+          <p role="alert" className="text-xs text-danger">
             That is not a user identifier.
           </p>
         )}
@@ -150,9 +150,9 @@ function Report({ erasure }: { erasure: Erasure }) {
   return (
     <section
       data-testid="erasure-report"
-      className="space-y-4 border-t border-neutral-200 pt-6 text-sm dark:border-neutral-800"
+      className="space-y-4 border-t border-line pt-6 text-sm"
     >
-      <h2 className="text-base font-semibold">Done</h2>
+      <h2 className="text-xl font-semibold">Done</h2>
 
       <div className="grid gap-6 sm:grid-cols-2">
         <div className="space-y-2">
@@ -160,7 +160,7 @@ function Report({ erasure }: { erasure: Erasure }) {
             Anonymised
           </h3>
           {erased.length === 0 ? (
-            <p className="text-neutral-600 dark:text-neutral-400">Nothing was anonymised.</p>
+            <p className="text-muted">Nothing was anonymised.</p>
           ) : (
             <ul className="space-y-1">
               {erased.map(([what, count]) => (
@@ -178,7 +178,7 @@ function Report({ erasure }: { erasure: Erasure }) {
             Kept, as the law requires
           </h3>
           {retained.length === 0 ? (
-            <p className="text-neutral-600 dark:text-neutral-400">Nothing had to be kept.</p>
+            <p className="text-muted">Nothing had to be kept.</p>
           ) : (
             <ul className="space-y-2">
               {retained.map(([what, detail]) => (
@@ -189,7 +189,7 @@ function Report({ erasure }: { erasure: Erasure }) {
                   </div>
                   {/* The ground, never a bare count: a number without a reason
                       reads as a failure to delete. */}
-                  <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                  <p className="text-xs text-muted">
                     {RETENTION_GROUNDS[detail.ground] ?? detail.ground}
                   </p>
                 </li>
@@ -199,7 +199,7 @@ function Report({ erasure }: { erasure: Erasure }) {
         </div>
       </div>
 
-      <p className="text-xs text-neutral-600 dark:text-neutral-400">
+      <p className="text-xs text-muted">
         The person now appears in the directory with no identity and a date. Their acts remain in the
         audit trail, attributed to someone since erased rather than to the platform.
       </p>

@@ -85,14 +85,14 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
   return (
     <div className="max-w-4xl space-y-8">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">{current.name}</h1>
-        <p className="text-xs text-neutral-500">
+        <h1 className="text-2xl font-semibold">{current.name}</h1>
+        <p className="text-xs text-subtle">
           schema v{current.schema_version} · updated {new Date(current.updated_at).toLocaleString()}
         </p>
       </header>
 
       <section className="space-y-4">
-        <h2 className="text-base font-semibold">Details</h2>
+        <h2 className="text-xl font-semibold">Details</h2>
 
         <form
           className="max-w-md space-y-4"
@@ -146,8 +146,8 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
         </form>
       </section>
 
-      <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-        <h2 className="text-base font-semibold">History</h2>
+      <section className="space-y-3 border-t border-line pt-6">
+        <h2 className="text-xl font-semibold">History</h2>
 
         <div className="flex flex-wrap items-end gap-2">
           <Field id="version-label" label="Label" hint="Optional — why this snapshot exists.">
@@ -189,14 +189,14 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
               <li
                 key={version.id}
                 data-version={version.id}
-                className="rounded border border-neutral-200 p-3 text-sm md:flex md:items-center md:gap-3 dark:border-neutral-800"
+                className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm md:flex md:items-center md:gap-3"
               >
                 <div className="min-w-0 md:flex-1">
                   <p className="font-medium">
                     v{version.version_number}
                     {version.label !== null && ` — ${version.label}`}
                   </p>
-                  <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                  <p className="text-xs text-muted">
                     {version.name} · {new Date(version.created_at).toLocaleString()}
                   </p>
                 </div>
@@ -214,25 +214,25 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
           </ul>
         )}
 
-        <p className="text-xs text-neutral-600 dark:text-neutral-400">
+        <p className="text-xs text-muted">
           Restoring snapshots the current state first, so it can never be the step that loses work.
         </p>
       </section>
 
       <ProjectCanvas projectName={current.name} />
 
-      <div className="border-t border-neutral-200 pt-6 dark:border-neutral-800">
+      <div className="border-t border-line pt-6">
         <AssetsPanel projectId={projectId} />
       </div>
 
-      <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-        <h2 className="text-base font-semibold">Delete this project</h2>
+      <section className="space-y-3 border-t border-line pt-6">
+        <h2 className="text-xl font-semibold">Delete this project</h2>
 
         {/* Recoverable, and said so (R13). It used to be a hard delete with the
             versions cascading behind it, and the wording here said exactly that;
             keeping that wording now would be scaring somebody with a
             consequence that no longer happens. */}
-        <p data-testid="delete-explanation" className="text-sm text-neutral-600 dark:text-neutral-400">
+        <p data-testid="delete-explanation" className="text-sm text-muted">
           The project leaves your list and keeps everything — its{' '}
           {versions.data?.length ?? 0} snapshot
           {versions.data?.length === 1 ? '' : 's'}, its files and its jobs. You can put it back from{' '}

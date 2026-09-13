@@ -51,8 +51,8 @@ export function StaffMembersScreen() {
   return (
     <div className="max-w-3xl space-y-6">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Staff</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Staff</h1>
+        <p className="text-sm text-muted">
           Who may act across tenants, and under which role. A platform role never grants membership
           of anybody&rsquo;s tenant — it grants the console, and every crossing it allows is
           recorded in the access log.
@@ -63,7 +63,7 @@ export function StaffMembersScreen() {
       {revoke.error !== null && <ErrorSurface error={revoke.error} />}
 
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">Current staff</h2>
+        <h2 className="text-xl font-semibold">Current staff</h2>
 
         {members.length === 0 ? (
           <EmptyState
@@ -88,10 +88,10 @@ export function StaffMembersScreen() {
         )}
       </section>
 
-      <section className="space-y-3 border-t border-neutral-200 pt-4 dark:border-neutral-800">
-        <h2 className="text-base font-semibold">Appoint somebody</h2>
+      <section className="space-y-3 border-t border-line pt-4">
+        <h2 className="text-xl font-semibold">Appoint somebody</h2>
 
-        <p className="hint text-sm text-neutral-600 dark:text-neutral-400">
+        <p className="hint text-sm text-muted">
           By user id, which the <strong>Directory</strong> screen shows. An email address is not
           accepted here on purpose: resolving one would make this a way to ask whether an account
           exists for any address somebody tried.
@@ -166,7 +166,7 @@ function Member({
   return (
     <li
       data-staff-member={member.user_id}
-      className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+      className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
     >
       <div className="flex flex-wrap items-baseline gap-2">
         <span className="font-medium">
@@ -174,24 +174,24 @@ function Member({
         </span>
 
         {member.email !== null && member.display_name !== null && (
-          <span className="text-xs text-neutral-500">{member.email}</span>
+          <span className="text-xs text-subtle">{member.email}</span>
         )}
 
         {isSelf && (
           <span
             data-testid="is-self"
-            className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs dark:bg-neutral-800"
+            className="rounded bg-well px-1.5 py-0.5 text-xs"
           >
             you
           </span>
         )}
 
-        <span className="ml-auto text-xs text-neutral-500">
+        <span className="ml-auto text-xs text-subtle">
           since {new Date(member.granted_at).toLocaleDateString()}
         </span>
       </div>
 
-      <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+      <p className="mt-1 text-xs text-muted">
         <code>{member.user_id}</code>
       </p>
 
@@ -203,13 +203,13 @@ function Member({
             <li key={role} className="flex items-center gap-1.5">
               <span
                 data-testid="staff-role"
-                className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs dark:bg-neutral-800"
+                className="rounded bg-well px-1.5 py-0.5 text-xs"
               >
                 {role}
               </span>
 
               {protectedRole ? (
-                <span data-testid="role-protected" className="text-xs text-neutral-500">
+                <span data-testid="role-protected" className="text-xs text-subtle">
                   {isOnlyAdmin
                     ? 'the last administrator — appoint somebody else first'
                     : 'your own — another administrator can remove it'}

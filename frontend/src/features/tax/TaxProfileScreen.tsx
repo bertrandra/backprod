@@ -92,8 +92,8 @@ export function TaxProfileScreen() {
   return (
     <div className="max-w-2xl space-y-8">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Tax profile</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Tax profile</h1>
+        <p className="text-sm text-muted">
           What is recorded here decides which VAT regime applies to what you are invoiced. A VAT
           number is a claim until the registry confirms it; the state below says which it is.
         </p>
@@ -102,7 +102,7 @@ export function TaxProfileScreen() {
       <Verification profile={current} />
 
       <form
-        className="space-y-4 border-t border-neutral-200 pt-6 dark:border-neutral-800"
+        className="space-y-4 border-t border-line pt-6"
         onSubmit={(event) => {
           void form.handleSubmit((values) =>
             save.mutate({
@@ -149,7 +149,7 @@ export function TaxProfileScreen() {
               />
               <span>
                 This organisation is a taxable person
-                <span className="block text-xs text-neutral-600 dark:text-neutral-400">
+                <span className="block text-xs text-muted">
                   A statement about yourself. It is not proof, and on its own it grants nothing —
                   the verified number below is what does.
                 </span>
@@ -173,14 +173,14 @@ export function TaxProfileScreen() {
         </fieldset>
 
         {!mayManage && (
-          <p data-testid="read-only" className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p data-testid="read-only" className="text-sm text-muted">
             You can read this profile. Changing it needs <code>tax.manage</code>, which an
             administrator of your organisation grants.
           </p>
         )}
 
         {save.isSuccess && (
-          <p data-testid="saved" className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p data-testid="saved" className="text-sm text-muted">
             Saved. The number was normalised and re-checked — the state above is what the check
             concluded, not what was typed.
           </p>
@@ -207,12 +207,12 @@ function Verification({ profile }: { profile: TaxProfile }) {
       data-testid="verification"
       data-status={status ?? 'NONE'}
       data-reverse-charge={String(profile.reverse_charge_available)}
-      className="space-y-3 rounded border border-neutral-200 p-4 text-sm dark:border-neutral-800"
+      className="space-y-3 rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium">VAT number</span>
         {profile.vat_number === null ? (
-          <span className="text-neutral-600 dark:text-neutral-400">none recorded</span>
+          <span className="text-muted">none recorded</span>
         ) : (
           <code data-testid="vat-number">{profile.vat_number}</code>
         )}
@@ -220,7 +220,7 @@ function Verification({ profile }: { profile: TaxProfile }) {
         {status !== null && (
           <span
             data-testid="vat-status"
-            className={`rounded px-2 py-0.5 text-xs font-medium ${known?.tone ?? 'bg-neutral-200 dark:bg-neutral-800'}`}
+            className={`rounded px-2 py-0.5 text-xs font-medium ${known?.tone ?? 'bg-well'}`}
           >
             {known?.label ?? status}
           </span>
@@ -228,7 +228,7 @@ function Verification({ profile }: { profile: TaxProfile }) {
       </div>
 
       {known !== undefined && (
-        <p data-testid="status-explanation" className="text-neutral-600 dark:text-neutral-400">
+        <p data-testid="status-explanation" className="text-muted">
           {known.explanation}
         </p>
       )}
@@ -236,13 +236,13 @@ function Verification({ profile }: { profile: TaxProfile }) {
       {profile.vat_number_verified_at !== null && (
         // Evidence with a date on it: a number verified last year is re-checked
         // when this gets old, not on every save.
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-subtle">
           Last checked {new Date(profile.vat_number_verified_at).toLocaleDateString()}
           {profile.vat_number_country !== null && ` · registry of ${profile.vat_number_country}`}
         </p>
       )}
 
-      <p data-testid="reverse-charge" className="border-t border-neutral-200 pt-3 dark:border-neutral-800">
+      <p data-testid="reverse-charge" className="border-t border-line pt-3">
         {profile.reverse_charge_available
           ? 'Reverse charge is available: the invoice carries no VAT and states that you account for it.'
           : 'Reverse charge is not available. Until the number is verified, VAT is charged — an unproved number is treated as unproved rather than trusted.'}

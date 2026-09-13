@@ -41,7 +41,7 @@ export function OrganisationScreen() {
   return (
     <div className="max-w-2xl space-y-8">
       <section className="space-y-4">
-        <h1 className="text-lg font-semibold">Organisation</h1>
+        <h1 className="text-2xl font-semibold">Organisation</h1>
 
         <form
           className="space-y-4"
@@ -60,7 +60,7 @@ export function OrganisationScreen() {
             />
           </Field>
 
-          <p className="text-xs text-neutral-600 dark:text-neutral-400">
+          <p className="text-xs text-muted">
             Identifier <code className="select-all">{organisation.data?.slug}</code> — set when the
             organisation was created and not editable.
           </p>
@@ -76,7 +76,7 @@ export function OrganisationScreen() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">Usage</h2>
+        <h2 className="text-xl font-semibold">Usage</h2>
 
         {usage.isPending ? (
           <SkeletonRows rows={3} />
@@ -94,10 +94,10 @@ export function OrganisationScreen() {
             <table className="w-full text-sm">
               <tbody>
                 {usage.data.map((row, index) => (
-                  <tr key={index} className="border-b border-neutral-200 dark:border-neutral-800">
+                  <tr key={index} className="border-b border-line">
                     {Object.entries(row).map(([key, value]) => (
                       <td key={key} className="py-2 pr-4 align-top">
-                        <span className="text-neutral-500">{key.replaceAll('_', ' ')}</span>{' '}
+                        <span className="text-subtle">{key.replaceAll('_', ' ')}</span>{' '}
                         <span className="font-medium">
                           {typeof value === 'string' || typeof value === 'number'
                             ? String(value)

@@ -61,7 +61,7 @@ export function MembersScreen() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <h1 className="text-lg font-semibold">Members</h1>
+      <h1 className="text-2xl font-semibold">Members</h1>
 
       {members.data.length === 0 ? (
         <EmptyState title="No members yet" description="Add someone by email address below." />
@@ -75,14 +75,14 @@ export function MembersScreen() {
             return (
               <li
                 key={member.user_id}
-                className="rounded border border-neutral-200 p-3 md:flex md:items-center md:gap-4 dark:border-neutral-800"
+                className="rounded-card border border-line bg-surface p-4 shadow-raise md:flex md:items-center md:gap-4"
               >
                 <div className="min-w-0 md:flex-1">
                   <p className="truncate text-sm font-medium">
                     {member.display_name ?? member.email ?? 'Unnamed member'}
-                    {isSelf && <span className="ml-2 text-xs text-neutral-500">(you)</span>}
+                    {isSelf && <span className="ml-2 text-xs text-subtle">(you)</span>}
                   </p>
-                  <p className="truncate text-xs text-neutral-600 dark:text-neutral-400">
+                  <p className="truncate text-xs text-muted">
                     {member.email ?? 'No email address'}
                   </p>
                 </div>
@@ -161,7 +161,7 @@ export function MembersScreen() {
 
       {mayManage && (
         <form
-          className="max-w-lg space-y-4 border-t border-neutral-200 pt-4 dark:border-neutral-800"
+          className="max-w-lg space-y-4 border-t border-line pt-4"
           onSubmit={(event) => {
             void form.handleSubmit((values) =>
               add.mutate(
@@ -171,7 +171,7 @@ export function MembersScreen() {
             )(event);
           }}
         >
-          <h2 className="text-base font-semibold">Add a member</h2>
+          <h2 className="text-xl font-semibold">Add a member</h2>
 
           <Field id="invite-email" label="Email" error={form.formState.errors.email?.message}>
             <input

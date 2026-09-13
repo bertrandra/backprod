@@ -245,8 +245,13 @@ test.describe('erasure', () => {
 
     await page.getByRole('button', { name: 'Erase permanently' }).click();
 
-    // In flight: no report, because the counts are the server's.
-    await expect(page.getByRole('button', { name: 'Working…' })).toBeVisible();
+    // In flight: no report, because the counts are the server's. Asserted on
+    // `aria-busy` rather than on a renamed label — the button keeps its own
+    // label now, so somebody watching does not lose what they pressed.
+    await expect(page.getByRole('button', { name: 'Erase permanently' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
     await expect(page.getByTestId('erasure-report')).toHaveCount(0);
 
     await expect(page.getByTestId('erasure-report')).toBeVisible({ timeout: 10_000 });

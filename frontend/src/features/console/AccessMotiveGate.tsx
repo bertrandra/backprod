@@ -65,8 +65,8 @@ export function AccessMotiveGate({
       }}
     >
       <div className="space-y-1">
-        <h2 className="text-base font-semibold">Why are you opening {what}?</h2>
-        <p className="text-sm text-neutral-700 dark:text-neutral-300">
+        <h2 className="text-xl font-semibold">Why are you opening {what}?</h2>
+        <p className="text-sm text-muted">
           {/* Said before the fields, not after. */}
           Nothing is read until you answer. Your name, this reason and the
           permission you used are recorded together, and appear in the access log
@@ -129,7 +129,7 @@ export function MotiveInEffect({
     <p
       data-testid="motive-in-effect"
       data-purpose={motive.purpose}
-      className="flex flex-wrap items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400"
+      className="flex flex-wrap items-center gap-2 text-xs text-muted"
     >
       <span>
         Reading under <strong>{PURPOSE_LABELS[motive.purpose]}</strong> — {motive.reference}

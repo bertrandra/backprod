@@ -42,7 +42,7 @@ export function ProductSwitcher() {
       <span
         data-testid="active-product"
         data-product={productCode ?? ''}
-        className="rounded bg-neutral-900 px-2 py-1 text-xs font-semibold text-white dark:bg-neutral-100 dark:text-neutral-900"
+        className="inline-flex items-center gap-1.5 rounded-full border border-line bg-well px-2.5 py-1 text-xs font-medium text-ink"
       >
         {current?.name ?? productCode ?? '—'}
       </span>
@@ -69,7 +69,7 @@ export function ProductSwitcher() {
         }}
         className={cn(
           touchTargetClass,
-          'rounded bg-neutral-900 px-2 py-1 text-xs font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-neutral-100 dark:text-neutral-900',
+          'rounded bg-inverse px-2 py-1 text-xs font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-well dark:text-ink',
         )}
       >
         {known.map((product) => (

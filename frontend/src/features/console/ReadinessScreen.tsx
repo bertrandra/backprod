@@ -100,8 +100,8 @@ export function ReadinessScreen() {
   return (
     <div className="max-w-3xl space-y-6">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Setting up {product.name}</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Setting up {product.name}</h1>
+        <p className="text-sm text-muted">
           Every step depends on the one above it, so working down this list never meets a refusal.
           What is counted here is read the same way a sale reads it — this cannot say ready where a
           checkout would refuse.
@@ -111,7 +111,7 @@ export function ReadinessScreen() {
       {sellable ? (
         <p
           data-testid="sellable"
-          className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+          className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
         >
           <strong>This product can be bought.</strong> Somebody with no account can reach the public
           page, choose an offer, create an account and pay for it.
@@ -281,14 +281,14 @@ function Step({
       data-next={isNext ? 'true' : 'false'}
       className={
         isNext
-          ? 'rounded border-2 border-neutral-900 p-3 dark:border-neutral-100'
-          : 'rounded border border-neutral-200 p-3 dark:border-neutral-800'
+          ? 'rounded-card border border-accent bg-accent-wash/40 p-3 shadow-raise'
+          : 'rounded-card border border-line bg-surface p-4 shadow-raise'
       }
     >
       <div className="flex flex-wrap items-baseline gap-2">
         <span
           aria-hidden="true"
-          className="text-xs tabular-nums text-neutral-500"
+          className="text-xs tabular-nums text-subtle"
         >
           {index}
         </span>
@@ -297,11 +297,14 @@ function Step({
         <span
           data-testid={`state-${step.key}`}
           className={
+            // A finished step is the quietest thing on its row, not the loudest.
+            // The old "done" badge was solid black, which made a page of
+            // completed work shout and the one remaining step whisper.
             step.done
-              ? 'rounded bg-neutral-900 px-1.5 py-0.5 text-xs text-white dark:bg-neutral-100 dark:text-neutral-900'
+              ? 'rounded-full bg-success-wash px-2 py-0.5 text-2xs font-semibold uppercase text-success'
               : step.blocking
-                ? 'rounded bg-amber-200 px-1.5 py-0.5 text-xs text-amber-950 dark:bg-amber-900 dark:text-amber-100'
-                : 'rounded bg-neutral-200 px-1.5 py-0.5 text-xs dark:bg-neutral-800'
+                ? 'rounded-full bg-warning-wash px-2 py-0.5 text-2xs font-semibold uppercase text-warning'
+                : 'rounded-full bg-well px-2 py-0.5 text-2xs font-semibold uppercase text-subtle'
           }
         >
           {step.done ? 'done' : step.blocking ? 'required' : 'optional'}
@@ -310,14 +313,14 @@ function Step({
         {isNext && (
           <span
             data-testid="do-this-next"
-            className="rounded border border-neutral-900 px-1.5 py-0.5 text-xs font-semibold dark:border-neutral-100"
+            className="rounded-full bg-accent px-2 py-0.5 text-2xs font-semibold uppercase text-on-accent"
           >
             do this next
           </span>
         )}
       </div>
 
-      <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">{words.why}</p>
+      <p className="mt-1 text-sm text-muted">{words.why}</p>
 
       <Detail step={step} />
 
@@ -331,7 +334,7 @@ function Step({
             {step.done ? `Review in ${words.action}` : `Go to ${words.action}`}
           </Button>
         ) : (
-          <p className="text-xs text-neutral-500">{words.hint}</p>
+          <p className="text-xs text-subtle">{words.hint}</p>
         )}
       </div>
     </li>
@@ -355,7 +358,7 @@ function Detail({
 
   if (Array.isArray(missing) && missing.length > 0) {
     return (
-      <p data-testid={`missing-${step.key}`} className="mt-1 text-xs text-neutral-500">
+      <p data-testid={`missing-${step.key}`} className="mt-1 text-xs text-subtle">
         Missing: <strong className="font-mono">{missing.join(', ')}</strong>
       </p>
     );
@@ -363,7 +366,7 @@ function Detail({
 
   if (typeof count === 'number') {
     return (
-      <p data-testid={`count-${step.key}`} className="mt-1 text-xs tabular-nums text-neutral-500">
+      <p data-testid={`count-${step.key}`} className="mt-1 text-xs tabular-nums text-subtle">
         {count} so far
       </p>
     );
@@ -371,7 +374,7 @@ function Detail({
 
   if (step.key === 'product' && step.detail['active'] === false) {
     return (
-      <p data-testid="missing-product" className="mt-1 text-xs text-neutral-500">
+      <p data-testid="missing-product" className="mt-1 text-xs text-subtle">
         This product is retired. Nobody can sign in to it or buy from it.
       </p>
     );

@@ -54,8 +54,8 @@ export function SupportConversationsScreen() {
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Support conversations</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Support conversations</h1>
+        <p className="text-sm text-muted">
           Threads a customer opened with the platform. Opening one reveals which company is asking,
           and that read is recorded.
         </p>
@@ -71,7 +71,7 @@ export function SupportConversationsScreen() {
             <EmptyState title="No conversations" description="Nobody has written in." />
           ) : (
             <>
-              <p data-testid="thread-count" className="text-xs text-neutral-500">
+              <p data-testid="thread-count" className="text-xs text-subtle">
                 Showing {list.data.conversations.length} of {list.data.total}.
               </p>
 
@@ -85,8 +85,8 @@ export function SupportConversationsScreen() {
                       onClick={() => select(conversation.id)}
                       className={`w-full rounded border p-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-2 ${
                         selected === conversation.id
-                          ? 'border-neutral-900 dark:border-neutral-100'
-                          : 'border-neutral-200 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900'
+                          ? 'border-ink'
+                          : 'border-line hover:bg-canvas dark:hover:bg-inverse'
                       }`}
                     >
                       <span className="flex flex-wrap items-center gap-2">
@@ -96,7 +96,7 @@ export function SupportConversationsScreen() {
                         <span
                           data-testid="thread-status"
                           data-status={conversation.status}
-                          className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs dark:bg-neutral-800"
+                          className="rounded bg-well px-1.5 py-0.5 text-xs"
                         >
                           {conversation.status}
                         </span>
@@ -104,7 +104,7 @@ export function SupportConversationsScreen() {
                       {/* The kind, shown rather than filtered away: staff are
                           confined to SUPPORT by a foreign key, and seeing it is
                           how somebody knows the confinement is real. */}
-                      <span className="mt-1 block text-xs text-neutral-500">
+                      <span className="mt-1 block text-xs text-subtle">
                         {conversation.kind} · updated{' '}
                         {new Date(conversation.updated_at).toLocaleDateString()}
                       </span>
@@ -169,8 +169,8 @@ function Thread({ conversationId }: { conversationId: string }) {
   return (
     <div className="space-y-4">
       <header className="space-y-1">
-        <h2 className="text-base font-semibold">{conversation.subject}</h2>
-        <p className="text-xs text-neutral-600 dark:text-neutral-400">
+        <h2 className="text-xl font-semibold">{conversation.subject}</h2>
+        <p className="text-xs text-muted">
           tenant <code data-testid="thread-tenant">{conversation.tenant_id}</code> · opened{' '}
           {new Date(conversation.created_at).toLocaleDateString()}
         </p>
@@ -189,17 +189,17 @@ function Thread({ conversationId }: { conversationId: string }) {
       )}
 
       {!mayRespond ? (
-        <p data-testid="cannot-respond" className="text-sm text-neutral-600 dark:text-neutral-400">
+        <p data-testid="cannot-respond" className="text-sm text-muted">
           You can read this thread. Answering needs <code>support.respond</code>.
         </p>
       ) : closed ? (
-        <p data-testid="thread-closed" className="rounded border border-neutral-200 p-3 text-sm text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
+        <p data-testid="thread-closed" className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm text-muted">
           This thread is closed, so it takes no reply. The customer reopens it by writing again —
           closing it is not the end of the conversation, only of this turn.
         </p>
       ) : (
         <form
-          className="space-y-3 border-t border-neutral-200 pt-4 dark:border-neutral-800"
+          className="space-y-3 border-t border-line pt-4"
           onSubmit={(event) => {
             event.preventDefault();
 
@@ -231,7 +231,7 @@ function Thread({ conversationId }: { conversationId: string }) {
       )}
 
       {mayRespond && !closed && (
-        <div className="border-t border-neutral-200 pt-4 dark:border-neutral-800">
+        <div className="border-t border-line pt-4">
           {close.error !== null && <ErrorSurface error={close.error} />}
 
           {confirmingClose ? (
@@ -280,24 +280,24 @@ function MessageRow({ message }: { message: Message }) {
     <li
       data-message={message.id}
       data-author-kind={message.author_kind}
-      className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+      className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
     >
       <div className="flex flex-wrap items-baseline gap-2">
-        <span data-testid="author-kind" className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+        <span data-testid="author-kind" className="text-xs font-medium uppercase tracking-wide text-subtle">
           {message.author_kind}
         </span>
-        <span className="text-xs text-neutral-500">#{message.seq}</span>
-        <span className="ml-auto text-xs text-neutral-500">
+        <span className="text-xs text-subtle">#{message.seq}</span>
+        <span className="ml-auto text-xs text-subtle">
           {new Date(message.created_at).toLocaleString()}
         </span>
       </div>
 
       {message.deleted ? (
-        <p data-testid="deleted" className="mt-1 italic text-neutral-500">
+        <p data-testid="deleted" className="mt-1 italic text-subtle">
           This message was deleted. Its place in the sequence is kept.
         </p>
       ) : message.body === '' ? (
-        <p data-testid="empty-body" className="mt-1 italic text-neutral-500">
+        <p data-testid="empty-body" className="mt-1 italic text-subtle">
           Nothing to show — the author was erased, and the words went with the identity.
         </p>
       ) : (

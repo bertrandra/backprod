@@ -73,8 +73,8 @@ export function InvoicingScreen() {
   return (
     <div className="max-w-3xl space-y-8">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Invoicing</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold">Invoicing</h1>
+        <p className="text-sm text-muted">
           Who <strong>{product.name}</strong> invoices as, and under which VAT regime. Both are
           configuration and neither is guessed: an invoice is a legal document with a permanent
           number, so a product that cannot name its issuer refuses to raise one rather than issuing
@@ -85,7 +85,7 @@ export function InvoicingScreen() {
       {canInvoice ? (
         <p
           data-testid="can-invoice"
-          className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"
+          className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
         >
           This product can invoice. Every document it raises copies the identity below as it stood at
           that moment, so changing it later never rewrites an invoice already issued.
@@ -144,8 +144,8 @@ function BillingIdentityForm({
 
   return (
     <section className="space-y-3">
-      <h2 className="text-base font-semibold">The issuer</h2>
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+      <h2 className="text-xl font-semibold">The issuer</h2>
+      <p className="text-sm text-muted">
         What appears on the document as the company issuing it. The legal name and the country are
         the two an invoice cannot be raised without — the country because it decides which VAT
         regime the document is issued under. A supplier under the <em>franchise en base</em> has no
@@ -268,9 +268,9 @@ function TaxForm({ productCode, initial }: { productCode: string; initial: TaxSe
   const [oss, setOss] = useState(initial.oss_registered);
 
   return (
-    <section className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-      <h2 className="text-base font-semibold">The tax position</h2>
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+    <section className="space-y-3 border-t border-line pt-6">
+      <h2 className="text-xl font-semibold">The tax position</h2>
+      <p className="text-sm text-muted">
         Stated, never derived. What is being supplied decides where a sale is taxed, and whether the
         supplier is registered for the One Stop Shop decides how a sale to a consumer in another
         member state is treated. Getting one wrong files a VAT return in the wrong country.

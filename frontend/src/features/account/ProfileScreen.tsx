@@ -43,9 +43,9 @@ export function ProfileScreen() {
 
   return (
     <div className="max-w-lg space-y-4">
-      <h1 className="text-lg font-semibold">Your profile</h1>
+      <h1 className="text-2xl font-semibold">Your profile</h1>
 
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+      <p className="text-sm text-muted">
         {session.data?.email ?? 'No email address on this account.'}
       </p>
 
@@ -83,7 +83,7 @@ export function ProfileScreen() {
           </Button>
 
           {update.isSuccess && !form.formState.isDirty && (
-            <span role="status" className="text-sm text-neutral-600 dark:text-neutral-400">
+            <span role="status" className="text-sm text-muted">
               Saved
             </span>
           )}
@@ -97,7 +97,7 @@ export function ProfileScreen() {
           Region A's "More" sheet has it too, because that sheet is the phone's
           only route to anything the bottom bar could not fit — and an account
           you cannot leave on a phone is a worse defect than one extra control. */}
-      <div className="border-t border-neutral-200 pt-4 dark:border-neutral-800">
+      <div className="border-t border-line pt-4">
         <Button
           type="button"
           variant="secondary"

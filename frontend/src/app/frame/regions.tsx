@@ -27,7 +27,7 @@ export function ContextBar({
           where `listProducts` lives. It is a real switcher now. */}
       <ProductSwitcher />
 
-      <span className="truncate text-sm text-neutral-600 dark:text-neutral-400">
+      <span className="truncate text-sm text-muted">
         {data?.tenantId.slice(0, 8) ?? 'No organisation'}
       </span>
 
@@ -45,11 +45,11 @@ export function ContextBar({
         onClick={onOpenPalette}
         className={cn(
           touchTargetClass,
-          'ml-auto rounded border border-neutral-300 px-3 py-1 text-xs text-neutral-700 focus-visible:outline-2 focus-visible:outline-offset-2 dark:border-neutral-700 dark:text-neutral-300',
+          'ml-auto rounded-card border border-line bg-surface shadow-raise-strong px-3 py-1 text-xs text-muted focus-visible:outline-2 focus-visible:outline-offset-2',
         )}
       >
         Search
-        <kbd className="ml-2 hidden text-[10px] text-neutral-500 sm:inline">⌘K</kbd>
+        <kbd className="ml-2 hidden text-[10px] text-subtle sm:inline">⌘K</kbd>
       </button>
 
       <UnreadBadge />
@@ -60,7 +60,7 @@ export function ContextBar({
           onClick={onOpenMore}
           className={cn(
             touchTargetClass,
-            'rounded border border-neutral-300 px-3 py-1 text-xs md:hidden dark:border-neutral-700',
+            'rounded-card border border-line bg-surface shadow-raise-strong px-3 py-1 text-xs md:hidden',
           )}
         >
           More
@@ -69,7 +69,7 @@ export function ContextBar({
 
       <span
         data-testid="account-menu"
-        className="grid size-7 shrink-0 place-items-center rounded-full bg-neutral-200 text-xs font-medium dark:bg-neutral-700"
+        className="grid size-7 shrink-0 place-items-center rounded-full bg-well text-xs font-medium"
         title={data?.displayName ?? data?.email ?? 'Account'}
       >
         {(data?.displayName ?? data?.email ?? '?').slice(0, 1).toUpperCase()}
@@ -105,7 +105,7 @@ function UnreadBadge() {
       to="/notifications"
       data-testid="unread-badge"
       aria-label={`${String(unread)} unread notifications`}
-      className="rounded-full bg-neutral-900 px-2 py-0.5 text-xs font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-neutral-100 dark:text-neutral-900"
+      className="rounded-full bg-inverse px-2 py-0.5 text-xs font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-well dark:text-ink"
     >
       {unread > 99 ? '99+' : unread}
     </Link>
@@ -115,13 +115,13 @@ function UnreadBadge() {
 /** Region B on desktop. */
 export function PrimaryNav({ sections }: { sections: readonly NavSection[] }) {
   return (
-    <ul className="space-y-4">
+    <ul className="space-y-5">
       {sections.map((section) => (
         <li key={section.id}>
-          <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+          <p className="px-2.5 pb-1.5 text-2xs font-semibold uppercase text-subtle">
             {section.label}
           </p>
-          <ul>
+          <ul className="space-y-0.5">
             {section.entries.map((entry) => (
               <li key={entry.id}>
                 <NavLink entry={entry} />
@@ -140,10 +140,18 @@ function NavLink({ entry, className }: { entry: NavEntry; className?: string }) 
       to={entry.to}
       data-nav={entry.id}
       className={cn(
-        'block rounded px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-neutral-300 dark:hover:bg-neutral-800',
+        // A rail on the leading edge rather than a fill: on a list of thirty-five
+        // entries a filled block is a heavy object, and a 2px rail says the same
+        // thing at a tenth of the weight. `border-l-transparent` is there on
+        // every entry so the active one does not shift its neighbours by 2px.
+        'relative block rounded-control border-l-2 border-l-transparent py-1.5 pr-2 pl-2.5',
+        'text-base text-muted transition-colors duration-150',
+        'hover:bg-well hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2',
         className,
       )}
-      activeProps={{ className: 'bg-neutral-200 font-medium dark:bg-neutral-800' }}
+      activeProps={{
+        className: 'border-l-accent bg-accent-wash font-medium text-accent-strong',
+      }}
     >
       {entry.label}
     </Link>
@@ -160,8 +168,8 @@ export function BottomNav({ entries }: { entries: readonly NavEntry[] }) {
             to={entry.to}
             data-nav-bottom={entry.id}
             // 44px minimum touch target (ui-spec.md §4.2).
-            className="flex min-h-[44px] flex-col items-center justify-center px-1 py-2 text-[11px] text-neutral-700 dark:text-neutral-300"
-            activeProps={{ className: 'font-semibold text-neutral-950 dark:text-white' }}
+            className="flex min-h-[44px] flex-col items-center justify-center px-1 py-2 text-[11px] text-muted"
+            activeProps={{ className: 'font-semibold text-accent-strong' }}
           >
             {entry.label}
           </Link>
@@ -196,7 +204,7 @@ function PlatformBadge() {
       // Truncating and shrinkable: several roles joined by commas is a long
       // string, and a bar that cannot shrink pushes the page sideways at phone
       // width — which is how this first failed.
-      className="min-w-0 max-w-28 shrink truncate rounded border border-amber-500 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-900 dark:text-amber-200"
+      className="min-w-0 max-w-44 shrink truncate rounded border border-amber-500 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-warning"
     >
       {data.roles.join(', ')}
     </span>
