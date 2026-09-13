@@ -14,7 +14,8 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { notice } from '@/ui/tone';
-import { PageHeader } from '@/ui/Page';
+import { PageHeader, Section } from '@/ui/Page';
+import { FieldCell, FieldGroup, FieldRow, FormActions, FormCard } from '@/ui/Form';
 
 /**
  * `console.admin.invoicing` — what a product needs configured before it can take
@@ -140,19 +141,20 @@ function BillingIdentityForm({
   const cleared = (value: string) => (value.trim() === '' ? null : value.trim());
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-xl font-semibold">The issuer</h2>
-      <p className="text-sm text-muted">
-        What appears on the document as the company issuing it. The legal name and the country are
-        the two an invoice cannot be raised without — the country because it decides which VAT
-        regime the document is issued under. A supplier under the <em>franchise en base</em> has no
-        VAT number and invoices perfectly legally, so that field may stay empty.
-      </p>
-
+    <Section
+      title="The issuer"
+      description={
+        <>
+          What appears on the document as the company issuing it. The legal name and the country
+          are the two an invoice cannot be raised without — the country because it decides which
+          VAT regime the document is issued under. A supplier under the <em>franchise en base</em>{' '}
+          has no VAT number and invoices perfectly legally, so that field may stay empty.
+        </>
+      }
+    >
       {save.error !== null && <ErrorSurface error={save.error} />}
 
-      <form
-        className="grid gap-3 sm:grid-cols-2"
+      <FormCard
         onSubmit={(event) => {
           event.preventDefault();
 
@@ -168,83 +170,126 @@ function BillingIdentityForm({
           });
         }}
       >
-        <Field id="supplier-legal-name" label="Legal name">
-          <input
-            id="supplier-legal-name"
-            className={inputClass()}
-            placeholder="Atlas SAS"
-            value={form.legal_name}
-            onChange={set('legal_name')}
-          />
-        </Field>
-        <Field id="supplier-country" label="Country" hint="Two letters, such as FR.">
-          <input
-            id="supplier-country"
-            className={inputClass()}
-            maxLength={2}
-            placeholder="FR"
-            value={form.country_code}
-            onChange={set('country_code')}
-          />
-        </Field>
-        <Field id="supplier-vat" label="VAT number">
-          <input
-            id="supplier-vat"
-            className={inputClass()}
-            placeholder="FR12345678901"
-            value={form.vat_number}
-            onChange={set('vat_number')}
-          />
-        </Field>
-        <Field id="supplier-registration" label="Registration number" hint="SIREN or SIRET.">
-          <input
-            id="supplier-registration"
-            className={inputClass()}
-            placeholder="123 456 789 00012"
-            value={form.registration_number}
-            onChange={set('registration_number')}
-          />
-        </Field>
-        <Field id="supplier-address1" label="Address">
-          <input
-            id="supplier-address1"
-            className={inputClass()}
-            value={form.address_line1}
-            onChange={set('address_line1')}
-          />
-        </Field>
-        <Field id="supplier-address2" label="Address, continued">
-          <input
-            id="supplier-address2"
-            className={inputClass()}
-            value={form.address_line2}
-            onChange={set('address_line2')}
-          />
-        </Field>
-        <Field id="supplier-postal-code" label="Postal code">
-          <input
-            id="supplier-postal-code"
-            className={inputClass()}
-            value={form.postal_code}
-            onChange={set('postal_code')}
-          />
-        </Field>
-        <Field id="supplier-city" label="City">
-          <input
-            id="supplier-city"
-            className={inputClass()}
-            value={form.city}
-            onChange={set('city')}
-          />
-        </Field>
+        <FieldGroup
+          legend="Required"
+          hint="Without both of these a checkout reaches its last step and refuses with BILLING_NOT_CONFIGURED."
+        >
+          <FieldRow>
+            <FieldCell>
+              <Field id="supplier-legal-name" label="Legal name">
+                <input
+                  id="supplier-legal-name"
+                  className={inputClass()}
+                  placeholder="Atlas SAS"
+                  value={form.legal_name}
+                  onChange={set('legal_name')}
+                />
+              </Field>
+            </FieldCell>
 
-        <div className="sm:col-span-2">
+            <FieldCell width="short">
+              <Field id="supplier-country" label="Country" hint="Two letters, such as FR.">
+                <input
+                  id="supplier-country"
+                  className={inputClass()}
+                  maxLength={2}
+                  placeholder="FR"
+                  value={form.country_code}
+                  onChange={set('country_code')}
+                />
+              </Field>
+            </FieldCell>
+          </FieldRow>
+        </FieldGroup>
+
+        <FieldGroup
+          legend="Registrations"
+          hint="Both optional. A supplier under the franchise en base has neither and invoices legally."
+        >
+          <FieldRow>
+            <FieldCell width="medium">
+              <Field id="supplier-vat" label="VAT number">
+                <input
+                  id="supplier-vat"
+                  className={inputClass()}
+                  placeholder="FR12345678901"
+                  value={form.vat_number}
+                  onChange={set('vat_number')}
+                />
+              </Field>
+            </FieldCell>
+
+            <FieldCell width="medium">
+              <Field
+                id="supplier-registration"
+                label="Registration number"
+                hint="SIREN or SIRET."
+              >
+                <input
+                  id="supplier-registration"
+                  className={inputClass()}
+                  placeholder="123 456 789 00012"
+                  value={form.registration_number}
+                  onChange={set('registration_number')}
+                />
+              </Field>
+            </FieldCell>
+          </FieldRow>
+        </FieldGroup>
+
+        {/* Not "Address": that is the label of the first field inside it, and a
+            legend repeating its own first child says nothing twice. */}
+        <FieldGroup legend="Where the issuer is">
+          <Field id="supplier-address1" label="Address">
+            <input
+              id="supplier-address1"
+              className={inputClass()}
+              value={form.address_line1}
+              onChange={set('address_line1')}
+            />
+          </Field>
+
+          <Field id="supplier-address2" label="Address, continued">
+            <input
+              id="supplier-address2"
+              className={inputClass()}
+              value={form.address_line2}
+              onChange={set('address_line2')}
+            />
+          </Field>
+
+          <FieldRow>
+            <FieldCell width="short">
+              <Field id="supplier-postal-code" label="Postal code">
+                <input
+                  id="supplier-postal-code"
+                  className={inputClass()}
+                  value={form.postal_code}
+                  onChange={set('postal_code')}
+                />
+              </Field>
+            </FieldCell>
+
+            <FieldCell>
+              <Field id="supplier-city" label="City">
+                <input
+                  id="supplier-city"
+                  className={inputClass()}
+                  value={form.city}
+                  onChange={set('city')}
+                />
+              </Field>
+            </FieldCell>
+          </FieldRow>
+        </FieldGroup>
+
+        <FormActions>
           <Button type="submit" pending={save.isPending}>
             Save the issuer
           </Button>
-        </div>
-      </form>
-    </section>
+        </FormActions>
+      </FormCard>
+    </Section>
   );
 }
 
@@ -265,18 +310,14 @@ function TaxForm({ productCode, initial }: { productCode: string; initial: TaxSe
   const [oss, setOss] = useState(initial.oss_registered);
 
   return (
-    <section className="space-y-3 border-t border-line pt-6">
-      <h2 className="text-xl font-semibold">The tax position</h2>
-      <p className="text-sm text-muted">
-        Stated, never derived. What is being supplied decides where a sale is taxed, and whether the
-        supplier is registered for the One Stop Shop decides how a sale to a consumer in another
-        member state is treated. Getting one wrong files a VAT return in the wrong country.
-      </p>
-
+    <Section
+      className="border-t border-line pt-6"
+      title="The tax position"
+      description="Stated, never derived. What is being supplied decides where a sale is taxed, and whether the supplier is registered for the One Stop Shop decides how a sale to a consumer in another member state is treated. Getting one wrong files a VAT return in the wrong country."
+    >
       {save.error !== null && <ErrorSurface error={save.error} />}
 
-      <form
-        className="grid gap-3 sm:grid-cols-2"
+      <FormCard
         onSubmit={(event) => {
           event.preventDefault();
 
@@ -288,59 +329,82 @@ function TaxForm({ productCode, initial }: { productCode: string; initial: TaxSe
           });
         }}
       >
-        <Field
-          id="tax-country"
-          label="Jurisdiction"
-          hint="The country a VAT return is filed in — the supplier's, since that is the regime the invoice is issued under."
-        >
-          <input
-            id="tax-country"
-            className={inputClass()}
-            maxLength={2}
-            placeholder="FR"
-            value={country}
-            onChange={(event) => setCountry(event.target.value)}
-          />
-        </Field>
-        <Field id="tax-currency" label="Currency" hint="Three letters, such as EUR.">
-          <input
-            id="tax-currency"
-            className={inputClass()}
-            maxLength={3}
-            value={currency}
-            onChange={(event) => setCurrency(event.target.value)}
-          />
-        </Field>
-        <Field id="tax-supply" label="What is supplied">
-          <select
-            id="tax-supply"
-            className={inputClass()}
-            value={supply}
-            onChange={(event) => setSupply(event.target.value as TaxSettings['supply_type'])}
-          >
-            <option value="DIGITAL_SERVICES">Digital services</option>
-            <option value="SERVICES">Services</option>
-            <option value="GOODS">Goods</option>
-          </select>
-        </Field>
+        <FieldGroup legend="Where and in what">
+          <FieldRow>
+            <FieldCell>
+              <Field
+                id="tax-country"
+                label="Jurisdiction"
+                hint="The country a VAT return is filed in — the supplier's, since that is the regime the invoice is issued under."
+              >
+                <input
+                  id="tax-country"
+                  className={inputClass()}
+                  maxLength={2}
+                  placeholder="FR"
+                  value={country}
+                  onChange={(event) => setCountry(event.target.value)}
+                />
+              </Field>
+            </FieldCell>
 
-        <div className="flex items-center">
-          <label className="flex items-center gap-2 text-sm">
+            <FieldCell width="short">
+              <Field id="tax-currency" label="Currency" hint="Three letters, such as EUR.">
+                <input
+                  id="tax-currency"
+                  className={inputClass()}
+                  maxLength={3}
+                  value={currency}
+                  onChange={(event) => setCurrency(event.target.value)}
+                />
+              </Field>
+            </FieldCell>
+          </FieldRow>
+        </FieldGroup>
+
+        <FieldGroup
+          legend="What is being sold"
+          hint="These two together decide the rule a cross-border consumer sale falls under."
+        >
+          <Field id="tax-supply" label="What is supplied">
+            <select
+              id="tax-supply"
+              className={inputClass()}
+              value={supply}
+              onChange={(event) => setSupply(event.target.value as TaxSettings['supply_type'])}
+            >
+              <option value="DIGITAL_SERVICES">Digital services</option>
+              <option value="SERVICES">Services</option>
+              <option value="GOODS">Goods</option>
+            </select>
+          </Field>
+
+          {/* A checkbox with its consequence beside it, not a bare label. What
+              this decides is invisible until a sale crosses a border, which is
+              the worst moment to find out it was left unticked. */}
+          <label className="flex items-start gap-2.5 rounded-control border border-line bg-well p-3 text-sm">
             <input
               type="checkbox"
+              className="mt-0.5 size-4 shrink-0"
               checked={oss}
               onChange={(event) => setOss(event.target.checked)}
             />
-            Registered for the One Stop Shop
+            <span>
+              Registered for the One Stop Shop
+              <span className="mt-0.5 block text-xs text-muted">
+                Crossing the distance-selling threshold changes the regime of later sales only,
+                so this is a dated decision and never read back from turnover.
+              </span>
+            </span>
           </label>
-        </div>
+        </FieldGroup>
 
-        <div className="sm:col-span-2">
+        <FormActions>
           <Button type="submit" pending={save.isPending}>
             Save the tax position
           </Button>
-        </div>
-      </form>
-    </section>
+        </FormActions>
+      </FormCard>
+    </Section>
   );
 }

@@ -16,7 +16,7 @@ declare(strict_types=1);
  * assigns every operation to one of three fates:
  *
  *   - a **screen area**, named and described in `docs/ui-spec.md`;
- *   - **shell bootstrap**, read to decide what the navigation offers rather
+ *   - **bootstrap**, read to decide what the navigation offers rather
  *     than rendered as a screen of its own;
  *   - **not in the UI**, with a written reason — a webhook has no human
  *     origin, a health probe has no human reader.
@@ -133,8 +133,14 @@ if (!is_array($areas) || $areas === []) {
     exit(1);
 }
 
-$shells = $map['shells'] ?? [];
-$shells = is_array($shells) ? $shells : [];
+$authorities = $map['authorities'] ?? [];
+$authorities = is_array($authorities) ? $authorities : [];
+
+// `$comment` is prose, not an authority. Dropped here rather than tolerated,
+// because everything below checks membership of this map: left in, it would
+// both inflate the count in the summary and let an area declare
+// `"authority": "$comment"` and pass.
+unset($authorities['$comment']);
 
 foreach ($areas as $areaId => $area) {
     if (!is_string($areaId) || !is_array($area)) {
@@ -142,10 +148,10 @@ foreach ($areas as $areaId => $area) {
         exit(1);
     }
 
-    $shell = $area['shell'] ?? null;
+    $authority = $area['authority'] ?? null;
 
-    if (!is_string($shell) || !array_key_exists($shell, $shells)) {
-        fwrite(STDERR, sprintf("FAIL: area %s names shell %s, which is not declared.\n", $areaId, var_export($shell, true)));
+    if (!is_string($authority) || !array_key_exists($authority, $authorities)) {
+        fwrite(STDERR, sprintf("FAIL: area %s names authority %s, which is not declared.\n", $areaId, var_export($authority, true)));
         exit(1);
     }
 
@@ -166,20 +172,20 @@ foreach ($areas as $areaId => $area) {
     }
 }
 
-$bootstrap = $map['shell_bootstrap']['operations'] ?? [];
+$bootstrap = $map['bootstrap']['operations'] ?? [];
 
 if (is_array($bootstrap)) {
-    foreach ($bootstrap as $id => $shell) {
+    foreach ($bootstrap as $id => $authority) {
         if (!is_string($id)) {
             continue;
         }
 
-        if (!is_string($shell) || !array_key_exists($shell, $shells)) {
-            fwrite(STDERR, sprintf("FAIL: bootstrap operation %s names an undeclared shell.\n", $id));
+        if (!is_string($authority) || !array_key_exists($authority, $authorities)) {
+            fwrite(STDERR, sprintf("FAIL: bootstrap operation %s names an undeclared authority.\n", $id));
             exit(1);
         }
 
-        $claim($id, 'shell bootstrap');
+        $claim($id, 'bootstrap');
     }
 }
 
@@ -263,11 +269,11 @@ foreach ($claimedBy as $owner) {
 }
 
 printf(
-    "OK: all %d operations are accounted for — %d in %d screen areas across %d shells, %d shell bootstrap, %d outside the UI with a reason.\n",
+    "OK: all %d operations are accounted for — %d in %d screen areas across %d authorities, %d bootstrap, %d outside the UI with a reason.\n",
     count($operations),
     $inAreas,
     count($areas),
-    count($shells),
+    count($authorities),
     is_array($bootstrap) ? count($bootstrap) : 0,
     is_array($excluded) ? count($excluded) : 0,
 );

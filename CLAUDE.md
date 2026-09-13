@@ -236,8 +236,10 @@ and hides or disables from those. Hiding is courtesy only — the API refuses
 regardless, and the frontend is never the authority.
 
 **Every operation is reachable, or says why not.** `docs/ui-api-coverage.json`
-maps all 136 operations to a screen area, to shell bootstrap, or to a written
-reason for having no screen. `composer run gate:ui` checks it both ways: an
+maps every operation in the contract to a screen area, to bootstrap, or to a
+written reason for having no screen. Each area also names the **authority** it
+answers to — `tenant`, `platform` or `public` — in the same words
+`navigation.ts` uses. `composer run gate:ui` checks it both ways: an
 unmapped operation fails, and so does an area claiming an operation the
 contract no longer declares. Add an endpoint and that gate fails until a screen
 area claims it.

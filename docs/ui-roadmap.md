@@ -4,7 +4,7 @@
 the delivered API.
 **Status:** proposed execution plan
 **Governs:** build order, exit criteria, definition of done per milestone
-**Specifies against:** [ui-spec.md](ui-spec.md) — 2 shells, 34 screen areas,
+**Specifies against:** [ui-spec.md](ui-spec.md) — one shell, three authorities,
 6 regions
 
 The backend is done first and separately (see [backend-roadmap.md](backend-roadmap.md)):
@@ -919,11 +919,15 @@ U7   3 areas     8 operations   delivered
 U8   8 areas    16 operations   delivered
             ───────────────
             129 operations   in screen areas
-            +  3             shell bootstrap (U1)
+            +  3             bootstrap (U1)
             +  4             outside the UI, with reasons
             ═══════════════
-            136              the whole contract
+            136              the whole contract, as it stood at U8
 ```
+
+The contract has grown since — the milestones after U8 added areas of their
+own, and `gate:ui`'s own summary line is the live figure. This table is the
+record of what each milestone delivered, not a running total.
 
 `gate:ui` holds the right-hand column true. Nothing holds the left-hand column
 true except this document, so a new area added to `ui-api-coverage.json`

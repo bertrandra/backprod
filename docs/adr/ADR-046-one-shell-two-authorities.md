@@ -112,11 +112,12 @@ The tenant application now issues one request to `/staff/me` per session. For
 everybody who is not staff it is refused once, not retried, cached, and renders
 nothing.
 
-`docs/ui-api-coverage.json` still classifies each area by a field named `shell`
-with values `tenant`, `console` and `public`. What that field has always
-described is the **authority** an area answers to, which is still exactly right;
-the name is now misleading and renaming it is a separate mechanical change across
-42 entries and two tools. Named here rather than left to be discovered.
+`docs/ui-api-coverage.json` classified each area by a field named `shell` with
+values `tenant`, `console` and `public`. What that field always described is the
+**authority** an area answers to, which is still exactly right; only the name was
+misleading. It has since been renamed — `authorities`, `authority`, and
+`console` → `platform` — so the map and `navigation.ts` now describe the boundary
+in one vocabulary instead of two.
 
 ## Alternatives rejected
 

@@ -7,6 +7,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
+import { FieldCell, FieldGroup, FieldRow, FormActions, FormCard } from '@/ui/Form';
 
 /**
  * `billing.profile` — the legal identity that appears on the document.
@@ -71,14 +72,13 @@ export function BillingProfileScreen() {
   }
 
   return (
-    <div className="max-w-md space-y-6">
+    <div className="max-w-2xl space-y-6">
       <PageHeader
         title={'Billing identity'}
         description={'This is what appears on invoices. It is copied onto each document when the document is issued, so changing it here affects future invoices and never one already sent.'}
       />
 
-      <form
-        className="space-y-4"
+      <FormCard
         onSubmit={(event) => {
           void form.handleSubmit((values) =>
             save.mutate({
@@ -95,83 +95,128 @@ export function BillingProfileScreen() {
           )(event);
         }}
       >
-        <Field
-          id="legal_name"
-          label="Legal name"
-          error={form.formState.errors.legal_name?.message}
+        <FieldGroup
+          legend="Who is being invoiced"
+          hint="The legal identity the invoice names. A VAT number here is what decides whether VAT is charged at all on a cross-border sale."
         >
-          <input
+          <Field
             id="legal_name"
-            className={inputClass(form.formState.errors.legal_name !== undefined)}
-            {...form.register('legal_name')}
-          />
-        </Field>
+            label="Legal name"
+            error={form.formState.errors.legal_name?.message}
+          >
+            <input
+              id="legal_name"
+              className={inputClass(form.formState.errors.legal_name !== undefined)}
+              {...form.register('legal_name')}
+            />
+          </Field>
 
-        <Field id="vat_number" label="VAT number" hint="Optional.">
-          <input id="vat_number" className={inputClass()} {...form.register('vat_number')} />
-        </Field>
+          <FieldRow>
+            <FieldCell width="medium">
+              <Field id="vat_number" label="VAT number" hint="Optional.">
+                <input id="vat_number" className={inputClass()} {...form.register('vat_number')} />
+              </Field>
+            </FieldCell>
 
-        <Field id="registration_number" label="Registration number" hint="Optional.">
-          <input
-            id="registration_number"
-            className={inputClass()}
-            {...form.register('registration_number')}
-          />
-        </Field>
+            <FieldCell width="medium">
+              <Field id="registration_number" label="Registration number" hint="Optional.">
+                <input
+                  id="registration_number"
+                  className={inputClass()}
+                  {...form.register('registration_number')}
+                />
+              </Field>
+            </FieldCell>
+          </FieldRow>
+        </FieldGroup>
 
-        <Field id="address_line1" label="Address">
-          <input id="address_line1" className={inputClass()} {...form.register('address_line1')} />
-        </Field>
-
-        <Field id="address_line2" label="Address, continued" hint="Optional.">
-          <input id="address_line2" className={inputClass()} {...form.register('address_line2')} />
-        </Field>
-
-        <Field id="postal_code" label="Postal code">
-          <input id="postal_code" className={inputClass()} {...form.register('postal_code')} />
-        </Field>
-
-        <Field id="city" label="City">
-          <input id="city" className={inputClass()} {...form.register('city')} />
-        </Field>
-
-        <Field
-          id="country_code"
-          label="Country"
-          hint="Two letters, ISO 3166 — the code the tax rules are looked up by."
-          error={form.formState.errors.country_code?.message}
+        <FieldGroup
+          legend="Where they are"
+          hint="The country is what the tax rules are looked up by, so it decides the rate as much as the address decides the delivery."
         >
-          <input
-            id="country_code"
-            className={inputClass(form.formState.errors.country_code !== undefined)}
-            {...form.register('country_code')}
-          />
-        </Field>
+          <Field id="address_line1" label="Address">
+            <input
+              id="address_line1"
+              className={inputClass()}
+              {...form.register('address_line1')}
+            />
+          </Field>
 
-        <Field
-          id="billing_email"
-          label="Billing email"
-          error={form.formState.errors.billing_email?.message}
-        >
-          <input
+          <Field id="address_line2" label="Address, continued" hint="Optional.">
+            <input
+              id="address_line2"
+              className={inputClass()}
+              {...form.register('address_line2')}
+            />
+          </Field>
+
+          <FieldRow>
+            {/* Three questions that are one answer, at widths that say how much
+                each of them wants: a postcode is not as long as a city. */}
+            <FieldCell width="short">
+              <Field id="postal_code" label="Postal code">
+                <input
+                  id="postal_code"
+                  className={inputClass()}
+                  {...form.register('postal_code')}
+                />
+              </Field>
+            </FieldCell>
+
+            <FieldCell>
+              <Field id="city" label="City">
+                <input id="city" className={inputClass()} {...form.register('city')} />
+              </Field>
+            </FieldCell>
+
+            <FieldCell width="short">
+              <Field
+                id="country_code"
+                label="Country"
+                hint="Two letters, ISO 3166."
+                error={form.formState.errors.country_code?.message}
+              >
+                <input
+                  id="country_code"
+                  className={inputClass(form.formState.errors.country_code !== undefined)}
+                  {...form.register('country_code')}
+                />
+              </Field>
+            </FieldCell>
+          </FieldRow>
+        </FieldGroup>
+
+        <FieldGroup legend="Where the invoice is sent">
+          <Field
             id="billing_email"
-            className={inputClass(form.formState.errors.billing_email !== undefined)}
-            {...form.register('billing_email')}
-          />
-        </Field>
+            label="Billing email"
+            error={form.formState.errors.billing_email?.message}
+          >
+            <input
+              id="billing_email"
+              type="email"
+              className={inputClass(form.formState.errors.billing_email !== undefined)}
+              {...form.register('billing_email')}
+            />
+          </Field>
+        </FieldGroup>
 
         {save.error !== null && <ErrorSurface error={save.error} />}
 
-        <Button type="submit" pending={save.isPending}>
-          Save
-        </Button>
-
-        {save.isSuccess && (
-          <p data-testid="saved" className="text-sm text-muted">
-            Saved. Invoices issued from now on will carry this.
-          </p>
-        )}
-      </form>
+        <FormActions
+          note={
+            save.isSuccess && (
+              <p data-testid="saved" className="text-sm text-muted">
+                Saved. Invoices issued from now on will carry this.
+              </p>
+            )
+          }
+        >
+          <Button type="submit" pending={save.isPending}>
+            Save
+          </Button>
+        </FormActions>
+      </FormCard>
     </div>
   );
 }

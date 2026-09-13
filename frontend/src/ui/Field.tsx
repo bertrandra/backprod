@@ -1,13 +1,26 @@
-import type { ReactNode } from 'react';
+import { cloneElement, isValidElement, type ReactNode } from 'react';
 
 import { cn } from '@/utils/cn';
 
 /**
- * A labelled control with its error.
+ * A labelled control with its hint and its error.
  *
- * The label is a real `<label>` bound by id, and the error is announced — both
- * are the things a hand-rolled field forgets, and every screen after this one
- * inherits them by using this instead.
+ * The label is a real `<label>` bound by id, and the hint and error are
+ * *attached to the control* — both are what a hand-rolled field forgets, and
+ * every screen after this one inherits them by using this instead.
+ *
+ * **The attaching is the part that was wrong.** `aria-describedby` used to sit
+ * on a `<div>` wrapping the control, where it describes the div and nothing
+ * else: ARIA applies to the element carrying the attribute, so a screen reader
+ * reading the input announced its label and never its hint or its error. It is
+ * not a WCAG violation — nothing is missing, it is merely unreachable — so the
+ * axe scan over every route had no opinion about it, and neither did the type
+ * checker. Every form in the application inherited it.
+ *
+ * So the id is put on the control itself with `cloneElement`, merged with any
+ * `aria-describedby` the caller already set. That needs the child to be a
+ * single element, which every call site passes; anything else is left alone
+ * rather than silently dropped.
  */
 export function Field({
   id,
@@ -42,7 +55,15 @@ export function Field({
         </p>
       )}
 
-      <div aria-describedby={describedBy === '' ? undefined : describedBy}>{children}</div>
+      {describedBy === '' || !isValidElement<{ 'aria-describedby'?: string }>(children) ? (
+        children
+      ) : (
+        cloneElement(children, {
+          'aria-describedby': [children.props['aria-describedby'], describedBy]
+            .filter((value) => value !== undefined && value !== '')
+            .join(' '),
+        })
+      )}
 
       {error !== undefined && (
         <p id={`${id}-error`} role="alert" className="text-xs text-danger">

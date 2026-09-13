@@ -1,7 +1,7 @@
 # UI specification — screen areas, shells and responsive behaviour
 
 **Status:** accepted
-**Covers:** the whole API surface (136 operations), desktop and mobile
+**Covers:** the whole API surface (166 operations), desktop and mobile
 **Depends on:** `architecture-v2.md` §3 (stack), §4 (React/Core), §8 (TanStack
 Query), §8.1 (frontend API data flow), §9 (forms), §34 (frontend structure)
 **Enforced by:** `tools/prove-ui-covers-the-api.php` against
@@ -87,9 +87,15 @@ shell is not one screen.
 
 ## 3. Screen areas
 
-34 areas. Each owns a set of operations; the authoritative list is
+42 areas. Each owns a set of operations; the authoritative list is
 `ui-api-coverage.json`, which the gate checks. This section says what each
 area is *for* — the part a JSON file cannot carry.
+
+The map classifies each area by the **authority** it answers to — `tenant`,
+`platform` or `public` — which is the same vocabulary `navigation.ts` uses, so
+the two describe one boundary rather than two. The field was called `shell`
+until ADR-046 made one shell out of two and left the name describing something
+that no longer existed.
 
 ### 3.0 `identity.sign_in` — signing in
 
@@ -344,7 +350,7 @@ so, never because a plan is named a certain way (§13, non-negotiable #4).
 
 ## 7. How the coverage claim is kept true
 
-`ui-api-coverage.json` assigns all 136 operations to one of three fates, and
+`ui-api-coverage.json` assigns every operation to one of three fates, and
 `tools/prove-ui-covers-the-api.php` checks it **both ways** on every CI run:
 
 - an operation in the contract that no area claims → **fail**. An endpoint
@@ -357,13 +363,18 @@ so, never because a plan is named a certain way (§13, non-negotiable #4).
 Current state:
 
 ```text
-136 operations
-├── 129  in 34 screen areas, across 2 shells
-├──   3  shell bootstrap
+166 operations
+├── 159  in 42 screen areas, across 3 authorities
+├──   3  bootstrap
 └──   4  outside the UI, each with a reason
 ```
 
-**Shell bootstrap** is not a screen: `/me/permissions`, `/me/entitlements` and
+These counts are the gate's own summary line, and are the one thing in this
+document that goes stale silently — the gate checks the map against the
+contract, not this paragraph against either. It read `136` and `34` for several
+milestones.
+
+**Bootstrap** is not a screen: `/me/permissions`, `/me/entitlements` and
 `/staff/me` are read to decide what the navigation offers, which actions are
 enabled, and which empty state is honest. They shape every screen and are none.
 
