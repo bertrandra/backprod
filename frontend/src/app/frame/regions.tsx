@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router';
 
 import { can } from '@/app/access/access';
 import { ConnectionState } from '@/app/frame/ConnectionState';
-import { ConsoleDoor } from '@/app/frame/ConsoleDoor';
+import { useStaffIdentity } from '@/queries/staff';
 import { ProductSwitcher } from '@/app/frame/ProductSwitcher';
 import { useUnreadCount } from '@/queries/notifications';
 import { useSession } from '@/queries/session';
@@ -35,10 +35,10 @@ export function ContextBar({
           when there is nothing to say. */}
       <ConnectionState />
 
-      {/* The way into the console, for the people who have one. Renders
-          nothing for everybody else — and is not built from a tenant
-          permission, so #22's rule holds in the direction it was written for. */}
-      <ConsoleDoor />
+      {/* Who this person is on the platform, when they are anybody. The
+          navigation already offers the screens; this says under whose name the
+          access log will record them using one. */}
+      <PlatformBadge />
 
       <button
         type="button"
@@ -168,5 +168,37 @@ export function BottomNav({ entries }: { entries: readonly NavEntry[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * The platform roles this person holds, or nothing.
+ *
+ * Named rather than a generic "staff" chip: an access-log entry carries a user
+ * id and a permission, and somebody about to make one should be able to see
+ * whose name will be on it. It is read from `GET /staff/me` — the platform's own
+ * identity — and never inferred from anything the tenant session says.
+ *
+ * The query refuses to retry a 401 or a 403 and is cached for minutes, so for
+ * everybody who is not staff this costs one refused request per session and
+ * renders nothing.
+ */
+function PlatformBadge() {
+  const { data } = useStaffIdentity();
+
+  if (data === undefined || data.roles.length === 0) {
+    return null;
+  }
+
+  return (
+    <span
+      data-testid="platform-badge"
+      // Truncating and shrinkable: several roles joined by commas is a long
+      // string, and a bar that cannot shrink pushes the page sideways at phone
+      // width — which is how this first failed.
+      className="min-w-0 max-w-28 shrink truncate rounded border border-amber-500 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-900 dark:text-amber-200"
+    >
+      {data.roles.join(', ')}
+    </span>
   );
 }

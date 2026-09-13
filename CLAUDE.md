@@ -196,10 +196,24 @@ Full rule, with the reasoning: `docs/architecture-v2.md` §8.1. Non-negotiable
 Full specification: `docs/ui-spec.md`; build order and exit criteria:
 `docs/ui-roadmap.md`. The parts that constrain every change:
 
-**Two shells, never merged.** The tenant application (one product, one tenant)
-and the platform console (`/admin/*`, `/staff/*`) are separate shells with
-separate routes. A platform role never grants tenant membership and the reverse
-(non-negotiable #22), so the two authorities never share a navigation tree.
+**One shell, two authorities, and every entry declares which.** There is a
+single navigation: a person sees the screens their permissions actually allow,
+tenant and platform together. Platform screens keep the `/console/*` prefix, so
+an address still says which authority it answers to.
+
+This used to read *"two shells, never merged"* and cited non-negotiable #22 for
+it. That was a misreading, and it cost the operator of this platform real time:
+#22 says **a platform role never grants a tenant membership and never the
+reverse** — a rule about authorisation, which the server enforces with two
+contexts, two permission catalogues and a gate on every route. It says nothing
+about interfaces. Splitting the UI as well only hid the platform's own screens
+from the person running it (ADR-046).
+
+The rule now holds more explicitly than it did. Every `NavEntry` carries
+`scope: 'tenant' | 'platform'`, and the filter consults *that* authority and no
+other — so a tenant permission cannot light a platform entry, because the entry
+never looks at the tenant's set. `gate:permissions` fails the build when an
+entry's declared scope disagrees with the catalogue its permission lives in.
 
 **Six named screen regions.** Context bar, primary nav, view (header + body),
 inspector, status strip, overlay. Every screen is those regions with different

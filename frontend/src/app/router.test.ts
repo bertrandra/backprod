@@ -1,34 +1,32 @@
 import { describe, expect, it } from 'vitest';
 
-import { CONSOLE_NAV, TENANT_NAV } from '@/app/frame/navigation';
+import { APP_NAV } from '@/app/frame/navigation';
 
 import { buildRouter } from './router';
 
 /**
- * U8's first exit criterion: **a tenant-app route is unreachable from the
- * console and vice versa.**
+ * What the route tree owes, now that there is one shell instead of two.
  *
- * `navigation.test.ts` proves the two *menus* are disjoint, which is a different
- * claim — a menu is what is offered, and a route is what exists. A console route
- * accidentally parented to the tenant shell would render inside the tenant frame,
- * with a product switcher and no amber band, and no navigation test would notice.
+ * The old version of this file proved "a tenant route is unreachable from the
+ * console and vice versa" by checking which of two shells each route hung off.
+ * That property is gone because the reason for it was wrong: #22 is about
+ * authorisation, the server enforces it, and splitting the interface as well only
+ * hid the platform's own screens from the person running it.
  *
- * So this asserts against the route tree the application actually builds. Every
- * route id carries its shell, because the two shells are the only children of
- * the root, and that is what makes the property checkable rather than a
- * convention.
+ * What is still worth asserting against the tree the application actually builds:
+ * every screen renders inside the frame, the catch-all does not swallow a real
+ * path, and every navigation entry points somewhere that exists. The last one is
+ * the quietest possible broken link — an entry whose `to` was renamed on one side
+ * only is visible, clickable, and lands on a not-found.
  */
-const TENANT_SHELL = '/tenant-shell';
-const CONSOLE_SHELL = '/console-shell';
+const SHELL = '/app-shell';
 
 function routeIds(): string[] {
-  const router = buildRouter();
-
-  return Object.keys(router.routesById);
+  return Object.keys(buildRouter().routesById);
 }
 
 /**
- * The shells a pathname resolves through.
+ * The route ids a pathname resolves through.
  *
  * `matchRoutes` answers `any` here for the same reason `useParams` does — the
  * route tree is built at runtime, so there is no generated union to infer from
@@ -48,103 +46,74 @@ function matchedRouteIds(pathname: string): string[] {
     : [];
 }
 
-function pathsByShell(): { tenant: string[]; console: string[] } {
-  const ids = routeIds();
-
-  return {
-    tenant: ids.filter((id) => id.startsWith(`${TENANT_SHELL}/`)),
-    console: ids.filter((id) => id.startsWith(`${CONSOLE_SHELL}/`)),
-  };
-}
-
 /**
- * The one route that is legitimately outside both shells.
+ * The one route that is legitimately outside the shell.
  *
  * Enumerated rather than exempted by a pattern, and listed here rather than
  * loosened inside the assertion: the check below is about a route accidentally
  * escaping its frame, and the way to keep it meaningful is for every deliberate
  * escape to be a line somebody had to write.
  */
-const OUTSIDE_BOTH_SHELLS = ['/sign-in'];
+const OUTSIDE_THE_SHELL = ['/sign-in'];
 
-describe('the two shells', () => {
-  it('are the only children of the root, apart from signing in', () => {
-    const ids = routeIds();
-    const unaccounted = ids.filter(
-      (id) =>
-        id !== '__root__' &&
-        id !== TENANT_SHELL &&
-        id !== CONSOLE_SHELL &&
-        !id.startsWith(`${TENANT_SHELL}/`) &&
-        !id.startsWith(`${CONSOLE_SHELL}/`),
+describe('the shell', () => {
+  it('is the only child of the root, apart from signing in', () => {
+    const unaccounted = routeIds().filter(
+      (id) => id !== '__root__' && id !== SHELL && !id.startsWith(`${SHELL}/`),
     );
 
-    // A route outside both shells renders with no frame at all — no navigation, no
-    // context bar, and in the console's case no warning that a tenant boundary is
-    // being crossed. That is wrong for every screen in the application and right
-    // for exactly one: somebody signing in has no session, so a shell would be a
-    // frame around nothing it could fill in.
-    expect(unaccounted).toEqual(OUTSIDE_BOTH_SHELLS);
+    // A route outside the shell renders with no frame at all — no navigation, no
+    // context bar, no warning when a tenant boundary is being crossed. That is
+    // wrong for every screen in the application and right for exactly one:
+    // somebody signing in has no session, so a shell would be a frame around
+    // nothing it could fill in.
+    expect(unaccounted).toEqual(OUTSIDE_THE_SHELL);
   });
 
-  it('put every /console/ path under the console shell and nothing else there', () => {
-    const { tenant, console: consoleRoutes } = pathsByShell();
+  it('renders the platform screens inside it, at the paths they always had', () => {
+    const platform = routeIds().filter((id) => id.startsWith(`${SHELL}/console`));
 
-    // `/console` itself, and not only `/console/...`: the console has a landing
-    // now, and the pattern was written when it did not. The intent is unchanged
-    // — every console route lives under that prefix — and the converse below is
-    // widened the same way, so a bare `/console` in the tenant tree would still
-    // be caught.
-    for (const id of consoleRoutes) {
-      expect(id.replace(`${CONSOLE_SHELL}/`, '/')).toMatch(/^\/console(\/|$)/);
-    }
-
-    // And the converse: no tenant route is a console path, which is what stops
-    // `/console/audit` resolving inside the tenant frame.
-    for (const id of tenant) {
-      expect(id.replace(`${TENANT_SHELL}/`, '/')).not.toMatch(/^\/console(\/|$)/);
+    // The paths did not change when the shells merged, so every link ever
+    // written still resolves — and the prefix still says, in the address, which
+    // authority a screen answers to.
+    expect(platform.length).toBeGreaterThan(10);
+    for (const id of platform) {
+      expect(id.replace(`${SHELL}/`, '/')).toMatch(/^\/console(\/|$)/);
     }
   });
 
-  it('resolve a console path through the console shell only', () => {
-    const matched = matchedRouteIds('/console/tenants');
-
-    expect(matched).toContain(CONSOLE_SHELL);
-    expect(matched).not.toContain(TENANT_SHELL);
-  });
-
-  it('resolve a tenant path through the tenant shell only', () => {
-    const matched = matchedRouteIds('/invoices');
-
-    expect(matched).toContain(TENANT_SHELL);
-    expect(matched).not.toContain(CONSOLE_SHELL);
-  });
-
-  it('does not let the tenant catch-all swallow a console path', () => {
-    // `$` lives under the tenant shell so a mistyped tenant link still lands
-    // inside the frame. If it also caught `/console/...`, a console route
-    // renamed by a typo would silently render the tenant "no such page" —
-    // inside the tenant frame, for a platform staff member.
+  it('resolves a platform path to its own route and not to the catch-all', () => {
+    // `$` lives under the shell so a mistyped link still lands inside the frame.
+    // If it also caught `/console/...`, a platform route renamed by a typo would
+    // silently render "no such page" instead of failing loudly in review.
     const matched = matchedRouteIds('/console/audit');
 
-    expect(matched).not.toContain(`${TENANT_SHELL}/$`);
-    expect(matched).toContain(`${CONSOLE_SHELL}/console/audit`);
+    expect(matched).toContain(SHELL);
+    expect(matched).toContain(`${SHELL}/console/audit`);
+    expect(matched).not.toContain(`${SHELL}/$`);
+  });
+
+  it('resolves a tenant path to its own route', () => {
+    const matched = matchedRouteIds('/invoices');
+
+    expect(matched).toContain(SHELL);
+    expect(matched).toContain(`${SHELL}/invoices`);
+    expect(matched).not.toContain(`${SHELL}/$`);
+  });
+
+  it('still catches a path nobody declared', () => {
+    expect(matchedRouteIds('/not-a-screen')).toContain(`${SHELL}/$`);
   });
 });
 
 describe('every navigation entry', () => {
   it('points at a route that exists', () => {
-    // The quietest possible broken link: an entry whose `to` was renamed on one
-    // side only. It is visible, clickable, and lands on a not-found.
+    // One shell means one prefix, and one loop covering both authorities — which
+    // is stricter than the two it replaced, because neither list can be forgotten.
     const ids = new Set(routeIds());
-    const known = (to: string, shell: string) => ids.has(`${shell}${to}`);
 
-    for (const entry of TENANT_NAV.flatMap((section) => section.entries)) {
-      expect(known(entry.to, TENANT_SHELL)).toBe(true);
-    }
-
-    for (const entry of CONSOLE_NAV.flatMap((section) => section.entries)) {
-      expect(known(entry.to, CONSOLE_SHELL)).toBe(true);
+    for (const entry of APP_NAV.flatMap((section) => section.entries)) {
+      expect(ids.has(`${SHELL}${entry.to}`), `${entry.id} → ${entry.to}`).toBe(true);
     }
   });
 });
@@ -154,9 +123,7 @@ describe('what is left to build', () => {
     // U1 through U7 each left routes saying "this arrives in Ux". U8 is the last
     // screen milestone, so a placeholder surviving here would be a promise with
     // no milestone behind it.
-    const router = buildRouter();
-
-    for (const id of Object.keys(router.routesById)) {
+    for (const id of routeIds()) {
       expect(id).not.toMatch(/placeholder/i);
     }
   });

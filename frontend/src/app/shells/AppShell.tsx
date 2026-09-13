@@ -1,0 +1,132 @@
+import { Outlet, useLocation } from '@tanstack/react-router';
+import { useCallback, useState } from 'react';
+
+import { AppFrame } from '@/app/frame/AppFrame';
+import { CommandPalette, usePaletteShortcut } from '@/app/frame/CommandPalette';
+import { MoreSheet } from '@/app/frame/MoreSheet';
+import { APP_NAV, bottomBarEntries, visibleNav, type Authorities } from '@/app/frame/navigation';
+import { BottomNav, ContextBar, PrimaryNav } from '@/app/frame/regions';
+import { StatusStrip } from '@/app/frame/StatusStrip';
+import { useProductContext } from '@/app/frame/useProductContext';
+import { useSession } from '@/queries/session';
+import { staffAccess, useStaffIdentity } from '@/queries/staff';
+import { EmptyState } from '@/ui/EmptyState';
+import { ErrorSurface } from '@/ui/ErrorSurface';
+import { SkeletonRows } from '@/ui/Skeleton';
+
+/**
+ * One shell, for one person, showing what their permissions actually allow.
+ *
+ * **This replaces two shells, and the two were a mistake.** Non-negotiable #22
+ * says a platform role never grants a tenant membership and never the reverse. It
+ * is a rule about *authorisation*, enforced on the server by two contexts, two
+ * permission catalogues and a gate on every route. It says nothing about
+ * interfaces. Splitting the UI as well was an inference drawn from it, and the
+ * cost was paid by the operator of this platform: the screen they needed most was
+ * behind an address nobody had told them existed, twice.
+ *
+ * The rule still holds, and holds more explicitly than before. Every navigation
+ * entry declares the authority it answers to, and the filter consults *that*
+ * authority and no other — so holding `catalog.manage` inside a tenant cannot
+ * light up `staff.catalog.manage`'s entry, because that entry never looks at the
+ * tenant's permissions at all. `gate:permissions` fails the build if an entry's
+ * declared scope disagrees with the catalogue its permission lives in.
+ *
+ * **Two identities, still read separately.** `GET /me` answers about the tenant
+ * and `GET /staff/me` about the platform; neither is derived from the other, and a
+ * person may hold one, both, or — briefly, while a fresh installation is being set
+ * up — a platform role and a membership that has nothing in it yet. The shell
+ * renders what each of them actually returned.
+ */
+export function AppShell() {
+  const { productCode } = useProductContext();
+  const session = useSession();
+  const staff = useStaffIdentity();
+
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  const openPalette = useCallback(() => setPaletteOpen(true), []);
+  usePaletteShortcut(openPalette);
+
+  const { pathname } = useLocation();
+
+  // Which authority the *current screen* answers to, from its own address. The
+  // paths did not change when the shells merged, so `/console` still marks the
+  // platform's own administration — and a screen's scope decides which failures
+  // are its business: a platform screen must not be blocked by a tenant session
+  // its user does not have.
+  const onPlatformScreen = pathname === '/console' || pathname.startsWith('/console/');
+
+  const authorities: Authorities = {
+    tenant: session.data,
+    platform: staffAccess(staff.data),
+  };
+
+  const sections = visibleNav(APP_NAV, authorities);
+
+  return (
+    <AppFrame
+      contextBar={<ContextBar onOpenPalette={openPalette} onOpenMore={() => setMoreOpen(true)} />}
+      primaryNav={
+        // A skeleton only while **neither** authority has answered.
+        //
+        // Waiting for both was the first version and it was wrong: a platform
+        // administrator with no product chosen never gets a usable answer from
+        // `/me` — the client refuses to build a request with no product — so the
+        // navigation stayed a skeleton for somebody who had every right to see
+        // it. An entry appearing a moment later is a smaller cost than a menu
+        // that never fills, and each entry's own authority decides anyway.
+        session.isPending && staff.isPending ? (
+          <SkeletonRows rows={6} />
+        ) : (
+          <PrimaryNav sections={sections} />
+        )
+      }
+      bottomNav={<BottomNav entries={bottomBarEntries(APP_NAV, authorities)} />}
+      // Region E watches *the tenant's* jobs through `/jobs`. On a platform
+      // screen that is a tenant this person may not be in, so the strip is not
+      // rendered there rather than showing an empty or borrowed one.
+      statusStrip={onPlatformScreen ? undefined : <StatusStrip />}
+      overlay={
+        <>
+          <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+          <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} sections={sections} />
+        </>
+      }
+    >
+      {onPlatformScreen ? (
+        <>
+          {/* Said on every platform screen, because non-negotiable #21 is not a
+              footnote: a read that crosses into a customer's data is recorded
+              with who looked, at what, and under which permission. Nobody
+              should be surprised by their own entry in that log. */}
+          <div
+            data-testid="platform-band"
+            className="mb-4 rounded border border-amber-400 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+          >
+            You are administering the platform. Every read that crosses into a tenant&rsquo;s own
+            data is recorded — who looked, at what, and under which permission.
+          </div>
+
+          <Outlet />
+        </>
+      ) : productCode === null ? (
+        // Nothing tenant-scoped can be read without a product: it is the root
+        // context, and the client refuses to build a request that lacks it.
+        <EmptyState
+          title="No product selected"
+          description="Everything in the application is scoped to a product. Choose one in the bar above to continue."
+        />
+      ) : session.error !== null ? (
+        // The session is the shell's own dependency, so its failure is rendered
+        // here rather than by each screen — but only for the screens that need
+        // it. A platform administrator with no membership gets a 403 from `/me`,
+        // and that is an answer, not a broken page.
+        <ErrorSurface error={session.error} onRetry={() => void session.refetch()} />
+      ) : (
+        <Outlet />
+      )}
+    </AppFrame>
+  );
+}

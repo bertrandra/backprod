@@ -270,7 +270,7 @@ for (const route of CONSOLE_ROUTES) {
   test(`the console route ${route} has no accessibility violations`, async ({ page }) => {
     await stubbed(page);
     await page.goto(route);
-    await expect(page.getByTestId('console-badge')).toBeVisible();
+    await expect(page.getByTestId('platform-band')).toBeVisible();
 
     const results = await scan(page);
 

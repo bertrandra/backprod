@@ -47,8 +47,7 @@ import { StaffTenantsScreen } from '@/features/console/StaffTenantsScreen';
 import { StorefrontScreen } from '@/features/console/StorefrontScreen';
 import { SupportConversationsScreen } from '@/features/console/SupportConversationsScreen';
 import { SignInScreen } from '@/features/auth/SignInScreen';
-import { ConsoleShell } from '@/app/shells/ConsoleShell';
-import { TenantShell } from '@/app/shells/TenantShell';
+import { AppShell } from '@/app/shells/AppShell';
 import { EmptyState } from '@/ui/EmptyState';
 
 /**
@@ -101,12 +100,14 @@ const SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element
 ];
 
 /**
- * The console's screens. **A separate array, under a separate shell route** — the
- * two trees share the root and nothing else, which is what makes U8's "a
- * tenant-app route is unreachable from the console and vice versa" a property of
- * the router rather than a convention.
+ * The platform's own screens, under the same shell as every other one.
+ *
+ * A separate array only because the paths share a prefix and reading them
+ * together is useful. What keeps a tenant permission from reaching them is the
+ * `scope` on each navigation entry and the gate on each endpoint — not which
+ * array they were declared in.
  */
-const CONSOLE_SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element }[] = [
+const PLATFORM_SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element }[] = [
   // The landing, and the map: `/console` alone lands here too, so an
   // address typed without a section is a useful page rather than a 404.
   { path: '/console', component: ReadinessScreen },
@@ -145,16 +146,18 @@ const signInRoute = createRoute({
   component: SignInScreen,
 });
 
-const tenantShellRoute = createRoute({
+/**
+ * One shell for every screen a signed-in person can reach.
+ *
+ * There used to be two, and #22 was the reason given — wrongly. That rule is
+ * about authorisation and the server enforces it; splitting the interface as
+ * well only hid the platform's own screens from the person running it. The paths
+ * are unchanged, so every link ever written still resolves.
+ */
+const appShellRoute = createRoute({
   getParentRoute: () => rootRoute,
-  id: 'tenant-shell',
-  component: TenantShell,
-});
-
-const consoleShellRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  id: 'console-shell',
-  component: ConsoleShell,
+  id: 'app-shell',
+  component: AppShell,
 });
 
 /**
@@ -166,7 +169,7 @@ const consoleShellRoute = createRoute({
  * so this points at the navigation rather than at a date.
  */
 const indexRoute = createRoute({
-  getParentRoute: () => tenantShellRoute,
+  getParentRoute: () => appShellRoute,
   path: '/',
   validateSearch,
   component: () => (
@@ -186,7 +189,7 @@ const indexRoute = createRoute({
  * inside the frame instead.
  */
 const notFoundRoute = createRoute({
-  getParentRoute: () => tenantShellRoute,
+  getParentRoute: () => appShellRoute,
   path: '$',
   component: () => (
     <EmptyState title="No such page" description="The link may be old, or mistyped." />
@@ -194,7 +197,7 @@ const notFoundRoute = createRoute({
 });
 
 const screenRoutes: AnyRoute[] = SCREEN_ROUTES.map(({ path, component }) =>
-  createRoute({ getParentRoute: () => tenantShellRoute, path, validateSearch, component }),
+  createRoute({ getParentRoute: () => appShellRoute, path, validateSearch, component }),
 );
 
 /**
@@ -206,7 +209,7 @@ const screenRoutes: AnyRoute[] = SCREEN_ROUTES.map(({ path, component }) =>
  * open the same project for whoever follows it.
  */
 const projectRoute = createRoute({
-  getParentRoute: () => tenantShellRoute,
+  getParentRoute: () => appShellRoute,
   path: '/projects/$projectId',
   validateSearch,
   component: function ProjectRoute() {
@@ -232,7 +235,7 @@ const projectRoute = createRoute({
  * `client_secret`, which is deliberately not recoverable.
  */
 const checkoutRoute = createRoute({
-  getParentRoute: () => tenantShellRoute,
+  getParentRoute: () => appShellRoute,
   path: '/checkout/$sessionId',
   validateSearch,
   component: function CheckoutRoute() {
@@ -248,7 +251,7 @@ const checkoutRoute = createRoute({
 
 /** One invoice, addressed by its id — a document worth linking to. */
 const invoiceRoute = createRoute({
-  getParentRoute: () => tenantShellRoute,
+  getParentRoute: () => appShellRoute,
   path: '/invoices/$invoiceId',
   validateSearch,
   component: function InvoiceRoute() {
@@ -262,22 +265,24 @@ const invoiceRoute = createRoute({
   },
 });
 
+const platformScreenRoutes: AnyRoute[] = PLATFORM_SCREEN_ROUTES.map(({ path, component }) =>
+  createRoute({ getParentRoute: () => appShellRoute, path, validateSearch, component }),
+);
+
 const routeTree = rootRoute.addChildren([
-  // First, and a sibling of both shells rather than a child of either.
+  // First, and a sibling of the shell rather than a child of it: a person here
+  // has no session, so a frame would be full of things that cannot be filled in.
   signInRoute,
-  tenantShellRoute.addChildren([
+  appShellRoute.addChildren([
     indexRoute,
     ...screenRoutes,
+    ...platformScreenRoutes,
     projectRoute,
     checkoutRoute,
     invoiceRoute,
+    // Last: it matches anything, so every real route has to be declared above it.
     notFoundRoute,
   ]),
-  consoleShellRoute.addChildren(
-    CONSOLE_SCREEN_ROUTES.map(({ path, component }) =>
-      createRoute({ getParentRoute: () => consoleShellRoute, path, validateSearch, component }),
-    ),
-  ),
 ]);
 
 export function buildRouter() {

@@ -79,8 +79,8 @@ async function consoleStubs(page: Page) {
   );
 }
 
-test.describe('the door into the console', () => {
-  test('is offered to somebody holding a platform role', async ({ page }) => {
+test.describe('the platform badge', () => {
+  test('names the roles of somebody who holds them', async ({ page }) => {
     // The catch-all FIRST, then the routes that matter. Playwright lets the
     // most recently registered route win, so a catch-all added last answers
     // `/staff/me` with `{}` and the door never appears — which is how the
@@ -92,13 +92,12 @@ test.describe('the door into the console', () => {
 
     await page.goto('/projects');
 
-    const door = page.getByTestId('console-door');
-
-    await expect(door).toBeVisible();
-    await expect(door).toHaveAttribute('href', '/console');
+    // The navigation already offers the platform screens — one tree now — so
+    // what the bar adds is whose name the access log will carry.
+    await expect(page.getByTestId('platform-badge')).toContainText('PLATFORM_ADMIN');
   });
 
-  test('is offered to nobody else, which is the part that matters', async ({ page }) => {
+  test('names nobody for a tenant user, which is the part that matters', async ({ page }) => {
     await page.route(/\/api\/v1\//, (route) => route.fulfill({ json: {} }));
     await stubSession(page);
     await page.route(/\/api\/v1\/me$/, (route) => route.fulfill({ json: TENANT_SESSION }));
@@ -121,7 +120,7 @@ test.describe('the door into the console', () => {
     // Waited on a real anchor first, so this is not asserting against a page
     // that simply had not rendered yet.
     await page.getByTestId('active-product').waitFor();
-    await expect(page.getByTestId('console-door')).toHaveCount(0);
+    await expect(page.getByTestId('platform-badge')).toHaveCount(0);
   });
 });
 

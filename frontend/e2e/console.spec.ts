@@ -134,21 +134,23 @@ async function consoleStubs(page: Page) {
   return state;
 }
 
-test.describe('the two shells', () => {
-  test('a console route renders the console frame and never the tenant one', async ({ page }) => {
+test.describe('one shell, two authorities', () => {
+  test('a platform route says so, and names who is looking', async ({ page }) => {
     await consoleStubs(page);
     await page.goto('/console/tenants');
 
-    await expect(page.getByTestId('console-badge')).toHaveText('PLATFORM CONSOLE');
-    await expect(page.getByTestId('console-band')).toContainText('crosses a tenant boundary');
+    // The band is the standing reminder of non-negotiable #21: a read that
+    // crosses into a customer's data is recorded. The badge names the roles it
+    // will be recorded under.
+    await expect(page.getByTestId('platform-band')).toContainText('crosses into a tenant');
+    await expect(page.getByTestId('platform-badge')).toContainText('PLATFORM_ADMIN');
 
-    // The tenant frame's own controls are absent, not merely hidden: there is no
-    // product to switch and no tenant to be in.
-    await expect(page.locator('[data-testid="product-switcher"]')).toHaveCount(0);
+    // Region E watches *the tenant's* jobs, which is a tenant this person may
+    // not be in — so it is absent here rather than empty or borrowed.
     await expect(page.locator('[data-region="status-strip"]')).toHaveCount(0);
   });
 
-  test('a tenant route renders the tenant frame and never the console band', async ({ page }) => {
+  test('a tenant route carries neither the band nor a borrowed badge', async ({ page }) => {
     await page.route(/\/api\/v1\/me$/, (route) => route.fulfill({ json: TENANT_SESSION }));
     await page.route(/\/api\/v1\/products$/, (route) =>
       route.fulfill({
@@ -161,16 +163,24 @@ test.describe('the two shells', () => {
 
     await page.goto('/projects?product=atlas');
 
-    await expect(page.locator('[data-testid="console-badge"]')).toHaveCount(0);
-    await expect(page.locator('[data-testid="console-band"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="platform-band"]')).toHaveCount(0);
+    // No platform role was granted in this fixture, so nothing names one. This
+    // is the leak that matters: a tenant session must never light up a platform
+    // affordance.
+    await expect(page.locator('[data-testid="platform-badge"]')).toHaveCount(0);
   });
 
-  test('the console navigation offers no tenant destination', async ({ page }) => {
+  test('offers only platform destinations to somebody with only a platform role', async ({
+    page,
+  }) => {
     await consoleStubs(page);
     await page.goto('/console/tenants');
 
-    await expect(page.getByTestId('console-badge')).toBeVisible();
+    await expect(page.getByTestId('platform-badge')).toBeVisible();
 
+    // `/me` answers 403 throughout this fixture, so this person holds no tenant
+    // permission at all — and the one navigation therefore offers them nothing
+    // tenant-scoped. The scope on each entry is what makes that true.
     const links = await page
       .locator('[data-region="primary-nav"] a')
       .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('href') ?? ''));
@@ -178,22 +188,22 @@ test.describe('the two shells', () => {
     expect(links.length).toBeGreaterThan(0);
 
     for (const href of links) {
-      expect(href.startsWith('/console/')).toBe(true);
+      expect(href.startsWith('/console')).toBe(true);
     }
   });
 
-  test('the console reads the staff identity, not the tenant session', async ({ page }) => {
+  test('reads the staff identity for platform entries, not the tenant session', async ({ page }) => {
     await consoleStubs(page);
     await page.goto('/console/tenants');
 
-    // The navigation is populated, and `/me` answered 403 throughout. A console
-    // still gated on the tenant session would show an empty nav here.
+    // The navigation is populated, and `/me` answered 403 throughout. Platform
+    // entries gated on the tenant session would leave an empty nav here.
     //
     // Counted rather than asserted visible: at phone width the primary nav is in
     // the DOM but presented as the bottom bar instead (ui-spec.md §4.2), and this
     // test is about the nav having entries at all.
     await expect(page.locator('[data-region="primary-nav"] a').first()).toBeAttached();
-    await expect(page.getByTestId('staff-identity')).toContainText('PLATFORM_ADMIN');
+    await expect(page.getByTestId('platform-badge')).toContainText('PLATFORM_ADMIN');
   });
 });
 
