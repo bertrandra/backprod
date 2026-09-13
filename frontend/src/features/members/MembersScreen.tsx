@@ -116,7 +116,7 @@ export function MembersScreen() {
                         {/* Says what will happen rather than "are you sure?" —
                             the pattern U7 and U8 will need for actions that
                             cannot be undone. */}
-                        <span role="alert" className="text-xs text-red-800 dark:text-red-300">
+                        <span role="alert" className="text-xs text-danger">
                           Remove from this organisation? They keep their account.
                         </span>
                         <Button

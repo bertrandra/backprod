@@ -599,7 +599,7 @@ function OfferRow({
             <span
               className={
                 version.status === 'ACTIVE'
-                  ? 'rounded bg-inverse px-1.5 py-0.5 text-white dark:bg-well dark:text-ink'
+                  ? 'rounded bg-inverse px-1.5 py-0.5 text-on-inverse'
                   : 'rounded bg-well px-1.5 py-0.5'
               }
             >

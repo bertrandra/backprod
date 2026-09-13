@@ -9,6 +9,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { pill, type Tone } from '@/ui/tone';
 
 /**
  * `billing.invoices` — the list, and the one mutation that must never be
@@ -68,7 +69,7 @@ export function InvoicesScreen() {
             >
               <div className="flex flex-wrap items-center gap-2">
                 <span
-                  className={`rounded px-1.5 py-0.5 text-xs font-medium ${statusClass(invoice.status)}`}
+                  className={pill(statusTone(invoice.status))}
                 >
                   {invoice.status}
                 </span>
@@ -165,15 +166,25 @@ export function InvoiceNumber({ invoice }: { invoice: Invoice }) {
   );
 }
 
-export function statusClass(status: string): string {
+/**
+ * An invoice's four states, each named.
+ *
+ * `DRAFT` was reaching the `default` arm and coming out blue — the tone this
+ * palette reserves for something in flight. A draft is the opposite: nothing has
+ * been issued, nothing is owed, and nobody is waiting. Naming it also empties
+ * the default arm, which is why the default is now the colourless one: an
+ * invoice status this screen has never heard of should look like a fact it
+ * cannot interpret, not like one it can.
+ */
+export function statusTone(status: string): Tone {
   switch (status) {
     case 'PAID':
-      return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200';
-    case 'CANCELLED':
-      return 'bg-well text-muted';
+      return 'success';
     case 'ISSUED':
-      return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200';
+      return 'warning';
+    case 'DRAFT':
+    case 'CANCELLED':
     default:
-      return 'bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-200';
+      return 'neutral';
   }
 }

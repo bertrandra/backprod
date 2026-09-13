@@ -69,7 +69,7 @@ export function ProductSwitcher() {
         }}
         className={cn(
           touchTargetClass,
-          'rounded bg-inverse px-2 py-1 text-xs font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-well dark:text-ink',
+          'rounded-control bg-inverse px-2 py-1 text-xs font-semibold text-on-inverse focus-visible:outline-2 focus-visible:outline-offset-2',
         )}
       >
         {known.map((product) => (

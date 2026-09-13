@@ -182,7 +182,7 @@ function Turnover({ rows }: { rows: readonly Record<string, unknown>[] }) {
                       className={`rounded px-1.5 py-0.5 text-xs ${
                         closed
                           ? 'bg-well'
-                          : 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200'
+                          : 'warning'
                       }`}
                     >
                       {closed ? 'settled' : 'still moving'}

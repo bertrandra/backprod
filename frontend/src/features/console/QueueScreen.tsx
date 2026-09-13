@@ -10,6 +10,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { panel } from '@/ui/tone';
 
 /**
  * `console.admin.queue` — has the runner run since Tuesday.
@@ -166,10 +167,10 @@ function Liveness({ health }: { health: Health }) {
         data-testid="liveness"
         data-verdict="never-ran"
         role="alert"
-        className="rounded border border-red-300 bg-red-50 p-4 text-sm dark:border-red-900 dark:bg-red-950/40"
+        className={panel('danger')}
       >
-        <p className="font-medium text-red-900 dark:text-red-200">The runner has never run.</p>
-        <p className="mt-1 text-red-800 dark:text-red-300">
+        <p className="font-medium text-danger">The runner has never run.</p>
+        <p className="mt-1 text-danger">
           Not an idle queue — nothing has ever polled it. Every count below would read zero either
           way, which is why this is said rather than left to be inferred.
         </p>
@@ -185,8 +186,8 @@ function Liveness({ health }: { health: Health }) {
       data-verdict={stale ? 'stale' : 'live'}
       className={`space-y-3 rounded border p-4 text-sm ${
         stale
-          ? 'border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/40'
-          : 'border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40'
+          ? 'border-danger/30 bg-danger-wash'
+          : 'border-success/30 bg-success-wash'
       }`}
     >
       <p data-testid="verdict" className="font-medium">
@@ -197,13 +198,13 @@ function Liveness({ health }: { health: Health }) {
 
       <dl className="grid gap-3 sm:grid-cols-3">
         <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">Last pass finished</dt>
+          <dt className="text-xs uppercase tracking-wide text-muted">Last pass finished</dt>
           <dd data-testid="last-finished">
             {seconds(health.last_run.seconds_since_finished)} ago
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">Unfinished passes</dt>
+          <dt className="text-xs uppercase tracking-wide text-muted">Unfinished passes</dt>
           <dd data-testid="unfinished">
             {health.unfinished_runs}
             {health.oldest_unfinished_seconds !== null &&
@@ -211,7 +212,7 @@ function Liveness({ health }: { health: Health }) {
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">Backlog due</dt>
+          <dt className="text-xs uppercase tracking-wide text-muted">Backlog due</dt>
           <dd data-testid="backlog">
             {typeof health.backlog.due === 'number' ? health.backlog.due : '—'}
             {typeof health.backlog.oldest_due_seconds === 'number' &&

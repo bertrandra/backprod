@@ -165,7 +165,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
         role="application"
         aria-label={`Drawing surface for ${projectName}`}
         onPointerDown={addPoint}
-        className="aspect-square w-full max-w-full touch-none rounded-card border border-line bg-surface shadow-raise-strong bg-canvas"
+        className="aspect-square w-full max-w-full touch-none rounded-card border border-line bg-well"
       >
         {shapes.map((shape) => (
           <polygon
@@ -213,7 +213,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
           thumb while the surface scrolls; inline from `sm` upward. */}
       <div
         data-testid="tool-sheet"
-        className="sticky bottom-0 z-10 space-y-3 rounded-card border border-line bg-surface shadow-raise bg-white/95 p-3 backdrop-blur sm:static sm:bg-transparent sm:backdrop-blur-none/95 sm:dark:bg-transparent"
+        className="sticky bottom-0 z-10 space-y-3 rounded-card border border-line bg-surface/95 p-3 shadow-raise backdrop-blur sm:static sm:border-transparent sm:bg-transparent sm:shadow-none sm:backdrop-blur-none"
       >
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" onClick={finish} disabled={drawing.length < MIN_RING}>

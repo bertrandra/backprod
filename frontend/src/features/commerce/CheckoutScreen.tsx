@@ -4,6 +4,7 @@ import { isAwaitingPayment, useCheckoutSession } from '@/queries/checkout';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { notice, pill, type Tone } from '@/ui/tone';
 
 /**
  * `commerce.checkout` — one lifecycle, because there is only one thing.
@@ -57,7 +58,7 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
           <span
             data-testid="checkout-status"
             data-status={current.status}
-            className={`rounded px-2 py-0.5 text-xs font-medium ${statusClass(current.status)}`}
+            className={pill(statusTone(current.status))}
           >
             {current.status.replace(/_/g, ' ')}
           </span>
@@ -131,7 +132,7 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
       {current.status === 'PAYMENT_FAILED' && (
         <section
           data-testid="payment-failed"
-          className="space-y-2 rounded border border-red-300 bg-red-50 p-3 text-sm dark:border-red-900 dark:bg-red-950/40"
+          className={`${notice('danger')} space-y-2`}
         >
           <p className="font-medium">The last payment attempt failed.</p>
           {/* Honest about both halves: the order is still there, and the secret
@@ -157,15 +158,15 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
   );
 }
 
-function statusClass(status: string): string {
+function statusTone(status: string): Tone {
   switch (status) {
     case 'COMPLETED':
-      return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200';
+      return 'success';
     case 'PAYMENT_FAILED':
-      return 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200';
+      return 'danger';
     case 'CANCELLED':
-      return 'bg-well text-muted';
+      return 'neutral';
     default:
-      return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200';
+      return 'warning';
   }
 }

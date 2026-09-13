@@ -45,7 +45,7 @@ export function ContextBar({
         onClick={onOpenPalette}
         className={cn(
           touchTargetClass,
-          'ml-auto rounded-card border border-line bg-surface shadow-raise-strong px-3 py-1 text-xs text-muted focus-visible:outline-2 focus-visible:outline-offset-2',
+          'ml-auto rounded-control border border-line bg-surface px-3 py-1 text-xs text-muted shadow-raise focus-visible:outline-2 focus-visible:outline-offset-2',
         )}
       >
         Search
@@ -60,7 +60,7 @@ export function ContextBar({
           onClick={onOpenMore}
           className={cn(
             touchTargetClass,
-            'rounded-card border border-line bg-surface shadow-raise-strong px-3 py-1 text-xs md:hidden',
+            'rounded-control border border-line bg-surface px-3 py-1 text-xs shadow-raise md:hidden',
           )}
         >
           More
@@ -105,7 +105,7 @@ function UnreadBadge() {
       to="/notifications"
       data-testid="unread-badge"
       aria-label={`${String(unread)} unread notifications`}
-      className="rounded-full bg-inverse px-2 py-0.5 text-xs font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-well dark:text-ink"
+      className="rounded-full bg-inverse px-2 py-0.5 text-xs font-semibold text-on-inverse focus-visible:outline-2 focus-visible:outline-offset-2"
     >
       {unread > 99 ? '99+' : unread}
     </Link>
@@ -204,7 +204,7 @@ function PlatformBadge() {
       // Truncating and shrinkable: several roles joined by commas is a long
       // string, and a bar that cannot shrink pushes the page sideways at phone
       // width — which is how this first failed.
-      className="min-w-0 max-w-44 shrink truncate rounded border border-amber-500 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-warning"
+      className="min-w-0 max-w-44 shrink truncate rounded-control border border-warning/40 bg-warning-wash px-2 py-1 text-xs font-semibold text-warning"
     >
       {data.roles.join(', ')}
     </span>

@@ -11,6 +11,7 @@ import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 
 import { useViewState } from '@/app/frame/viewState';
+import { pill, type Tone } from '@/ui/tone';
 
 /**
  * `sales.orders` — and the payment gate, read straight off the document.
@@ -79,7 +80,7 @@ export function OrdersScreen() {
             >
               <div className="flex flex-wrap items-center gap-2">
                 <span
-                  className={`rounded px-1.5 py-0.5 text-xs font-medium ${statusClass(order.status)}`}
+                  className={pill(statusTone(order.status))}
                 >
                   {order.status.replace(/_/g, ' ')}
                 </span>
@@ -197,15 +198,15 @@ function PaymentGate({ order }: { order: Order }) {
   );
 }
 
-function statusClass(status: Order['status']): string {
+function statusTone(status: Order['status']): Tone {
   switch (status) {
     case 'COMPLETED':
-      return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200';
+      return 'success';
     case 'CANCELLED':
-      return 'bg-well text-muted';
+      return 'neutral';
     case 'AWAITING_PAYMENT':
-      return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200';
+      return 'warning';
     default:
-      return 'bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-200';
+      return 'info';
   }
 }

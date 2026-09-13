@@ -15,6 +15,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { pill, type Tone } from '@/ui/tone';
 
 /**
  * `billing.payments` — and the retry that is a **new attempt**.
@@ -84,7 +85,7 @@ export function PaymentsScreen() {
             >
               <div className="flex flex-wrap items-center gap-2">
                 <span
-                  className={`rounded px-1.5 py-0.5 text-xs font-medium ${statusClass(payment.status)}`}
+                  className={pill(statusTone(payment.status))}
                 >
                   {payment.status.replace(/_/g, ' ')}
                 </span>
@@ -206,7 +207,7 @@ function Failure({ payment }: { payment: Payment }) {
   }
 
   return (
-    <p data-testid="failure" className="mt-1 text-xs text-red-700 dark:text-red-300">
+    <p data-testid="failure" className="mt-1 text-xs text-danger">
       {payment.failure_reason ?? 'The attempt failed.'}
       {payment.failure_code !== null && (
         <span className="text-subtle"> ({payment.failure_code})</span>
@@ -215,16 +216,16 @@ function Failure({ payment }: { payment: Payment }) {
   );
 }
 
-function statusClass(status: Payment['status']): string {
+function statusTone(status: Payment['status']): Tone {
   switch (status) {
     case 'SUCCEEDED':
-      return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200';
+      return 'success';
     case 'FAILED':
-      return 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200';
+      return 'danger';
     case 'REFUNDED':
     case 'CHARGED_BACK':
-      return 'bg-well text-muted';
+      return 'neutral';
     default:
-      return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200';
+      return 'warning';
   }
 }

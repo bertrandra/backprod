@@ -13,6 +13,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { notice } from '@/ui/tone';
 
 /**
  * `console.admin.invoicing` — what a product needs configured before it can take
@@ -94,7 +95,7 @@ export function InvoicingScreen() {
         <p
           data-testid="cannot-invoice"
           role="alert"
-          className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100"
+          className={notice('danger')}
         >
           This product cannot invoice yet, so a checkout against it refuses with{' '}
           <code>BILLING_NOT_CONFIGURED</code>. Missing: <strong>{missing.join(', ')}</strong>.

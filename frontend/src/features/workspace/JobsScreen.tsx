@@ -4,6 +4,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { pill, type Tone } from '@/ui/tone';
 
 /**
  * `workspace.jobs` — what is queued, what failed, and cancelling one.
@@ -19,18 +20,18 @@ import { SkeletonRows } from '@/ui/Skeleton';
  */
 
 /** Colour by state, kept in one place so the strip and this screen agree. */
-export function statusClass(status: Job['status']): string {
+export function statusTone(status: Job['status']): Tone {
   switch (status) {
     case 'RUNNING':
-      return 'bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-200';
+      return 'info';
     case 'SUCCEEDED':
-      return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200';
+      return 'success';
     case 'FAILED':
-      return 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200';
+      return 'danger';
     case 'CANCELLED':
-      return 'bg-well text-muted';
+      return 'neutral';
     default:
-      return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200';
+      return 'warning';
   }
 }
 
@@ -78,7 +79,7 @@ export function JobsScreen() {
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span
-                    className={`rounded px-1.5 py-0.5 text-xs font-medium ${statusClass(job.status)}`}
+                    className={pill(statusTone(job.status))}
                   >
                     {job.status}
                   </span>
@@ -97,7 +98,7 @@ export function JobsScreen() {
                 {job.failure_reason !== null && (
                   // The reason, not a shrug. A job that failed for a reason
                   // nobody can read is a job nobody can fix.
-                  <p data-testid="failure-reason" className="mt-1 text-xs text-red-700 dark:text-red-300">
+                  <p data-testid="failure-reason" className="mt-1 text-xs text-danger">
                     {job.failure_reason}
                   </p>
                 )}

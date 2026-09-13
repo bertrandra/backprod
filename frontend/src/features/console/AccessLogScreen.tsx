@@ -75,7 +75,7 @@ function Entry({ entry }: { entry: StaffAccessEntry }) {
           data-permission={entry.permission ?? ''}
           className={`rounded px-1.5 py-0.5 text-xs ${
             entry.permission === null
-              ? 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200'
+              ? 'warning'
               : 'bg-well'
           }`}
         >

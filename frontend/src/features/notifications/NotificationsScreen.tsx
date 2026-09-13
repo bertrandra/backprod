@@ -5,6 +5,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { pill } from '@/ui/tone';
 
 /**
  * `account.notifications` — the inbox.
@@ -76,7 +77,7 @@ export function NotificationsScreen() {
                 {notification.legal_effect && (
                   // A notice with legal effect is not a nicety. §27 treats it as
                   // part of the obligation, so the screen says so.
-                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
+                  <span className={pill('warning')}>
                     legal notice
                   </span>
                 )}

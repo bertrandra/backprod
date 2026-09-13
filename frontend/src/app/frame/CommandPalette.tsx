@@ -60,7 +60,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         data-testid="command-palette"
         // Full width on a phone, where a centred narrow dialog wastes the
         // screen it is competing for.
-        className="w-full max-w-lg rounded-lg bg-white p-3 shadow-xl"
+        className="w-full max-w-lg rounded-card border border-line bg-raised p-3 shadow-float"
         onClick={(event) => event.stopPropagation()}
       >
         <input
@@ -68,7 +68,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           type="search"
           aria-label="Search commands"
           placeholder="Search — commands arrive with the screens that have them"
-          className="w-full rounded-card border border-line bg-surface shadow-raise-strong px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+          className="w-full rounded-control border border-line bg-surface px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
         />
         <p className="mt-2 px-1 text-xs text-subtle">Nothing to run yet (U1).</p>
       </div>

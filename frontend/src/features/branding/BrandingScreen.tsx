@@ -117,7 +117,7 @@ export function BrandingScreen() {
               <span
                 aria-hidden="true"
                 data-testid={`${which}-swatch`}
-                className="size-9 shrink-0 rounded-card border border-line bg-surface shadow-raise-strong"
+                className="size-9 shrink-0 rounded-control border border-line bg-surface"
                 style={{ backgroundColor: HEX.test(form.watch(which)) ? form.watch(which) : undefined }}
               />
             </div>

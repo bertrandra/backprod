@@ -9,6 +9,7 @@ import {
   type AccessPurpose,
 } from '@/queries/staff';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { panel } from '@/ui/tone';
 
 /**
  * The reason, collected **as part of the read** (R14).
@@ -55,7 +56,7 @@ export function AccessMotiveGate({
   return (
     <form
       data-testid="access-motive"
-      className="max-w-md space-y-4 rounded border border-amber-300 p-4 dark:border-amber-800"
+      className={`${panel('warning')} max-w-md space-y-4`}
       onSubmit={(event) => {
         event.preventDefault();
 

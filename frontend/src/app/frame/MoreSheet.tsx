@@ -31,7 +31,7 @@ export function MoreSheet({
         aria-modal="true"
         aria-label="All sections"
         data-testid="more-sheet"
-        className="max-h-[70dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+        className="max-h-[70dvh] w-full overflow-y-auto rounded-t-2xl border-t border-line bg-raised p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-float"
         onClick={(event) => event.stopPropagation()}
       >
         {sections.map((section) => (
