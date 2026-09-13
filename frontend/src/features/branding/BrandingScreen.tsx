@@ -10,6 +10,8 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { FieldCell, FieldGroup, FieldRow, FormActions, FormCard } from '@/ui/Form';
+import { Section } from '@/ui/Page';
 
 /**
  * `tenant.branding` — the screen U2 exists to build.
@@ -85,8 +87,7 @@ export function BrandingScreen() {
         />
       )}
 
-      <form
-        className="space-y-4"
+      <FormCard
         onSubmit={(event) => {
           void form.handleSubmit((values) =>
             update.mutate({
@@ -98,50 +99,65 @@ export function BrandingScreen() {
           )(event);
         }}
       >
-        {(['primary', 'accent'] as const).map((which) => (
-          <Field
-            key={which}
-            id={`${which}-color`}
-            label={which === 'primary' ? 'Primary colour' : 'Accent colour'}
-            hint="Lower-case hex, like #1a2b3c. Leave empty to use the product's default."
-            error={form.formState.errors[which]?.message}
-          >
-            <div className="flex items-center gap-2">
-              <input
-                id={`${which}-color`}
-                className={inputClass(form.formState.errors[which] !== undefined)}
-                placeholder="#1a2b3c"
-                readOnly={!writable}
-                {...form.register(which)}
-              />
-              <span
-                aria-hidden="true"
-                data-testid={`${which}-swatch`}
-                className="size-9 shrink-0 rounded-control border border-line bg-surface"
-                style={{ backgroundColor: HEX.test(form.watch(which)) ? form.watch(which) : undefined }}
-              />
-            </div>
-          </Field>
-        ))}
+        <FieldGroup
+          legend="Colours"
+          hint="Lower-case hex, like #1a2b3c. Leave either empty to fall back to the product's own — which is not the same as setting it to the product's current value, because the product's may change."
+        >
+          <FieldRow>
+            {(['primary', 'accent'] as const).map((which) => (
+              <FieldCell key={which} width="medium">
+                <Field
+                  id={`${which}-color`}
+                  label={which === 'primary' ? 'Primary colour' : 'Accent colour'}
+                  error={form.formState.errors[which]?.message}
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      id={`${which}-color`}
+                      className={inputClass(form.formState.errors[which] !== undefined)}
+                      placeholder="#1a2b3c"
+                      readOnly={!writable}
+                      {...form.register(which)}
+                    />
+                    {/* Beside the field rather than under it: a colour is the
+                        one value where the preview *is* the validation, and a
+                        swatch a line away from its hex is two things to
+                        compare instead of one. */}
+                    <span
+                      aria-hidden="true"
+                      data-testid={`${which}-swatch`}
+                      className="size-9 shrink-0 rounded-control border border-line bg-surface"
+                      style={{
+                        backgroundColor: HEX.test(form.watch(which)) ? form.watch(which) : undefined,
+                      }}
+                    />
+                  </div>
+                </Field>
+              </FieldCell>
+            ))}
+          </FieldRow>
+        </FieldGroup>
 
         {update.error !== null && <ErrorSurface error={update.error} />}
 
         {writable && (
-          <Button type="submit" pending={update.isPending}>
-            Save colours
-          </Button>
+          <FormActions>
+            <Button type="submit" pending={update.isPending}>
+              Save colours
+            </Button>
+          </FormActions>
         )}
-      </form>
+      </FormCard>
 
-      <section className="space-y-3 border-t border-line pt-4">
-        <h2 className="text-xl font-semibold">Logo</h2>
-
-        <p className="text-sm text-muted">
-          {skin.data.logo_asset_id === null
-            ? 'No logo. The product’s own is used.'
-            : 'A logo is set.'}
-        </p>
-
+      <Section
+        className="border-t border-line pt-6"
+        title="Logo"
+        description={
+          skin.data.logo_asset_id === null
+            ? 'No logo, so the product’s own is used.'
+            : 'A logo is set.'
+        }
+      >
         {upload.error !== null && <ErrorSurface error={upload.error} />}
         {remove.error !== null && <ErrorSurface error={remove.error} />}
 
@@ -187,7 +203,7 @@ export function BrandingScreen() {
             )}
           </div>
         )}
-      </section>
+      </Section>
     </div>
   );
 }

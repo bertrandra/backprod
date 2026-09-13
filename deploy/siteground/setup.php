@@ -44,6 +44,17 @@ const BACKPROD_APP = __DIR__ . '/../backprod-app';
 const MARKER_PATH = BACKPROD_APP . '/var/.setup-complete';
 const ENV_PATH = BACKPROD_APP . '/.env';
 
+/**
+ * The demonstration product, when the box is ticked.
+ *
+ * A name of its own rather than the real product's, so the two are never
+ * confused in a console listing them side by side — and a fixed one rather than
+ * a field, because a demo is a thing you delete, not a thing you name.
+ */
+const DEMO_PRODUCT_CODE = 'licorne';
+const DEMO_PRODUCT_NAME = 'Licorne';
+
+
 if (!is_file(BACKPROD_APP . '/vendor/autoload.php')) {
     fail(500, 'The application directory is missing. Upload backprod-app/ beside public_html/ first.');
 }
@@ -52,6 +63,7 @@ require BACKPROD_APP . '/vendor/autoload.php';
 
 use App\Shared\Database\ConnectionFactory;
 use Doctrine\DBAL\Connection;
+use Dotenv\Dotenv;
 use Doctrine\Migrations\Configuration\Connection\ExistingConnection;
 use Doctrine\Migrations\Configuration\Migration\ConfigurationArray;
 use Doctrine\Migrations\DependencyFactory;
@@ -155,6 +167,19 @@ function inputRow(string $label, string $name, string $type = 'text', string $pl
         . ' value="' . htmlspecialchars($value) . '"'
         . ' style="width:100%;box-sizing:border-box;padding:0.5rem;border:1px solid #999;border-radius:4px;font-size:1rem">'
         . '</div>';
+}
+
+/** A checkbox with its consequence under it, since this one creates a whole world. */
+function checkboxRow(string $label, string $name, string $hint): string
+{
+    $id = 'f_' . $name;
+
+    return '<div style="margin-bottom:0.9rem">'
+        . '<label for="' . $id . '" style="display:flex;gap:0.5rem;align-items:flex-start;font-size:0.95rem">'
+        . '<input id="' . $id . '" name="' . htmlspecialchars($name) . '" type="checkbox" value="yes" style="margin-top:0.25rem">'
+        . '<span>' . htmlspecialchars($label)
+        . '<span style="display:block;color:#555;font-size:0.8rem;margin-top:0.15rem">' . htmlspecialchars($hint) . '</span>'
+        . '</span></label></div>';
 }
 
 const STYLE_BLOCK = '<style>'
@@ -290,6 +315,16 @@ function setupForm(): string
         . '<fieldset><legend>Your organisation</legend>'
         . inputRow('Organisation name', 'tenant_name', 'text', 'Acme Ltd')
         . '</fieldset>'
+        . '<fieldset><legend>Demonstration data</legend>'
+        . checkboxRow(
+            'Also create a demonstration product called licorne',
+            'seed_demo',
+            'A second, separate product with a full catalogue, two organisations, three people, '
+            . 'a live subscription and the invoice it raised — so there is something to look at '
+            . 'before your own product has any data. Nothing it creates touches the product above. '
+            . 'Delete it later from Console → Products.',
+        )
+        . '</fieldset>'
         . '<fieldset><legend>Your account</legend>'
         . inputRow('Your name', 'admin_name', 'text', 'Ada Lovelace')
         . inputRow('Your email', 'admin_email', 'email')
@@ -298,6 +333,45 @@ function setupForm(): string
         . '</fieldset>'
         . '<button type="submit">Set up</button>'
         . '</form>';
+}
+
+/**
+ * What the demonstration product is, or why there isn't one.
+ *
+ * Three outcomes and three messages: not asked for (nothing), built (where it
+ * is and how to sign into it), or attempted and failed. The third says so
+ * plainly rather than quietly rendering the first — somebody who ticked the box
+ * and sees no mention of it would reasonably conclude it worked.
+ *
+ * @param array<string, mixed>|null $demo
+ */
+function demoNote(?array $demo, ?string $failure, string $host): string
+{
+    if ($failure !== null) {
+        return '<p class="error">Your product, organisation and account are set up and work — but the '
+            . 'demonstration product could not be created: ' . htmlspecialchars($failure) . '. Nothing else '
+            . 'was affected. You can create it later from a shell with '
+            . '<code>php bin/seed-demo.php --product=' . DEMO_PRODUCT_CODE . '</code>, or simply not have one.</p>';
+    }
+
+    if ($demo === null) {
+        return '';
+    }
+
+    $people = is_array($demo['people'] ?? null) ? $demo['people'] : [];
+    $admin = is_string($people['admin'] ?? null) ? $people['admin'] : '';
+    // From the seeder, so this page never carries its own copy of the password.
+    $password = is_string($demo['password'] ?? null) ? $demo['password'] : '';
+
+    return '<p class="ok">A demonstration product <code>' . DEMO_PRODUCT_CODE . '</code> was also created: '
+        . 'a full catalogue, two organisations, three people, a live subscription and the invoice it raised. '
+        . 'It is entirely separate from your own product — a different catalogue, different organisations, '
+        . 'different people.</p>'
+        . '<p>Look at it by signing in at <a href="https://' . $host . '/sign-in?product=' . DEMO_PRODUCT_CODE . '">'
+        . htmlspecialchars($host) . '/sign-in?product=' . DEMO_PRODUCT_CODE . '</a> as <code>'
+        . htmlspecialchars($admin) . '</code> with the password <code>' . htmlspecialchars($password) . '</code>. '
+        . '<strong>That password is public knowledge</strong> — it is in this platform\'s source. Delete the '
+        . 'product from Console → Products when you have finished looking, which takes its people with it.</p>';
 }
 
 /** @param array<int|string, mixed> $data */
@@ -553,6 +627,56 @@ function handleSetup(): void
             . 'resubmit.');
     }
 
+    // --- The demonstration product, if it was asked for -----------------------
+    //
+    // After the real account and never instead of it, and its failure is never
+    // this page's failure: by the time we are here the product, the
+    // organisation and the administrator exist and work. A demo that could not
+    // be built is worth saying out loud and worth nothing else — refusing the
+    // whole setup over it would throw away the part that matters, and the
+    // marker below has to be written either way or a reload would try to create
+    // that account a second time.
+    $demo = null;
+    $demoFailure = null;
+
+    if (($_POST['seed_demo'] ?? '') === 'yes') {
+        try {
+            // The container needs .env, which is on disk but not in this
+            // process's environment — nothing here has loaded it, because until
+            // now this page only ever needed the connection it built by hand.
+            Dotenv::createImmutable(BACKPROD_APP)->safeLoad();
+
+            $containerFactory = require BACKPROD_APP . '/config/container.php';
+
+            if (!is_callable($containerFactory)) {
+                throw new \RuntimeException('config/container.php did not return a factory.');
+            }
+
+            $seed = require BACKPROD_APP . '/bin/demo-world.php';
+
+            if (!is_callable($seed)) {
+                throw new \RuntimeException('bin/demo-world.php did not return a seeder.');
+            }
+
+            $world = $seed($containerFactory(), DEMO_PRODUCT_CODE, DEMO_PRODUCT_NAME);
+
+            $failed = array_filter(
+                is_array($world['checks'] ?? null) ? $world['checks'] : [],
+                static fn (mixed $ok): bool => $ok !== true,
+            );
+
+            if ($failed !== []) {
+                // The seeder verifies what it made. A world that does not hold
+                // is worse than no world: somebody would demonstrate it.
+                throw new \RuntimeException('the seeded world does not hold: ' . implode(', ', array_keys($failed)));
+            }
+
+            $demo = $world;
+        } catch (\Throwable $e) {
+            $demoFailure = $e->getMessage();
+        }
+    }
+
     // --- Done: the marker is the only thing that makes this page inert --------
     file_put_contents(MARKER_PATH, gmdate('Y-m-d H:i:s') . " UTC\n");
 
@@ -566,6 +690,7 @@ function handleSetup(): void
         . '<p><a href="https://' . $host . '/">Open the sign-in screen</a>. The first time, add '
         . '<code>?product=' . htmlspecialchars($productCode) . '</code> to the address — after that, '
         . 'this browser remembers it.</p>'
+        . demoNote($demo, $demoFailure, $host)
         . '<p><strong>Confirm you can sign in before you delete this file.</strong> There is no password-reset '
         . 'screen yet (ADR-038); if the password above has a typo, this page can still fix only that — nothing '
         . 'else — for as long as it exists.</p>'

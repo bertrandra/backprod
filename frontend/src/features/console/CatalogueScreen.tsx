@@ -20,7 +20,8 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
-import { PageHeader } from '@/ui/Page';
+import { PageHeader, Section } from '@/ui/Page';
+import { FieldCell, FieldGroup, FieldRow, FormActions, FormCard } from '@/ui/Form';
 
 /**
  * `console.admin.catalogue` — the platform pricing its own product.
@@ -105,13 +106,16 @@ function Plans({ productCode, plans }: { productCode: string; plans: readonly St
   const [rank, setRank] = useState('');
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-xl font-semibold">Plans</h2>
-      <p className="text-sm text-muted">
-        Ordered by <strong>rank</strong>, which is the only ordering this platform has — an upgrade
-        is a comparison of two numbers, never of two names. A plan cannot be deleted: offers point
-        at it, and those offers price live subscriptions.
-      </p>
+    <Section
+      title="Plans"
+      description={
+        <>
+          Ordered by <strong>rank</strong>, which is the only ordering this platform has — an
+          upgrade is a comparison of two numbers, never of two names. A plan cannot be deleted:
+          offers point at it, and those offers price live subscriptions.
+        </>
+      }
+    >
 
       {create.error !== null && <ErrorSurface error={create.error} />}
       {update.error !== null && <ErrorSurface error={update.error} />}
@@ -157,7 +161,10 @@ function Plans({ productCode, plans }: { productCode: string; plans: readonly St
         </ul>
       )}
 
-      <form
+      {/* On a card: this used to be a row of inputs directly under the list, so
+          the boundary between "what exists" and "what you are about to add" was
+          a gap and nothing else. */}
+      <FormCard
         className="grid gap-3 sm:grid-cols-[1fr_1fr_6rem_auto] sm:items-end"
         onSubmit={(event) => {
           event.preventDefault();
@@ -212,8 +219,8 @@ function Plans({ productCode, plans }: { productCode: string; plans: readonly St
         >
           Add plan
         </Button>
-      </form>
-    </section>
+      </FormCard>
+    </Section>
   );
 }
 
@@ -232,13 +239,18 @@ function Features({
   const [unit, setUnit] = useState('');
 
   return (
-    <section className="space-y-3 border-t border-line pt-6">
-      <h2 className="text-xl font-semibold">Features</h2>
-      <p className="text-sm text-muted">
-        What a plan grants. A <strong>quota</strong> is counted in a unit; a <strong>switch</strong>{' '}
-        is on or off. The kind cannot be changed afterwards — every grant written against a feature
-        meant one or the other, and flipping it would reinterpret prices somebody is already paying.
-      </p>
+    <Section
+      className="border-t border-line pt-6"
+      title="Features"
+      description={
+        <>
+          What a plan grants. A <strong>quota</strong> is counted in a unit; a{' '}
+          <strong>switch</strong> is on or off. The kind cannot be changed afterwards — every grant
+          written against a feature meant one or the other, and flipping it would reinterpret
+          prices somebody is already paying.
+        </>
+      }
+    >
 
       {create.error !== null && <ErrorSurface error={create.error} />}
 
@@ -267,7 +279,7 @@ function Features({
         </ul>
       )}
 
-      <form
+      <FormCard
         className="grid gap-3 sm:grid-cols-[1fr_1fr_8rem_1fr_auto] sm:items-end"
         onSubmit={(event) => {
           event.preventDefault();
@@ -341,8 +353,8 @@ function Features({
         >
           Add feature
         </Button>
-      </form>
-    </section>
+      </FormCard>
+    </Section>
   );
 }
 
@@ -376,13 +388,17 @@ function Offers({
   const [grants, setGrants] = useState<GrantDraft>({});
 
   return (
-    <section className="space-y-3 border-t border-line pt-6">
-      <h2 className="text-xl font-semibold">Offers</h2>
-      <p className="text-sm text-muted">
-        A plan with a price. An offer is born a <strong>draft</strong> and is not on sale until it
-        is published — and a published version is frozen, so a new price is always a new version
-        rather than an edit.
-      </p>
+    <Section
+      className="border-t border-line pt-6"
+      title="Offers"
+      description={
+        <>
+          A plan with a price. An offer is born a <strong>draft</strong> and is not on sale until
+          it is published — and a published version is frozen, so a new price is always a new
+          version rather than an edit.
+        </>
+      }
+    >
 
       {create.error !== null && <ErrorSurface error={create.error} />}
       {addVersion.error !== null && <ErrorSurface error={addVersion.error} />}
@@ -425,8 +441,7 @@ function Offers({
           Add a plan first — an offer is a plan with a price, and it cannot be written without one.
         </p>
       ) : (
-        <form
-          className="grid gap-3 sm:grid-cols-2"
+        <FormCard
           onSubmit={(event) => {
             event.preventDefault();
 
@@ -455,80 +470,111 @@ function Offers({
             }
           }}
         >
-          <Field id="offer-code" label="Offer code">
-            <input
-              id="offer-code"
-              className={inputClass()}
-              placeholder="pro-monthly"
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-            />
-          </Field>
-          <Field id="offer-name" label="Offer name">
-            <input
-              id="offer-name"
-              className={inputClass()}
-              placeholder="Pro, monthly"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </Field>
-          <Field id="offer-plan" label="Plan">
-            <select
-              id="offer-plan"
-              className={inputClass()}
-              value={planId}
-              onChange={(event) => setPlanId(event.target.value)}
-            >
-              <option value="">Choose a plan…</option>
-              {plans.map((plan) => (
-                <option key={plan.id} value={plan.id}>
-                  {plan.name} (rank {plan.rank})
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field id="offer-period" label="Billed">
-            <select
-              id="offer-period"
-              className={inputClass()}
-              value={period}
-              onChange={(event) => setPeriod(event.target.value === 'YEARLY' ? 'YEARLY' : 'MONTHLY')}
-            >
-              <option value="MONTHLY">Monthly</option>
-              <option value="YEARLY">Yearly</option>
-            </select>
-          </Field>
-          <Field
-            id="offer-price"
-            label="Price in minor units"
-            hint="2900 is €29.00. Integer minor units, never a decimal — a cent lost to rounding is a cent an auditor asks about. 0 is a legitimate price."
-          >
-            <input
-              id="offer-price"
-              type="number"
-              min={0}
-              className={inputClass()}
-              placeholder="2900"
-              value={price}
-              onChange={(event) => setPrice(event.target.value)}
-            />
-          </Field>
-          <Field id="offer-currency" label="Currency">
-            <input
-              id="offer-currency"
-              className={inputClass()}
-              maxLength={3}
-              value={currency}
-              onChange={(event) => setCurrency(event.target.value)}
-            />
-          </Field>
+          <FieldGroup legend="What it is">
+            <FieldRow>
+              <FieldCell>
+                <Field id="offer-code" label="Offer code">
+                  <input
+                    id="offer-code"
+                    className={inputClass()}
+                    placeholder="pro-monthly"
+                    value={code}
+                    onChange={(event) => setCode(event.target.value)}
+                  />
+                </Field>
+              </FieldCell>
 
-          <div className="sm:col-span-2">
-            <GrantsEditor features={features} draft={grants} onChange={setGrants} />
-          </div>
+              <FieldCell>
+                <Field id="offer-name" label="Offer name">
+                  <input
+                    id="offer-name"
+                    className={inputClass()}
+                    placeholder="Pro, monthly"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                </Field>
+              </FieldCell>
+            </FieldRow>
+          </FieldGroup>
 
-          <div className="sm:col-span-2">
+          <FieldGroup legend="What it costs">
+            <FieldRow>
+              <FieldCell>
+                <Field id="offer-plan" label="Plan">
+                  <select
+                    id="offer-plan"
+                    className={inputClass()}
+                    value={planId}
+                    onChange={(event) => setPlanId(event.target.value)}
+                  >
+                    <option value="">Choose a plan…</option>
+                    {plans.map((plan) => (
+                      <option key={plan.id} value={plan.id}>
+                        {plan.name} (rank {plan.rank})
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </FieldCell>
+
+              <FieldCell width="medium">
+                <Field id="offer-period" label="Billed">
+                  <select
+                    id="offer-period"
+                    className={inputClass()}
+                    value={period}
+                    onChange={(event) =>
+                      setPeriod(event.target.value === 'YEARLY' ? 'YEARLY' : 'MONTHLY')
+                    }
+                  >
+                    <option value="MONTHLY">Monthly</option>
+                    <option value="YEARLY">Yearly</option>
+                  </select>
+                </Field>
+              </FieldCell>
+            </FieldRow>
+
+            {/* The hint is a paragraph and belongs to the group, not to the
+                field: on the field it was four lines tall and pushed the price
+                input a line below the currency beside it. */}
+            <p className="max-w-prose text-xs text-muted">
+              2900 is €29.00. Integer minor units, never a decimal — a cent lost to rounding is a
+              cent an auditor asks about. 0 is a legitimate price.
+            </p>
+
+            <FieldRow>
+              <FieldCell width="medium">
+                <Field id="offer-price" label="Price in minor units">
+                  <input
+                    id="offer-price"
+                    type="number"
+                    min={0}
+                    className={inputClass()}
+                    placeholder="2900"
+                    value={price}
+                    onChange={(event) => setPrice(event.target.value)}
+                  />
+                </Field>
+              </FieldCell>
+
+              <FieldCell width="short">
+                <Field id="offer-currency" label="Currency">
+                  <input
+                    id="offer-currency"
+                    className={inputClass()}
+                    maxLength={3}
+                    value={currency}
+                    onChange={(event) => setCurrency(event.target.value)}
+                  />
+                </Field>
+              </FieldCell>
+            </FieldRow>
+          </FieldGroup>
+
+          <GrantsEditor features={features} draft={grants} onChange={setGrants} />
+
+          <FormActions>
             <Button
               type="submit"
               pending={create.isPending}
@@ -538,10 +584,10 @@ function Offers({
             >
               Add offer as a draft
             </Button>
-          </div>
-        </form>
+          </FormActions>
+        </FormCard>
       )}
-    </section>
+    </Section>
   );
 }
 
