@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { useSignIn, useVerifyEmail } from '@/queries/auth';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * How a person gets a token.
@@ -77,12 +78,10 @@ export function SignInScreen() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-4">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Sign in</h1>
-        <p className="text-sm text-muted">
-          Use the email address your organisation was invited with.
-        </p>
-      </div>
+      <PageHeader
+        title={'Sign in'}
+        description={'Use the email address your organisation was invited with.'}
+      />
 
       {token !== null && token !== '' && (
         <p

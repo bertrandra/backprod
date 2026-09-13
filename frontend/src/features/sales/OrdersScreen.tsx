@@ -12,6 +12,7 @@ import { SkeletonRows } from '@/ui/Skeleton';
 
 import { useViewState } from '@/app/frame/viewState';
 import { pill, type Tone } from '@/ui/tone';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `sales.orders` — and the payment gate, read straight off the document.
@@ -50,12 +51,10 @@ export function OrdersScreen() {
 
   return (
     <div className="max-w-3xl space-y-4">
-      <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-2xl font-semibold">Orders</h1>
-        <span className="text-sm text-muted">
-          {orders.data.total} in this product
-        </span>
-      </div>
+      <PageHeader
+        title={'Orders'}
+        meta={<>{orders.data.total} in this product</>}
+      />
 
       {fulfil.error !== null && <ErrorSurface error={fulfil.error} />}
       {cancel.error !== null && <ErrorSurface error={cancel.error} />}

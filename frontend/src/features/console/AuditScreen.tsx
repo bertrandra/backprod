@@ -2,6 +2,7 @@ import { useAudit, type AuditEntry } from '@/queries/admin';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `console.admin.audit` — the trail.
@@ -29,13 +30,10 @@ export function AuditScreen() {
 
   return (
     <div className="space-y-4">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Audit</h1>
-        <p className="text-sm text-muted">
-          What was done, by whom, and to what. An act whose author has since been erased keeps its
-          place here — the act happened, and forgetting the person does not unmake it.
-        </p>
-      </header>
+      <PageHeader
+        title={'Audit'}
+        description={'What was done, by whom, and to what. An act whose author has since been erased keeps its place here — the act happened, and forgetting the person does not unmake it.'}
+      />
 
       {audit.data.entries.length === 0 ? (
         <EmptyState title="Nothing recorded" description="No audited act has happened yet." />

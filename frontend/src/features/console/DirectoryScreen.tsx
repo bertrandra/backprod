@@ -13,6 +13,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `console.admin.directory` — tenants, users, subscriptions, invoices.
@@ -54,13 +55,10 @@ export function DirectoryScreen() {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Directory</h1>
-        <p className="text-sm text-muted">
-          Every tenant, person, subscription and invoice on the platform. Counts are counted, not
-          inferred from a short page.
-        </p>
-      </header>
+      <PageHeader
+        title={'Directory'}
+        description={'Every tenant, person, subscription and invoice on the platform. Counts are counted, not inferred from a short page.'}
+      />
 
       <nav className="flex flex-wrap gap-1 border-b border-line">
         {TABS.map((name) => (

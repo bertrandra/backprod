@@ -16,6 +16,7 @@ import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `billing.payments` — and the retry that is a **new attempt**.
@@ -59,12 +60,10 @@ export function PaymentsScreen() {
 
   return (
     <div className="max-w-3xl space-y-4">
-      <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-2xl font-semibold">Payments</h1>
-        <span className="text-sm text-muted">
-          {payments.data.total} recorded
-        </span>
-      </div>
+      <PageHeader
+        title={'Payments'}
+        meta={<>{payments.data.total} recorded</>}
+      />
 
       {retry.error !== null && <ErrorSurface error={retry.error} />}
       {refund.error !== null && <ErrorSurface error={refund.error} />}

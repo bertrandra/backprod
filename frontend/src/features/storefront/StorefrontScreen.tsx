@@ -43,11 +43,11 @@ export function StorefrontScreen({
 
   return (
     <main className="mx-auto max-w-3xl space-y-8 p-4 py-10">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold">
+      <header className="space-y-2 text-center">
+        <h1 className="text-3xl font-semibold">
           {storefront.data?.product?.name ?? 'What we sell'}
         </h1>
-        <p className="text-sm text-muted">
+        <p className="mx-auto max-w-prose text-sm text-muted">
           Choose a plan to get started. You will create your account as part of the purchase —
           there is nothing to set up first.
         </p>
@@ -75,7 +75,13 @@ export function StorefrontScreen({
           description="There is nothing to buy for this product yet. If you already have an account, sign in below."
         />
       ) : (
-        <ul className="space-y-3" data-testid="storefront-offers">
+        // A grid rather than a stack, because the question on this page is
+        // "which of these", and a comparison is made across a row. It collapses
+        // to one column on a phone, where a stack is the comparison.
+        <ul
+          className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          data-testid="storefront-offers"
+        >
           {storefront.data.offers.map((offer) => (
             <OfferCard key={offer.id} offer={offer} onChoose={() => onChoose(offer)} />
           ))}
@@ -99,36 +105,138 @@ export function StorefrontScreen({
   );
 }
 
+/**
+ * One offer, as a price with a reason to believe it.
+ *
+ * The old card was a row: a name, a plan, a price and a button, all at the same
+ * weight, repeated down the page in identical grey. It made every offer look
+ * like every other one and left the visitor with nothing to compare but two
+ * numbers.
+ *
+ * So the price is the card's largest element — it is what a person came for —
+ * and underneath it is **what the offer actually grants**, which the version has
+ * carried all along and this page never showed. A quota reads as its limit and
+ * its unit; `unlimited` is its own word, because "unlimited" and a limit of zero
+ * are opposite facts and a bare number cannot tell them apart.
+ *
+ * **Nothing here is ordered or emphasised by plan** (non-negotiable #25). There
+ * is no "most popular" badge, because deciding which plan deserved one would be
+ * a branch on a plan code. The platform's rank is the order, and the order is
+ * the recommendation.
+ */
 function OfferCard({ offer, onChoose }: { offer: PublicOffer; onChoose: () => void }) {
   const version = offer.version;
+  const grants = version?.grants ?? [];
 
   return (
     <li
       data-offer={offer.id}
-      className="rounded-card border border-line bg-surface p-4 shadow-raise sm:flex sm:items-center sm:gap-4"
+      className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-raise transition-shadow hover:shadow-float"
     >
-      <div className="min-w-0 sm:flex-1">
-        <p className="font-medium">{offer.name}</p>
-        <p className="mt-1 text-xs text-muted">
-          {offer.plan.name}
-          {version !== null && ` · billed ${version.billing_period.toLowerCase()}`}
-        </p>
+      <div className="space-y-1">
+        <p className="text-lg font-semibold">{offer.name}</p>
+        <p className="text-xs text-muted">{offer.plan.name}</p>
       </div>
 
       {version === null ? (
         // Typed nullable in the contract, so said plainly rather than
         // rendered as a zero — and a zero is a legitimate price.
-        <p data-testid="no-price" className="mt-3 text-sm text-subtle sm:mt-0">
+        <p data-testid="no-price" className="text-sm text-subtle">
           Price on request
         </p>
       ) : (
-        <div className="mt-3 flex items-center gap-4 sm:mt-0">
-          <Amount money={version.price} className="text-base font-medium" />
-          <Button type="button" onClick={onChoose}>
+        <>
+          <p className="flex items-baseline gap-1.5">
+            <Amount
+              money={version.price}
+              className="text-3xl font-semibold [font-variant-numeric:proportional-nums]"
+            />
+            <span className="text-xs text-muted">
+              {billingPeriod(version.billing_period)}
+            </span>
+          </p>
+
+          {grants.length > 0 && (
+            <ul className="space-y-1.5 text-sm" data-testid={`grants-${offer.id}`}>
+              {grants.map((grant) => (
+                <li key={grant.feature} className="flex items-start gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="mt-1.5 size-1.5 shrink-0 rounded-full bg-accent"
+                  />
+                  <span>{describeGrant(grant)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* Pushed to the bottom so every card's button sits on one line
+              across the row, however many features each of them lists. */}
+          {/* `mt-auto` so every card's button sits on one line across the
+              row, however many features each of them lists. */}
+          <Button type="button" onClick={onChoose} className="mt-auto w-full">
             Choose
           </Button>
-        </div>
+        </>
       )}
     </li>
   );
+}
+
+/** "monthly" reads better under a price than "MONTHLY" or "per MONTH". */
+function billingPeriod(period: string): string {
+  return period.toLowerCase().replace(/_/g, ' ');
+}
+
+/**
+ * What one grant gives, in words.
+ *
+ * A boolean grant is the feature's name and nothing else — "Priority support",
+ * not "Priority support: yes". A quota is its number and its unit, and
+ * `unlimited` is spelled rather than shown as a missing limit: the contract
+ * separates them precisely because a limit of zero is a real and different
+ * answer.
+ */
+function describeGrant(grant: {
+  name: string;
+  kind: string;
+  unit: string | null;
+  limit: number | null;
+  unlimited: boolean;
+}): string {
+  if (grant.kind !== 'QUOTA') {
+    return grant.name;
+  }
+
+  if (grant.unlimited) {
+    return `Unlimited ${grant.name.toLowerCase()}`;
+  }
+
+  if (grant.limit === null) {
+    return grant.name;
+  }
+
+  const noun = grant.unit === null ? singular(grant.name.toLowerCase(), grant.limit) : grant.name.toLowerCase();
+
+  return `${String(grant.limit)}${grant.unit === null ? '' : ` ${grant.unit}`} ${noun}`;
+}
+
+/**
+ * "1 seat", not "1 seats".
+ *
+ * A feature is named in the plural by whoever created it — "Seats", "Projects" —
+ * because that is how it reads in a catalogue. Beside the number 1 it reads
+ * wrong, and a storefront is the one page where wrong English costs something.
+ *
+ * Trailing `s` only, and never after `ss`: this handles the names this catalogue
+ * actually contains and deliberately does not attempt English. A name it cannot
+ * fold is left exactly as its author wrote it, which is the safe failure — a
+ * wrong plural is a blemish, an invented singular is a different word.
+ */
+function singular(noun: string, count: number): string {
+  if (count !== 1 || !noun.endsWith('s') || noun.endsWith('ss')) {
+    return noun;
+  }
+
+  return noun.slice(0, -1);
 }

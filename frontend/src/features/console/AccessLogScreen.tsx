@@ -2,6 +2,8 @@ import { useAccessLog, type StaffAccessEntry } from '@/queries/staff';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { pill } from '@/ui/tone';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `console.support.access_log` — what staff looked at.
@@ -28,13 +30,10 @@ export function AccessLogScreen() {
 
   return (
     <div className="space-y-4">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Access log</h1>
-        <p className="text-sm text-muted">
-          Every crossing of a tenant boundary by platform staff: who looked, at what, and under
-          which permission. Your own reads appear here too.
-        </p>
-      </header>
+      <PageHeader
+        title={'Access log'}
+        description={'Every crossing of a tenant boundary by platform staff: who looked, at what, and under which permission. Your own reads appear here too.'}
+      />
 
       {log.data.entries.length === 0 ? (
         <EmptyState
@@ -73,11 +72,7 @@ function Entry({ entry }: { entry: StaffAccessEntry }) {
         <span
           data-testid="access-permission"
           data-permission={entry.permission ?? ''}
-          className={`rounded px-1.5 py-0.5 text-xs ${
-            entry.permission === null
-              ? 'warning'
-              : 'bg-well'
-          }`}
+          className={pill(entry.permission === null ? 'warning' : 'neutral')}
         >
           {entry.permission ?? 'no permission recorded'}
         </span>

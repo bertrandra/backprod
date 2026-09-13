@@ -3,6 +3,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Amount, formatVatRate } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `billing.credit_notes` — documents in their own right.
@@ -31,12 +32,10 @@ export function CreditNotesScreen() {
 
   return (
     <div className="max-w-3xl space-y-4">
-      <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-2xl font-semibold">Credit notes</h1>
-        <span className="text-sm text-muted">
-          {creditNotes.data.total} issued
-        </span>
-      </div>
+      <PageHeader
+        title={'Credit notes'}
+        meta={<>{creditNotes.data.total} issued</>}
+      />
 
       <p className="text-sm text-muted">
         A credit note corrects an invoice that is already final. Its number comes from its own

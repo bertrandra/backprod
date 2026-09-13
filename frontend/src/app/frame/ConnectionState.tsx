@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 
 import { NETWORK_UNREACHABLE } from '@/api/client';
 import { ApiError } from '@/queries/session';
+import { pill } from '@/ui/tone';
 
 /**
  * Whether what is on screen can still be trusted.
@@ -159,13 +160,9 @@ export function ConnectionState() {
       // `assertive`: it interrupts nothing.
       role="status"
       aria-live="polite"
-      className={`rounded px-2 py-0.5 text-xs font-medium ${
-        state === 'unreachable'
-          ? 'danger'
-          : state === 'paused'
-            ? 'warning'
-            : 'neutral'
-      }`}
+      className={pill(
+        state === 'unreachable' ? 'danger' : state === 'paused' ? 'warning' : 'neutral',
+      )}
     >
       {state === 'paused'
         ? 'Offline — this will be sent when you are back'

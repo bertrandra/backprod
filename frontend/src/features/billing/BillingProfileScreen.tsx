@@ -6,6 +6,7 @@ import { useBillingProfile, useSaveBillingProfile } from '@/queries/billing';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `billing.profile` — the legal identity that appears on the document.
@@ -71,13 +72,10 @@ export function BillingProfileScreen() {
 
   return (
     <div className="max-w-md space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Billing identity</h1>
-        <p className="text-sm text-muted">
-          This is what appears on invoices. It is copied onto each document when the document is
-          issued, so changing it here affects future invoices and never one already sent.
-        </p>
-      </header>
+      <PageHeader
+        title={'Billing identity'}
+        description={'This is what appears on invoices. It is copied onto each document when the document is issued, so changing it here affects future invoices and never one already sent.'}
+      />
 
       <form
         className="space-y-4"

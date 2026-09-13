@@ -20,6 +20,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `console.admin.catalogue` — the platform pricing its own product.
@@ -75,14 +76,10 @@ export function CatalogueScreen() {
 
   return (
     <div className="max-w-3xl space-y-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Catalogue</h1>
-        <p className="text-sm text-muted">
-          What <strong>{catalogue.data.product.name}</strong> sells. A plan groups offers and orders
-          them; a feature is a capability a plan grants; an offer is a plan with a price. You need a
-          plan before you can write an offer.
-        </p>
-      </header>
+      <PageHeader
+        title={'Catalogue'}
+        description={<>What <strong>{catalogue.data.product.name}</strong> sells. A plan groups offers and orders them; a feature is a capability a plan grants; an offer is a plan with a price. You need a plan before you can write an offer.</>}
+      />
 
       <Plans productCode={productCode} plans={catalogue.data.plans} />
       <Features productCode={productCode} features={catalogue.data.features} />

@@ -11,6 +11,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `console.admin.products` — the top of the model, and the screen that was
@@ -58,14 +59,10 @@ export function ProductsScreen() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Products</h1>
-        <p className="text-sm text-muted">
-          Everything this platform hosts. A product is what tenants belong to and what offers are
-          priced for — its <strong>code</strong> is what clients send as <code>X-Product</code> and
-          what the public storefront reads from <code>?product=</code>.
-        </p>
-      </header>
+      <PageHeader
+        title={'Products'}
+        description={<>Everything this platform hosts. A product is what tenants belong to and what offers are priced for — its <strong>code</strong> is what clients send as <code>X-Product</code> and what the public storefront reads from <code>?product=</code>.</>}
+      />
 
       {create.error !== null && <ErrorSurface error={create.error} />}
       {update.error !== null && <ErrorSurface error={update.error} />}

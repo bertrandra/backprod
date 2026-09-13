@@ -10,6 +10,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * `console.admin.readiness` — the console's landing, and the map of a maze.
@@ -99,14 +100,10 @@ export function ReadinessScreen() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Setting up {product.name}</h1>
-        <p className="text-sm text-muted">
-          Every step depends on the one above it, so working down this list never meets a refusal.
-          What is counted here is read the same way a sale reads it — this cannot say ready where a
-          checkout would refuse.
-        </p>
-      </header>
+      <PageHeader
+        title={<>Setting up {product.name}</>}
+        description={'Every step depends on the one above it, so working down this list never meets a refusal. What is counted here is read the same way a sale reads it — this cannot say ready where a checkout would refuse.'}
+      />
 
       {/*
         One card, and a dot that says which state it is in.

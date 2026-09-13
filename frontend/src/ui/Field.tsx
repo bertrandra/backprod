@@ -85,6 +85,7 @@ export function Button({
   children,
   pending = false,
   variant = 'primary',
+  className,
   ...rest
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   pending?: boolean;
@@ -120,6 +121,12 @@ export function Button({
           'border border-line-strong bg-surface text-ink shadow-raise hover:border-ink/25 hover:bg-well',
         variant === 'danger' &&
           'border border-danger/45 bg-danger-wash text-danger shadow-raise hover:border-danger',
+        // Merged, and last so it wins. It used to be swallowed: `{...rest}` is
+        // spread above, and the `className` below overwrote whatever a caller
+        // had passed. That typechecks — `className` is part of
+        // `ButtonHTMLAttributes` — and did nothing, so two screens had grown a
+        // wrapper `<span>` to place a button they could not place directly.
+        className,
       )}
     >
       {pending && (

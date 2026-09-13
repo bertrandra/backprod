@@ -6,6 +6,7 @@ import { useSignUp } from '@/queries/auth';
 import type { PublicOffer } from '@/queries/storefront';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
+import { PageHeader } from '@/ui/Page';
 
 /**
  * Creating an account, in the middle of buying something.
@@ -74,13 +75,10 @@ export function SignUpForm({
 
   return (
     <main className="mx-auto max-w-sm space-y-6 p-4 py-10">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Create your account</h1>
-        <p className="text-sm text-muted">
-          You will be able to pay straight after. We will email you a link to confirm your address —
-          your account works in the meantime.
-        </p>
-      </div>
+      <PageHeader
+        title={'Create your account'}
+        description={'You will be able to pay straight after. We will email you a link to confirm your address — your account works in the meantime.'}
+      />
 
       <div
         data-testid="chosen-offer"
