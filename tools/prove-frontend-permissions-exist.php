@@ -205,6 +205,140 @@ if ($unknown !== []) {
     exit(1);
 }
 
+// --- Which authority a navigation entry answers to ---------------------------
+//
+// **This section is what replaced two navigation trees.**
+//
+// The console used to live behind its own shell with its own array of entries,
+// and "a tenant permission can never reveal a platform screen" was true because
+// of where the file sat. One navigation made that implicit guarantee unavailable,
+// so every entry now declares a `scope`, and the filter consults that authority
+// and no other.
+//
+// A declaration nobody checks is a comment. This checks it: a `platform` entry
+// must name a code from `platform_permissions`, and a `tenant` entry one from
+// `permissions`. The two catalogues are separate tables and a code in the wrong
+// one is a screen shown to the wrong person — the exact failure the two shells
+// were protecting against, now caught by name instead of by file layout.
+
+$catalogue = ['tenant' => [], 'platform' => []];
+
+foreach ($filesIn($root . '/migrations', '.php') as $path) {
+    $source = file_get_contents($path);
+
+    if ($source === false) {
+        continue;
+    }
+
+    // Split on the two INSERTs so each code is attributed to the table it was
+    // actually inserted into, rather than guessed from its prefix. `admin.*` is
+    // a platform code and looks like neither `staff.` nor a tenant one, which is
+    // exactly why guessing would be wrong.
+    $segments = preg_split('/INSERT\s+INTO\s+(platform_permissions|permissions)\b/i', $source, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+    if ($segments === false) {
+        continue;
+    }
+
+    for ($i = 1; $i < count($segments); $i += 2) {
+        $table = strtolower($segments[$i]);
+        $body = $segments[$i + 1] ?? '';
+
+        // Stop at the end of the statement so the next one's codes are not
+        // swept into this table.
+        $end = strpos($body, 'SQL');
+        $body = $end === false ? $body : substr($body, 0, $end);
+
+        if (preg_match_all("/'([a-z][a-z_]*(?:\\.[a-z][a-z_]*)+)'/", $body, $codes) === false) {
+            continue;
+        }
+
+        $scope = $table === 'platform_permissions' ? 'platform' : 'tenant';
+
+        foreach ($codes[1] as $code) {
+            $catalogue[$scope][$code] = true;
+        }
+    }
+}
+
+if ($catalogue['platform'] === [] || $catalogue['tenant'] === []) {
+    fwrite(STDERR, "FAIL: one of the two permission catalogues came back empty, which cannot be right.\n");
+    exit(1);
+}
+
+$navigation = file_get_contents($frontend . '/app/frame/navigation.ts');
+
+if ($navigation === false) {
+    fwrite(STDERR, "FAIL: the navigation table could not be read.\n");
+    exit(1);
+}
+
+// One chunk per entry, split *before each `id:`* rather than before each brace.
+//
+// The first version split on `{` followed by `id:` and silently read 34 of 35
+// entries: one of them carries a comment between the brace and the id, so its
+// chunk merged into its neighbour's and its scope was never checked. A gate that
+// skips an entry without saying so is worse than no gate, which is why the count
+// below is asserted against the number of permissions in the file.
+$chunks = preg_split("/(?=\\bid:\\s*')/", $navigation);
+$mismatched = [];
+$entries = 0;
+
+foreach ($chunks === false ? [] : $chunks as $chunk) {
+    if (preg_match("/^id:\\s*'([a-z0-9-]+)'/", $chunk, $id) !== 1) {
+        continue;
+    }
+
+    if (
+        preg_match("/scope:\\s*'(tenant|platform)'/", $chunk, $scope) !== 1
+        || preg_match("/permission:\\s*'([a-z][a-z_]*(?:\\.[a-z][a-z_]*)+)'/", $chunk, $code) !== 1
+    ) {
+        continue;
+    }
+
+    ++$entries;
+
+    if (!isset($catalogue[$scope[1]][$code[1]])) {
+        $mismatched[$id[1]] = $scope[1] . ' / ' . $code[1];
+    }
+}
+
+// Every `permission:` in the navigation table belongs to an entry, so the two
+// counts have to agree. They disagreed once, quietly.
+$declared = preg_match_all("/permission:\\s*'/", $navigation, $ignored);
+
+if ($entries === 0 || $declared === false || $entries !== $declared) {
+    fwrite(STDERR, sprintf(
+        "FAIL: read %d scoped navigation entries but the table declares %d permissions.\n",
+        $entries,
+        $declared === false ? -1 : $declared,
+    ));
+    fwrite(STDERR, "An entry this gate cannot read is an entry it is not checking.\n");
+    exit(1);
+}
+
+if ($mismatched !== []) {
+    ksort($mismatched);
+
+    fwrite(STDERR, "FAIL: a navigation entry names an authority its permission does not belong to.\n");
+    fwrite(STDERR, "The scope decides which permission set is consulted, so a mismatch either hides\n");
+    fwrite(STDERR, "a screen from everybody or offers it to the wrong person.\n\n");
+
+    foreach ($mismatched as $id => $what) {
+        fwrite(STDERR, sprintf("  %-22s declared %s\n", $id, $what));
+    }
+
+    exit(1);
+}
+
+printf(
+    "OK: all %d navigation entries name an authority their permission belongs to (%d tenant, %d platform permissions defined).%s",
+    $entries,
+    count($catalogue['tenant']),
+    count($catalogue['platform']),
+    PHP_EOL,
+);
+
 // --- Capabilities ------------------------------------------------------------
 //
 // The same hole, one level over. A capability is not a permission — it says what

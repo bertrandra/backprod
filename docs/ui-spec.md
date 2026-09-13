@@ -33,24 +33,41 @@ month later. So it is not written here as a promise — it is checked. See §7.
 
 ---
 
-## 2. Two shells, not one application with an admin tab
+## 2. One shell, two authorities, and every entry declares which
 
 ```text
-┌─────────────────────────────┐   ┌─────────────────────────────┐
-│  Tenant application         │   │  Platform console           │
-│  one product, one tenant    │   │  staff and administration   │
-│                             │   │                             │
-│  X-Product + membership     │   │  platform role              │
-│  129 operations − console   │   │  /admin/*  /staff/*         │
-└─────────────────────────────┘   └─────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  One application shell                                        │
+│                                                               │
+│  ┌────────────────────────────┐  ┌─────────────────────────┐ │
+│  │ tenant entries             │  │ platform entries        │ │
+│  │ scope: 'tenant'            │  │ scope: 'platform'       │ │
+│  │ gated on /me/permissions   │  │ gated on /staff/me      │ │
+│  │ X-Product + membership     │  │ platform role           │ │
+│  │ /projects /invoices …      │  │ /console/*              │ │
+│  └────────────────────────────┘  └─────────────────────────┘ │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-**Separate shells, separate routes, separate builds if that stays convenient.**
-Non-negotiable #22: a platform role never grants tenant membership, and a
-tenant membership never grants a platform role. Two authorities that never
-imply each other should not share a navigation tree, because the moment they
-do, someone renders a `/admin` link behind an `isAdmin` flag that came from
-the wrong one of the two.
+**This section used to say "two shells, not one application with an admin tab",
+and it was wrong** — see [ADR-046](adr/ADR-046-one-shell-two-authorities.md).
+Non-negotiable #22 says a platform role never grants tenant membership and a
+tenant membership never grants a platform role. That is a rule about
+*authorisation*: the server keeps two contexts, two permission catalogues and a
+gate on every route, and none of that changes. It says nothing about interfaces,
+and splitting the UI as well only hid the platform's own screens from the person
+running the platform.
+
+**The guarantee is now explicit per entry rather than implied by file layout.**
+Each `NavEntry` carries `scope: 'tenant' | 'platform'`, and the filter consults
+that authority and no other — so the failure this section feared, "someone
+renders an `/admin` link behind an `isAdmin` flag that came from the wrong one of
+the two", is not expressible: a platform entry never reads the tenant's
+permissions. `gate:permissions` fails the build if an entry's scope disagrees
+with the catalogue its permission is defined in.
+
+Platform screens keep the `/console/*` prefix, so an address still says which
+authority it answers to, and every link ever written still resolves.
 
 The console is not a superset of the tenant app. It answers different
 questions ("has the runner run since Tuesday", "which tenants are on this
@@ -60,10 +77,11 @@ of tenant data to be traced and motivated. A screen that traces its reads
 cannot be the same screen as one that does not.
 
 **Support conversations are the clearest case.** `messaging.conversations` and
-`console.support.conversations` are the same domain seen through two shells:
-the tenant sees their thread, staff see it with an audit trail and the
-authority to close it. Same rows, different screens, and merging them would
-mean one component holding both authorities.
+`console.support.conversations` are the same domain seen through two
+*authorities*: the tenant sees their thread, staff see it with an audit trail and
+the authority to close it. Same rows, different screens, and merging the screens
+would mean one component holding both authorities — which is still refused. One
+shell is not one screen.
 
 ---
 
