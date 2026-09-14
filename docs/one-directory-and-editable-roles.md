@@ -43,7 +43,36 @@ the server still refuses independently of what any screen chose to show.
 Everything below assumes that resolution. It is the only substantive departure
 from the request, and it changes the mechanism rather than the outcome.
 
-## 3. The model
+## 3. What ships — mapped one to one against what was asked
+
+The table below is the deliverable, stated against your four points in your own
+order, so there is nothing to infer. "Ships as asked" means the visible result
+is exactly what you described; "ships via §2" means the mechanism is the
+permission-based one that section argues for, and the outcome — what a person
+sees — is identical to what naming a role directly would have produced.
+
+| # | You asked for | Ships as |
+| --- | --- | --- |
+| 1 | User and staff management as **one object** | **As asked.** One screen, `/console/people`, and one API resource, `staff/people`. Every person — whether they hold a tenant membership, a platform role, or both — is one row. Today they are two screens (`/console/directory`'s user list and `/console/staff`) reading two different endpoints; both retire. |
+| 2 | **Four roles**: staff admin, tenant admin, tenant user, B2C user | **As asked**, mapped to codes: `PLATFORM_ADMIN` (staff admin), `TENANT_ADMIN` (tenant admin), `USER` (tenant user) — all three already exist — plus **`CUSTOMER`** (B2C user), which is new (§6). The three other platform roles already in the system (`SUPPORT_ADMIN`, `FINANCE_ADMIN`, `SALES_ADMIN`) are kept rather than removed, since removing them would hand every support account full platform administration; they are not part of your four and do not change what your four can do. |
+| 3 | **One set of screens/API objects**, appearing or not **per role** | **Ships via §2.** One set of screens and one API surface, unconditionally — there is no second copy for any role. Which ones a given person sees is decided by the permissions their role holds, not by the role's name, because naming a role directly in the frontend is the one thing `gate:permissions` refuses to let ship (§2). The person using the product cannot tell the difference: a `CUSTOMER` still simply does not see Quotes. |
+| 4 | A **configuration screen** in staff admin, setting which screens each role gets | **As asked.** `/console/roles` (§8): pick a role, tick the permissions it should hold, see the navigation that produces before saving. "Which screens a role gets" is written as "which permissions a role holds" — same screen, same action for the operator, and it is what makes point 3 true without breaking the gate. |
+
+**The worked example, concretely.** `CUSTOMER` ships without `sales.read`
+(§6's table). `navigation.ts` already reads
+`permission: 'sales.read'` on the Quotes and Orders entries — nothing in the
+frontend changes to make the example true, and the API refuses
+`GET /quotes` for anyone without that permission independently of what any
+screen shows (§9's integration test).
+
+**The one point that is not a literal reading of point 3** is exactly, and
+only, the mechanism above — everything else in this table ships as you
+described it. §2 is where that trade is argued in full; if a role name in the
+frontend is acceptable to you regardless of `gate:permissions`, say so and this
+spec is rewritten around it, but that would mean disabling or rewriting a gate
+the codebase currently enforces on every build.
+
+## 4. The model
 
 ### One person, two authorities, unchanged
 
@@ -99,7 +128,7 @@ the administrator of a one-person organisation, with all thirty permissions.
 That is why they see Quotes: they hold `sales.read`, exactly like a company
 administrator, because they *are* one.
 
-## 4. Roles become data
+## 5. Roles become data
 
 ### What moves, and what deliberately does not
 
@@ -163,7 +192,7 @@ happens. Per-tenant role definitions are a different and much larger change
 (`roles` would need a product or tenant scope, and `tenant_member_roles` a
 composite key); they are out of scope here and named rather than discovered.
 
-## 5. The worked example: B2C does not get Quotes
+## 6. The worked example: B2C does not get Quotes
 
 `CUSTOMER` is seeded as `TENANT_ADMIN` minus what a private individual has no
 use for:
@@ -189,9 +218,9 @@ independently, which is what makes it a boundary rather than a courtesy.
 **Sign-up chooses the role.** Storefront sign-up writes `CUSTOMER` where it
 writes `TENANT_ADMIN` today, and the "company name" field becomes the switch: a
 person who names a company is buying for one and gets `TENANT_ADMIN`; a person
-who does not gets `CUSTOMER`. Existing accounts keep `TENANT_ADMIN` — see §9.
+who does not gets `CUSTOMER`. Existing accounts keep `TENANT_ADMIN` — see §10.
 
-## 6. The API
+## 7. The API
 
 One resource replaces two. Every path below is `platform` authority and lives
 behind the staff console.
@@ -222,7 +251,7 @@ views of a person, which were two screens for one question.
 carries `X-Access-Purpose` and `X-Access-Reason` (non-negotiable #21). The
 directory list does not; opening one person does.
 
-## 7. The screens
+## 8. The screens
 
 ### `/console/people` — the merged directory
 
@@ -262,7 +291,7 @@ the same `visibleNav(APP_NAV, …)` the shell runs, fed the role's permission se
 An operator ticking boxes is trying to answer "what will they see", and a
 platform that makes them guess has built the screen and not the answer.
 
-## 8. What enforces it
+## 9. What enforces it
 
 | Gate | What it would check |
 | --- | --- |
@@ -277,9 +306,9 @@ The integration test that matters most is the 403. A screen that vanishes is a
 courtesy; the refusal is the boundary, and the test should fail if somebody ever
 implements this by hiding the entry alone.
 
-## 9. Migrating what exists
+## 10. Migrating what exists
 
-1. **Create `CUSTOMER`**, seeded as the table in §5.
+1. **Create `CUSTOMER`**, seeded as the table in §6.
 2. **Leave every existing membership alone.** A live `TENANT_ADMIN` who happens
    to be a private customer keeps thirty permissions until somebody decides
    otherwise. Reclassifying them in a migration would silently remove Quotes
@@ -291,7 +320,7 @@ implements this by hiding the entry alone.
 4. **Sign-up writes `CUSTOMER`** from the day this ships, so the population stops
    growing.
 
-## 10. What this does not change
+## 11. What this does not change
 
 - Non-negotiable #22. Two contexts, two catalogues, no bridge.
 - Non-negotiable #21. Staff reads into tenant data stay traced and motivated.
@@ -301,9 +330,9 @@ implements this by hiding the entry alone.
   answered by an administrator, the other by an upgrade.
 - The tenant's own `/members` screen.
 
-## 11. Open questions
+## 12. Open questions
 
-1. **Per-tenant roles.** §4 names the blast radius. Does an operator need to
+1. **Per-tenant roles.** §5 names the blast radius. Does an operator need to
    define a role for one customer, or is a platform-wide catalogue enough? The
    answer changes the schema, and it is cheaper to answer now than after.
 2. **Naming.** `CUSTOMER` is the code used throughout this document. `INDIVIDUAL`
@@ -315,7 +344,7 @@ implements this by hiding the entry alone.
    defensible for money and probably overwrought for navigation, but it is a
    real choice and not an oversight.
 
-## 12. Rough size
+## 13. Rough size
 
 | Piece | |
 | --- | --- |
