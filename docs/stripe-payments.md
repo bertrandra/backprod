@@ -1,6 +1,10 @@
 # Taking money through Stripe, starting in a sandbox
 
-**Status:** proposed. Nothing below is built.
+**Status:** built — see
+[ADR-048](adr/ADR-048-stripe-is-the-first-real-provider-and-the-page-talks-to-it.md),
+which records one departure from §4.2: the card form is offered where the
+`client_secret` is born (the storefront's pay step, the invoice, the payments
+list), not on `/checkout/{id}`, which never holds one.
 **Relates to:** Architecture V2 §24, §25, §31; non-negotiables #17, #20;
 [ADR-022](adr/ADR-022-payments-and-webhook-idempotency.md) (the webhook is
 the source of truth, exactly once);
