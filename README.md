@@ -9,6 +9,8 @@ See [`CLAUDE.md`](CLAUDE.md) for the rules that govern changes here, and
 decisions behind them. For who may do what —
 the two identities, the six roles and the 46 permissions between them —
 see [`docs/identities-and-permissions.md`](docs/identities-and-permissions.md).
+A proposal to take money through Stripe, starting in a sandbox, is in
+[`docs/stripe-payments.md`](docs/stripe-payments.md); nothing in it is built.
 
 ## Stack
 
