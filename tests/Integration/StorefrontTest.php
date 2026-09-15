@@ -257,6 +257,50 @@ final class StorefrontTest extends DatabaseApiTestCase
         ));
     }
 
+    // --- Which windows there are (ADR-047, amending ADR-041) ----------------
+
+    public function testTheProductListNamesOnlyProductsWithSomethingOnSale(): void
+    {
+        // A second product with an offer nobody advertised, and a third with
+        // nothing at all: neither is a window, so neither is in the list.
+        $boreas = $this->id("INSERT INTO products (code, name, active) VALUES ('boreas', 'Boreas', true) RETURNING id");
+        $plan = $this->id(
+            "INSERT INTO plans (product_id, code, name, rank) VALUES (:p, 'pro', 'Pro', 10) RETURNING id",
+            ['p' => $boreas],
+        );
+        $this->connection->executeStatement(
+            "INSERT INTO offers (product_id, plan_id, code, name, publicly_listed) VALUES (:p, :plan, 'quiet', 'Quiet', false)",
+            ['p' => $boreas, 'plan' => $plan],
+        );
+        $this->connection->executeStatement("INSERT INTO products (code, name, active) VALUES ('comet', 'Comet', true)");
+
+        $response = $this->request('GET', '/api/v1/public/products');
+
+        // No token, no product header: a stranger's question.
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame([['code' => 'atlas', 'name' => 'Atlas']], $this->listIn($response, 'products'));
+    }
+
+    public function testAProductStopsBeingListedWhenItsWindowEmpties(): void
+    {
+        self::assertCount(1, $this->listIn($this->request('GET', '/api/v1/public/products'), 'products'));
+
+        // Out of its sale window: advertised, but nothing a person could buy.
+        $this->connection->executeStatement(
+            "UPDATE offer_versions SET valid_until = now() - interval '1 day' WHERE offer_id = :offer",
+            ['offer' => $this->advertised],
+        );
+
+        self::assertSame([], $this->listIn($this->request('GET', '/api/v1/public/products'), 'products'));
+    }
+
+    public function testARetiredProductIsNotListedWhateverItAdvertised(): void
+    {
+        $this->connection->executeStatement('UPDATE products SET active = false');
+
+        self::assertSame([], $this->listIn($this->request('GET', '/api/v1/public/products'), 'products'));
+    }
+
     // --- Who decides what is advertised -------------------------------------
 
     public function testAdvertisingIsAPlatformDecisionAndIsRecorded(): void

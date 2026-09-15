@@ -7,8 +7,8 @@ namespace App\Staff\Controller;
 use App\Shared\Http\PageRequest;
 use App\Shared\Http\RouteHandler;
 use App\Staff\Domain\StaffPermission;
+use App\Staff\Domain\TenantAccount;
 use App\Staff\Service\StaffDesk;
-use App\Tenant\Domain\Tenant;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -38,7 +38,7 @@ final class ListTenantsController implements RouteHandler
 
         return new JsonResponse([
             'tenants' => array_map(
-                static fn (Tenant $tenant): array => StaffPresenter::tenant($tenant),
+                static fn (TenantAccount $tenant): array => StaffPresenter::tenant($tenant),
                 $page['tenants'],
             ),
             'total' => $page['total'],

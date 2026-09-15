@@ -102,7 +102,10 @@ function required(motive: AccessMotive | null): AccessMotive {
   return motive;
 }
 
-export type Tenant = Schemas['Tenant'];
+// The staff shape: a tenant and the products the platform gave it (ADR-047).
+// `Schemas['Tenant']` is what a tenant reads about itself and has no
+// `products`; every staff read answers with this one.
+export type Tenant = Schemas['StaffTenant'];
 export type StaffAccessEntry = Schemas['StaffAccessEntry'];
 export type Conversation = Schemas['Conversation'];
 export type Message = Schemas['Message'];
@@ -476,6 +479,68 @@ export function useSetTenantOfferAuthoring(tenantId: string) {
       const { data, error, response } = await client.PUT(
         '/api/v1/staff/tenants/{tenantId}/offer-authoring',
         { params: { path: { tenantId } }, body: { may_author_offers: mayAuthor } },
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.tenant;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.staff.tenantReads(tenantId) }),
+        queryClient.invalidateQueries({ queryKey: keys.staff.tenantLists }),
+      ]);
+    },
+  });
+}
+
+/**
+ * Give a tenant a product, or take one back (ADR-047).
+ *
+ * Two mutations with one shape, mirroring the offer-authoring toggle above:
+ * a write on the tenant, no motive header, the tenant as it now stands in
+ * the answer. The invalidation reaches the tenant's reads and the list, where
+ * the product chips live. Nothing optimistic — the server may refuse (a
+ * retired product, a subscription still owed service) and a checkbox that
+ * had already ticked itself would then have to un-tick with an apology.
+ */
+export function useAssignTenantProduct(tenantId: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (productId: string) => {
+      const { data, error, response } = await client.PUT(
+        '/api/v1/staff/tenants/{tenantId}/products/{productId}',
+        { params: { path: { tenantId, productId } } },
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.tenant;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.staff.tenantReads(tenantId) }),
+        queryClient.invalidateQueries({ queryKey: keys.staff.tenantLists }),
+      ]);
+    },
+  });
+}
+
+export function useUnassignTenantProduct(tenantId: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (productId: string) => {
+      const { data, error, response } = await client.DELETE(
+        '/api/v1/staff/tenants/{tenantId}/products/{productId}',
+        { params: { path: { tenantId, productId } } },
       );
 
       if (error !== undefined || data === undefined) {

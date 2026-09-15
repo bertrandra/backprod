@@ -36,4 +36,13 @@ final class InMemoryProductRepository implements ProductRepository
     {
         return $this->byCode[$code] ?? null;
     }
+
+    public function activeProducts(): array
+    {
+        $active = array_values(array_filter($this->byCode, static fn (Product $product): bool => $product->active));
+
+        usort($active, static fn (Product $a, Product $b): int => strcmp($a->code, $b->code));
+
+        return $active;
+    }
 }

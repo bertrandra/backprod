@@ -70,6 +70,7 @@ final class RouteSurfaceTest extends ApiTestCase
         // with no session never pulls a private price out of storage.
         'GET /api/v1/public/offers',
         'GET /api/v1/public/offers/{offerId}',
+        'GET /api/v1/public/products',
         'POST /api/v1/webhooks/payments/{provider}',
         'POST /api/v1/webhooks/einvoice/{provider}',
         'GET /api/v1/downloads/{assetId}/content',

@@ -16,6 +16,7 @@ export const keys = {
    * the URL is all there is.
    */
   storefront: {
+    products: ['storefront', 'products'] as const,
     window: (product: string) => ['storefront', 'offers', product] as const,
     offer: (product: string, offerId: string) =>
       ['storefront', 'offer', product, offerId] as const,

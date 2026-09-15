@@ -15,7 +15,7 @@
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import openapiTS, { astToString } from 'openapi-typescript';
 
@@ -52,7 +52,11 @@ export async function renderSchema() {
   return BANNER + astToString(ast);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Compared as URLs, not by pasting the path behind `file://`: on Windows
+// `process.argv[1]` is `C:\…` and `import.meta.url` is `file:///C:/…`, and
+// the string comparison made `npm run generate` a silent no-op there —
+// the gate kept passing because it calls `renderSchema()` directly.
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const contents = await renderSchema();
 
   await mkdir(dirname(OUTPUT), { recursive: true });

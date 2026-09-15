@@ -257,7 +257,7 @@
     },
     "console.admin.storefront": {
       "authority": "platform",
-      "$comment": "What the public page advertises. Behind staff.catalog.manage rather than catalog.manage: ADR-040 lets the platform lend the latter to a tenant, and a tenant authoring its own offers must not decide what a stranger is shown. The product it administers comes from ?selected= in the URL, the way console.support.tenants carries the tenant somebody opened — the console has no ambient product, because a platform role grants no membership.",
+      "$comment": "What the public page advertises. Behind staff.catalog.manage rather than catalog.manage: ADR-040 lets the platform lend the latter to a tenant, and a tenant authoring its own offers must not decide what a stranger is shown. The product it administers is the one chosen in the context bar's switcher, which on the console lists every product the platform hosts (ADR-047): a platform role grants no membership, so the choice is made from the platform's own list rather than from what somebody belongs to.",
       "routes": [
         "/console/storefront"
       ],
@@ -295,9 +295,11 @@
       "operations": [
         "listTenantsForStaff",
         "setTenantOfferAuthoring",
-        "showTenantForStaff"
+        "showTenantForStaff",
+        "assignTenantProduct",
+        "unassignTenantProduct"
       ],
-      "$comment": "A tenant as support sees it, and the one thing the platform may change about them: whether the catalogue is lent to them. The toggle sits here rather than on a screen of its own because the decision is made while looking at the customer it concerns."
+      "$comment": "A tenant as support sees it, and the two things the platform may change about them: which products they hold (ADR-047), and whether the catalogue is lent to them. Both sit here rather than on a screen of their own because the decision is made while looking at the customer it concerns."
     },
     "identity.sign_in": {
       "authority": "tenant",
@@ -332,11 +334,12 @@
     },
     "public.storefront": {
       "authority": "public",
-      "$comment": "The landing page and the account it creates. The product comes from ?product= rather than from a membership, and only offers marked publicly_listed appear — being on sale and being advertised are two different decisions. Choosing an offer opens the sign-up form; the checkout that follows runs on the session that creates and is therefore commerce.checkout's openCheckoutSession, not a second anonymous purchase flow with rules of its own.",
+      "$comment": "The landing page and the account it creates. The product is chosen from listPublicProducts — only products with something advertised, so the list says nothing the windows do not (ADR-047) — or named by ?product=, never taken from a membership; and only offers marked publicly_listed appear — being on sale and being advertised are two different decisions. Choosing an offer opens the sign-up form; the checkout that follows runs on the session that creates and is therefore commerce.checkout's openCheckoutSession, not a second anonymous purchase flow with rules of its own.",
       "routes": [
         "/"
       ],
       "operations": [
+        "listPublicProducts",
         "getPublicOffers",
         "getPublicOffer",
         "signUp"
