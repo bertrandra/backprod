@@ -82,7 +82,9 @@ describe('the shop window', () => {
     await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
 
     expect(screen.getByText('Pro, monthly')).toBeTruthy();
-    expect(screen.getByText('€29.00')).toBeTruthy();
+    // The integer the API sent, not the rendered string: `Intl` formats it
+    // for the runtime's locale, and a French machine says "29,00 €".
+    expect(document.querySelector('[data-minor-units="2900"]')).not.toBeNull();
   });
 
   it('asks for the product it was told about, not for a list of them', async () => {
@@ -161,8 +163,9 @@ describe('choosing an offer', () => {
 
     // A purchase that turns out to cost something else is the complaint this
     // avoids.
-    expect(screen.getByTestId('chosen-offer').textContent).toContain('Pro, monthly');
-    expect(screen.getByTestId('chosen-offer').textContent).toContain('€29.00');
+    const chosen = screen.getByTestId('chosen-offer');
+    expect(chosen.textContent).toContain('Pro, monthly');
+    expect(chosen.querySelector('[data-minor-units="2900"]')).not.toBeNull();
   });
 
   it('lets them go back and choose differently', async () => {
