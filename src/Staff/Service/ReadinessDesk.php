@@ -50,17 +50,21 @@ final class ReadinessDesk
     /**
      * The chain, in the order it has to be completed.
      *
-     * @param bool $paymentsConfigured whether this *deployment* has a payment
-     *                                 provider at all. Passed in rather than
+     * @param array{name: string, sandbox: bool}|null $paymentProvider the
+     *                                 payment provider this *deployment* has,
+     *                                 or null for none. Passed in rather than
      *                                 read here: it is a fact about the server's
      *                                 configuration, not about the product, and
      *                                 the only thing that knows it is an
      *                                 application service this one may not
-     *                                 depend on.
+     *                                 depend on. The name and whether it is a
+     *                                 sandbox travel with the step so the
+     *                                 console can say "Stripe (sandbox)"
+     *                                 rather than "configured" (ADR-048).
      *
      * @return array{product: Product, steps: list<SetupStep>}
      */
-    public function of(string $productCode, bool $paymentsConfigured): array
+    public function of(string $productCode, ?array $paymentProvider): array
     {
         $product = $this->products->findByCode($productCode);
 
@@ -126,7 +130,7 @@ final class ReadinessDesk
                 ]),
 
                 // Deployment configuration, and the one step no screen can fix.
-                new SetupStep('payments', $paymentsConfigured, true, []),
+                new SetupStep('payments', $paymentProvider !== null, true, $paymentProvider ?? []),
             ],
         ];
     }

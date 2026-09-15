@@ -33,6 +33,14 @@ interface PaymentProvider
     public function name(): string;
 
     /**
+     * Whether this provider moves no real money: a test mode, a sandbox, a
+     * stub. The console shows it and the checkout says it, because a demo
+     * running on real cards and a production running on test cards are the
+     * two mistakes that cost the most (ADR-048).
+     */
+    public function isSandbox(): bool;
+
+    /**
      * Starts a payment and returns the provider's handle for it.
      *
      * `reference` is this platform's own identifier for what is being paid,

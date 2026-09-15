@@ -1,0 +1,29 @@
+{
+  "id": "evt_1Q2RxYZ0000000000000001",
+  "object": "event",
+  "api_version": "2026-08-26.dahlia",
+  "created": 1789200000,
+  "livemode": false,
+  "type": "payment_intent.succeeded",
+  "data": {
+    "object": {
+      "id": "pi_3Q2RxX0000000000000001",
+      "object": "payment_intent",
+      "amount": 4900,
+      "amount_received": 4900,
+      "currency": "eur",
+      "status": "succeeded",
+      "description": "F-2026-0042/1",
+      "metadata": { "reference": "F-2026-0042/1" },
+      "payment_method_types": ["card", "sepa_debit"],
+      "latest_charge": {
+        "id": "ch_3Q2RxX0000000000000001",
+        "object": "charge",
+        "payment_method_details": {
+          "type": "card",
+          "card": { "brand": "visa", "last4": "4242", "fingerprint": "Xt5EWLLDS7FJjR1c" }
+        }
+      }
+    }
+  }
+}

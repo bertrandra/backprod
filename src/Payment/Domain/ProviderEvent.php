@@ -34,6 +34,13 @@ final class ProviderEvent
 
     /**
      * @param array<string, mixed> $payload
+     * @param ?string              $method  the kind of instrument — `card`,
+     *                                      `sepa_debit` — when the event is
+     *                                      the first to know it. A provider
+     *                                      that lets the customer choose after
+     *                                      the payment is started (ADR-048)
+     *                                      cannot say at `authorize()` time;
+     *                                      never the instrument itself (§24)
      */
     public function __construct(
         public readonly string $id,
@@ -45,6 +52,7 @@ final class ProviderEvent
         public readonly ?int $amountMinorUnits,
         public readonly ?string $providerRefundId,
         public readonly array $payload,
+        public readonly ?string $method = null,
     ) {
     }
 

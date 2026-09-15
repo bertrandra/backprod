@@ -1,0 +1,18 @@
+{
+  "id": "evt_1Q2RxYZ0000000000000006",
+  "object": "event",
+  "created": 1789372800,
+  "livemode": false,
+  "type": "charge.dispute.created",
+  "data": {
+    "object": {
+      "id": "dp_1Q2RxY0000000000000001",
+      "object": "dispute",
+      "amount": 4900,
+      "charge": "ch_3Q2RxX0000000000000001",
+      "payment_intent": "pi_3Q2RxX0000000000000001",
+      "reason": "fraudulent",
+      "status": "needs_response"
+    }
+  }
+}

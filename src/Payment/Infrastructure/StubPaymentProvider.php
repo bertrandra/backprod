@@ -43,6 +43,12 @@ final class StubPaymentProvider implements PaymentProvider
         return self::NAME;
     }
 
+    public function isSandbox(): bool
+    {
+        // Nothing here has ever moved money.
+        return true;
+    }
+
     public function authorize(Money $amount, string $reference): ProviderPayment
     {
         // A real adapter calls the provider here. This one mints a handle

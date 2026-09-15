@@ -68,6 +68,14 @@ deptrac:
       collectors:
         - type: classLike
           value: '^(Psr\\Http\\.*|Laminas\\Diactoros\\.*|Laminas\\HttpHandlerRunner\\.*)$'
+    # A provider SDK. Its own layer so that the one place allowed to know
+    # Stripe's shape is the adapter (ADR-048): a `Stripe\` import in a
+    # service, a controller or the domain is the PSP leaking upward, which is
+    # what non-negotiable #17 and the PaymentProvider port exist to prevent.
+    - name: Stripe
+      collectors:
+        - type: classLike
+          value: '^Stripe\\.*'
 
   ruleset:
     # Controllers are thin: HTTP in, application service out. Never SQL.
@@ -118,6 +126,7 @@ deptrac:
       - SharedDatabase
       - Sql
       - Http
+      - Stripe
 
     SharedHttp:
       - SharedKernel

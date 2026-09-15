@@ -424,11 +424,16 @@ final class PostgresPaymentRepository implements PaymentRepository
                        failed_at = CASE WHEN :status IN ('FAILED', 'CANCELLED') THEN now() ELSE failed_at END,
                        failure_code = coalesce(:failureCode, failure_code),
                        failure_reason = coalesce(:failureReason, failure_reason),
+                       method = coalesce(:method, method),
                        updated_at = now()
                  WHERE id = :id
                 SQL,
             [
                 'status' => $status,
+                // The kind of instrument, when the event is the first to know
+                // it; a provider that already said at the start is not
+                // overwritten with null.
+                'method' => $event->method,
                 // A failed payment must carry a reason — the schema insists —
                 // so an adapter that gave none gets a truthful placeholder
                 // rather than a constraint violation the customer sees as a

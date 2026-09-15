@@ -1,0 +1,8 @@
+{
+  "id": "evt_1Q2RxYZ0000000000000007",
+  "object": "event",
+  "created": 1789200000,
+  "livemode": false,
+  "type": "charge.succeeded",
+  "data": { "object": { "id": "ch_3Q2RxX0000000000000001", "object": "charge", "payment_intent": "pi_3Q2RxX0000000000000001", "amount": 4900 } }
+}

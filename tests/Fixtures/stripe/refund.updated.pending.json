@@ -1,0 +1,16 @@
+{
+  "id": "evt_1Q2RxYZ0000000000000005",
+  "object": "event",
+  "created": 1789286300,
+  "livemode": false,
+  "type": "refund.updated",
+  "data": {
+    "object": {
+      "id": "re_3Q2RxX0000000000000001",
+      "object": "refund",
+      "amount": 1900,
+      "payment_intent": "pi_3Q2RxX0000000000000001",
+      "status": "pending"
+    }
+  }
+}
