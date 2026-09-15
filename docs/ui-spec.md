@@ -181,8 +181,8 @@ and USER. Placing it in the console would have been the intuitive mistake.
 
 | area | for |
 |---|---|
-| `public.storefront` | the shop window: offers the platform advertises for one product, and the account somebody creates while buying one. Outside both shells and outside the sign-in gate — the person reading it has no session, no product and no permissions (ADR-041) |
-| `console.support.tenants` | a tenant as support sees it — an audited, per-tenant read, and the one thing about a tenant staff may change: whether the platform lends it the catalogue. The state is shown to anybody who may open the tenant; the control appears only with `staff.tenants.manage` |
+| `public.storefront` | the shop window: the products with something advertised, offered as a choice when there are several and chosen when there is one; the offers the platform advertises for the chosen product; and the account somebody creates while buying one. Outside both shells and outside the sign-in gate — the person reading it has no session, no product and no permissions (ADR-041, ADR-047) |
+| `console.support.tenants` | a tenant as support sees it — an audited, per-tenant read — and the two things about a tenant staff may change: which products it holds (ADR-047), and whether the platform lends it the catalogue. Both states are shown to anybody who may open the tenant; the controls appear only with `staff.tenants.manage` |
 | `console.support.conversations` | answering a thread, and closing it |
 | `console.support.access_log` | what staff looked at, which is the record that makes the above acceptable |
 | `console.admin.metrics` | the financial dashboard, from aggregates |
@@ -191,7 +191,7 @@ and USER. Placing it in the console would have been the intuitive mistake.
 | `console.admin.products` | the top of the model: every product this deployment hosts, its code, and creating or retiring one. The only screen that can answer it — `listProducts` resolves through membership, which a platform role never grants (ADR-042) |
 | `console.admin.readiness` | the console's landing and the map of a maze: the chain a product has to complete before it can sell, in dependency order, with what is counted or missing at each step and exactly one "do this next". Every fact is read through the port the enforcing code reads — including asking the clock whether a version is sellable now — so it cannot report ready where a checkout would refuse (ADR-045) |
 | `console.admin.invoicing` | what a product needs configured before it can take money: the legal identity its invoices name (§25) and the supplier's own fiscal position (§25.3). ADR-042 gave the console a way to create a product and ADR-043 a way to price it, and a checkout against one built that way still refused with `BILLING_NOT_CONFIGURED` — the issuer lives in `product_configuration`, which only the demo seeder ever wrote (ADR-044). Behind `staff.products.manage`, not `staff.catalog.manage`: somebody trusted with the shop window is not thereby trusted with who the documents say is selling |
-| `console.admin.storefront` | what a stranger sees. Being on sale and being advertised are two decisions; this is the only place the second is made, behind `staff.catalog.manage` rather than `catalog.manage` (ADR-041). The product it administers is named in the URL as `?selected=`, because the console has no ambient product (ADR-042) |
+| `console.admin.storefront` | what a stranger sees. Being on sale and being advertised are two decisions; this is the only place the second is made, behind `staff.catalog.manage` rather than `catalog.manage` (ADR-041). The product it administers is the one chosen in region A's switcher, which on the console lists every product the platform hosts (ADR-047) |
 | `console.admin.staff` | who holds a platform role, and appointing or removing them. The database keeps at least one administrator, so the last one is shown as protected rather than offered and then refused |
 | `console.admin.queue` | queue liveness and the job list — "has the runner run" |
 | `console.admin.audit` | the audit trail |
@@ -236,7 +236,16 @@ reader can say where a thing belongs before knowing what it looks like.
 critical rule); every request carries `X-Product` and is tenant-scoped. Making
 the active product ambiently visible is how a person avoids acting in the wrong
 one, and it is the reason A is a permanent region rather than a setting buried
-in a menu.
+in a menu. On `/console/*` the switcher lists every product the platform hosts
+rather than the ones this person belongs to — a platform role grants no
+membership — and every console screen follows it (ADR-047).
+
+**Region C's header carries the console's own menu on `/console/*`.** A bar
+with one disclosure per platform section, the current screen marked, and one
+way back to the application. This is not the "global concern" the table
+forbids: it is the navigation of the screen family the view belongs to, shown
+only while that family is in the view. Region B stays the primary navigation of
+the whole application (ADR-047).
 
 **Region E exists because the backend is honest about time.** Jobs are
 cron-polled, exports are asynchronous, the queue has a liveness signal.
@@ -252,7 +261,7 @@ a region that vanished on mobile would be a capability only desktop users have.
 |---|---|---|
 | **A** Context bar | full bar | compact header: product initial, title, alerts, avatar |
 | **B** Primary nav | persistent left rail | bottom tab bar, ≤ 5 destinations, the rest behind **More** |
-| **C** View | header + body, side by side with D | full width; list and detail become two pushed routes, not two panes |
+| **C** View | header + body, side by side with D; on `/console/*` the header is the console's menu bar | full width; list and detail become two pushed routes, not two panes; on `/console/*` a **Menu** button in A opens the console's menu as a full-screen sheet |
 | **D** Inspector | docked right panel | bottom sheet with snap points, or a pushed route for long detail |
 | **E** Status strip | persistent footer strip | collapses to a badge in A; expands to a sheet |
 | **F** Overlay | dialogs, palette | sheets from the bottom; the palette is full-screen |

@@ -471,6 +471,12 @@ The two axes never convert into one another. A platform role grants no
 tenant membership and must never fabricate one; a membership grants no
 platform role.
 
+A tenant holds the products the platform assigned it (`tenant_products`,
+ADR-047), and a membership lives inside that assignment: a person is a member
+of the *tenant*, mirrored onto every product it holds. Adding, re-roling or
+removing a member acts across all of them; the product an administrator was
+using when they typed a colleague's address decides nothing.
+
 `platform_staff` is a separate table from `tenant_members`. One table
 holding both would turn a forgotten filter into privilege escalation.
 

@@ -22,7 +22,7 @@ visiteur qui n'en a aucune. Les chiffres qui suivent sont lus dans le schéma :
 | | Console (`/console`) | Application (`/`) |
 | --- | --- | --- |
 | Identité | `StaffContext` | `RequestContext` |
-| Vient de | `platform_staff` → `platform_roles` | `tenant_members` + en-tête `X-Product` |
+| Vient de | `platform_staff` → `platform_roles` | `tenant_members` + en-tête `X-Product`, à l'intérieur d'une attribution `tenant_products` (ADR-047) |
 | Porte | un utilisateur et des rôles plateforme | un utilisateur, un tenant, un produit |
 | Ne porte pas | ni tenant, ni produit | aucun rôle plateforme |
 
@@ -124,8 +124,8 @@ modèle surprend le plus souvent.
 
 Quand quelqu'un choisit une offre sur la vitrine sans être connecté,
 l'inscription écrit en une seule transaction : un utilisateur, son mot de passe,
-**un tenant**, son appartenance, le rôle `TENANT_ADMIN` et un profil de
-facturation minimal. Un client particulier est donc, techniquement,
+**un tenant**, le produit qui lui est attribué, son appartenance, le rôle
+`TENANT_ADMIN` et un profil de facturation minimal. Un client particulier est donc, techniquement,
 l'administrateur de son propre tenant — avec les trente permissions que cela
 implique.
 
@@ -144,9 +144,10 @@ Ce que cela implique, pour de bon :
 
 Aucune coquille, aucune session.
 
-Il voit les offres d'un produit **explicitement advertisées** — filtrées en SQL,
-jamais chargées en mémoire puis masquées — et peut créer un compte puis vérifier
-son adresse. La page d'accueil est la vitrine ; se connecter est le chemin
+Il voit la liste des produits **qui ont quelque chose d'advertisé** — et rien
+des autres (ADR-047) —, les offres d'un produit **explicitement advertisées** —
+filtrées en SQL, jamais chargées en mémoire puis masquées — et peut créer un
+compte puis vérifier son adresse. La page d'accueil est la vitrine ; se connecter est le chemin
 secondaire (ADR-041).
 
 Il ne voit jamais une offre en vente mais non advertisée — être vendable et être
@@ -204,7 +205,7 @@ Les 16 permissions de plateforme.
 | `support.respond` | oui | oui | non | non |
 | `admin.health.read` | oui | oui | non | non |
 | `admin.finance.read` | oui | non | oui | oui |
-| `staff.tenants.manage` | oui | non | non | non |
+| `staff.tenants.manage` (attribuer un produit, prêter le catalogue) | oui | non | non | non |
 | `staff.products.manage` | oui | non | non | non |
 | `staff.catalog.manage` | oui | non | non | non |
 | `staff.grant` | oui | non | non | non |
