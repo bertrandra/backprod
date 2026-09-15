@@ -9,10 +9,6 @@ See [`CLAUDE.md`](CLAUDE.md) for the rules that govern changes here, and
 decisions behind them. For who may do what —
 the two identities, the six roles and the 46 permissions between them —
 see [`docs/identities-and-permissions.md`](docs/identities-and-permissions.md).
-A proposal to merge the two management surfaces and make a role's permissions
-editable is in
-[`docs/one-directory-and-editable-roles.md`](docs/one-directory-and-editable-roles.md);
-nothing in it is built.
 
 ## Stack
 
