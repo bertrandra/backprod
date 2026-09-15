@@ -247,7 +247,21 @@ final class PostgresPaymentRepository implements PaymentRepository
             return $this->connection->transactional(
                 fn (): WebhookOutcome => $this->recordThenApply($event, $provider, $payment, $outcome, $settlement),
             );
-        } catch (UniqueConstraintViolationException) {
+        } catch (UniqueConstraintViolationException $violation) {
+            // Only the delivered-once index means "already recorded". Any
+            // other unique index reached inside the same transaction — a
+            // second ACTIVE subscription on the tenant and product, say — is
+            // the work failing, and the transaction rolled back *including*
+            // the event row. Answering DUPLICATE there would mean the
+            // provider collected the money, this platform recorded nothing,
+            // every retry answered the same, and nobody was told (ADR-048's
+            // first sandbox run found exactly that). It propagates instead:
+            // a 500 with a request id, the provider retries, and the log
+            // carries the constraint that refused.
+            if (!str_contains($violation->getMessage(), 'payment_events_delivered_once')) {
+                throw $violation;
+            }
+
             // The delivery is already recorded, so it has already been acted
             // on and the transaction rolled back without touching anything.
             // This is the ordinary case of a provider retrying, not a fault:
