@@ -368,10 +368,20 @@ final class StorefrontTest extends DatabaseApiTestCase
         self::assertIsString($body['tenant_id'] ?? null);
 
         // The organisation carries the company name, and the person
-        // administers it. Five rows or none.
+        // administers it. Six rows or none.
         self::assertSame('Acme Ltd', $this->connection->fetchOne(
             'SELECT name FROM tenants WHERE id = :id',
             ['id' => $body['tenant_id']],
+        ));
+        // The product they arrived for is the organisation's first product
+        // (ADR-047), and nobody on staff decided it.
+        self::assertSame(1, $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT count(*) FROM tenant_products tp
+                  JOIN products p ON p.id = tp.product_id
+                 WHERE tp.tenant_id = :tenant AND p.code = 'atlas' AND tp.assigned_by IS NULL
+                SQL,
+            ['tenant' => $body['tenant_id']],
         ));
         self::assertSame(1, $this->connection->fetchOne(
             <<<'SQL'

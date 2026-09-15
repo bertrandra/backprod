@@ -61,4 +61,24 @@ final class TestDatabase
     {
         $connection->executeStatement('TRUNCATE ' . self::TABLES . ' RESTART IDENTITY CASCADE');
     }
+
+    /**
+     * Gives a tenant a product, as the platform would (ADR-047).
+     *
+     * A membership must sit inside an assignment — the foreign key says so —
+     * so every fixture that writes one calls this first. Idempotent, because
+     * fixtures add several members of one tenant and the second call must
+     * not be the one that fails.
+     */
+    public static function assignProduct(Connection $connection, string $tenantId, string $productId): void
+    {
+        $connection->executeStatement(
+            <<<'SQL'
+                INSERT INTO tenant_products (tenant_id, product_id)
+                VALUES (:tenant, :product)
+                ON CONFLICT DO NOTHING
+                SQL,
+            ['tenant' => $tenantId, 'product' => $productId],
+        );
+    }
 }

@@ -5,11 +5,19 @@ declare(strict_types=1);
 namespace App\Tenant\Domain;
 
 /**
- * Member administration within one tenant and product.
+ * Member administration within one tenant.
  *
  * Every method takes the tenant and product from the caller's resolved
  * context, never from the request — so an administrator of one tenant cannot
  * reach another's members even by guessing ids (§31).
+ *
+ * A person is a member of the *tenant*, and the platform mirrors that
+ * membership onto every product it has assigned to the tenant (ADR-047). So
+ * the reads here answer for the product the caller is acting in, and the
+ * writes — add, change roles, remove — act on every product the tenant
+ * holds: the product the administrator was using when they typed a
+ * colleague's address is not a decision about which products that colleague
+ * may see.
  */
 interface TenantMemberRepository
 {

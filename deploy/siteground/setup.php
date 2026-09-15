@@ -582,6 +582,13 @@ function handleSetup(): void
             ['id' => $userId, 'email' => $adminEmail, 'hash' => password_hash($adminPassword, PASSWORD_BCRYPT)],
         );
 
+        // The product just created is the first one this tenant holds
+        // (ADR-047); the membership below has to sit inside that assignment.
+        $connection->executeStatement(
+            'INSERT INTO tenant_products (tenant_id, product_id, assigned_by) VALUES (:tenant, :product, :user)',
+            ['tenant' => $tenantId, 'product' => $productId, 'user' => $userId],
+        );
+
         $connection->executeStatement(
             'INSERT INTO tenant_members (tenant_id, product_id, user_id) VALUES (:tenant, :product, :user)',
             ['tenant' => $tenantId, 'product' => $productId, 'user' => $userId],

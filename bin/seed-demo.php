@@ -115,7 +115,7 @@ const BUSINESS_TABLES = [
     'staff_access_log', 'platform_staff',
     'erasure_requests', 'audit_log', 'financial_events',
     'revenue_periods', 'offer_revenue_periods', 'renewal_periods',
-    'tenant_skins', 'tenant_member_roles', 'tenant_members', 'tenants',
+    'tenant_skins', 'tenant_member_roles', 'tenant_members', 'tenant_products', 'tenants',
     'users', 'products',
     // U12. Both cascade from `users`, so a reset that truncated users would take
     // them anyway — named here so the list stays a readable inventory of what a

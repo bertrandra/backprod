@@ -189,6 +189,14 @@ return static function (
         ['code' => $code],
     );
 
+    // Both tenants hold the product before anybody is a member of it (ADR-047).
+    foreach ([$acme, $globex] as $tenant) {
+        $connection->executeStatement(
+            'INSERT INTO tenant_products (tenant_id, product_id, assigned_by) VALUES (:tenant, :product, :user)',
+            ['tenant' => $tenant, 'product' => $product, 'user' => $staff],
+        );
+    }
+
     foreach ([[$acme, $ada, 'TENANT_ADMIN'], [$acme, $grace, 'USER'], [$globex, $ada, 'TENANT_ADMIN']] as [$tenant, $user, $role]) {
         $connection->executeStatement(
             'INSERT INTO tenant_members (tenant_id, product_id, user_id) VALUES (:tenant, :product, :user)',

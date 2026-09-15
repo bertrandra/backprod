@@ -9,6 +9,7 @@ use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
 use App\Tests\Support\FakeAuthProvider;
+use App\Tests\Support\TestDatabase;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
 
@@ -71,6 +72,7 @@ final class OfferAuthoringDelegationTest extends DatabaseApiTestCase
 
         // Ada is the most privileged thing a customer can be. Everything below
         // is about what that does and does not include.
+        TestDatabase::assignProduct($this->connection, $this->tenant, $this->product);
         $this->connection->executeStatement(
             <<<'SQL'
                 INSERT INTO tenant_members (tenant_id, user_id, product_id)

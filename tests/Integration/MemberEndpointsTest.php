@@ -6,6 +6,7 @@ namespace App\Tests\Integration;
 
 use App\Tenant\Infrastructure\PostgresTenantMemberRepository;
 use App\Tenant\Infrastructure\PostgresTenantMembershipRepository;
+use App\Tests\Support\TestDatabase;
 use PHPUnit\Framework\Attributes\CoversNothing;
 
 /**
@@ -91,10 +92,11 @@ final class MemberEndpointsTest extends DatabaseTestCase
     }
 
     /**
-     * The member list is scoped to the caller's tenant and product, so
-     * another tenant's members are simply not there to be seen.
+     * The member list is scoped to the caller's tenant, so another tenant's
+     * members are simply not there to be seen — and a product the tenant
+     * was never given is not a place its members can appear.
      */
-    public function testMemberListsAreScopedToOneTenantAndProduct(): void
+    public function testMemberListsAreScopedToOneTenant(): void
     {
         $atlas = $this->seedProduct('atlas');
         $beacon = $this->seedProduct('beacon');
@@ -103,15 +105,97 @@ final class MemberEndpointsTest extends DatabaseTestCase
 
         $mine = $this->seedUser('sub-mine', 'mine@example.test');
         $theirs = $this->seedUser('sub-theirs', 'theirs@example.test');
-        $otherProduct = $this->seedUser('sub-other', 'other@example.test');
 
         $this->seedMember($acme, $mine, $atlas, ['USER']);
-        $this->seedMember($globex, $theirs, $atlas, ['USER']);
-        $this->seedMember($acme, $otherProduct, $beacon, ['USER']);
+        $this->seedMember($globex, $theirs, $beacon, ['USER']);
 
-        $listed = (new PostgresTenantMemberRepository($this->connection))->listMembers($acme, $atlas);
+        $members = new PostgresTenantMemberRepository($this->connection);
 
-        self::assertSame([$mine], array_map(static fn ($m): string => $m->userId, $listed));
+        self::assertSame([$mine], array_map(static fn ($m): string => $m->userId, $members->listMembers($acme, $atlas)));
+        // Acme holds atlas only: nobody is a member of it in beacon.
+        self::assertSame([], $members->listMembers($acme, $beacon));
+    }
+
+    /**
+     * A person is a member of the tenant, and the platform mirrors that onto
+     * every product the tenant holds (ADR-047). Which product the
+     * administrator was acting in when they added a colleague does not
+     * decide which products that colleague may see.
+     */
+    public function testAMemberIsAMemberOfEveryProductTheTenantHolds(): void
+    {
+        $atlas = $this->seedProduct('atlas');
+        $beacon = $this->seedProduct('beacon');
+        $acme = $this->seedTenant('acme');
+        TestDatabase::assignProduct($this->connection, $acme, $beacon);
+
+        $user = $this->seedUser('sub-both', 'both@example.test');
+
+        // Added from atlas; present in beacon too, with the same role.
+        $this->seedMember($acme, $user, $atlas, ['USER']);
+
+        $members = new PostgresTenantMemberRepository($this->connection);
+
+        self::assertSame(['USER'], $members->findMember($acme, $beacon, $user)?->roles);
+        self::assertSame(2, $this->countRoleRowsFor($user));
+
+        // A role change made from one product is the role in every product.
+        $members->replaceRoles($acme, $beacon, $user, ['TENANT_ADMIN']);
+
+        self::assertSame(['TENANT_ADMIN'], $members->findMember($acme, $atlas, $user)?->roles);
+        self::assertSame(['TENANT_ADMIN'], $members->findMember($acme, $beacon, $user)?->roles);
+
+        // And removal from one product is removal from the organisation.
+        $members->removeMember($acme, $atlas, $user);
+
+        self::assertNull($members->findMember($acme, $beacon, $user));
+        self::assertSame(0, $this->countRoleRowsFor($user));
+    }
+
+    /**
+     * Withdrawing a product from a tenant takes the memberships in it, and
+     * only those — the foreign key cascades, so no service has to remember.
+     */
+    public function testWithdrawingAProductRemovesTheMembershipsInIt(): void
+    {
+        $atlas = $this->seedProduct('atlas');
+        $beacon = $this->seedProduct('beacon');
+        $acme = $this->seedTenant('acme');
+        TestDatabase::assignProduct($this->connection, $acme, $beacon);
+
+        $user = $this->seedUser('sub-kept', 'kept@example.test');
+        $this->seedMember($acme, $user, $atlas, ['USER']);
+
+        $this->connection->executeStatement(
+            'DELETE FROM tenant_products WHERE tenant_id = :tenant AND product_id = :product',
+            ['tenant' => $acme, 'product' => $beacon],
+        );
+
+        $members = new PostgresTenantMemberRepository($this->connection);
+
+        self::assertNull($members->findMember($acme, $beacon, $user));
+        self::assertSame(['USER'], $members->findMember($acme, $atlas, $user)?->roles);
+        self::assertSame(1, $this->countRoleRowsFor($user));
+    }
+
+    /**
+     * The schema refuses a membership in a product the tenant was never
+     * given, whatever wrote it.
+     */
+    public function testAMembershipOutsideAnAssignmentIsRefused(): void
+    {
+        $atlas = $this->seedProduct('atlas');
+        $beacon = $this->seedProduct('beacon');
+        $acme = $this->seedTenant('acme');
+        $user = $this->seedUser('sub-stray', 'stray@example.test');
+        $this->seedMember($acme, $user, $atlas, ['USER']);
+
+        $this->expectException(\Doctrine\DBAL\Exception\ForeignKeyConstraintViolationException::class);
+
+        $this->connection->executeStatement(
+            'INSERT INTO tenant_members (tenant_id, user_id, product_id) VALUES (:tenant, :user, :product)',
+            ['tenant' => $acme, 'user' => $user, 'product' => $beacon],
+        );
     }
 
     public function testKnownRolesComeFromTheDatabase(): void
@@ -193,6 +277,7 @@ final class MemberEndpointsTest extends DatabaseTestCase
      */
     private function seedMember(string $tenantId, string $userId, string $productId, array $roles): void
     {
+        TestDatabase::assignProduct($this->connection, $tenantId, $productId);
         (new PostgresTenantMemberRepository($this->connection))
             ->addMember($tenantId, $productId, $userId, $roles);
     }
