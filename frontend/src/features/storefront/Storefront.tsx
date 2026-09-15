@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 
 import { useProductContext } from '@/app/frame/useProductContext';
-import { useOpenCheckoutSession } from '@/queries/checkout';
+import { PaymentElementPanel } from '@/features/commerce/payment/PaymentElementPanel';
+import { useOpenCheckoutSession, type OpenedCheckoutSession } from '@/queries/checkout';
 import { usePublicProducts, type PublicOffer } from '@/queries/storefront';
 import { useSessionStore } from '@/state/session';
 
@@ -37,6 +38,11 @@ export function Storefront({ onSignIn }: { onSignIn: () => void }) {
   const chooseProduct = useSessionStore((state) => state.chooseProduct);
   const products = usePublicProducts();
   const [chosen, setChosen] = useState<PublicOffer | null>(null);
+  // The session just opened, held for exactly as long as the render that
+  // received its `client_secret` — the card form lives here, and the hop to
+  // /checkout/{id} afterwards is a full navigation that restores the session
+  // and, by design, cannot carry the secret (ADR-034, ADR-048).
+  const [opened, setOpened] = useState<OpenedCheckoutSession | null>(null);
   const checkout = useOpenCheckoutSession();
 
   // The windows a stranger may choose between (ADR-047). With exactly one,
@@ -67,6 +73,41 @@ export function Storefront({ onSignIn }: { onSignIn: () => void }) {
     );
   }
 
+  if (opened !== null) {
+    const statusPage = `/checkout/${opened.id}`;
+
+    return (
+      <main className="mx-auto max-w-lg space-y-6 p-4 py-10">
+        <header className="space-y-1">
+          <h1 className="text-2xl font-semibold">Pay</h1>
+          <p className="text-sm text-muted">
+            {chosen.name} — your account is ready; the subscription starts when the payment is
+            confirmed.
+          </p>
+        </header>
+
+        <PaymentElementPanel
+          provider={opened.payment_provider}
+          clientSecret={opened.client_secret}
+          amount={opened.gross}
+          returnUrl={new URL(statusPage, window.location.origin).toString()}
+          // Whatever the form said, the status page says what the server knows.
+          onSettled={() => window.location.assign(statusPage)}
+        />
+
+        {/* Always there: a free offer has nothing to pay, a provider with no
+            card form confirms on its own, and somebody who changes their mind
+            still has an order to come back to (ADR-034). */}
+        <p className="text-sm text-muted">
+          <a href={statusPage} data-testid="continue-to-order" className="underline underline-offset-2">
+            Continue to your order
+          </a>
+          {opened.client_secret !== null && opened.client_secret !== undefined && ' — it can be paid from there later.'}
+        </p>
+      </main>
+    );
+  }
+
   return (
     <SignUpForm
       offer={chosen}
@@ -76,7 +117,7 @@ export function Storefront({ onSignIn }: { onSignIn: () => void }) {
       onCreated={() => {
         void checkout
           .mutateAsync(chosen.id)
-          .then((session) => window.location.assign(`/checkout/${session.id}`))
+          .then((session) => setOpened(session))
           .catch(() => {
             // The account exists and the person is holding a token, so the
             // worst outcome available is landing them in the application at

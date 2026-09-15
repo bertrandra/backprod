@@ -41,6 +41,14 @@ interface PaymentProvider
     public function isSandbox(): bool;
 
     /**
+     * What a page needs to load this provider's own component — a Stripe
+     * publishable key, an Adyen client key — or null for a provider with no
+     * page-side part. Designed by the provider to sit in a page, so it is
+     * not a secret and travels in the API (ADR-048).
+     */
+    public function clientKey(): ?string;
+
+    /**
      * Starts a payment and returns the provider's handle for it.
      *
      * `reference` is this platform's own identifier for what is being paid,

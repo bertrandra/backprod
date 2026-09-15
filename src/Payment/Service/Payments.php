@@ -82,7 +82,7 @@ final class Payments
      * provider's handle for completing the payment, which is the only part
      * the front end needs and the only part this platform does not store.
      *
-     * @return array{payment: Payment, client_secret: string|null}
+     * @return array{payment: Payment, client_secret: string|null, provider: array{name: string, sandbox: bool, client_key: string|null}}
      */
     public function start(string $tenantId, string $productId, string $invoiceId, ?string $actorUserId): array
     {
@@ -124,8 +124,18 @@ final class Payments
 
         // The secret is handed back and never stored: it is short-lived, it
         // is a credential of sorts, and §31 keeps credentials out of the
-        // database.
-        return ['payment' => $payment, 'client_secret' => $started->clientSecret];
+        // database. Beside it, what a page needs to *use* one: which
+        // provider, the key that loads its component, and whether any of
+        // this moves real money (ADR-048).
+        return [
+            'payment' => $payment,
+            'client_secret' => $started->clientSecret,
+            'provider' => [
+                'name' => $provider->name(),
+                'sandbox' => $provider->isSandbox(),
+                'client_key' => $provider->clientKey(),
+            ],
+        ];
     }
 
     /**

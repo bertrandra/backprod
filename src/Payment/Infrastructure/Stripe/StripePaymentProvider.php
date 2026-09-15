@@ -61,6 +61,7 @@ final class StripePaymentProvider implements PaymentProvider
     public function __construct(
         private readonly StripeClient $stripe,
         private readonly string $webhookSecret,
+        private readonly string $publishableKey,
         private readonly bool $livemode,
         private readonly Closure $now,
     ) {
@@ -83,6 +84,11 @@ final class StripePaymentProvider implements PaymentProvider
     public function isSandbox(): bool
     {
         return !$this->livemode;
+    }
+
+    public function clientKey(): string
+    {
+        return $this->publishableKey;
     }
 
     public function authorize(Money $amount, string $reference): ProviderPayment

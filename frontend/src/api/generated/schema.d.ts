@@ -4111,6 +4111,18 @@ export interface components {
             /** @description A retired product keeps its tenants, subscriptions and invoices; what changes is that every door into it is closed. */
             active: boolean;
         };
+        /** @description What the page needs to *use* a `client_secret` (ADR-048): which provider, the key that loads its own component, and whether any of this moves real money. Null when there is no payment to make (a free offer) or when the provider has no page-side part (the stub). `publishable_key` is designed by the provider to sit in a page and is not a secret — it belongs in the contract rather than in a build variable, which would freeze one deployment’s key into a bundle another deployment reuses. */
+        PaymentProviderClient: {
+            /**
+             * @description The provider’s stable name, as `payments.provider` records it.
+             * @example stripe
+             */
+            name: string;
+            /** @example pk_test_51… */
+            publishable_key: string | null;
+            /** @description True when no real money moves: a test mode, a sandbox, a stub. The screen says so, because a demo on real cards and a production on test cards are the two mistakes that cost the most. */
+            sandbox: boolean;
+        } | null;
         /** @description The mandatory mentions of an invoice's issuer (§25). Every field is present in a response, null included, so a form binding to it finds the same shape whether the product was configured years ago or never. `legal_name` and `country_code` are the two an invoice cannot be issued without — a supplier not liable for VAT legitimately has no number, and requiring one would exclude a whole class of French business. */
         BillingSupplier: {
             /** @example Atlas SAS */
@@ -5104,6 +5116,7 @@ export interface operations {
                     "application/json": components["schemas"]["Payment"] & {
                         /** @description Hand to the provider's client SDK. Never logged, never stored. */
                         client_secret: string | null;
+                        payment_provider?: components["schemas"]["PaymentProviderClient"];
                     };
                 };
             };
@@ -5119,8 +5132,26 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            /** @description `PAYMENT_PROVIDER_REFUSED` — the provider would not start this payment; `details.provider_code` carries its reason, written for operators. Or `PAYMENT_AMOUNT_UNSUPPORTED` — an amount the provider cannot represent in this currency. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
+            /** @description `PAYMENT_PROVIDER_REJECTED_KEY` or `PAYMENT_PROVIDER_UNREACHABLE` — this deployment’s provider credentials were refused, or the provider could not be reached. Configuration, not the caller’s doing. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     showInvoicePdf: {
@@ -5494,6 +5525,7 @@ export interface operations {
                         session: components["schemas"]["CheckoutSession"] & {
                             /** @description Handed to the payment provider’s client SDK. **Returned here and nowhere else**: it is short-lived and it is a credential, so it is never stored (§31). Null when the provider uses a redirect rather than a secret. A caller who needs a fresh one retries the payment, which is a new attempt and gets its own. */
                             client_secret?: string | null;
+                            payment_provider?: components["schemas"]["PaymentProviderClient"];
                         };
                     };
                 };
@@ -5518,8 +5550,26 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            /** @description `PAYMENT_PROVIDER_REFUSED` — the provider would not start this payment; `details.provider_code` carries its reason, written for operators. Or `PAYMENT_AMOUNT_UNSUPPORTED` — an amount the provider cannot represent in this currency. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
+            /** @description `PAYMENT_PROVIDER_REJECTED_KEY` or `PAYMENT_PROVIDER_UNREACHABLE` — this deployment’s provider credentials were refused, or the provider could not be reached. Configuration, not the caller’s doing. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     showCheckoutSession: {
@@ -7261,15 +7311,16 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description A new payment, with its own client secret. */
+            /** @description The new payment — its own attempt, its own provider reference — with its own client secret beside it, exactly as `startPayment` answers. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
+                    "application/json": components["schemas"]["Payment"] & {
                         /** @description Handed to the payment provider’s client SDK. **Returned here and nowhere else**: it is short-lived and it is a credential, so it is never stored (§31). Null when the provider uses a redirect rather than a secret. A caller who needs a fresh one retries the payment, which is a new attempt and gets its own. */
                         client_secret?: string | null;
+                        payment_provider?: components["schemas"]["PaymentProviderClient"];
                     };
                 };
             };
@@ -7293,8 +7344,26 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            /** @description `PAYMENT_PROVIDER_REFUSED` — the provider would not start this payment; `details.provider_code` carries its reason, written for operators. Or `PAYMENT_AMOUNT_UNSUPPORTED` — an amount the provider cannot represent in this currency. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
+            /** @description `PAYMENT_PROVIDER_REJECTED_KEY` or `PAYMENT_PROVIDER_UNREACHABLE` — this deployment’s provider credentials were refused, or the provider could not be reached. Configuration, not the caller’s doing. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     listPlans: {

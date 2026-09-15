@@ -26,6 +26,22 @@ use DateTimeZone;
 final class PaymentPresenter
 {
     /**
+     * What the page needs to use a `client_secret`: the provider, its
+     * page-side key, and whether this is a sandbox — so the screen can say
+     * "no money moves" rather than let a person find out.
+     *
+     * @param array{name: string, sandbox: bool, client_key: string|null}|null $provider
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function provider(?array $provider): ?array
+    {
+        return $provider === null
+            ? null
+            : ['name' => $provider['name'], 'publishable_key' => $provider['client_key'], 'sandbox' => $provider['sandbox']];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function one(Payment $payment): array

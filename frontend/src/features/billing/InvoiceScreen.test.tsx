@@ -1,9 +1,20 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import type { ReactNode } from 'react';
+import { describe, expect, it, vi } from 'vitest';
 
 import { renderAtRoute, SESSION, stubClient, type Stub } from '@/test-utils';
 
 import { InvoiceScreen } from './InvoiceScreen';
+
+// Stripe.js replaced: what the panel does around it is PaymentElementPanel's
+// test; here it only has to appear where the secret was born.
+vi.mock('@stripe/stripe-js', () => ({ loadStripe: vi.fn(() => Promise.resolve({ confirmPayment: vi.fn() })) }));
+vi.mock('@stripe/react-stripe-js', () => ({
+  Elements: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  PaymentElement: () => <div data-testid="stripe-payment-element" />,
+  useStripe: () => ({ confirmPayment: vi.fn() }),
+  useElements: () => ({}),
+}));
 
 /**
  * U6's fourth exit criterion, as far as a test without a live backend can carry
@@ -235,6 +246,42 @@ describe('what can be done to it', () => {
     fireEvent.click(screen.getByRole('button', { name: /^issue the credit note$/i }));
 
     await waitFor(() => expect(credited).toBe(1));
+  });
+
+  it('takes a payment and offers the card form right there, for the invoice\'s gross', async () => {
+    const started = {
+      id: 'pay-1',
+      invoice_id: INVOICE_ID,
+      subscription_id: null,
+      provider: 'stripe',
+      provider_payment_id: 'pi_1',
+      status: 'PENDING',
+      settled: false,
+      final: false,
+      amount: { minor_units: 3060, currency: 'EUR' },
+      method: null,
+      failure_code: null,
+      failure_reason: null,
+      succeeded_at: null,
+      failed_at: null,
+      created_at: '2026-09-16T10:00:00Z',
+      client_secret: 'pi_1_secret',
+      payment_provider: { name: 'stripe', publishable_key: 'pk_test_1', sandbox: true },
+    };
+
+    render(clientFor({ 'POST /api/v1/billing/invoices/{invoiceId}/payments': { data: started, status: 201 } }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /take a payment/i })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /take a payment/i }));
+
+    // Where the secret was born (ADR-048), and gone from the actions row
+    // while the form is up — one attempt at a time.
+    await waitFor(() => expect(screen.getByTestId('stripe-payment-element')).toBeTruthy());
+    expect(screen.getByTestId('sandbox-band')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /take a payment/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /^Pay/ }).querySelector('[data-minor-units="3060"]')).not.toBeNull();
+    // The secret went to the provider's SDK and is written nowhere.
+    expect(document.body.textContent).not.toContain('pi_1_secret');
   });
 });
 

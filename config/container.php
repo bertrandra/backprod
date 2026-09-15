@@ -359,12 +359,15 @@ return static function (array $overrides = []): ContainerInterface {
             $stripeKey = $env('STRIPE_SECRET_KEY');
             $stripeWebhookSecret = $env('STRIPE_WEBHOOK_SECRET');
 
-            if ($stripeKey !== '' && $stripeWebhookSecret !== '' && $env('STRIPE_PUBLISHABLE_KEY') !== '') {
+            $stripePublishableKey = $env('STRIPE_PUBLISHABLE_KEY');
+
+            if ($stripeKey !== '' && $stripeWebhookSecret !== '' && $stripePublishableKey !== '') {
                 $providers[] = new StripePaymentProvider(
                     // The API version is pinned in the SDK, so a dashboard
                     // upgrade does not change the shape `parse()` receives.
                     new StripeClient(['api_key' => $stripeKey, 'stripe_version' => StripeApiVersion::CURRENT]),
                     $stripeWebhookSecret,
+                    $stripePublishableKey,
                     StripePaymentProvider::isLiveKey($stripeKey),
                     static fn (): int => time(),
                 );

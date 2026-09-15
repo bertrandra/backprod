@@ -46,6 +46,7 @@ final class StripePaymentProviderTest extends TestCase
         self::assertSame('stripe', $this->provider()->name());
         self::assertTrue($this->provider()->isSandbox());
         self::assertFalse($this->provider(live: true)->isSandbox());
+        self::assertSame('pk_test_unit', $this->provider()->clientKey());
         self::assertTrue(StripePaymentProvider::isLiveKey('sk_live_abc'));
         self::assertFalse(StripePaymentProvider::isLiveKey('sk_test_abc'));
     }
@@ -177,6 +178,7 @@ final class StripePaymentProviderTest extends TestCase
         return new StripePaymentProvider(
             new StripeClient(['api_key' => $live ? 'sk_live_unit' : 'sk_test_unit']),
             'whsec_unit',
+            $live ? 'pk_live_unit' : 'pk_test_unit',
             $live,
             static fn (): int => 1_789_200_000,
         );

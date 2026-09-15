@@ -32,6 +32,16 @@ import { toApiError } from './session';
 
 export type CheckoutSession = Schemas['CheckoutSession'];
 
+/**
+ * A session as `openCheckoutSession` answers it: the session, the one-time
+ * `client_secret`, and what a page needs to use one (ADR-048). This shape
+ * exists only in the render that received it.
+ */
+export type OpenedCheckoutSession = CheckoutSession & {
+  client_secret?: string | null;
+  payment_provider?: Schemas['PaymentProviderClient'];
+};
+
 /** The status the API derives. `PAYMENT_FAILED` is the one a retry exists for. */
 export type CheckoutStatus = CheckoutSession['status'];
 
@@ -66,9 +76,7 @@ export function useOpenCheckoutSession() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (
-      offerId: string,
-    ): Promise<CheckoutSession & { client_secret?: string | null }> => {
+    mutationFn: async (offerId: string): Promise<OpenedCheckoutSession> => {
       const { data, error, response } = await client.POST('/api/v1/checkout/sessions', {
         ...ambientParams(sessionSnapshot),
         body: { offer_id: offerId },

@@ -90,6 +90,7 @@ final class StripeWebhookTest extends DatabaseApiTestCase
                 new StripePaymentProvider(
                     new StripeClient(['api_key' => 'sk_test_integration']),
                     self::WEBHOOK_SECRET,
+                    'pk_test_integration',
                     false,
                     static fn (): int => self::NOW,
                 ),

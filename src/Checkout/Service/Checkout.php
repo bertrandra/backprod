@@ -48,7 +48,7 @@ final class Checkout
      * drops after the invoice is raised has an order they can look up and
      * retry the payment on, rather than a charge nobody can account for.
      *
-     * @return array{order: Order, payment: Payment|null, client_secret: string|null}
+     * @return array{order: Order, payment: Payment|null, client_secret: string|null, provider: array{name: string, sandbox: bool, client_key: string|null}|null}
      */
     public function open(string $tenantId, string $productId, string $offerId, ?string $actorUserId): array
     {
@@ -59,7 +59,7 @@ final class Checkout
             // An order with nothing to collect completes at fulfilment — a
             // free offer, or one entirely covered by credit. There is no
             // payment to start and nothing for the caller to pay.
-            return ['order' => $order, 'payment' => null, 'client_secret' => null];
+            return ['order' => $order, 'payment' => null, 'client_secret' => null, 'provider' => null];
         }
 
         $started = $this->payments->start($tenantId, $productId, $order->invoiceId, $actorUserId);
@@ -68,6 +68,7 @@ final class Checkout
             'order' => $order,
             'payment' => $started['payment'],
             'client_secret' => $started['client_secret'],
+            'provider' => $started['provider'],
         ];
     }
 
@@ -95,7 +96,7 @@ final class Checkout
      * attempt: a redirect-based provider issues no secret, and promising one
      * here would be promising something the port does not guarantee.
      *
-     * @return array{payment: Payment, client_secret: string|null}
+     * @return array{payment: Payment, client_secret: string|null, provider: array{name: string, sandbox: bool, client_key: string|null}}
      */
     public function retry(string $tenantId, string $productId, string $paymentId, ?string $actorUserId): array
     {

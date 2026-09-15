@@ -38,7 +38,10 @@ final class StartPaymentController implements RouteHandler
         );
 
         return new JsonResponse(
-            PaymentPresenter::one($started['payment']) + ['client_secret' => $started['client_secret']],
+            PaymentPresenter::one($started['payment']) + [
+                'client_secret' => $started['client_secret'],
+                'payment_provider' => PaymentPresenter::provider($started['provider']),
+            ],
             201,
         );
     }
