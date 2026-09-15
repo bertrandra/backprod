@@ -23,13 +23,44 @@ import { toApiError } from './session';
  * `product` is null whenever there is nothing to show — no such product, an
  * inactive one, or one that advertises nothing — because a public endpoint that
  * told those apart would be a way to enumerate what a deployment hosts.
+ *
+ * **The product list is the list of shop windows, not of products.** What a
+ * visitor may choose between is `listPublicProducts`: only products advertising
+ * a sellable offer right now, which is exactly the set they could assemble by
+ * trying codes one at a time. What the platform *runs* stays private (ADR-047,
+ * amending ADR-041). It is never `listProducts` — that one answers from a
+ * membership, and a stranger has none.
  */
 
 export type PublicOffer = Schemas['Offer'];
 
+export interface PublicProduct {
+  readonly code: string;
+  readonly name: string;
+}
+
 export interface Storefront {
-  readonly product: { readonly code: string; readonly name: string } | null;
+  readonly product: PublicProduct | null;
   readonly offers: readonly PublicOffer[];
+}
+
+export function usePublicProducts() {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.storefront.products,
+    queryFn: async (): Promise<readonly PublicProduct[]> => {
+      const { data, error, response } = await client.GET('/api/v1/public/products');
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.products;
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
 }
 
 export function useStorefront(productCode: string | null) {

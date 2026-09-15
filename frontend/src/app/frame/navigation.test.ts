@@ -5,6 +5,8 @@ import type { Access } from '@/app/access/access';
 import {
   APP_NAV,
   bottomBarEntries,
+  firstTenantEntry,
+  platformSections,
   visibleNav,
   type Authorities,
   type NavSection,
@@ -268,5 +270,41 @@ describe('the navigation is ordered by dependency', () => {
     // price on it. Somebody with no platform role never sees these sections and
     // starts at Work.
     expect(sections.indexOf('setup')).toBeLessThan(sections.indexOf('work'));
+  });
+});
+
+describe("the console's own menu", () => {
+  it('is the sections whose every entry answers to the platform', () => {
+    const everything = asPlatform(entriesOf('platform').map((entry) => entry.permission));
+
+    // Exactly the three the tree leads with; no tenant section is ever in it.
+    expect(platformSections(visibleNav(APP_NAV, everything)).map((s) => s.id)).toEqual([
+      'setup',
+      'customers',
+      'platform',
+    ]);
+  });
+
+  it('offers nothing to somebody with no platform role', () => {
+    const tenantOnly = asTenant(entriesOf('tenant').map((entry) => entry.permission));
+
+    expect(platformSections(visibleNav(APP_NAV, tenantOnly))).toEqual([]);
+  });
+
+  it('shrinks with the permissions, section by section', () => {
+    // Tenants alone: the "customers" section, nothing from setup or platform.
+    const support = asPlatform(['staff.tenants.read']);
+
+    expect(platformSections(visibleNav(APP_NAV, support)).map((s) => s.id)).toEqual(['customers']);
+  });
+
+  it('points the way back at the first tenant screen the person may open, else nowhere', () => {
+    const both: Authorities = {
+      tenant: access(['projects.read', 'billing.read']),
+      platform: access(['staff.tenants.read']),
+    };
+
+    expect(firstTenantEntry(visibleNav(APP_NAV, both))?.to).toBe('/projects');
+    expect(firstTenantEntry(visibleNav(APP_NAV, asPlatform(['staff.tenants.read'])))).toBeUndefined();
   });
 });

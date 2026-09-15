@@ -158,11 +158,22 @@ export function recordingClient(responses: Stubs): {
   return { client: clientFrom(responses, (request) => requests.push(request)), requests };
 }
 
-export function renderWith(ui: ReactNode, client: ApiClient): RenderResult {
+export function renderWith(
+  ui: ReactNode,
+  client: ApiClient,
+  options: { product?: string | null } = {},
+): RenderResult {
   // Every request carries a product, and the client refuses to build one without
   // it — so a test that forgot this would fail on the product rather than on
-  // whatever it meant to assert.
-  useSessionStore.getState().chooseProduct('atlas');
+  // whatever it meant to assert. A test about *choosing* one passes `product`
+  // explicitly — `null` to start with nothing chosen.
+  const product = options.product === undefined ? 'atlas' : options.product;
+
+  if (product === null) {
+    useSessionStore.setState({ productCode: null });
+  } else {
+    useSessionStore.getState().chooseProduct(product);
+  }
 
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
@@ -199,9 +210,15 @@ export const SESSION = {
 export function renderAtRoute(
   ui: ReactNode,
   client: ApiClient,
-  options: { path: string; initial?: string },
+  options: { path: string; initial?: string; product?: string | null },
 ): RenderResult & { readonly location: () => string } {
-  useSessionStore.getState().chooseProduct('atlas');
+  const product = options.product === undefined ? 'atlas' : options.product;
+
+  if (product === null) {
+    useSessionStore.setState({ productCode: null });
+  } else {
+    useSessionStore.getState().chooseProduct(product);
+  }
 
   const rootRoute = createRootRoute();
   const screenRoute = createRoute({

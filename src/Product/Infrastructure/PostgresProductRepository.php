@@ -21,21 +21,44 @@ final class PostgresProductRepository implements ProductRepository
             ['code' => $code],
         );
 
-        if ($row === false) {
-            return null;
-        }
-
-        $id = $row['id'] ?? null;
-        $foundCode = $row['code'] ?? null;
-        $name = $row['name'] ?? null;
-
-        if (!is_string($id) || !is_string($foundCode) || !is_string($name)) {
-            return null;
-        }
-
         // Inactive products are returned as-is; ProductResolver decides that
         // they are indistinguishable from absent. Keeping that judgement in
         // one place means a future admin view can still see them.
-        return new Product($id, $foundCode, $name, (bool) ($row['active'] ?? false));
+        return $row === false ? null : self::toProduct($row);
+    }
+
+    public function activeProducts(): array
+    {
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT id, code, name, active FROM products WHERE active ORDER BY code',
+        );
+
+        $products = [];
+
+        foreach ($rows as $row) {
+            $product = self::toProduct($row);
+
+            if ($product !== null) {
+                $products[] = $product;
+            }
+        }
+
+        return $products;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private static function toProduct(array $row): ?Product
+    {
+        $id = $row['id'] ?? null;
+        $code = $row['code'] ?? null;
+        $name = $row['name'] ?? null;
+
+        if (!is_string($id) || !is_string($code) || !is_string($name)) {
+            return null;
+        }
+
+        return new Product($id, $code, $name, (bool) ($row['active'] ?? false));
     }
 }

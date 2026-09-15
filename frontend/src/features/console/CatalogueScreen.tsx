@@ -1,7 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 
-import { useViewState } from '@/app/frame/viewState';
 import {
   useCreateFeature,
   useCreatePlan,
@@ -21,6 +20,7 @@ import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader, Section } from '@/ui/Page';
+import { useSessionStore } from '@/state/session';
 import { FieldCell, FieldGroup, FieldRow, FormActions, FormCard } from '@/ui/Form';
 
 /**
@@ -44,8 +44,7 @@ import { FieldCell, FieldGroup, FieldRow, FormActions, FormCard } from '@/ui/For
  * are ordered by `rank` and that is the only ordering there is.
  */
 export function CatalogueScreen() {
-  const { selected } = useViewState();
-  const productCode = selected ?? null;
+  const productCode = useSessionStore((state) => state.productCode);
 
   const catalogue = useStaffCatalogue(productCode);
   const offers = useStorefrontOffers(productCode);
@@ -54,7 +53,7 @@ export function CatalogueScreen() {
     return (
       <EmptyState
         title="No product chosen"
-        description="A catalogue belongs to a product, and the console has no default. Pick one from Products."
+        description="A catalogue belongs to a product. Choose one in the bar above — the switcher there lists every product the platform hosts."
         action={
           <Link
             to="/console/products"

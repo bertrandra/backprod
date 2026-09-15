@@ -34,6 +34,9 @@ const OFFER = {
 
 const WINDOW = { product: { code: 'atlas', name: 'Atlas' }, offers: [OFFER] };
 
+const ATLAS = { code: 'atlas', name: 'Atlas' };
+const BOREAS = { code: 'boreas', name: 'Boreas' };
+
 const CREATED = {
   access_token: 'access',
   token_type: 'Bearer',
@@ -45,6 +48,7 @@ const SESSION = { id: 'order-1', status: 'AWAITING_PAYMENT', payment_id: 'pay-1'
 
 function clientFor(extra: Stubs = {}) {
   return stubClient({
+    'GET /api/v1/public/products': { data: { products: [ATLAS] } },
     'GET /api/v1/public/offers': { data: WINDOW },
     'POST /api/v1/auth/sign-up': { status: 201, data: CREATED },
     'POST /api/v1/checkout/sessions': { status: 201, data: { session: SESSION } },
@@ -82,38 +86,108 @@ describe('the shop window', () => {
     await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
 
     expect(screen.getByText('Pro, monthly')).toBeTruthy();
-    expect(screen.getByText('€29.00')).toBeTruthy();
+    // The integer the API sent, not the rendered string: `Intl` formats it
+    // for the runtime's locale, and a French machine says "29,00 €".
+    expect(document.querySelector('[data-minor-units="2900"]')).not.toBeNull();
   });
 
-  it('asks for the product it was told about, not for a list of them', async () => {
-    const { client, requests } = recordingClient({ 'GET /api/v1/public/offers': { data: WINDOW } });
+  it('asks the public list of windows, never the membership list', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/public/products': { data: { products: [ATLAS] } },
+      'GET /api/v1/public/offers': { data: WINDOW },
+    });
 
     renderWith(<Storefront onSignIn={() => undefined} />, client);
 
-    await waitFor(() => expect(requests.length).toBeGreaterThan(0));
+    await waitFor(() => expect(requests.some((r) => r.path === '/api/v1/public/offers')).toBe(true));
 
-    // The product is a filter the caller names. Which products a deployment
-    // hosts is not something a public page gets to enumerate, so there is no
-    // call that would answer it.
-    expect(requests[0]?.path).toBe('/api/v1/public/offers');
-    expect(requests[0]?.query).toEqual({ product: 'atlas' });
+    // The product is a filter the caller names, and what it may be chosen from
+    // is the list of shop windows — products with something advertised. What
+    // the platform *runs* is a membership's answer, and a stranger has none.
+    expect(requests.some((r) => r.path === '/api/v1/public/products')).toBe(true);
+    expect(requests.find((r) => r.path === '/api/v1/public/offers')?.query).toEqual({ product: 'atlas' });
     expect(requests.some((r) => r.path === '/api/v1/products')).toBe(false);
   });
 
-  it('says so plainly when nothing named a product', () => {
-    // The screen rather than the container, deliberately: `useProductContext`
-    // falls back to the configured default, so this state is reached by a
-    // deployment that set none — which is a property of the screen's input and
-    // not something the container can be talked into.
+  it('chooses the only window itself, and offers no control', async () => {
+    renderWith(<Storefront onSignIn={() => undefined} />, clientFor(), { product: null });
+
+    // A dropdown with one option is a question with one answer.
+    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
+    expect(useSessionStore.getState().productCode).toBe('atlas');
+    expect(screen.queryByTestId('storefront-product')).toBeNull();
+  });
+
+  it('lets them choose between several windows, and re-asks for the offers', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/public/products': { data: { products: [ATLAS, BOREAS] } },
+      'GET /api/v1/public/offers': { data: WINDOW },
+    });
+
+    renderWith(<Storefront onSignIn={() => undefined} />, client, { product: null });
+
+    const select = await waitFor(() => screen.getByTestId<HTMLSelectElement>('storefront-product'));
+
+    // Nothing chosen yet: the question is the dropdown, and no window was asked for.
+    expect(screen.getByText('Choose a product')).toBeTruthy();
+    expect(requests.some((r) => r.path === '/api/v1/public/offers')).toBe(false);
+    expect([...select.options].map((option) => option.value)).toEqual(['', 'atlas', 'boreas']);
+
+    fireEvent.change(select, { target: { value: 'boreas' } });
+
+    expect(useSessionStore.getState().productCode).toBe('boreas');
+    await waitFor(() =>
+      expect(requests.find((r) => r.path === '/api/v1/public/offers')?.query).toEqual({ product: 'boreas' }),
+    );
+  });
+
+  it('keeps a link to one product working when there are several', async () => {
+    // ?product= seeded the store before this rendered, as `useProductContext`
+    // does; several windows must not un-choose what the address named.
     renderWith(
-      <StorefrontScreen productCode={null} onChoose={() => undefined} onSignIn={() => undefined} />,
+      <Storefront onSignIn={() => undefined} />,
+      clientFor({ 'GET /api/v1/public/products': { data: { products: [ATLAS, BOREAS] } } }),
+      { product: 'boreas' },
+    );
+
+    const select = await waitFor(() => screen.getByTestId<HTMLSelectElement>('storefront-product'));
+
+    expect(select.value).toBe('boreas');
+    expect(useSessionStore.getState().productCode).toBe('boreas');
+  });
+
+  it('says so plainly when nothing is on sale anywhere, and still offers signing in', async () => {
+    renderWith(
+      <Storefront onSignIn={() => undefined} />,
+      clientFor({ 'GET /api/v1/public/products': { data: { products: [] } } }),
+      { product: null },
+    );
+
+    // Not an error to apologise for, and not somebody's fault: nothing has been
+    // advertised on this deployment yet. The person with an account can still
+    // get in.
+    await waitFor(() => expect(screen.getByText(/Nothing on sale yet/i)).toBeTruthy());
+    expect(screen.queryByTestId('storefront-product')).toBeNull();
+    expect(screen.getByTestId('sign-in-link')).toBeTruthy();
+  });
+
+  it('shows the windows before one is chosen, as the screen', () => {
+    // The screen alone, with the list in hand and nothing chosen: the dropdown
+    // is the question and nothing pretends to be an empty shop.
+    renderWith(
+      <StorefrontScreen
+        productCode={null}
+        products={[ATLAS, BOREAS]}
+        onChooseProduct={() => undefined}
+        onChoose={() => undefined}
+        onSignIn={() => undefined}
+      />,
       clientFor(),
     );
 
-    // Not an error to apologise for, and not an empty shop: the person reading
-    // it cannot fix it, so it says who can and how.
-    expect(screen.getByText(/No product selected/i)).toBeTruthy();
-    expect(screen.getByText(/VITE_DEFAULT_PRODUCT/)).toBeTruthy();
+    expect(screen.getByTestId('storefront-product')).toBeTruthy();
+    expect(screen.getByText('Choose a product')).toBeTruthy();
+    expect(screen.queryByText(/Nothing on sale/i)).toBeNull();
   });
 
   it('gives one answer for an empty window, whatever emptied it', async () => {
@@ -161,8 +235,9 @@ describe('choosing an offer', () => {
 
     // A purchase that turns out to cost something else is the complaint this
     // avoids.
-    expect(screen.getByTestId('chosen-offer').textContent).toContain('Pro, monthly');
-    expect(screen.getByTestId('chosen-offer').textContent).toContain('€29.00');
+    const chosen = screen.getByTestId('chosen-offer');
+    expect(chosen.textContent).toContain('Pro, monthly');
+    expect(chosen.querySelector('[data-minor-units="2900"]')).not.toBeNull();
   });
 
   it('lets them go back and choose differently', async () => {

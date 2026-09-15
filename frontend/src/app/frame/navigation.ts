@@ -239,3 +239,30 @@ export function bottomBarEntries(
     ...entries.filter((entry) => entry.secondary === true),
   ].slice(0, limit);
 }
+
+/**
+ * The sections that answer to the platform: the console's own menu (ADR-047).
+ *
+ * A section is the platform's when every entry in it is. Sections carry no
+ * scope of their own — entries do — and a section mixing the two would be a
+ * menu that says one thing under a heading that says another, so the filter
+ * is strict rather than "any entry".
+ */
+export function platformSections(sections: readonly NavSection[]): readonly NavSection[] {
+  return sections.filter(
+    (section) =>
+      section.entries.length > 0 && section.entries.every((entry) => entry.scope === 'platform'),
+  );
+}
+
+/**
+ * Where "the application" is for this person: the first tenant entry they may
+ * open, or nowhere. The console's way back — a platform administrator who is
+ * also a member of a tenant has an application to return to; one who is not
+ * has only the front door.
+ */
+export function firstTenantEntry(sections: readonly NavSection[]): NavEntry | undefined {
+  return sections
+    .flatMap((section) => section.entries)
+    .find((entry) => entry.scope === 'tenant');
+}

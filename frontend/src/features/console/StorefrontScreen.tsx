@@ -1,11 +1,11 @@
 import { Link } from '@tanstack/react-router';
 
-import { useViewState } from '@/app/frame/viewState';
 import { useSetOfferPublicListing, useStorefrontOffers } from '@/queries/staff';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { useSessionStore } from '@/state/session';
 import { PageHeader } from '@/ui/Page';
 
 /**
@@ -27,20 +27,18 @@ import { PageHeader } from '@/ui/Page';
  * Every offer is listed, hidden ones included — choosing what to advertise
  * means seeing what you are choosing between.
  *
- * **The product comes from the URL**, as `?selected=`, the same way
- * `console.support.tenants` carries the tenant somebody opened. It cannot come
- * from an ambient context: a platform role grants no membership
- * (non-negotiable #22), so §12.1's ambient product does not exist on this
- * shell. Reading it from the browser's remembered tenant-app product — which
- * this screen did when it shipped — made the console silently administer
- * whichever product the person had last used the *application* in, and left it
- * with nothing to show for anybody who had never opened the application at
- * all. The URL is the honest place for it: it says which product is being
- * administered, and a link opens the same one for whoever follows it.
+ * **The product comes from the switcher in the bar** (ADR-047). It cannot come
+ * from a membership: a platform role grants none (non-negotiable #22), so on
+ * the console the switcher lists every product the platform hosts instead,
+ * and this screen reads what it chose. Reading the browser's remembered
+ * tenant-app product — which this screen did when it shipped — made the
+ * console silently administer whichever product the person had last used the
+ * *application* in; `?selected=` in the URL, which followed, left two products
+ * on one screen. One switcher, visible, fed by the platform's own list, is
+ * the honest place for it.
  */
 export function StorefrontScreen() {
-  const { selected } = useViewState();
-  const productCode = selected ?? null;
+  const productCode = useSessionStore((state) => state.productCode);
   const offers = useStorefrontOffers(productCode);
   const decide = useSetOfferPublicListing(productCode ?? '');
 
@@ -48,7 +46,7 @@ export function StorefrontScreen() {
     return (
       <EmptyState
         title="No product chosen"
-        description="The storefront is per product, and the console has no default. Pick one from Products."
+        description="The storefront is per product. Choose one in the bar above — the switcher there lists every product the platform hosts."
         action={
           <Link
             to="/console/products"

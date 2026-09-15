@@ -6,6 +6,7 @@ namespace App\Tests\Integration;
 
 use App\Product\Infrastructure\PostgresProductRegistry;
 use App\Tenant\Infrastructure\PostgresTenantMemberRepository;
+use App\Tests\Support\TestDatabase;
 use PHPUnit\Framework\Attributes\CoversNothing;
 
 /**
@@ -190,6 +191,7 @@ final class ProductRegistryTest extends DatabaseTestCase
 
         self::assertIsString($tenantId);
 
+        TestDatabase::assignProduct($this->connection, $tenantId, $productId);
         (new PostgresTenantMemberRepository($this->connection))
             ->addMember($tenantId, $productId, $userId, ['USER']);
     }

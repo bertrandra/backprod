@@ -102,7 +102,10 @@ function required(motive: AccessMotive | null): AccessMotive {
   return motive;
 }
 
-export type Tenant = Schemas['Tenant'];
+// The staff shape: a tenant and the products the platform gave it (ADR-047).
+// `Schemas['Tenant']` is what a tenant reads about itself and has no
+// `products`; every staff read answers with this one.
+export type Tenant = Schemas['StaffTenant'];
 export type StaffAccessEntry = Schemas['StaffAccessEntry'];
 export type Conversation = Schemas['Conversation'];
 export type Message = Schemas['Message'];
@@ -494,6 +497,68 @@ export function useSetTenantOfferAuthoring(tenantId: string) {
 }
 
 /**
+ * Give a tenant a product, or take one back (ADR-047).
+ *
+ * Two mutations with one shape, mirroring the offer-authoring toggle above:
+ * a write on the tenant, no motive header, the tenant as it now stands in
+ * the answer. The invalidation reaches the tenant's reads and the list, where
+ * the product chips live. Nothing optimistic — the server may refuse (a
+ * retired product, a subscription still owed service) and a checkbox that
+ * had already ticked itself would then have to un-tick with an apology.
+ */
+export function useAssignTenantProduct(tenantId: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (productId: string) => {
+      const { data, error, response } = await client.PUT(
+        '/api/v1/staff/tenants/{tenantId}/products/{productId}',
+        { params: { path: { tenantId, productId } } },
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.tenant;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.staff.tenantReads(tenantId) }),
+        queryClient.invalidateQueries({ queryKey: keys.staff.tenantLists }),
+      ]);
+    },
+  });
+}
+
+export function useUnassignTenantProduct(tenantId: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (productId: string) => {
+      const { data, error, response } = await client.DELETE(
+        '/api/v1/staff/tenants/{tenantId}/products/{productId}',
+        { params: { path: { tenantId, productId } } },
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.tenant;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.staff.tenantReads(tenantId) }),
+        queryClient.invalidateQueries({ queryKey: keys.staff.tenantLists }),
+      ]);
+    },
+  });
+}
+
+/**
  * What the public storefront advertises, for one product.
  *
  * The unfiltered view — every offer, hidden ones included — because deciding
@@ -556,11 +621,12 @@ export function useSetOfferPublicListing(productCode: string) {
  * question, behind `staff.products.manage`, and includes retired products:
  * they still carry tenants, subscriptions and invoices.
  */
-export function usePlatformProducts() {
+export function usePlatformProducts(enabled = true) {
   const client = useApiClient();
 
   return useQuery({
     queryKey: keys.staff.products,
+    enabled,
     queryFn: async () => {
       const { data, error, response } = await client.GET('/api/v1/staff/products', {});
 
@@ -570,6 +636,11 @@ export function usePlatformProducts() {
 
       return data.products;
     },
+    // The switcher asks this on every console screen, and a support engineer
+    // is answered 403 every time: that is the answer, not a dropped packet.
+    retry: (attempt, error) =>
+      !(error instanceof Error && 'status' in error && (error.status === 401 || error.status === 403)) &&
+      attempt < 2,
   });
 }
 

@@ -4,11 +4,15 @@ import { useViewState } from '@/app/frame/viewState';
 import { useState } from 'react';
 
 import {
+  useAssignTenantProduct,
+  usePlatformProducts,
   useSetTenantOfferAuthoring,
   useStaffIdentity,
   useStaffTenant,
   useStaffTenants,
+  useUnassignTenantProduct,
   type AccessMotive,
+  type PlatformProduct,
 } from '@/queries/staff';
 
 import { AccessMotiveGate, MotiveInEffect } from './AccessMotiveGate';
@@ -162,6 +166,8 @@ function TenantDetail({ tenantId }: { tenantId: string }) {
         </div>
       </dl>
 
+      <TenantProducts tenantId={tenantId} held={tenant.data.products} />
+
       <OfferAuthoring tenantId={tenantId} mayAuthor={tenant.data.may_author_offers} />
 
       <p data-testid="read-recorded" className="border-t border-line pt-3 text-xs text-muted">
@@ -187,6 +193,92 @@ function TenantDetail({ tenantId }: { tenantId: string }) {
  * their prices?" should be able to answer it without being able to change the
  * answer.
  */
+/**
+ * Which products this tenant holds (ADR-047), and the platform deciding it.
+ *
+ * One checkbox per product: every active product the platform hosts, plus any
+ * retired one the tenant still holds — a retired product is not offered, but
+ * a tenant that has one is shown it, because that is a fact about them. Ticking
+ * assigns; un-ticking withdraws; the server may refuse either (a retired
+ * product, a subscription still owed service) and the box does not move until
+ * it has answered — nothing here is optimistic, for the reason the toggle
+ * below is not.
+ *
+ * Read-only without `staff.tenants.manage`, exactly as offer authoring is:
+ * support may answer "which products do they have?" without being able to
+ * change the answer.
+ */
+function TenantProducts({ tenantId, held }: { tenantId: string; held: readonly PlatformProduct[] }) {
+  const me = useStaffIdentity();
+  const mayManage = me.data?.permissions.includes('staff.tenants.manage') ?? false;
+  const platform = usePlatformProducts(mayManage);
+  const assign = useAssignTenantProduct(tenantId);
+  const unassign = useUnassignTenantProduct(tenantId);
+
+  const heldIds = new Set(held.map((product) => product.id));
+  // Offered: every active product; shown: those plus what is held already.
+  const rows: readonly PlatformProduct[] = mayManage
+    ? [
+        ...(platform.data ?? []).filter((product) => product.active || heldIds.has(product.id)),
+        ...held.filter((product) => !(platform.data ?? []).some((known) => known.id === product.id)),
+      ]
+    : held;
+
+  const pending = assign.isPending || unassign.isPending;
+  const error = assign.error ?? unassign.error;
+
+  return (
+    <section data-testid="tenant-products" className="space-y-2 border-t border-line pt-3">
+      <h3 className="text-sm font-medium">Products</h3>
+
+      <p className="text-sm text-muted">
+        {held.length === 0
+          ? 'This tenant holds no product: nobody in it can reach anything until one is assigned.'
+          : 'Every member of this tenant is a member of each product it holds, with the roles they hold in the organisation.'}
+      </p>
+
+      {error !== null && <ErrorSurface error={error} />}
+
+      {me.isPending || (mayManage && platform.isPending) ? (
+        // Until the identity has answered, nobody knows whether these are
+        // boxes to tick or a list to read — so neither is shown yet.
+        <SkeletonRows rows={2} />
+      ) : rows.length === 0 ? (
+        <p className="text-xs text-subtle">No product to show.</p>
+      ) : (
+        <ul className="space-y-1">
+          {rows.map((product) => (
+            <li key={product.id}>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  data-product={product.code}
+                  checked={heldIds.has(product.id)}
+                  disabled={!mayManage || pending || (!product.active && !heldIds.has(product.id))}
+                  onChange={(event) =>
+                    event.target.checked ? assign.mutate(product.id) : unassign.mutate(product.id)
+                  }
+                />
+                <span>
+                  {product.name}
+                  {!product.active && <span className="ml-1 text-xs text-subtle">(retired)</span>}
+                </span>
+                <code className="text-xs text-subtle">{product.code}</code>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {!mayManage && (
+        <p data-testid="tenant-products-readonly" className="text-xs text-subtle">
+          Changing this needs <code>staff.tenants.manage</code>, which an administrator holds.
+        </p>
+      )}
+    </section>
+  );
+}
+
 function OfferAuthoring({ tenantId, mayAuthor }: { tenantId: string; mayAuthor: boolean }) {
   const me = useStaffIdentity();
   const set = useSetTenantOfferAuthoring(tenantId);

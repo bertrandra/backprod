@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
+import { useSessionStore } from '@/state/session';
 import { recordingClient, renderAtRoute, stubClient, type Stubs } from '@/test-utils';
 
 import { ProductsScreen } from './ProductsScreen';
@@ -187,15 +188,19 @@ describe('changing one', () => {
     expect(screen.queryByRole('button', { name: 'Retire' })).toBeNull();
   });
 
-  it('links each product to its own storefront, by code', async () => {
-    const view = renderAtRoute(<ProductsScreen />, clientFor(), { path: '/console/products' });
+  it('hands somebody to a product\'s storefront by choosing it in the switcher', async () => {
+    const view = renderAtRoute(<ProductsScreen />, clientFor(), {
+      path: '/console/products',
+      product: 'orbit',
+    });
 
     await waitFor(() => expect(screen.getByTestId('product-list')).toBeTruthy());
     fireEvent.click(screen.getAllByRole('button', { name: 'Storefront' })[0] as HTMLElement);
 
-    // The console has no ambient product, so the one being administered
-    // travels in the URL — and a link opens the same one for whoever follows
-    // it.
-    await waitFor(() => expect(view.location()).toContain('selected=atlas'));
+    // The product being administered is the switcher's (ADR-047): the button
+    // chooses it there and goes, and nothing travels in the address.
+    await waitFor(() => expect(view.location()).toContain('/console/storefront'));
+    expect(view.location()).not.toContain('selected=');
+    expect(useSessionStore.getState().productCode).toBe('atlas');
   });
 });

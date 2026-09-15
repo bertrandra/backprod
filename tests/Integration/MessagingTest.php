@@ -13,6 +13,7 @@ use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
+use App\Tests\Support\TestDatabase;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
 
@@ -534,6 +535,7 @@ final class MessagingTest extends DatabaseApiTestCase
 
     private function member(string $tenantId, string $productId, string $userId): void
     {
+        TestDatabase::assignProduct($this->connection, $tenantId, $productId);
         $this->connection->executeStatement(
             <<<'SQL'
                 INSERT INTO tenant_members (tenant_id, user_id, product_id)

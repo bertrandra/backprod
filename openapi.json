@@ -2501,6 +2501,29 @@
           }
         }
       },
+      "StaffTenant": {
+        "description": "A tenant as the platform sees it: the tenant, and the products it holds (ADR-047). `products` is the platform’s answer — which products it has assigned this tenant, through the console — so it lives on the staff shape and not on the `Tenant` a tenant reads about itself.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Tenant"
+          },
+          {
+            "type": "object",
+            "required": [
+              "products"
+            ],
+            "properties": {
+              "products": {
+                "type": "array",
+                "description": "In code order. A retired product a tenant still holds is listed with `active: false`.",
+                "items": {
+                  "$ref": "#/components/schemas/PlatformProduct"
+                }
+              }
+            }
+          }
+        ]
+      },
       "Member": {
         "type": "object",
         "required": [
@@ -11929,7 +11952,7 @@
                     "tenants": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/Tenant"
+                        "$ref": "#/components/schemas/StaffTenant"
                       }
                     },
                     "total": {
@@ -11998,7 +12021,7 @@
                   ],
                   "properties": {
                     "tenant": {
-                      "$ref": "#/components/schemas/Tenant"
+                      "$ref": "#/components/schemas/StaffTenant"
                     }
                   }
                 }
@@ -12082,7 +12105,7 @@
                   ],
                   "properties": {
                     "tenant": {
-                      "$ref": "#/components/schemas/Tenant"
+                      "$ref": "#/components/schemas/StaffTenant"
                     }
                   }
                 }
@@ -12107,6 +12130,158 @@
           },
           "403": {
             "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/tenants/{tenantId}/products/{productId}": {
+      "put": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "assignTenantProduct",
+        "summary": "Give a tenant a product",
+        "description": "PUT with no body: the address states the desired state — this tenant holds this product — and a second identical request is the same state. Every current member of the tenant becomes a member of the product, with the roles they hold in the organisation (ADR-047). No motive header, like the delegation beside it: nothing of the customer’s is revealed, and the trail records who decided. `staff.tenants.manage`.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "description": "The tenant.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "The product, by id — the console already holds ids from `listPlatformProducts`, and a code in a path is a second spelling of the same thing.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tenant, as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "tenant"
+                  ],
+                  "properties": {
+                    "tenant": {
+                      "$ref": "#/components/schemas/StaffTenant"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`PRODUCT_INACTIVE` — the product is retired. A retired product has every door closed; assigning one hands a customer a locked door.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "unassignTenantProduct",
+        "summary": "Take a product back from a tenant",
+        "description": "The memberships in that product go with it; the records keyed on it — projects, invoices, conversations — stay, because a record of what happened is not access to it. 200 with the tenant rather than 204, and 200 for a product the tenant never held: that is the state that was asked for.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "description": "The tenant.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "The product, by id — the console already holds ids from `listPlatformProducts`, and a code in a path is a second spelling of the same thing.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tenant, as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "tenant"
+                  ],
+                  "properties": {
+                    "tenant": {
+                      "$ref": "#/components/schemas/StaffTenant"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`PRODUCT_IN_USE` — a subscription on this tenant and product is still owed service: active, or cancelled with paid time left. Withdrawing the product would cut the customer off from what they paid for.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -14136,7 +14311,7 @@
         ],
         "operationId": "getPublicOffers",
         "summary": "The shop window for one product",
-        "description": "Unauthenticated. Returns only offers the platform has marked `publicly_listed` **and** that are inside their sale window. `product` comes back null whenever there is nothing to show — whether the code names no product, an inactive one, or one that advertises nothing — so this cannot be used to enumerate a deployment’s products.",
+        "description": "Unauthenticated. Returns only offers the platform has marked `publicly_listed` **and** that are inside their sale window. `product` comes back null whenever there is nothing to show — whether the code names no product, an inactive one, or one that advertises nothing — so this cannot be used to tell an unknown product from one with nothing advertised. Which products *do* advertise something is `listPublicProducts`’s answer.",
         "parameters": [
           {
             "name": "product",
@@ -14267,6 +14442,57 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/public/products": {
+      "get": {
+        "tags": [
+          "Storefront"
+        ],
+        "operationId": "listPublicProducts",
+        "summary": "The shop windows a stranger may choose between",
+        "description": "Unauthenticated. Only products that advertise a sellable offer right now — the set a person could already assemble by trying `?product=` codes one at a time — so the list reveals nothing the windows do not. A product with nothing on sale is absent; what the platform *runs* stays private (ADR-047, amending ADR-041). In code order.",
+        "responses": {
+          "200": {
+            "description": "The products with something on sale. Possibly empty.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "products"
+                  ],
+                  "properties": {
+                    "products": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "code",
+                          "name"
+                        ],
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"

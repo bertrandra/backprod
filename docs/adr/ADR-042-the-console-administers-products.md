@@ -1,6 +1,12 @@
 # ADR-042 — The console administers products, and names which one it means
 
 **Status:** accepted
+**Amended by:** [ADR-047](ADR-047-a-tenant-has-products-and-the-console-chooses-one.md)
+— the console no longer names its product in the URL. The context bar's
+switcher lists every product the platform hosts on `/console/*`, and every
+console screen reads the product it chose. The objection below was to a
+product chosen *silently*, elsewhere; it is now chosen visibly, in the bar,
+from the platform's own list.
 **Relates to:** [ADR-015](ADR-015-a-client-never-names-a-tenant.md);
 [ADR-039](ADR-039-the-installer-appoints-the-first-administrator.md);
 [ADR-041](ADR-041-the-storefront-sells-to-strangers.md);
@@ -81,13 +87,15 @@ than merely trimmed (`^[a-z0-9][a-z0-9-]*$`) because it travels in URLs and
 headers, and lowercased rather than refused, because capitals are a typing
 habit and not a different product.
 
-**The console names the product it is administering, in the URL.** Not from an
-ambient context, because the console has none and must not borrow the tenant
-application's. `?selected=` — the same view-state field
-`console.support.tenants` already uses for the tenant somebody opened. A link
-then opens the same product for whoever follows it, which is what ui-spec §4.3
-asks of every state that matters, and `console.admin.storefront` stops
-depending on where the person happened to have been.
+**The console names the product it is administering, in the URL.** *(Superseded
+by ADR-047: the switcher in the context bar now lists the platform's products
+on the console and every console screen follows it; `?product=` stays the
+deep link.)* Not from an ambient context, because the console has none and
+must not borrow the tenant application's. `?selected=` — the same view-state
+field `console.support.tenants` already uses for the tenant somebody opened.
+A link then opens the same product for whoever follows it, which is what
+ui-spec §4.3 asks of every state that matters, and `console.admin.storefront`
+stops depending on where the person happened to have been.
 
 **Reads are not recorded; writes are.** Non-negotiable #21 traces staff
 crossing into a *tenant's* data, and the platform's own product list is not

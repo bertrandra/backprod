@@ -46,7 +46,7 @@ const READY = {
   next: null,
 };
 
-const ROUTE = { path: '/console/readiness', initial: '/console/readiness?selected=atlas' } as const;
+const ROUTE = { path: '/console/readiness' } as const;
 
 function clientFor(extra: Stubs = {}) {
   return stubClient({
@@ -167,31 +167,21 @@ describe('a product that can sell', () => {
 });
 
 describe('choosing a product', () => {
-  it('uses the only product without asking, because one option is not a choice', async () => {
+  it('reads the product from the switcher in the bar, not from the address', async () => {
+    // Nothing in the URL; the store says atlas, as the switcher would have.
     renderAtRoute(<ReadinessScreen />, clientFor(), { path: '/console/readiness' });
 
-    // No ?selected= in the URL, one product on the platform.
     await waitFor(() => expect(screen.getByTestId('setup-chain')).toBeTruthy());
     expect(screen.getByText(/Setting up Atlas/i)).toBeTruthy();
   });
 
-  it('asks when there are several, because the console has no ambient product', async () => {
-    renderAtRoute(
-      <ReadinessScreen />,
-      clientFor({
-        'GET /api/v1/staff/products': {
-          data: {
-            products: [
-              { ...PRODUCT, active: true },
-              { id: 'p-2', code: 'orbit', name: 'Orbit', active: true },
-            ],
-          },
-        },
-      }),
-      { path: '/console/readiness' },
-    );
+  it('asks for a choice in the bar while nothing is chosen', async () => {
+    // The switcher chooses on the console's behalf the moment its list
+    // arrives; this is the screen in the instant before, or after a reset.
+    renderAtRoute(<ReadinessScreen />, clientFor(), { path: '/console/readiness', product: null });
 
     await waitFor(() => expect(screen.getByText(/Choose a product/i)).toBeTruthy());
+    expect(screen.getByText(/in the bar above/i)).toBeTruthy();
   });
 
   it('points at Products when the platform hosts none', async () => {

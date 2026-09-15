@@ -75,17 +75,26 @@ final class PostgresTenantMemberRepository implements TenantMemberRepository
 
     public function addMember(string $tenantId, string $productId, string $userId, array $roleCodes): void
     {
-        $this->connection->transactional(function () use ($tenantId, $productId, $userId, $roleCodes): void {
+        // One row per product the platform assigned to the tenant, not one
+        // for the product this request arrived in (ADR-047): a colleague
+        // invited into the organisation is a member of the organisation, and
+        // the product the administrator happened to be using when they typed
+        // the address is not a decision about which products that colleague
+        // may see. `$productId` names the context the caller resolved and is
+        // one of those rows by construction.
+        $this->connection->transactional(function () use ($tenantId, $userId, $roleCodes): void {
             $this->connection->executeStatement(
                 <<<'SQL'
                     INSERT INTO tenant_members (tenant_id, user_id, product_id)
-                    VALUES (:tenantId, :userId, :productId)
+                    SELECT tp.tenant_id, :userId, tp.product_id
+                    FROM tenant_products tp
+                    WHERE tp.tenant_id = :tenantId
                     ON CONFLICT (tenant_id, user_id, product_id) DO NOTHING
                     SQL,
-                ['tenantId' => $tenantId, 'userId' => $userId, 'productId' => $productId],
+                ['tenantId' => $tenantId, 'userId' => $userId],
             );
 
-            $this->assignRoles($tenantId, $productId, $userId, $roleCodes);
+            $this->assignRoles($tenantId, $userId, $roleCodes);
         });
     }
 
@@ -93,28 +102,35 @@ final class PostgresTenantMemberRepository implements TenantMemberRepository
     {
         // Delete-then-insert inside one transaction: a member must never be
         // observable with no roles part-way through a role change.
-        $this->connection->transactional(function () use ($tenantId, $productId, $userId, $roleCodes): void {
+        //
+        // Across every product the tenant holds: a role is held in the
+        // organisation, and a change made from one product that left the
+        // other products' rows behind would give one person two answers.
+        $this->connection->transactional(function () use ($tenantId, $userId, $roleCodes): void {
             $this->connection->executeStatement(
                 <<<'SQL'
                     DELETE FROM tenant_member_roles
-                    WHERE tenant_id = :tenantId AND product_id = :productId AND user_id = :userId
+                    WHERE tenant_id = :tenantId AND user_id = :userId
                     SQL,
-                ['tenantId' => $tenantId, 'productId' => $productId, 'userId' => $userId],
+                ['tenantId' => $tenantId, 'userId' => $userId],
             );
 
-            $this->assignRoles($tenantId, $productId, $userId, $roleCodes);
+            $this->assignRoles($tenantId, $userId, $roleCodes);
         });
     }
 
     public function removeMember(string $tenantId, string $productId, string $userId): void
     {
-        // Role rows go with it through ON DELETE CASCADE.
+        // Every product's row, and the role rows go with them through
+        // ON DELETE CASCADE. Removing somebody from the organisation in one
+        // product while leaving them a member in another is not a thing an
+        // administrator asked for.
         $this->connection->executeStatement(
             <<<'SQL'
                 DELETE FROM tenant_members
-                WHERE tenant_id = :tenantId AND product_id = :productId AND user_id = :userId
+                WHERE tenant_id = :tenantId AND user_id = :userId
                 SQL,
-            ['tenantId' => $tenantId, 'productId' => $productId, 'userId' => $userId],
+            ['tenantId' => $tenantId, 'userId' => $userId],
         );
     }
 
@@ -151,23 +167,25 @@ final class PostgresTenantMemberRepository implements TenantMemberRepository
     /**
      * @param list<string> $roleCodes
      */
-    private function assignRoles(string $tenantId, string $productId, string $userId, array $roleCodes): void
+    private function assignRoles(string $tenantId, string $userId, array $roleCodes): void
     {
         foreach ($roleCodes as $roleCode) {
             // Selecting the id from roles means an unknown code inserts
             // nothing rather than inventing a role; callers validate first.
+            // One row per product the tenant holds, mirroring the membership.
             $this->connection->executeStatement(
                 <<<'SQL'
                     INSERT INTO tenant_member_roles (tenant_id, user_id, product_id, role_id)
-                    SELECT :tenantId, :userId, :productId, r.id
-                    FROM roles r
-                    WHERE r.code = :roleCode
+                    SELECT tp.tenant_id, :userId, tp.product_id, r.id
+                    FROM tenant_products tp
+                    CROSS JOIN roles r
+                    WHERE tp.tenant_id = :tenantId
+                      AND r.code = :roleCode
                     ON CONFLICT DO NOTHING
                     SQL,
                 [
                     'tenantId' => $tenantId,
                     'userId' => $userId,
-                    'productId' => $productId,
                     'roleCode' => $roleCode,
                 ],
             );

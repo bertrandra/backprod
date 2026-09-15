@@ -120,10 +120,12 @@ use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffRepository;
 use App\Staff\Domain\StaffRoster;
 use App\Staff\Domain\TenantDirectory;
+use App\Staff\Domain\TenantProducts;
 use App\Staff\Infrastructure\PostgresStaffAccessLog;
 use App\Staff\Infrastructure\PostgresStaffRepository;
 use App\Staff\Infrastructure\PostgresStaffRoster;
 use App\Staff\Infrastructure\PostgresTenantDirectory;
+use App\Staff\Infrastructure\PostgresTenantProducts;
 use App\Storage\Domain\AssetRepository;
 use App\Storage\Domain\StorageProvider;
 use App\Storage\Infrastructure\LocalStorageProvider;
@@ -474,6 +476,7 @@ return static function (array $overrides = []): ContainerInterface {
         StaffRoster::class => autowire(PostgresStaffRoster::class),
         StaffAccessLog::class => autowire(PostgresStaffAccessLog::class),
         TenantDirectory::class => autowire(PostgresTenantDirectory::class),
+        TenantProducts::class => autowire(PostgresTenantProducts::class),
         ProductDirectory::class => autowire(PostgresProductDirectory::class),
         // A product's configuration, writable. Separate from ProductRegistry,
         // whose other methods resolve through membership — which a platform

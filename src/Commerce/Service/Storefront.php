@@ -25,11 +25,12 @@ use DateTimeImmutable;
  * reveal what a product *sells*, once somebody has decided to advertise it;
  * it must not reveal what the platform *runs*.
  *
- * **It has no product switcher.** The product is named by the caller — the
- * `?product=` filter — rather than listed for them to choose from, for the
- * same reason. A deployment that wants a chooser builds one from codes it
- * already knows, which is a marketing decision and not something the API
- * should hand to anybody who asks.
+ * **Its product list is the list of shop windows, not of products.**
+ * `products()` names only the products that advertise a sellable offer right
+ * now — exactly the set a stranger could already assemble by browsing, one
+ * window at a time. A product with nothing advertised is not in it, and so
+ * the list reveals no more than the windows do (ADR-047, amending ADR-041's
+ * "no endpoint listing products": there is one, and it lists advertisements).
  */
 final class Storefront
 {
@@ -73,6 +74,31 @@ final class Storefront
         }
 
         return ['product' => $offers === [] ? null : $product, 'offers' => $offers];
+    }
+
+    /**
+     * The products a stranger may choose between: those with a window that
+     * has something in it.
+     *
+     * Decided by asking each active product for its window rather than by a
+     * second SQL predicate: "advertised and sellable now" is two conditions
+     * in two places (the flag in SQL, the clock on the version), and
+     * `ReadinessDesk` already learned that a copy of that rule drifts. A
+     * handful of products is a handful of small queries.
+     *
+     * @return list<Product>
+     */
+    public function products(): array
+    {
+        $advertising = [];
+
+        foreach ($this->products->activeProducts() as $product) {
+            if ($this->window($product->code)['offers'] !== []) {
+                $advertising[] = $product;
+            }
+        }
+
+        return $advertising;
     }
 
     /**

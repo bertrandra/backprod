@@ -8,7 +8,7 @@ use App\Product\Domain\Product;
 use App\Staff\Domain\StaffAccessEntry;
 use App\Staff\Domain\StaffIdentity;
 use App\Staff\Domain\StaffMember;
-use App\Tenant\Domain\Tenant;
+use App\Staff\Domain\TenantAccount;
 use DateTimeInterface;
 use DateTimeZone;
 
@@ -73,13 +73,19 @@ final class StaffPresenter
     /**
      * @return array<string, mixed>
      */
-    public static function tenant(Tenant $tenant): array
+    public static function tenant(TenantAccount $account): array
     {
+        $tenant = $account->tenant;
+
         return [
             'id' => $tenant->id,
             'name' => $tenant->name,
             'slug' => $tenant->slug,
             'may_author_offers' => $tenant->mayAuthorOffers,
+            // Which products the platform has given this tenant (ADR-047):
+            // the platform's answer, so it is on the staff shape and not on
+            // the `Tenant` a tenant reads about itself.
+            'products' => array_map(self::product(...), $account->products),
         ];
     }
 

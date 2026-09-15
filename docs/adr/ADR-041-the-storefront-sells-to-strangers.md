@@ -1,6 +1,13 @@
 # ADR-041 — The storefront sells to strangers, and says nothing else to them
 
 **Status:** accepted
+**Amended by:** [ADR-047](ADR-047-a-tenant-has-products-and-the-console-chooses-one.md)
+— there is now `GET /api/v1/public/products`, and it lists the products with a
+publicly-listed offer sellable right now: exactly the set a stranger could
+already assemble one `?product=` code at a time, so it reveals nothing the
+windows do not. What the platform *runs* stays private; what it *advertises*
+never was. Sign-up also writes a sixth row, the product assigned to the new
+tenant.
 **Relates to:** [ADR-034](ADR-034-a-checkout-session-is-an-order.md);
 [ADR-038](ADR-038-this-platform-issues-its-own-sessions.md);
 [ADR-040](ADR-040-offer-authoring-is-lent-to-a-tenant.md);
@@ -66,7 +73,9 @@ product and a product advertising nothing produce one identical empty window.
 An offer id that is private, another product's, imaginary or merely out of its
 window produces one identical 404. The product arrives as `?product=` — the
 filter the caller names — and there is no endpoint listing products, because
-which products a deployment hosts stays commercial information.
+which products a deployment hosts stays commercial information. *(Amended by
+ADR-047: there is one, and it lists only the products with something
+advertised — the set the windows already reveal.)*
 
 **`POST /api/v1/auth/sign-up` creates five rows in one transaction** — user,
 credential, tenant, membership, TENANT_ADMIN role — plus a minimal billing

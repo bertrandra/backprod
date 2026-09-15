@@ -14,10 +14,11 @@ use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use SensitiveParameter;
 
 /**
- * The five rows a new account is, written together.
+ * The six rows a new account is, written together.
  *
  * The same sequence `deploy/siteground/setup.php` performs once for the first
- * account — user, credential, tenant, membership, role — with two differences,
+ * account — user, credential, tenant, the product assigned to it, membership,
+ * role — with two differences,
  * and both are the point of the storefront: the product already exists rather
  * than being created, and nobody is made a platform administrator. A person
  * who bought a subscription administers their own organisation and nothing
@@ -107,6 +108,14 @@ final class PostgresAccountRegistrar implements AccountRegistrar
             if (!is_string($tenantId)) {
                 throw new ConflictException('TENANT_NOT_CREATED', 'The organisation could not be created.');
             }
+
+            // The product the account is being created for is the tenant's
+            // first product (ADR-047). `assigned_by` stays NULL: nobody on
+            // staff decided this, the customer did by arriving here.
+            $this->connection->executeStatement(
+                'INSERT INTO tenant_products (tenant_id, product_id) VALUES (:tenant, :product)',
+                ['tenant' => $tenantId, 'product' => $productId],
+            );
 
             $this->connection->executeStatement(
                 'INSERT INTO tenant_members (tenant_id, product_id, user_id) VALUES (:tenant, :product, :user)',

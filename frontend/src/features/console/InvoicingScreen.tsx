@@ -1,7 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 
-import { useViewState } from '@/app/frame/viewState';
 import {
   useProductConfiguration,
   useSetBillingIdentity,
@@ -15,6 +14,7 @@ import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { notice } from '@/ui/tone';
 import { PageHeader, Section } from '@/ui/Page';
+import { useSessionStore } from '@/state/session';
 import { FieldCell, FieldGroup, FieldRow, FormActions, FormCard } from '@/ui/Form';
 
 /**
@@ -41,8 +41,7 @@ import { FieldCell, FieldGroup, FieldRow, FormActions, FormCard } from '@/ui/For
  * recorded separately in the access log for that reason.
  */
 export function InvoicingScreen() {
-  const { selected } = useViewState();
-  const productCode = selected ?? null;
+  const productCode = useSessionStore((state) => state.productCode);
 
   const configuration = useProductConfiguration(productCode);
 
@@ -50,7 +49,7 @@ export function InvoicingScreen() {
     return (
       <EmptyState
         title="No product chosen"
-        description="An invoice is issued by the company behind one product, and the console has no default. Pick one from Products."
+        description="An invoice is issued by the company behind one product. Choose one in the bar above — the switcher there lists every product the platform hosts."
         action={
           <Link
             to="/console/products"

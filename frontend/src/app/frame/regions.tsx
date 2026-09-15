@@ -11,13 +11,24 @@ import { cn } from '@/utils/cn';
 
 import type { NavEntry, NavSection } from './navigation';
 
-/** Region A. Product first, because product is the root context. */
+/**
+ * Region A. Product first, because product is the root context.
+ *
+ * `platform` says the screen answers to the platform (`/console/*`): the
+ * switcher then lists every product the platform hosts rather than the ones
+ * this person belongs to (ADR-047), and the phone's button opens the console's
+ * own menu rather than the application's More sheet.
+ */
 export function ContextBar({
+  platform = false,
   onOpenPalette,
   onOpenMore,
+  onOpenConsoleMenu,
 }: {
+  platform?: boolean;
   onOpenPalette: () => void;
   onOpenMore?: () => void;
+  onOpenConsoleMenu?: () => void;
 }) {
   const { data } = useSession();
 
@@ -25,7 +36,7 @@ export function ContextBar({
     <>
       {/* U1 showed the product id here and deferred the switcher to U5, which is
           where `listProducts` lives. It is a real switcher now. */}
-      <ProductSwitcher />
+      <ProductSwitcher platform={platform} />
 
       <span className="truncate text-sm text-muted">
         {data?.tenantId.slice(0, 8) ?? 'No organisation'}
@@ -54,17 +65,32 @@ export function ContextBar({
 
       <UnreadBadge />
 
-      {onOpenMore !== undefined && (
+      {platform && onOpenConsoleMenu !== undefined ? (
         <button
           type="button"
-          onClick={onOpenMore}
+          data-testid="console-menu-button"
+          aria-label="Console menu"
+          onClick={onOpenConsoleMenu}
           className={cn(
             touchTargetClass,
             'rounded-control border border-line bg-surface px-3 py-1 text-xs shadow-raise md:hidden',
           )}
         >
-          More
+          Menu
         </button>
+      ) : (
+        onOpenMore !== undefined && (
+          <button
+            type="button"
+            onClick={onOpenMore}
+            className={cn(
+              touchTargetClass,
+              'rounded-control border border-line bg-surface px-3 py-1 text-xs shadow-raise md:hidden',
+            )}
+          >
+            More
+          </button>
+        )
       )}
 
       <span

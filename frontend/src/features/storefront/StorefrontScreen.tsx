@@ -1,7 +1,7 @@
-import { useStorefront, type PublicOffer } from '@/queries/storefront';
+import { useStorefront, type PublicOffer, type PublicProduct } from '@/queries/storefront';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
-import { Button } from '@/ui/Field';
+import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 
@@ -31,15 +31,21 @@ import { SkeletonRows } from '@/ui/Skeleton';
  */
 export function StorefrontScreen({
   productCode,
+  products,
+  onChooseProduct,
   onChoose,
   onSignIn,
 }: {
   productCode: string | null;
+  /** The windows there are, or null while that is still being asked. */
+  products: readonly PublicProduct[] | null;
+  onChooseProduct: (code: string) => void;
   /** What choosing an offer does. Lot B makes it sign-up-then-buy. */
   onChoose: (offer: PublicOffer) => void;
   onSignIn: () => void;
 }) {
   const storefront = useStorefront(productCode);
+  const several = products !== null && products.length > 1;
 
   return (
     <main className="mx-auto max-w-3xl space-y-8 p-4 py-10">
@@ -53,15 +59,48 @@ export function StorefrontScreen({
         </p>
       </header>
 
-      {productCode === null || productCode === '' ? (
-        // A storefront with no product is not an error to apologise for: it is
-        // a deployment whose default product was never configured, and the
-        // person reading this page cannot fix it. Said plainly, without a
-        // stack trace and without pretending the shop is empty.
+      {several && (
+        // Only when there is a choice: a dropdown with one option is a
+        // question with one answer, and the container has already given it.
+        <div className="mx-auto max-w-xs">
+          <Field id="storefront-product" label="Product">
+            <select
+              id="storefront-product"
+              data-testid="storefront-product"
+              className={inputClass()}
+              value={productCode ?? ''}
+              onChange={(event) => onChooseProduct(event.target.value)}
+            >
+              {(productCode === null || productCode === '') && <option value="">Select…</option>}
+              {products.map((product) => (
+                <option key={product.code} value={product.code}>
+                  {product.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      )}
+
+      {products !== null && products.length === 0 ? (
+        // No window anywhere: nothing is advertised on this deployment yet.
+        // Not an error, and not something the person reading it can fix.
         <EmptyState
-          title="No product selected"
-          description="Add ?product=your-product-code to the address, or set VITE_DEFAULT_PRODUCT when building."
+          title="Nothing on sale yet"
+          description="There is nothing to buy here for now. If you already have an account, sign in below."
         />
+      ) : productCode === null || productCode === '' ? (
+        // Several windows and none chosen: the question is the dropdown above.
+        // The one case left without a list is a deployment whose products are
+        // still being asked for, which the skeleton below covers.
+        products === null ? (
+          <SkeletonRows rows={3} />
+        ) : (
+          <EmptyState
+            title="Choose a product"
+            description="Pick one above to see what is on sale for it."
+          />
+        )
       ) : storefront.isPending ? (
         <SkeletonRows rows={3} />
       ) : storefront.error !== null ? (

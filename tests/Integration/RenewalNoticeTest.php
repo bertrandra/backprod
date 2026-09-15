@@ -6,6 +6,7 @@ namespace App\Tests\Integration;
 
 use App\Job\Domain\Job;
 use App\Job\Service\SendRenewalNotices;
+use App\Tests\Support\TestDatabase;
 use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\CoversNothing;
 
@@ -318,6 +319,7 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
 
     private function member(string $userId, string $role): void
     {
+        TestDatabase::assignProduct($this->connection, $this->tenant, $this->product);
         $this->connection->executeStatement(
             'INSERT INTO tenant_members (tenant_id, user_id, product_id)'
             . ' VALUES (:tenant, :user, :product)',

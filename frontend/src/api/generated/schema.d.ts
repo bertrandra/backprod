@@ -2075,6 +2075,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/tenants/{tenantId}/products/{productId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Give a tenant a product
+         * @description PUT with no body: the address states the desired state — this tenant holds this product — and a second identical request is the same state. Every current member of the tenant becomes a member of the product, with the roles they hold in the organisation (ADR-047). No motive header, like the delegation beside it: nothing of the customer’s is revealed, and the trail records who decided. `staff.tenants.manage`.
+         */
+        put: operations["assignTenantProduct"];
+        post?: never;
+        /**
+         * Take a product back from a tenant
+         * @description The memberships in that product go with it; the records keyed on it — projects, invoices, conversations — stay, because a record of what happened is not access to it. 200 with the tenant rather than 204, and 200 for a product the tenant never held: that is the state that was asked for.
+         */
+        delete: operations["unassignTenantProduct"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/subscription": {
         parameters: {
             query?: never;
@@ -2520,7 +2544,7 @@ export interface paths {
         };
         /**
          * The shop window for one product
-         * @description Unauthenticated. Returns only offers the platform has marked `publicly_listed` **and** that are inside their sale window. `product` comes back null whenever there is nothing to show — whether the code names no product, an inactive one, or one that advertises nothing — so this cannot be used to enumerate a deployment’s products.
+         * @description Unauthenticated. Returns only offers the platform has marked `publicly_listed` **and** that are inside their sale window. `product` comes back null whenever there is nothing to show — whether the code names no product, an inactive one, or one that advertises nothing — so this cannot be used to tell an unknown product from one with nothing advertised. Which products *do* advertise something is `listPublicProducts`’s answer.
          */
         get: operations["getPublicOffers"];
         put?: never;
@@ -2543,6 +2567,26 @@ export interface paths {
          * @description Unauthenticated. What a shared link opens. Four situations answer 404 identically — no such offer, another product’s, not advertised, not on sale today — so ids cannot be tested against the private catalogue.
          */
         get: operations["getPublicOffer"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The shop windows a stranger may choose between
+         * @description Unauthenticated. Only products that advertise a sellable offer right now — the set a person could already assemble by trying `?product=` codes one at a time — so the list reveals nothing the windows do not. A product with nothing on sale is absent; what the platform *runs* stays private (ADR-047, amending ADR-041). In code order.
+         */
+        get: operations["listPublicProducts"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3670,6 +3714,11 @@ export interface components {
             slug: string;
             /** @description Whether the platform has lent this tenant the catalogue. False by default: offers are keyed on product, not tenant, so a tenant administrator editing them changes what every other customer of that product is sold on. When false, `catalog.manage` is not resolved for this tenant's members at all. */
             may_author_offers: boolean;
+        };
+        /** @description A tenant as the platform sees it: the tenant, and the products it holds (ADR-047). `products` is the platform’s answer — which products it has assigned this tenant, through the console — so it lives on the staff shape and not on the `Tenant` a tenant reads about itself. */
+        StaffTenant: components["schemas"]["Tenant"] & {
+            /** @description In code order. A retired product a tenant still holds is listed with `active: false`. */
+            products: components["schemas"]["PlatformProduct"][];
         };
         Member: {
             /** Format: uuid */
@@ -8738,7 +8787,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        tenants: components["schemas"]["Tenant"][];
+                        tenants: components["schemas"]["StaffTenant"][];
                         total: number;
                         limit: number;
                         offset: number;
@@ -8778,7 +8827,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        tenant: components["schemas"]["Tenant"];
+                        tenant: components["schemas"]["StaffTenant"];
                     };
                 };
             };
@@ -8822,7 +8871,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        tenant: components["schemas"]["Tenant"];
+                        tenant: components["schemas"]["StaffTenant"];
                     };
                 };
             };
@@ -8838,6 +8887,88 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    assignTenantProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The tenant. */
+                tenantId: string;
+                /** @description The product, by id — the console already holds ids from `listPlatformProducts`, and a code in a path is a second spelling of the same thing. */
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tenant, as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tenant: components["schemas"]["StaffTenant"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description `PRODUCT_INACTIVE` — the product is retired. A retired product has every door closed; assigning one hands a customer a locked door. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    unassignTenantProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The tenant. */
+                tenantId: string;
+                /** @description The product, by id — the console already holds ids from `listPlatformProducts`, and a code in a path is a second spelling of the same thing. */
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tenant, as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tenant: components["schemas"]["StaffTenant"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description `PRODUCT_IN_USE` — a subscription on this tenant and product is still owed service: active, or cancelled with paid time left. Withdrawing the product would cut the customer off from what they paid for. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
@@ -10088,6 +10219,33 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listPublicProducts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The products with something on sale. Possibly empty. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        products: {
+                            code: string;
+                            name: string;
+                        }[];
+                    };
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

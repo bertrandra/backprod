@@ -65,6 +65,13 @@ async function stubStorefront(page: Page, window: object = { product: { code: 'a
 
     return route.fulfill({ json: window });
   });
+  // The shop windows there are: one, so the page chooses it itself and
+  // `?product=` in the address only agrees with it.
+  await page.route(/\/api\/v1\/public\/products$/, (route) => {
+    asked.push('/api/v1/public/products');
+
+    return route.fulfill({ json: { products: [{ code: 'atlas', name: 'Atlas' }] } });
+  });
 
   return asked;
 }
@@ -81,15 +88,16 @@ test.describe('the shop window', () => {
     await expect(page.getByLabel('Password')).toBeHidden();
   });
 
-  test('asks only for the product it was told about', async ({ page }) => {
+  test('asks the public list of windows, never the membership list', async ({ page }) => {
     const asked = await stubStorefront(page);
 
     await page.goto('/?product=atlas');
     await expect(page.getByText('Pro, monthly')).toBeVisible();
 
-    // Which products a deployment hosts is commercial information, so there is
-    // no call that would answer it — and nothing behind the gate is fetched.
+    // What the platform *runs* is a membership's answer and stays behind the
+    // gate; what it *advertises* is the public list (ADR-047).
     expect(asked.filter((path) => path === '/api/v1/products')).toHaveLength(0);
+    expect(asked).toContain('/api/v1/public/products');
     expect(asked).toContain('/api/v1/public/offers');
   });
 

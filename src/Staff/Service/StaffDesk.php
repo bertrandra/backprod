@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Staff\Service;
 
+use App\Product\Domain\Product;
 use App\Shared\Exceptions\NotFoundException;
 use App\Staff\Domain\AccessMotive;
 use App\Staff\Domain\StaffAccess;
@@ -11,7 +12,9 @@ use App\Staff\Domain\StaffAccessEntry;
 use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffIdentity;
 use App\Staff\Domain\StaffPermission;
+use App\Staff\Domain\TenantAccount;
 use App\Staff\Domain\TenantDirectory;
+use App\Staff\Domain\TenantProducts;
 use App\Tenant\Domain\Tenant;
 
 /**
@@ -31,16 +34,17 @@ final class StaffDesk
 {
     public function __construct(
         private readonly TenantDirectory $tenants,
+        private readonly TenantProducts $products,
         private readonly StaffAccessLog $trail,
     ) {
     }
 
     /**
-     * @return array{tenants: list<Tenant>, total: int, limit: int, offset: int}
+     * @return array{tenants: list<TenantAccount>, total: int, limit: int, offset: int}
      */
     public function tenants(StaffIdentity $staff, int $limit, int $offset): array
     {
-        $tenants = $this->tenants->list($limit, $offset);
+        $tenants = $this->accounts($this->tenants->list($limit, $offset));
 
         // One row for the enumeration itself, naming no tenant: what happened
         // is "somebody listed the customers", and recording a row per result
@@ -73,7 +77,7 @@ final class StaffDesk
      * to page through a list would teach its staff to type "support" into
      * everything, which is the failure mode R14 named.
      */
-    public function tenant(StaffIdentity $staff, string $tenantId, AccessMotive $motive): Tenant
+    public function tenant(StaffIdentity $staff, string $tenantId, AccessMotive $motive): TenantAccount
     {
         $tenant = $this->tenants->find($tenantId);
 
@@ -110,7 +114,7 @@ final class StaffDesk
             $motive,
         ));
 
-        return $tenant;
+        return $this->account($tenant);
     }
 
     /**
@@ -126,7 +130,7 @@ final class StaffDesk
         StaffIdentity $staff,
         string $tenantId,
         bool $mayAuthor,
-    ): Tenant {
+    ): TenantAccount {
         $tenant = $this->tenants->setOfferAuthoring($tenantId, $mayAuthor);
 
         if ($tenant === null) {
@@ -155,7 +159,92 @@ final class StaffDesk
             ['may_author_offers' => $mayAuthor],
         ));
 
-        return $tenant;
+        return $this->account($tenant);
+    }
+
+    /**
+     * Give a tenant a product, or take one back (ADR-047).
+     *
+     * The same shape as the delegation above, and recorded on the same
+     * terms: no motive, because nothing of the customer's is revealed, and
+     * a trail row because "who decided this customer may reach that
+     * product?" is the question worth answering. The row names the product
+     * as well as the tenant, which the trail's schema allows for exactly
+     * this — a crossing that concerns one product of one customer.
+     */
+    public function assignProduct(StaffIdentity $staff, string $tenantId, string $productId): TenantAccount
+    {
+        $product = $this->products->assign($tenantId, $productId, $staff->userId);
+
+        return $this->productDecided($staff, $tenantId, $productId, $product, 'ASSIGN_PRODUCT');
+    }
+
+    public function unassignProduct(StaffIdentity $staff, string $tenantId, string $productId): TenantAccount
+    {
+        $product = $this->products->unassign($tenantId, $productId);
+
+        return $this->productDecided($staff, $tenantId, $productId, $product, 'UNASSIGN_PRODUCT');
+    }
+
+    private function productDecided(
+        StaffIdentity $staff,
+        string $tenantId,
+        string $productId,
+        ?Product $product,
+        string $action,
+    ): TenantAccount {
+        $tenant = $product === null ? null : $this->tenants->find($tenantId);
+
+        if ($product === null || $tenant === null) {
+            // A miss names nothing that exists: the trail's foreign keys
+            // would refuse an id that is not a row, so the ids go in the
+            // detail, where a probe for them is still visible.
+            $this->trail->record(new StaffAccess(
+                $staff->userId,
+                null,
+                null,
+                'UPDATE_MISS',
+                'tenant_product',
+                null,
+                StaffPermission::TENANTS_MANAGE,
+                ['tenant_id' => $tenantId, 'product_id' => $productId, 'action' => $action],
+            ));
+
+            throw new NotFoundException('Tenant or product not found.', [], 'TENANT_OR_PRODUCT_NOT_FOUND');
+        }
+
+        $this->trail->record(new StaffAccess(
+            $staff->userId,
+            $tenant->id,
+            $product->id,
+            $action,
+            'tenant_product',
+            $tenant->id,
+            StaffPermission::TENANTS_MANAGE,
+            ['product_code' => $product->code],
+        ));
+
+        return $this->account($tenant);
+    }
+
+    private function account(Tenant $tenant): TenantAccount
+    {
+        return new TenantAccount($tenant, $this->products->of($tenant->id));
+    }
+
+    /**
+     * @param list<Tenant> $tenants
+     *
+     * @return list<TenantAccount>
+     */
+    private function accounts(array $tenants): array
+    {
+        $held = $this->products->ofMany(array_map(static fn (Tenant $tenant): string => $tenant->id, $tenants));
+
+        return array_map(
+            static fn (Tenant $tenant): TenantAccount => new TenantAccount($tenant, $held[$tenant->id] ?? []),
+            $tenants,
+        );
     }
 
     /**

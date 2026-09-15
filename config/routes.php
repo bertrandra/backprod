@@ -40,6 +40,7 @@ use App\Commerce\Controller\ListOfferVersionsController;
 use App\Commerce\Controller\ListPlansController;
 use App\Commerce\Controller\PublicOfferController;
 use App\Commerce\Controller\PublicOffersController;
+use App\Commerce\Controller\PublicProductsController;
 use App\Commerce\Controller\PublishOfferVersionController;
 use App\Commerce\Controller\ResumeSubscriptionController;
 use App\Commerce\Controller\ShowOfferController;
@@ -118,6 +119,7 @@ use App\Skin\Controller\DeleteSkinLogoController;
 use App\Skin\Controller\ShowSkinController;
 use App\Skin\Controller\UpdateSkinController;
 use App\Skin\Controller\UploadSkinLogoController;
+use App\Staff\Controller\AssignTenantProductController;
 use App\Staff\Controller\CloseSupportConversationController;
 use App\Staff\Controller\CreateFeatureController;
 use App\Staff\Controller\CreatePlanController;
@@ -146,6 +148,7 @@ use App\Staff\Controller\ShowReadinessController;
 use App\Staff\Controller\ShowSupportConversationController;
 use App\Staff\Controller\ShowTenantController;
 use App\Staff\Controller\StaffIdentityController;
+use App\Staff\Controller\UnassignTenantProductController;
 use App\Staff\Controller\UpdatePlanController;
 use App\Staff\Controller\UpdateProductController;
 use App\Storage\Controller\CreateAssetLinkController;
@@ -221,6 +224,9 @@ return static function (RouteCollector $routes): void {
     // what the caller is choosing between.
     $routes->addRoute('GET', '/api/v1/public/offers', PublicOffersController::class);
     $routes->addRoute('GET', '/api/v1/public/offers/{offerId}', PublicOfferController::class);
+    // The shop windows a stranger may choose between: only products that
+    // advertise something, so the list says nothing the windows do not.
+    $routes->addRoute('GET', '/api/v1/public/products', PublicProductsController::class);
 
     $routes->addRoute('GET', '/api/v1/me', MeController::class);
     $routes->addRoute('PATCH', '/api/v1/me', UpdateMeController::class);
@@ -489,6 +495,20 @@ return static function (RouteCollector $routes): void {
         'PUT',
         '/api/v1/staff/tenants/{tenantId}/offer-authoring',
         SetOfferAuthoringController::class,
+    );
+    // Which products a tenant holds (ADR-047). PUT states that it does and
+    // DELETE that it no longer does; both are the platform deciding what a
+    // customer may reach, so `staff.tenants.manage` and no motive, like the
+    // delegation above.
+    $routes->addRoute(
+        'PUT',
+        '/api/v1/staff/tenants/{tenantId}/products/{productId}',
+        AssignTenantProductController::class,
+    );
+    $routes->addRoute(
+        'DELETE',
+        '/api/v1/staff/tenants/{tenantId}/products/{productId}',
+        UnassignTenantProductController::class,
     );
     // Products, which until now only the installer could create — and which
     // `GET /api/v1/products` cannot even list for an administrator, because

@@ -8,6 +8,7 @@ use App\Auth\Domain\AuthenticatedIdentity;
 use App\Product\Infrastructure\PostgresProductRepository;
 use App\Tenant\Infrastructure\PostgresTenantMemberRepository;
 use App\Tenant\Infrastructure\PostgresTenantMembershipRepository;
+use App\Tests\Support\TestDatabase;
 use App\User\Infrastructure\PostgresUserDirectory;
 use PHPUnit\Framework\Attributes\CoversNothing;
 
@@ -179,6 +180,7 @@ final class PostgresAdaptersTest extends DatabaseTestCase
      */
     private function seedMembership(string $tenantId, string $userId, string $productId, array $roles): void
     {
+        TestDatabase::assignProduct($this->connection, $tenantId, $productId);
         (new PostgresTenantMemberRepository($this->connection))
             ->addMember($tenantId, $productId, $userId, $roles);
     }

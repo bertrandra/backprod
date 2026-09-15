@@ -6,6 +6,7 @@ namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
 use App\Tests\Support\FakeAuthProvider;
+use App\Tests\Support\TestDatabase;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
 
@@ -212,6 +213,7 @@ final class ProductAdministrationTest extends DatabaseApiTestCase
     public function testRetiringClosesEveryDoorAndDeletesNothing(): void
     {
         $tenant = $this->id("INSERT INTO tenants (name, slug) VALUES ('Acme', 'acme') RETURNING id");
+        TestDatabase::assignProduct($this->connection, $tenant, $this->atlas);
         $this->connection->executeStatement(
             'INSERT INTO tenant_members (tenant_id, product_id, user_id) VALUES (:t, :p, :u)',
             ['t' => $tenant, 'p' => $this->atlas, 'u' => $this->member],
