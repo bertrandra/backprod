@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useProductContext } from '@/app/frame/useProductContext';
 import { useOpenCheckoutSession } from '@/queries/checkout';
-import type { PublicOffer } from '@/queries/storefront';
+import { usePublicProducts, type PublicOffer } from '@/queries/storefront';
+import { useSessionStore } from '@/state/session';
 
 import { SignUpForm } from './SignUpForm';
 import { StorefrontScreen } from './StorefrontScreen';
@@ -33,12 +34,36 @@ import { StorefrontScreen } from './StorefrontScreen';
  */
 export function Storefront({ onSignIn }: { onSignIn: () => void }) {
   const { productCode } = useProductContext();
+  const chooseProduct = useSessionStore((state) => state.chooseProduct);
+  const products = usePublicProducts();
   const [chosen, setChosen] = useState<PublicOffer | null>(null);
   const checkout = useOpenCheckoutSession();
 
+  // The windows a stranger may choose between (ADR-047). With exactly one,
+  // it is chosen for them — a dropdown with one option is a question with one
+  // answer — unless the address already named it. With several, the choice is
+  // theirs and the screen asks; `?product=` still seeds it, so a link to one
+  // product's page keeps working.
+  const windows = products.data;
+  const only = windows !== undefined && windows.length === 1 ? (windows[0]?.code ?? null) : null;
+
+  useEffect(() => {
+    // With one window, `only` is that window — so "the store names something
+    // else" is the one case left to correct.
+    if (only !== null && productCode !== only) {
+      chooseProduct(only);
+    }
+  }, [only, productCode, chooseProduct]);
+
   if (chosen === null || productCode === null) {
     return (
-      <StorefrontScreen productCode={productCode} onChoose={setChosen} onSignIn={onSignIn} />
+      <StorefrontScreen
+        productCode={productCode}
+        products={products.data ?? null}
+        onChooseProduct={chooseProduct}
+        onChoose={setChosen}
+        onSignIn={onSignIn}
+      />
     );
   }
 

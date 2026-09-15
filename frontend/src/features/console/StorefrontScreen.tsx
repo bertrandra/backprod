@@ -1,11 +1,11 @@
 import { Link } from '@tanstack/react-router';
 
-import { useViewState } from '@/app/frame/viewState';
 import { useSetOfferPublicListing, useStorefrontOffers } from '@/queries/staff';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { useSessionStore } from '@/state/session';
 import { PageHeader } from '@/ui/Page';
 
 /**
@@ -39,8 +39,7 @@ import { PageHeader } from '@/ui/Page';
  * administered, and a link opens the same one for whoever follows it.
  */
 export function StorefrontScreen() {
-  const { selected } = useViewState();
-  const productCode = selected ?? null;
+  const productCode = useSessionStore((state) => state.productCode);
   const offers = useStorefrontOffers(productCode);
   const decide = useSetOfferPublicListing(productCode ?? '');
 
@@ -48,7 +47,7 @@ export function StorefrontScreen() {
     return (
       <EmptyState
         title="No product chosen"
-        description="The storefront is per product, and the console has no default. Pick one from Products."
+        description="The storefront is per product. Choose one in the bar above — the switcher there lists every product the platform hosts."
         action={
           <Link
             to="/console/products"

@@ -43,7 +43,7 @@ const TAX = {
 
 const ROUTE = {
   path: '/console/invoicing',
-  initial: '/console/invoicing?selected=atlas',
+  initial: '/console/invoicing',
 } as const;
 
 function clientFor(extra: Stubs = {}) {
@@ -67,7 +67,7 @@ function clientFor(extra: Stubs = {}) {
 
 describe('without a product', () => {
   it('says where to pick one, because the console has no ambient product', async () => {
-    renderAtRoute(<InvoicingScreen />, clientFor(), { path: '/console/invoicing' });
+    renderAtRoute(<InvoicingScreen />, clientFor(), { path: '/console/invoicing', product: null });
 
     await waitFor(() => expect(screen.getByText(/No product chosen/i)).toBeTruthy());
     expect(screen.getByRole('link', { name: /Go to Products/i })).toBeTruthy();

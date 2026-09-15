@@ -99,11 +99,17 @@ export type ProductFeature = Schemas['ProductFeature'];
 export type Offer = Schemas['Offer'];
 export type OfferVersion = Schemas['OfferVersion'];
 
-export function useProducts() {
+/**
+ * The products this person may act in — by membership, so never a platform
+ * administrator's answer. `enabled` lets the switcher leave this alone on the
+ * console, where the platform's own list is the one that applies (ADR-047).
+ */
+export function useProducts(enabled = true) {
   const client = useApiClient();
 
   return useQuery({
     queryKey: keys.catalogue.products,
+    enabled,
     staleTime: CATALOGUE_STALE_MS,
     queryFn: async (): Promise<readonly Product[]> => {
       const { data, error, response } = await client.GET('/api/v1/products', {});

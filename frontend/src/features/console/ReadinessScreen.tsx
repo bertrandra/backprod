@@ -1,6 +1,5 @@
 import { Link, useNavigate } from '@tanstack/react-router';
 
-import { useViewState } from '@/app/frame/viewState';
 import {
   usePlatformProducts,
   useProductReadiness,
@@ -10,6 +9,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { useSessionStore } from '@/state/session';
 import { PageHeader } from '@/ui/Page';
 
 /**
@@ -35,14 +35,12 @@ import { PageHeader } from '@/ui/Page';
  * version is sellable now, which a status field cannot answer.
  */
 export function ReadinessScreen() {
-  const { selected } = useViewState();
   const products = usePlatformProducts();
 
-  // A deployment with one product has nothing to choose, and asking anyway is
-  // a question with one answer. With several, the console has no ambient
-  // product (a platform role grants no membership) so it has to be named.
-  const only = products.data?.length === 1 ? (products.data[0]?.code ?? null) : null;
-  const productCode = selected ?? only;
+  // The product in the bar above (ADR-047). The switcher lists every product
+  // the platform hosts and chooses the first one when nothing is chosen yet,
+  // so this is null only while that list is still on its way.
+  const productCode = useSessionStore((state) => state.productCode);
 
   const readiness = useProductReadiness(productCode);
 
@@ -75,15 +73,7 @@ export function ReadinessScreen() {
     return (
       <EmptyState
         title="Choose a product"
-        description="This deployment hosts several, and the console has no default — a platform role grants no membership, so there is no ambient product to assume."
-        action={
-          <Link
-            to="/console/products"
-            className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
-          >
-            Go to Products
-          </Link>
-        }
+        description="Everything on the console is about one product. Choose it in the bar above — the switcher there lists every product the platform hosts."
       />
     );
   }
@@ -147,7 +137,6 @@ export function ReadinessScreen() {
             index={index + 1}
             step={step}
             isNext={step.key === next}
-            productCode={productCode}
           />
         ))}
       </ol>
@@ -174,9 +163,8 @@ function blockingCount(steps: readonly { done: boolean; blocking: boolean }[]): 
  * The console paths a step can send somebody to.
  *
  * A union of literals rather than `string`, because the router types its search
- * parameters per route: with a plain string it cannot tell that `/console/products`
- * takes `?selected=`, and the call stops type-checking. Naming the four here also
- * means a step pointing at a route that does not exist fails the build.
+ * parameters per route, and a plain string stops type-checking. Naming the four
+ * here also means a step pointing at a route that does not exist fails the build.
  */
 type StepRoute =
   | '/console/products'
@@ -252,23 +240,21 @@ const WORDS: Record<
  * and the switch is exhaustive — adding a route to `StepRoute` without a case
  * here fails the build rather than silently doing nothing.
  */
-function go(
-  navigate: ReturnType<typeof useNavigate>,
-  route: StepRoute,
-  selected: string,
-): void {
+function go(navigate: ReturnType<typeof useNavigate>, route: StepRoute): void {
+  // No product in the address: the screen being sent to reads the same
+  // switcher this one does (ADR-047).
   switch (route) {
     case '/console/products':
-      void navigate({ to: '/console/products', search: { selected } });
+      void navigate({ to: '/console/products' });
       return;
     case '/console/invoicing':
-      void navigate({ to: '/console/invoicing', search: { selected } });
+      void navigate({ to: '/console/invoicing' });
       return;
     case '/console/catalogue':
-      void navigate({ to: '/console/catalogue', search: { selected } });
+      void navigate({ to: '/console/catalogue' });
       return;
     case '/console/storefront':
-      void navigate({ to: '/console/storefront', search: { selected } });
+      void navigate({ to: '/console/storefront' });
       return;
   }
 }
@@ -277,12 +263,10 @@ function Step({
   index,
   step,
   isNext,
-  productCode,
 }: {
   index: number;
   step: { key: SetupStepKey; done: boolean; blocking: boolean; detail: Record<string, unknown> };
   isNext: boolean;
-  productCode: string;
 }) {
   const navigate = useNavigate();
   const words = WORDS[step.key];
@@ -342,7 +326,7 @@ function Step({
           <Button
             type="button"
             variant={isNext ? 'primary' : 'secondary'}
-            onClick={() => go(navigate, words.to as StepRoute, productCode)}
+            onClick={() => go(navigate, words.to as StepRoute)}
           >
             {step.done ? `Review in ${words.action}` : `Go to ${words.action}`}
           </Button>

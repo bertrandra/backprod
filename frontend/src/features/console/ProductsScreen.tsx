@@ -1,6 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 
+import { useChooseProduct } from '@/app/frame/ProductSwitcher';
 import {
   useCreateProduct,
   usePlatformProducts,
@@ -42,9 +43,21 @@ import { PageHeader } from '@/ui/Page';
  */
 export function ProductsScreen() {
   const navigate = useNavigate();
+  const chooseProduct = useChooseProduct();
   const products = usePlatformProducts();
   const create = useCreateProduct();
   const update = useUpdateProduct();
+
+  // A row's buttons hand somebody to a screen *for that product*: choose it
+  // in the switcher — the one product every console screen reads (ADR-047) —
+  // then go. Nothing travels in the address.
+  const handTo = (
+    to: '/console/storefront' | '/console/catalogue' | '/console/invoicing',
+    productCode: string,
+  ) => {
+    chooseProduct(productCode);
+    return navigate({ to });
+  };
 
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -85,13 +98,13 @@ export function ProductsScreen() {
                 onRename={(newName) => update.mutate({ productId: product.id, name: newName })}
                 onSetActive={(active) => update.mutate({ productId: product.id, active })}
                 onStorefront={() =>
-                  void navigate({ to: '/console/storefront', search: { selected: product.code } })
+                  void handTo('/console/storefront', product.code)
                 }
                 onCatalogue={() =>
-                  void navigate({ to: '/console/catalogue', search: { selected: product.code } })
+                  void handTo('/console/catalogue', product.code)
                 }
                 onInvoicing={() =>
-                  void navigate({ to: '/console/invoicing', search: { selected: product.code } })
+                  void handTo('/console/invoicing', product.code)
                 }
               />
             ))}

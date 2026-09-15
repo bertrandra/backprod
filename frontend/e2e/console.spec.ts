@@ -79,6 +79,10 @@ async function consoleStubs(page: Page) {
   const state = { erasures: 0 };
 
   await page.route(/\/api\/v1\/staff\/me$/, (route) => route.fulfill({ json: STAFF }));
+  // What the switcher lists on the console (ADR-047).
+  await page.route(/\/api\/v1\/staff\/products$/, (route) =>
+    route.fulfill({ json: { products: [{ id: 'p-1', code: 'atlas', name: 'Atlas', active: true }] } }),
+  );
 
   // The tenant session, deliberately refused: a console that reached for it
   // would find a 403 rather than a shell painted the wrong colour.

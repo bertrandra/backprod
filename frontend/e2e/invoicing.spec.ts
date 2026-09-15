@@ -48,6 +48,11 @@ async function stubInvoicing(page: Page) {
   const state = { configured: false };
 
   await page.route(/\/api\/v1\/staff\/me$/, (route) => route.fulfill({ json: STAFF }));
+  // The switcher's list on the console (ADR-047): one product, named in the
+  // address as well, so the screen administers atlas either way.
+  await page.route(/\/api\/v1\/staff\/products$/, (route) =>
+    route.fulfill({ json: { products: [{ id: 'p-1', code: 'atlas', name: 'Atlas', active: true }] } }),
+  );
 
   await page.route(/\/api\/v1\/me$/, (route) =>
     route.fulfill({
@@ -106,7 +111,7 @@ async function stubInvoicing(page: Page) {
 test.describe('a product that cannot invoice', () => {
   test('announces the refusal, names its code and lists the fields', async ({ page }) => {
     await stubInvoicing(page);
-    await page.goto('/console/invoicing?selected=atlas');
+    await page.goto('/console/invoicing?product=atlas');
 
     const warning = page.getByTestId('cannot-invoice');
 
@@ -123,7 +128,7 @@ test.describe('setting the issuer', () => {
   test('sends the whole document, so a field can be cleared at all', async ({ page }) => {
     const sent = await stubInvoicing(page);
 
-    await page.goto('/console/invoicing?selected=atlas');
+    await page.goto('/console/invoicing?product=atlas');
 
     await page.getByLabel('Legal name').fill('Atlas SAS');
     await page.getByLabel('Country', { exact: true }).fill('FR');
@@ -163,7 +168,7 @@ test.describe('setting the issuer', () => {
       }),
     );
 
-    await page.goto('/console/invoicing?selected=atlas');
+    await page.goto('/console/invoicing?product=atlas');
 
     await page.getByLabel('Legal name').fill('Atlas SAS');
     await page.getByRole('button', { name: 'Save the issuer' }).click();
@@ -178,7 +183,7 @@ test.describe('the tax position', () => {
   test('sends all four fields, because omitting the flag would switch OSS off', async ({ page }) => {
     const sent = await stubInvoicing(page);
 
-    await page.goto('/console/invoicing?selected=atlas');
+    await page.goto('/console/invoicing?product=atlas');
 
     await page.getByLabel('Registered for the One Stop Shop').check();
     await page.getByRole('button', { name: 'Save the tax position' }).click();
@@ -197,7 +202,7 @@ test.describe('the tax position', () => {
 test.describe('the screen itself', () => {
   test('passes an accessibility scan', async ({ page }) => {
     await stubInvoicing(page);
-    await page.goto('/console/invoicing?selected=atlas');
+    await page.goto('/console/invoicing?product=atlas');
     await page.getByLabel('Legal name').waitFor();
 
     // Eight text inputs in one section and four in another, on a screen whose
@@ -211,7 +216,7 @@ test.describe('the screen itself', () => {
 
   test('never scrolls horizontally', async ({ page }) => {
     await stubInvoicing(page);
-    await page.goto('/console/invoicing?selected=atlas');
+    await page.goto('/console/invoicing?product=atlas');
     await page.getByLabel('Legal name').waitFor();
 
     const overflow = await page.evaluate(

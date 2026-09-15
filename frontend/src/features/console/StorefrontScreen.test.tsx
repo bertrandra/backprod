@@ -13,13 +13,12 @@ import { StorefrontScreen } from './StorefrontScreen';
  * visible or changeable. A screen that showed only the advertised ones would
  * be a screen you cannot advertise anything from.
  *
- * Every test renders **at a route with `?selected=`**, because that is where
- * the product comes from. It used to come from the browser's remembered
- * tenant-app product, which meant the console silently administered whichever
- * product the person had last used the *application* in — and showed nothing
- * at all to anybody who had never opened the application. The URL says which
- * product is being administered, and a link opens the same one for whoever
- * follows it.
+ * The product comes from the switcher in the bar, which on the console lists
+ * every product the platform hosts (ADR-047). It once came from `?selected=`
+ * in the URL, and before that from the browser's remembered tenant-app product
+ * — which meant the console silently administered whichever product the person
+ * had last used the *application* in. The switcher is visible, lists the
+ * platform's own products, and is the one thing every console screen reads.
  */
 const PLAN = { id: 'plan-1', code: 'pro', name: 'Pro', rank: 10 };
 
@@ -47,7 +46,7 @@ const offer = (id: string, code: string, listed: boolean) => ({
 /** The product being administered travels in the URL, not in an ambient context. */
 const ROUTE = {
   path: '/console/storefront',
-  initial: '/console/storefront?selected=atlas',
+  initial: '/console/storefront',
 } as const;
 
 const ADVERTISED = offer('offer-1', 'pro-monthly', true);

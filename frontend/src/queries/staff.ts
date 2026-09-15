@@ -621,11 +621,12 @@ export function useSetOfferPublicListing(productCode: string) {
  * question, behind `staff.products.manage`, and includes retired products:
  * they still carry tenants, subscriptions and invoices.
  */
-export function usePlatformProducts() {
+export function usePlatformProducts(enabled = true) {
   const client = useApiClient();
 
   return useQuery({
     queryKey: keys.staff.products,
+    enabled,
     queryFn: async () => {
       const { data, error, response } = await client.GET('/api/v1/staff/products', {});
 
@@ -635,6 +636,11 @@ export function usePlatformProducts() {
 
       return data.products;
     },
+    // The switcher asks this on every console screen, and a support engineer
+    // is answered 403 every time: that is the answer, not a dropped packet.
+    retry: (attempt, error) =>
+      !(error instanceof Error && 'status' in error && (error.status === 401 || error.status === 403)) &&
+      attempt < 2,
   });
 }
 

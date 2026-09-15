@@ -13,8 +13,12 @@ import { StaffTenantsScreen } from './StaffTenantsScreen';
  * the confirmation after it, and both name the permission the read was made
  * under rather than saying "this is logged" and leaving the grounds vague.
  */
-const TENANT = { id: 't-1', name: 'Acme Ltd', slug: 'acme', may_author_offers: false };
-const OTHER = { id: 't-2', name: 'Globex', slug: 'globex', may_author_offers: false };
+const ATLAS = { id: 'p-atlas', code: 'atlas', name: 'Atlas', active: true };
+const BOREAS = { id: 'p-boreas', code: 'boreas', name: 'Boreas', active: true };
+const COMET = { id: 'p-comet', code: 'comet', name: 'Comet', active: false };
+
+const TENANT = { id: 't-1', name: 'Acme Ltd', slug: 'acme', may_author_offers: false, products: [ATLAS] };
+const OTHER = { id: 't-2', name: 'Globex', slug: 'globex', may_author_offers: false, products: [] };
 
 /** An administrator: the only staff identity that may change the flag. */
 const ADMIN = {
@@ -39,6 +43,13 @@ function clientFor(extra: Stubs = {}) {
     'GET /api/v1/staff/tenants/{tenantId}': { data: { tenant: TENANT } },
     'PUT /api/v1/staff/tenants/{tenantId}/offer-authoring': {
       data: { tenant: { ...TENANT, may_author_offers: true } },
+    },
+    'GET /api/v1/staff/products': { data: { products: [ATLAS, BOREAS, COMET] } },
+    'PUT /api/v1/staff/tenants/{tenantId}/products/{productId}': {
+      data: { tenant: { ...TENANT, products: [ATLAS, BOREAS] } },
+    },
+    'DELETE /api/v1/staff/tenants/{tenantId}/products/{productId}': {
+      data: { tenant: { ...TENANT, products: [] } },
     },
     ...extra,
   });
@@ -414,5 +425,131 @@ describe('offer authoring', () => {
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
     expect(screen.getByTestId('offer-authoring').getAttribute('data-may-author')).toBe('false');
+  });
+});
+
+/**
+ * Which products a tenant holds, decided here (ADR-047).
+ *
+ * The same shape as offer authoring below it: a fact support may read, a
+ * decision only an administrator may make, and a refusal the panel shows rather
+ * than hides. The checkbox is the state the server last reported, never the
+ * state somebody just asked for.
+ */
+describe('products held', () => {
+  const open = { path: '/console/tenants', initial: `/console/tenants?selected=${TENANT.id}` } as const;
+
+  const PRODUCTS_PATH = '/api/v1/staff/tenants/{tenantId}/products/{productId}';
+
+  it('shows every product the platform offers, ticking the ones held', async () => {
+    renderAtRoute(<StaffTenantsScreen />, clientFor(), open);
+    await giveAMotive();
+
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2));
+
+    const boxes = screen.getAllByRole<HTMLInputElement>('checkbox');
+
+    // Atlas held, Boreas offered, Comet retired and not held: not offered.
+    expect(boxes.map((box) => [box.getAttribute('data-product'), box.checked])).toEqual([
+      ['atlas', true],
+      ['boreas', false],
+    ]);
+  });
+
+  it('lists a retired product the tenant still holds, and nothing retired it does not', async () => {
+    renderAtRoute(
+      <StaffTenantsScreen />,
+      clientFor({
+        'GET /api/v1/staff/tenants/{tenantId}': { data: { tenant: { ...TENANT, products: [ATLAS, COMET] } } },
+      }),
+      open,
+    );
+    await giveAMotive();
+
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(3));
+
+    const comet = screen.getAllByRole<HTMLInputElement>('checkbox').find((box) => box.getAttribute('data-product') === 'comet');
+
+    // A fact about the tenant, shown; and un-ticking it is still allowed —
+    // withdrawing a retired product is a tidy-up, assigning one is not.
+    expect(comet?.checked).toBe(true);
+    expect(comet?.disabled).toBe(false);
+    expect(screen.getByTestId('tenant-products').textContent).toMatch(/retired/i);
+  });
+
+  it('assigns with PUT and withdraws with DELETE, and re-reads rather than guessing', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/me': { data: ADMIN },
+      'GET /api/v1/staff/tenants': { data: { tenants: [TENANT], total: 1, limit: 25, offset: 0 } },
+      'GET /api/v1/staff/tenants/{tenantId}': { data: { tenant: TENANT } },
+      'GET /api/v1/staff/products': { data: { products: [ATLAS, BOREAS] } },
+      [`PUT ${PRODUCTS_PATH}`]: { data: { tenant: { ...TENANT, products: [ATLAS, BOREAS] } } },
+      [`DELETE ${PRODUCTS_PATH}`]: { data: { tenant: { ...TENANT, products: [BOREAS] } } },
+    });
+
+    renderAtRoute(<StaffTenantsScreen />, client, open);
+    await giveAMotive();
+
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2));
+
+    const box = (code: string) =>
+      screen.getAllByRole<HTMLInputElement>('checkbox').find((b) => b.getAttribute('data-product') === code) as HTMLInputElement;
+
+    fireEvent.click(box('boreas'));
+
+    await waitFor(() => expect(requests.filter((r) => r.method === 'PUT' && r.path === PRODUCTS_PATH)).toHaveLength(1));
+    // No body and no motive: the address is the desired state, and nothing of
+    // the customer's is read.
+    const put = requests.find((r) => r.method === 'PUT' && r.path === PRODUCTS_PATH);
+    expect(put?.body).toBeUndefined();
+    expect(put?.header).toBeUndefined();
+
+    fireEvent.click(box('atlas'));
+
+    await waitFor(() => expect(requests.filter((r) => r.method === 'DELETE' && r.path === PRODUCTS_PATH)).toHaveLength(1));
+  });
+
+  it('shows the refusal and leaves the box where the server left it', async () => {
+    renderAtRoute(
+      <StaffTenantsScreen />,
+      clientFor({
+        [`DELETE ${PRODUCTS_PATH}`]: {
+          status: 409,
+          error: { error: { code: 'PRODUCT_IN_USE', message: 'A subscription on this product is still owed service.' } },
+        },
+      }),
+      open,
+    );
+    await giveAMotive();
+
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2));
+
+    const atlas = screen.getAllByRole<HTMLInputElement>('checkbox').find((b) => b.getAttribute('data-product') === 'atlas') as HTMLInputElement;
+    fireEvent.click(atlas);
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+    // Still held: the customer paid for it, and the box says what is true.
+    expect(atlas.checked).toBe(true);
+  });
+
+  it('shows support what is held without the means to change it', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/me': { data: SUPPORT },
+      'GET /api/v1/staff/tenants': { data: { tenants: [TENANT], total: 1, limit: 25, offset: 0 } },
+      'GET /api/v1/staff/tenants/{tenantId}': { data: { tenant: TENANT } },
+    });
+
+    renderAtRoute(<StaffTenantsScreen />, client, open);
+    await giveAMotive();
+
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(1));
+    expect(screen.getByTestId('tenant-products-readonly')).toBeTruthy();
+
+    // The held list, and only that: support is never shown the platform's
+    // list as a set of boxes it cannot tick — and never asks for it.
+    const boxes = screen.getAllByRole<HTMLInputElement>('checkbox');
+    expect(boxes.map((box) => box.getAttribute('data-product'))).toEqual(['atlas']);
+    expect(boxes.every((box) => box.disabled)).toBe(true);
+    expect(requests.some((r) => r.path === '/api/v1/staff/products')).toBe(false);
   });
 });

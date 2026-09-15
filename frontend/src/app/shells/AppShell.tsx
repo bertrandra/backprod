@@ -67,7 +67,13 @@ export function AppShell() {
 
   return (
     <AppFrame
-      contextBar={<ContextBar onOpenPalette={openPalette} onOpenMore={() => setMoreOpen(true)} />}
+      contextBar={
+        <ContextBar
+          platform={onPlatformScreen}
+          onOpenPalette={openPalette}
+          onOpenMore={() => setMoreOpen(true)}
+        />
+      }
       primaryNav={
         // A skeleton only while **neither** authority has answered.
         //

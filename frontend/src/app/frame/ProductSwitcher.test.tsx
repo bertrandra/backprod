@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { useSessionStore } from '@/state/session';
-import { renderWith, SESSION, stubClient, type Stub } from '@/test-utils';
+import { recordingClient, renderWith, SESSION, stubClient, type Stub } from '@/test-utils';
 
 import { ProductSwitcher } from './ProductSwitcher';
 
@@ -122,5 +122,64 @@ describe('with more than one', () => {
     // for no reason.
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(productReads).toBe(1);
+  });
+});
+
+/**
+ * On the console, the list is the platform's own (ADR-047).
+ *
+ * A platform role grants no membership, so `listProducts` would answer a
+ * platform administrator about their own tenant or not at all. The switcher
+ * asks `listPlatformProducts` instead — retired products included, because
+ * they still carry tenants and invoices — and never the membership list.
+ */
+describe('on the console', () => {
+  const PLATFORM_ATLAS = { id: 'prod-atlas', code: 'atlas', name: 'Atlas', active: true };
+  const PLATFORM_BOREAS = { id: 'prod-boreas', code: 'boreas', name: 'Boreas', active: true };
+  const PLATFORM_COMET = { id: 'prod-comet', code: 'comet', name: 'Comet', active: false };
+
+  it('lists every product the platform hosts, and marks the retired ones', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/products': { data: { products: [PLATFORM_ATLAS, PLATFORM_BOREAS, PLATFORM_COMET] } },
+      'GET /api/v1/products': { data: { products: [ATLAS] } },
+    });
+
+    renderWith(<ProductSwitcher platform />, client);
+
+    const select = await waitFor(() => screen.getByTestId<HTMLSelectElement>('product-switcher'));
+
+    expect([...select.options].map((option) => option.value)).toEqual(['atlas', 'boreas', 'comet']);
+    expect([...select.options].map((option) => option.textContent)).toEqual(['Atlas', 'Boreas', 'Comet (retired)']);
+    expect(select.options[2]?.getAttribute('data-retired')).toBe('true');
+    // Never the membership list.
+    expect(requests.some((r) => r.path === '/api/v1/products')).toBe(false);
+  });
+
+  it('chooses the first active product when nothing is chosen yet', async () => {
+    renderWith(
+      <ProductSwitcher platform />,
+      stubClient({
+        'GET /api/v1/staff/products': { data: { products: [PLATFORM_COMET, PLATFORM_BOREAS] } },
+      }),
+      { product: null },
+    );
+
+    // Comet is retired and listed first; the choice made for them is the
+    // first product somebody can still act in.
+    await waitFor(() => expect(useSessionStore.getState().productCode).toBe('boreas'));
+    expect(screen.getByTestId<HTMLSelectElement>('product-switcher').value).toBe('boreas');
+  });
+
+  it('never asks the platform list in the application', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/products': { data: { products: [ATLAS, BOREAS] } },
+      'GET /api/v1/staff/products': { data: { products: [PLATFORM_ATLAS] } },
+    });
+
+    renderWith(<ProductSwitcher />, client);
+
+    await waitFor(() => expect(screen.getByTestId('product-switcher')).toBeTruthy());
+
+    expect(requests.some((r) => r.path === '/api/v1/staff/products')).toBe(false);
   });
 });

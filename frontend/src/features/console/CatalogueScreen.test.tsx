@@ -43,7 +43,7 @@ const OFFER = {
 
 const ROUTE = {
   path: '/console/catalogue',
-  initial: '/console/catalogue?selected=atlas',
+  initial: '/console/catalogue',
 } as const;
 
 function clientFor(extra: Stubs = {}) {
@@ -66,7 +66,7 @@ function clientFor(extra: Stubs = {}) {
 
 describe('without a product', () => {
   it('says where to pick one rather than showing an empty catalogue', async () => {
-    renderAtRoute(<CatalogueScreen />, clientFor(), { path: '/console/catalogue' });
+    renderAtRoute(<CatalogueScreen />, clientFor(), { path: '/console/catalogue', product: null });
 
     // The console has no ambient product, because a platform role grants no
     // membership — so it says so and points at Products.
