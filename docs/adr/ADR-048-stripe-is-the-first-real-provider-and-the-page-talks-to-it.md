@@ -34,8 +34,12 @@ without a choice.
 creates the intent, so `payments.provider_payment_id` is `pi_…` from the
 first row and every event Stripe will ever send about that money —
 succeeded, failed, refunded, disputed — keys on the same string. The
-reference `<invoice number>/<attempt>` (ADR-034) is the idempotency key, so
-the same attempt asked twice is the same intent. Nothing about a customer
+reference `<invoice number>/<attempt>` (ADR-034), keyed with the
+installation's webhook secret, is the idempotency key, so the same attempt
+asked twice is the same intent — and the same reference from *another*
+installation on the same Stripe account (invoice numbers restart at `000001`
+everywhere) is not: the first deployment beside the developer's sandbox was
+handed the laptop's already-paid intents until it was. Nothing about a customer
 is sent: no `customer`, no stored instrument, no manual capture.
 
 **The Payment Element in the page, not hosted Checkout.** Hosted Checkout

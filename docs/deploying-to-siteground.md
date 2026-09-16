@@ -271,11 +271,12 @@ for the live-mode one, whose secret differs.
 
 Two things a sandbox walk can trip over that production cannot. Stripe
 remembers an idempotency key for 24 hours, and this platform's key is the
-invoice number and attempt — so a database reset, or two environments on
-one sandbox, asks for `2026-000002/1` again and is handed back yesterday's
-intent, already paid: the form never becomes ready. Wait a day, use a
-sandbox per environment, or let the numbering move past the reused ones.
-And a second purchase for a tenant that already holds an active
+invoice number and attempt under the installation's webhook secret — so a
+database reset on the *same* installation asks for `2026-000002/1` again
+and is handed back yesterday's intent, already paid: the form never becomes
+ready. Wait a day, or let the numbering move past the reused ones. (Two
+installations on one sandbox do not collide, provided each has a webhook
+endpoint — and secret — of its own.) And a second purchase for a tenant that already holds an active
 subscription is refused by the database when the webhook settles it —
 `subscriptions_one_active_tenant_subscription`, answered 500 so Stripe
 retries and the log names the constraint — because the checkout does not

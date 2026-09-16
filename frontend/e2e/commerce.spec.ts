@@ -157,6 +157,10 @@ test.describe('a checkout whose connection drops', () => {
 
     await page.goto('/catalogue?product=atlas');
     await page.getByRole('button', { name: 'Buy' }).click();
+    // Buying pays on the catalogue (ADR-048): the secret is offered there and
+    // never carried to the order page. With no provider stubbed, the pay step
+    // is only the link on.
+    await page.getByTestId('continue-to-order').click();
 
     await expect(page).toHaveURL(new RegExp(`/checkout/${ORDER_ID}`));
     await expect(page.getByTestId('checkout-status')).toHaveText('AWAITING PAYMENT');
@@ -188,6 +192,10 @@ test.describe('a checkout whose connection drops', () => {
 
     await page.goto('/catalogue?product=atlas');
     await page.getByRole('button', { name: 'Buy' }).click();
+    // Buying pays on the catalogue (ADR-048): the secret is offered there and
+    // never carried to the order page. With no provider stubbed, the pay step
+    // is only the link on.
+    await page.getByTestId('continue-to-order').click();
     await expect(page.getByTestId('checkout-status')).toBeVisible();
 
     // Not in storage, not in the URL, not in the page.
@@ -211,6 +219,10 @@ test.describe('the payment gate', () => {
 
     await page.goto('/catalogue?product=atlas');
     await page.getByRole('button', { name: 'Buy' }).click();
+    // Buying pays on the catalogue (ADR-048): the secret is offered there and
+    // never carried to the order page. With no provider stubbed, the pay step
+    // is only the link on.
+    await page.getByTestId('continue-to-order').click();
 
     await expect(page.getByTestId('step-invoice')).toContainText('invoice-1');
     await expect(page.getByTestId('step-subscription')).toContainText('Not started');
@@ -241,6 +253,10 @@ test.describe('every request the application makes', () => {
     await page.goto('/catalogue?product=atlas');
     await expect(page.getByText('Pro monthly')).toBeVisible();
     await page.getByRole('button', { name: 'Buy' }).click();
+    // Buying pays on the catalogue (ADR-048): the secret is offered there and
+    // never carried to the order page. With no provider stubbed, the pay step
+    // is only the link on.
+    await page.getByTestId('continue-to-order').click();
     await expect(page.getByTestId('checkout-status')).toBeVisible();
 
     expect(apiRequests.length).toBeGreaterThan(0);

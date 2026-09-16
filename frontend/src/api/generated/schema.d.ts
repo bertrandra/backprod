@@ -1781,7 +1781,7 @@ export interface paths {
         put?: never;
         /**
          * Quote an offer
-         * @description Priced from the offer version on sale now and pinned to it, so a catalogue change cannot reprice a quote already sent. `validity_days` is clamped to the platform's maximum — a quote open for ever is a price open for ever.
+         * @description Priced from the offer version on sale now and pinned to it, so a catalogue change cannot reprice a quote already sent. `validity_days` is clamped to the platform's maximum — a quote open for ever is a price open for ever. Raised for business customers only: a tenant whose tax profile says `B2C` is refused with `QUOTE_REQUIRES_BUSINESS_CUSTOMER` and buys at the listed price instead. Declaring the organisation a business in its tax profile is what makes it quotable.
          */
         post: operations["createQuote"];
         delete?: never;
@@ -8431,7 +8431,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description A field was unacceptable. */
+            /** @description A field was unacceptable — or `QUOTE_REQUIRES_BUSINESS_CUSTOMER`: the tenant's tax profile does not say B2B, and quotes are a business instrument. */
             422: {
                 headers: {
                     [name: string]: unknown;
