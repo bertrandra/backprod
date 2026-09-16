@@ -112,6 +112,7 @@ use App\Shared\Context\RoutePolicy;
 use App\Shared\Database\ConnectionFactory;
 use App\Shared\Http\Middleware\CorsMiddleware;
 use App\Shared\Http\Middleware\ErrorHandlerMiddleware;
+use App\Shared\Http\Middleware\NoSharedCacheMiddleware;
 use App\Shared\Http\Middleware\RequestIdMiddleware;
 use App\Shared\Http\MiddlewarePipeline;
 use App\Shared\Http\Router;
@@ -617,6 +618,11 @@ return static function (array $overrides = []): ContainerInterface {
         MiddlewarePipeline::class => autowire()
             ->constructorParameter('middleware', [
                 get(RequestIdMiddleware::class),
+                // Outermost after the id, so *every* answer — an error, a
+                // refusal, a 200 — leaves with `no-store`. The first host's
+                // proxy cached `/me` per URL and served one person's identity
+                // to the next; nothing below may be reachable around this.
+                get(NoSharedCacheMiddleware::class),
                 // Above the error handler, so an error response carries the
                 // CORS headers too — a browser that cannot read a 403 shows
                 // the developer a network error instead of the reason.

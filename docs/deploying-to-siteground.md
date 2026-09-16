@@ -410,6 +410,7 @@ fuller list; these are the ones specific to shipping it this way.
 | `function gen_random_uuid() does not exist` during `composer run migrate` | The account's PostgreSQL predates version 13 and lacks `pgcrypto`. Ask support to confirm the version or enable the extension (§0) |
 | Sign-in answers 503 | `AUTH_SIGNING_SECRET` is missing or under 32 characters. The response says which |
 | Everybody was signed out at once | `AUTH_SIGNING_SECRET` changed. Every existing token was minted with the old one |
+| Signing in as somebody else shows the previous person, or two screens disagree about who you are | The host's reverse proxy is caching API answers by URL. Since `NoSharedCacheMiddleware` every answer says `Cache-Control: no-store` and `X-Cache-Enabled: False`, which SiteGround's dynamic cache honours; on a bundle from before it, or behind another CDN, exclude `/api/` from caching in the host's panel. `bin/verify-dist.sh` checks the header; `curl -sI https://your-domain/api/v1/health` shows `X-Proxy-Cache: MISS` on every call once it is right |
 | Signing in works and the next page asks again | The refresh cookie is not coming back. It is `Secure`, so the site must be https — check that SiteGround's certificate is live and that you are not on a plain-http URL |
 | Uploads succeed and the files disappear later | `ASSET_STORAGE_ROOT` is unset, so they went to a swept temporary directory |
 | Everything works; nothing queued ever happens | No cron entry for `bin/run-jobs.php` |
