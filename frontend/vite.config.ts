@@ -24,6 +24,10 @@ export default defineConfig({
     },
   },
   server: {
+    // The pane that previews this app assigns a port through PORT when 5173
+    // is taken; a strict, hard-coded one fought a stale process three times.
+    port: process.env.PORT === undefined ? 5173 : Number(process.env.PORT),
+    strictPort: process.env.PORT !== undefined,
     // The API is the PHP backend. Proxied in development so the browser sees
     // one origin and §31's strict CORS is not worked around with a permissive
     // development-only header that someone later ships.
