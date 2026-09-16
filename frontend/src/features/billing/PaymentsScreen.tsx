@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+import { PaymentElementPanel } from '@/features/commerce/payment/PaymentElementPanel';
+
 import { can } from '@/app/access/access';
 import {
   isRefundable,
@@ -7,6 +9,7 @@ import {
   usePayments,
   useRefundPayment,
   useRetryPayment,
+  type StartedPayment,
   type Payment,
 } from '@/queries/payments';
 import { useSession } from '@/queries/session';
@@ -46,7 +49,9 @@ export function PaymentsScreen() {
 
   const [refunding, setRefunding] = useState<string | null>(null);
   const [reason, setReason] = useState<string>(REFUND_REASONS[0]);
-  const [retried, setRetried] = useState<string | null>(null);
+  // The new attempt, held for exactly as long as this render, so the card
+  // form is offered where the secret was born (ADR-048).
+  const [retried, setRetried] = useState<{ of: string; started: StartedPayment } | null>(null);
 
   const mayManage = can(session, 'payments.manage');
 
@@ -108,9 +113,9 @@ export function PaymentsScreen() {
                       onClick={() =>
                         retry.mutate(payment.id, {
                           // The secret goes to the provider's SDK and nowhere
-                          // else. What is remembered here is only *that* a new
-                          // attempt was started, so the screen can say so.
-                          onSuccess: () => setRetried(payment.id),
+                          // else: it is held only until the form below has
+                          // been through, and never written anywhere.
+                          onSuccess: (started) => setRetried({ of: payment.id, started }),
                         })
                       }
                     >
@@ -130,14 +135,26 @@ export function PaymentsScreen() {
                 </div>
               )}
 
-              {retried === payment.id && (
+              {retried?.of === payment.id && (
                 // Said explicitly. This attempt is still failed; a different one
-                // has begun.
-                <p data-testid="new-attempt" className="mt-2 text-xs text-muted">
-                  A <strong>new</strong> attempt has started. This one stays failed — it is the
-                  record of what happened — and the card details are asked for again because the
-                  previous attempt cannot be resumed.
-                </p>
+                // has begun, and its card form is right here.
+                <div className="mt-2 space-y-2">
+                  <p data-testid="new-attempt" className="text-xs text-muted">
+                    A <strong>new</strong> attempt has started. This one stays failed — it is the
+                    record of what happened — and the card details are asked for again because the
+                    previous attempt cannot be resumed.
+                  </p>
+                  <PaymentElementPanel
+                    provider={retried.started.payment_provider}
+                    clientSecret={retried.started.client_secret}
+                    amount={retried.started.amount}
+                    returnUrl={window.location.href}
+                    onSettled={() => {
+                      setRetried(null);
+                      void payments.refetch();
+                    }}
+                  />
+                </div>
               )}
 
               {refunding === payment.id && (

@@ -1,9 +1,27 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import type { ReactNode } from 'react';
+import { describe, expect, it, vi } from 'vitest';
 
 import { renderWith, SESSION, stubClient, type Stub } from '@/test-utils';
 
 import { PaymentsScreen } from './PaymentsScreen';
+
+// Stripe.js replaced: what the panel does around it is PaymentElementPanel's
+// test; here it only has to appear, or not.
+vi.mock('@stripe/stripe-js', () => ({ loadStripe: vi.fn(() => Promise.resolve({ confirmPayment: vi.fn() })) }));
+vi.mock('@stripe/react-stripe-js', () => ({
+  Elements: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  PaymentElement: () => <div data-testid="stripe-payment-element" />,
+  useStripe: () => ({ confirmPayment: vi.fn() }),
+  useElements: () => ({}),
+}));
+
+/** The retry's answer: the new attempt, with its one-time secret beside it. */
+const newAttempt = (provider: unknown = { name: 'stub', publishable_key: null, sandbox: true }) => ({
+  ...payment({ id: 'pay-2', status: 'PENDING', failure_code: null, failure_reason: null }),
+  client_secret: 'pi_secret_new_attempt',
+  payment_provider: provider,
+});
 
 /**
  * U6's second exit criterion: **a failed payment leads to retry, and the UI makes
@@ -73,7 +91,7 @@ describe('a failed payment', () => {
         'POST /api/v1/payments/{paymentId}/retry': (): Stub => {
           retried += 1;
 
-          return { data: { client_secret: 'pi_secret_new_attempt' }, status: 201 };
+          return { data: newAttempt(), status: 201 };
         },
       }),
     );
@@ -91,12 +109,33 @@ describe('a failed payment', () => {
     expect(screen.getByTestId('new-attempt').textContent).toMatch(/cannot be resumed/i);
   });
 
+  it('offers the card form right there when the provider has one', async () => {
+    renderWith(
+      <PaymentsScreen />,
+      clientFor([payment()], {
+        'POST /api/v1/payments/{paymentId}/retry': {
+          data: newAttempt({ name: 'stripe', publishable_key: 'pk_test_1', sandbox: true }),
+          status: 201,
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+
+    // Where the secret was born (ADR-048): the form is under the attempt
+    // that failed, for the new one, with the new attempt's amount.
+    await waitFor(() => expect(screen.getByTestId('stripe-payment-element')).toBeTruthy());
+    expect(screen.getByTestId('sandbox-band')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Pay/ }).querySelector('[data-minor-units="3480"]')).not.toBeNull();
+  });
+
   it('never puts the new credential anywhere it could be found', async () => {
     renderWith(
       <PaymentsScreen />,
       clientFor([payment()], {
         'POST /api/v1/payments/{paymentId}/retry': {
-          data: { client_secret: 'pi_secret_new_attempt' },
+          data: newAttempt(),
           status: 201,
         },
       }),

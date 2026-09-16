@@ -44,7 +44,19 @@ const CREATED = {
   tenant_id: 'tenant-1',
 };
 
-const SESSION = { id: 'order-1', status: 'AWAITING_PAYMENT', payment_id: 'pay-1' };
+const MONEY = { minor_units: 2900, currency: 'EUR' };
+const SESSION = {
+  id: 'order-1',
+  status: 'AWAITING_PAYMENT',
+  payment_id: 'pay-1',
+  net: MONEY,
+  vat: { minor_units: 0, currency: 'EUR' },
+  gross: MONEY,
+};
+// A provider with no card form in the page: the stub. What the pay step
+// does *without* Stripe is what these tests are about; the form itself is
+// PaymentElementPanel.test.tsx's.
+const STUB_PROVIDER = { name: 'stub', publishable_key: null, sandbox: true };
 
 function clientFor(extra: Stubs = {}) {
   return stubClient({
@@ -352,18 +364,14 @@ describe('creating the account', () => {
     );
   });
 
-  it('goes straight into the checkout for what they chose', async () => {
-    const assign = vi.fn();
-
-    // The hop into the application is a real navigation, because the
-    // storefront renders outside the router — so this is what there is to
-    // assert on.
-    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign });
-
+  it('opens the checkout for what they chose, and pays where the secret was born', async () => {
     const { client, requests } = recordingClient({
       'GET /api/v1/public/offers': { data: WINDOW },
       'POST /api/v1/auth/sign-up': { status: 201, data: CREATED },
-      'POST /api/v1/checkout/sessions': { status: 201, data: { session: SESSION } },
+      'POST /api/v1/checkout/sessions': {
+        status: 201,
+        data: { session: { ...SESSION, client_secret: 'secret-1', payment_provider: STUB_PROVIDER } },
+      },
     });
 
     renderWith(<Storefront onSignIn={() => undefined} />, client);
@@ -382,7 +390,40 @@ describe('creating the account', () => {
     expect(requests.find((r) => r.path === '/api/v1/checkout/sessions')?.body).toEqual({
       offer_id: 'offer-1',
     });
-    await waitFor(() => expect(assign).toHaveBeenCalledWith('/checkout/order-1'));
+
+    // No hop yet: the render that received the secret is the one that can
+    // offer a card form (ADR-048), and a full navigation would lose it. The
+    // stub has no form, so the step says so and points at the order — which
+    // is also where somebody who changes their mind ends up.
+    await waitFor(() => expect(screen.getByTestId('payment-panel')).toBeTruthy());
+    expect(screen.getByTestId('payment-panel').getAttribute('data-provider')).toBe('stub');
+    expect(screen.getByTestId('payment-no-panel')).toBeTruthy();
+    expect(screen.getByTestId('sandbox-band')).toBeTruthy();
+    expect(screen.getByTestId('continue-to-order').getAttribute('href')).toBe('/checkout/order-1');
+  });
+
+  it('goes to the order without a pay step when there is nothing to pay', async () => {
+    // A free offer: no payment, no secret, no provider. The order is the
+    // only place to go.
+    renderWith(
+      <Storefront onSignIn={() => undefined} />,
+      clientFor({
+        'POST /api/v1/checkout/sessions': {
+          status: 201,
+          data: { session: { ...SESSION, payment_id: null, payment_provider: null } },
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
+    await waitFor(() => expect(screen.getByLabelText('Email')).toBeTruthy());
+
+    signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
+
+    await waitFor(() => expect(screen.getByTestId('continue-to-order')).toBeTruthy());
+    expect(screen.queryByTestId('payment-panel')).toBeNull();
+    expect(screen.getByTestId('continue-to-order').textContent).toBe('Continue to your order');
   });
 
   it('puts them in the application when it is the checkout that failed', async () => {
@@ -416,10 +457,6 @@ describe('creating the account', () => {
   });
 
   it('holds the token without declaring the person signed in, until it navigates', async () => {
-    const assign = vi.fn();
-
-    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign });
-
     renderWith(<Storefront onSignIn={() => undefined} />, clientFor());
 
     await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
@@ -428,7 +465,8 @@ describe('creating the account', () => {
 
     signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
 
-    await waitFor(() => expect(assign).toHaveBeenCalled());
+    // On the pay step now, still on this page.
+    await waitFor(() => expect(screen.getByTestId('continue-to-order')).toBeTruthy());
 
     // The token is usable — the checkout above needed it — and the status has
     // *not* flipped, because `SignInGate` renders the application the instant

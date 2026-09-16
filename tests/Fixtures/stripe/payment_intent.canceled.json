@@ -1,0 +1,8 @@
+{
+  "id": "evt_1Q2RxYZ0000000000000003",
+  "object": "event",
+  "created": 1789200120,
+  "livemode": false,
+  "type": "payment_intent.canceled",
+  "data": { "object": { "id": "pi_3Q2RxX0000000000000001", "object": "payment_intent", "status": "canceled" } }
+}

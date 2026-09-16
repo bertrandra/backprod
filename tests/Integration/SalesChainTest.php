@@ -617,6 +617,45 @@ final class SalesChainTest extends DatabaseApiTestCase
         self::assertSame('COMPLETED', $this->statusOf('orders', $orderId));
     }
 
+    /**
+     * A unique index reached *inside* the applying transaction — here the
+     * one active subscription per tenant and product — is the work failing,
+     * not a replay. It used to be answered DUPLICATE: the provider had
+     * collected the money, the platform recorded nothing, every retry
+     * answered the same, and nobody was told. The first Stripe sandbox run
+     * found it (ADR-048). It is a 500 now, so the provider retries and the
+     * log names the constraint.
+     */
+    public function testAFailureInsideTheWorkIsNotMistakenForAReplay(): void
+    {
+        $first = $this->orderedId();
+        $this->fulfil($first);
+        $firstReference = $this->startedPayment($first);
+        $firstEvent = ['id' => 'evt_first', 'type' => 'payment.succeeded', 'payment_id' => $firstReference];
+        self::assertSame(200, $this->deliverPayment($firstEvent)->getStatusCode());
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM subscriptions'));
+
+        // A second order for the same tenant and product, sold, invoiced and
+        // charged while the first subscription is still active — the gap the
+        // checkout does not yet close.
+        $second = $this->orderedId();
+        $this->fulfil($second);
+        $reference = $this->startedPayment($second);
+
+        $response = $this->deliverPayment(['id' => 'evt_second', 'type' => 'payment.succeeded', 'payment_id' => $reference]);
+
+        // Loud, and nothing pretended: not applied, not recorded, not a duplicate.
+        self::assertSame(500, $response->getStatusCode());
+        self::assertSame(0, $this->rowsMatching("SELECT count(*) FROM payment_events WHERE provider_event_id = 'evt_second'"));
+        self::assertSame(1, $this->rowsMatching("SELECT count(*) FROM payments WHERE provider_payment_id = '{$reference}' AND status = 'PENDING'"));
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM subscriptions'));
+
+        // And a genuine replay of the first is still a duplicate, still 202.
+        $again = $this->deliverPayment($firstEvent);
+        self::assertSame(202, $again->getStatusCode());
+        self::assertSame('DUPLICATE', $this->decode($again)['outcome'] ?? null);
+    }
+
     public function testAnOfferWithdrawnAfterInvoicingStillActivatesWhenPaid(): void
     {
         $orderId = $this->orderedId();

@@ -103,10 +103,14 @@ $capabilities = [
     ),
     new Capability(
         'Taking money',
-        configured('STUB_PAYMENT_SIGNING_SECRET'),
+        // Stripe needs all three of its keys (config/container.php says why);
+        // the stub is a provider too, for a demo or the test suite.
+        (configured('STRIPE_SECRET_KEY') && configured('STRIPE_WEBHOOK_SECRET') && configured('STRIPE_PUBLISHABLE_KEY'))
+        || configured('STUB_PAYMENT_SIGNING_SECRET'),
         'No payment provider is configured. Checkout cannot complete, so no subscription '
         . 'is ever activated — nothing is provisioned before the money arrives (ADR-024), '
-        . 'and the money cannot arrive.',
+        . 'and the money cannot arrive. Stripe needs STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET '
+        . 'and STRIPE_PUBLISHABLE_KEY, all three.',
     ),
     new Capability(
         'Transmitting e-invoices',
@@ -178,6 +182,13 @@ foreach ($capabilities as $capability) {
 
 if ($databaseNotes !== []) {
     printf("\n  database: %s\n", implode(', ', $databaseNotes));
+}
+
+// A production-shaped deployment on a sandbox key is legitimate — a demo,
+// a rehearsal — and it is also the mistake that costs the most if it was not
+// meant. Said, never refused (ADR-048).
+if (env('APP_ENV') === 'prod' && str_starts_with(env('STRIPE_SECRET_KEY'), 'sk_test_')) {
+    printf("\n  WARNING: APP_ENV=prod with a Stripe sandbox key (sk_test_…). No real money will move.\n");
 }
 
 $broken = str_contains(implode(' ', $databaseNotes), 'UNREACHABLE')

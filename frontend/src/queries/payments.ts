@@ -93,12 +93,23 @@ export function usePayment(paymentId: string | null) {
  * secret is handed to the caller and never cached: a mutation result lives as
  * long as the component that asked, which is the whole intended lifetime.
  */
+/**
+ * A payment as `startPayment` and `retryPayment` answer it: the payment, the
+ * one-time `client_secret`, and what a page needs to use one (ADR-048). The
+ * shape exists only in the render that received it; the lists re-read the
+ * payment without either.
+ */
+export type StartedPayment = Payment & {
+  client_secret?: string | null;
+  payment_provider?: Schemas['PaymentProviderClient'];
+};
+
 export function useStartPayment(invoiceId: string) {
   const client = useApiClient();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (): Promise<Payment & { client_secret?: string | null }> => {
+    mutationFn: async (): Promise<StartedPayment> => {
       const ambient = ambientParams(sessionSnapshot);
 
       const { data, error, response } = await client.POST(
@@ -134,7 +145,7 @@ export function useRetryPayment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (paymentId: string): Promise<{ client_secret?: string | null }> => {
+    mutationFn: async (paymentId: string): Promise<StartedPayment> => {
       const ambient = ambientParams(sessionSnapshot);
 
       const { data, error, response } = await client.POST('/api/v1/payments/{paymentId}/retry', {

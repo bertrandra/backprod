@@ -1,0 +1,20 @@
+{
+  "id": "evt_1Q2RxYZ0000000000000008",
+  "object": "event",
+  "created": 1789200000,
+  "livemode": false,
+  "type": "charge.succeeded",
+  "data": {
+    "object": {
+      "id": "ch_3Q2RxX0000000000000002",
+      "object": "charge",
+      "payment_intent": "pi_3Q2RxX0000000000000001",
+      "amount": 4900,
+      "status": "succeeded",
+      "payment_method_details": {
+        "type": "card",
+        "card": { "brand": "mastercard", "last4": "4444", "wallet": { "type": "apple_pay", "dynamic_last4": "4444" } }
+      }
+    }
+  }
+}

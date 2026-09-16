@@ -9,7 +9,8 @@ import {
   useMarkInvoicePaid,
 } from '@/queries/billing';
 import { progressOf, TRANSMISSION_STATES, useSubmitInvoice, useTransmissions } from '@/queries/einvoicing';
-import { useStartPayment } from '@/queries/payments';
+import { PaymentElementPanel } from '@/features/commerce/payment/PaymentElementPanel';
+import { useStartPayment, type StartedPayment } from '@/queries/payments';
 import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
@@ -47,6 +48,9 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
   const credit = useIssueCreditNote(invoiceId);
   const startPayment = useStartPayment(invoiceId);
 
+  // Held for exactly as long as this render: the card form is offered where
+  // the secret was born and nowhere else (ADR-048).
+  const [started, setStarted] = useState<StartedPayment | null>(null);
   const [reason, setReason] = useState('');
   const [confirming, setConfirming] = useState<'cancel' | 'credit' | null>(null);
 
@@ -202,11 +206,11 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
               </Button>
             )}
 
-            {current.status === 'ISSUED' && mayPay && (
+            {current.status === 'ISSUED' && mayPay && started === null && (
               <Button
                 type="button"
                 pending={startPayment.isPending}
-                onClick={() => startPayment.mutate()}
+                onClick={() => startPayment.mutate(undefined, { onSuccess: setStarted })}
               >
                 Take a payment
               </Button>
@@ -226,6 +230,21 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
               </Button>
             )}
           </div>
+
+          {started !== null && (
+            <PaymentElementPanel
+              provider={started.payment_provider}
+              clientSecret={started.client_secret}
+              amount={current.gross}
+              returnUrl={window.location.href}
+              // The invoice and the payments re-read; whether it succeeded is
+              // the webhook's to say.
+              onSettled={() => {
+                setStarted(null);
+                void invoice.refetch();
+              }}
+            />
+          )}
 
           {confirming === 'cancel' && (
             <div className="flex flex-wrap gap-2">

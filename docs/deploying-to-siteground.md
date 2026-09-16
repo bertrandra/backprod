@@ -95,12 +95,16 @@ point of asking first.
 ## 1. Build the bundle
 
 ```sh
-DEFAULT_PRODUCT=atlas bin/build-dist.sh --slim-fonts
+DEFAULT_PRODUCT=atlas bin/build-dist.sh --slim-fonts --payment-provider stripe
 ```
 
-**No keys, and nothing else to decide.** The browser holds no credential of any
+**No keys, and one thing to decide.** The browser holds no credential of any
 kind, so a bundle built today works against any deployment — and the only thing
-that ever configures identity is `.env` on the host.
+that ever configures identity is `.env` on the host. The one build-time
+decision is which payment provider the page may talk to:
+`--payment-provider stripe` lets the Content-Security-Policy admit Stripe's
+origins for the card form (ADR-048); built without it, the page talks to this
+origin alone and Stripe's form cannot load, whatever `.env` says.
 
 `DEFAULT_PRODUCT` is the product code to act in when a URL does not name one. A
 single-product install should set it, or every link needs `?product=CODE`.
@@ -226,6 +230,48 @@ revoke every session in an emergency.
 Set `ASSET_STORAGE_ROOT` and `PDF_TEMPORARY_ROOT` to the `var/` paths as well.
 Unset, uploads go to the system temporary directory, which shared hosting sweeps —
 so they vanish at a time unrelated to anything anybody did.
+
+### Taking money through Stripe
+
+Three values, all or none: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and
+`STRIPE_PUBLISHABLE_KEY`. In the Stripe dashboard, add a webhook endpoint for
+`https://your-domain/api/v1/webhooks/payments/stripe` listening to
+`payment_intent.succeeded`, `payment_intent.payment_failed`,
+`payment_intent.canceled`, `charge.succeeded`, `refund.updated` and
+`charge.dispute.created`; its signing secret is the `whsec_…`. The charge
+event is the one that says *what kind of instrument* paid — the intent's
+does not — so without it the payments screen shows no method. Every other
+event is accepted and ignored, so subscribing to more costs nothing but
+traffic.
+
+**Start in a sandbox.** Sandbox and test-mode keys read `sk_test_` / `pk_test_`
+and move no money; the console's setup chain says *Stripe (sandbox)*, the
+checkout shows a *Test payment* band, and `bin/preflight.php` warns when
+`APP_ENV=prod` is running on one. Before switching to `sk_live_` keys, walk the
+four test cards against the sandbox and watch each land where it should:
+
+| Card | Expect |
+|---|---|
+| `4242 4242 4242 4242` | order → `COMPLETED`, invoice `PAID`, subscription active |
+| `4000 0025 0000 3155` | a 3-D Secure challenge, then the same |
+| `4000 0000 0000 9995` | order `PAYMENT_FAILED`, *insufficient_funds*, invoice still owed, *Try again* offered |
+| `4000 0000 0000 0259` | succeeds, then a dispute arrives: payment `CHARGEBACK`, invoice untouched |
+
+Then a refund from the payments screen, settled when Stripe's `refund.updated`
+arrives. Only then swap the three keys for live ones — and the webhook endpoint
+for the live-mode one, whose secret differs.
+
+Two things a sandbox walk can trip over that production cannot. Stripe
+remembers an idempotency key for 24 hours, and this platform's key is the
+invoice number and attempt — so a database reset, or two environments on
+one sandbox, asks for `2026-000002/1` again and is handed back yesterday's
+intent, already paid: the form never becomes ready. Wait a day, use a
+sandbox per environment, or let the numbering move past the reused ones.
+And a second purchase for a tenant that already holds an active
+subscription is refused by the database when the webhook settles it —
+`subscriptions_one_active_tenant_subscription`, answered 500 so Stripe
+retries and the log names the constraint — because the checkout does not
+yet refuse it up front.
 
 ### Somebody to sign in as
 

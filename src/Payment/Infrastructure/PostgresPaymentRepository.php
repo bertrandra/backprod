@@ -247,7 +247,21 @@ final class PostgresPaymentRepository implements PaymentRepository
             return $this->connection->transactional(
                 fn (): WebhookOutcome => $this->recordThenApply($event, $provider, $payment, $outcome, $settlement),
             );
-        } catch (UniqueConstraintViolationException) {
+        } catch (UniqueConstraintViolationException $violation) {
+            // Only the delivered-once index means "already recorded". Any
+            // other unique index reached inside the same transaction — a
+            // second ACTIVE subscription on the tenant and product, say — is
+            // the work failing, and the transaction rolled back *including*
+            // the event row. Answering DUPLICATE there would mean the
+            // provider collected the money, this platform recorded nothing,
+            // every retry answered the same, and nobody was told (ADR-048's
+            // first sandbox run found exactly that). It propagates instead:
+            // a 500 with a request id, the provider retries, and the log
+            // carries the constraint that refused.
+            if (!str_contains($violation->getMessage(), 'payment_events_delivered_once')) {
+                throw $violation;
+            }
+
             // The delivery is already recorded, so it has already been acted
             // on and the transaction rolled back without touching anything.
             // This is the ordinary case of a provider retrying, not a fault:
@@ -344,11 +358,15 @@ final class PostgresPaymentRepository implements PaymentRepository
         $requested = $event->requestedStatus();
 
         if ($requested === null) {
-            // A refund settling, say: real, recorded, but not a move of the
-            // payment itself.
-            return $event->type === ProviderEvent::REFUND_SUCCEEDED
-                ? WebhookOutcome::APPLIED
-                : WebhookOutcome::IGNORED_NOT_APPLICABLE;
+            // A refund settling, or the provider naming the instrument: real,
+            // recorded, applied — but not a move of the payment itself.
+            return match ($event->type) {
+                ProviderEvent::REFUND_SUCCEEDED => WebhookOutcome::APPLIED,
+                ProviderEvent::INSTRUMENT_KNOWN => $event->method === null
+                    ? WebhookOutcome::IGNORED_NOT_APPLICABLE
+                    : WebhookOutcome::APPLIED,
+                default => WebhookOutcome::IGNORED_NOT_APPLICABLE,
+            };
         }
 
         // The one-way machine is what makes a delayed delivery harmless: a
@@ -396,6 +414,12 @@ final class PostgresPaymentRepository implements PaymentRepository
             return WebhookOutcome::of(WebhookOutcome::APPLIED, $payment->id);
         }
 
+        if ($event->type === ProviderEvent::INSTRUMENT_KNOWN) {
+            $this->learnInstrument($payment, $event);
+
+            return WebhookOutcome::of(WebhookOutcome::APPLIED, $payment->id);
+        }
+
         $status = $event->requestedStatus();
 
         if ($status === null) {
@@ -414,6 +438,29 @@ final class PostgresPaymentRepository implements PaymentRepository
         return WebhookOutcome::of(WebhookOutcome::APPLIED, $payment->id);
     }
 
+    /**
+     * The kind of instrument, whichever delivery brought it first.
+     *
+     * Whatever the payment's status: the delivery that names the instrument
+     * and the one that reports the outcome arrive in no guaranteed order,
+     * and a method learned before the money moved is as true as one learned
+     * after. Never overwritten — a provider that said at `authorize()` time
+     * is not corrected by a later word — and never a ledger row, because
+     * nothing about the money changed.
+     */
+    private function learnInstrument(Payment $payment, ProviderEvent $event): void
+    {
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE payments
+                   SET method = coalesce(method, :method),
+                       updated_at = now()
+                 WHERE id = :id
+                SQL,
+            ['method' => $event->method, 'id' => $payment->id],
+        );
+    }
+
     private function moveTo(Payment $payment, string $status, ProviderEvent $event): void
     {
         $this->connection->executeStatement(
@@ -424,11 +471,16 @@ final class PostgresPaymentRepository implements PaymentRepository
                        failed_at = CASE WHEN :status IN ('FAILED', 'CANCELLED') THEN now() ELSE failed_at END,
                        failure_code = coalesce(:failureCode, failure_code),
                        failure_reason = coalesce(:failureReason, failure_reason),
+                       method = coalesce(method, :method),
                        updated_at = now()
                  WHERE id = :id
                 SQL,
             [
                 'status' => $status,
+                // The kind of instrument, when the event is the first to know
+                // it; whatever was already known — at `authorize()`, or from
+                // an INSTRUMENT_KNOWN delivery that landed first — stands.
+                'method' => $event->method,
                 // A failed payment must carry a reason — the schema insists —
                 // so an adapter that gave none gets a truthful placeholder
                 // rather than a constraint violation the customer sees as a

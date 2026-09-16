@@ -41,7 +41,12 @@ final class ShowReadinessController implements RouteHandler
 
         $readiness = $this->desk->of(
             StaffRoute::productCode($request),
-            $this->payments->isConfigured(),
+            $this->payments->isConfigured()
+                ? [
+                    'name' => $this->payments->default()->name(),
+                    'sandbox' => $this->payments->default()->isSandbox(),
+                ]
+                : null,
         );
 
         $steps = $readiness['steps'];

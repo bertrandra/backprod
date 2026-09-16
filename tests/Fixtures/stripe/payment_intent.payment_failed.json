@@ -1,0 +1,23 @@
+{
+  "id": "evt_1Q2RxYZ0000000000000002",
+  "object": "event",
+  "created": 1789200060,
+  "livemode": false,
+  "type": "payment_intent.payment_failed",
+  "data": {
+    "object": {
+      "id": "pi_3Q2RxX0000000000000001",
+      "object": "payment_intent",
+      "amount": 4900,
+      "amount_received": 0,
+      "currency": "eur",
+      "status": "requires_payment_method",
+      "last_payment_error": {
+        "code": "card_declined",
+        "decline_code": "insufficient_funds",
+        "message": "Your card has insufficient funds.",
+        "type": "card_error"
+      }
+    }
+  }
+}

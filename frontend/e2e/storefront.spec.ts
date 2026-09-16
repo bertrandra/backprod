@@ -76,6 +76,56 @@ async function stubStorefront(page: Page, window: object = { product: { code: 'a
   return asked;
 }
 
+const SESSION = {
+  id: '88888888-8888-4888-8888-888888888888',
+  order_id: '88888888-8888-4888-8888-888888888888',
+  status: 'AWAITING_PAYMENT',
+  invoice_id: 'inv-1',
+  subscription_id: null,
+  payment_id: 'pay-1',
+  payment_status: 'PENDING',
+  net: { minor_units: 2900, currency: 'EUR' },
+  vat: { minor_units: 0, currency: 'EUR' },
+  gross: { minor_units: 2900, currency: 'EUR' },
+};
+
+async function stubSignUp(page: Page): Promise<void> {
+  await page.route('**/api/v1/auth/sign-up', (route) =>
+    route.fulfill({
+      status: 201,
+      json: { access_token: 'access-token', token_type: 'Bearer', expires_in: 3600, tenant_id: '77777777-7777-4777-8777-777777777777' },
+    }),
+  );
+}
+
+/**
+ * A Stripe.js that is honestly not one, served where the real one would load
+ * from. It satisfies what @stripe/react-stripe-js checks for, mounts a box
+ * where the Payment Element would be, and `confirmPayment` resolves — the
+ * browser's word, which the page must not read as a status.
+ */
+async function stubStripeJs(page: Page): Promise<void> {
+  await page.route(/^https:\/\/js\.stripe\.com\/v3\/?(\?.*)?$/, (route) =>
+    route.fulfill({
+      contentType: 'application/javascript',
+      body: `
+        window.Stripe = function () {
+          const element = {
+            mount(node) { const box = document.createElement('div'); box.setAttribute('data-testid', 'fake-payment-element'); box.textContent = 'Card'; node.appendChild(box); },
+            unmount() {}, destroy() {}, on() {}, off() {}, once() {}, update() {}, collapse() {}, focus() {}, blur() {}, clear() {},
+          };
+          return {
+            elements() { return { create() { return element; }, getElement() { return null; }, update() {}, fetchUpdates() { return Promise.resolve({}); }, submit() { return Promise.resolve({}); }, on() {}, off() {} }; },
+            createToken() {}, createPaymentMethod() {}, confirmCardPayment() {},
+            confirmPayment() { return Promise.resolve({ paymentIntent: { status: 'succeeded' } }); },
+            _registerWrapper() {},
+          };
+        };
+      `,
+    }),
+  );
+}
+
 test.describe('the shop window', () => {
   test('shows prices to somebody who has never signed in', async ({ page }) => {
     await stubStorefront(page);
@@ -178,7 +228,13 @@ test.describe('choosing an offer', () => {
 
       return route.fulfill({
         status: 201,
-        json: { session: { id: '88888888-8888-4888-8888-888888888888', status: 'AWAITING_PAYMENT' } },
+        json: {
+          session: {
+            ...SESSION,
+            client_secret: 'stub_secret_1',
+            payment_provider: { name: 'stub', publishable_key: null, sandbox: true },
+          },
+        },
       });
     });
 
@@ -190,10 +246,56 @@ test.describe('choosing an offer', () => {
     await page.getByLabel('Company (optional)').fill('Acme Ltd');
     await page.getByRole('button', { name: 'Create account and continue' }).click();
 
+    // The pay step, where the secret was born (ADR-048). The stub has no card
+    // form, so it says so and the order is the way on.
+    await expect(page.getByTestId('payment-panel')).toBeVisible();
     // The offer they chose, bought on the session the sign-up issued — not a
     // second anonymous purchase flow, and not a second choice to make.
-    await expect(page).toHaveURL(/\/checkout\/88888888-8888-4888-8888-888888888888/);
     expect(boughtOfferId).toBe(OFFER.id);
+    await expect(page.getByTestId('payment-no-panel')).toBeVisible();
+    await expect(page.getByTestId('sandbox-band')).toBeVisible();
+    await page.getByTestId('continue-to-order').click();
+    await expect(page).toHaveURL(/\/checkout\/88888888-8888-4888-8888-888888888888/);
+  });
+
+  test('pays through the provider\'s form when it has one, then lands on the order', async ({ page }) => {
+    await stubStorefront(page);
+    await stubSignUp(page);
+    await stubStripeJs(page);
+
+    await page.route('**/api/v1/checkout/sessions', (route) =>
+      route.fulfill({
+        status: 201,
+        json: {
+          session: {
+            ...SESSION,
+            client_secret: 'pi_1_secret_x',
+            payment_provider: { name: 'stripe', publishable_key: 'pk_test_e2e', sandbox: true },
+          },
+        },
+      }),
+    );
+
+    await page.goto('/?product=atlas');
+    await page.getByRole('button', { name: 'Choose' }).click();
+    await page.getByLabel('Email').fill('ada@acme.test');
+    await page.getByLabel('Password').fill('a-long-enough-password');
+    await page.getByRole('button', { name: 'Create account and continue' }).click();
+
+    // Stripe's form, in the page, with the amount the server named — and the
+    // sandbox said out loud.
+    await expect(page.getByTestId('stripe-form')).toBeVisible();
+    await expect(page.getByTestId('sandbox-band')).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Pay/ })).toContainText('29');
+
+    // Enabled once Stripe.js has loaded — the fake one, from the route above.
+    await expect(page.getByRole('button', { name: /^Pay/ })).toBeEnabled();
+    await page.getByRole('button', { name: /^Pay/ }).click();
+
+    // Whatever the form said, the status page is where the answer is read.
+    await expect(page).toHaveURL(/\/checkout\/88888888-8888-4888-8888-888888888888/);
+    // The secret went to the provider and nowhere the page keeps.
+    expect(await page.evaluate(() => JSON.stringify(window.localStorage))).not.toContain('pi_1_secret');
   });
 
   test('says plainly when the address already has an account', async ({ page }) => {

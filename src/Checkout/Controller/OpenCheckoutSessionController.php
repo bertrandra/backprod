@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Checkout\Controller;
 
 use App\Checkout\Service\Checkout;
+use App\Payment\Controller\PaymentPresenter;
 use App\Shared\Http\JsonBody;
 use App\Shared\Http\RouteHandler;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -51,6 +52,8 @@ final class OpenCheckoutSessionController implements RouteHandler
         if ($session['client_secret'] !== null) {
             $body['client_secret'] = $session['client_secret'];
         }
+
+        $body['payment_provider'] = PaymentPresenter::provider($session['provider']);
 
         return new JsonResponse(['session' => $body], 201);
     }

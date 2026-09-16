@@ -39,20 +39,34 @@ while [ $# -gt 0 ]; do
         --out) OUT="$2"; shift 2 ;;
         --skip-gates) SKIP_GATES=1; shift ;;
         --slim-fonts) SLIM_FONTS=1; shift ;;
+        --payment-provider) PAYMENT_PROVIDER="$2"; shift 2 ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
 done
 
 DEFAULT_PRODUCT="${DEFAULT_PRODUCT:-}"
+PAYMENT_PROVIDER="${PAYMENT_PROVIDER:-}"
 
-# `connect-src 'self'`, always.
-#
-# U11 had to name an identity provider's origin here, because the browser fetched
-# its token from one — and the build had to refuse a *secret* key, validate a URL,
-# and normalise it to an origin. U12 issues tokens from PHP, so every request the
-# page makes is same-origin: the policy needs no third party, and the build needs
-# no keys, no arguments, and no way to get any of it wrong.
+# The page talks to this origin for everything that is this platform's, and to
+# the payment provider for the one thing that must not be (ADR-048): the card
+# goes from Stripe's iframe to Stripe. U11 once named an identity provider here
+# and U12 removed it; the mechanism stayed, and it carries exactly one more
+# origin family now, only when the bundle is built for that provider — a bundle
+# built for none keeps `'self'` alone. No key is involved: the publishable key
+# travels in the API (`payment_provider.publishable_key`), never in a bundle.
+SCRIPT_SRC="'self'"
+FRAME_SRC="'self'"
 CONNECT_SRC="'self'"
+
+case "$PAYMENT_PROVIDER" in
+    "") ;;
+    stripe)
+        SCRIPT_SRC="'self' https://js.stripe.com"
+        FRAME_SRC="'self' https://js.stripe.com https://hooks.stripe.com"
+        CONNECT_SRC="'self' https://api.stripe.com"
+        ;;
+    *) echo "Unknown payment provider: $PAYMENT_PROVIDER (stripe, or none)" >&2; exit 2 ;;
+esac
 
 VERSION="$(git -C "$ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)"
 STAGE="$(mktemp -d)"
@@ -184,7 +198,9 @@ cp "$ROOT/deploy/siteground/env.production.example" "$APP/.env.example"
 cp "$ROOT/deploy/siteground/docroot-index.php" "$DOCROOT/index.php"
 cp "$ROOT/deploy/siteground/setup.php" "$DOCROOT/setup.php"
 
-sed "s#@@CONNECT_SRC@@#${CONNECT_SRC}#" \
+sed -e "s#@@SCRIPT_SRC@@#${SCRIPT_SRC}#" \
+    -e "s#@@FRAME_SRC@@#${FRAME_SRC}#" \
+    -e "s#@@CONNECT_SRC@@#${CONNECT_SRC}#" \
     "$ROOT/deploy/siteground/htaccess.template" > "$DOCROOT/.htaccess"
 
 cp "$ROOT/docs/deploying-to-siteground.md" "$STAGE/DEPLOY.md"

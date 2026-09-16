@@ -9,8 +9,9 @@ See [`CLAUDE.md`](CLAUDE.md) for the rules that govern changes here, and
 decisions behind them. For who may do what —
 the two identities, the six roles and the 46 permissions between them —
 see [`docs/identities-and-permissions.md`](docs/identities-and-permissions.md).
-A proposal to take money through Stripe, starting in a sandbox, is in
-[`docs/stripe-payments.md`](docs/stripe-payments.md); nothing in it is built.
+Stripe is the payment provider, built from
+[`docs/stripe-payments.md`](docs/stripe-payments.md) and recorded in
+[ADR-048](docs/adr/ADR-048-stripe-is-the-first-real-provider-and-the-page-talks-to-it.md).
 
 ## Stack
 
@@ -428,8 +429,33 @@ is full-invoice only for now.
 
 Providers are a **registry**, not a dependency (non-negotiable #17): a platform
 migrating between PSPs runs both while payments started with the old one are
-still settling. A deployment with no configured signing secret has no provider
-and cannot take money.
+still settling. A deployment with no configured provider cannot take money.
+
+**Stripe** is the first real one
+([ADR-048](docs/adr/ADR-048-stripe-is-the-first-real-provider-and-the-page-talks-to-it.md)),
+behind the same port the stub proved. One PaymentIntent per attempt, keyed
+`pi_…` from the first row; the signature verified by hand over the raw bytes
+with a five-minute replay window; six Stripe events mapped — the intent's for
+what became of the money, the charge's for what kind of instrument paid — and
+everything else answered 200 and ignored. The card is entered in Stripe's own iframe (the
+Payment Element), offered exactly where a `client_secret` is born — the
+storefront after sign-up, an invoice after *Take a payment*, a failed payment
+after *Try again* — and never carried across a navigation. Stripe never
+invoices, subscribes or renews: those are this platform's.
+
+Configure all three or none — `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
+`STRIPE_PUBLISHABLE_KEY` — and build the bundle with
+`bin/build-dist.sh --payment-provider stripe` so the CSP admits Stripe's
+origins. A sandbox (`sk_test_`) moves no money and the console, the checkout
+and `bin/preflight.php` all say so. Locally:
+
+```bash
+stripe listen --forward-to 127.0.0.1:8080/api/v1/webhooks/payments/stripe
+```
+
+prints the `whsec_…` to put in `.env`; `4242 4242 4242 4242` succeeds,
+`4000 0025 0000 3155` needs 3-D Secure, `4000 0000 0000 9995` is declined,
+`4000 0000 0000 0259` is disputed after succeeding.
 
 ## Sales and e-invoicing
 

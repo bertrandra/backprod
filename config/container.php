@@ -80,6 +80,7 @@ use App\Notification\Service\Notifications;
 use App\Payment\Domain\PaymentRepository;
 use App\Payment\Domain\PaymentSettlement;
 use App\Payment\Infrastructure\PostgresPaymentRepository;
+use App\Payment\Infrastructure\Stripe\StripePaymentProvider;
 use App\Payment\Infrastructure\StubPaymentProvider;
 use App\Payment\Service\InvoiceSettlement;
 use App\Payment\Service\PaymentProviders;
@@ -155,6 +156,8 @@ use FastRoute\RouteCollector;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
+use Stripe\StripeClient;
+use Stripe\Util\ApiVersion as StripeApiVersion;
 
 use function DI\autowire;
 use function DI\create;
@@ -344,10 +347,39 @@ return static function (array $overrides = []): ContainerInterface {
         // deployment that has not been given a provider cannot take money —
         // rather than taking it through something whose signatures anyone
         // could forge. That is the same fail-closed shape as the JWKS above.
+        //
+        // Stripe first when it is configured, so it is the default a checkout
+        // authorizes with; the stub stays behind it when its own secret is set
+        // (the test suite, a demo). Stripe needs all three of its keys — a
+        // secret key with no webhook secret would be a provider that can start
+        // a payment and never learn what became of it, which is no provider.
         PaymentProviders::class => factory(static function () use ($env): PaymentProviders {
+            $providers = [];
+
+            $stripeKey = $env('STRIPE_SECRET_KEY');
+            $stripeWebhookSecret = $env('STRIPE_WEBHOOK_SECRET');
+
+            $stripePublishableKey = $env('STRIPE_PUBLISHABLE_KEY');
+
+            if ($stripeKey !== '' && $stripeWebhookSecret !== '' && $stripePublishableKey !== '') {
+                $providers[] = new StripePaymentProvider(
+                    // The API version is pinned in the SDK, so a dashboard
+                    // upgrade does not change the shape `parse()` receives.
+                    new StripeClient(['api_key' => $stripeKey, 'stripe_version' => StripeApiVersion::CURRENT]),
+                    $stripeWebhookSecret,
+                    $stripePublishableKey,
+                    StripePaymentProvider::isLiveKey($stripeKey),
+                    static fn (): int => time(),
+                );
+            }
+
             $secret = $env('STUB_PAYMENT_SIGNING_SECRET');
 
-            return new PaymentProviders($secret === '' ? [] : [new StubPaymentProvider($secret)]);
+            if ($secret !== '') {
+                $providers[] = new StubPaymentProvider($secret);
+            }
+
+            return new PaymentProviders($providers);
         }),
 
         // --- E-invoicing platforms (§25.1) -----------------------------------
