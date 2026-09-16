@@ -248,6 +248,11 @@ rm -f "$ZIP"
 
 if command -v zip >/dev/null 2>&1; then
     ( cd "$STAGE" && zip -qr "$ZIP" . )
+elif [ -x /c/Windows/System32/tar.exe ]; then
+    # Git Bash on Windows: no `zip`, and `python3` may be the Store's stub
+    # that opens a shop window instead of running. Windows ships bsdtar,
+    # which writes a zip when told the format.
+    ( cd "$STAGE" && /c/Windows/System32/tar.exe -a -c -f "$(cygpath -w "$ZIP")" . )
 else
     # No `zip` binary on a build machine is common enough to be worth handling,
     # and Python's is in the standard library.
