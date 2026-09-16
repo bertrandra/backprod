@@ -212,6 +212,70 @@ export function useAdminInvoices(status: string, limit = 25, offset = 0) {
 }
 
 /**
+ * One customer's subscriptions and invoices, for the console's tenant
+ * workspace — the same listings the Directory pages through, narrowed to a
+ * tenant and, when the product picker says so, to one of its products.
+ *
+ * Behind `admin.finance.read` like the Directory, and with no motive: these
+ * are the platform's own finance listings, which the Directory already opens
+ * without one. What the tenant's *members* are is a different question with a
+ * different door (`useStaffTenantMembers`).
+ */
+export function useAdminTenantSubscriptions(tenantId: string | null, productId: string | null, limit = 50) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.admin.tenantDirectory('subscriptions', tenantId ?? '', productId ?? '', limit, 0),
+    enabled: tenantId !== null,
+    queryFn: async () => {
+      const { data, error, response } = await client.GET('/api/v1/admin/subscriptions', {
+        params: {
+          query: {
+            limit,
+            offset: 0,
+            tenant_id: tenantId ?? '',
+            ...(productId === null ? {} : { product_id: productId }),
+          },
+        },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+  });
+}
+
+export function useAdminTenantInvoices(tenantId: string | null, productId: string | null, limit = 50) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.admin.tenantDirectory('invoices', tenantId ?? '', productId ?? '', limit, 0),
+    enabled: tenantId !== null,
+    queryFn: async () => {
+      const { data, error, response } = await client.GET('/api/v1/admin/invoices', {
+        params: {
+          query: {
+            limit,
+            offset: 0,
+            tenant_id: tenantId ?? '',
+            ...(productId === null ? {} : { product_id: productId }),
+          },
+        },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+  });
+}
+
+/**
  * The audit trail.
  *
  * `actor` carries both the id and whether it was erased, and the contract says

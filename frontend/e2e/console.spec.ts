@@ -117,12 +117,12 @@ async function consoleStubs(page: Page) {
 
   await page.route(/\/api\/v1\/admin\/users/, (route) =>
     route.fulfill({
-      json: { user: [PRESENT_USER, ERASED_USER], total: 2, limit: 25, offset: 0 },
+      json: { users: [PRESENT_USER, ERASED_USER], total: 2, limit: 25, offset: 0 },
     }),
   );
 
   await page.route(/\/api\/v1\/admin\/tenants/, (route) =>
-    route.fulfill({ json: { tenant: [], total: 0, limit: 25, offset: 0 } }),
+    route.fulfill({ json: { tenants: [], total: 0, limit: 25, offset: 0 } }),
   );
 
   await page.route(/\/api\/v1\/admin\/erasures$/, (route) => {

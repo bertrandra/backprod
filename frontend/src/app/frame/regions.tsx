@@ -1,8 +1,9 @@
-import { Link } from '@tanstack/react-router';
+import { Link, useLocation } from '@tanstack/react-router';
 
 import { can } from '@/app/access/access';
 import { AccountMenu } from '@/app/frame/AccountMenu';
 import { ConnectionState } from '@/app/frame/ConnectionState';
+import { ConsoleContext, tenantIdIn } from '@/app/frame/ConsoleContext';
 import { useStaffIdentity } from '@/queries/staff';
 import { ProductSwitcher } from '@/app/frame/ProductSwitcher';
 import { useUnreadCount } from '@/queries/notifications';
@@ -32,16 +33,28 @@ export function ContextBar({
   onOpenConsoleMenu?: () => void;
 }) {
   const { data } = useSession();
+  const { pathname } = useLocation();
+
+  // Inside a customer, the platform-wide switcher gives way to the picker
+  // limited to what that customer holds; two product pickers in one bar
+  // would leave the reader guessing which one the screen obeys.
+  const insideTenant = platform && tenantIdIn(pathname) !== null;
 
   return (
     <>
       {/* U1 showed the product id here and deferred the switcher to U5, which is
           where `listProducts` lives. It is a real switcher now. */}
-      <ProductSwitcher platform={platform} />
+      {!insideTenant && <ProductSwitcher platform={platform} />}
 
-      <span className="truncate text-sm text-muted">
-        {data?.tenantId.slice(0, 8) ?? 'No organisation'}
-      </span>
+      {platform ? (
+        // Which level this screen answers to, and the pickers that narrow it.
+        // "No organisation" was true on the console and said nothing useful.
+        <ConsoleContext />
+      ) : (
+        <span className="truncate text-sm text-muted">
+          {data?.tenantId.slice(0, 8) ?? 'No organisation'}
+        </span>
+      )}
 
       {/* Whether what is on screen can still be trusted (U9). Renders nothing
           when there is nothing to say. */}

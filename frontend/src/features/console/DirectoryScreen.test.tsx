@@ -64,10 +64,10 @@ const page = (key: string, rows: unknown[]) => ({
 
 function clientFor(extra: Stubs = {}) {
   return stubClient({
-    'GET /api/v1/admin/tenants': page('tenant', [TENANT]),
-    'GET /api/v1/admin/users': page('user', [PRESENT, ERASED]),
-    'GET /api/v1/admin/invoices': page('invoice', [INVOICE]),
-    'GET /api/v1/admin/subscriptions': page('subscription', []),
+    'GET /api/v1/admin/tenants': page('tenants', [TENANT]),
+    'GET /api/v1/admin/users': page('users', [PRESENT, ERASED]),
+    'GET /api/v1/admin/invoices': page('invoices', [INVOICE]),
+    'GET /api/v1/admin/subscriptions': page('subscriptions', []),
     ...extra,
   });
 }
@@ -116,7 +116,7 @@ describe('an erased person', () => {
     renderAtRoute(
       <DirectoryScreen />,
       clientFor({
-        'GET /api/v1/admin/users': page('user', [
+        'GET /api/v1/admin/users': page('users', [
           { ...PRESENT, display_name: null, email: 'nameless@acme.test' },
         ]),
       }),
@@ -133,7 +133,7 @@ describe('an erased person', () => {
   it('is explained when a search finds nothing', async () => {
     renderAtRoute(
       <DirectoryScreen />,
-      clientFor({ 'GET /api/v1/admin/users': page('user', []) }),
+      clientFor({ 'GET /api/v1/admin/users': page('users', []) }),
       at('users'),
     );
 
@@ -164,8 +164,8 @@ describe('the tab', () => {
 
   it('clears the filter, because it means something different on each listing', async () => {
     const { client, requests } = recordingClient({
-      'GET /api/v1/admin/tenants': page('tenant', [TENANT]),
-      'GET /api/v1/admin/users': page('user', [PRESENT]),
+      'GET /api/v1/admin/tenants': page('tenants', [TENANT]),
+      'GET /api/v1/admin/users': page('users', [PRESENT]),
     });
 
     renderAtRoute(<DirectoryScreen />, client, at());
@@ -209,7 +209,7 @@ describe('the counts', () => {
     renderAtRoute(
       <DirectoryScreen />,
       clientFor({
-        'GET /api/v1/admin/tenants': { data: { tenant: [TENANT], total: 412, limit: 25, offset: 0 } },
+        'GET /api/v1/admin/tenants': { data: { tenants: [TENANT], total: 412, limit: 25, offset: 0 } },
       }),
       at(),
     );

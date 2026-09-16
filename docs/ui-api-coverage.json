@@ -302,6 +302,16 @@
       ],
       "$comment": "A tenant as support sees it, and the two things the platform may change about them: which products they hold (ADR-047), and whether the catalogue is lent to them. Both sit here rather than on a screen of their own because the decision is made while looking at the customer it concerns."
     },
+    "console.support.tenant": {
+      "authority": "platform",
+      "$comment": "One customer, read from the console with the tenant and product pickers in the bar: who belongs to it (members), what it subscribed to and what it was invoiced, per product. Read-only by construction — a platform role never edits a membership (#22) — and every read carries the motive R14 asks for and lands in the access log.",
+      "routes": [
+        "/console/tenants/$tenantId"
+      ],
+      "operations": [
+        "listTenantMembersForStaff"
+      ]
+    },
     "identity.sign_in": {
       "authority": "tenant",
       "$comment": "The screen U11 found missing and U12 made this platform's own. It has a route so it is addressable and so this area can declare one, but nothing links to it: SignInGate renders it *instead of* the shell for whatever URL was asked for, which is how a deep link survives signing in. It also answers the confirmation link: verifying an address is something somebody does from a device that has never signed in, so it belongs on the one screen that works without a session.",

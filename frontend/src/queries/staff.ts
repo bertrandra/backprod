@@ -240,6 +240,49 @@ export function useStaffTenant(tenantId: string | null, motive: AccessMotive | n
   });
 }
 
+export type StaffTenantMember = Schemas['StaffTenantMember'];
+
+/**
+ * Who belongs to a tenant, read from the console — across the products it
+ * holds, or on one of them.
+ *
+ * Same discipline as `useStaffTenant`: the motive is part of the key and the
+ * read is disabled until there is one. Read-only by construction: nothing
+ * here writes, because a platform role never edits a membership (#22).
+ */
+export function useStaffTenantMembers(
+  tenantId: string | null,
+  productCode: string | null,
+  motive: AccessMotive | null,
+) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.tenantMembers(
+      tenantId ?? '',
+      productCode ?? '',
+      motive?.purpose ?? '',
+      motive?.reference ?? '',
+    ),
+    enabled: tenantId !== null && motive !== null,
+    queryFn: async (): Promise<StaffTenantMember[]> => {
+      const { data, error, response } = await client.GET('/api/v1/staff/tenants/{tenantId}/members', {
+        params: {
+          path: { tenantId: tenantId ?? '' },
+          header: motiveHeaders(required(motive)),
+          query: productCode === null ? {} : { product: productCode },
+        },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.members;
+    },
+  });
+}
+
 /**
  * What staff looked at.
  *
