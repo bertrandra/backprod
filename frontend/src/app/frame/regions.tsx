@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
 
 import { can } from '@/app/access/access';
+import { AccountMenu } from '@/app/frame/AccountMenu';
 import { ConnectionState } from '@/app/frame/ConnectionState';
 import { useStaffIdentity } from '@/queries/staff';
 import { ProductSwitcher } from '@/app/frame/ProductSwitcher';
@@ -93,13 +94,9 @@ export function ContextBar({
         )
       )}
 
-      <span
-        data-testid="account-menu"
-        className="grid size-7 shrink-0 place-items-center rounded-full bg-well text-xs font-medium"
-        title={data?.displayName ?? data?.email ?? 'Account'}
-      >
-        {(data?.displayName ?? data?.email ?? '?').slice(0, 1).toUpperCase()}
-      </span>
+      {/* Who is signed in, and the way out — a real menu since staff on a
+          desktop had no sign-out anywhere else. */}
+      <AccountMenu />
     </>
   );
 }

@@ -260,4 +260,24 @@ test.describe('signing out', () => {
     // it valid for anybody holding a copy.
     expect(asked.some((url) => url.endsWith('/api/v1/auth/sign-out'))).toBe(true);
   });
+
+  test('is one click away on every screen, from the account circle', async ({ page }) => {
+    await stubApi(page);
+    const asked = await stubAuth(page, { refresh: { status: 200, json: SESSION } });
+
+    await page.goto('/?product=atlas');
+    const circle = page.getByTestId('account-menu');
+    await circle.waitFor();
+
+    // The initial, and the name on hover — a screen reader hears the same.
+    await expect(circle).toHaveText('A');
+    await expect(circle).toHaveAttribute('title', 'Ada');
+
+    await circle.click();
+    await expect(page.getByRole('menu', { name: 'Account' })).toBeVisible();
+    await page.getByRole('menuitem', { name: 'Sign out' }).click();
+
+    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+    expect(asked.some((url) => url.endsWith('/api/v1/auth/sign-out'))).toBe(true);
+  });
 });

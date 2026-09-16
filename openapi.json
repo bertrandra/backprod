@@ -12096,6 +12096,8 @@
                       "type": "object",
                       "required": [
                         "user_id",
+                        "email",
+                        "display_name",
                         "roles",
                         "permissions"
                       ],
@@ -12103,6 +12105,21 @@
                         "user_id": {
                           "type": "string",
                           "format": "uuid"
+                        },
+                        "email": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "email",
+                          "description": "Null once the person has been erased (§26); the identity outlives the details."
+                        },
+                        "display_name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "What the shell shows in the account menu."
                         },
                         "roles": {
                           "type": "array",

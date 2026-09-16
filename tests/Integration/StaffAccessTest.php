@@ -169,6 +169,11 @@ final class StaffAccessTest extends DatabaseApiTestCase
         $body = $this->decode($response)['staff'] ?? null;
         self::assertIsArray($body);
         self::assertSame($this->staffUser, $body['user_id'] ?? null);
+        // Who they are, for the account menu — staff have no `/me` to read it from.
+        // The address the identity provider vouched for, which sign-in writes
+        // onto the user row — so the fake's, here, not the fixture's.
+        self::assertSame('sub-sam@example.test', $body['email'] ?? null);
+        self::assertArrayHasKey('display_name', $body);
         self::assertSame([PlatformRole::SUPPORT_ADMIN], $body['roles'] ?? null);
 
         $permissions = $body['permissions'] ?? null;
