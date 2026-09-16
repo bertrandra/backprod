@@ -3870,6 +3870,115 @@
             "description": "What was counted or found missing — `count`, `missing`, `code`, `active`, `country` depending on the step. An object even when empty, so a client never has to tell `{}` from `null`."
           }
         }
+      },
+      "DemoWorld": {
+        "type": "object",
+        "description": "What the demonstration world contains once it has been seeded — the answer the console shows so somebody can sign back in, since resetting deletes every account including the caller's. The password is not a secret: it is in this platform's source.",
+        "required": [
+          "products",
+          "tenants",
+          "people",
+          "password",
+          "invoices"
+        ],
+        "properties": {
+          "products": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "name"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "tenants": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "slug",
+                "name",
+                "holds"
+              ],
+              "properties": {
+                "slug": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "holds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The product codes this organisation holds (ADR-047)."
+                }
+              }
+            }
+          },
+          "people": {
+            "type": "array",
+            "description": "One person per role the platform defines.",
+            "items": {
+              "type": "object",
+              "required": [
+                "email",
+                "name",
+                "scope",
+                "role",
+                "tenants"
+              ],
+              "properties": {
+                "email": {
+                  "type": "string",
+                  "format": "email"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "scope": {
+                  "type": "string",
+                  "enum": [
+                    "tenant",
+                    "platform"
+                  ]
+                },
+                "role": {
+                  "type": "string",
+                  "description": "A tenant role code or a platform role code, by scope."
+                },
+                "tenants": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Slugs of the organisations a tenant-role holder is a member of; empty for platform staff."
+                }
+              }
+            }
+          },
+          "password": {
+            "type": "string",
+            "description": "The one password every seeded person signs in with."
+          },
+          "invoices": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The legal numbers of the invoices the seeded subscriptions raised."
+          }
+        }
       }
     },
     "responses": {
@@ -15188,6 +15297,58 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/demo/reset": {
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "resetDemoWorld",
+        "summary": "Empty every business table and seed the demonstration world afresh",
+        "description": "The widest destructive act on this platform. Behind `staff.demo.reset`, which PLATFORM_ADMIN alone holds; refused with `NOT_A_DEMO_DEPLOYMENT` while a product that is not the demonstration's exists, whatever the caller says — those are somebody's real products with legal documents under them. Reference data (permissions, roles, VAT rates) is untouched. Everybody is signed out by it, the caller included: their token names a `users` row that no longer exists. The answer says who to sign in as. No body.",
+        "responses": {
+          "200": {
+            "description": "The world, rebuilt and verified.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "world"
+                  ],
+                  "properties": {
+                    "world": {
+                      "$ref": "#/components/schemas/DemoWorld"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`NOT_A_DEMO_DEPLOYMENT` — the platform hosts products that are not the demonstration's; `details.products` names them.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"

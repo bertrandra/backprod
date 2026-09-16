@@ -48,6 +48,8 @@ use App\Commerce\Infrastructure\PostgresEntitlementRepository;
 use App\Commerce\Infrastructure\PostgresOfferAuthoringRepository;
 use App\Commerce\Infrastructure\PostgresStorefrontListing;
 use App\Commerce\Infrastructure\PostgresSubscriptionRepository;
+use App\Demo\Domain\DemoFixtures;
+use App\Demo\Infrastructure\PostgresDemoFixtures;
 use App\EInvoice\Domain\TransmissionEffect;
 use App\EInvoice\Domain\TransmissionRepository;
 use App\EInvoice\Infrastructure\PostgresTransmissionRepository;
@@ -509,6 +511,10 @@ return static function (array $overrides = []): ContainerInterface {
         StaffAccessLog::class => autowire(PostgresStaffAccessLog::class),
         TenantDirectory::class => autowire(PostgresTenantDirectory::class),
         TenantProducts::class => autowire(PostgresTenantProducts::class),
+        // The demonstration world's rows. One seeder behind the command line,
+        // the installer and the console's reset, so there is one definition
+        // of what a complete demo is.
+        DemoFixtures::class => autowire(PostgresDemoFixtures::class),
         ProductDirectory::class => autowire(PostgresProductDirectory::class),
         // A product's configuration, writable. Separate from ProductRegistry,
         // whose other methods resolve through membership — which a platform

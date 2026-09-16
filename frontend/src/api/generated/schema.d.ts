@@ -2719,6 +2719,26 @@ export interface paths {
         patch: operations["updateProduct"];
         trace?: never;
     };
+    "/api/v1/staff/demo/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Empty every business table and seed the demonstration world afresh
+         * @description The widest destructive act on this platform. Behind `staff.demo.reset`, which PLATFORM_ADMIN alone holds; refused with `NOT_A_DEMO_DEPLOYMENT` while a product that is not the demonstration's exists, whatever the caller says — those are somebody's real products with legal documents under them. Reference data (permissions, roles, VAT rates) is untouched. Everybody is signed out by it, the caller included: their token names a `users` row that no longer exists. The answer says who to sign in as. No body.
+         */
+        post: operations["resetDemoWorld"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/catalogue": {
         parameters: {
             query?: never;
@@ -4181,6 +4201,35 @@ export interface components {
             detail: {
                 [key: string]: unknown;
             };
+        };
+        /** @description What the demonstration world contains once it has been seeded — the answer the console shows so somebody can sign back in, since resetting deletes every account including the caller's. The password is not a secret: it is in this platform's source. */
+        DemoWorld: {
+            products: {
+                code: string;
+                name: string;
+            }[];
+            tenants: {
+                slug: string;
+                name: string;
+                /** @description The product codes this organisation holds (ADR-047). */
+                holds: string[];
+            }[];
+            /** @description One person per role the platform defines. */
+            people: {
+                /** Format: email */
+                email: string;
+                name: string;
+                /** @enum {string} */
+                scope: "tenant" | "platform";
+                /** @description A tenant role code or a platform role code, by scope. */
+                role: string;
+                /** @description Slugs of the organisations a tenant-role holder is a member of; empty for platform staff. */
+                tenants: string[];
+            }[];
+            /** @description The one password every seeded person signs in with. */
+            password: string;
+            /** @description The legal numbers of the invoices the seeded subscriptions raised. */
+            invoices: string[];
         };
     };
     responses: {
@@ -10635,6 +10684,41 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    resetDemoWorld: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The world, rebuilt and verified. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        world: components["schemas"]["DemoWorld"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `NOT_A_DEMO_DEPLOYMENT` — the platform hosts products that are not the demonstration's; `details.products` names them. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

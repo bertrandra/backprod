@@ -137,6 +137,7 @@ use App\Staff\Controller\PostSupportMessageController;
 use App\Staff\Controller\PublishStaffOfferVersionController;
 use App\Staff\Controller\RenameFeatureController;
 use App\Staff\Controller\RenameStaffOfferController;
+use App\Staff\Controller\ResetDemoWorldController;
 use App\Staff\Controller\RevokeStaffRoleController;
 use App\Staff\Controller\SetBillingIdentityController;
 use App\Staff\Controller\SetOfferAuthoringController;
@@ -518,6 +519,10 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/staff/products', ListPlatformProductsController::class);
     $routes->addRoute('POST', '/api/v1/staff/products', CreateProductController::class);
     $routes->addRoute('PATCH', '/api/v1/staff/products/{productId}', UpdateProductController::class);
+
+    // The demonstration world, rebuilt from the console. Behind a permission
+    // of its own, and refused while a product that is not the demo's exists.
+    $routes->addRoute('POST', '/api/v1/staff/demo/reset', ResetDemoWorldController::class);
 
     // The platform's own catalogue, authored by the platform. ADR-040 made
     // `catalog.manage` a delegation to a tenant, which left the platform able

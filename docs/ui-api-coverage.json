@@ -212,14 +212,15 @@
     },
     "console.admin.products": {
       "authority": "platform",
-      "$comment": "The top of the model. A product is what tenants belong to and what offers are priced for, and until this screen existed only the installer could create one and nothing at all could list them — listProducts resolves through membership, which a platform role never grants. There is no delete: a product carries invoices, and an invoice is a legal document.",
+      "$comment": "The top of the model. A product is what tenants belong to and what offers are priced for, and until this screen existed only the installer could create one and nothing at all could list them — listProducts resolves through membership, which a platform role never grants. There is no delete: a product carries invoices, and an invoice is a legal document. The demonstration world is reset from here too, behind staff.demo.reset: the products are what it is made of, and it is refused while one that is not the demo's exists.",
       "routes": [
         "/console/products"
       ],
       "operations": [
         "listPlatformProducts",
         "createProduct",
-        "updateProduct"
+        "updateProduct",
+        "resetDemoWorld"
       ]
     },
     "console.admin.queue": {

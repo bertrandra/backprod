@@ -225,9 +225,10 @@ DEPLOY.md. Nothing in here contains a secret: the server's own configuration is
 .env, which you create on the host from .env.example.
 
 Visiting /setup.php does the rest from a browser — writes .env, migrates, and
-creates the first product, tenant and admin account — then locks itself: a
-completion marker refuses to do any of that again. Delete the file once you
-have confirmed you can sign in; there is no password reset yet (ADR-038).
+seeds the demonstration world (docs/demo-world.html: four products, one
+person per role) — then locks itself: a completion marker refuses to do any
+of that again. Change the platform administrator's password on its success
+page, confirm you can sign in, then delete the file (ADR-038, ADR-039).
 INFO
 
 # Checksums, so a half-finished FTP transfer is a failed check rather than a

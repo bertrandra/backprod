@@ -17,6 +17,13 @@ use Psr\Http\Message\ServerRequestInterface;
  * the boundary, and telling somebody what they themselves hold crosses
  * nothing. It exists so "why was I refused?" is answerable without a support
  * round trip.
+ *
+ * Wrapped in `staff`, as the contract has always said. The presenter used to
+ * answer the identity at the top level while `openapi.json`, the generated
+ * client and every stub described it wrapped — and the console's own gates
+ * read `data.staff`, so against a real deployment `useStaffIdentity` failed
+ * on every screen that asked. The drift CLAUDE.md warns of, found by a
+ * button that never appeared.
  */
 final class StaffIdentityController implements RouteHandler
 {
@@ -24,6 +31,6 @@ final class StaffIdentityController implements RouteHandler
     {
         $context = StaffRoute::permitted($request, StaffPermission::SELF_READ);
 
-        return new JsonResponse(StaffPresenter::identity($context->identity), 200);
+        return new JsonResponse(['staff' => StaffPresenter::identity($context->identity)], 200);
     }
 }

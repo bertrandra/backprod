@@ -55,4 +55,13 @@ final class StaffPermission
      * to ask the other question.
      */
     public const PRODUCTS_MANAGE = 'staff.products.manage';
+
+    /**
+     * Emptying every business table and seeding the demonstration world
+     * afresh — PLATFORM_ADMIN alone, and a permission of its own rather
+     * than a side of `staff.products.manage`: creating a product and
+     * destroying every one are not the same trust. The seeder refuses it
+     * anyway while a product that is not the demonstration's exists.
+     */
+    public const DEMO_RESET = 'staff.demo.reset';
 }

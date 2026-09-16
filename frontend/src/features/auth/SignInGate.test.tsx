@@ -1,6 +1,9 @@
-import { screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, screen, waitFor } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ApiProvider } from '@/app/providers/ApiProvider';
 import { useSessionStore } from '@/state/session';
 import { recordingClient, renderWith, stubClient } from '@/test-utils';
 
@@ -77,6 +80,35 @@ describe('a page load with a session the server still honours', () => {
     // exactly what `HttpOnly` exists to prevent — so accepting one would quietly
     // reopen the hole the cookie closes.
     expect(requests[0]?.body).toBeUndefined();
+  });
+
+  it('asks once even when React mounts the page twice', async () => {
+    // StrictMode mounts, unmounts and mounts again in development, which is
+    // what `src/main.tsx` ships. Two refresh requests would carry the same
+    // cookie; the server rotates it on the first and treats the second as a
+    // replay — revoking every session (ADR-038). The bug was invisible to
+    // every test that rendered once, and to the production build, which
+    // mounts once. So this one renders the way development does.
+    const { client, requests } = recordingClient({ [REFRESH]: { data: SESSION } });
+    useSessionStore.getState().chooseProduct('atlas');
+
+    render(
+      <StrictMode>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <ApiProvider client={client}>
+            <SignInGate>
+              <p>The application</p>
+            </SignInGate>
+          </ApiProvider>
+        </QueryClientProvider>
+      </StrictMode>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('The application')).toBeDefined();
+    });
+    expect(requests.filter((request) => request.path === '/api/v1/auth/refresh')).toHaveLength(1);
+    expect(useSessionStore.getState().token).toBe('access');
   });
 });
 
