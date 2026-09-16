@@ -214,7 +214,7 @@ which is what `payments.provider` records and what the webhook path carries:
 | `currency` | lowercase ISO code | |
 | `automatic_payment_methods[enabled]` | `true` | Card, wallets, SEPA and bank redirects as the Stripe dashboard enables them — §24's list — with no branch here per method. |
 | `metadata[reference]` | `$reference` | `<invoice number>/<attempt>`; what a human lines the two systems up by. Also `description`, so it shows on the Stripe dashboard row. |
-| `Idempotency-Key` header | `$reference` | ADR-034 made the reference name the *attempt*, so a retried `authorize()` for the same attempt returns the same intent rather than a second one. |
+| `Idempotency-Key` header | HMAC(`$reference`, webhook secret) | ADR-034 made the reference name the *attempt*, so a retried `authorize()` for the same attempt returns the same intent rather than a second one. Keyed with the installation's webhook secret because invoice numbers restart at `000001` in every installation and after every reset: two deployments on one Stripe account would otherwise hand each other yesterday's intents (§10). |
 
 Returns `new ProviderPayment(id: 'pi_…', status: PENDING, clientSecret: $intent->client_secret, method: null)`.
 The method is unknown until the customer chooses one; it is filled from the

@@ -16,6 +16,8 @@ use App\Sales\Domain\QuoteStatus;
 use App\Sales\Domain\SalesRepository;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Exceptions\UnprocessableEntityException;
+use App\Tax\Domain\CustomerTaxProfile;
 use App\Tax\Service\Taxation;
 use DateTimeImmutable;
 
@@ -28,9 +30,22 @@ use DateTimeImmutable;
  * run. And what a quote priced is copied forward into the order and then the
  * invoice rather than re-derived, so a customer is billed what they were
  * quoted even if the offer moved in between.
+ *
+ * **A quote is a business instrument.** It is raised for a customer whose
+ * tax profile says B2B — a company, with or without a verified VAT number —
+ * and refused for a private person, who buys at the price on the page.
+ * Decided by the operator on 2026-09-16 when a person who had just signed
+ * up for themselves found a Quote button beside Buy. The fact it turns on
+ * is the tax profile's `customer_kind`, the one place this platform records
+ * what kind of customer a tenant is (sign-up deliberately does not): a
+ * tenant becomes quotable by declaring itself a business there. The
+ * catalogue screen hides the button on the same fact, as courtesy; this is
+ * the refusal.
  */
 final class Sales
 {
+    public const QUOTE_REQUIRES_BUSINESS_CUSTOMER = 'QUOTE_REQUIRES_BUSINESS_CUSTOMER';
+
     /**
      * How long a quote stands by default. Configurable per request; this is
      * the number used when nobody chooses, and 30 days is the ordinary
@@ -78,6 +93,10 @@ final class Sales
      * The customer is snapshotted now, as on an invoice: a quote is a
      * document that was sent, and who it was addressed to is part of what
      * was sent rather than a live lookup.
+     *
+     * @throws UnprocessableEntityException QUOTE_REQUIRES_BUSINESS_CUSTOMER
+     *                                      when the tenant's tax profile does
+     *                                      not say B2B
      */
     public function quoteFor(
         string $tenantId,
@@ -86,6 +105,13 @@ final class Sales
         int $validityDays,
         ?string $actorUserId,
     ): Quote {
+        if ($this->taxation->profileFor($tenantId)->customerKind !== CustomerTaxProfile::B2B) {
+            throw new UnprocessableEntityException(
+                self::QUOTE_REQUIRES_BUSINESS_CUSTOMER,
+                'Quotes are raised for business customers. Declare the organisation as a business in its tax profile, or buy at the listed price.',
+            );
+        }
+
         $offer = SubscribedOffer::from($this->catalogue->offerOnSale($productId, $offerId));
         $profile = $this->profiles->find($tenantId);
 

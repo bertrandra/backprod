@@ -1,9 +1,20 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import type { ReactNode } from 'react';
+import { describe, expect, it, vi } from 'vitest';
 
 import { renderAtRoute, SESSION, stubClient, type Stub } from '@/test-utils';
 
 import { CatalogueScreen } from './CatalogueScreen';
+
+// Stripe's SDK, replaced: what is under test is that the form is offered on
+// this screen, not what Stripe does inside it (that is PaymentElementPanel's).
+vi.mock('@stripe/stripe-js', () => ({ loadStripe: vi.fn(() => Promise.resolve({ confirmPayment: vi.fn() })) }));
+vi.mock('@stripe/react-stripe-js', () => ({
+  Elements: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  PaymentElement: () => <div data-testid="stripe-payment-element" />,
+  useStripe: () => ({ confirmPayment: vi.fn() }),
+  useElements: () => ({}),
+}));
 
 /**
  * The read that must never branch on a product or a plan name (§6, §13,
@@ -17,6 +28,31 @@ import { CatalogueScreen } from './CatalogueScreen';
 const BUYER = {
   ...SESSION,
   permissions: [...SESSION.permissions, 'catalog.read', 'billing.manage', 'sales.manage'],
+};
+
+// A business, as the tax profile records it: the one fact a quote turns on.
+const BUSINESS = {
+  tenant_id: 't-1',
+  customer_kind: 'B2B',
+  country_code: 'FR',
+  taxable_person: true,
+  location_evidence: {},
+  vat_number: 'FR12345678901',
+  vat_number_status: 'VERIFIED',
+  vat_number_verified_at: '2026-08-01T09:00:00Z',
+  vat_number_country: 'FR',
+  reverse_charge_available: false,
+};
+
+// A private person, which is what signing up without a company leaves.
+const PERSON = {
+  ...BUSINESS,
+  customer_kind: 'B2C',
+  taxable_person: false,
+  vat_number: null,
+  vat_number_status: null,
+  vat_number_verified_at: null,
+  vat_number_country: null,
 };
 
 const ZEBRA = { id: 'p-zebra', code: 'ZEBRA', name: 'Zebra', rank: 10 };
@@ -48,6 +84,7 @@ function clientFor(
 ) {
   return stubClient({
     'GET /api/v1/me': { data: session },
+    'GET /api/v1/tax/profile': { data: { profile: BUSINESS } },
     'GET /api/v1/offers': { data: { offers } },
     'GET /api/v1/plans': { data: { plans: [ALPHA, ZEBRA] } },
     'GET /api/v1/products/{productId}/catalog': {
@@ -100,11 +137,21 @@ describe('an offer with no sellable version', () => {
 });
 
 describe('what the catalogue offers to do', () => {
-  it('offers a quote and a buy to someone who may do both', async () => {
+  it('offers a quote and a buy to a business whose administrator may do both', async () => {
     render(clientFor([offer('o-1', ZEBRA)]));
 
     await waitFor(() => expect(screen.getByRole('button', { name: /^buy$/i })).toBeTruthy());
-    expect(screen.getByRole('button', { name: /^quote$/i })).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole('button', { name: /^quote$/i })).toBeTruthy());
+  });
+
+  it('offers a private person the buy and not the quote', async () => {
+    // Same permissions, different customer: the server refuses a quote for a
+    // tenant whose tax profile does not say B2B, so the button is not there.
+    // Not a gate on a role or a plan — on the customer's own declared kind.
+    render(clientFor([offer('o-1', ZEBRA)], { 'GET /api/v1/tax/profile': { data: { profile: PERSON } } }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /^buy$/i })).toBeTruthy());
+    expect(screen.queryByRole('button', { name: /^quote$/i })).toBeNull();
   });
 
   it('offers neither to someone who may only read', async () => {
@@ -121,7 +168,7 @@ describe('what the catalogue offers to do', () => {
     expect(document.querySelector('[data-minor-units="2900"]')).not.toBeNull();
   });
 
-  it('goes to the checkout it just opened', async () => {
+  it('offers the card form where the secret was born, and the order is one click away', async () => {
     const { location } = render(
       clientFor([offer('o-1', ZEBRA)], {
         'POST /api/v1/checkout/sessions': {
@@ -134,7 +181,8 @@ describe('what the catalogue offers to do', () => {
               subscription_id: null,
               payment_id: null,
               payment_status: null,
-              client_secret: 'secret-that-is-never-stored',
+              client_secret: 'pi_1_secret_never_stored',
+              payment_provider: { name: 'stripe', publishable_key: 'pk_test_1', sandbox: true },
               net: { minor_units: 2900, currency: 'EUR' },
               vat: { minor_units: 580, currency: 'EUR' },
               gross: { minor_units: 3480, currency: 'EUR' },
@@ -148,8 +196,49 @@ describe('what the catalogue offers to do', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /^buy$/i })).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: /^buy$/i }));
 
-    // The session id is the order id, so the URL names the order.
+    // Not a navigation: the secret is returned once (ADR-034) and the order
+    // page cannot hold it, so leaving now would leave an order nobody can pay.
+    await waitFor(() => expect(screen.getByTestId('catalogue-pay')).toBeTruthy());
+    expect(location()).not.toContain('/checkout/');
+    await waitFor(() => expect(screen.getByTestId('stripe-payment-element')).toBeTruthy());
+    // The server's amount on the button, never re-derived here.
+    expect(screen.getByRole('button', { name: /Pay/ }).querySelector('[data-minor-units="3480"]')).not.toBeNull();
+
+    // The session id is the order id, so the link names the order.
+    fireEvent.click(screen.getByTestId('continue-to-order'));
     await waitFor(() => expect(location()).toContain('/checkout/order-1'));
+  });
+
+  it('still leads to the order when there is nothing to pay', async () => {
+    render(
+      clientFor([offer('o-1', ZEBRA)], {
+        'POST /api/v1/checkout/sessions': {
+          data: {
+            session: {
+              id: 'order-2',
+              order_id: 'order-2',
+              status: 'COMPLETED',
+              invoice_id: null,
+              subscription_id: 's-1',
+              payment_id: null,
+              payment_status: null,
+              client_secret: null,
+              payment_provider: null,
+              net: { minor_units: 0, currency: 'EUR' },
+              vat: { minor_units: 0, currency: 'EUR' },
+              gross: { minor_units: 0, currency: 'EUR' },
+            },
+          },
+          status: 201,
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /^buy$/i })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /^buy$/i }));
+
+    await waitFor(() => expect(screen.getByTestId('continue-to-order')).toBeTruthy());
+    expect(screen.queryByTestId('payment-panel')).toBeNull();
   });
 
   it('goes to the quote it just raised', async () => {

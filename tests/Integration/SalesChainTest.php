@@ -81,15 +81,35 @@ final class SalesChainTest extends DatabaseApiTestCase
                         'billing.read', 'billing.manage',
                         'payments.read', 'payments.manage',
                         'subscription.read', 'entitlements.read',
+                        'tax.read', 'tax.manage',
                     ],
                 ),
             ]),
         ]);
 
         $this->saveProfile();
+        // Acme is a business: a quote is raised for a B2B customer and refused
+        // for a private person (the test below), and everything in this chain
+        // starts from a quote.
+        $this->declareBusiness();
     }
 
     // --- The chain -----------------------------------------------------------
+
+    public function testAPrivatePersonIsNotQuotedButBuysAtTheListedPrice(): void
+    {
+        $this->request('PUT', '/api/v1/tax/profile', $this->headers(), $this->json(['customer_kind' => 'B2C', 'country_code' => 'FR']));
+
+        $refused = $this->quote();
+
+        self::assertSame(422, $refused->getStatusCode());
+        self::assertSame('QUOTE_REQUIRES_BUSINESS_CUSTOMER', $this->errorOf($refused)['code'] ?? null);
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM quotes'));
+
+        // Buying is not a quote: the same person may still order at the price.
+        $order = $this->request('POST', '/api/v1/sales/orders', $this->headers(), $this->json(['offer_id' => $this->offer]));
+        self::assertSame(201, $order->getStatusCode());
+    }
 
     public function testAQuoteIsPricedFromTheOfferAndHeldUntilADate(): void
     {
@@ -903,6 +923,18 @@ final class SalesChainTest extends DatabaseApiTestCase
             [StubEInvoiceProvider::SIGNATURE_HEADER => (new StubEInvoiceProvider(self::SECRET))->sign($body)],
             $body,
         );
+    }
+
+    private function declareBusiness(): void
+    {
+        $response = $this->request(
+            'PUT',
+            '/api/v1/tax/profile',
+            $this->headers(),
+            $this->json(['customer_kind' => 'B2B', 'country_code' => 'FR', 'taxable_person' => true]),
+        );
+
+        self::assertSame(200, $response->getStatusCode());
     }
 
     private function saveProfile(): void

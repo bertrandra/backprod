@@ -14,6 +14,8 @@ use App\Payment\Domain\ProviderRefund;
 use App\Shared\Exceptions\NotConfiguredException;
 use App\Shared\Exceptions\UnprocessableEntityException;
 use Closure;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Stripe\Exception\ApiConnectionException;
 use Stripe\Exception\ApiErrorException;
 use Stripe\Exception\AuthenticationException;
@@ -64,6 +66,7 @@ final class StripePaymentProvider implements PaymentProvider
         private readonly string $publishableKey,
         private readonly bool $livemode,
         private readonly Closure $now,
+        private readonly LoggerInterface $logger = new NullLogger(),
     ) {
     }
 
@@ -118,10 +121,10 @@ final class StripePaymentProvider implements PaymentProvider
                 ],
                 // The reference names the attempt, so a retried call for the
                 // same attempt returns the same intent rather than a second one.
-                ['idempotency_key' => self::idempotencyKey('authorize', $reference)],
+                ['idempotency_key' => $this->idempotencyKey('authorize', $reference)],
             );
         } catch (ApiErrorException $failure) {
-            throw self::refused($failure);
+            throw $this->refused($failure, 'authorize', $reference);
         }
 
         return new ProviderPayment(
@@ -161,13 +164,13 @@ final class StripePaymentProvider implements PaymentProvider
                 ],
                 // Two identical requests are one refund — the same rule the
                 // stub mints its refund id by.
-                ['idempotency_key' => self::idempotencyKey(
+                ['idempotency_key' => $this->idempotencyKey(
                     'refund',
                     $payment->providerPaymentId . '|' . $amount->minorUnits . '|' . $reason,
                 )],
             );
         } catch (ApiErrorException $failure) {
-            throw self::refused($failure);
+            throw $this->refused($failure, 'refund', $payment->providerPaymentId);
         }
 
         // Settlement arrives by `refund.updated`, as ADR-022 requires.
@@ -189,11 +192,28 @@ final class StripePaymentProvider implements PaymentProvider
         };
     }
 
-    private static function idempotencyKey(string $operation, string $subject): string
+    /**
+     * Keyed on this installation, not only on the subject.
+     *
+     * Stripe remembers a key for 24 hours and answers a repeat with the
+     * first request's result — or a 400 when the parameters differ. The
+     * subject is this platform's own reference, `<invoice number>/<attempt>`,
+     * and invoice numbers restart at 000001 in every installation and after
+     * every database reset. Two deployments on one Stripe account — a laptop
+     * with `stripe listen` and a host, a staging and a demo — would therefore
+     * hand each other yesterday's intents: an already-paid one, or a refusal
+     * because the amounts differ. The first deployment to run beside the
+     * developer's own sandbox found exactly that.
+     *
+     * The webhook secret is what tells installations apart: every endpoint
+     * Stripe registers has its own, and an installation without an endpoint
+     * of its own is misconfigured regardless. An HMAC over the subject with
+     * it reveals nothing about the secret and is stable for as long as the
+     * endpoint is — which is what an idempotency key has to be.
+     */
+    private function idempotencyKey(string $operation, string $subject): string
     {
-        // Hashed: an idempotency key is capped at 255 characters, and a
-        // reason is free text.
-        return $operation . '_' . hash('sha256', $subject);
+        return $operation . '_' . hash_hmac('sha256', $subject, $this->webhookSecret);
     }
 
     /**
@@ -201,9 +221,22 @@ final class StripePaymentProvider implements PaymentProvider
      * stack (§31). A key Stripe refuses is configuration, so 503; anything
      * else the request could not be honoured, so 422 with Stripe's code —
      * which is written for merchants, not customers, and stays in `details`.
+     *
+     * Logged first, at warning, with Stripe's own sentence: it is written for
+     * the merchant, which is who reads the log, and without it a refusal is
+     * a code and a request id that nobody can act on. No key, no card, no
+     * customer is in it.
      */
-    private static function refused(ApiErrorException $failure): \RuntimeException
+    private function refused(ApiErrorException $failure, string $operation, string $subject): \RuntimeException
     {
+        $this->logger->warning('Stripe refused a request', [
+            'operation' => $operation,
+            'reference' => $subject,
+            'stripe_code' => $failure->getStripeCode(),
+            'http_status' => $failure->getHttpStatus(),
+            'message' => $failure->getMessage(),
+        ]);
+
         if ($failure instanceof AuthenticationException || $failure instanceof PermissionException) {
             return new NotConfiguredException(
                 'PAYMENT_PROVIDER_REJECTED_KEY',

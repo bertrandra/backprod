@@ -72,8 +72,12 @@ final class StripePaymentProviderTest extends TestCase
         self::assertSame('F-2026-0042/1', $request['params']['description']);
         self::assertSame(['reference' => 'F-2026-0042/1'], $request['params']['metadata']);
         // The reference names the attempt (ADR-034), so the same attempt asked
-        // twice is the same intent — and never the invoice number alone.
-        self::assertSame('authorize_' . hash('sha256', 'F-2026-0042/1'), $this->http->header(0, 'Idempotency-Key'));
+        // twice is the same intent — and never the invoice number alone. Keyed
+        // with the webhook secret, so two installations on one Stripe account
+        // (a laptop beside a host, a staging beside a demo) whose invoice
+        // numbers both start at 000001 never hand each other an intent.
+        self::assertSame('authorize_' . hash_hmac('sha256', 'F-2026-0042/1', 'whsec_unit'), $this->http->header(0, 'Idempotency-Key'));
+        self::assertNotSame('authorize_' . hash('sha256', 'F-2026-0042/1'), $this->http->header(0, 'Idempotency-Key'));
         // Nothing a customer gave is here: no card, no customer, no capture flag.
         self::assertArrayNotHasKey('payment_method', $request['params']);
         self::assertArrayNotHasKey('customer', $request['params']);

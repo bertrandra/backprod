@@ -1,10 +1,13 @@
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { useState } from 'react';
 
 import { can } from '@/app/access/access';
+import { PaymentElementPanel } from '@/features/commerce/payment/PaymentElementPanel';
 import { useOffers, usePlans, useProductCatalogue, type Offer } from '@/queries/catalogue';
-import { useOpenCheckoutSession } from '@/queries/checkout';
+import { useOpenCheckoutSession, type OpenedCheckoutSession } from '@/queries/checkout';
 import { useCreateQuote } from '@/queries/sales';
 import { useSession } from '@/queries/session';
+import { useTaxProfile } from '@/queries/tax';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
@@ -27,6 +30,23 @@ import { SkeletonRows } from '@/ui/Skeleton';
  * Two ways out of this screen, both gated on the permission that actually
  * governs them: a quote (`sales.manage`) and a checkout (`billing.manage`).
  * Someone who may only read the catalogue sees prices and no buttons.
+ *
+ * **A quote is offered to a business.** The server refuses one for a tenant
+ * whose tax profile does not say B2B (`QUOTE_REQUIRES_BUSINESS_CUSTOMER`);
+ * the button is hidden on the same fact, read from the profile, so a person
+ * who signed up for themselves is not offered a document they cannot have.
+ * Hiding is courtesy — the API is the authority — and it is *not* a gate on
+ * a role or a plan: it is the customer's own declared kind (CLAUDE.md,
+ * "Gating is data").
+ *
+ * **Buying pays here.** The checkout's `client_secret` is returned once and
+ * never recoverable (ADR-034), and `/checkout/{id}` is the status page a
+ * reload lands on, not a place that can hold it (ADR-048). So the form is
+ * offered on this screen, where the secret was born — the same panel the
+ * storefront, the invoice and the payments list use — and the order page is
+ * where the form hands over to. Navigating straight to the order, as this
+ * screen did until a real purchase tried it, threw the secret away and left
+ * an order nobody could pay.
  */
 export function CatalogueScreen() {
   const navigate = useNavigate();
@@ -36,9 +56,17 @@ export function CatalogueScreen() {
   const catalogue = useProductCatalogue(session?.productId ?? null);
   const quote = useCreateQuote();
   const checkout = useOpenCheckoutSession();
+  const taxProfile = useTaxProfile();
 
-  const maySell = can(session, 'sales.manage');
+  // Both halves, and only both: the permission says who may raise one, the
+  // profile says whether this customer is one that gets one. Until the
+  // profile has answered, nobody is offered a button that may vanish.
+  const maySell = can(session, 'sales.manage') && taxProfile.data?.customer_kind === 'B2B';
   const mayBuy = can(session, 'billing.manage');
+
+  // The checkout just opened, held for exactly as long as the render that
+  // offers the form (ADR-034): never in a store, never across a navigation.
+  const [opened, setOpened] = useState<{ session: OpenedCheckoutSession; offer: Offer } | null>(null);
 
   if (offers.isPending || plans.isPending) {
     return <SkeletonRows rows={6} />;
@@ -62,6 +90,41 @@ export function CatalogueScreen() {
   const orphaned = offers.data.filter(
     (offer) => !plans.data.some((plan) => plan.id === offer.plan.id),
   );
+
+  if (opened !== null) {
+    const { session: order, offer: bought } = opened;
+    const statusPage = { to: '/checkout/$sessionId' as const, params: { sessionId: order.id } };
+
+    return (
+      <div className="max-w-lg space-y-6" data-testid="catalogue-pay">
+        <header className="space-y-1">
+          <h1 className="text-2xl font-semibold">Pay</h1>
+          <p className="text-sm text-muted">
+            {bought.name} — the subscription starts when the payment is confirmed.
+          </p>
+        </header>
+
+        <PaymentElementPanel
+          provider={order.payment_provider}
+          clientSecret={order.client_secret}
+          amount={order.gross}
+          returnUrl={new URL(`/checkout/${order.id}`, window.location.origin).toString()}
+          // Whatever the form said, the order page says what the server knows.
+          onSettled={() => void navigate(statusPage)}
+        />
+
+        {/* Always there: a free offer has nothing to pay, a provider with no
+            card form confirms on its own, and somebody who changes their mind
+            still has an order to come back to (ADR-034). */}
+        <p className="text-sm text-muted">
+          <Link {...statusPage} data-testid="continue-to-order" className="underline underline-offset-2">
+            Continue to your order
+          </Link>
+          {order.client_secret !== null && order.client_secret !== undefined && ' — it can be paid from there later.'}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -121,11 +184,8 @@ export function CatalogueScreen() {
                       }
                       onBuy={() =>
                         checkout.mutate(offer.id, {
-                          onSuccess: (opened) => {
-                            void navigate({
-                              to: '/checkout/$sessionId',
-                              params: { sessionId: opened.id },
-                            });
+                          onSuccess: (session) => {
+                            setOpened({ session, offer });
                           },
                         })
                       }

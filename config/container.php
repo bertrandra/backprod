@@ -356,8 +356,11 @@ return static function (array $overrides = []): ContainerInterface {
         // (the test suite, a demo). Stripe needs all three of its keys — a
         // secret key with no webhook secret would be a provider that can start
         // a payment and never learn what became of it, which is no provider.
-        PaymentProviders::class => factory(static function () use ($env): PaymentProviders {
+        PaymentProviders::class => factory(static function (ContainerInterface $container) use ($env): PaymentProviders {
             $providers = [];
+
+            /** @var LoggerInterface $logger */
+            $logger = $container->get(LoggerInterface::class);
 
             $stripeKey = $env('STRIPE_SECRET_KEY');
             $stripeWebhookSecret = $env('STRIPE_WEBHOOK_SECRET');
@@ -373,6 +376,7 @@ return static function (array $overrides = []): ContainerInterface {
                     $stripePublishableKey,
                     StripePaymentProvider::isLiveKey($stripeKey),
                     static fn (): int => time(),
+                    $logger,
                 );
             }
 
