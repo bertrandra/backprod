@@ -9,7 +9,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 
 /**
- * Stripe's events, normalised into the six this platform models.
+ * Stripe's events, normalised into the seven this platform models.
  *
  * `ProviderEvent.id` is Stripe's `evt_…`, stable across retries, which is
  * what `payment_events_delivered_once` needs. `providerPaymentId` is always
@@ -17,12 +17,22 @@ use DateTimeZone;
  * every delivery about one payment keys on the string `authorize()` recorded
  * (ADR-048).
  *
+ * The outcome and the instrument arrive separately. `payment_intent.succeeded`
+ * says the money moved, but its `payment_method` and `latest_charge` are
+ * unexpanded ids and `payment_method_types` lists everything the dashboard
+ * allows; the *kind* — card, SEPA debit, a wallet — is in the charge, so
+ * `charge.succeeded` is `INSTRUMENT_KNOWN`: no status, no ledger row, just
+ * `payments.method`. Stripe sends the two in no guaranteed order, and the
+ * pipeline applies that one whenever it lands. Expanding the intent here
+ * instead would mean phoning Stripe from inside the webhook, which ADR-048
+ * rules out.
+ *
  * Everything not in the table below parses to **null**: `payment_intent.created`,
- * `charge.succeeded`, `payment_intent.processing`, `refund.created`,
- * `charge.refunded`, `charge.dispute.closed`, every `customer.*`, `invoice.*`
- * and `checkout.*`. Null is not an error — the port says so and ADR-022 says
- * why: a 4xx makes Stripe retry until it gives up, and buries the deliveries
- * that matter under the ones that do not.
+ * `payment_intent.processing`, `refund.created`, `charge.refunded`,
+ * `charge.dispute.closed`, every `customer.*`, `invoice.*` and `checkout.*`.
+ * Null is not an error — the port says so and ADR-022 says why: a 4xx makes
+ * Stripe retry until it gives up, and buries the deliveries that matter
+ * under the ones that do not.
  *
  * `PAYMENT_AUTHORIZED` is never emitted. It corresponds to
  * `amount_capturable_updated`, which only fires under manual capture, which
@@ -69,6 +79,12 @@ final class StripeEvents
                 self::text($object, 'id'),
                 $occurredAt,
                 amount: self::integer($object, 'amount_received'),
+            ),
+            'charge.succeeded' => self::event(
+                $id,
+                ProviderEvent::INSTRUMENT_KNOWN,
+                self::text($object, 'payment_intent'),
+                $occurredAt,
                 method: self::method($object),
             ),
             'payment_intent.payment_failed' => self::event(
@@ -151,22 +167,17 @@ final class StripeEvents
     }
 
     /**
-     * The kind of instrument — `card`, `sepa_debit`, `link` — and never the
-     * instrument: no PAN, no last four, no fingerprint (§24).
+     * The kind of instrument a charge was made with — `card`, `sepa_debit`,
+     * `link` — and never the instrument: no PAN, no last four, no
+     * fingerprint (§24). A charge that does not say is an event that says
+     * nothing, and the pipeline records it as such.
      *
-     * @param array<mixed, mixed> $intent
+     * @param array<mixed, mixed> $charge
      */
-    private static function method(array $intent): ?string
+    private static function method(array $charge): ?string
     {
-        $details = self::sub(self::sub($intent, 'latest_charge'), 'payment_method_details');
+        $details = self::sub($charge, 'payment_method_details');
         $kind = self::text($details, 'type');
-
-        if ($kind === null) {
-            $types = $intent['payment_method_types'] ?? null;
-
-            // Unexpanded: the types the intent allowed, useful only when one.
-            $kind = is_array($types) && count($types) === 1 && is_string($types[0]) ? $types[0] : null;
-        }
 
         return $kind === null ? null : self::label($kind, self::sub(self::sub($details, 'card'), 'wallet'));
     }

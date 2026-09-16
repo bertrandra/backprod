@@ -152,9 +152,56 @@ final class StripeWebhookTest extends DatabaseApiTestCase
         self::assertSame('APPLIED', $this->decode($response)['outcome'] ?? null);
         self::assertSame('SUCCEEDED', $this->statusOfPayment());
         self::assertSame('PAID', $this->statusOfInvoice());
-        // The kind of instrument reached the row; the number never did.
+        // The intent does not say what paid; the charge will.
+        self::assertNull($this->connection->fetchOne('SELECT method FROM payments'));
+        self::assertSame(['INVOICE_PAID', 'PAYMENT_INITIATED', 'PAYMENT_SUCCEEDED'], $this->ledger());
+    }
+
+    // Stripe sends `charge.succeeded` and `payment_intent.succeeded` for the
+    // same money in no guaranteed order. Either way the row ends up SUCCEEDED
+    // with its kind of instrument, the ledger has one PAYMENT_SUCCEEDED, and
+    // the number never reached the database.
+
+    public function testTheChargeArrivingFirstFillsInTheInstrumentAndMovesNothing(): void
+    {
+        $this->started();
+
+        $charge = $this->deliver('charge.succeeded');
+        self::assertSame(200, $charge->getStatusCode());
+        self::assertSame('APPLIED', $this->decode($charge)['outcome'] ?? null);
+        self::assertSame('PENDING', $this->statusOfPayment());
+        self::assertSame('CARD', $this->connection->fetchOne('SELECT method FROM payments'));
+        self::assertSame(['PAYMENT_INITIATED'], $this->ledger());
+
+        self::assertSame(200, $this->deliver('payment_intent.succeeded')->getStatusCode());
+        self::assertSame('SUCCEEDED', $this->statusOfPayment());
         self::assertSame('CARD', $this->connection->fetchOne('SELECT method FROM payments'));
         self::assertSame(['INVOICE_PAID', 'PAYMENT_INITIATED', 'PAYMENT_SUCCEEDED'], $this->ledger());
+        self::assertSame(2, $this->rowsMatching('SELECT count(*) FROM payment_events'));
+        self::assertSame(0, $this->rowsMatching("SELECT count(*) FROM payment_events WHERE payload::text LIKE '%4242%'"));
+    }
+
+    public function testTheChargeArrivingSecondFillsInTheInstrumentOfACollectedPayment(): void
+    {
+        $this->started();
+
+        self::assertSame(200, $this->deliver('payment_intent.succeeded')->getStatusCode());
+        self::assertSame(200, $this->deliver('charge.succeeded')->getStatusCode());
+        self::assertSame('SUCCEEDED', $this->statusOfPayment());
+        self::assertSame('CARD', $this->connection->fetchOne('SELECT method FROM payments'));
+        self::assertSame(['INVOICE_PAID', 'PAYMENT_INITIATED', 'PAYMENT_SUCCEEDED'], $this->ledger());
+    }
+
+    public function testTheChargeIsRecordedOnceLikeAnyDelivery(): void
+    {
+        $this->started();
+
+        self::assertSame(200, $this->deliver('charge.succeeded')->getStatusCode());
+        $again = $this->deliver('charge.succeeded');
+
+        self::assertSame(202, $again->getStatusCode());
+        self::assertSame('DUPLICATE', $this->decode($again)['outcome'] ?? null);
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM payment_events'));
     }
 
     public function testTheSameDeliveryTwiceIsOneActivation(): void
@@ -233,11 +280,12 @@ final class StripeWebhookTest extends DatabaseApiTestCase
     {
         $this->started();
 
-        $response = $this->deliver('charge.succeeded');
+        $response = $this->deliver('payment_intent.created');
 
         self::assertSame(202, $response->getStatusCode());
         self::assertSame('IGNORED_NOT_APPLICABLE', $this->decode($response)['outcome'] ?? null);
         self::assertSame('PENDING', $this->statusOfPayment());
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM payment_events'));
     }
 
     // --- Authenticity ----------------------------------------------------------
@@ -341,6 +389,14 @@ final class StripeWebhookTest extends DatabaseApiTestCase
             ['Authorization' => 'Bearer alice-token', 'X-Product' => 'atlas'],
             $this->json($body),
         );
+    }
+
+    private function rowsMatching(string $sql): int
+    {
+        $count = $this->connection->fetchOne($sql);
+        self::assertIsInt($count);
+
+        return $count;
     }
 
     private function statusOfPayment(): string

@@ -22,7 +22,7 @@ final class StripeEventsTest extends TestCase
 {
     private const INTENT = 'pi_3Q2RxX0000000000000001';
 
-    public function testASucceededIntentIsACollectedPaymentWithItsMethod(): void
+    public function testASucceededIntentIsACollectedPayment(): void
     {
         $event = self::parse('payment_intent.succeeded');
 
@@ -33,15 +33,51 @@ final class StripeEventsTest extends TestCase
         self::assertSame('2026-09-12T08:00:00+00:00', $event->occurredAt?->format(DATE_ATOM));
         self::assertNull($event->failureCode);
         self::assertNull($event->providerRefundId);
-        // The kind of instrument, never the instrument.
-        // The column's own vocabulary, not Stripe's word.
+        // The intent carries a `pm_…` id and the list of everything the
+        // dashboard allows — neither is the kind of instrument. The fixture
+        // is the real shape; the adapter does not guess from it.
+        self::assertNull($event->method);
+        self::assertSame(['id', 'type', 'payment_intent'], array_keys($event->payload));
+    }
+
+    public function testTheChargeNamesTheInstrumentAndNothingElse(): void
+    {
+        $event = self::parse('charge.succeeded');
+
+        self::assertSame(ProviderEvent::INSTRUMENT_KNOWN, $event->type);
+        self::assertSame(self::INTENT, $event->providerPaymentId);
+        // Moves nothing: no status, no amount, no refund.
+        self::assertNull($event->requestedStatus());
+        self::assertNull($event->amountMinorUnits);
+        self::assertNull($event->providerRefundId);
+        // The kind of instrument, never the instrument; the column's own
+        // vocabulary, not Stripe's word.
         self::assertSame('CARD', $event->method);
         self::assertSame('CARD', $event->payload['method'] ?? null);
     }
 
+    public function testAWalletIsNamedAsOneNotAsTheCardUnderneath(): void
+    {
+        self::assertSame('APPLE_PAY', self::parse('charge.succeeded.apple_pay')->method);
+    }
+
+    public function testAChargeThatDoesNotSayItsKindSaysNothing(): void
+    {
+        $event = StripeEvents::parse(
+            '{"id":"evt_bare","type":"charge.succeeded","livemode":false,"data":{"object":{"id":"ch_1","payment_intent":"' . self::INTENT . '"}}}',
+            false,
+        );
+
+        // Still an event — recorded once, like any delivery — but with no
+        // method to learn, which the pipeline records as not applicable.
+        self::assertNotNull($event);
+        self::assertSame(ProviderEvent::INSTRUMENT_KNOWN, $event->type);
+        self::assertNull($event->method);
+    }
+
     public function testThePayloadKeepsOnlyWhatWasVetted(): void
     {
-        $payload = self::parse('payment_intent.succeeded')->payload;
+        $payload = self::parse('charge.succeeded')->payload;
 
         // The fixture carries a brand, a last four and a fingerprint, the way
         // Stripe's events do. None of it reaches the column humans read.
@@ -50,6 +86,7 @@ final class StripeEventsTest extends TestCase
             array_keys($payload),
         );
         self::assertStringNotContainsString('4242', json_encode($payload) ?: '');
+        self::assertStringNotContainsString('visa', json_encode($payload) ?: '');
     }
 
     public function testAFailedIntentCarriesTheIssuersWordAndStripesSentence(): void
@@ -97,9 +134,9 @@ final class StripeEventsTest extends TestCase
 
     public function testAnEventThisPlatformDoesNotModelIsNullNotAnError(): void
     {
-        // `charge.succeeded` accompanies every succeeded intent; answering it
+        // `payment_intent.created` accompanies every intent; answering it
         // with anything but 200 would have Stripe retry it forever.
-        self::assertNull(StripeEvents::parse(self::fixture('charge.succeeded'), false));
+        self::assertNull(StripeEvents::parse(self::fixture('payment_intent.created'), false));
         self::assertNull(StripeEvents::parse('{"id":"evt_x","type":"customer.created","livemode":false,"data":{"object":{"id":"cus_x"}}}', false));
     }
 

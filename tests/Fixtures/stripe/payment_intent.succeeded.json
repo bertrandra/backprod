@@ -15,15 +15,9 @@
       "status": "succeeded",
       "description": "F-2026-0042/1",
       "metadata": { "reference": "F-2026-0042/1" },
-      "payment_method_types": ["card", "sepa_debit"],
-      "latest_charge": {
-        "id": "ch_3Q2RxX0000000000000001",
-        "object": "charge",
-        "payment_method_details": {
-          "type": "card",
-          "card": { "brand": "visa", "last4": "4242", "fingerprint": "Xt5EWLLDS7FJjR1c" }
-        }
-      }
+      "payment_method": "pm_1Q2RxX0000000000000001",
+      "payment_method_types": ["card", "bancontact", "eps", "klarna", "link", "sepa_debit", "amazon_pay", "satispay"],
+      "latest_charge": "ch_3Q2RxX0000000000000001"
     }
   }
 }

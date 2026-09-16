@@ -218,7 +218,7 @@ which is what `payments.provider` records and what the webhook path carries:
 
 Returns `new ProviderPayment(id: 'pi_…', status: PENDING, clientSecret: $intent->client_secret, method: null)`.
 The method is unknown until the customer chooses one; it is filled from the
-succeeded event (§5.3).
+charge's event (§5.3), which is the one that names it.
 
 Never `capture_method: manual`, never `confirm: true`, never a `customer`:
 authorization-then-capture, server-side confirmation and stored instruments are
@@ -251,14 +251,15 @@ matters, and it must be readable without opening a vendor directory.
 
 | Stripe event | `ProviderEvent.type` | `providerPaymentId` from | Also carried |
 | --- | --- | --- | --- |
-| `payment_intent.succeeded` | `PAYMENT_SUCCEEDED` | `data.object.id` | `amountMinorUnits = amount_received`; `payload.method` = the charge's `payment_method_details.type` |
+| `payment_intent.succeeded` | `PAYMENT_SUCCEEDED` | `data.object.id` | `amountMinorUnits = amount_received` |
+| `charge.succeeded` | `INSTRUMENT_KNOWN` | `data.object.payment_intent` | `method` = `payment_method_details.type` (and `card.wallet.type`), mapped onto `payments.method`'s labels |
 | `payment_intent.payment_failed` | `PAYMENT_FAILED` | `data.object.id` | `failureCode = last_payment_error.code` (or `decline_code` when present), `failureReason = last_payment_error.message` |
 | `payment_intent.canceled` | `PAYMENT_CANCELLED` | `data.object.id` | |
 | `refund.updated` with `status = succeeded` | `REFUND_SUCCEEDED` | `data.object.payment_intent` | `providerRefundId = data.object.id`, `amountMinorUnits = amount` |
 | `charge.dispute.created` | `CHARGEBACK_OPENED` | `data.object.payment_intent` | `amountMinorUnits = amount`, `payload.reason` |
-| anything else | **`null`** | | `payment_intent.created`, `charge.succeeded`, `payment_intent.processing`, `refund.created`, `charge.refunded`, `charge.dispute.closed`, every `customer.*`, `invoice.*`, `checkout.*`… |
+| anything else | **`null`** | | `payment_intent.created`, `payment_intent.processing`, `refund.created`, `charge.refunded`, `charge.dispute.closed`, every `customer.*`, `invoice.*`, `checkout.*`… |
 
-Two things the table encodes:
+Three things the table encodes:
 
 - **`null` is not an error.** The port says so, ADR-022 says why: a 4xx makes
   Stripe retry until it gives up, and buries the deliveries that matter. The
@@ -269,6 +270,18 @@ Two things the table encodes:
   rules out. Stripe's `processing` state (a SEPA debit awaiting settlement) maps
   to nothing: the payment stays `PENDING`, which is what it is, and the screen
   keeps saying so.
+- **The outcome and the instrument are two deliveries.** The first sandbox run
+  found `payments.method` empty: `payment_intent.succeeded` carries an
+  unexpanded `pm_…` id and a `latest_charge` id, and `payment_method_types`
+  lists everything the dashboard allows — nothing that says what *paid*. The
+  kind is on the charge, so `charge.succeeded` became the seventh event,
+  `INSTRUMENT_KNOWN`: it moves no status, appends no ledger row and settles
+  nothing; it fills `payments.method` when that is still empty. Stripe sends
+  the two in no guaranteed order and the pipeline applies it in either
+  position. Expanding the intent inside `parse()` would have meant phoning
+  Stripe from the webhook, which §5.1 rules out. The `payment_events` CHECK on
+  `type` learned the value (Version20260916090000), because a delivery that is
+  not recorded is one that can be applied twice.
 - `payload` keeps `id`, `type`, `payment_intent`, `refund`, `method`, `reason` —
   the fields above and no more. A raw Stripe event is 3 KB of things nobody
   vetted, and `payment_events.payload` is a column humans read while
@@ -370,7 +383,7 @@ replays a shaped event. Documented in the README's *Running locally*.
 | | What is proven |
 | --- | --- |
 | `tests/Unit/Payment/StripeSignatureTest` | the scheme of §5.2 against fixed vectors: a valid `v1`, two `v1`s during rotation, wrong secret, altered body, `t` older than 300 s, missing header — five refusals and two acceptances, and that acceptance is constant-time by construction (`hash_equals`) |
-| `tests/Unit/Payment/StripeEventsTest` | every row of §5.3 from trimmed real event fixtures (`tests/Fixtures/stripe/*.json`), including that `charge.succeeded` and `payment_intent.created` parse to `null`, that `livemode` mismatch parses to `null`, and that `payload` carries only the vetted fields |
+| `tests/Unit/Payment/StripeEventsTest` | every row of §5.3 from trimmed real event fixtures (`tests/Fixtures/stripe/*.json`), including that `payment_intent.created` parses to `null` and `charge.succeeded` to `INSTRUMENT_KNOWN`, that `livemode` mismatch parses to `null`, and that `payload` carries only the vetted fields |
 | `tests/Unit/Payment/StripeRequestsTest` | `authorize()` sends amount, lowercase currency, `automatic_payment_methods`, `metadata.reference` and the idempotency key; three-decimal amounts not ending in 0 are refused before any request; `refund()` sends `payment_intent`, `amount`, mapped `reason`, idempotency key |
 | `tests/Integration/StripeWebhookTest` (DB) | the **whole chain** with the Stripe adapter registered and the test computing a real `Stripe-Signature`: open a checkout → `payment_intent.succeeded` → invoice settled, subscription active, ledger has one `PAYMENT_SUCCEEDED`; the same delivery twice → 202 and one ledger row; `payment_failed` after `succeeded` → `IGNORED_STALE`; `refund.updated` → refund settled; `charge.dispute.created` → `CHARGEBACK`; an unsigned delivery → 401 and nothing written. Modelled on the existing stub-driven webhook tests, which stay as they are — the stub is still the fastest way to prove the *pipeline*, and it stays configured in CI |
 | `frontend` Vitest, `CheckoutScreen.test.tsx` | `@stripe/stripe-js` mocked: the Element region renders only with a `client_secret`; a resolved `confirmPayment` invalidates the session and does **not** write a status; a rejected one shows the message and leaves status to the server; no region after a "reload" render; the sandbox band appears when `sandbox: true` |

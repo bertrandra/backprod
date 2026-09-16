@@ -33,9 +33,21 @@ final class ProviderEvent
     public const CHARGEBACK_OPENED = 'CHARGEBACK_OPENED';
 
     /**
+     * The provider has said what kind of instrument paid — and nothing
+     * else. It moves no status, appends no ledger row and settles nothing;
+     * it fills `payments.method` when that column is still empty. A
+     * provider whose customer chooses the instrument after the payment is
+     * started (ADR-048) reports the outcome and the instrument in two
+     * deliveries, in no guaranteed order, so this one is applied whenever
+     * it lands and is harmless in either position.
+     */
+    public const INSTRUMENT_KNOWN = 'INSTRUMENT_KNOWN';
+
+    /**
      * @param array<string, mixed> $payload
-     * @param ?string              $method  the kind of instrument — `card`,
-     *                                      `sepa_debit` — when the event is
+     * @param ?string              $method  the kind of instrument — `CARD`,
+     *                                      `SEPA_DEBIT` — in `payments.method`'s
+     *                                      own vocabulary, when the event is
      *                                      the first to know it. A provider
      *                                      that lets the customer choose after
      *                                      the payment is started (ADR-048)

@@ -58,8 +58,15 @@ somebody else's say-so, and it must be readable without a vendor directory.
 `payment_intent.payment_failed`, `payment_intent.canceled`, `refund.updated`
 (when `succeeded`), `charge.dispute.created` map onto the platform's five;
 `PAYMENT_AUTHORIZED` is never emitted because manual capture is not used.
-Everything else — `charge.succeeded`, `payment_intent.created`,
-`processing`, every `customer.*` and `invoice.*` — is `null`, answered 200,
+`charge.succeeded` is the sixth, and it is new to the platform: an intent's
+event names the instrument only by an unexpanded `pm_…` id, and the *kind* —
+card, SEPA debit, a wallet — is on the charge, so that event is
+`INSTRUMENT_KNOWN`, which moves no status, writes no ledger row and fills
+`payments.method` whenever it lands, before or after the outcome. The
+alternative was to expand the intent from inside the webhook, which is the
+phone call the paragraph above refuses. Everything else —
+`payment_intent.created`, `processing`, every `customer.*` and `invoice.*`
+— is `null`, answered 200,
 as ADR-022 requires: a 4xx would have Stripe retry it forever. An event
 whose `livemode` disagrees with the configured key's mode is also `null`:
 that is a webhook endpoint configured in the wrong Stripe mode, and
@@ -77,7 +84,10 @@ would freeze one deployment's key into a bundle another reuses. Plus one
 field on `ProviderEvent`: `method`, because a provider that lets the
 customer choose the instrument *after* the payment starts cannot say its
 kind at `authorize()` time — mapped onto `payments.method`'s own vocabulary
-(`CARD`, `SEPA_DEBIT`, `APPLE_PAY`, …), never Stripe's word.
+(`CARD`, `SEPA_DEBIT`, `APPLE_PAY`, …), never Stripe's word — and one event
+type, `INSTRUMENT_KNOWN`, for a provider that reports the instrument in a
+delivery of its own. The first word stands: a method known at `authorize()`
+or from an earlier delivery is never overwritten.
 
 **Stripe does not invoice, subscribe or renew.** This platform numbers its
 own invoices gaplessly (ADR-021) and runs its own subscriptions and

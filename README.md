@@ -435,8 +435,9 @@ still settling. A deployment with no configured provider cannot take money.
 ([ADR-048](docs/adr/ADR-048-stripe-is-the-first-real-provider-and-the-page-talks-to-it.md)),
 behind the same port the stub proved. One PaymentIntent per attempt, keyed
 `pi_…` from the first row; the signature verified by hand over the raw bytes
-with a five-minute replay window; six Stripe events mapped and everything else
-answered 200 and ignored. The card is entered in Stripe's own iframe (the
+with a five-minute replay window; six Stripe events mapped — the intent's for
+what became of the money, the charge's for what kind of instrument paid — and
+everything else answered 200 and ignored. The card is entered in Stripe's own iframe (the
 Payment Element), offered exactly where a `client_secret` is born — the
 storefront after sign-up, an invoice after *Take a payment*, a failed payment
 after *Try again* — and never carried across a navigation. Stripe never
