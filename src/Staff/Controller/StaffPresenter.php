@@ -21,6 +21,8 @@ final class StaffPresenter
     {
         return [
             'user_id' => $staff->userId,
+            'email' => $staff->email,
+            'display_name' => $staff->displayName,
             'roles' => $staff->roles,
             'permissions' => $staff->permissions,
         ];

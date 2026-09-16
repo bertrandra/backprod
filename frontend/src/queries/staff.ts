@@ -112,6 +112,9 @@ export type Message = Schemas['Message'];
 
 export interface StaffIdentity {
   readonly userId: string;
+  /** Null once erased (§26): the identity outlives the details. */
+  readonly email: string | null;
+  readonly displayName: string | null;
   readonly roles: readonly string[];
   readonly permissions: readonly string[];
 }
@@ -143,6 +146,8 @@ export function useStaffIdentity() {
 
       return {
         userId: data.staff.user_id,
+        email: data.staff.email,
+        displayName: data.staff.display_name,
         roles: data.staff.roles,
         permissions: data.staff.permissions,
       };

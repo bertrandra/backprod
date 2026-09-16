@@ -8872,6 +8872,13 @@ export interface operations {
                         staff: {
                             /** Format: uuid */
                             user_id: string;
+                            /**
+                             * Format: email
+                             * @description Null once the person has been erased (§26); the identity outlives the details.
+                             */
+                            email: string | null;
+                            /** @description What the shell shows in the account menu. */
+                            display_name: string | null;
                             roles: string[];
                             permissions: string[];
                         };
