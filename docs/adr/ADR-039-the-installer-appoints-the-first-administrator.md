@@ -1,6 +1,13 @@
 # ADR-039 — The installer appoints the first administrator, and the platform keeps one
 
-**Status:** accepted
+**Status:** accepted; amended 2026-09-16 — the installer no longer asks for a
+product, an organisation or an account. It seeds the demonstration world
+(`bin/demo-world.php`, [docs/demo-world.html](../demo-world.html)), whose
+`sam@demo.test` holds PLATFORM_ADMIN, so a deployment still has exactly one
+first administrator and `staff.grant` still lives with that role alone. What
+changes is that the first administrator's password is a published one; the
+installer's success page says so and offers the form to change it, which is
+the one thing the page keeps doing after setup.
 **Relates to:** [ADR-038](ADR-038-this-platform-issues-its-own-sessions.md);
 M6.2's platform staff identity; Architecture V2 §12.2, §25.2;
 non-negotiables #21, #22

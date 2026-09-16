@@ -14,15 +14,19 @@ the host needs neither** — no build step ever runs on SiteGround, which is the
 only arrangement that works on a host offering PHP, PostgreSQL and JavaScript and
 nothing else.
 
-**`deploy/siteground/setup.php` does §3's migration, §5's `.env`, and "Somebody
-to sign in as" in one browser form, from the host itself.** Upload it into
-`public_html/` alongside `index.php`, visit it, and fill in the database Site
-Tools just created — no whitelisting your own machine's IP, because nothing
-runs from anywhere but the account that already has the run of its own
-PostgreSQL. It writes `.env`, runs the migrations, and creates the first
-product, tenant and admin account, then makes itself inert: a completion marker
-refuses a second run even if you forget to delete the file, though deleting it
-once you have confirmed you can sign in is still the right thing to do — a page
+**`deploy/siteground/setup.php` does §3's migration and seeding, §5's `.env`,
+and "Somebody to sign in as" in one browser form, from the host itself.**
+Upload it into `public_html/` alongside `index.php`, visit it, and fill in the
+database Site Tools just created — no whitelisting your own machine's IP,
+because nothing runs from anywhere but the account that already has the run of
+its own PostgreSQL. It writes `.env`, runs the migrations, and seeds the
+demonstration world ([docs/demo-world.html](demo-world.html): four products,
+two organisations, one person per role) — it asks for no product and no
+account of your own. Then it makes itself inert: a completion marker refuses a
+second run even if you forget to delete the file. **The seeded accounts'
+password is in this repository**, so the success page offers the one thing the
+page still does afterwards, changing a password; change the platform
+administrator's, confirm you can sign in with it, and delete the file — a page
 that can rewrite `.env` has no business staying reachable once it has nothing
 left to do. The sections below are what it automates; read them if you would
 rather do it by hand, or need to understand what it did.
@@ -178,16 +182,18 @@ PostgreSQL accepts TLS on this connection; if it does and you want it enforced,
 `require` fails the connection outright rather than degrading, so test it before
 committing to it in production.
 
-Optionally, a world to look at:
+Then the world to sign in to:
 
 ```sh
 composer run demo:seed
 ```
 
-One product, two tenants, a three-plan catalogue, a live subscription and the
-invoice it raised. It refuses a database that already has data unless you pass
-`--reset`, and it never touches reference data — permissions, roles, EU VAT
-rates are migration data.
+Four products with a three-plan catalogue each, two organisations holding
+them, one person per role, and two live subscriptions with the invoices they
+raised — [docs/demo-world.html](demo-world.html) lists who is in it and what
+each one sees. It refuses a database where one of the four product codes
+already exists unless you pass `--reset`, and it never touches reference data —
+permissions, roles, EU VAT rates are migration data.
 
 ## 4. Upload
 
@@ -276,8 +282,12 @@ yet refuse it up front.
 ### Somebody to sign in as
 
 There is no registration screen and no password reset (ADR-038): an operator
-creates accounts. `composer run demo:seed` makes three, and prints the password.
-For a real one, insert a `users` row, set its `auth_subject` to `'local:' || id`,
+creates accounts. `composer run demo:seed` (and the installer) make six, one per
+role, and print the password — [docs/demo-world.html](demo-world.html). Change
+the platform administrator's before the deployment is reachable by anybody
+else: the installer's page does it, or `UPDATE local_credentials SET
+password_hash = …` with a `password_hash($password, PASSWORD_BCRYPT)` value.
+For a new account, insert a `users` row, set its `auth_subject` to `'local:' || id`,
 and add a `local_credentials` row whose `password_hash` comes from
 `password_hash($password, PASSWORD_BCRYPT)`. The database refuses a
 `password_hash` that is not a hash, so a mistake here fails rather than storing a

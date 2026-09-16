@@ -8,9 +8,12 @@ declare(strict_types=1);
  *
  * Upload this file into public_html/ alongside index.php. Visit it, fill in the
  * database Site Tools just created, and it writes backprod-app/.env, runs the
- * migrations, and creates the first product, tenant and admin account — the
- * same inserts `bin/seed-demo.php` makes, by hand, once, for a real account
- * rather than a demo one.
+ * migrations, and seeds the demonstration world — `bin/demo-world.php`, the
+ * same one `composer run demo:seed` builds: four products, two organisations,
+ * one person per role. It asks for no product and no account of your own:
+ * the platform is demonstrated from that world, and the accounts it creates
+ * are the ones you sign in with. Their password is in this platform's source,
+ * so the success page offers the form to change it, and says to.
  *
  * **Deactivated after setup, and not only by you deleting it.** The moment
  * every step below succeeds, this writes `backprod-app/var/.setup-complete` and
@@ -24,11 +27,12 @@ declare(strict_types=1);
  * an invariant belongs where nothing can route around it, not in a step a
  * person might skip.
  *
- * One exception survives the marker: resetting the admin password you just set,
- * gated on the same database credentials Site Tools gave you — because a typo
- * here otherwise locks you out of a database this page can no longer touch, and
- * this platform has no password-reset flow yet (ADR-038) to get you back in any
- * other way. Confirm you can actually sign in before you delete this file.
+ * One exception survives the marker: changing an account's password, gated on
+ * the same database credentials Site Tools gave you — because the seeded
+ * accounts' password is public knowledge and this platform has no
+ * password-reset flow yet (ADR-038) to change it any other way. Change at
+ * least the platform administrator's, confirm you can sign in with the new
+ * one, and only then delete this file.
  *
  * No JavaScript: the document root's own Content-Security-Policy sets
  * `script-src 'self'`, and a second file just to satisfy that is not worth it
@@ -43,16 +47,6 @@ declare(strict_types=1);
 const BACKPROD_APP = __DIR__ . '/../backprod-app';
 const MARKER_PATH = BACKPROD_APP . '/var/.setup-complete';
 const ENV_PATH = BACKPROD_APP . '/.env';
-
-/**
- * The demonstration product, when the box is ticked.
- *
- * A name of its own rather than the real product's, so the two are never
- * confused in a console listing them side by side — and a fixed one rather than
- * a field, because a demo is a thing you delete, not a thing you name.
- */
-const DEMO_PRODUCT_CODE = 'licorne';
-const DEMO_PRODUCT_NAME = 'Licorne';
 
 
 if (!is_file(BACKPROD_APP . '/vendor/autoload.php')) {
@@ -84,14 +78,6 @@ function fail(int $status, string $message): never
     exit;
 }
 
-/** Lowercase, ASCII, hyphenated. Good enough for a code or a slug; never empty for a non-empty input. */
-function slugify(string $value): string
-{
-    $slug = strtolower(trim($value));
-    $slug = preg_replace('/[^a-z0-9]+/', '-', $slug) ?? '';
-
-    return trim($slug, '-');
-}
 
 /** @param array<int|string, mixed> $data */
 function field(array $data, string $key): string
@@ -169,18 +155,6 @@ function inputRow(string $label, string $name, string $type = 'text', string $pl
         . '</div>';
 }
 
-/** A checkbox with its consequence under it, since this one creates a whole world. */
-function checkboxRow(string $label, string $name, string $hint): string
-{
-    $id = 'f_' . $name;
-
-    return '<div style="margin-bottom:0.9rem">'
-        . '<label for="' . $id . '" style="display:flex;gap:0.5rem;align-items:flex-start;font-size:0.95rem">'
-        . '<input id="' . $id . '" name="' . htmlspecialchars($name) . '" type="checkbox" value="yes" style="margin-top:0.25rem">'
-        . '<span>' . htmlspecialchars($label)
-        . '<span style="display:block;color:#555;font-size:0.8rem;margin-top:0.15rem">' . htmlspecialchars($hint) . '</span>'
-        . '</span></label></div>';
-}
 
 const STYLE_BLOCK = '<style>'
     . '.error{background:#fdecea;border:1px solid #d93025;color:#5f1b16;padding:0.75rem 1rem;border-radius:4px;margin:1rem 0}'
@@ -189,6 +163,8 @@ const STYLE_BLOCK = '<style>'
     . 'code{background:#f1f1f1;padding:0.1rem 0.35rem;border-radius:3px}'
     . 'fieldset{border:1px solid #ccc;border-radius:6px;margin:0 0 1.25rem;padding:1rem}'
     . 'legend{font-weight:600;padding:0 0.4rem}'
+    . 'table{border-collapse:collapse;width:100%;margin:0.5rem 0 1rem;font-size:0.9rem}'
+    . 'th,td{text-align:left;padding:0.35rem 0.5rem;border-bottom:1px solid #ddd;vertical-align:top}'
     . 'button{background:#1a1a1a;color:#fff;border:none;border-radius:4px;padding:0.6rem 1.2rem;font-size:1rem;cursor:pointer}'
     . '</style>';
 
@@ -207,9 +183,10 @@ if ($alreadySetUp && $action !== 'reset-password') {
         . 'while <code>backprod-app/var/.setup-complete</code> exists.</p>'
         . '<p><strong>Delete this file now</strong> — <code>public_html/' . htmlspecialchars(basename(__FILE__)) . '</code> — '
         . 'it has nothing left to do and no reason to keep serving.</p>'
-        . '<p class="hint">Locked yourself out with a password typo before deleting it? The one thing this page still '
-        . 'does is reset that one password — nothing else — and only for whoever can also type the real database '
-        . 'credentials.</p>';
+        . '<p class="hint">The one thing this page still does is change one account\'s password — nothing else — '
+        . 'and only for whoever can also type the real database credentials. The seeded accounts all start with '
+        . 'the password in this platform\'s source; if you have not changed the platform administrator\'s yet, '
+        . 'do it here.</p>';
 
     $body .= resetPasswordForm();
 
@@ -243,8 +220,8 @@ function resetPasswordForm(): string
         . inputRow('Username', 'db_user')
         . inputRow('Password', 'db_pass', 'password')
         . '</fieldset>'
-        . '<fieldset><legend>Reset</legend>'
-        . inputRow('Account email', 'reset_email')
+        . '<fieldset><legend>Change a password</legend>'
+        . inputRow('Account email', 'reset_email', 'email', 'sam@demo.test')
         . inputRow('New password (12–72 characters)', 'reset_password', 'password')
         . inputRow('Confirm new password', 'reset_password_confirm', 'password')
         . '</fieldset>'
@@ -308,70 +285,54 @@ function setupForm(): string
         . inputRow('Username', 'db_user')
         . inputRow('Password', 'db_pass', 'password')
         . '</fieldset>'
-        . '<fieldset><legend>Product</legend>'
-        . inputRow('Product name', 'product_name', 'text', 'Atlas')
-        . inputRow('Product code (leave blank to derive it from the name)', 'product_code', 'text', 'atlas')
-        . '</fieldset>'
-        . '<fieldset><legend>Your organisation</legend>'
-        . inputRow('Organisation name', 'tenant_name', 'text', 'Acme Ltd')
-        . '</fieldset>'
-        . '<fieldset><legend>Demonstration data</legend>'
-        . checkboxRow(
-            'Also create a demonstration product called licorne',
-            'seed_demo',
-            'A second, separate product with a full catalogue, two organisations, three people, '
-            . 'a live subscription and the invoice it raised — so there is something to look at '
-            . 'before your own product has any data. Nothing it creates touches the product above. '
-            . 'Delete it later from Console → Products.',
-        )
-        . '</fieldset>'
-        . '<fieldset><legend>Your account</legend>'
-        . inputRow('Your name', 'admin_name', 'text', 'Ada Lovelace')
-        . inputRow('Your email', 'admin_email', 'email')
-        . inputRow('Password (12–72 characters)', 'admin_password', 'password')
-        . inputRow('Confirm password', 'admin_password_confirm', 'password')
+        . '<fieldset><legend>What this creates</legend>'
+        . '<p class="hint" style="margin:0">The demonstration world: four products (<code>atlas</code>, '
+        . '<code>boreas</code>, <code>ceres</code>, <code>delos</code>), each with a catalogue, two '
+        . 'organisations holding them, one person per role — two tenant roles, four platform roles — and '
+        . 'two live subscriptions with the invoices they raised. No product or account of your own is asked '
+        . 'for: you sign in as those people. Their password is in this platform\'s source, and the next '
+        . 'page is where you change it. See <code>docs/demo-world.html</code> in the bundle.</p>'
         . '</fieldset>'
         . '<button type="submit">Set up</button>'
         . '</form>';
 }
 
 /**
- * What the demonstration product is, or why there isn't one.
+ * The people the world made, as a table somebody can sign in from.
  *
- * Three outcomes and three messages: not asked for (nothing), built (where it
- * is and how to sign into it), or attempted and failed. The third says so
- * plainly rather than quietly rendering the first — somebody who ticked the box
- * and sees no mention of it would reasonably conclude it worked.
+ * Everything in it comes from the seeder's own answer — names, addresses,
+ * roles, the password — so this page never carries a copy that could drift.
  *
- * @param array<string, mixed>|null $demo
+ * @param array<string, mixed> $world
  */
-function demoNote(?array $demo, ?string $failure, string $host): string
+function accountsTable(array $world, string $host): string
 {
-    if ($failure !== null) {
-        return '<p class="error">Your product, organisation and account are set up and work — but the '
-            . 'demonstration product could not be created: ' . htmlspecialchars($failure) . '. Nothing else '
-            . 'was affected. You can create it later from a shell with '
-            . '<code>php bin/seed-demo.php --product=' . DEMO_PRODUCT_CODE . '</code>, or simply not have one.</p>';
+    $people = is_array($world['people'] ?? null) ? $world['people'] : [];
+    $password = is_string($world['password'] ?? null) ? $world['password'] : '';
+
+    $rows = '';
+
+    foreach ($people as $person) {
+        if (!is_array($person)) {
+            continue;
+        }
+
+        $email = is_string($person['email'] ?? null) ? $person['email'] : '';
+        $role = is_string($person['role'] ?? null) ? $person['role'] : '';
+        $scope = ($person['scope'] ?? '') === 'platform' ? 'platform' : 'tenant';
+        $tenants = is_array($person['tenants'] ?? null) ? implode(', ', array_filter($person['tenants'], is_string(...))) : '';
+
+        $rows .= '<tr><td><code>' . htmlspecialchars($email) . '</code></td>'
+            . '<td>' . htmlspecialchars($role) . '</td>'
+            . '<td>' . ($scope === 'platform' ? 'the console' : htmlspecialchars($tenants)) . '</td></tr>';
     }
 
-    if ($demo === null) {
-        return '';
-    }
-
-    $people = is_array($demo['people'] ?? null) ? $demo['people'] : [];
-    $admin = is_string($people['admin'] ?? null) ? $people['admin'] : '';
-    // From the seeder, so this page never carries its own copy of the password.
-    $password = is_string($demo['password'] ?? null) ? $demo['password'] : '';
-
-    return '<p class="ok">A demonstration product <code>' . DEMO_PRODUCT_CODE . '</code> was also created: '
-        . 'a full catalogue, two organisations, three people, a live subscription and the invoice it raised. '
-        . 'It is entirely separate from your own product — a different catalogue, different organisations, '
-        . 'different people.</p>'
-        . '<p>Look at it by signing in at <a href="https://' . $host . '/sign-in?product=' . DEMO_PRODUCT_CODE . '">'
-        . htmlspecialchars($host) . '/sign-in?product=' . DEMO_PRODUCT_CODE . '</a> as <code>'
-        . htmlspecialchars($admin) . '</code> with the password <code>' . htmlspecialchars($password) . '</code>. '
-        . '<strong>That password is public knowledge</strong> — it is in this platform\'s source. Delete the '
-        . 'product from Console → Products when you have finished looking, which takes its people with it.</p>';
+    return '<table><thead><tr><th>Sign in as</th><th>Role</th><th>Administers</th></tr></thead>'
+        . '<tbody>' . $rows . '</tbody></table>'
+        . '<p>Every one of them has the password <code>' . htmlspecialchars($password) . '</code>. '
+        . 'Sign in at <a href="https://' . $host . '/sign-in?product=atlas">' . htmlspecialchars($host)
+        . '/sign-in?product=atlas</a> — the first time, the <code>?product=</code> is needed; after that this '
+        . 'browser remembers it. Platform staff land in the console.</p>';
 }
 
 /** @param array<int|string, mixed> $data */
@@ -431,35 +392,6 @@ function handleSetup(): void
     }
 
     $connection = connectOrFail($_POST);
-
-    $productName = field($_POST, 'product_name');
-    $productCode = field($_POST, 'product_code') !== '' ? slugify(field($_POST, 'product_code')) : slugify($productName);
-    $tenantName = field($_POST, 'tenant_name');
-    $adminName = field($_POST, 'admin_name');
-    $adminEmail = field($_POST, 'admin_email');
-    $adminPassword = is_string($_POST['admin_password'] ?? null) ? $_POST['admin_password'] : '';
-    $adminPasswordConfirm = is_string($_POST['admin_password_confirm'] ?? null) ? $_POST['admin_password_confirm'] : '';
-
-    if ($productName === '' || $productCode === '') {
-        fail(422, 'Enter a product name (and a product code, or one derivable from the name).');
-    }
-
-    if ($tenantName === '') {
-        fail(422, 'Enter your organisation’s name.');
-    }
-
-    if ($adminName === '' || $adminEmail === '' || !str_contains($adminEmail, '@')) {
-        fail(422, 'Enter your name and a real email address.');
-    }
-
-    if (strlen($adminPassword) < 12 || strlen($adminPassword) > 72) {
-        fail(422, 'The password must be between 12 and 72 characters.');
-    }
-
-    if (!hash_equals($adminPassword, $adminPasswordConfirm)) {
-        fail(422, 'The two passwords do not match — there is no password reset yet if this one is wrong and '
-            . 'you have already deleted this file, so it is worth getting right now.');
-    }
 
     // --- .env, written before anything else needs it ---------------------------
     //
@@ -543,145 +475,63 @@ function handleSetup(): void
             . 'database and resubmit this form — already-applied migrations will not run twice.');
     }
 
-    // --- The first product, tenant and admin account, in one transaction -------
+    // --- The demonstration world ---------------------------------------------
     //
-    // The same three inserts bin/seed-demo.php makes for its demo world, once,
-    // for a real one: a product row, a tenant row, a user promoted from a
-    // placeholder subject to `local:<id>` — the shape a token this platform
-    // issues carries — a credential, and a TENANT_ADMIN role assignment.
+    // Through `bin/demo-world.php`, the one definition of what a complete
+    // demonstration is, so this page and `composer run demo:seed` build the
+    // same thing. Its failure *is* this page's failure: there is no other
+    // account to fall back on, so a deployment with no world is a deployment
+    // nobody can sign into. The marker is not written on failure — fix what
+    // the message names and resubmit; migrations already applied are not
+    // planned again, and the world refuses to seed on top of itself.
     try {
-        $connection->beginTransaction();
+        // The container needs .env, which is on disk but not in this
+        // process's environment — nothing here has loaded it, because until
+        // now this page only ever needed the connection it built by hand.
+        Dotenv::createImmutable(BACKPROD_APP)->safeLoad();
 
-        $productId = $connection->fetchOne(
-            'INSERT INTO products (code, name, active) VALUES (:code, :name, true) RETURNING id',
-            ['code' => $productCode, 'name' => $productName],
-        );
+        $containerFactory = require BACKPROD_APP . '/config/container.php';
 
-        $tenantSlug = slugify($tenantName);
-        $tenantId = $connection->fetchOne(
-            'INSERT INTO tenants (name, slug) VALUES (:name, :slug) RETURNING id',
-            ['name' => $tenantName, 'slug' => $tenantSlug !== '' ? $tenantSlug : bin2hex(random_bytes(4))],
-        );
-
-        $userId = $connection->fetchOne(
-            "INSERT INTO users (auth_subject, email, display_name) VALUES ('pending', :email, :name) RETURNING id",
-            ['email' => $adminEmail, 'name' => $adminName],
-        );
-
-        if (!is_string($productId) || !is_string($tenantId) || !is_string($userId)) {
-            throw new \RuntimeException('One of the inserts above did not return an id.');
+        if (!is_callable($containerFactory)) {
+            throw new \RuntimeException('config/container.php did not return a factory.');
         }
 
-        $connection->executeStatement(
-            "UPDATE users SET auth_subject = 'local:' || id WHERE id = :id",
-            ['id' => $userId],
+        $seed = require BACKPROD_APP . '/bin/demo-world.php';
+
+        if (!is_callable($seed)) {
+            throw new \RuntimeException('bin/demo-world.php did not return a seeder.');
+        }
+
+        // Seeded on top of itself — a resubmission after a failure further
+        // down — would double every catalogue. The product codes are unique,
+        // so this is what the seeder's own command line checks too.
+        $codes = array_keys(DEMO_PRODUCTS);
+        $taken = $connection->fetchOne(
+            'SELECT count(*) FROM products WHERE code = ANY(CAST(:codes AS text[]))',
+            ['codes' => '{' . implode(',', $codes) . '}'],
         );
 
-        $connection->executeStatement(
-            'INSERT INTO local_credentials (user_id, email, password_hash) VALUES (:id, :email, :hash)',
-            ['id' => $userId, 'email' => $adminEmail, 'hash' => password_hash($adminPassword, PASSWORD_BCRYPT)],
+        if (is_numeric($taken) && (int) $taken > 0) {
+            throw new \RuntimeException('a product with one of the demo codes (' . implode(', ', $codes)
+                . ') already exists, so the world was not seeded again — drop and recreate the database, or run '
+                . 'php bin/seed-demo.php --reset from a shell');
+        }
+
+        $world = $seed($containerFactory());
+
+        $failed = array_filter(
+            is_array($world['checks'] ?? null) ? $world['checks'] : [],
+            static fn (mixed $ok): bool => $ok !== true,
         );
 
-        // The product just created is the first one this tenant holds
-        // (ADR-047); the membership below has to sit inside that assignment.
-        $connection->executeStatement(
-            'INSERT INTO tenant_products (tenant_id, product_id, assigned_by) VALUES (:tenant, :product, :user)',
-            ['tenant' => $tenantId, 'product' => $productId, 'user' => $userId],
-        );
-
-        $connection->executeStatement(
-            'INSERT INTO tenant_members (tenant_id, product_id, user_id) VALUES (:tenant, :product, :user)',
-            ['tenant' => $tenantId, 'product' => $productId, 'user' => $userId],
-        );
-
-        $roleId = $connection->fetchOne("SELECT id FROM roles WHERE code = 'TENANT_ADMIN'");
-
-        $connection->executeStatement(
-            'INSERT INTO tenant_member_roles (tenant_id, product_id, user_id, role_id) VALUES (:tenant, :product, :user, :role)',
-            ['tenant' => $tenantId, 'product' => $productId, 'user' => $userId, 'role' => $roleId],
-        );
-
-        // And PLATFORM_ADMIN, which is the other half of what this person is.
-        //
-        // TENANT_ADMIN above administers the organisation just created; this
-        // administers the platform that hosts it — every tenant, the audit
-        // trail, and who else may hold a platform role. Whoever ran this
-        // installer is both, because on a self-hosted deployment there is
-        // nobody else to be the second one.
-        //
-        // Granted here rather than left to a later SQL statement typed by
-        // hand: without it the first sign-in lands on a console its owner
-        // cannot enter, with no route in that does not go through the
-        // database — which is the exact situation this installer exists to
-        // remove. `granted_by` is the same person, since the alternative is a
-        // null that says the platform appointed itself.
-        $platformRoleId = $connection->fetchOne(
-            "SELECT id FROM platform_roles WHERE code = 'PLATFORM_ADMIN'",
-        );
-
-        $connection->executeStatement(
-            'INSERT INTO platform_staff (user_id, platform_role_id, granted_by) VALUES (:user, :role, :user)',
-            ['user' => $userId, 'role' => $platformRoleId],
-        );
-
-        $connection->commit();
+        if ($failed !== []) {
+            // The seeder verifies what it made. A world that does not hold
+            // is worse than no world: somebody would demonstrate it.
+            throw new \RuntimeException('the seeded world does not hold: ' . implode(', ', array_keys($failed)));
+        }
     } catch (\Throwable $e) {
-        $connection->rollBack();
-
-        fail(500, 'Could not create the product, organisation or account: ' . $e->getMessage() . ' Nothing was '
-            . 'saved (it was one transaction) — backprod-app/.env and the migrations already applied are fine; '
-            . 'fix whatever this names (a product code or organisation name already taken, most likely) and '
-            . 'resubmit.');
-    }
-
-    // --- The demonstration product, if it was asked for -----------------------
-    //
-    // After the real account and never instead of it, and its failure is never
-    // this page's failure: by the time we are here the product, the
-    // organisation and the administrator exist and work. A demo that could not
-    // be built is worth saying out loud and worth nothing else — refusing the
-    // whole setup over it would throw away the part that matters, and the
-    // marker below has to be written either way or a reload would try to create
-    // that account a second time.
-    $demo = null;
-    $demoFailure = null;
-
-    if (($_POST['seed_demo'] ?? '') === 'yes') {
-        try {
-            // The container needs .env, which is on disk but not in this
-            // process's environment — nothing here has loaded it, because until
-            // now this page only ever needed the connection it built by hand.
-            Dotenv::createImmutable(BACKPROD_APP)->safeLoad();
-
-            $containerFactory = require BACKPROD_APP . '/config/container.php';
-
-            if (!is_callable($containerFactory)) {
-                throw new \RuntimeException('config/container.php did not return a factory.');
-            }
-
-            $seed = require BACKPROD_APP . '/bin/demo-world.php';
-
-            if (!is_callable($seed)) {
-                throw new \RuntimeException('bin/demo-world.php did not return a seeder.');
-            }
-
-            $world = $seed($containerFactory(), DEMO_PRODUCT_CODE, DEMO_PRODUCT_NAME);
-
-            $failed = array_filter(
-                is_array($world['checks'] ?? null) ? $world['checks'] : [],
-                static fn (mixed $ok): bool => $ok !== true,
-            );
-
-            if ($failed !== []) {
-                // The seeder verifies what it made. A world that does not hold
-                // is worse than no world: somebody would demonstrate it.
-                throw new \RuntimeException('the seeded world does not hold: ' . implode(', ', array_keys($failed)));
-            }
-
-            $demo = $world;
-        } catch (\Throwable $e) {
-            $demoFailure = $e->getMessage();
-        }
+        fail(500, 'The demonstration world could not be created: ' . $e->getMessage() . '. backprod-app/.env '
+            . 'is written and the migrations are applied; fix what this names and resubmit this form.');
     }
 
     // --- Done: the marker is the only thing that makes this page inert --------
@@ -690,18 +540,16 @@ function handleSetup(): void
     $rawHost = $_SERVER['HTTP_HOST'] ?? 'your-domain';
     $host = htmlspecialchars(is_string($rawHost) ? $rawHost : 'your-domain');
 
-    render('Set up', STYLE_BLOCK . '<p class="ok">Done. Migrations ran, and ' . htmlspecialchars($adminEmail)
-        . ' can sign in as an administrator of ' . htmlspecialchars($tenantName)
-        . ' <em>and</em> of the platform itself — the console, every tenant, and who else may hold '
-        . 'a platform role. Appoint colleagues from Console → Staff rather than in SQL.</p>'
-        . '<p><a href="https://' . $host . '/">Open the sign-in screen</a>. The first time, add '
-        . '<code>?product=' . htmlspecialchars($productCode) . '</code> to the address — after that, '
-        . 'this browser remembers it.</p>'
-        . demoNote($demo, $demoFailure, $host)
-        . '<p><strong>Confirm you can sign in before you delete this file.</strong> There is no password-reset '
-        . 'screen yet (ADR-038); if the password above has a typo, this page can still fix only that — nothing '
-        . 'else — for as long as it exists.</p>'
+    render('Set up', STYLE_BLOCK . '<p class="ok">Done. Migrations ran and the demonstration world is seeded: '
+        . 'four products, two organisations, six people, two live subscriptions with their invoices.</p>'
+        . accountsTable($world, $host)
+        . '<p class="error"><strong>Change the platform administrator\'s password now.</strong> Every account '
+        . 'above has the password printed there, and it is in this platform\'s public source — anybody who '
+        . 'reads it can administer this deployment until you do. Use the form below, sign in with the new one, '
+        . 'and appoint colleagues from Console → Staff rather than in SQL.</p>'
+        . resetPasswordForm()
         . '<p><strong>Then delete <code>public_html/' . htmlspecialchars(basename(__FILE__)) . '</code>.</strong> '
         . 'It cannot run full setup again — <code>backprod-app/var/.setup-complete</code> refuses that on its '
-        . 'own — but it is still reachable by anybody who guesses the URL, and it has nothing left to do.</p>');
+        . 'own — but it is still reachable by anybody who guesses the URL, and it has nothing left to do but '
+        . 'change passwords.</p>');
 }

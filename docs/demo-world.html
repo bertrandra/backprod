@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Demonstration World</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --ground: #f6f7f9;
+    --panel: #ffffff;
+    --ink: #1c2230;
+    --muted: #5b6472;
+    --rule: #d9dde3;
+    --accent: #0f766e;
+    --accent-ink: #ffffff;
+    --tenant: #1d4ed8;
+    --tenant-soft: #e3ebff;
+    --platform: #7c2d12;
+    --platform-soft: #fbe9e0;
+    --warn-soft: #fff4d6;
+    --warn: #8a5a00;
+    --code: #eef0f3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #14181f;
+      --panel: #1b2029;
+      --ink: #e6e9ee;
+      --muted: #9aa3b0;
+      --rule: #2c333e;
+      --accent: #2dd4bf;
+      --accent-ink: #0b1512;
+      --tenant: #93b4ff;
+      --tenant-soft: #1d2a4a;
+      --platform: #f4b08c;
+      --platform-soft: #3d2418;
+      --warn-soft: #3a2f10;
+      --warn: #f2c968;
+      --code: #232a35;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #14181f;
+    --panel: #1b2029;
+    --ink: #e6e9ee;
+    --muted: #9aa3b0;
+    --rule: #2c333e;
+    --accent: #2dd4bf;
+    --accent-ink: #0b1512;
+    --tenant: #93b4ff;
+    --tenant-soft: #1d2a4a;
+    --platform: #f4b08c;
+    --platform-soft: #3d2418;
+    --warn-soft: #3a2f10;
+    --warn: #f2c968;
+    --code: #232a35;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font: 15px/1.55 ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    padding-block: 2.5rem 4rem;
+    padding-inline: clamp(16px, 4vw, 40px);
+  }
+  main { max-width: 76ch; margin-inline: auto; }
+  h1, h2, h3 { line-height: 1.15; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+  h1 { font-size: 2rem; font-weight: 700; }
+  h2 { font-size: 1.25rem; font-weight: 650; margin-top: 2.75rem; padding-top: 0.5rem; border-top: 1px solid var(--rule); }
+  h3 { font-size: 1rem; font-weight: 650; margin-top: 1.5rem; }
+  p { margin: 0.75rem 0 0; max-width: 68ch; }
+  .lede { font-size: 1.05rem; color: var(--muted); margin-top: 0.75rem; }
+  .eyebrow { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); font-weight: 650; margin: 0 0 0.5rem; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  code, kbd {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+    font-size: 0.9em; background: var(--code); padding: 0.08em 0.35em; border-radius: 3px;
+  }
+  pre {
+    background: var(--code); border-radius: 6px; padding: 0.85rem 1rem; overflow-x: auto;
+    font: 0.86rem/1.5 ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace; margin: 0.75rem 0 0;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  .table-wrap { overflow-x: auto; margin-top: 0.85rem; border: 1px solid var(--rule); border-radius: 6px; background: var(--panel); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 650; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th.num { text-align: right; }
+
+  .chip {
+    display: inline-block; font-size: 0.72rem; font-weight: 650; letter-spacing: 0.05em;
+    padding: 0.12em 0.5em; border-radius: 999px; white-space: nowrap; vertical-align: middle;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  }
+  .chip.tenant { background: var(--tenant-soft); color: var(--tenant); }
+  .chip.platform { background: var(--platform-soft); color: var(--platform); }
+
+  .people { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 0.85rem; margin-top: 1rem; }
+  .person {
+    background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 0.9rem 1rem;
+    display: grid; grid-template-columns: 1fr auto; gap: 0.35rem 0.75rem; align-items: start;
+  }
+  .person .who { font-weight: 650; }
+  .person .mail { grid-column: 1 / -1; }
+  .person .sees { grid-column: 1 / -1; color: var(--muted); font-size: 0.9rem; margin: 0; }
+  .person .start { grid-column: 1 / -1; font-size: 0.9rem; margin: 0; }
+
+  .password {
+    margin-top: 1.25rem; background: var(--warn-soft); border-left: 4px solid var(--warn); border-radius: 0 6px 6px 0;
+    padding: 0.85rem 1rem;
+  }
+  .password p { margin: 0; }
+  .password p + p { margin-top: 0.5rem; }
+  .password strong { color: var(--warn); }
+
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1rem; margin: 0.75rem 0 0; font-size: 0.95rem; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+  ol { padding-left: 1.3rem; margin: 0.75rem 0 0; }
+  ol li + li { margin-top: 0.45rem; }
+  ol li { max-width: 68ch; }
+  .note { color: var(--muted); font-size: 0.9rem; }
+  @media (max-width: 480px) { dl { grid-template-columns: 1fr; gap: 0.15rem; } dt { margin-top: 0.4rem; } }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Backprod · demonstration database</p>
+  <h1>The Demonstration World</h1>
+  <p class="lede">Four products, two organisations, one person per role, two live subscriptions with the invoices they raised — the world <code>composer run demo:seed</code> builds and the installer seeds. This page is who is in it, how to sign in as each of them, and what each one sees.</p>
+
+  <h2>Seeding it</h2>
+  <p>From a shell, against a migrated database (<code>DATABASE_DSN</code> set, or in <code>.env</code>):</p>
+<pre><code>composer run demo:seed          # seed it into an empty database
+composer run demo:reset         # wipe the business tables first, then seed</code></pre>
+  <p>The seeder refuses a database where any of the four product codes already exists, so it never doubles a catalogue. It reads the world back afterwards — subscriptions active, invoices numbered, every offer advertised, every product with its tax position, every role held by exactly one person — and fails loudly if anything does not hold. Reference data (permissions, roles, EU VAT rates) comes from migrations and is never touched.</p>
+  <p>The SiteGround installer (<code>setup.php</code>) seeds the same world after writing <code>.env</code> and running the migrations. It asks for no product and no account of your own: you sign in as the people below.</p>
+
+  <h2>The four products</h2>
+  <p>Each has the same three-plan catalogue — Starter, Pro, Scale — with three features (<code>projects</code> and <code>exports</code> as quotas, <code>white_label</code> as a switch), three published and advertised offers, its own supplier identity for invoices and a French VAT position (OSS-registered, digital services, EUR). Prices differ so the four are distinguishable on the storefront and in the console.</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Code</th><th>Name</th><th class="num">Starter / month</th><th class="num">Pro / month</th><th class="num">Scale / year</th><th>Held by</th></tr></thead>
+    <tbody>
+      <tr><td><code>atlas</code></td><td>Atlas</td><td class="num">€19.00</td><td class="num">€49.40</td><td class="num">€494.00</td><td>Acme, Globex</td></tr>
+      <tr><td><code>boreas</code></td><td>Boreas</td><td class="num">€29.00</td><td class="num">€75.40</td><td class="num">€754.00</td><td>Acme, Globex</td></tr>
+      <tr><td><code>ceres</code></td><td>Ceres</td><td class="num">€9.00</td><td class="num">€23.40</td><td class="num">€234.00</td><td>Acme</td></tr>
+      <tr><td><code>delos</code></td><td>Delos</td><td class="num">€49.00</td><td class="num">€127.40</td><td class="num">€1,274.00</td><td>Acme</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Starter grants 3 projects and 10 exports; Pro 25 projects, 200 exports and white label; Scale is unlimited. All prices are net of VAT, in cents in the database and formatted here.</p>
+
+  <h2>The two organisations</h2>
+  <p>A tenant holds the products the platform assigned it, and a member of the tenant is mirrored onto every one of them (ADR-047). Both have a billing profile and a B2B French tax profile, so either can be invoiced.</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Tenant</th><th>Slug</th><th>Holds</th><th>Subscribed to</th><th>Invoice</th></tr></thead>
+    <tbody>
+      <tr><td>Acme Ltd</td><td><code>acme</code></td><td>atlas, boreas, ceres, delos</td><td>Atlas · Pro, monthly — active</td><td><code>2026-000001</code>, issued</td></tr>
+      <tr><td>Globex SA</td><td><code>globex</code></td><td>atlas, boreas</td><td>Boreas · Starter, monthly — active</td><td><code>2026-000002</code>, issued</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Invoice numbers come from the gapless sequence, so they are the first two of the year the seed ran; a reseed after a reset starts again at <code>000001</code>.</p>
+
+  <h2>The six people</h2>
+  <p>One per role the platform defines — two tenant roles, four platform roles — and nobody holds two authorities at once: a platform role never grants a tenant membership, and the reverse (non-negotiable #22). <span class="chip tenant">tenant</span> roles sign in to an organisation's screens; <span class="chip platform">platform</span> roles land in the console.</p>
+
+  <div class="people">
+    <div class="person">
+      <span class="who">Ada Lovelace</span><span class="chip tenant">TENANT_ADMIN</span>
+      <span class="mail"><code>ada@demo.test</code></span>
+      <p class="sees">Administrator of both Acme and Globex, on every product each holds. Sign-in asks which organisation; the top-left switcher moves between their products.</p>
+      <p class="start">Start with: members, billing, the <code>2026-000001</code> invoice, taking a payment.</p>
+    </div>
+    <div class="person">
+      <span class="who">Grace Hopper</span><span class="chip tenant">USER</span>
+      <span class="mail"><code>grace@demo.test</code></span>
+      <p class="sees">A member of Acme with the read-only half of the permissions: projects, messaging, notifications, and a look at billing, the subscription and the member list — but nothing that changes any of them, no invoicing, no payments to take.</p>
+      <p class="start">Start with: the same screens as Ada, and what is missing from them.</p>
+    </div>
+    <div class="person">
+      <span class="who">Sam Staff</span><span class="chip platform">PLATFORM_ADMIN</span>
+      <span class="mail"><code>sam@demo.test</code></span>
+      <p class="sees">The whole console: setup, products, catalogue, storefront, invoicing, tenants, conversations, directory, metrics, staff, queue, audit, access log, erasure. The one account that may appoint other staff.</p>
+      <p class="start">Start with: Console → Setup with each product in the switcher — all four read as ready to sell.</p>
+    </div>
+    <div class="person">
+      <span class="who">Hedy Lamarr</span><span class="chip platform">SUPPORT_ADMIN</span>
+      <span class="mail"><code>hedy@demo.test</code></span>
+      <p class="sees">Tenants, conversations and the job queue. Reading a tenant's data requires a purpose and a reference, and every read is in the access log.</p>
+      <p class="start">Start with: open Acme from Console → Tenants and watch the access-log row appear.</p>
+    </div>
+    <div class="person">
+      <span class="who">Frances Allen</span><span class="chip platform">FINANCE_ADMIN</span>
+      <span class="mail"><code>fran@demo.test</code></span>
+      <p class="sees">Tenants and metrics — turnover, per product and never summed across them — and nothing that changes a catalogue or a customer.</p>
+      <p class="start">Start with: Console → Metrics, then the two invoices.</p>
+    </div>
+    <div class="person">
+      <span class="who">Sally Ride</span><span class="chip platform">SALES_ADMIN</span>
+      <span class="mail"><code>sal@demo.test</code></span>
+      <p class="sees">Tenants and metrics, the same read-only surface as finance today; the role exists so that a sales-specific permission has somewhere to go.</p>
+      <p class="start">Start with: Console → Tenants, to see what is held and what is subscribed.</p>
+    </div>
+  </div>
+
+  <div class="password">
+    <p>Every account signs in with the password <code>demo-password-1234</code>, at <code>/sign-in?product=atlas</code> — the <code>?product=</code> is needed the first time; after that the browser remembers it.</p>
+    <p><strong>That password is in this platform's public source.</strong> On any deployment that is reachable by someone else, change the platform administrator's password before anything else — the installer's success page offers the form, and it is the only thing that page still does once setup has run. There is no self-service password reset yet (ADR-038).</p>
+  </div>
+
+  <h2>Things worth looking at</h2>
+  <ol>
+    <li><strong>The storefront asks which product.</strong> Signed out, <code>/</code> shows a dropdown of the four products and the advertised offers of the chosen one; only products with something sellable are listed.</li>
+    <li><strong>The console follows the switcher.</strong> As Sam, the top-left switcher lists all four products, and Setup, Catalogue, Storefront and Invoicing follow it. Retire one from Console → Products and watch it marked so.</li>
+    <li><strong>A tenant with several products.</strong> As Ada in Acme, the switcher offers four products; in Globex, two. Assign Ceres to Globex from Console → Tenants (as Sam) and Ada's switcher gains it — her membership was mirrored onto it.</li>
+    <li><strong>Withdrawing a product is refused while service is owed.</strong> Unassign Atlas from Acme and the console answers <code>PRODUCT_IN_USE</code>: the Pro subscription is still running.</li>
+    <li><strong>Money moves only on the provider's word.</strong> With Stripe configured (sandbox keys, <code>stripe listen</code>), take a payment on <code>2026-000001</code> as Ada with card <code>4242 4242 4242 4242</code>; the invoice turns <em>paid</em> when the webhook lands, not when the form closes. <code>4000 0000 0000 9995</code> is declined and offers <em>Try again</em>.</li>
+    <li><strong>Staff reads leave a trail.</strong> As Hedy, open a tenant with a purpose and reference; as Sam, read the access log.</li>
+  </ol>
+
+  <h2>Where it is defined</h2>
+  <dl>
+    <dt><code>bin/demo-world.php</code></dt><dd>The one definition of the world — products, people, catalogue, subscriptions, checks. This page describes it; when one changes, so does the other.</dd>
+    <dt><code>bin/seed-demo.php</code></dt><dd>The command line around it: <code>--reset</code>, the guard against seeding twice, the printed summary.</dd>
+    <dt><code>deploy/siteground/setup.php</code></dt><dd>The installer, which seeds the same world once and then only changes passwords.</dd>
+    <dt><code>docs/deploying-to-siteground.md</code></dt><dd>The deployment guide this page is linked from.</dd>
+  </dl>
+</main>
+</body>
+</html>

@@ -38,7 +38,7 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
         parent::setUp();
 
         // A product with *nothing* in it — no plans, no features, no offers —
-        // which is exactly what `setup.php` leaves behind.
+        // which is what Console → Products leaves behind after creating one.
         // Two products, so "product-scoped" is tested against something real
         // rather than against a fabricated uuid. Their ids are not kept: every
         // route below addresses a product by *code*, which is the point.
@@ -496,7 +496,7 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
 
     public function testAFreshInstallationCanGoFromNothingToSomethingAStrangerCanBuy(): void
     {
-        // Exactly what `setup.php` leaves: one product, nothing in it. Every
+        // A product with nothing in it, as Console → Products creates one. Every
         // step below is a console call, and none of them is SQL.
         $planId = $this->planId($this->createPlan(['code' => 'pro', 'name' => 'Pro', 'rank' => 10]));
         $offerId = $this->offerId($this->createOffer($planId));

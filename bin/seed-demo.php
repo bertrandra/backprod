@@ -9,15 +9,15 @@ use Dotenv\Dotenv;
 use Psr\Container\ContainerInterface;
 
 /**
- * A demonstration world, seeded into an empty database.
+ * The demonstration world, seeded into an empty database.
  *
- *     php bin/seed-demo.php                       # seed `atlas`
- *     php bin/seed-demo.php --product=licorne     # a world of its own, beside it
- *     php bin/seed-demo.php --reset               # wipe the business tables first
+ *     php bin/seed-demo.php               # seed it
+ *     php bin/seed-demo.php --reset       # wipe the business tables first
  *
  * The world itself lives in `bin/demo-world.php`, which the installer calls too
  * — this file is the command line around it, and that one is the definition of
- * what a complete demonstration contains.
+ * what a complete demonstration contains. `docs/demo-world.html` describes it
+ * for whoever is about to sign in.
  *
  * **What this is for.** Until now the only way to see this platform run was to
  * read its tests. 811 of them pass and 178 browser tests walk the screens, and
@@ -28,9 +28,9 @@ use Psr\Container\ContainerInterface;
  * **What it seeds, and what it deliberately does not.** Reference data —
  * permissions, roles, the platform's own roles, EU VAT rates — is created by
  * *migrations* and is not touched here. This seeds the business world on top:
- * one product, two tenants, people, a catalogue, a live subscription with the
- * invoice it raised, a paid and a failed payment, a support thread, a project
- * with versions, jobs, and a VAT period with transactions behind it.
+ * four products with a catalogue each, two organisations holding them, one
+ * person per role the platform defines, and two live subscriptions with the
+ * invoices they raised.
  *
  * **Invariants go through the services that own them.** Subscribing and issuing
  * an invoice are done by `Subscriptions::subscribe` and
@@ -63,32 +63,6 @@ $container = $containerFactory();
 $connection = $container->get(Connection::class);
 
 $reset = in_array('--reset', $argv, true);
-
-/**
- * Which product this world is for.
- *
- * `atlas` when nobody says otherwise, which is what every existing invocation
- * and both composer scripts expect. The installer passes `licorne`, and a second
- * demo beside the first is `--product=…` away — every name in the world is
- * derived from this, so two of them never collide.
- */
-$option = static function (string $name, string $fallback) use ($argv): string {
-    foreach ($argv as $argument) {
-        if (str_starts_with($argument, "--{$name}=")) {
-            return substr($argument, strlen($name) + 3);
-        }
-    }
-
-    return $fallback;
-};
-
-$productCode = strtolower(trim($option('product', 'atlas')));
-$productName = trim($option('name', ucfirst($productCode)));
-
-if (preg_match('/^[a-z0-9][a-z0-9-]{0,62}$/', $productCode) !== 1) {
-    fwrite(STDERR, "--product must be a code: lower-case letters, digits and hyphens.\n");
-    exit(1);
-}
 
 /**
  * The business tables, in an order that respects the foreign keys.
@@ -153,25 +127,22 @@ function count_of(Connection $connection, string $sql, array $parameters = []): 
 
 // --- Refuse to seed on top of something ---------------------------------------
 //
-// Narrowed from "this database has any data" to "this product code is taken".
-// The old guard was right when there was one demo world and it was the only
-// thing in the database; it is wrong now that the installer can seed a demo
-// beside a real product it has just created, and that two demo products can
-// coexist under codes of their own. What it was actually protecting against —
-// doubling a catalogue, leaving a demo nobody could trust — is exactly what the
-// unique product code catches, and catches per product rather than per database.
+// "One of the demo's product codes is taken" rather than "this database has
+// any data": what the guard protects against — doubling a catalogue, leaving a
+// demo nobody could trust — is exactly what the unique product code catches.
+
+$seed = require __DIR__ . '/demo-world.php';
 
 $taken = count_of(
     $connection,
-    'SELECT count(*) FROM products WHERE code = :code',
-    ['code' => $productCode],
+    'SELECT count(*) FROM products WHERE code = ANY(CAST(:codes AS text[]))',
+    ['codes' => '{' . implode(',', array_keys(DEMO_PRODUCTS)) . '}'],
 );
 
 if ($taken > 0 && !$reset) {
-    fwrite(STDERR, "A product with the code '{$productCode}' already exists.\n\n");
+    fwrite(STDERR, 'A product with one of the demo codes (' . implode(', ', array_keys(DEMO_PRODUCTS)) . ") already exists.\n\n");
     fwrite(STDERR, "Seeding on top would double its catalogue and leave a demo nobody\n");
-    fwrite(STDERR, "could trust. Pass --reset to wipe the business tables first, or\n");
-    fwrite(STDERR, "--product=<code> to seed a world of its own.\n");
+    fwrite(STDERR, "could trust. Pass --reset to wipe the business tables first.\n");
     exit(1);
 }
 
@@ -194,42 +165,46 @@ if ($reset) {
  * is no type to import. A change there that is not made here fails the analysis
  * rather than passing quietly, which is the property worth having.
  *
- * @var callable(ContainerInterface, string, string): array{
- *     product: string,
- *     product_code: string,
+ * @var callable(ContainerInterface): array{
  *     password: string,
+ *     products: array<string, string>,
  *     tenants: array{acme: string, globex: string},
- *     people: array{admin: string, user: string, staff: string},
- *     counts: array{plans: int, features: int, offers: int},
- *     subscription: \App\Commerce\Domain\Subscription,
- *     invoice: \App\Billing\Domain\Invoice,
+ *     people: array<string, array{name: string, email: string, scope: string, role: string, tenants: list<string>}>,
+ *     counts: array{products: int, plans: int, features: int, offers: int},
+ *     subscriptions: list<\App\Commerce\Domain\Subscription>,
+ *     invoices: list<\App\Billing\Domain\Invoice>,
  *     checks: array<string, bool>
  * } $seed
  */
-$seed = require __DIR__ . '/demo-world.php';
-
-$world = $seed($container, $productCode, $productName);
+$world = $seed($container);
 
 // --- What it made -------------------------------------------------------------
 
-printf("\nSeeded a demonstration world.\n\n");
-printf("  product      %-8s %s\n", $productCode, $world['product']);
-printf("  tenants      acme     %s\n", $world['tenants']['acme']);
-printf("               globex   %s\n", $world['tenants']['globex']);
-printf("  people       %s (TENANT_ADMIN), %s (USER)\n", $world['people']['admin'], $world['people']['user']);
-printf("  platform     %s (PLATFORM_ADMIN)\n", $world['people']['staff']);
+printf("\nSeeded the demonstration world.\n\n");
+
+foreach ($world['products'] as $code => $id) {
+    printf("  product      %-8s %s\n", $code, $id);
+}
+
+printf("  tenants      acme     %s  (holds all four)\n", $world['tenants']['acme']);
+printf("               globex   %s  (holds atlas, boreas)\n", $world['tenants']['globex']);
+
+foreach ($world['people'] as $person) {
+    printf("  %-12s %-16s %-14s %s\n", $person['scope'], $person['email'], $person['role'], $person['name']);
+}
+
 printf(
-    "  catalogue    %d plans, %d features, %d offers, all advertised\n",
-    $world['counts']['plans'],
-    $world['counts']['features'],
-    $world['counts']['offers'],
+    "  catalogue    %d products x (%d plans, %d features, %d offers), all advertised\n",
+    $world['counts']['products'],
+    intdiv($world['counts']['plans'], $world['counts']['products']),
+    intdiv($world['counts']['features'], $world['counts']['products']),
+    intdiv($world['counts']['offers'], $world['counts']['products']),
 );
 
-$subscription = $world['subscription'];
-$invoice = $world['invoice'];
-
-printf("  subscription %s (%s)\n", $subscription->id, $subscription->status);
-printf("  invoice      %s  %s\n", $invoice->number ?? '(no number)', $invoice->id);
+foreach ($world['subscriptions'] as $i => $subscription) {
+    $invoice = $world['invoices'][$i] ?? null;
+    printf("  subscription %s (%s)  invoice %s\n", $subscription->id, $subscription->status, $invoice === null ? '(none)' : ($invoice->number ?? '(no number)'));
+}
 
 printf("\n");
 
@@ -242,8 +217,8 @@ if (array_filter($world['checks'], static fn (bool $ok): bool => !$ok) !== []) {
     exit(1);
 }
 
-printf("\nSign in at /sign-in?product=%s as %s with the password %s\n", $productCode, $world['people']['admin'], DEMO_PASSWORD);
-printf("Also seeded: %s (USER) and %s (platform support).\n", $world['people']['user'], $world['people']['staff']);
+printf("\nEvery account above signs in with the password %s - see docs/demo-world.html.\n", DEMO_PASSWORD);
+printf("Start at /sign-in?product=atlas as %s (tenant) or %s (console).\n", $world['people']['ada']['email'], $world['people']['sam']['email']);
 printf("The API needs AUTH_SIGNING_SECRET set to at least 32 characters, or sign-in answers 503.\n");
 
 exit(0);
