@@ -24,7 +24,7 @@ const ADMIN = {
     email: 'sam@demo.test',
     display_name: 'Sam',
     roles: ['PLATFORM_ADMIN'],
-    permissions: ['staff.tenants.read', 'admin.finance.read'],
+    permissions: ['staff.tenants.read', 'admin.finance.read', 'support.read'],
   },
 };
 const SUPPORT = {
@@ -47,9 +47,39 @@ const INVOICE = {
   net_minor_units: 4083, vat_minor_units: 817, gross_minor_units: 4900, issued_at: '2026-01-01T00:00:00Z', due_at: null, paid_at: '2026-01-02T00:00:00Z',
 };
 
+const MONEY = { minor_units: 4900, currency: 'EUR' };
+
+const PAYMENT = {
+  id: 'pay-1', invoice_id: 'inv-1', subscription_id: null, provider: 'stripe', provider_payment_id: 'pi_1', status: 'SUCCEEDED',
+  settled: true, final: true, amount: MONEY, method: 'CARD', failure_code: null, failure_reason: null,
+  succeeded_at: '2026-01-02T00:00:00Z', failed_at: null, created_at: '2026-01-01T00:00:00Z',
+};
+const ORDER = {
+  id: 'ord-1', status: 'COMPLETED', quote_id: 'q-1', offer_version_id: 'ov-1', subscription_id: 'sub-1', invoice_id: 'inv-1',
+  net: MONEY, vat: MONEY, gross: MONEY, completed_at: '2026-01-02T00:00:00Z', created_at: '2026-01-01T00:00:00Z', lines: [],
+};
+const QUOTE = {
+  id: 'q-1', status: 'ACCEPTED', open: false, offer_version_id: 'ov-1', net: MONEY, vat: MONEY, gross: MONEY,
+  valid_until: '2026-02-01T00:00:00Z', customer: {}, sent_at: '2026-01-01T00:00:00Z', decided_at: '2026-01-02T00:00:00Z', created_at: '2026-01-01T00:00:00Z', lines: [],
+};
+const PROFILE = {
+  tenant_id: 't-1', customer_kind: 'B2B', country_code: 'FR', taxable_person: true, location_evidence: {},
+  vat_number: 'FR12345678901', vat_number_status: 'VERIFIED', vat_number_verified_at: '2026-01-01T00:00:00Z', vat_number_country: 'FR', reverse_charge_available: false,
+};
+const THREAD = { id: 'c-1', kind: 'SUPPORT', subject: 'Cannot sign in', status: 'OPEN', created_by: 'u-ada', closed_at: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', unread: 0 };
+const PROJECT = { id: 'proj-1', name: 'Parcel 12', description: null, schema_version: 1, created_by: 'u-ada', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-03T00:00:00Z', deleted_at: null };
+const JOB = { id: 'job-1', type: 'export.project', status: 'DONE', payload: {}, result: null, attempts: 1, max_attempts: 3, run_after: '2026-01-01T00:00:00Z', failure_reason: null, started_at: null, finished_at: '2026-01-01T00:01:00Z', created_at: '2026-01-01T00:00:00Z' };
+
 function stubs(extra: Stubs = {}): Stubs {
   return {
     'GET /api/v1/staff/me': { data: ADMIN },
+    'GET /api/v1/staff/tenants/{tenantId}/payments': { data: { payments: [PAYMENT] } },
+    'GET /api/v1/staff/tenants/{tenantId}/orders': { data: { orders: [ORDER] } },
+    'GET /api/v1/staff/tenants/{tenantId}/quotes': { data: { quotes: [QUOTE] } },
+    'GET /api/v1/staff/tenants/{tenantId}/tax-profile': { data: { profile: PROFILE } },
+    'GET /api/v1/staff/tenants/{tenantId}/projects': { data: { projects: [PROJECT] } },
+    'GET /api/v1/staff/tenants/{tenantId}/jobs': { data: { jobs: [JOB] } },
+    'GET /api/v1/staff/conversations': { data: { conversations: [THREAD], total: 1, limit: 50, offset: 0 } },
     'GET /api/v1/staff/tenants/{tenantId}': { data: { tenant: TENANT } },
     'GET /api/v1/staff/tenants/{tenantId}/members': { data: { members: MEMBERS } },
     'GET /api/v1/admin/subscriptions': { data: { subscriptions: [SUBSCRIPTION], total: 1, limit: 50, offset: 0 } },
@@ -172,5 +202,65 @@ describe('the finance tabs', () => {
 
     await waitFor(() => expect(screen.getByText('Not yours to read')).toBeTruthy());
     expect(requests.find((r) => r.path === '/api/v1/admin/invoices')).toBeUndefined();
+  });
+});
+
+describe('the rest of what a customer has', () => {
+  it.each([
+    ['payments', 'tab-payments', 'payment-row', 'SUCCEEDED'],
+    ['workspace', 'tab-workspace', 'project-row', 'Parcel 12'],
+    ['jobs', 'tab-jobs', 'job-row', 'export.project'],
+  ])('%s: the same rows the customer sees, and nothing that acts', async (tab, testId, rowId, text) => {
+    render(stubClient(stubs()), tab);
+    await giveAMotive();
+
+    await waitFor(() => expect(screen.getByTestId(testId)).toBeTruthy());
+    expect(screen.getByTestId(rowId).textContent).toContain(text);
+    // Read-only: the only buttons are the tabs and the motive's own Change —
+    // nothing that acts on the customer.
+    expect(
+      screen.queryAllByRole('button').filter((b) => b.getAttribute('role') !== 'tab' && b.textContent !== 'Change'),
+    ).toHaveLength(0);
+  });
+
+  it('sales shows orders and quotes side by side', async () => {
+    render(stubClient(stubs()), 'sales');
+    await giveAMotive();
+
+    await waitFor(() => expect(screen.getByTestId('tab-sales')).toBeTruthy());
+    expect(screen.getByTestId('order-row').textContent).toContain('COMPLETED');
+    expect(screen.getByTestId('quote-row').textContent).toContain('ACCEPTED');
+  });
+
+  it('tax shows the fiscal identity, with verification as a dated fact', async () => {
+    render(stubClient(stubs()), 'tax');
+    await giveAMotive();
+
+    await waitFor(() => expect(screen.getByTestId('tab-tax')).toBeTruthy());
+    expect(screen.getByTestId('tab-tax').textContent).toContain('Business (B2B)');
+    expect(screen.getByTestId('tab-tax').textContent).toContain('FR12345678901');
+    expect(screen.getByTestId('tab-tax').textContent).toContain('VERIFIED');
+  });
+
+  it('conversations lists support threads, narrowed to this customer', async () => {
+    const { client, requests } = recordingClient(stubs());
+    render(client, 'conversations');
+    await giveAMotive();
+
+    await waitFor(() => expect(screen.getByTestId('tab-conversations')).toBeTruthy());
+    expect(screen.getByTestId('thread-row').textContent).toContain('Cannot sign in');
+    expect(requests.find((r) => r.path === '/api/v1/staff/conversations')?.query).toMatchObject({ tenant_id: 't-1' });
+  });
+
+  it('every per-product tab sends the picked product and the motive', async () => {
+    useConsoleStore.setState({ productCode: 'boreas' });
+    const { client, requests } = recordingClient(stubs());
+    render(client, 'payments');
+    await giveAMotive();
+
+    await waitFor(() => expect(screen.getByTestId('tab-payments')).toBeTruthy());
+    const read = requests.find((r) => r.path === '/api/v1/staff/tenants/{tenantId}/payments');
+    expect(read?.query).toEqual({ product: 'boreas' });
+    expect((read?.header as Record<string, string> | undefined)?.['X-Access-Purpose']).toBe('SUPPORT_REQUEST');
   });
 });

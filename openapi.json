@@ -11712,6 +11712,15 @@
           },
           {
             "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "One customer's support threads. Read by the controller since the console's threads screen existed; declared here since the tenant workspace uses it."
           }
         ],
         "responses": {
@@ -12654,6 +12663,493 @@
                       "items": {
                         "$ref": "#/components/schemas/StaffTenantMember"
                       }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "description": "No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/tenants/{tenantId}/payments": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "listTenantPaymentsForStaff",
+        "summary": "Every payment a customer made, read from the console",
+        "description": "The same rows the customer's own screen reads, across every product the tenant holds or on the one `product` names — read-only, behind `staff.tenants.read`, with the motive R14 asks for, and recorded in the access log. A platform role never becomes a member (#22); it may see, with a reason.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AccessPurpose"
+          },
+          {
+            "$ref": "#/components/parameters/AccessReason"
+          },
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "product",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "A product code the tenant holds; absent, every product it holds. A code it does not hold lists nothing, which is the true answer."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "payments"
+                  ],
+                  "properties": {
+                    "payments": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Payment"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "description": "No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/tenants/{tenantId}/orders": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "listTenantOrdersForStaff",
+        "summary": "Every order a customer placed, read from the console",
+        "description": "The same rows the customer's own screen reads, across every product the tenant holds or on the one `product` names — read-only, behind `staff.tenants.read`, with the motive R14 asks for, and recorded in the access log. A platform role never becomes a member (#22); it may see, with a reason.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AccessPurpose"
+          },
+          {
+            "$ref": "#/components/parameters/AccessReason"
+          },
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "product",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "A product code the tenant holds; absent, every product it holds. A code it does not hold lists nothing, which is the true answer."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "orders"
+                  ],
+                  "properties": {
+                    "orders": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Order"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "description": "No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/tenants/{tenantId}/quotes": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "listTenantQuotesForStaff",
+        "summary": "Every quote a customer was sent, read from the console",
+        "description": "The same rows the customer's own screen reads, across every product the tenant holds or on the one `product` names — read-only, behind `staff.tenants.read`, with the motive R14 asks for, and recorded in the access log. A platform role never becomes a member (#22); it may see, with a reason.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AccessPurpose"
+          },
+          {
+            "$ref": "#/components/parameters/AccessReason"
+          },
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "product",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "A product code the tenant holds; absent, every product it holds. A code it does not hold lists nothing, which is the true answer."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "quotes"
+                  ],
+                  "properties": {
+                    "quotes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Quote"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "description": "No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/tenants/{tenantId}/projects": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "listTenantProjectsForStaff",
+        "summary": "A customer's projects, read from the console",
+        "description": "The same rows the customer's own screen reads, across every product the tenant holds or on the one `product` names — read-only, behind `staff.tenants.read`, with the motive R14 asks for, and recorded in the access log. A platform role never becomes a member (#22); it may see, with a reason.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AccessPurpose"
+          },
+          {
+            "$ref": "#/components/parameters/AccessReason"
+          },
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "product",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "A product code the tenant holds; absent, every product it holds. A code it does not hold lists nothing, which is the true answer."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "projects"
+                  ],
+                  "properties": {
+                    "projects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProjectSummary"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "description": "No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/tenants/{tenantId}/jobs": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "listTenantJobsForStaff",
+        "summary": "A customer's jobs, read from the console",
+        "description": "The same rows the customer's own screen reads, across every product the tenant holds or on the one `product` names — read-only, behind `staff.tenants.read`, with the motive R14 asks for, and recorded in the access log. A platform role never becomes a member (#22); it may see, with a reason.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AccessPurpose"
+          },
+          {
+            "$ref": "#/components/parameters/AccessReason"
+          },
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "product",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "A product code the tenant holds; absent, every product it holds. A code it does not hold lists nothing, which is the true answer."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "jobs"
+                  ],
+                  "properties": {
+                    "jobs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Job"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "description": "No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/tenants/{tenantId}/tax-profile": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "showTenantTaxProfileForStaff",
+        "summary": "A customer's fiscal identity, read from the console",
+        "description": "Who the customer is for VAT — kind, country, VAT number and its verification — as the customer's own tax screen reads it. Not per product: a tenant has one. Read-only, behind `staff.tenants.read`, with the motive R14 asks for, recorded.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AccessPurpose"
+          },
+          {
+            "$ref": "#/components/parameters/AccessReason"
+          },
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The profile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "profile"
+                  ],
+                  "properties": {
+                    "profile": {
+                      "$ref": "#/components/schemas/TaxProfile"
                     }
                   }
                 }

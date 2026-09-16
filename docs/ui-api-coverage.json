@@ -304,12 +304,18 @@
     },
     "console.support.tenant": {
       "authority": "platform",
-      "$comment": "One customer, read from the console with the tenant and product pickers in the bar: who belongs to it (members), what it subscribed to and what it was invoiced, per product. Read-only by construction — a platform role never edits a membership (#22) — and every read carries the motive R14 asks for and lands in the access log.",
+      "$comment": "One customer, read from the console with the tenant and product pickers in the bar: who belongs to it (members), what it subscribed to and what it was invoiced, per product. Read-only by construction — a platform role never edits a membership (#22) — and every read carries the motive R14 asks for and lands in the access log. Payments, orders, quotes, projects, jobs and the fiscal identity read the same way; support threads through listSupportConversations with its tenant filter.",
       "routes": [
         "/console/tenants/$tenantId"
       ],
       "operations": [
-        "listTenantMembersForStaff"
+        "listTenantMembersForStaff",
+        "listTenantPaymentsForStaff",
+        "listTenantOrdersForStaff",
+        "listTenantQuotesForStaff",
+        "listTenantProjectsForStaff",
+        "listTenantJobsForStaff",
+        "showTenantTaxProfileForStaff"
       ]
     },
     "identity.sign_in": {

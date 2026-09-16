@@ -12,6 +12,7 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { cn } from '@/utils/cn';
 
 import { AccessMotiveGate, MotiveInEffect } from './AccessMotiveGate';
+import { ConversationsTab, JobsTab, PaymentsTab, SalesTab, TaxTab, WorkspaceTab } from './tenantTabs';
 
 /**
  * `console.support.tenant` — one customer, read from the console.
@@ -35,7 +36,7 @@ import { AccessMotiveGate, MotiveInEffect } from './AccessMotiveGate';
  * product, subscriptions to it, invoices for it; "every product it holds"
  * is the default and the honest one.
  */
-const TABS = ['overview', 'members', 'subscriptions', 'invoices'] as const;
+const TABS = ['overview', 'members', 'subscriptions', 'invoices', 'payments', 'sales', 'tax', 'conversations', 'workspace', 'jobs'] as const;
 
 type Tab = (typeof TABS)[number];
 
@@ -44,6 +45,12 @@ const TAB_LABELS: Record<Tab, string> = {
   members: 'Members',
   subscriptions: 'Subscriptions',
   invoices: 'Invoices',
+  payments: 'Payments',
+  sales: 'Sales',
+  tax: 'Tax',
+  conversations: 'Conversations',
+  workspace: 'Workspace',
+  jobs: 'Jobs',
 };
 
 function isTab(value: unknown): value is Tab {
@@ -135,6 +142,17 @@ export function TenantWorkspaceScreen({ tenantId }: { tenantId: string }) {
         ) : (
           <NotYours what="invoices" />
         ))}
+      {current === 'payments' && <PaymentsTab tenantId={tenantId} productCode={narrowed?.code ?? null} motive={motive} />}
+      {current === 'sales' && <SalesTab tenantId={tenantId} productCode={narrowed?.code ?? null} motive={motive} />}
+      {current === 'tax' && <TaxTab tenantId={tenantId} motive={motive} />}
+      {current === 'conversations' &&
+        (me.data?.permissions.includes('support.read') ?? false ? (
+          <ConversationsTab tenantId={tenantId} />
+        ) : (
+          <EmptyState title="Not yours to read" description="Support threads need support.read, which your role does not hold." />
+        ))}
+      {current === 'workspace' && <WorkspaceTab tenantId={tenantId} productCode={narrowed?.code ?? null} motive={motive} />}
+      {current === 'jobs' && <JobsTab tenantId={tenantId} productCode={narrowed?.code ?? null} motive={motive} />}
     </div>
   );
 }
