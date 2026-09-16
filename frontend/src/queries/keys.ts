@@ -128,6 +128,8 @@ export const keys = {
     tenantReads: (id: string) => ['staff', 'tenant', id] as const,
     tenant: (id: string, purpose: string, reference: string) =>
       ['staff', 'tenant', id, purpose, reference] as const,
+    tenantMembers: (id: string, product: string, purpose: string, reference: string) =>
+      ['staff', 'tenant', id, 'members', product, purpose, reference] as const,
     accessLog: (limit: number, offset: number) => ['staff', 'access-log', limit, offset] as const,
     // No arguments, because the roster is unpaged: platform staff is a handful
     // of people, and a list that needed pages would be the finding rather than
@@ -168,6 +170,9 @@ export const keys = {
     directories: ['admin', 'directory'] as const,
     directory: (which: string, filter: string, limit: number, offset: number) =>
       ['admin', 'directory', which, filter, limit, offset] as const,
+    // One customer's rows, as the console's tenant workspace reads them.
+    tenantDirectory: (which: string, tenantId: string, productId: string, limit: number, offset: number) =>
+      ['admin', 'directory', which, 'tenant', tenantId, productId, limit, offset] as const,
     audits: ['admin', 'audit'] as const,
     audit: (limit: number, offset: number) => ['admin', 'audit', limit, offset] as const,
   },

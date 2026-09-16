@@ -65,7 +65,7 @@ const JOB = {
 function clientFor(health: unknown, extra: Stubs = {}) {
   return stubClient({
     'GET /api/v1/admin/queue': { data: health },
-    'GET /api/v1/admin/jobs': { data: { job: [JOB], total: 1, limit: 25, offset: 0 } },
+    'GET /api/v1/admin/jobs': { data: { jobs: [JOB], total: 1, limit: 25, offset: 0 } },
     ...extra,
   });
 }
@@ -139,7 +139,7 @@ describe('the threshold', () => {
   it('is sent to the server, because it is what turns a clock into a verdict', async () => {
     const { client, requests } = recordingClient({
       'GET /api/v1/admin/queue': { data: HEALTHY },
-      'GET /api/v1/admin/jobs': { data: { job: [], total: 0, limit: 25, offset: 0 } },
+      'GET /api/v1/admin/jobs': { data: { jobs: [], total: 0, limit: 25, offset: 0 } },
     });
 
     renderWith(<QueueScreen />, client);
@@ -159,7 +159,7 @@ describe('the threshold', () => {
   it('cannot be set outside what the API accepts', async () => {
     const { client, requests } = recordingClient({
       'GET /api/v1/admin/queue': { data: HEALTHY },
-      'GET /api/v1/admin/jobs': { data: { job: [], total: 0, limit: 25, offset: 0 } },
+      'GET /api/v1/admin/jobs': { data: { jobs: [], total: 0, limit: 25, offset: 0 } },
     });
 
     renderWith(<QueueScreen />, client);
@@ -190,7 +190,7 @@ describe('the job list', () => {
     renderWith(
       <QueueScreen />,
       clientFor(HEALTHY, {
-        'GET /api/v1/admin/jobs': { data: { job: [], total: 0, limit: 25, offset: 0 } },
+        'GET /api/v1/admin/jobs': { data: { jobs: [], total: 0, limit: 25, offset: 0 } },
       }),
     );
 
@@ -201,7 +201,7 @@ describe('the job list', () => {
   it('asks the server for a status rather than filtering locally', async () => {
     const { client, requests } = recordingClient({
       'GET /api/v1/admin/queue': { data: HEALTHY },
-      'GET /api/v1/admin/jobs': { data: { job: [JOB], total: 1, limit: 25, offset: 0 } },
+      'GET /api/v1/admin/jobs': { data: { jobs: [JOB], total: 1, limit: 25, offset: 0 } },
     });
 
     renderWith(<QueueScreen />, client);

@@ -9,6 +9,7 @@ use App\Staff\Domain\StaffAccessEntry;
 use App\Staff\Domain\StaffIdentity;
 use App\Staff\Domain\StaffMember;
 use App\Staff\Domain\TenantAccount;
+use App\Staff\Domain\TenantMemberAcrossProducts;
 use DateTimeInterface;
 use DateTimeZone;
 
@@ -23,6 +24,23 @@ final class StaffPresenter
             'user_id' => $staff->userId,
             'roles' => $staff->roles,
             'permissions' => $staff->permissions,
+        ];
+    }
+
+    /**
+     * One member of a tenant, seen from the console: who, what they may do,
+     * and on which products. Null name and address once erased (§26).
+     *
+     * @return array<string, mixed>
+     */
+    public static function tenantMember(TenantMemberAcrossProducts $member): array
+    {
+        return [
+            'user_id' => $member->userId,
+            'email' => $member->email,
+            'display_name' => $member->displayName,
+            'roles' => $member->roles,
+            'products' => $member->products,
         ];
     }
 

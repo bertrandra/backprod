@@ -44,6 +44,7 @@ import { QueueScreen } from '@/features/console/QueueScreen';
 import { ReadinessScreen } from '@/features/console/ReadinessScreen';
 import { StaffMembersScreen } from '@/features/console/StaffMembersScreen';
 import { StaffTenantsScreen } from '@/features/console/StaffTenantsScreen';
+import { TenantWorkspaceScreen } from '@/features/console/TenantWorkspaceScreen';
 import { StorefrontScreen } from '@/features/console/StorefrontScreen';
 import { SupportConversationsScreen } from '@/features/console/SupportConversationsScreen';
 import { SignInScreen } from '@/features/auth/SignInScreen';
@@ -249,6 +250,25 @@ const checkoutRoute = createRoute({
   },
 });
 
+/**
+ * One customer, read from the console — addressed by id, so a link opens the
+ * same customer for the next person (who is asked their own reason).
+ */
+const tenantWorkspaceRoute = createRoute({
+  getParentRoute: () => appShellRoute,
+  path: '/console/tenants/$tenantId',
+  validateSearch,
+  component: function TenantWorkspaceRoute() {
+    const tenantId = useStringParam('tenantId');
+
+    return tenantId === null ? (
+      <EmptyState title="No such customer" description="The link may be old, or mistyped." />
+    ) : (
+      <TenantWorkspaceScreen tenantId={tenantId} />
+    );
+  },
+});
+
 /** One invoice, addressed by its id — a document worth linking to. */
 const invoiceRoute = createRoute({
   getParentRoute: () => appShellRoute,
@@ -280,6 +300,7 @@ const routeTree = rootRoute.addChildren([
     projectRoute,
     checkoutRoute,
     invoiceRoute,
+    tenantWorkspaceRoute,
     // Last: it matches anything, so every real route has to be declared above it.
     notFoundRoute,
   ]),

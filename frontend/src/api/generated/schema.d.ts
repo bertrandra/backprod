@@ -2099,6 +2099,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/tenants/{tenantId}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who belongs to a tenant, read-only
+         * @description Every member of the tenant once, with their roles and the products they are on — or only those on one product when `product` names it. Read-only by construction: a platform role never grants or edits a membership (non-negotiable #22); it may see them, with a reason, on the record (R14). Requires `staff.tenants.read`.
+         */
+        get: operations["listTenantMembersForStaff"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/subscription": {
         parameters: {
             query?: never;
@@ -4231,6 +4251,18 @@ export interface components {
             /** @description The legal numbers of the invoices the seeded subscriptions raised. */
             invoices: string[];
         };
+        /** @description One member of a tenant as the console sees them: who, what they may do, and on which of the tenant's products. A membership is mirrored onto every product the tenant holds (ADR-047), so the roles are the same on each. Name and address are null once the person has been erased (§26). */
+        StaffTenantMember: {
+            /** Format: uuid */
+            user_id: string;
+            /** Format: email */
+            email: string | null;
+            display_name: string | null;
+            /** @description Tenant role codes. */
+            roles: string[];
+            /** @description Codes of the products the person is a member on; one entry when `product` was asked for. */
+            products: string[];
+        };
     };
     responses: {
         /** @description No credential, or one that did not verify. */
@@ -4412,6 +4444,8 @@ export interface operations {
             query?: {
                 /** @description One customer. */
                 tenant_id?: string;
+                /** @description One product — the console's product picker, when a tenant holds several (ADR-047). */
+                product_id?: string;
                 /** @description DRAFT, ISSUED, PAID, CANCELLED, CREDITED. */
                 status?: string;
                 /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
@@ -4431,7 +4465,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DirectoryEnvelope"] & {
-                        invoice?: components["schemas"]["AdminInvoice"][];
+                        invoices: components["schemas"]["AdminInvoice"][];
                     };
                 };
             };
@@ -4465,7 +4499,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DirectoryEnvelope"] & {
-                        job?: components["schemas"]["AdminJob"][];
+                        jobs: components["schemas"]["AdminJob"][];
                     };
                 };
             };
@@ -4563,6 +4597,8 @@ export interface operations {
             query?: {
                 /** @description One customer. */
                 tenant_id?: string;
+                /** @description One product — the console's product picker, when a tenant holds several (ADR-047). */
+                product_id?: string;
                 /** @description ACTIVE, CANCELLED, ENDED. */
                 status?: string;
                 /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
@@ -4582,7 +4618,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DirectoryEnvelope"] & {
-                        subscription?: components["schemas"]["AdminSubscription"][];
+                        subscriptions: components["schemas"]["AdminSubscription"][];
                     };
                 };
             };
@@ -4614,7 +4650,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DirectoryEnvelope"] & {
-                        tenant?: components["schemas"]["AdminTenant"][];
+                        tenants: components["schemas"]["AdminTenant"][];
                     };
                 };
             };
@@ -4646,7 +4682,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DirectoryEnvelope"] & {
-                        user?: components["schemas"]["AdminUser"][];
+                        users: components["schemas"]["AdminUser"][];
                     };
                 };
             };
@@ -9080,6 +9116,56 @@ export interface operations {
             404: components["responses"]["NotFound"];
             /** @description `PRODUCT_IN_USE` — a subscription on this tenant and product is still owed service: active, or cancelled with paid time left. Withdrawing the product would cut the customer off from what they paid for. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listTenantMembersForStaff: {
+        parameters: {
+            query?: {
+                /** @description A product code the tenant holds. A code it does not hold lists nobody, which is the true answer. */
+                product?: string;
+            };
+            header: {
+                /**
+                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
+                 *
+                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
+                 */
+                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
+                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
+                "X-Access-Reason": components["parameters"]["AccessReason"];
+            };
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The members. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        members: components["schemas"]["StaffTenantMember"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

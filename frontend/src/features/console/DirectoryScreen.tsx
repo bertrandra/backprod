@@ -127,7 +127,7 @@ function Tenants({ search }: { search: string }) {
     return <ErrorSurface error={list.error} onRetry={() => void list.refetch()} />;
   }
 
-  const rows = list.data.tenant ?? [];
+  const rows = list.data.tenants;
 
   if (rows.length === 0) {
     return <EmptyState title="No tenants" description="Nothing matches that search." />;
@@ -169,7 +169,7 @@ function Users({ search }: { search: string }) {
     return <ErrorSurface error={list.error} onRetry={() => void list.refetch()} />;
   }
 
-  const rows = list.data.user ?? [];
+  const rows = list.data.users;
 
   if (rows.length === 0) {
     return (
@@ -238,7 +238,7 @@ function Subscriptions({ status }: { status: string }) {
     return <ErrorSurface error={list.error} onRetry={() => void list.refetch()} />;
   }
 
-  const rows = list.data.subscription ?? [];
+  const rows = list.data.subscriptions;
 
   if (rows.length === 0) {
     return <EmptyState title="No subscriptions" description="Nothing matches that status." />;
@@ -305,7 +305,7 @@ function Invoices({ status }: { status: string }) {
     return <ErrorSurface error={list.error} onRetry={() => void list.refetch()} />;
   }
 
-  const rows = list.data.invoice ?? [];
+  const rows = list.data.invoices;
 
   if (rows.length === 0) {
     return <EmptyState title="No invoices" description="Nothing matches that status." />;

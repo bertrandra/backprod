@@ -95,11 +95,12 @@ final class PostgresAdminDirectory implements AdminDirectory
         );
     }
 
-    public function subscriptions(?string $tenantId, ?string $status, int $limit, int $offset): DirectoryPage
+    public function subscriptions(?string $tenantId, ?string $productId, ?string $status, int $limit, int $offset): DirectoryPage
     {
         $where = '(CAST(:tenantId AS uuid) IS NULL OR s.tenant_id = CAST(:tenantId AS uuid))'
+            . ' AND (CAST(:productId AS uuid) IS NULL OR s.product_id = CAST(:productId AS uuid))'
             . ' AND (CAST(:status AS text) IS NULL OR s.status = CAST(:status AS text))';
-        $parameters = ['tenantId' => $tenantId, 'status' => $status];
+        $parameters = ['tenantId' => $tenantId, 'productId' => $productId, 'status' => $status];
 
         return $this->page(
             <<<SQL
@@ -122,11 +123,12 @@ final class PostgresAdminDirectory implements AdminDirectory
         );
     }
 
-    public function invoices(?string $tenantId, ?string $status, int $limit, int $offset): DirectoryPage
+    public function invoices(?string $tenantId, ?string $productId, ?string $status, int $limit, int $offset): DirectoryPage
     {
         $where = '(CAST(:tenantId AS uuid) IS NULL OR i.tenant_id = CAST(:tenantId AS uuid))'
+            . ' AND (CAST(:productId AS uuid) IS NULL OR i.product_id = CAST(:productId AS uuid))'
             . ' AND (CAST(:status AS text) IS NULL OR i.status = CAST(:status AS text))';
-        $parameters = ['tenantId' => $tenantId, 'status' => $status];
+        $parameters = ['tenantId' => $tenantId, 'productId' => $productId, 'status' => $status];
 
         return $this->page(
             <<<SQL

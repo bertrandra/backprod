@@ -14,6 +14,8 @@ use App\Staff\Domain\StaffIdentity;
 use App\Staff\Domain\StaffPermission;
 use App\Staff\Domain\TenantAccount;
 use App\Staff\Domain\TenantDirectory;
+use App\Staff\Domain\TenantMemberAcrossProducts;
+use App\Staff\Domain\TenantMembers;
 use App\Staff\Domain\TenantProducts;
 use App\Tenant\Domain\Tenant;
 
@@ -35,6 +37,7 @@ final class StaffDesk
     public function __construct(
         private readonly TenantDirectory $tenants,
         private readonly TenantProducts $products,
+        private readonly TenantMembers $members,
         private readonly StaffAccessLog $trail,
     ) {
     }
@@ -115,6 +118,67 @@ final class StaffDesk
         ));
 
         return $this->account($tenant);
+    }
+
+    /**
+     * Who belongs to a tenant — read-only, across the products it holds, or
+     * on one of them (R14: with a motive, and recorded).
+     *
+     * The product is named by code, the way the console names one, and
+     * resolved against what the tenant *holds*: a code the tenant has no
+     * assignment for lists nobody rather than failing, because that is the
+     * true answer to "who is on this product here?".
+     *
+     * @return list<TenantMemberAcrossProducts>
+     */
+    public function members(StaffIdentity $staff, string $tenantId, ?string $productCode, AccessMotive $motive): array
+    {
+        $tenant = $this->tenants->find($tenantId);
+
+        if ($tenant === null) {
+            $this->trail->record(new StaffAccess(
+                $staff->userId,
+                null,
+                null,
+                'READ_MISS',
+                'members',
+                $tenantId,
+                StaffPermission::TENANTS_READ,
+                [],
+                $motive,
+            ));
+
+            throw new NotFoundException('Tenant not found.', [], 'TENANT_NOT_FOUND');
+        }
+
+        $productId = null;
+
+        if ($productCode !== null) {
+            foreach ($this->products->of($tenant->id) as $held) {
+                if ($held->code === $productCode) {
+                    $productId = $held->id;
+                }
+            }
+        }
+
+        $this->trail->record(new StaffAccess(
+            $staff->userId,
+            $tenant->id,
+            $productId,
+            'READ',
+            'members',
+            $tenant->id,
+            StaffPermission::TENANTS_READ,
+            $productCode === null ? [] : ['product' => $productCode],
+            $motive,
+        ));
+
+        // A code the tenant does not hold: nobody is on it here.
+        if ($productCode !== null && $productId === null) {
+            return [];
+        }
+
+        return $this->members->of($tenant->id, $productId);
     }
 
     /**

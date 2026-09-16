@@ -32,6 +32,7 @@ final class ListAdminInvoicesController implements RouteHandler
 
         $page = $this->directory->invoices(
             AdminRoute::filter($query, 'tenant_id'),
+            AdminRoute::filter($query, 'product_id'),
             AdminRoute::filter($query, 'status'),
             DirectoryListing::limit($query),
             DirectoryListing::offset($query),

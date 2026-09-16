@@ -37,6 +37,7 @@ final class ListAdminSubscriptionsController implements RouteHandler
 
         $page = $this->directory->subscriptions(
             AdminRoute::filter($query, 'tenant_id'),
+            AdminRoute::filter($query, 'product_id'),
             AdminRoute::filter($query, 'status'),
             DirectoryListing::limit($query),
             DirectoryListing::offset($query),

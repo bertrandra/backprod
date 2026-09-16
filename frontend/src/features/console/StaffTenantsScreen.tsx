@@ -1,4 +1,4 @@
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 
 import { useViewState } from '@/app/frame/viewState';
 import { useState } from 'react';
@@ -98,6 +98,16 @@ export function StaffTenantsScreen() {
                         {tenant.slug}
                       </span>
                     </button>
+                    {/* Reading, as opposed to the administering the panel
+                        beside does: the workspace, read-only, per product. */}
+                    <Link
+                      to="/console/tenants/$tenantId"
+                      params={{ tenantId: tenant.id }}
+                      data-testid="browse-tenant"
+                      className="mt-1 inline-block min-h-[44px] px-1 text-xs underline underline-offset-2"
+                    >
+                      Browse {tenant.name}
+                    </Link>
                   </li>
                 ))}
               </ul>

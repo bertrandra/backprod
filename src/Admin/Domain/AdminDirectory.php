@@ -44,12 +44,12 @@ interface AdminDirectory
     /**
      * @return DirectoryPage<array<string, mixed>>
      */
-    public function subscriptions(?string $tenantId, ?string $status, int $limit, int $offset): DirectoryPage;
+    public function subscriptions(?string $tenantId, ?string $productId, ?string $status, int $limit, int $offset): DirectoryPage;
 
     /**
      * @return DirectoryPage<array<string, mixed>>
      */
-    public function invoices(?string $tenantId, ?string $status, int $limit, int $offset): DirectoryPage;
+    public function invoices(?string $tenantId, ?string $productId, ?string $status, int $limit, int $offset): DirectoryPage;
 
     /**
      * @return DirectoryPage<array<string, mixed>>

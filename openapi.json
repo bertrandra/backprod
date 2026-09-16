@@ -3979,6 +3979,50 @@
             "description": "The legal numbers of the invoices the seeded subscriptions raised."
           }
         }
+      },
+      "StaffTenantMember": {
+        "type": "object",
+        "description": "One member of a tenant as the console sees them: who, what they may do, and on which of the tenant's products. A membership is mirrored onto every product the tenant holds (ADR-047), so the roles are the same on each. Name and address are null once the person has been erased (§26).",
+        "required": [
+          "user_id",
+          "email",
+          "display_name",
+          "roles",
+          "products"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "email"
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tenant role codes."
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Codes of the products the person is a member on; one entry when `product` was asked for."
+          }
+        }
       }
     },
     "responses": {
@@ -4260,6 +4304,15 @@
             "description": "One customer."
           },
           {
+            "name": "product_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "One product — the console's product picker, when a tenant holds several (ADR-047)."
+          },
+          {
             "name": "status",
             "in": "query",
             "schema": {
@@ -4287,13 +4340,16 @@
                     {
                       "type": "object",
                       "properties": {
-                        "invoice": {
+                        "invoices": {
                           "type": "array",
                           "items": {
                             "$ref": "#/components/schemas/AdminInvoice"
                           }
                         }
-                      }
+                      },
+                      "required": [
+                        "invoices"
+                      ]
                     }
                   ]
                 }
@@ -4360,13 +4416,16 @@
                     {
                       "type": "object",
                       "properties": {
-                        "job": {
+                        "jobs": {
                           "type": "array",
                           "items": {
                             "$ref": "#/components/schemas/AdminJob"
                           }
                         }
-                      }
+                      },
+                      "required": [
+                        "jobs"
+                      ]
                     }
                   ]
                 }
@@ -4591,6 +4650,15 @@
             "description": "One customer."
           },
           {
+            "name": "product_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "One product — the console's product picker, when a tenant holds several (ADR-047)."
+          },
+          {
             "name": "status",
             "in": "query",
             "schema": {
@@ -4618,13 +4686,16 @@
                     {
                       "type": "object",
                       "properties": {
-                        "subscription": {
+                        "subscriptions": {
                           "type": "array",
                           "items": {
                             "$ref": "#/components/schemas/AdminSubscription"
                           }
                         }
-                      }
+                      },
+                      "required": [
+                        "subscriptions"
+                      ]
                     }
                   ]
                 }
@@ -4683,13 +4754,16 @@
                     {
                       "type": "object",
                       "properties": {
-                        "tenant": {
+                        "tenants": {
                           "type": "array",
                           "items": {
                             "$ref": "#/components/schemas/AdminTenant"
                           }
                         }
-                      }
+                      },
+                      "required": [
+                        "tenants"
+                      ]
                     }
                   ]
                 }
@@ -4748,13 +4822,16 @@
                     {
                       "type": "object",
                       "properties": {
-                        "user": {
+                        "users": {
                           "type": "array",
                           "items": {
                             "$ref": "#/components/schemas/AdminUser"
                           }
                         }
-                      }
+                      },
+                      "required": [
+                        "users"
+                      ]
                     }
                   ]
                 }
@@ -12494,6 +12571,89 @@
           },
           "409": {
             "description": "`PRODUCT_IN_USE` — a subscription on this tenant and product is still owed service: active, or cancelled with paid time left. Withdrawing the product would cut the customer off from what they paid for.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/tenants/{tenantId}/members": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "listTenantMembersForStaff",
+        "summary": "Who belongs to a tenant, read-only",
+        "description": "Every member of the tenant once, with their roles and the products they are on — or only those on one product when `product` names it. Read-only by construction: a platform role never grants or edits a membership (non-negotiable #22); it may see them, with a reason, on the record (R14). Requires `staff.tenants.read`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AccessPurpose"
+          },
+          {
+            "$ref": "#/components/parameters/AccessReason"
+          },
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "product",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "A product code the tenant holds. A code it does not hold lists nobody, which is the true answer."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The members.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "members"
+                  ],
+                  "properties": {
+                    "members": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/StaffTenantMember"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "description": "No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything.",
             "content": {
               "application/json": {
                 "schema": {

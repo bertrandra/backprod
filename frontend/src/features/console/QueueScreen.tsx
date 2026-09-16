@@ -108,7 +108,7 @@ export function QueueScreen() {
           <SkeletonRows rows={6} />
         ) : jobs.error !== null ? (
           <ErrorSurface error={jobs.error} onRetry={() => void jobs.refetch()} />
-        ) : jobs.data.job === undefined || jobs.data.job.length === 0 ? (
+        ) : jobs.data.jobs.length === 0 ? (
           <EmptyState
             title="No jobs"
             description="Nothing matches. An empty queue and a stopped runner look alike — the clock above says which."
@@ -116,10 +116,10 @@ export function QueueScreen() {
         ) : (
           <>
             <p data-testid="job-count" className="text-xs text-subtle">
-              Showing {jobs.data.job.length} of {jobs.data.total}.
+              Showing {jobs.data.jobs.length} of {jobs.data.total}.
             </p>
             <ul className="space-y-2">
-              {jobs.data.job.map((job) => (
+              {jobs.data.jobs.map((job) => (
                 <JobRow key={job.id ?? ''} job={job} />
               ))}
             </ul>
