@@ -476,6 +476,18 @@ expect_body() {
     fi
 }
 
+expect_header() {
+    local path="$1" needle="$2" description="$3"
+
+    get "$path" >/dev/null
+
+    if grep -qi "$needle" "$SCRATCH/headers"; then
+        pass "$description"
+    else
+        fail "$description"
+    fi
+}
+
 say "Over HTTP"
 
 expect_body "/" 'id="root"' "/ serves the application shell"
@@ -538,6 +550,14 @@ done
 if [ "$LEAKED" -eq 0 ]; then
     pass "no response carries a stack trace, a filesystem path or a SQL error"
 fi
+
+# Found on the first real host: its reverse proxy cached `GET /me` by URL —
+# the response said nothing about caching — and handed the first person's
+# identity to the next. Every API answer must forbid every cache, whatever
+# its status, because the proxy in front does not know what it is caching.
+expect_header "/api/v1/health" "Cache-Control: no-store" "API answers say no-store, so a proxy in front never serves one person's answer to another"
+expect_header "/api/v1/me" "Cache-Control: no-store" "a refusal says no-store too"
+expect_header "/api/v1/health" "X-Cache-Enabled: False" "and carry the host's own cache-bypass switch"
 
 # --- 7. Optionally, a real browser ------------------------------------------
 

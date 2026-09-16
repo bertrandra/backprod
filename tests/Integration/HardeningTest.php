@@ -152,8 +152,11 @@ final class HardeningTest extends DatabaseApiTestCase
     {
         // The body is the same either way; the headers are not, and a cache
         // that missed that would hand one tenant's allowed origin to another.
-        self::assertSame('Origin', $this->health()->getHeaderLine('Vary'));
-        self::assertSame('Origin', $this->health(origin: self::ORIGIN)->getHeaderLine('Vary'));
+        // Origin from CORS, and the headers that decide an answer from the
+        // no-shared-cache rule: both, on every response, in one Vary.
+        self::assertStringContainsString('Origin', $this->health()->getHeaderLine('Vary'));
+        self::assertStringContainsString('Origin', $this->health(origin: self::ORIGIN)->getHeaderLine('Vary'));
+        self::assertStringContainsString('Authorization', $this->health()->getHeaderLine('Vary'));
     }
 
     public function testAPreflightIsAnsweredWithoutReachingTheApplication(): void
