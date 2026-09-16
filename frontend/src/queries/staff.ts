@@ -283,6 +283,192 @@ export function useStaffTenantMembers(
   });
 }
 
+export type StaffTenantPayment = Schemas['Payment'];
+export type StaffTenantOrder = Schemas['Order'];
+export type StaffTenantQuote = Schemas['Quote'];
+export type StaffTenantProject = Schemas['ProjectSummary'];
+export type StaffTenantJob = Schemas['Job'];
+export type StaffTenantTaxProfile = Schemas['TaxProfile'];
+
+/**
+ * The rest of what a customer has, read from the console — the same shapes
+ * the customer's own screens read, one read per tab, each disabled until
+ * there is a motive and keyed on it (R14), each narrowed by the product the
+ * bar picked. Read-only by construction: no mutation lives beside any of
+ * these.
+ *
+ * Five near-identical functions rather than one factory, on purpose: the
+ * screens gate (`gate:screens`) proves every claimed operation is called
+ * by finding its path as a literal in a `client.GET`, and a path built from
+ * a template is a call the gate cannot see — the gate would pass a factory
+ * that called nothing.
+ */
+export function useStaffTenantPayments(tenantId: string | null, productCode: string | null, motive: AccessMotive | null) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.tenantRead(tenantId ?? '', 'payments', productCode ?? '', motive?.purpose ?? '', motive?.reference ?? ''),
+    enabled: tenantId !== null && motive !== null,
+    queryFn: async (): Promise<StaffTenantPayment[]> => {
+      const { data, error, response } = await client.GET('/api/v1/staff/tenants/{tenantId}/payments', {
+        params: {
+          path: { tenantId: tenantId ?? '' },
+          header: motiveHeaders(required(motive)),
+          query: productCode === null ? {} : { product: productCode },
+        },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.payments;
+    },
+  });
+}
+
+export function useStaffTenantOrders(tenantId: string | null, productCode: string | null, motive: AccessMotive | null) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.tenantRead(tenantId ?? '', 'orders', productCode ?? '', motive?.purpose ?? '', motive?.reference ?? ''),
+    enabled: tenantId !== null && motive !== null,
+    queryFn: async (): Promise<StaffTenantOrder[]> => {
+      const { data, error, response } = await client.GET('/api/v1/staff/tenants/{tenantId}/orders', {
+        params: {
+          path: { tenantId: tenantId ?? '' },
+          header: motiveHeaders(required(motive)),
+          query: productCode === null ? {} : { product: productCode },
+        },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.orders;
+    },
+  });
+}
+
+export function useStaffTenantQuotes(tenantId: string | null, productCode: string | null, motive: AccessMotive | null) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.tenantRead(tenantId ?? '', 'quotes', productCode ?? '', motive?.purpose ?? '', motive?.reference ?? ''),
+    enabled: tenantId !== null && motive !== null,
+    queryFn: async (): Promise<StaffTenantQuote[]> => {
+      const { data, error, response } = await client.GET('/api/v1/staff/tenants/{tenantId}/quotes', {
+        params: {
+          path: { tenantId: tenantId ?? '' },
+          header: motiveHeaders(required(motive)),
+          query: productCode === null ? {} : { product: productCode },
+        },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.quotes;
+    },
+  });
+}
+
+export function useStaffTenantProjects(tenantId: string | null, productCode: string | null, motive: AccessMotive | null) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.tenantRead(tenantId ?? '', 'projects', productCode ?? '', motive?.purpose ?? '', motive?.reference ?? ''),
+    enabled: tenantId !== null && motive !== null,
+    queryFn: async (): Promise<StaffTenantProject[]> => {
+      const { data, error, response } = await client.GET('/api/v1/staff/tenants/{tenantId}/projects', {
+        params: {
+          path: { tenantId: tenantId ?? '' },
+          header: motiveHeaders(required(motive)),
+          query: productCode === null ? {} : { product: productCode },
+        },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.projects;
+    },
+  });
+}
+
+export function useStaffTenantJobs(tenantId: string | null, productCode: string | null, motive: AccessMotive | null) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.tenantRead(tenantId ?? '', 'jobs', productCode ?? '', motive?.purpose ?? '', motive?.reference ?? ''),
+    enabled: tenantId !== null && motive !== null,
+    queryFn: async (): Promise<StaffTenantJob[]> => {
+      const { data, error, response } = await client.GET('/api/v1/staff/tenants/{tenantId}/jobs', {
+        params: {
+          path: { tenantId: tenantId ?? '' },
+          header: motiveHeaders(required(motive)),
+          query: productCode === null ? {} : { product: productCode },
+        },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.jobs;
+    },
+  });
+}
+
+/** The customer's one fiscal identity — not per product, so no product argument. */
+export function useStaffTenantTaxProfile(tenantId: string | null, motive: AccessMotive | null) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.tenantRead(tenantId ?? '', 'tax-profile', '', motive?.purpose ?? '', motive?.reference ?? ''),
+    enabled: tenantId !== null && motive !== null,
+    queryFn: async (): Promise<StaffTenantTaxProfile> => {
+      const { data, error, response } = await client.GET('/api/v1/staff/tenants/{tenantId}/tax-profile', {
+        params: { path: { tenantId: tenantId ?? '' }, header: motiveHeaders(required(motive)) },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.profile;
+    },
+  });
+}
+
+/**
+ * One customer's support threads — the listing the threads screen pages
+ * through, narrowed by the tenant filter the contract declares. INTERNAL
+ * threads are never here: staff must not appear in one (§12.3).
+ */
+export function useStaffTenantConversations(tenantId: string | null) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.tenantConversations(tenantId ?? ''),
+    enabled: tenantId !== null,
+    queryFn: async () => {
+      const { data, error, response } = await client.GET('/api/v1/staff/conversations', {
+        params: { query: { limit: 50, offset: 0, tenant_id: tenantId ?? '' } },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.conversations;
+    },
+  });
+}
+
 /**
  * What staff looked at.
  *

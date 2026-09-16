@@ -132,7 +132,12 @@ use App\Staff\Controller\ListPlatformProductsController;
 use App\Staff\Controller\ListStaffController;
 use App\Staff\Controller\ListStorefrontOffersController;
 use App\Staff\Controller\ListSupportConversationsController;
+use App\Staff\Controller\ListTenantJobsController;
 use App\Staff\Controller\ListTenantMembersController;
+use App\Staff\Controller\ListTenantOrdersController;
+use App\Staff\Controller\ListTenantPaymentsController;
+use App\Staff\Controller\ListTenantProjectsController;
+use App\Staff\Controller\ListTenantQuotesController;
 use App\Staff\Controller\ListTenantsController;
 use App\Staff\Controller\PostSupportMessageController;
 use App\Staff\Controller\PublishStaffOfferVersionController;
@@ -149,6 +154,7 @@ use App\Staff\Controller\ShowConfigurationController;
 use App\Staff\Controller\ShowReadinessController;
 use App\Staff\Controller\ShowSupportConversationController;
 use App\Staff\Controller\ShowTenantController;
+use App\Staff\Controller\ShowTenantTaxProfileController;
 use App\Staff\Controller\StaffIdentityController;
 use App\Staff\Controller\UnassignTenantProductController;
 use App\Staff\Controller\UpdatePlanController;
@@ -517,6 +523,15 @@ return static function (RouteCollector $routes): void {
     // (R14). The console's tenant workspace reads it; nothing writes here —
     // a platform role never edits a membership (non-negotiable #22).
     $routes->addRoute('GET', '/api/v1/staff/tenants/{tenantId}/members', ListTenantMembersController::class);
+
+    // The rest of what a customer has, the same way: read-only, per product
+    // it holds, with a motive, on the record. TenantReads says why each.
+    $routes->addRoute('GET', '/api/v1/staff/tenants/{tenantId}/payments', ListTenantPaymentsController::class);
+    $routes->addRoute('GET', '/api/v1/staff/tenants/{tenantId}/orders', ListTenantOrdersController::class);
+    $routes->addRoute('GET', '/api/v1/staff/tenants/{tenantId}/quotes', ListTenantQuotesController::class);
+    $routes->addRoute('GET', '/api/v1/staff/tenants/{tenantId}/projects', ListTenantProjectsController::class);
+    $routes->addRoute('GET', '/api/v1/staff/tenants/{tenantId}/jobs', ListTenantJobsController::class);
+    $routes->addRoute('GET', '/api/v1/staff/tenants/{tenantId}/tax-profile', ShowTenantTaxProfileController::class);
     // Products, which until now only the installer could create — and which
     // `GET /api/v1/products` cannot even list for an administrator, because
     // that route resolves through membership and a platform role grants none.

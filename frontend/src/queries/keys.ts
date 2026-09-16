@@ -130,6 +130,10 @@ export const keys = {
       ['staff', 'tenant', id, purpose, reference] as const,
     tenantMembers: (id: string, product: string, purpose: string, reference: string) =>
       ['staff', 'tenant', id, 'members', product, purpose, reference] as const,
+    // One read per tab of the customer workspace; `what` names the tab.
+    tenantRead: (id: string, what: string, product: string, purpose: string, reference: string) =>
+      ['staff', 'tenant', id, what, product, purpose, reference] as const,
+    tenantConversations: (id: string) => ['staff', 'conversations', 'tenant', id] as const,
     accessLog: (limit: number, offset: number) => ['staff', 'access-log', limit, offset] as const,
     // No arguments, because the roster is unpaged: platform staff is a handful
     // of people, and a list that needed pages would be the finding rather than
