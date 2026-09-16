@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 
+import type { ApiClient, Schemas } from '@/api/client';
 import { useApiClient } from '@/app/providers/ApiProvider';
 import { useSessionStore } from '@/state/session';
 
@@ -11,6 +12,51 @@ import { useSessionStore } from '@/state/session';
  * which a slow request is authorised on the way out and rejected on arrival.
  */
 const RENEW_MARGIN_MS = 60_000;
+
+/**
+ * What a resume answers: the session, or nothing. Named from the contract so
+ * the map below has a type to hold, and the generic on `POST` is not lost to
+ * `any` through `ReturnType`.
+ */
+type Resumed = { readonly data?: Schemas['Session'] };
+
+function askToResume(client: ApiClient): Promise<Resumed> {
+  return client.POST('/api/v1/auth/refresh', {});
+}
+
+/**
+ * The resume in flight, one per client.
+ *
+ * React's StrictMode mounts, unmounts and mounts again in development, so the
+ * effect below runs twice with nothing on screen in between — and "cancel the
+ * first, start a second" is exactly wrong here. Both requests would carry the
+ * same cookie: the server rotates it on the first and, on the second, sees a
+ * token already spent, which ADR-038 treats as theft and answers by revoking
+ * every session the account has. The first sign-in in development would be
+ * undone by the page that performed it. So a second run *joins* the request
+ * already in flight rather than sending its own, and the entry is cleared
+ * once the answer is in — after which a new restore is a new question.
+ *
+ * Keyed by client rather than a module-wide singleton so two providers (the
+ * tests hand every render its own) never share an answer.
+ */
+const resuming = new WeakMap<ApiClient, Promise<Resumed>>();
+
+function resume(client: ApiClient): Promise<Resumed> {
+  const inFlight = resuming.get(client);
+
+  if (inFlight !== undefined) {
+    return inFlight;
+  }
+
+  const request = askToResume(client).finally(() => {
+    resuming.delete(client);
+  });
+
+  resuming.set(client, request);
+
+  return request;
+}
 
 /**
  * Keeps a signed-in session signed in, and recovers one across a reload.
@@ -39,7 +85,7 @@ export function useSessionLifecycle(): void {
     let cancelled = false;
 
     void (async () => {
-      const { data } = await client.POST('/api/v1/auth/refresh', {});
+      const { data } = await resume(client);
 
       if (cancelled) {
         return;
