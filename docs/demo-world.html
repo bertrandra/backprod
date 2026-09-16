@@ -140,6 +140,7 @@
   <p>From a shell, against a migrated database (<code>DATABASE_DSN</code> set, or in <code>.env</code>):</p>
 <pre><code>composer run demo:seed          # seed it into an empty database
 composer run demo:reset         # wipe the business tables first, then seed</code></pre>
+  <p>Or from the console: signed in as the platform administrator, <strong>Console → Products → Reset the demonstration world</strong> does the same as <code>demo:reset</code> — after a second, explicit yes, because it empties every business table, the reader's own account included, and signs everybody out. It then lists who to sign in as. It is refused while the platform hosts a product that is not one of the four: that is somebody's real product.</p>
   <p>The seeder refuses a database where any of the four product codes already exists, so it never doubles a catalogue. It reads the world back afterwards — subscriptions active, invoices numbered, every offer advertised, every product with its tax position, every role held by exactly one person — and fails loudly if anything does not hold. Reference data (permissions, roles, EU VAT rates) comes from migrations and is never touched.</p>
   <p>The SiteGround installer (<code>setup.php</code>) seeds the same world after writing <code>.env</code> and running the migrations. It asks for no product and no account of your own: you sign in as the people below.</p>
 
@@ -230,9 +231,11 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
 
   <h2>Where it is defined</h2>
   <dl>
-    <dt><code>bin/demo-world.php</code></dt><dd>The one definition of the world — products, people, catalogue, subscriptions, checks. This page describes it; when one changes, so does the other.</dd>
+    <dt><code>src/Demo/Domain/DemoWorld.php</code></dt><dd>The one definition of the world — products, organisations, people, subscriptions. This page describes it; when one changes, so does the other.</dd>
+    <dt><code>src/Demo/Service/DemoSeeder.php</code></dt><dd>Builds it and reads it back: the rows through <code>PostgresDemoFixtures</code>, the subscriptions and invoices through the services that own them, then the checks.</dd>
     <dt><code>bin/seed-demo.php</code></dt><dd>The command line around it: <code>--reset</code>, the guard against seeding twice, the printed summary.</dd>
     <dt><code>deploy/siteground/setup.php</code></dt><dd>The installer, which seeds the same world once and then only changes passwords.</dd>
+    <dt><code>POST /api/v1/staff/demo/reset</code></dt><dd>What the console's button calls; <code>staff.demo.reset</code>, PLATFORM_ADMIN alone.</dd>
     <dt><code>docs/deploying-to-siteground.md</code></dt><dd>The deployment guide this page is linked from.</dd>
   </dl>
 </main>

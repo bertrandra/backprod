@@ -699,6 +699,33 @@ export function useUpdateProduct() {
   });
 }
 
+export type DemoWorld = Schemas['DemoWorld'];
+
+/**
+ * Empties every business table and seeds the demonstration world afresh.
+ *
+ * Nothing is invalidated and nothing is written into the cache: every row the
+ * cache describes is gone, the caller's own account among them, and the next
+ * request with this token is refused. The screen shows the answer — who to
+ * sign in as — and then signs out, which is when the cache is cleared. A
+ * refetch in between would 401 and sign out under the person reading it.
+ */
+export function useResetDemoWorld() {
+  const client = useApiClient();
+
+  return useMutation({
+    mutationFn: async (): Promise<DemoWorld> => {
+      const { data, error, response } = await client.POST('/api/v1/staff/demo/reset', {});
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.world;
+    },
+  });
+}
+
 /**
  * The platform's own catalogue — the plans and features an offer is built out
  * of, for one product.

@@ -165,7 +165,9 @@ final class StaffAccessTest extends DatabaseApiTestCase
 
         self::assertSame(200, $response->getStatusCode());
 
-        $body = $this->decode($response);
+        // Wrapped, as the contract says — the console's gates read `data.staff`.
+        $body = $this->decode($response)['staff'] ?? null;
+        self::assertIsArray($body);
         self::assertSame($this->staffUser, $body['user_id'] ?? null);
         self::assertSame([PlatformRole::SUPPORT_ADMIN], $body['roles'] ?? null);
 

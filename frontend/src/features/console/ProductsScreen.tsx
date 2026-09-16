@@ -1,13 +1,19 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 
+import { useQueryClient } from '@tanstack/react-query';
+
 import { useChooseProduct } from '@/app/frame/ProductSwitcher';
 import {
   useCreateProduct,
   usePlatformProducts,
+  useResetDemoWorld,
+  useStaffIdentity,
   useUpdateProduct,
+  type DemoWorld,
   type PlatformProduct,
 } from '@/queries/staff';
+import { useSessionStore } from '@/state/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
@@ -171,7 +177,113 @@ export function ProductsScreen() {
           </Button>
         </form>
       </section>
+
+      <DemoWorldPanel />
     </div>
+  );
+}
+
+/**
+ * The demonstration world, put back the way it started.
+ *
+ * Offered only to whoever holds `staff.demo.reset` — PLATFORM_ADMIN alone —
+ * and behind a second, explicit step, because it is the widest destructive
+ * act on this platform: every product, organisation, invoice and person,
+ * the reader included. The server refuses it anyway while a product that is
+ * not the demonstration's exists; the copy says so rather than hiding the
+ * button, so an administrator of a real deployment learns why it is not
+ * for them.
+ *
+ * After it succeeds the reader's token names a row that no longer exists.
+ * Nothing is refetched: the answer is shown — who to sign in as — and the
+ * one button left signs out, which is the honest state.
+ */
+function DemoWorldPanel() {
+  const me = useStaffIdentity();
+  const reset = useResetDemoWorld();
+  const queryClient = useQueryClient();
+  const forget = useSessionStore((state) => state.forget);
+  const [armed, setArmed] = useState(false);
+
+  if (!(me.data?.permissions.includes('staff.demo.reset') ?? false)) {
+    return null;
+  }
+
+  if (reset.data !== undefined) {
+    return <DemoWorldReset world={reset.data} onSignOut={() => { forget(); queryClient.clear(); }} />;
+  }
+
+  return (
+    <section className="space-y-3 border-t border-line pt-4" data-testid="demo-world">
+      <h2 className="text-xl font-semibold">Demonstration world</h2>
+
+      <p className="text-sm text-muted">
+        Put the demonstration back the way it started: four products, two organisations, one
+        person per role, two live subscriptions with their invoices. Everything else is emptied —
+        every order, payment, invoice, conversation and account, <strong>including yours</strong> —
+        and everybody is signed out. Refused while this platform hosts a product that is not the
+        demonstration's.
+      </p>
+
+      {reset.error !== null && <ErrorSurface error={reset.error} />}
+
+      {armed ? (
+        <div className="space-y-3 rounded border border-danger/40 bg-danger/5 p-3" data-testid="demo-world-confirm">
+          <p className="text-sm">
+            This cannot be undone. The four products, the two organisations and the six people
+            come back; nothing done since the last reset survives.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="danger"
+              pending={reset.isPending}
+              onClick={() => reset.mutate()}
+              data-testid="demo-world-reset"
+            >
+              Yes, wipe and reseed
+            </Button>
+            <Button variant="secondary" onClick={() => setArmed(false)} disabled={reset.isPending}>
+              Keep it
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button variant="danger" onClick={() => setArmed(true)} data-testid="demo-world-arm">
+          Reset the demonstration world…
+        </Button>
+      )}
+    </section>
+  );
+}
+
+function DemoWorldReset({ world, onSignOut }: { world: DemoWorld; onSignOut: () => void }) {
+  return (
+    <section className="space-y-3 border-t border-line pt-4" data-testid="demo-world-done">
+      <h2 className="text-xl font-semibold">The demonstration world is back</h2>
+
+      <p className="text-sm text-muted">
+        {world.products.map((product) => product.name).join(', ')} — with invoices{' '}
+        {world.invoices.map((number) => <code key={number} className="mx-0.5">{number}</code>)}.
+        Your account was among the rows emptied, so sign in again as one of these; every one of
+        them has the password <code>{world.password}</code>.
+      </p>
+
+      <ul className="space-y-1 text-sm" data-testid="demo-world-people">
+        {world.people.map((person) => (
+          <li key={person.email} className="flex flex-wrap items-baseline gap-x-2">
+            <code className="select-all">{person.email}</code>
+            <span className="text-muted">
+              {person.role}
+              {person.scope === 'tenant' ? ` · ${person.tenants.join(', ')}` : ' · the console'}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <Button onClick={onSignOut} data-testid="demo-world-sign-in">
+        Sign in again
+      </Button>
+    </section>
   );
 }
 

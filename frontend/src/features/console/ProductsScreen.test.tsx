@@ -204,3 +204,100 @@ describe('changing one', () => {
     expect(useSessionStore.getState().productCode).toBe('atlas');
   });
 });
+
+describe('the demonstration world', () => {
+  const ADMIN = { staff: { user_id: 'u-sam', roles: ['PLATFORM_ADMIN'], permissions: ['staff.products.manage', 'staff.demo.reset'] } };
+  const SUPPORT = { staff: { user_id: 'u-hedy', roles: ['SUPPORT_ADMIN'], permissions: ['staff.tenants.read'] } };
+  const WORLD = {
+    products: [{ code: 'atlas', name: 'Atlas' }, { code: 'boreas', name: 'Boreas' }],
+    tenants: [{ slug: 'acme', name: 'Acme Ltd', holds: ['atlas', 'boreas'] }],
+    people: [
+      { email: 'ada@demo.test', name: 'Ada Lovelace', scope: 'tenant', role: 'TENANT_ADMIN', tenants: ['acme'] },
+      { email: 'sam@demo.test', name: 'Sam Staff', scope: 'platform', role: 'PLATFORM_ADMIN', tenants: [] },
+    ],
+    password: 'demo-password-1234',
+    invoices: ['2026-000001'],
+  };
+
+  it('is offered only to whoever may reset it', async () => {
+    renderAtRoute(
+      <ProductsScreen />,
+      clientFor({ 'GET /api/v1/staff/me': { data: SUPPORT } }),
+      { path: '/console/products' },
+    );
+
+    await waitFor(() => expect(screen.getByTestId('product-list')).toBeTruthy());
+    // Hiding is courtesy; the server refuses regardless. But a button that
+    // always 403s is a button that should not be there.
+    await waitFor(() => expect(screen.queryByTestId('demo-world')).toBeNull());
+  });
+
+  it('asks twice, and sends nothing until the second yes', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/products': { data: { products: [ATLAS] } },
+      'GET /api/v1/staff/me': { data: ADMIN },
+      'POST /api/v1/staff/demo/reset': { data: { world: WORLD } },
+    });
+
+    renderAtRoute(<ProductsScreen />, client, { path: '/console/products' });
+
+    await waitFor(() => expect(screen.getByTestId('demo-world-arm')).toBeTruthy());
+    expect(screen.getByTestId('demo-world').textContent).toMatch(/including yours/i);
+
+    fireEvent.click(screen.getByTestId('demo-world-arm'));
+    expect(screen.getByTestId('demo-world-confirm')).toBeTruthy();
+    expect(requests.filter((r) => r.method === 'POST')).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Keep it' }));
+    expect(screen.queryByTestId('demo-world-confirm')).toBeNull();
+    expect(requests.filter((r) => r.method === 'POST')).toHaveLength(0);
+  });
+
+  it('shows who to sign in as, and signs out only when asked', async () => {
+    useSessionStore.setState({ token: 'access', status: 'signed-in', expiresAt: Date.now() + 3_600_000 });
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/products': { data: { products: [ATLAS] } },
+      'GET /api/v1/staff/me': { data: ADMIN },
+      'POST /api/v1/staff/demo/reset': { data: { world: WORLD } },
+    });
+
+    renderAtRoute(<ProductsScreen />, client, { path: '/console/products' });
+
+    await waitFor(() => expect(screen.getByTestId('demo-world-arm')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('demo-world-arm'));
+    fireEvent.click(screen.getByTestId('demo-world-reset'));
+
+    await waitFor(() => expect(screen.getByTestId('demo-world-done')).toBeTruthy());
+    expect(requests.filter((r) => r.method === 'POST').map((r) => r.path)).toEqual(['/api/v1/staff/demo/reset']);
+    expect(screen.getByTestId('demo-world-people').textContent).toContain('sam@demo.test');
+    expect(screen.getByTestId('demo-world-done').textContent).toContain('demo-password-1234');
+    // Nothing was refetched: every row the cache described is gone, and a
+    // refetch would 401 and sign out under the person reading the answer.
+    expect(requests.filter((r) => r.path === '/api/v1/staff/products')).toHaveLength(1);
+    expect(useSessionStore.getState().status).toBe('signed-in');
+
+    fireEvent.click(screen.getByTestId('demo-world-sign-in'));
+    expect(useSessionStore.getState().status).toBe('anonymous');
+  });
+
+  it('says why when the platform is not a demonstration', async () => {
+    renderAtRoute(
+      <ProductsScreen />,
+      clientFor({
+        'GET /api/v1/staff/me': { data: ADMIN },
+        'POST /api/v1/staff/demo/reset': {
+          status: 409,
+          error: { error: { code: 'NOT_A_DEMO_DEPLOYMENT', message: "This platform hosts products that are not the demonstration's; resetting would destroy them.", details: { products: ['real-thing'] }, request_id: 'r' } },
+        },
+      }),
+      { path: '/console/products' },
+    );
+
+    await waitFor(() => expect(screen.getByTestId('demo-world-arm')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('demo-world-arm'));
+    fireEvent.click(screen.getByTestId('demo-world-reset'));
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/not the demonstration/i));
+    expect(screen.queryByTestId('demo-world-done')).toBeNull();
+  });
+});

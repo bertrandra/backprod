@@ -8,8 +8,8 @@ declare(strict_types=1);
  *
  * Upload this file into public_html/ alongside index.php. Visit it, fill in the
  * database Site Tools just created, and it writes backprod-app/.env, runs the
- * migrations, and seeds the demonstration world — `bin/demo-world.php`, the
- * same one `composer run demo:seed` builds: four products, two organisations,
+ * migrations, and seeds the demonstration world — `App\Demo\Service\DemoSeeder`,
+ * the same one `composer run demo:seed` builds: four products, two organisations,
  * one person per role. It asks for no product and no account of your own:
  * the platform is demonstrated from that world, and the accounts it creates
  * are the ones you sign in with. Their password is in this platform's source,
@@ -55,6 +55,9 @@ if (!is_file(BACKPROD_APP . '/vendor/autoload.php')) {
 
 require BACKPROD_APP . '/vendor/autoload.php';
 
+use App\Demo\Domain\DemoWorld;
+use App\Demo\Domain\SeededWorld;
+use App\Demo\Service\DemoSeeder;
 use App\Shared\Database\ConnectionFactory;
 use Doctrine\DBAL\Connection;
 use Dotenv\Dotenv;
@@ -303,33 +306,20 @@ function setupForm(): string
  * Everything in it comes from the seeder's own answer — names, addresses,
  * roles, the password — so this page never carries a copy that could drift.
  *
- * @param array<string, mixed> $world
  */
-function accountsTable(array $world, string $host): string
+function accountsTable(SeededWorld $world, string $host): string
 {
-    $people = is_array($world['people'] ?? null) ? $world['people'] : [];
-    $password = is_string($world['password'] ?? null) ? $world['password'] : '';
-
     $rows = '';
 
-    foreach ($people as $person) {
-        if (!is_array($person)) {
-            continue;
-        }
-
-        $email = is_string($person['email'] ?? null) ? $person['email'] : '';
-        $role = is_string($person['role'] ?? null) ? $person['role'] : '';
-        $scope = ($person['scope'] ?? '') === 'platform' ? 'platform' : 'tenant';
-        $tenants = is_array($person['tenants'] ?? null) ? implode(', ', array_filter($person['tenants'], is_string(...))) : '';
-
-        $rows .= '<tr><td><code>' . htmlspecialchars($email) . '</code></td>'
-            . '<td>' . htmlspecialchars($role) . '</td>'
-            . '<td>' . ($scope === 'platform' ? 'the console' : htmlspecialchars($tenants)) . '</td></tr>';
+    foreach ($world->people() as $person) {
+        $rows .= '<tr><td><code>' . htmlspecialchars($person['email']) . '</code></td>'
+            . '<td>' . htmlspecialchars($person['role']) . '</td>'
+            . '<td>' . ($person['scope'] === 'platform' ? 'the console' : htmlspecialchars(implode(', ', $person['tenants']))) . '</td></tr>';
     }
 
     return '<table><thead><tr><th>Sign in as</th><th>Role</th><th>Administers</th></tr></thead>'
         . '<tbody>' . $rows . '</tbody></table>'
-        . '<p>Every one of them has the password <code>' . htmlspecialchars($password) . '</code>. '
+        . '<p>Every one of them has the password <code>' . htmlspecialchars(DemoWorld::PASSWORD) . '</code>. '
         . 'Sign in at <a href="https://' . $host . '/sign-in?product=atlas">' . htmlspecialchars($host)
         . '/sign-in?product=atlas</a> — the first time, the <code>?product=</code> is needed; after that this '
         . 'browser remembers it. Platform staff land in the console.</p>';
@@ -477,13 +467,15 @@ function handleSetup(): void
 
     // --- The demonstration world ---------------------------------------------
     //
-    // Through `bin/demo-world.php`, the one definition of what a complete
-    // demonstration is, so this page and `composer run demo:seed` build the
-    // same thing. Its failure *is* this page's failure: there is no other
-    // account to fall back on, so a deployment with no world is a deployment
-    // nobody can sign into. The marker is not written on failure — fix what
-    // the message names and resubmit; migrations already applied are not
-    // planned again, and the world refuses to seed on top of itself.
+    // Through `DemoSeeder`, the one definition of what a complete
+    // demonstration is, so this page, `composer run demo:seed` and the
+    // console's reset build the same thing. Its failure *is* this page's
+    // failure: there is no other account to fall back on, so a deployment
+    // with no world is a deployment nobody can sign into. The marker is not
+    // written on failure — fix what the message names and resubmit;
+    // migrations already applied are not planned again, and the seeder
+    // refuses to seed on top of itself (a resubmission after a failure
+    // further down would otherwise double every catalogue).
     try {
         // The container needs .env, which is on disk but not in this
         // process's environment — nothing here has loaded it, because until
@@ -496,38 +488,24 @@ function handleSetup(): void
             throw new \RuntimeException('config/container.php did not return a factory.');
         }
 
-        $seed = require BACKPROD_APP . '/bin/demo-world.php';
+        $container = $containerFactory();
 
-        if (!is_callable($seed)) {
-            throw new \RuntimeException('bin/demo-world.php did not return a seeder.');
+        if (!$container instanceof \Psr\Container\ContainerInterface) {
+            throw new \RuntimeException('config/container.php did not build a container.');
         }
 
-        // Seeded on top of itself — a resubmission after a failure further
-        // down — would double every catalogue. The product codes are unique,
-        // so this is what the seeder's own command line checks too.
-        $codes = array_keys(DEMO_PRODUCTS);
-        $taken = $connection->fetchOne(
-            'SELECT count(*) FROM products WHERE code = ANY(CAST(:codes AS text[]))',
-            ['codes' => '{' . implode(',', $codes) . '}'],
-        );
+        $seeder = $container->get(DemoSeeder::class);
 
-        if (is_numeric($taken) && (int) $taken > 0) {
-            throw new \RuntimeException('a product with one of the demo codes (' . implode(', ', $codes)
-                . ') already exists, so the world was not seeded again — drop and recreate the database, or run '
-                . 'php bin/seed-demo.php --reset from a shell');
+        if (!$seeder instanceof DemoSeeder) {
+            throw new \RuntimeException('the container did not answer with the demo seeder.');
         }
 
-        $world = $seed($containerFactory());
+        $world = $seeder->seed();
 
-        $failed = array_filter(
-            is_array($world['checks'] ?? null) ? $world['checks'] : [],
-            static fn (mixed $ok): bool => $ok !== true,
-        );
-
-        if ($failed !== []) {
+        if (!$world->holds()) {
             // The seeder verifies what it made. A world that does not hold
             // is worse than no world: somebody would demonstrate it.
-            throw new \RuntimeException('the seeded world does not hold: ' . implode(', ', array_keys($failed)));
+            throw new \RuntimeException('the seeded world does not hold: ' . implode(', ', $world->failures()));
         }
     } catch (\Throwable $e) {
         fail(500, 'The demonstration world could not be created: ' . $e->getMessage() . '. backprod-app/.env '

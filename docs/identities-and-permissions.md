@@ -212,6 +212,7 @@ Les 16 permissions de plateforme.
 | `staff.access_log.read` | oui | non | non | non |
 | `staff.jobs.read` | oui | non | non | non |
 | `staff.jobs.manage` | oui | non | non | non |
+| `staff.demo.reset` (vider et réensemencer le monde de démonstration) | oui | non | non | non |
 | `admin.directory.read` | oui | non | non | non |
 | `admin.audit.read` | oui | non | non | non |
 | `admin.privacy.erase` | oui | non | non | non |

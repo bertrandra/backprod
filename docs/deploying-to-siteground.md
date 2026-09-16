@@ -193,7 +193,9 @@ them, one person per role, and two live subscriptions with the invoices they
 raised — [docs/demo-world.html](demo-world.html) lists who is in it and what
 each one sees. It refuses a database where one of the four product codes
 already exists unless you pass `--reset`, and it never touches reference data —
-permissions, roles, EU VAT rates are migration data.
+permissions, roles, EU VAT rates are migration data. Once deployed, the same
+reset is a button on Console → Products for the platform administrator; it is
+refused while a product that is not the demonstration's exists.
 
 ## 4. Upload
 
