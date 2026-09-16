@@ -75,7 +75,15 @@ try {
         'The service is not available. If you are deploying, check the server log and run bin/preflight.php.',
         [],
         '',
-    );
+    )
+        // The middleware that forbids caching never ran either, and a 503 a
+        // proxy kept would outlive the fix: an operator who corrects .env and
+        // is still answered "not available" from the cache has no way to
+        // tell. Same headers NoSharedCacheMiddleware sends, by hand.
+        ->withHeader('Cache-Control', 'no-store, no-cache, private, must-revalidate')
+        ->withHeader('Pragma', 'no-cache')
+        ->withHeader('Expires', '0')
+        ->withHeader('X-Cache-Enabled', 'False');
 }
 
 (new SapiEmitter())->emit($response);
