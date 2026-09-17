@@ -1031,7 +1031,7 @@ export interface paths {
         head?: never;
         /**
          * Change the caller's own profile
-         * @description Partial by design: an absent `display_name` leaves it untouched, an explicit `null` clears it. Those are different requests and are not collapsed into one.
+         * @description Partial by design: an absent field leaves it untouched, an explicit `null` clears it. Those are different requests and are not collapsed into one. `default_product` is a code of a product the person holds — the one their screens open in when the address names none; `PRODUCT_NOT_HELD` otherwise.
          */
         patch: operations["updateMe"];
         trace?: never;
@@ -6722,6 +6722,8 @@ export interface operations {
                         /** Format: email */
                         email: string | null;
                         display_name: string | null;
+                        /** @description The code of the product this person's screens open in when the address names none — the product signed up for, until changed from the profile. Null when unset or when the person no longer holds it. */
+                        default_product: string | null;
                         /** Format: uuid */
                         product_id: string;
                         /** Format: uuid */
@@ -6756,6 +6758,8 @@ export interface operations {
                 "application/json": {
                     /** @description Absent leaves it alone; null clears it. */
                     display_name?: string | null;
+                    /** @description A product code the person holds, or null to clear. */
+                    default_product?: string | null;
                 };
             };
         };
@@ -6772,6 +6776,8 @@ export interface operations {
                         /** Format: email */
                         email: string | null;
                         display_name: string | null;
+                        /** @description The code of the product this person's screens open in when the address names none — the product signed up for, until changed from the profile. Null when unset or when the person no longer holds it. */
+                        default_product: string | null;
                     };
                 };
             };
@@ -7727,6 +7733,8 @@ export interface operations {
                 content: {
                     "application/json": {
                         products: components["schemas"]["Product"][];
+                        /** @description The code of this person's default product, among `products`, or null. Beside the list rather than on `/me` because `/me` needs a product and this is how a client learns which to name first. */
+                        default: string | null;
                     };
                 };
             };

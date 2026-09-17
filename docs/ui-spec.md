@@ -188,7 +188,7 @@ and USER. Placing it in the console would have been the intuitive mistake.
 | `tenant.organisation` | the company: its details and its usage against quota |
 | `tenant.members` | who is in it, and with which role |
 | `tenant.branding` | white label — colours and logo, gated by `skin.manage` **and** the `white_label` entitlement |
-| `account.profile` | the person, not the company |
+| `account.profile` | the person, not the company — the display name, and the **default product**: where their screens open when a link does not say which, set at sign-up to the product signed up for and chosen here among the products they hold (2026-09-17) |
 | `account.notifications` | the inbox: unread count, reading, per-notification delivery detail |
 | `account.notification_settings` | channel preferences, and consents that are provable and revocable (non-negotiable #24) |
 | `messaging.conversations` | threads, messages, participants, read state |
@@ -213,7 +213,7 @@ and USER. Placing it in the console would have been the intuitive mistake.
 | `console.admin.menus` | what the navigation shows each kind of person — platform administrator, tenant administrator, user — as three checklists of the shell's own entries, and per audience whether an entry with nothing behind it is shown. Stored as what is switched *off*, so a screen added tomorrow appears until somebody decides otherwise; saved whole and recorded in the access log |
 | `console.admin.queue` | queue liveness and the job list — "has the runner run" |
 | `console.admin.audit` | the audit trail |
-| `console.admin.erasure` | RGPD erasure, against legal retention (non-negotiable #15) |
+| `console.admin.erasure` | RGPD erasure, against legal retention (non-negotiable #15). The person is found in the directory and read back by name before the irreversible step, which stays the confirmation; without `admin.directory.read` the id is typed |
 
 ---
 

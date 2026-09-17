@@ -17,7 +17,7 @@ final class PostgresUserRepository implements UserRepository
     public function find(string $userId): ?PlatformUser
     {
         $row = $this->connection->fetchAssociative(
-            'SELECT id, auth_subject, email, display_name FROM users WHERE id = :id',
+            'SELECT id, auth_subject, email, display_name, default_product_id FROM users WHERE id = :id',
             ['id' => $userId],
         );
 
@@ -30,7 +30,7 @@ final class PostgresUserRepository implements UserRepository
         // capitalisation they please, and providers treat it as equivalent.
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
-                SELECT id, auth_subject, email, display_name
+                SELECT id, auth_subject, email, display_name, default_product_id
                 FROM users
                 WHERE lower(email) = lower(:email)
                 ORDER BY id
@@ -59,6 +59,14 @@ final class PostgresUserRepository implements UserRepository
         );
     }
 
+    public function updateDefaultProduct(string $userId, ?string $productId): void
+    {
+        $this->connection->executeStatement(
+            'UPDATE users SET default_product_id = :product, updated_at = now() WHERE id = :id',
+            ['product' => $productId, 'id' => $userId],
+        );
+    }
+
     /**
      * @param array<string, mixed> $row
      */
@@ -73,12 +81,14 @@ final class PostgresUserRepository implements UserRepository
 
         $email = $row['email'] ?? null;
         $displayName = $row['display_name'] ?? null;
+        $defaultProduct = $row['default_product_id'] ?? null;
 
         return new PlatformUser(
             $id,
             $subject,
             is_string($email) ? $email : null,
             is_string($displayName) ? $displayName : null,
+            is_string($defaultProduct) ? $defaultProduct : null,
         );
     }
 }

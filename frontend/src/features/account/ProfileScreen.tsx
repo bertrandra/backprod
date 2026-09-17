@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { useUpdateProfile } from '@/queries/account';
 import { useSignOut } from '@/queries/auth';
+import { useMyProducts } from '@/queries/catalogue';
 import { useSession } from '@/queries/session';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { ErrorSurface } from '@/ui/ErrorSurface';
@@ -19,6 +20,8 @@ import { SkeletonRows } from '@/ui/Skeleton';
  */
 const schema = z.object({
   displayName: z.string().trim().max(120, 'A display name is at most 120 characters.'),
+  // A code among the products this person holds, or none.
+  defaultProduct: z.string(),
 });
 
 type Values = z.infer<typeof schema>;
@@ -27,10 +30,11 @@ export function ProfileScreen() {
   const session = useSession();
   const update = useUpdateProfile();
   const signOut = useSignOut();
+  const mine = useMyProducts();
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    values: { displayName: session.data?.displayName ?? '' },
+    values: { displayName: session.data?.displayName ?? '', defaultProduct: mine.data?.default ?? '' },
   });
 
   if (session.isPending) {
@@ -58,7 +62,10 @@ export function ProfileScreen() {
             // Empty means "clear it": the contract distinguishes an absent field,
             // which leaves the name alone, from null, which removes it. Sending
             // an empty string would store a name that is no name.
-            update.mutate(values.displayName === '' ? null : values.displayName);
+            update.mutate({
+              display_name: values.displayName === '' ? null : values.displayName,
+              default_product: values.defaultProduct === '' ? null : values.defaultProduct,
+            });
           })(event);
         }}
       >
@@ -73,6 +80,32 @@ export function ProfileScreen() {
             className={inputClass(form.formState.errors.displayName !== undefined)}
             {...form.register('displayName')}
           />
+        </Field>
+
+        {/* Where your screens open. Set to the product signed up for, and only
+            ever one you hold — the list is what the server says you have.
+            Offered as a choice even with one product, so "where do I land"
+            has a visible answer. */}
+        <Field
+          id="default-product"
+          label="Default product"
+          hint="The product your screens open in when a link does not say which."
+          error={form.formState.errors.defaultProduct?.message}
+        >
+          <select
+            id="default-product"
+            data-testid="default-product"
+            className={inputClass(form.formState.errors.defaultProduct !== undefined)}
+            disabled={mine.data === undefined}
+            {...form.register('defaultProduct')}
+          >
+            <option value="">Whichever comes first</option>
+            {(mine.data?.products ?? []).map((product) => (
+              <option key={product.code} value={product.code}>
+                {product.name}
+              </option>
+            ))}
+          </select>
         </Field>
 
         {update.error !== null && <ErrorSurface error={update.error} />}

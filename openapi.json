@@ -8092,7 +8092,8 @@
                     "tenant_id",
                     "roles",
                     "permissions",
-                    "capabilities"
+                    "capabilities",
+                    "default_product"
                   ],
                   "properties": {
                     "user_id": {
@@ -8111,6 +8112,13 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "default_product": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "The code of the product this person's screens open in when the address names none — the product signed up for, until changed from the profile. Null when unset or when the person no longer holds it."
                     },
                     "product_id": {
                       "type": "string",
@@ -8164,7 +8172,7 @@
         ],
         "operationId": "updateMe",
         "summary": "Change the caller's own profile",
-        "description": "Partial by design: an absent `display_name` leaves it untouched, an explicit `null` clears it. Those are different requests and are not collapsed into one.",
+        "description": "Partial by design: an absent field leaves it untouched, an explicit `null` clears it. Those are different requests and are not collapsed into one. `default_product` is a code of a product the person holds — the one their screens open in when the address names none; `PRODUCT_NOT_HELD` otherwise.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
@@ -8183,7 +8191,8 @@
                   "required": [
                     "user_id",
                     "email",
-                    "display_name"
+                    "display_name",
+                    "default_product"
                   ],
                   "properties": {
                     "user_id": {
@@ -8202,6 +8211,13 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "default_product": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "The code of the product this person's screens open in when the address names none — the product signed up for, until changed from the profile. Null when unset or when the person no longer holds it."
                     }
                   }
                 }
@@ -8245,6 +8261,14 @@
                     ],
                     "maxLength": 120,
                     "description": "Absent leaves it alone; null clears it."
+                  },
+                  "default_product": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 64,
+                    "description": "A product code the person holds, or null to clear."
                   }
                 }
               }
@@ -9835,7 +9859,8 @@
                 "schema": {
                   "type": "object",
                   "required": [
-                    "products"
+                    "products",
+                    "default"
                   ],
                   "properties": {
                     "products": {
@@ -9843,6 +9868,13 @@
                       "items": {
                         "$ref": "#/components/schemas/Product"
                       }
+                    },
+                    "default": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "The code of this person's default product, among `products`, or null. Beside the list rather than on `/me` because `/me` needs a product and this is how a client learns which to name first."
                     }
                   }
                 }

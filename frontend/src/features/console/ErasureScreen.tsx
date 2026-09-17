@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useDeferredValue, useState } from 'react';
 
-import { RETENTION_GROUNDS, useEraseUser, type Erasure, type RetentionGround } from '@/queries/admin';
+import { can } from '@/app/access/access';
+import { RETENTION_GROUNDS, useAdminUsers, useEraseUser, type Erasure, type RetentionGround } from '@/queries/admin';
+import { staffAccess, useStaffIdentity } from '@/queries/staff';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { SearchPicker } from '@/ui/pickers/SearchPicker';
+import { type Person } from '@/ui/pickers/Select';
 import { panel } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
 
@@ -28,8 +32,20 @@ import { PageHeader } from '@/ui/Page';
  */
 export function ErasureScreen() {
   const erase = useEraseUser();
+  const me = useStaffIdentity();
   const [userId, setUserId] = useState('');
   const [confirming, setConfirming] = useState(false);
+
+  // Found by name or address where the directory may be read, so the person
+  // about to be erased is read back as a person — name, address, id — before
+  // the irreversible step, rather than as thirty-six characters somebody
+  // pasted. The confirmation below is unchanged: finding is not deciding.
+  // Without `admin.directory.read` the id field stays.
+  const [picked, setPicked] = useState<Person | null>(null);
+  const [query, setQuery] = useState('');
+  const search = useDeferredValue(query.trim());
+  const maySearch = can(staffAccess(me.data), 'admin.directory.read');
+  const found = useAdminUsers(search, 8, 0, maySearch && search !== '');
 
   const valid = /^[0-9a-fA-F-]{36}$/.test(userId.trim());
 
@@ -67,21 +83,46 @@ export function ErasureScreen() {
       </section>
 
       <section className="space-y-4 border-t border-line pt-6">
-        <Field
-          id="user_id"
-          label="User identifier"
-          hint="Typed or pasted deliberately. There is no undo, so there is no row to click by accident."
-        >
-          <input
+        {maySearch ? (
+          <Field
             id="user_id"
-            className={inputClass()}
-            value={userId}
-            onChange={(event) => {
-              setUserId(event.target.value);
-              setConfirming(false);
-            }}
-          />
-        </Field>
+            label="Who"
+            hint="Search the directory by name or email. Choosing is not erasing: the confirmation below is where that happens."
+          >
+            <SearchPicker
+              id="user_id"
+              query={query}
+              onQueryChange={setQuery}
+              pending={found.isPending && search !== ''}
+              results={(found.data?.users ?? [])
+                .filter((user) => user.erased_at === null && typeof user.id === 'string')
+                .map((user) => ({ id: String(user.id), name: user.display_name ?? null, email: user.email ?? null }))}
+              value={picked}
+              onPick={(person) => {
+                setPicked(person);
+                setUserId(person?.id ?? '');
+                setConfirming(false);
+              }}
+              placeholder="ada@example.test"
+            />
+          </Field>
+        ) : (
+          <Field
+            id="user_id"
+            label="User identifier"
+            hint="Typed or pasted deliberately. There is no undo, so there is no row to click by accident."
+          >
+            <input
+              id="user_id"
+              className={inputClass()}
+              value={userId}
+              onChange={(event) => {
+                setUserId(event.target.value);
+                setConfirming(false);
+              }}
+            />
+          </Field>
+        )}
 
         {erase.error !== null && <ErrorSurface error={erase.error} />}
 
@@ -103,7 +144,16 @@ export function ErasureScreen() {
                 type="button"
                 variant="danger"
                 pending={erase.isPending}
-                onClick={() => erase.mutate(userId.trim(), { onSettled: () => setConfirming(false) })}
+                onClick={() =>
+                  erase.mutate(userId.trim(), {
+                    onSettled: () => setConfirming(false),
+                    onSuccess: () => {
+                      setPicked(null);
+                      setQuery('');
+                      setUserId('');
+                    },
+                  })
+                }
               >
                 Erase permanently
               </Button>

@@ -189,3 +189,39 @@ describe('a second erasure of the same person', () => {
     expect(screen.queryByTestId('erasure-report')).toBeNull();
   });
 });
+
+describe('finding the person', () => {
+  it('searches the directory where it may be read, and the id it sends is the one chosen', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/me': {
+        data: { staff: { user_id: 'staff-1', roles: ['PLATFORM_ADMIN'], permissions: ['admin.privacy.erase', 'admin.directory.read'] } },
+      },
+      'GET /api/v1/admin/users': {
+        data: {
+          users: [{ id: USER_ID, email: 'ada@acme.test', display_name: 'Ada Lovelace', created_at: '2026-01-01T00:00:00Z', erased_at: null }],
+          total: 1,
+          limit: 8,
+          offset: 0,
+        },
+      },
+      'POST /api/v1/admin/erasures': { data: { erasure: ERASURE } },
+    });
+
+    renderWith(<ErasureScreen />, client);
+
+    await waitFor(() => expect(screen.getByLabelText('Who')).toBeTruthy());
+    fireEvent.change(screen.getByLabelText('Who'), { target: { value: 'ada' } });
+    await waitFor(() => expect(screen.getByRole('option', { name: /Ada Lovelace/ })).toBeTruthy());
+    fireEvent.mouseDown(screen.getByRole('option', { name: /Ada Lovelace/ }));
+
+    // Read back as a person before the irreversible step, and the step is
+    // still the confirmation.
+    await waitFor(() => expect(document.querySelector(`[data-picked="${USER_ID}"]`)).not.toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: /Erase this person/ }));
+    expect(screen.getByTestId('erasure-confirmation')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Erase permanently' }));
+
+    await waitFor(() => expect(requests.some((r) => r.method === 'POST')).toBe(true));
+    expect((requests.find((r) => r.method === 'POST')?.body as { user_id?: unknown }).user_id).toBe(USER_ID);
+  });
+});

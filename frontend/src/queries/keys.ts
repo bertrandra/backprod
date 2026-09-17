@@ -45,6 +45,8 @@ export const keys = {
   },
   catalogue: {
     products: ['catalogue', 'products'] as const,
+    /** The same list with the person's default beside it — one read, two facts. */
+    myProducts: ['catalogue', 'products', 'mine'] as const,
     product: (id: string) => ['catalogue', 'products', id] as const,
     productCatalogue: (id: string) => ['catalogue', 'products', id, 'catalog'] as const,
     productFeatures: (id: string) => ['catalogue', 'products', id, 'features'] as const,

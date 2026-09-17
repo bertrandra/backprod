@@ -52,6 +52,17 @@ final class InMemoryUserRepository implements UserRepository
             return;
         }
 
-        $this->byId[$userId] = new PlatformUser($user->id, $user->authSubject, $user->email, $displayName);
+        $this->byId[$userId] = new PlatformUser($user->id, $user->authSubject, $user->email, $displayName, $user->defaultProductId);
+    }
+
+    public function updateDefaultProduct(string $userId, ?string $productId): void
+    {
+        $user = $this->byId[$userId] ?? null;
+
+        if ($user === null) {
+            return;
+        }
+
+        $this->byId[$userId] = new PlatformUser($user->id, $user->authSubject, $user->email, $user->displayName, $productId);
     }
 }

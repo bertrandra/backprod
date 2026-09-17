@@ -79,11 +79,13 @@ final class PostgresAccountRegistrar implements AccountRegistrar
             // no DEFAULT for it.
             $userId = $this->connection->fetchOne(
                 <<<'SQL'
-                    INSERT INTO users (auth_subject, email, display_name)
-                    VALUES ('pending', :email, :name)
+                    INSERT INTO users (auth_subject, email, display_name, default_product_id)
+                    VALUES ('pending', :email, :name, :product)
                     RETURNING id
                     SQL,
-                ['email' => $email, 'name' => $displayName],
+                // The product signed up for is the one their screens open in
+                // until they choose another from the profile (2026-09-17).
+                ['email' => $email, 'name' => $displayName, 'product' => $productId],
             );
 
             if (!is_string($userId)) {

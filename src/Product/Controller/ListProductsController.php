@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Product\Controller;
 
+use App\Identity\Service\Profile;
 use App\Product\Service\ProductCatalogue;
 use App\Shared\Context\IdentityContext;
 use App\Shared\Http\RouteHandler;
@@ -20,8 +21,10 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 final class ListProductsController implements RouteHandler
 {
-    public function __construct(private readonly ProductCatalogue $catalogue)
-    {
+    public function __construct(
+        private readonly ProductCatalogue $catalogue,
+        private readonly Profile $profile,
+    ) {
     }
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
@@ -30,6 +33,10 @@ final class ListProductsController implements RouteHandler
 
         return new JsonResponse([
             'products' => ProductPresenter::many($this->catalogue->available($identity->userId)),
+            // Beside the list rather than on `/me`, because `/me` needs a
+            // product and this is how the shell learns which one to name
+            // first: the person's own default, among what they hold.
+            'default' => $this->profile->defaultProductCode($identity->userId),
         ], 200);
     }
 }

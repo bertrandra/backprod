@@ -12,11 +12,20 @@ namespace App\User\Domain;
  */
 final class PlatformUser
 {
+    /**
+     * @param string|null $defaultProductId the product a screen opens in
+     *                                      when the address names none —
+     *                                      set at sign-up to the product
+     *                                      signed up for, changed from the
+     *                                      profile, and only ever one the
+     *                                      person has
+     */
     public function __construct(
         public readonly string $id,
         public readonly string $authSubject,
         public readonly ?string $email = null,
         public readonly ?string $displayName = null,
+        public readonly ?string $defaultProductId = null,
     ) {
     }
 }
