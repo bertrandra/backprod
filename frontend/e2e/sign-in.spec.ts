@@ -138,6 +138,30 @@ test.describe('arriving with no session', () => {
     expect(apiCalls).toEqual(['/api/v1/auth/refresh']);
   });
 
+  test('signing in from the landing page, with no product in the address, opens the application rather than a blank screen', async ({ page }) => {
+    await stubApi(page);
+    await stubAuth(page, { token: { status: 200, json: SESSION } });
+    await page.route(/\/api\/v1\/public\/products$/, (route) =>
+      route.fulfill({ json: { products: [{ code: 'atlas', name: 'Atlas' }] } }),
+    );
+    await page.route(/\/api\/v1\/public\/offers/, (route) => route.fulfill({ json: { offers: [] } }));
+
+    // The way the operator found it: sign out lands on "/", and "/" carries
+    // no `?product=`. Before 2026-09-17 nothing chose a product, so nothing
+    // could ask `/me`, so there was no menu and nothing on top.
+    await page.goto('/');
+    await page.getByTestId('sign-in-link').click();
+    await page.getByLabel('Email').fill('ada@acme.test');
+    await page.getByLabel('Password').fill('correct horse');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+
+    // The one product this person has is chosen for them and the shell fills.
+    await expect(page.getByTestId('active-product')).toHaveAttribute('data-product', 'atlas');
+    // A menu: the sidebar's entry on a desktop, the bottom bar's on a phone.
+    await expect(page.locator('[data-nav="profile"]:visible, [data-nav-bottom="profile"]:visible')).toHaveCount(1);
+    await expect(page.getByTestId('account-menu')).toHaveText('A');
+  });
+
   test('keeps the deep link it was asked for, and lands there after signing in', async ({ page }) => {
     await stubApi(page);
     await stubAuth(page, { token: { status: 200, json: SESSION } });
