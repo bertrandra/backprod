@@ -164,23 +164,20 @@ const appShellRoute = createRoute({
 });
 
 /**
- * The tenant application's landing.
+ * The tenant application's landing: the catalogue (2026-09-17).
  *
- * It used to say "the workspace arrives in U4", which was true when U1 wrote it
- * and false from U4 onwards — a placeholder outliving its milestone is a small
- * lie that nothing fails on. There are no placeholders left in either tree now,
- * so this points at the navigation rather than at a date.
+ * The root of an organisation — `hostname/acme/` — is one page seen by two
+ * authorities: a stranger gets the storefront, a member gets the catalogue
+ * for the same products, with Buy where their permission allows and prices
+ * where it does not (docs/tenant-roots.md §2.2). Signing out returns here,
+ * which is why the landing is the page a stranger and a member both know,
+ * rather than a sentence pointing at the navigation.
  */
 const indexRoute = createRoute({
   getParentRoute: () => appShellRoute,
   path: '/',
   validateSearch,
-  component: () => (
-    <EmptyState
-      title="Choose an area"
-      description="Everything this product offers is in the navigation. What you can reach is what your permissions and your plan allow."
-    />
-  ),
+  component: CatalogueScreen,
 });
 
 /**

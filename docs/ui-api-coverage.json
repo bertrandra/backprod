@@ -104,6 +104,7 @@
     "commerce.catalogue": {
       "authority": "tenant",
       "routes": [
+        "/",
         "/catalogue"
       ],
       "operations": [
