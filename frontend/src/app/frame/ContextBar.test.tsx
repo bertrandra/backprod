@@ -19,7 +19,7 @@ const bar = (session: Record<string, unknown>, extra: Record<string, unknown> = 
       'GET /api/v1/me': { data: session },
       'GET /api/v1/products': { data: PRODUCTS },
       ...extra,
-    } as never),
+    }),
     { path: '/' },
   );
 
