@@ -10,8 +10,11 @@ use App\Product\Domain\ProductFeature;
 use App\Product\Domain\ProductRegistry;
 use App\Product\Infrastructure\InMemoryProductRegistry;
 use App\Tests\Support\FakeAuthProvider;
+use App\User\Domain\PlatformUser;
 use App\User\Domain\UserDirectory;
+use App\User\Domain\UserRepository;
 use App\User\Infrastructure\InMemoryUserDirectory;
+use App\User\Infrastructure\InMemoryUserRepository;
 use PHPUnit\Framework\Attributes\CoversNothing;
 
 /**
@@ -37,6 +40,12 @@ final class ProductDiscoveryTest extends ApiTestCase
 
         $this->override([
             UserDirectory::class => new InMemoryUserDirectory(),
+            // The list now says which product is the caller's default, which
+            // is read from the user record — in memory here, as the identities.
+            UserRepository::class => new InMemoryUserRepository([
+                new PlatformUser(self::ALICE, self::ALICE, 'alice@example.test'),
+                new PlatformUser(self::BOB, self::BOB, 'bob@example.test'),
+            ]),
 
             AuthProvider::class => new FakeAuthProvider([
                 'alice-token' => self::ALICE,
@@ -74,6 +83,7 @@ final class ProductDiscoveryTest extends ApiTestCase
                 ['id' => 'prod-atlas', 'code' => 'atlas', 'name' => 'Atlas'],
                 ['id' => 'prod-beacon', 'code' => 'beacon', 'name' => 'Beacon'],
             ],
+            'default' => null,
         ], $this->decode($response));
     }
 
