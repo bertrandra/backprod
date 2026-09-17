@@ -74,6 +74,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
                  WHERE s.tenant_id = :tenantId
                    AND s.product_id = :productId
                    AND s.status = 'ACTIVE'
+                   AND s.subscriber_kind = 'TENANT'
                 SQL,
             ['tenantId' => $tenantId, 'productId' => $productId],
         );

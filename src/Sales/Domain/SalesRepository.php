@@ -103,6 +103,23 @@ interface SalesRepository
      */
     public function applyCompleteOrder(Order $order, OrderFulfilment $fulfilment, ?string $actorUserId): void;
 
+    /**
+     * Records that an order whose invoice has just been paid could **not**
+     * be completed, without a transaction of its own, for the same reason
+     * as {@see applyCompleteOrder}.
+     *
+     * The order is left where it stands — still awaiting, though its invoice
+     * is now paid — and a ledger row names why. Nothing is pretended in
+     * either direction: the money arrived and is recorded as such; the
+     * subscription did not start and is not claimed to have. What that
+     * leaves is a paid document with nothing delivered against it, which
+     * is precisely the anomaly an operator should be shown rather than one
+     * the platform should resolve on its own by starting something twice.
+     *
+     * @param array<string, mixed> $detail why, in the ledger's own words
+     */
+    public function applyHoldOrder(Order $order, array $detail, ?string $actorUserId): void;
+
     public function cancelOrder(Order $order, ?string $actorUserId): Order;
 
     /**

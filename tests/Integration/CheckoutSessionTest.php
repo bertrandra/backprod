@@ -173,6 +173,49 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
         self::assertSame('0', (string) (is_scalar($invoices) ? $invoices : 'not counted'));
     }
 
+    public function testASecondCheckoutIsRefusedWhileTheSubscriptionIsLive(): void
+    {
+        $first = $this->sessionOf($this->open());
+        $this->pay($first, 'evt_first');
+        self::assertSame('COMPLETED', $this->sessionOf($this->show($first))['status'] ?? null);
+
+        $response = $this->open();
+
+        // 409, before any document: the operator's own deployment showed
+        // what the alternative costs — a numbered invoice, a charged card,
+        // and a webhook that can never be honoured.
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame('SUBSCRIPTION_ALREADY_ACTIVE', $this->errorOf($response)['code'] ?? null);
+
+        $orders = $this->connection->fetchOne('SELECT count(*) FROM orders');
+        self::assertSame('1', (string) (is_scalar($orders) ? $orders : 'not counted'));
+        $invoices = $this->connection->fetchOne('SELECT count(*) FROM invoices');
+        self::assertSame('1', (string) (is_scalar($invoices) ? $invoices : 'not counted'));
+    }
+
+    public function testASessionPaidAfterTheSubscriptionStartedReadsHeld(): void
+    {
+        // Two checkouts open before either is paid: the one race the
+        // refusal at placement cannot reach.
+        $first = $this->sessionOf($this->open());
+        $second = $this->sessionOf($this->open());
+
+        $this->pay($first, 'evt_first');
+        self::assertSame(200, $this->pay($second, 'evt_second')->getStatusCode());
+
+        $read = $this->sessionOf($this->show($second));
+
+        // Not AWAITING_PAYMENT — the card was charged — and not COMPLETED —
+        // nothing started. The customer reads the one word that is true.
+        self::assertSame('HELD', $read['status'] ?? null);
+        self::assertSame('SUCCEEDED', $read['payment_status'] ?? null);
+        self::assertArrayHasKey('subscription_id', $read);
+        self::assertNull($read['subscription_id']);
+
+        $subscriptions = $this->connection->fetchOne('SELECT count(*) FROM subscriptions');
+        self::assertSame('1', (string) (is_scalar($subscriptions) ? $subscriptions : 'not counted'));
+    }
+
     public function testAnotherTenantsSessionIsNotFound(): void
     {
         $id = $this->sessionOf($this->open())['id'];
@@ -286,6 +329,41 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
             '/api/v1/checkout/sessions',
             $this->headers(),
             $this->json(['offer_id' => $this->offer]),
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $session
+     */
+    private function show(array $session): ResponseInterface
+    {
+        $id = $session['id'];
+        self::assertIsString($id);
+
+        return $this->request('GET', '/api/v1/checkout/sessions/' . $id, $this->headers());
+    }
+
+    /**
+     * The provider saying the session's payment succeeded, signed as the
+     * stub signs.
+     *
+     * @param array<string, mixed> $session
+     */
+    private function pay(array $session, string $eventId): ResponseInterface
+    {
+        $reference = $this->connection->fetchOne(
+            'SELECT provider_payment_id FROM payments WHERE id = :id',
+            ['id' => $session['payment_id'] ?? null],
+        );
+        self::assertIsString($reference);
+
+        $body = $this->json(['id' => $eventId, 'type' => 'payment.succeeded', 'payment_id' => $reference]);
+
+        return $this->request(
+            'POST',
+            '/api/v1/webhooks/payments/stub',
+            [StubPaymentProvider::SIGNATURE_HEADER => (new StubPaymentProvider(self::SECRET))->sign($body)],
+            $body,
         );
     }
 

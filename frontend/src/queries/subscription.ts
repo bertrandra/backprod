@@ -28,11 +28,12 @@ export type Subscription = Schemas['Subscription'];
 export type CancellationDecision = Schemas['CancellationDecision'];
 export type Entitlement = Schemas['Entitlement'];
 
-export function useSubscription() {
+export function useSubscription(enabled = true) {
   const client = useApiClient();
 
   return useQuery({
     queryKey: keys.subscription.current,
+    enabled,
     queryFn: async () => {
       const { data, error, response } = await client.GET(
         '/api/v1/subscription',

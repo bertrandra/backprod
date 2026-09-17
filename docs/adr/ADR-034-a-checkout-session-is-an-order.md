@@ -1,6 +1,17 @@
 # ADR-034 — A checkout session is an order
 
 **Status:** accepted
+**Amended on 2026-09-17** — a checkout is refused `409 SUBSCRIPTION_ALREADY_ACTIVE`,
+before the order and its gaplessly numbered invoice, while the tenant's own
+subscription to the product is live; so are `placeOrder` and `acceptQuote`.
+The schema's one-active-subscription index says the same thing, but an index
+refuses last — after the invoice and the card — and the operator's deployment
+showed what that costs: a second offer bought beside a live subscription,
+charged twice, and a webhook that could only ever fail. What the refusal
+cannot reach is the race, two sessions opened before either was paid; there
+the money is recorded, the order is **held** rather than the delivery failed,
+the session reads `HELD`, and an `ORDER_HELD` ledger row names why. See
+`Sales::refuseWhileSubscribed` and `CompleteOrderOnPayment`.
 **Decides:** how `/checkout/sessions` is modelled
 **Relates to:** Architecture V2 §7, §24; uses
 [ADR-024](ADR-024-payment-gated-activation.md)
@@ -80,3 +91,12 @@ If a future session ever needs state the order genuinely does not have — an
 expiry independent of the order, a provider-hosted page and its URL — it gets
 a table then. The response already carries `order_id` beside `id` so that
 naming stays honest about what today's session is.
+
+A session's `status` has one value the order's own status does not: `HELD`,
+derived when the payment is settled and the order is not completed. It is the
+mirror of `PAYMENT_FAILED` — that one says nothing is coming although the
+order is still waiting; this one says the money came and nothing could be
+started against it. Both exist because the truthful sentence is neither
+"awaiting" nor "completed", and a customer reading their own checkout is owed
+the truthful one. The catalogue hides Buy while the subscription is live, as
+courtesy; the 409 is the rule.

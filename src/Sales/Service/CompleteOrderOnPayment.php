@@ -6,6 +6,7 @@ namespace App\Sales\Service;
 
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoicePaid;
+use App\Commerce\Domain\SubscriptionRepository;
 use App\Sales\Domain\OrderFulfilment;
 use App\Sales\Domain\SalesRepository;
 
@@ -24,12 +25,26 @@ use App\Sales\Domain\SalesRepository;
  * because the lookup asks for one still awaiting payment — which is what
  * makes a second delivery of the same event harmless here, on top of the
  * unique index that stops it reaching this code twice.
+ *
+ * **An order that cannot be released is held, not failed.** The sale is
+ * refused at placement while the tenant's subscription to the product is
+ * live ({@see Sales}); what reaches here regardless is the race — two
+ * orders opened before either was paid, the second paid after the first
+ * started the subscription. The money has arrived by then, and a thrown
+ * unique violation would roll the whole delivery back: payment PENDING,
+ * invoice ISSUED, provider retrying a delivery that can never succeed, and
+ * a customer charged for something nobody recorded. That is what the
+ * operator's deployment showed on 2026-09-17. So the caller's transaction
+ * keeps the money and the paid invoice, the order stays where it is, and a
+ * ledger row says why — the operator refunds a customer rather than
+ * discovers one.
  */
 final class CompleteOrderOnPayment implements InvoicePaid
 {
     public function __construct(
         private readonly SalesRepository $sales,
         private readonly OrderFulfilment $fulfilment,
+        private readonly SubscriptionRepository $subscriptions,
     ) {
     }
 
@@ -42,6 +57,23 @@ final class CompleteOrderOnPayment implements InvoicePaid
         );
 
         if ($order === null) {
+            return;
+        }
+
+        // Asked, not caught: a unique violation inside the caller's
+        // transaction aborts it, and there is no continuing past one in
+        // PostgreSQL. The index still stands behind this for two deliveries
+        // landing in the same instant — that one is a 500 the provider
+        // retries, and the retry reads the row.
+        $live = $this->subscriptions->findActive($invoice->tenantId, $invoice->productId);
+
+        if ($live !== null) {
+            $this->sales->applyHoldOrder(
+                $order,
+                ['reason' => Sales::SUBSCRIPTION_ALREADY_ACTIVE, 'subscription_id' => $live->id],
+                null,
+            );
+
             return;
         }
 

@@ -154,6 +154,50 @@ describe('what the catalogue offers to do', () => {
     expect(screen.queryByRole('button', { name: /^quote$/i })).toBeNull();
   });
 
+  it('offers neither while the organisation is already subscribed, and says where to change it', async () => {
+    // One live subscription per product: the API refuses a second order
+    // (409 SUBSCRIPTION_ALREADY_ACTIVE), so the buttons are not there, and
+    // the person is pointed at the subscription instead. The rule the
+    // operator set for the Quote button — a function a person cannot use
+    // is hidden — applied to Buy.
+    const subscriber = { ...BUYER, permissions: [...BUYER.permissions, 'subscription.read'] };
+    const live = {
+      id: 'sub-1',
+      status: 'ACTIVE',
+      offer: { id: 'o-1', code: 'zebra-monthly', name: 'Zebra monthly', plan: ZEBRA, version: offer('o-1', ZEBRA).version },
+    };
+
+    render(
+      clientFor(
+        [offer('o-1', ZEBRA)],
+        { 'GET /api/v1/subscription': { data: { subscription: live, history: [], events: [] } } },
+        subscriber,
+      ),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('already-subscribed')).toBeTruthy());
+    expect(screen.getByTestId('already-subscribed').textContent).toContain('Zebra monthly');
+    expect(screen.queryByRole('button', { name: /^buy$/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^quote$/i })).toBeNull();
+    // Still a catalogue: the prices are what `catalog.read` is for.
+    expect(document.querySelector('[data-minor-units="2900"]')).not.toBeNull();
+  });
+
+  it('offers the buy once the subscription read says there is none', async () => {
+    const subscriber = { ...BUYER, permissions: [...BUYER.permissions, 'subscription.read'] };
+
+    render(
+      clientFor(
+        [offer('o-1', ZEBRA)],
+        { 'GET /api/v1/subscription': { data: { subscription: null, history: [], events: [] } } },
+        subscriber,
+      ),
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /^buy$/i })).toBeTruthy());
+    expect(screen.queryByTestId('already-subscribed')).toBeNull();
+  });
+
   it('offers neither to someone who may only read', async () => {
     // Hiding is courtesy — the API refuses either way — but a catalogue with
     // buttons that always fail is worse than one with prices and no buttons.

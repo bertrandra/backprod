@@ -638,39 +638,94 @@ final class SalesChainTest extends DatabaseApiTestCase
     }
 
     /**
-     * A unique index reached *inside* the applying transaction — here the
-     * one active subscription per tenant and product — is the work failing,
-     * not a replay. It used to be answered DUPLICATE: the provider had
-     * collected the money, the platform recorded nothing, every retry
-     * answered the same, and nobody was told. The first Stripe sandbox run
-     * found it (ADR-048). It is a 500 now, so the provider retries and the
-     * log names the constraint.
+     * One live subscription per tenant and product is a partial unique
+     * index, and an index refuses last — after the order, the numbered
+     * invoice and the card. The operator met exactly that on their own
+     * deployment on 2026-09-17: a second offer bought beside a live
+     * subscription, charged twice over, and a webhook that could only ever
+     * fail. So the sale is refused where it is placed, before any document
+     * exists, and a quote accepted into one is refused the same way.
      */
-    public function testAFailureInsideTheWorkIsNotMistakenForAReplay(): void
+    public function testASecondOrderIsRefusedWhileTheSubscriptionIsLive(): void
     {
         $first = $this->orderedId();
         $this->fulfil($first);
+        $reference = $this->startedPayment($first);
+        self::assertSame(200, $this->deliverPayment(['id' => 'evt_first', 'type' => 'payment.succeeded', 'payment_id' => $reference])->getStatusCode());
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM subscriptions'));
+
+        $orders = $this->rowsMatching('SELECT count(*) FROM orders');
+        $invoices = $this->rowsMatching('SELECT count(*) FROM invoices');
+
+        // Quoting is still allowed — a quote is a document, and the next
+        // term may well be quoted while this one runs — but accepting it
+        // into an order is not.
+        $response = $this->accept($this->quotedId());
+
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame('SUBSCRIPTION_ALREADY_ACTIVE', $this->errorOf($response)['code'] ?? null);
+        $details = $this->errorOf($response)['details'] ?? null;
+        self::assertIsArray($details);
+        // Named, so the refusal points at what to change rather than at a wall.
+        self::assertIsString($details['subscription_id'] ?? null);
+
+        $direct = $this->request('POST', '/api/v1/sales/orders', $this->headers(), $this->json(['offer_id' => $this->offer]));
+
+        self::assertSame(409, $direct->getStatusCode());
+        self::assertSame('SUBSCRIPTION_ALREADY_ACTIVE', $this->errorOf($direct)['code'] ?? null);
+
+        // Nothing written, nothing numbered: the refusal is before the order.
+        self::assertSame($orders, $this->rowsMatching('SELECT count(*) FROM orders'));
+        self::assertSame($invoices, $this->rowsMatching('SELECT count(*) FROM invoices'));
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM subscriptions'));
+    }
+
+    /**
+     * What the refusal at placement cannot reach: two orders opened before
+     * either was paid, and the second paid after the first started the
+     * subscription. The money has arrived by then. Throwing would roll the
+     * delivery back — payment PENDING, invoice ISSUED, the provider retrying
+     * a delivery that can never succeed, a customer charged for something
+     * nobody recorded — which is how it used to answer, and what the
+     * operator found. Now the money is recorded, the sale is *held*, and the
+     * ledger says why.
+     */
+    public function testAPaidOrderThatCannotStartASubscriptionIsHeldNotFailed(): void
+    {
+        $first = $this->orderedId();
+        $second = $this->orderedId();
+        $this->fulfil($first);
+        $this->fulfil($second);
+
         $firstReference = $this->startedPayment($first);
+        $secondReference = $this->startedPayment($second);
+
         $firstEvent = ['id' => 'evt_first', 'type' => 'payment.succeeded', 'payment_id' => $firstReference];
         self::assertSame(200, $this->deliverPayment($firstEvent)->getStatusCode());
+        self::assertSame('COMPLETED', $this->statusOf('orders', $first));
+
+        $response = $this->deliverPayment(['id' => 'evt_second', 'type' => 'payment.succeeded', 'payment_id' => $secondReference]);
+
+        // Accepted, so the provider stops retrying; the money is a fact.
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('APPLIED', $this->decode($response)['outcome'] ?? null);
+        self::assertSame(1, $this->rowsMatching("SELECT count(*) FROM payments WHERE provider_payment_id = '{$secondReference}' AND status = 'SUCCEEDED'"));
+        self::assertSame('PAID', $this->statusOf('invoices', $this->invoiceOf($second)));
+
+        // And nothing pretended about the sale: one subscription, the
+        // second order still where it was, and a ledger row naming why.
         self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM subscriptions'));
+        self::assertSame('AWAITING_PAYMENT', $this->statusOf('orders', $second));
+        $shown = $this->decode($this->showOrder($second));
+        self::assertArrayHasKey('subscription_id', $shown);
+        self::assertNull($shown['subscription_id']);
+        self::assertSame(1, $this->rowsMatching(
+            "SELECT count(*) FROM financial_events WHERE type = 'ORDER_HELD' AND order_id = '{$second}'"
+            . " AND detail->>'reason' = 'SUBSCRIPTION_ALREADY_ACTIVE' AND detail->>'subscription_id' IS NOT NULL",
+        ));
+        self::assertSame(1, $this->rowsMatching("SELECT count(*) FROM financial_events WHERE type = 'ORDER_COMPLETED'"));
 
-        // A second order for the same tenant and product, sold, invoiced and
-        // charged while the first subscription is still active — the gap the
-        // checkout does not yet close.
-        $second = $this->orderedId();
-        $this->fulfil($second);
-        $reference = $this->startedPayment($second);
-
-        $response = $this->deliverPayment(['id' => 'evt_second', 'type' => 'payment.succeeded', 'payment_id' => $reference]);
-
-        // Loud, and nothing pretended: not applied, not recorded, not a duplicate.
-        self::assertSame(500, $response->getStatusCode());
-        self::assertSame(0, $this->rowsMatching("SELECT count(*) FROM payment_events WHERE provider_event_id = 'evt_second'"));
-        self::assertSame(1, $this->rowsMatching("SELECT count(*) FROM payments WHERE provider_payment_id = '{$reference}' AND status = 'PENDING'"));
-        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM subscriptions'));
-
-        // And a genuine replay of the first is still a duplicate, still 202.
+        // A genuine replay of the first is still a duplicate, still 202.
         $again = $this->deliverPayment($firstEvent);
         self::assertSame(202, $again->getStatusCode());
         self::assertSame('DUPLICATE', $this->decode($again)['outcome'] ?? null);
