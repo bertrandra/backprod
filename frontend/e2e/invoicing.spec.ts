@@ -131,7 +131,8 @@ test.describe('setting the issuer', () => {
     await page.goto('/console/invoicing?product=atlas');
 
     await page.getByLabel('Legal name').fill('Atlas SAS');
-    await page.getByLabel('Country', { exact: true }).fill('FR');
+    // A picker: chosen by name, sent as the code.
+    await page.getByLabel('Country', { exact: true }).selectOption('FR');
     await page.getByRole('button', { name: 'Save the issuer' }).click();
 
     await expect(page.getByTestId('can-invoice')).toBeVisible();
