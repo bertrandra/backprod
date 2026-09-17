@@ -4024,6 +4024,48 @@
             "description": "Codes of the products the person is a member on; one entry when `product` was asked for."
           }
         }
+      },
+      "AudienceMenu": {
+        "type": "object",
+        "description": "What one audience's menu leaves out. `hidden` lists the entries switched off — off, never on, so an entry added to the shell tomorrow appears for everybody until somebody decides otherwise. `hide_empty` also leaves out an entry whose screen lists nothing yet for the reader (an Invoices entry before the first invoice), for the entries the platform can count.",
+        "required": [
+          "hidden",
+          "hide_empty"
+        ],
+        "properties": {
+          "hidden": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,40}$"
+            },
+            "description": "Entry ids from `navigation.ts`."
+          },
+          "hide_empty": {
+            "type": "boolean"
+          }
+        }
+      },
+      "NavigationSetup": {
+        "type": "object",
+        "description": "The platform's menu setup: one menu per kind of person. Platform-wide, not per product — the console is the same console whichever product is chosen, and a customer's menu is a fact about the kind of person they are, not about what they bought. `platform_admin` is the console; `tenant_admin` is a TENANT_ADMIN membership; `user` is any other membership.",
+        "required": [
+          "platform_admin",
+          "tenant_admin",
+          "user"
+        ],
+        "properties": {
+          "platform_admin": {
+            "$ref": "#/components/schemas/AudienceMenu"
+          },
+          "tenant_admin": {
+            "$ref": "#/components/schemas/AudienceMenu"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AudienceMenu"
+          }
+        }
       }
     },
     "responses": {
@@ -8334,6 +8376,60 @@
         }
       }
     },
+    "/api/v1/me/navigation": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "operationId": "showMyNavigation",
+        "summary": "What the caller's menu leaves out here",
+        "description": "Beside `/me/permissions`, for the same reason: so the shell can hide what it should not offer. The audience is the membership's — the customer's administrator or a user — and the answer is the platform's setup for it plus, where it asked for that, the entries with nothing behind them for this tenant and product. Courtesy, not control: every endpoint checks its own permission regardless.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The entries to leave out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "hidden"
+                  ],
+                  "properties": {
+                    "hidden": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Entry ids, as `navigation.ts` names them, to leave out — the setup for this person's audience plus, where that audience asked for it, the entries with nothing behind them. Resolved: the shell applies one rule beside the permission one and never learns why an entry is absent."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/notifications": {
       "get": {
         "tags": [
@@ -12231,6 +12327,53 @@
                           }
                         }
                       }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/me/navigation": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "showStaffNavigation",
+        "summary": "What the console leaves out for the caller",
+        "description": "The platform administrator's setup, resolved for this person, as `/me/navigation` is for a member. Any platform role may ask, as any may ask `/staff/me`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The entries to leave out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "hidden"
+                  ],
+                  "properties": {
+                    "hidden": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Entry ids, as `navigation.ts` names them, to leave out — the setup for this person's audience plus, where that audience asked for it, the entries with nothing behind them. Resolved: the shell applies one rule beside the permission one and never learns why an entry is absent."
                     }
                   }
                 }
@@ -17217,6 +17360,118 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/navigation": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "showNavigationSetup",
+        "summary": "The menu setup, every audience",
+        "description": "Complete by construction: an audience nobody has set reads as `{hidden: [], hide_empty: false}`, so the screen never has to tell \"unset\" from \"everything\". Requires `staff.navigation.manage`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The setup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "navigation"
+                  ],
+                  "properties": {
+                    "navigation": {
+                      "$ref": "#/components/schemas/NavigationSetup"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "setNavigationSetup",
+        "summary": "Replace the menu setup",
+        "description": "Replaced whole, never patched: every audience must be present, because one left out would be one the screen forgot, and defaulting it here to \"everything\" would silently un-hide what somebody chose to hide. Every replacement is recorded in the access log with the document it wrote. Requires `staff.navigation.manage`.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "navigation"
+                ],
+                "properties": {
+                  "navigation": {
+                    "$ref": "#/components/schemas/NavigationSetup"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored setup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "navigation"
+                  ],
+                  "properties": {
+                    "navigation": {
+                      "$ref": "#/components/schemas/NavigationSetup"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"

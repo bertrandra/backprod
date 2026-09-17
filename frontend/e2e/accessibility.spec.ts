@@ -67,9 +67,12 @@ const STAFF = {
       'admin.health.read',
       'admin.audit.read',
       'admin.privacy.erase',
+      'staff.navigation.manage',
     ],
   },
 };
+
+const EVERY_MENU = { hidden: [], hide_empty: false };
 
 /**
  * Answers every read with an empty page, and the handful of shape-specific ones
@@ -125,6 +128,10 @@ async function stubbed(page: Page) {
 
   await page.route(/\/api\/v1\/me$/, (route) => route.fulfill({ json: SESSION }));
   await page.route(/\/api\/v1\/staff\/me$/, (route) => route.fulfill({ json: STAFF }));
+  await page.route(/\/api\/v1\/(me|staff\/me)\/navigation$/, (route) => route.fulfill({ json: { hidden: [] } }));
+  await page.route(/\/api\/v1\/staff\/navigation$/, (route) =>
+    route.fulfill({ json: { navigation: { platform_admin: EVERY_MENU, tenant_admin: EVERY_MENU, user: EVERY_MENU } } }),
+  );
 
   await page.route(/\/api\/v1\/products$/, (route) =>
     route.fulfill({
@@ -234,6 +241,7 @@ const CONSOLE_ROUTES = [
   '/console/queue',
   '/console/audit',
   '/console/erasure',
+  '/console/menus',
 ] as const;
 
 async function scan(page: Page) {

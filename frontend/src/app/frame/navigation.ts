@@ -74,6 +74,23 @@ export interface Authorities {
 }
 
 /**
+ * What the platform's menu setup leaves out, per authority — entry ids the
+ * shell was told to hide, from `/me/navigation` and `/staff/me/navigation`.
+ *
+ * Kept apart by authority for the reason {@see Authorities} is: an id hidden
+ * from the console must never hide a tenant entry of the same name, and the
+ * server answers each question separately. Absent means nothing hidden —
+ * the read has not answered, or failed — because the menu is courtesy and a
+ * missing courtesy must not take the navigation with it.
+ */
+export interface Hidden {
+  readonly tenant?: ReadonlySet<string> | undefined;
+  readonly platform?: ReadonlySet<string> | undefined;
+}
+
+const NOTHING: ReadonlySet<string> = new Set();
+
+/**
  * One navigation, for one person.
  *
  * **This used to be two trees behind two shells, and that was a mistake.**
@@ -121,6 +138,10 @@ export const APP_NAV: readonly NavSection[] = [
       // which ADR-040 lets the platform lend to a tenant — a tenant authoring its
       // own offers must not decide what the public page advertises.
       { id: 'storefront', label: 'Storefront', to: '/console/storefront', scope: 'platform', permission: 'staff.catalog.manage' },
+      // After the chain, because it is not on it: what the shell shows each
+      // kind of person. The one entry the setup cannot hide from the person
+      // who holds it, or the choice could not be undone.
+      { id: 'menus', label: 'Menus', to: '/console/menus', scope: 'platform', permission: 'staff.navigation.manage' },
     ],
   },
   {
@@ -204,23 +225,29 @@ export const APP_NAV: readonly NavSection[] = [
 ];
 
 /**
- * Drops what this person may not reach, and then drops a section left empty.
+ * Drops what this person may not reach, then what the platform's setup
+ * leaves out for them, and then drops a section left empty.
  *
  * A section heading with nothing under it tells someone a capability exists and
  * that they do not have it, which is information the nav has no reason to
- * volunteer.
+ * volunteer. The setup's rule comes second and never widens the first:
+ * nothing hidden by permission is shown because a setup forgot it, and the
+ * one entry that opens the setup itself is never hidden by it.
  */
 export function visibleNav(
   sections: readonly NavSection[],
   authorities: Authorities,
+  hidden: Hidden = {},
 ): readonly NavSection[] {
   return sections
     .map((section) => ({
       ...section,
       // `authorities[entry.scope]` and never a merged set: the entry names the
       // authority it answers to, so the wrong one is never consulted.
-      entries: section.entries.filter((entry) =>
-        can(authorities[entry.scope], entry.permission),
+      entries: section.entries.filter(
+        (entry) =>
+          can(authorities[entry.scope], entry.permission) &&
+          (entry.id === 'menus' || !(hidden[entry.scope] ?? NOTHING).has(entry.id)),
       ),
     }))
     .filter((section) => section.entries.length > 0);
@@ -231,8 +258,9 @@ export function bottomBarEntries(
   sections: readonly NavSection[],
   authorities: Authorities,
   limit = 5,
+  hidden: Hidden = {},
 ): readonly NavEntry[] {
-  const entries = visibleNav(sections, authorities).flatMap((section) => section.entries);
+  const entries = visibleNav(sections, authorities, hidden).flatMap((section) => section.entries);
 
   return [
     ...entries.filter((entry) => entry.secondary !== true),

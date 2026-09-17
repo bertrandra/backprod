@@ -1076,6 +1076,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/navigation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the caller's menu leaves out here
+         * @description Beside `/me/permissions`, for the same reason: so the shell can hide what it should not offer. The audience is the membership's — the customer's administrator or a user — and the answer is the platform's setup for it plus, where it asked for that, the entries with nothing behind them for this tenant and product. Courtesy, not control: every endpoint checks its own permission regardless.
+         */
+        get: operations["showMyNavigation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications": {
         parameters: {
             query?: never;
@@ -2005,6 +2025,26 @@ export interface paths {
          * @description A different identity model from a tenant membership: no membership grants these, and a tenant admin is refused outright.
          */
         get: operations["showStaffIdentity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/me/navigation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the console leaves out for the caller
+         * @description The platform administrator's setup, resolved for this person, as `/me/navigation` is for a member. Any platform role may ask, as any may ask `/staff/me`.
+         */
+        get: operations["showStaffNavigation"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3114,6 +3154,30 @@ export interface paths {
          * @description §25.3 keeps everything qualifying the supplier fiscally a human decision, configured and never derived. **Every field is required**: the reader of this key defaults what it cannot find, which is right for a document written before a field existed and wrong for a form — a screen omitting `oss_registered` would silently switch the OSS regime off. Recorded in `staff_access_log` as `CONFIGURE_TAX` in full, because all four decide how a cross-border sale is taxed and getting one wrong is a VAT return filed in the wrong country.
          */
         put: operations["setTaxSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/navigation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The menu setup, every audience
+         * @description Complete by construction: an audience nobody has set reads as `{hidden: [], hide_empty: false}`, so the screen never has to tell "unset" from "everything". Requires `staff.navigation.manage`.
+         */
+        get: operations["showNavigationSetup"];
+        /**
+         * Replace the menu setup
+         * @description Replaced whole, never patched: every audience must be present, because one left out would be one the screen forgot, and defaulting it here to "everything" would silently un-hide what somebody chose to hide. Every replacement is recorded in the access log with the document it wrote. Requires `staff.navigation.manage`.
+         */
+        put: operations["setNavigationSetup"];
         post?: never;
         delete?: never;
         options?: never;
@@ -4382,6 +4446,18 @@ export interface components {
             roles: string[];
             /** @description Codes of the products the person is a member on; one entry when `product` was asked for. */
             products: string[];
+        };
+        /** @description What one audience's menu leaves out. `hidden` lists the entries switched off — off, never on, so an entry added to the shell tomorrow appears for everybody until somebody decides otherwise. `hide_empty` also leaves out an entry whose screen lists nothing yet for the reader (an Invoices entry before the first invoice), for the entries the platform can count. */
+        AudienceMenu: {
+            /** @description Entry ids from `navigation.ts`. */
+            hidden: string[];
+            hide_empty: boolean;
+        };
+        /** @description The platform's menu setup: one menu per kind of person. Platform-wide, not per product — the console is the same console whichever product is chosen, and a customer's menu is a fact about the kind of person they are, not about what they bought. `platform_admin` is the console; `tenant_admin` is a TENANT_ADMIN membership; `user` is any other membership. */
+        NavigationSetup: {
+            platform_admin: components["schemas"]["AudienceMenu"];
+            tenant_admin: components["schemas"]["AudienceMenu"];
+            user: components["schemas"]["AudienceMenu"];
         };
     };
     responses: {
@@ -6781,6 +6857,38 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    showMyNavigation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The entries to leave out. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Entry ids, as `navigation.ts` names them, to leave out — the setup for this person's audience plus, where that audience asked for it, the entries with nothing behind them. Resolved: the shell applies one rule beside the permission one and never learns why an entry is absent. */
+                        hidden: string[];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     listNotifications: {
         parameters: {
             query?: {
@@ -9049,6 +9157,33 @@ export interface operations {
                             roles: string[];
                             permissions: string[];
                         };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showStaffNavigation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The entries to leave out. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Entry ids, as `navigation.ts` names them, to leave out — the setup for this person's audience plus, where that audience asked for it, the entries with nothing behind them. Resolved: the shell applies one rule beside the permission one and never learns why an entry is absent. */
+                        hidden: string[];
                     };
                 };
             };
@@ -11852,6 +11987,73 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showNavigationSetup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The setup. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        navigation: components["schemas"]["NavigationSetup"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setNavigationSetup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    navigation: components["schemas"]["NavigationSetup"];
+                };
+            };
+        };
+        responses: {
+            /** @description The stored setup. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        navigation: components["schemas"]["NavigationSetup"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

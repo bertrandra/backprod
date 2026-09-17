@@ -72,6 +72,10 @@ use App\Job\Service\SendRenewalNotices;
 use App\Job\Service\SweepRateLimits;
 use App\Messaging\Domain\ConversationRepository;
 use App\Messaging\Infrastructure\PostgresConversationRepository;
+use App\Navigation\Domain\NavigationProbe;
+use App\Navigation\Domain\NavigationSetupRepository;
+use App\Navigation\Infrastructure\PostgresNavigationProbe;
+use App\Navigation\Infrastructure\PostgresNavigationSetup;
 use App\Notification\Domain\Channel;
 use App\Notification\Domain\NotificationRepository;
 use App\Notification\Infrastructure\LogNotifier;
@@ -528,6 +532,10 @@ return static function (array $overrides = []): ContainerInterface {
         // whose other methods resolve through membership — which a platform
         // role never grants (non-negotiable #22).
         ProductSettings::class => autowire(PostgresProductSettings::class),
+
+        // The platform's menu setup and the probe that says what is empty.
+        NavigationSetupRepository::class => autowire(PostgresNavigationSetup::class),
+        NavigationProbe::class => autowire(PostgresNavigationProbe::class),
 
         // --- HTTP -----------------------------------------------------------
         // Four levels of protection, declared in one place. Anything not

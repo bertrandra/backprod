@@ -118,6 +118,25 @@ test.describe('what the navigation offers', () => {
       await expect(page.locator('[data-nav-bottom="projects"]')).toHaveCount(0);
     }
   });
+
+  test("leaves out what the platform's menu setup hides, and the section it empties", async ({ page, viewport }) => {
+    await signedIn(page, { ...SESSION, permissions: ['billing.read', 'projects.read'] });
+    // The setup for this person's audience, resolved by the server: Projects
+    // is switched off for users, so Work — which held only Projects — goes.
+    await page.route('**/api/v1/me/navigation', (route) => route.fulfill({ json: { hidden: ['projects'] } }));
+    await page.goto('/?product=atlas');
+
+    const wide = (viewport?.width ?? 1280) >= 768;
+
+    if (wide) {
+      await expect(page.locator('[data-nav="invoices"]')).toBeVisible();
+      await expect(page.locator('[data-nav="projects"]')).toHaveCount(0);
+      await expect(page.getByText('Work', { exact: true })).toHaveCount(0);
+    } else {
+      await expect(page.locator('[data-nav-bottom="invoices"]')).toBeVisible();
+      await expect(page.locator('[data-nav-bottom="projects"]')).toHaveCount(0);
+    }
+  });
 });
 
 test.describe('deep links', () => {

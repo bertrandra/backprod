@@ -64,4 +64,12 @@ final class StaffPermission
      * anyway while a product that is not the demonstration's exists.
      */
     public const DEMO_RESET = 'staff.demo.reset';
+
+    /**
+     * Choosing which menu entries the shell shows each kind of person, and
+     * whether an entry with nothing behind it is shown at all. Platform-wide
+     * and PLATFORM_ADMIN alone: what every customer's administrator can find
+     * is the platform administrator's decision.
+     */
+    public const NAVIGATION_MANAGE = 'staff.navigation.manage';
 }

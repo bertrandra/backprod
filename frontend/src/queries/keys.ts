@@ -117,6 +117,15 @@ export const keys = {
     list: (limit: number, offset: number) => ['jobs', 'list', limit, offset] as const,
     one: (id: string) => ['jobs', 'one', id] as const,
   },
+  navigation: {
+    // What this person's menu leaves out, one per authority — bootstrap
+    // reads beside the session's, and keyed apart from it so a permissions
+    // refresh does not drop them.
+    mine: ['navigation', 'mine'] as const,
+    staff: ['navigation', 'staff'] as const,
+    /** The setup itself, every audience — one document, platform-wide. */
+    setup: ['navigation', 'setup'] as const,
+  },
   staff: {
     identity: ['staff', 'me'] as const,
     tenantLists: ['staff', 'tenants'] as const,

@@ -58,6 +58,7 @@ use App\Health\Controller\HealthController;
 use App\Identity\Controller\MeController;
 use App\Identity\Controller\MePermissionsController;
 use App\Identity\Controller\MyEntitlementsController;
+use App\Identity\Controller\MyNavigationController;
 use App\Identity\Controller\UpdateMeController;
 use App\Job\Controller\CancelJobController;
 use App\Job\Controller\ListJobsController;
@@ -146,12 +147,15 @@ use App\Staff\Controller\RenameStaffOfferController;
 use App\Staff\Controller\ResetDemoWorldController;
 use App\Staff\Controller\RevokeStaffRoleController;
 use App\Staff\Controller\SetBillingIdentityController;
+use App\Staff\Controller\SetNavigationSetupController;
 use App\Staff\Controller\SetOfferAuthoringController;
 use App\Staff\Controller\SetPublicListingController;
 use App\Staff\Controller\SetTaxSettingsController;
 use App\Staff\Controller\ShowCatalogueController;
 use App\Staff\Controller\ShowConfigurationController;
+use App\Staff\Controller\ShowNavigationSetupController;
 use App\Staff\Controller\ShowReadinessController;
+use App\Staff\Controller\ShowStaffNavigationController;
 use App\Staff\Controller\ShowSupportConversationController;
 use App\Staff\Controller\ShowTenantController;
 use App\Staff\Controller\ShowTenantTaxProfileController;
@@ -239,6 +243,7 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/me', MeController::class);
     $routes->addRoute('PATCH', '/api/v1/me', UpdateMeController::class);
     $routes->addRoute('GET', '/api/v1/me/permissions', MePermissionsController::class);
+    $routes->addRoute('GET', '/api/v1/me/navigation', MyNavigationController::class);
     $routes->addRoute('GET', '/api/v1/me/entitlements', MyEntitlementsController::class);
 
     // Identity-only: discovery cannot require the product context it supplies.
@@ -475,6 +480,7 @@ return static function (RouteCollector $routes): void {
     // membership to derive one from; the role authorises, and the read is
     // recorded.
     $routes->addRoute('GET', '/api/v1/staff/me', StaffIdentityController::class);
+    $routes->addRoute('GET', '/api/v1/staff/me/navigation', ShowStaffNavigationController::class);
 
     // Who holds platform authority, and the two writes that change it. Behind
     // `staff.grant`, which PLATFORM_ADMIN alone holds — the rest of /staff is
@@ -601,6 +607,11 @@ return static function (RouteCollector $routes): void {
         SetBillingIdentityController::class,
     );
     $routes->addRoute('PUT', '/api/v1/staff/configuration/tax', SetTaxSettingsController::class);
+
+    // The platform's own menu setup (2026-09-17): what the shell shows each
+    // kind of person. Platform-wide, so no product on the address.
+    $routes->addRoute('GET', '/api/v1/staff/navigation', ShowNavigationSetupController::class);
+    $routes->addRoute('PUT', '/api/v1/staff/navigation', SetNavigationSetupController::class);
 
     // The chain, in the order it has to be completed. A fresh installation used
     // to be navigable only by walking into its refusals — no plan, so no offer;
