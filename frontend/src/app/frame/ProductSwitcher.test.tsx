@@ -133,6 +133,18 @@ describe('with more than one', () => {
  * asks `listPlatformProducts` instead — retired products included, because
  * they still carry tenants and invoices — and never the membership list.
  */
+describe('with nothing chosen yet', () => {
+  it('chooses the first product this person has, so a sign-in at the landing address is not a blank screen', async () => {
+    // Signing out forgets the product on purpose; signing in again at "/"
+    // has no `?product=` to seed from. Before 2026-09-17 nothing chose,
+    // and no product meant no `/me`, no menu, nothing on top.
+    renderWith(<ProductSwitcher />, clientFor([BOREAS, ATLAS]), { product: null });
+
+    await waitFor(() => expect(useSessionStore.getState().productCode).toBe('boreas'));
+    expect(screen.getByTestId<HTMLSelectElement>('product-switcher').value).toBe('boreas');
+  });
+});
+
 describe('on the console', () => {
   const PLATFORM_ATLAS = { id: 'prod-atlas', code: 'atlas', name: 'Atlas', active: true };
   const PLATFORM_BOREAS = { id: 'prod-boreas', code: 'boreas', name: 'Boreas', active: true };

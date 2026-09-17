@@ -2,7 +2,7 @@ import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-quer
 
 import { ambientParams } from '@/api/client';
 import { useApiClient } from '@/app/providers/ApiProvider';
-import { sessionSnapshot } from '@/state/session';
+import { sessionSnapshot, useSessionStore } from '@/state/session';
 
 /**
  * Who is signed in, and what the shell may therefore offer.
@@ -86,9 +86,15 @@ export function toApiError(status: number, body: unknown): ApiError {
 
 export function useSession() {
   const client = useApiClient();
+  // Not asked until a product is chosen: the request cannot be built without
+  // one, and asking anyway was a failure counted against the query, a retry
+  // an unfocused tab then paused, and a session that never arrived — the
+  // blank screen the operator signed back in to at the landing address.
+  const hasProduct = useSessionStore((state) => state.productCode !== null);
 
   return useQuery({
     queryKey: sessionKeys.me,
+    enabled: hasProduct,
     queryFn: async (): Promise<Session> => {
       const { data, error, response } = await client.GET('/api/v1/me', ambientParams(sessionSnapshot));
 

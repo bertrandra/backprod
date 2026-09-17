@@ -56,15 +56,19 @@ export function ProductSwitcher({ platform = false }: { platform?: boolean }) {
 
   const current = known.find((product) => product.code === productCode) ?? null;
 
-  // On the console, nothing is chosen until somebody arrives for the first
-  // time — there is no membership to seed the store from — so the first
-  // active product is chosen for them. Silently choosing on the *application*
-  // side would be ADR-013's forbidden default; here the choice is shown in the
-  // bar the moment it is made, and it is a choice among the platform's own.
-  // The store alone, not `useChooseProduct`: nothing in the cache belongs to
-  // a previous product when there was none, so there is nothing to drop.
+  // Nothing chosen yet — the console on first arrival, or the application
+  // after a sign-in at the landing address, where signing out had forgotten
+  // the product on purpose — so the first product this person may act in is
+  // chosen for them, and shown in the bar the moment it is. This is not
+  // ADR-013's forbidden default: that is the *server* guessing a product a
+  // request did not name; here the client chooses among the products the
+  // server said this person has, and every request then names it. Until
+  // 2026-09-17 the application side refused to choose, and the operator
+  // signed back in to a screen with nothing on it: no product, so no `/me`,
+  // so no menu. The store alone, not `useChooseProduct`: nothing in the
+  // cache belongs to a previous product when there was none.
   useEffect(() => {
-    if (!platform || productCode !== null || known.length === 0) {
+    if (productCode !== null || known.length === 0) {
       return;
     }
 
