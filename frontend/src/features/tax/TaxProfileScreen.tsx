@@ -7,6 +7,7 @@ import { useSession } from '@/queries/session';
 import { useSaveTaxProfile, useTaxProfile, type TaxProfile } from '@/queries/tax';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { CountrySelect } from '@/ui/pickers/Select';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
@@ -128,12 +129,13 @@ export function TaxProfileScreen() {
           <Field
             id="country_code"
             label="Country"
-            hint="Two letters, ISO 3166. Where you are is where the rate is looked up."
+            hint="Where you are is where the rate is looked up."
             error={form.formState.errors.country_code?.message}
           >
-            <input
+            <CountrySelect
               id="country_code"
-              className={inputClass(form.formState.errors.country_code !== undefined)}
+              emptyLabel="Not declared"
+              invalid={form.formState.errors.country_code !== undefined}
               {...form.register('country_code')}
             />
           </Field>

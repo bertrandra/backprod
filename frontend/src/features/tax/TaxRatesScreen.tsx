@@ -7,6 +7,7 @@ import { useCalculateTax, useTaxRates, type TaxCalculation } from '@/queries/tax
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { CurrencySelect } from '@/ui/pickers/Select';
 import { Amount, formatVatRate, minorUnitDigits } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { Table, TBody, Td, Th, THead, TR } from '@/ui/Table';
@@ -38,7 +39,7 @@ const schema = z.object({
     .string()
     .trim()
     .regex(/^[A-Za-z]{3}$/, 'Three letters, as ISO 4217 defines them.'),
-  supply_type: z.string().trim(),
+  supply_type: z.enum(['', 'GOODS', 'SERVICES', 'DIGITAL_SERVICES']),
 });
 
 type Values = z.infer<typeof schema>;
@@ -164,7 +165,7 @@ export function TaxRatesScreen() {
               calculate.mutate({
                 amount_minor_units: toMinorUnits(values.amount, values.currency),
                 currency: values.currency.toUpperCase(),
-                supply_type: values.supply_type.trim() === '' ? null : values.supply_type.trim(),
+                supply_type: values.supply_type === '' ? null : values.supply_type,
               }),
             )(event);
           }}
@@ -179,9 +180,9 @@ export function TaxRatesScreen() {
           </Field>
 
           <Field id="currency" label="Currency" error={form.formState.errors.currency?.message}>
-            <input
+            <CurrencySelect
               id="currency"
-              className={inputClass(form.formState.errors.currency !== undefined)}
+              invalid={form.formState.errors.currency !== undefined}
               {...form.register('currency')}
             />
           </Field>
@@ -189,9 +190,17 @@ export function TaxRatesScreen() {
           <Field
             id="supply_type"
             label="Supply type"
-            hint="Optional — what is supplied changes where it is taxed."
+            hint="What is supplied changes where it is taxed."
           >
-            <input id="supply_type" className={inputClass()} {...form.register('supply_type')} />
+            {/* The three the platform knows (§25.3), and the product's own as
+                the default — the API refuses anything else, so nothing else
+                is offered. */}
+            <select id="supply_type" className={inputClass()} {...form.register('supply_type')}>
+              <option value="">The product's default</option>
+              <option value="GOODS">Goods</option>
+              <option value="SERVICES">Services</option>
+              <option value="DIGITAL_SERVICES">Digital services</option>
+            </select>
           </Field>
 
           <div className="sm:col-span-3">

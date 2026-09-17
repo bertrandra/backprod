@@ -142,20 +142,27 @@ describe('saving', () => {
     expect(saves()[0]?.body).toMatchObject({ country_code: null });
   });
 
-  it('refuses a country code that is not two letters, before sending it', async () => {
+  it('offers the country by name and sends the ISO code the rate is looked up by', async () => {
     const { client, requests } = recordingClient({
       'GET /api/v1/me': { data: MANAGER },
       'GET /api/v1/tax/profile': { data: { profile: PROFILE } },
+      'PUT /api/v1/tax/profile': { data: { profile: { ...PROFILE, country_code: 'DE' } } },
     });
 
     renderWith(<TaxProfileScreen />, client);
 
     await waitFor(() => expect(screen.getByLabelText('Country')).toBeTruthy());
-    fireEvent.change(screen.getByLabelText('Country'), { target: { value: 'FRA' } });
+
+    const country = screen.getByLabelText<HTMLSelectElement>('Country');
+    expect(country.tagName).toBe('SELECT');
+    // The saved value reads back as a name, and a wrong code cannot be typed.
+    expect(country.selectedOptions[0]?.textContent).toMatch(/\(FR\)$/);
+
+    fireEvent.change(country, { target: { value: 'DE' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/two letters/i));
-    expect(requests.filter((request) => request.method === 'PUT')).toHaveLength(0);
+    await waitFor(() => expect(requests.filter((request) => request.method === 'PUT')).toHaveLength(1));
+    expect((requests.find((request) => request.method === 'PUT')?.body as { country_code?: unknown }).country_code).toBe('DE');
   });
 });
 

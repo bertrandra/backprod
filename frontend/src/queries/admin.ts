@@ -154,11 +154,12 @@ export function useAdminTenants(search: string, limit = 25, offset = 0) {
  * neither."* So searching by name will never find them again, which is what
  * erasure means.
  */
-export function useAdminUsers(search: string, limit = 25, offset = 0) {
+export function useAdminUsers(search: string, limit = 25, offset = 0, enabled = true) {
   const client = useApiClient();
 
   return useQuery({
     queryKey: keys.admin.directory('users', search, limit, offset),
+    enabled,
     queryFn: async () => {
       const { data, error, response } = await client.GET('/api/v1/admin/users', {
         params: { query: { limit, offset, ...(search === '' ? {} : { search }) } },

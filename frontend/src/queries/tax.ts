@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { ambientParams, type Schemas } from '@/api/client';
+import { ambientParams, type paths as Paths, type Schemas } from '@/api/client';
 import { useApiClient } from '@/app/providers/ApiProvider';
 import { sessionSnapshot } from '@/state/session';
 
@@ -132,6 +132,10 @@ export function useTaxRates(on: string | null) {
  * state that exists — and caching an answer keyed by an amount would mean a
  * changed profile silently returned yesterday's regime.
  */
+export type SupplyType = NonNullable<
+  NonNullable<Paths['/api/v1/tax/calculate']['post']['requestBody']>['content']['application/json']['supply_type']
+>;
+
 export function useCalculateTax() {
   const client = useApiClient();
 
@@ -139,7 +143,9 @@ export function useCalculateTax() {
     mutationFn: async (input: {
       amount_minor_units: number;
       currency?: string;
-      supply_type?: string | null;
+      // The three the platform knows, or null for the product's own — the
+      // contract's vocabulary, so a screen cannot send what would be refused.
+      supply_type?: SupplyType | null;
     }): Promise<TaxCalculation> => {
       const { data, error, response } = await client.POST('/api/v1/tax/calculate', {
         ...ambientParams(sessionSnapshot),

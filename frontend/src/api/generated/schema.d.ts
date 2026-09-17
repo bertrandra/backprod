@@ -9887,8 +9887,11 @@ export interface operations {
                     amount_minor_units: number;
                     /** @description Defaults to the product's. */
                     currency?: string;
-                    /** @description Goods, services, digital services — what is supplied changes where it is taxed. */
-                    supply_type?: string | null;
+                    /**
+                     * @description Goods, services, digital services — what is supplied changes where it is taxed. Null means the product's own default. The three are the platform's whole vocabulary (§25.3); anything else is refused.
+                     * @enum {string|null}
+                     */
+                    supply_type?: "GOODS" | "SERVICES" | "DIGITAL_SERVICES" | null;
                 };
             };
         };

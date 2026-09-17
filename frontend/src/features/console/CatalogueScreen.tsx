@@ -17,6 +17,7 @@ import {
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { CurrencySelect } from '@/ui/pickers/Select';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader, Section } from '@/ui/Page';
@@ -559,10 +560,8 @@ function Offers({
 
               <FieldCell width="short">
                 <Field id="offer-currency" label="Currency">
-                  <input
+                  <CurrencySelect
                     id="offer-currency"
-                    className={inputClass()}
-                    maxLength={3}
                     value={currency}
                     onChange={(event) => setCurrency(event.target.value)}
                   />

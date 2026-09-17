@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { useBillingProfile, useSaveBillingProfile } from '@/queries/billing';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { CountrySelect } from '@/ui/pickers/Select';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
 import { FieldCell, FieldGroup, FieldRow, FormActions, FormCard } from '@/ui/Form';
@@ -173,12 +174,12 @@ export function BillingProfileScreen() {
               <Field
                 id="country_code"
                 label="Country"
-                hint="Two letters, ISO 3166."
                 error={form.formState.errors.country_code?.message}
               >
-                <input
+                <CountrySelect
                   id="country_code"
-                  className={inputClass(form.formState.errors.country_code !== undefined)}
+                  emptyLabel="Choose a country…"
+                  invalid={form.formState.errors.country_code !== undefined}
                   {...form.register('country_code')}
                 />
               </Field>

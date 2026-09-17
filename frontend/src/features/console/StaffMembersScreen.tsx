@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useDeferredValue, useState } from 'react';
 
+import { can } from '@/app/access/access';
+import { useAdminUsers } from '@/queries/admin';
 import {
+  staffAccess,
   useGrantPlatformRole,
   useRevokePlatformRole,
   useStaffIdentity,
@@ -11,6 +14,8 @@ import {
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { SearchPicker } from '@/ui/pickers/SearchPicker';
+import { type Person } from '@/ui/pickers/Select';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
 
@@ -27,6 +32,15 @@ import { PageHeader } from '@/ui/Page';
  * available and then answered 409 would teach people the console is unreliable.
  * So the row says why, before anybody clicks. The server still refuses — this
  * is the explanation, not the enforcement.
+ *
+ * **Somebody is appointed by finding them, where the directory may be read.**
+ * The API takes a user id and nothing else, on purpose: resolving an email
+ * here would make appointment a way to ask whether an account exists for
+ * any address. The directory (`admin.directory.read`) already answers that
+ * question for the people allowed to ask it, so for them this searches it
+ * and shows who was found — name, address, and the id that will be sent.
+ * Without that permission the id field stays, copied from wherever they
+ * were given it.
  */
 export function StaffMembersScreen() {
   const roster = useStaffRoster();
@@ -36,6 +50,11 @@ export function StaffMembersScreen() {
 
   const [userId, setUserId] = useState('');
   const [role, setRole] = useState('');
+  const [picked, setPicked] = useState<Person | null>(null);
+  const [query, setQuery] = useState('');
+  const search = useDeferredValue(query.trim());
+  const maySearch = can(staffAccess(me.data), 'admin.directory.read');
+  const found = useAdminUsers(search, 8, 0, maySearch && search !== '');
 
   if (roster.isPending) {
     return <SkeletonRows rows={5} />;
@@ -89,9 +108,9 @@ export function StaffMembersScreen() {
         <h2 className="text-xl font-semibold">Appoint somebody</h2>
 
         <p className="hint text-sm text-muted">
-          By user id, which the <strong>Directory</strong> screen shows. An email address is not
-          accepted here on purpose: resolving one would make this a way to ask whether an account
-          exists for any address somebody tried.
+          {maySearch
+            ? 'Find the person in the directory, then choose the role. What is sent is their user id, shown beside the name.'
+            : 'By user id, which the Directory screen shows. An email address is not accepted here on purpose: resolving one would make this a way to ask whether an account exists for any address somebody tried.'}
         </p>
 
         <form
@@ -105,6 +124,8 @@ export function StaffMembersScreen() {
                 {
                   onSuccess: () => {
                     setUserId('');
+                    setPicked(null);
+                    setQuery('');
                     setRole('');
                   },
                 },
@@ -112,15 +133,35 @@ export function StaffMembersScreen() {
             }
           }}
         >
-          <Field id="staff-user-id" label="User id" hint="A uuid, copied from the Directory.">
-            <input
-              id="staff-user-id"
-              className={inputClass()}
-              placeholder="00000000-0000-0000-0000-000000000000"
-              value={userId}
-              onChange={(event) => setUserId(event.target.value)}
-            />
-          </Field>
+          {maySearch ? (
+            <Field id="staff-user-id" label="Who" hint="Search the directory by name or email.">
+              <SearchPicker
+                id="staff-user-id"
+                query={query}
+                onQueryChange={setQuery}
+                pending={found.isPending && search !== ''}
+                results={(found.data?.users ?? [])
+                  .filter((user) => user.erased_at === null && typeof user.id === 'string')
+                  .map((user) => ({ id: String(user.id), name: user.display_name ?? null, email: user.email ?? null }))}
+                value={picked}
+                onPick={(person) => {
+                  setPicked(person);
+                  setUserId(person?.id ?? '');
+                }}
+                placeholder="ada@example.test"
+              />
+            </Field>
+          ) : (
+            <Field id="staff-user-id" label="User id" hint="A uuid, copied from the Directory.">
+              <input
+                id="staff-user-id"
+                className={inputClass()}
+                placeholder="00000000-0000-0000-0000-000000000000"
+                value={userId}
+                onChange={(event) => setUserId(event.target.value)}
+              />
+            </Field>
+          )}
 
           <Field id="staff-role" label="Role">
             <select

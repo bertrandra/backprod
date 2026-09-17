@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { useSignUp } from '@/queries/auth';
 import type { PublicOffer } from '@/queries/storefront';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { CountrySelect } from '@/ui/pickers/Select';
 import { Amount } from '@/ui/Money';
 import { PageHeader } from '@/ui/Page';
 
@@ -177,15 +178,14 @@ export function SignUpForm({
         <Field
           id="signup-country"
           label="Country (optional)"
-          hint="Two letters, such as FR. It decides the VAT on your invoice."
+          hint="It decides the VAT on your invoice."
           error={form.formState.errors.country?.message}
         >
-          <input
+          <CountrySelect
             id="signup-country"
-            type="text"
             autoComplete="country"
-            maxLength={2}
-            className={inputClass(form.formState.errors.country !== undefined)}
+            emptyLabel="Not now"
+            invalid={form.formState.errors.country !== undefined}
             {...form.register('country')}
           />
         </Field>
