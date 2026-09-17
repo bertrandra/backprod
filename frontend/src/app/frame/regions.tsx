@@ -45,8 +45,31 @@ export function ContextBar({
   // would leave the reader guessing which one the screen obeys.
   const insideTenant = platform && tenantIdIn(pathname) !== null;
 
+  const openMenu = platform ? onOpenConsoleMenu : onOpenMore;
+
   return (
     <>
+      {/* The menu, where a phone expects it: three lines, top left. It opens
+          the application's drawer, or the console's on a console screen. The
+          operator asked for this on 2026-09-17 in place of a "More" button
+          at the far end of the bar — the convention is the affordance. */}
+      {openMenu !== undefined && (
+        <button
+          type="button"
+          data-testid={platform ? 'console-menu-button' : 'menu-button'}
+          aria-label={platform ? 'Console menu' : 'Menu'}
+          onClick={openMenu}
+          className={cn(
+            touchTargetClass,
+            'flex items-center justify-center rounded-control border border-line bg-surface shadow-raise focus-visible:outline-2 focus-visible:outline-offset-2 md:hidden',
+          )}
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M3 5h14M3 10h14M3 15h14" />
+          </svg>
+        </button>
+      )}
+
       {/* U1 showed the product id here and deferred the switcher to U5, which is
           where `listProducts` lives. It is a real switcher now. */}
       {!insideTenant && <ProductSwitcher platform={platform} />}
@@ -91,34 +114,6 @@ export function ContextBar({
       </button>
 
       <UnreadBadge />
-
-      {platform && onOpenConsoleMenu !== undefined ? (
-        <button
-          type="button"
-          data-testid="console-menu-button"
-          aria-label="Console menu"
-          onClick={onOpenConsoleMenu}
-          className={cn(
-            touchTargetClass,
-            'rounded-control border border-line bg-surface px-3 py-1 text-xs shadow-raise md:hidden',
-          )}
-        >
-          Menu
-        </button>
-      ) : (
-        onOpenMore !== undefined && (
-          <button
-            type="button"
-            onClick={onOpenMore}
-            className={cn(
-              touchTargetClass,
-              'rounded-control border border-line bg-surface px-3 py-1 text-xs shadow-raise md:hidden',
-            )}
-          >
-            More
-          </button>
-        )
-      )}
 
       {/* Who is signed in, and the way out — a real menu since staff on a
           desktop had no sign-out anywhere else. */}

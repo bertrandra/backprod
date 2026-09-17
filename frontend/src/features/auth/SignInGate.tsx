@@ -40,6 +40,22 @@ export function SignInGate({ children }: { children: ReactNode }) {
   const status = useSessionStore((state) => state.status);
   const [wantsToSignIn, setWantsToSignIn] = useState(false);
 
+  // The choice lasts one sign-in. Somebody who clicked "Sign in" on the
+  // storefront, worked, and signed out is back on the landing page and
+  // should see the storefront again, not the form they came in by — so
+  // the choice is forgotten the moment a session begins. Derived during
+  // render from the previous status, the way React resets state on a
+  // prop change, rather than in an effect that would paint the form first.
+  const [seenStatus, setSeenStatus] = useState(status);
+
+  if (status !== seenStatus) {
+    setSeenStatus(status);
+
+    if (status === 'signed-in') {
+      setWantsToSignIn(false);
+    }
+  }
+
   if (status === 'restoring') {
     // Deliberately not a spinner-free blank: a reload with a stored token spends
     // one round trip here, and an empty page for that long reads as broken.

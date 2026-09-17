@@ -219,3 +219,34 @@ describe('renewal', () => {
     expect(useSessionStore.getState().status).toBe('anonymous');
   });
 });
+
+describe('the landing page, before and after', () => {
+  it('shows the storefront again after a sign-in chosen from it and a sign-out', async () => {
+    // The choice to sign in lasts one sign-in. Somebody who came in through
+    // the storefront's own link, worked, and signed out is on the landing
+    // address again and gets the shop, not the form.
+    window.history.replaceState(null, '', '/');
+    useSessionStore.setState({ token: null, status: 'anonymous', expiresAt: null });
+
+    renderWith(
+      <SignInGate>
+        <p>The application</p>
+      </SignInGate>,
+      stubClient({
+        'GET /api/v1/public/products': { data: { products: [] } },
+        'GET /api/v1/public/offers': { data: { offers: [] } },
+      }),
+    );
+
+    const link = await screen.findByTestId('sign-in-link');
+    link.click();
+    await waitFor(() => expect(screen.getByLabelText('Email')).toBeDefined());
+
+    useSessionStore.setState({ token: 'access', status: 'signed-in', expiresAt: null });
+    await waitFor(() => expect(screen.getByText('The application')).toBeDefined());
+
+    useSessionStore.setState({ token: null, status: 'anonymous', expiresAt: null });
+    await waitFor(() => expect(screen.getByTestId('sign-in-link')).toBeDefined());
+    expect(screen.queryByLabelText('Email')).toBeNull();
+  });
+});

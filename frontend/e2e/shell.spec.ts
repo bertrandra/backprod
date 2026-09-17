@@ -82,7 +82,7 @@ test.describe('the frame', () => {
     expect(overflows).toBe(false);
   });
 
-  test('keeps every navigation entry reachable, on a phone through More', async ({
+  test('keeps every navigation entry reachable, on a phone through the menu', async ({
     page,
     viewport,
   }) => {
@@ -92,8 +92,8 @@ test.describe('the frame', () => {
     if ((viewport?.width ?? 1280) < 768) {
       // Five fit in the bar; the rest must still be reachable, which is what the
       // sheet is for.
-      await page.getByRole('button', { name: 'More' }).click();
-      await expect(page.getByTestId('more-sheet')).toBeVisible();
+      await page.getByRole('button', { name: 'Menu' }).click();
+      await expect(page.getByTestId('menu-sheet')).toBeVisible();
       await expect(page.locator('[data-nav-more="tax"]')).toBeVisible();
     } else {
       await expect(page.locator('[data-nav="tax"]')).toBeVisible();

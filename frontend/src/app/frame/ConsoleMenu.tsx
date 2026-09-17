@@ -107,13 +107,13 @@ export function ConsoleMenuSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-stretch bg-black/40 md:hidden" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Console menu"
         data-testid="console-menu-sheet"
-        className="flex h-full w-full flex-col overflow-y-auto bg-raised p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+        className="flex h-full w-[min(20rem,85vw)] flex-col overflow-y-auto border-r border-line bg-raised p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-float"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between">

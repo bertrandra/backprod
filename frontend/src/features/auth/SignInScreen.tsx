@@ -114,11 +114,15 @@ export function SignInScreen() {
         }}
       >
         <Field id="email" label="Email" error={form.formState.errors.email?.message}>
+          {/* No autofocus, on purpose. A focused email field opens the
+              browser's saved-credentials picker over the form the moment the
+              page lands, and the first tap on "Sign in" then only closes the
+              picker — the operator had to click a field and back before the
+              button would take. Focus is the person's to give. */}
           <input
             id="email"
             type="email"
             autoComplete="username"
-            autoFocus
             className={inputClass(form.formState.errors.email !== undefined)}
             {...form.register('email')}
           />
@@ -149,6 +153,15 @@ export function SignInScreen() {
           Sign in
         </Button>
       </form>
+
+      {/* A plain link rather than a router one: this screen renders instead
+          of the router, and the home page is the storefront the gate shows
+          at the landing address. */}
+      <p className="text-sm text-muted">
+        <a href="/" data-testid="sign-in-home" className="underline underline-offset-2">
+          Back to the home page
+        </a>
+      </p>
     </main>
   );
 }

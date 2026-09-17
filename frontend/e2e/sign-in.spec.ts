@@ -254,7 +254,10 @@ test.describe('signing out', () => {
 
     await page.getByRole('button', { name: 'Sign out' }).click();
 
-    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+    // Home, not a sign-in form for the profile just left: the storefront, at
+    // the landing address, with its own way back in.
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByTestId('sign-in-link')).toBeVisible();
     // "Signed out" should mean the credential is dead rather than mislaid: the
     // server revokes the refresh token, and clearing the cookie alone would leave
     // it valid for anybody holding a copy.
@@ -277,7 +280,7 @@ test.describe('signing out', () => {
     await expect(page.getByRole('menu', { name: 'Account' })).toBeVisible();
     await page.getByRole('menuitem', { name: 'Sign out' }).click();
 
-    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+    await expect(page.getByTestId('sign-in-link')).toBeVisible();
     expect(asked.some((url) => url.endsWith('/api/v1/auth/sign-out'))).toBe(true);
   });
 });
