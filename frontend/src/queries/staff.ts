@@ -1367,3 +1367,74 @@ export function useProductReadiness(productCode: string | null) {
     staleTime: 0,
   });
 }
+
+/**
+ * Making and re-addressing organisations (2026-09-17) — the platform's act,
+ * since sign-up stopped making them. Both answer with the organisation as it
+ * now stands, so the lists are invalidated rather than patched.
+ */
+export type NewTenant = {
+  readonly name: string;
+  readonly slug: string;
+  readonly products: readonly string[];
+  readonly admin_user_id: string | null;
+};
+
+export function useCreateTenant() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: NewTenant) => {
+      const { data, error, response } = await client.POST('/api/v1/staff/tenants', {
+        body: {
+          name: input.name,
+          slug: input.slug,
+          products: [...input.products],
+          ...(input.admin_user_id === null ? {} : { admin_user_id: input.admin_user_id }),
+        },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.tenant;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: keys.staff.tenantLists });
+    },
+  });
+}
+
+export type TenantPatch = {
+  readonly name?: string;
+  readonly slug?: string;
+  readonly is_default?: boolean;
+};
+
+export function useUpdateTenant(tenantId: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (patch: TenantPatch) => {
+      const { data, error, response } = await client.PATCH('/api/v1/staff/tenants/{tenantId}', {
+        params: { path: { tenantId } },
+        body: patch,
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.tenant;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.staff.tenantReads(tenantId) }),
+        queryClient.invalidateQueries({ queryKey: keys.staff.tenantLists }),
+      ]);
+    },
+  });
+}

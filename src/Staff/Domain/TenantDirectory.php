@@ -40,4 +40,22 @@ interface TenantDirectory
      * different answers, and only the first is a 404.
      */
     public function setOfferAuthoring(string $tenantId, bool $mayAuthor): ?Tenant;
+
+    /**
+     * Makes an organisation (2026-09-17): the platform administrator's act,
+     * since sign-up stopped making them. Null when the slug is taken — a
+     * slug is an address, and two organisations cannot share one.
+     */
+    public function create(string $name, string $slug): ?Tenant;
+
+    public function rename(string $tenantId, string $name): ?Tenant;
+
+    /**
+     * Moves an organisation's address. Null when the slug is taken or the
+     * tenant unknown. The caller decides whether it may move at all: an
+     * organisation with an invoice has links in the world that would die.
+     */
+    public function reslug(string $tenantId, string $slug): ?Tenant;
+
+    public function hasInvoices(string $tenantId): bool;
 }

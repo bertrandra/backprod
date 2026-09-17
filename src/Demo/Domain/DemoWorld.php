@@ -60,6 +60,12 @@ final class DemoWorld
     ];
 
     /**
+     * The organisation the bare host addresses (2026-09-17): Acme, as the
+     * operator's own. Globex lives at `/globex/`.
+     */
+    public const DEFAULT_TENANT = 'acme';
+
+    /**
      * One person per role. `tenants` names the organisations a tenant-role
      * holder is a member of — mirrored onto every product each holds;
      * platform staff are members of nothing.

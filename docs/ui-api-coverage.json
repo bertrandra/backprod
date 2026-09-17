@@ -309,7 +309,9 @@
         "setTenantOfferAuthoring",
         "showTenantForStaff",
         "assignTenantProduct",
-        "unassignTenantProduct"
+        "createTenantForStaff",
+        "unassignTenantProduct",
+        "updateTenantForStaff"
       ],
       "$comment": "A tenant as support sees it, and the two things the platform may change about them: which products they hold (ADR-047), and whether the catalogue is lent to them. Both sit here rather than on a screen of their own because the decision is made while looking at the customer it concerns."
     },

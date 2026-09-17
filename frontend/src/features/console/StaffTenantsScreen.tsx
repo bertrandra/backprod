@@ -1,19 +1,27 @@
 import { Link, useNavigate } from '@tanstack/react-router';
 
 import { useViewState } from '@/app/frame/viewState';
-import { useState } from 'react';
+import { useDeferredValue, useState } from 'react';
 
+import { can } from '@/app/access/access';
+import { useAdminUsers } from '@/queries/admin';
 import {
+  staffAccess,
   useAssignTenantProduct,
+  useCreateTenant,
   usePlatformProducts,
   useSetTenantOfferAuthoring,
   useStaffIdentity,
   useStaffTenant,
   useStaffTenants,
   useUnassignTenantProduct,
+  useUpdateTenant,
   type AccessMotive,
   type PlatformProduct,
 } from '@/queries/staff';
+import { Field, inputClass } from '@/ui/Field';
+import { SearchPicker } from '@/ui/pickers/SearchPicker';
+import { type Person } from '@/ui/pickers/Select';
 
 import { AccessMotiveGate, MotiveInEffect } from './AccessMotiveGate';
 import { EmptyState } from '@/ui/EmptyState';
@@ -52,6 +60,7 @@ export function StaffTenantsScreen() {
   const { selected } = useViewState();
   const navigate = useNavigate();
   const tenants = useStaffTenants();
+  const me = useStaffIdentity();
 
   const select = (id: string) => {
     void navigate({ to: '/console/tenants', search: { selected: id } });
@@ -93,9 +102,16 @@ export function StaffTenantsScreen() {
                           : 'border-line hover:bg-canvas dark:hover:bg-inverse'
                       }`}
                     >
-                      <span className="block font-medium">{tenant.name}</span>
+                      <span className="block font-medium">
+                        {tenant.name}
+                        {tenant.is_default && (
+                          <span data-testid="default-tenant" className="ml-2 rounded bg-well px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-subtle">
+                            bare host
+                          </span>
+                        )}
+                      </span>
                       <span className="block text-xs text-muted">
-                        {tenant.slug}
+                        {tenant.is_default ? '/' : `/${tenant.slug}/`}
                       </span>
                     </button>
                     {/* Reading, as opposed to the administering the panel
@@ -112,6 +128,10 @@ export function StaffTenantsScreen() {
                 ))}
               </ul>
             </>
+          )}
+
+          {can(staffAccess(me.data), 'staff.tenants.manage') && (
+            <NewTenant onCreated={select} />
           )}
         </section>
 
@@ -165,8 +185,11 @@ function TenantDetail({ tenantId }: { tenantId: string }) {
 
       <dl className="grid gap-3 sm:grid-cols-2">
         <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">Slug</dt>
-          <dd>{tenant.data.slug}</dd>
+          <dt className="text-xs uppercase tracking-wide text-subtle">Address</dt>
+          <dd>
+            <code className="text-xs">{tenant.data.is_default ? '/' : `/${tenant.data.slug}/`}</code>
+            {tenant.data.is_default && <span className="ml-2 text-xs text-muted">the bare host</span>}
+          </dd>
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-subtle">Identifier</dt>
@@ -175,6 +198,8 @@ function TenantDetail({ tenantId }: { tenantId: string }) {
           </dd>
         </div>
       </dl>
+
+      <TenantAddress tenantId={tenantId} name={tenant.data.name} slug={tenant.data.slug} isDefault={tenant.data.is_default} />
 
       <TenantProducts tenantId={tenantId} held={tenant.data.products} />
 
@@ -325,6 +350,183 @@ function OfferAuthoring({ tenantId, mayAuthor }: { tenantId: string; mayAuthor: 
           Changing this needs <code>staff.tenants.manage</code>, which an administrator holds.
         </p>
       )}
+    </section>
+  );
+}
+
+/**
+ * Making an organisation (2026-09-17): the only way one comes to exist since
+ * sign-up stopped making them. Name, the slug that becomes its address,
+ * the products it holds from the start, and — found in the directory — its
+ * first administrator, an existing user. The address is shown as it will be
+ * typed, so a slug that would shadow the console is refused by the server
+ * with the reason beside the field.
+ */
+function NewTenant({ onCreated }: { onCreated: (id: string) => void }) {
+  const me = useStaffIdentity();
+  const platformProducts = usePlatformProducts(true);
+  const create = useCreateTenant();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [products, setProducts] = useState<readonly string[]>([]);
+  const [admin, setAdmin] = useState<Person | null>(null);
+  const [query, setQuery] = useState('');
+  const search = useDeferredValue(query.trim());
+  const maySearch = can(staffAccess(me.data), 'admin.directory.read');
+  const found = useAdminUsers(search, 8, 0, maySearch && search !== '');
+
+  if (!open) {
+    return (
+      <Button type="button" variant="secondary" onClick={() => setOpen(true)} data-testid="new-tenant">
+        New organisation
+      </Button>
+    );
+  }
+
+  const active = (platformProducts.data ?? []).filter((product) => product.active);
+
+  return (
+    <form
+      data-testid="new-tenant-form"
+      className="space-y-3 rounded-card border border-line bg-surface p-4 shadow-raise"
+      onSubmit={(event) => {
+        event.preventDefault();
+        create.mutate(
+          { name: name.trim(), slug: slug.trim(), products, admin_user_id: admin?.id ?? null },
+          {
+            onSuccess: (tenant) => {
+              setOpen(false);
+              setName('');
+              setSlug('');
+              setProducts([]);
+              setAdmin(null);
+              setQuery('');
+              onCreated(tenant.id);
+            },
+          },
+        );
+      }}
+    >
+      <h3 className="text-sm font-semibold">New organisation</h3>
+
+      <Field id="tenant-name" label="Name">
+        <input id="tenant-name" className={inputClass()} value={name} onChange={(event) => setName(event.target.value)} />
+      </Field>
+
+      <Field id="tenant-slug" label="Address" hint={`Its root: ${window.location.origin}/${slug === '' ? '…' : slug}/ — lowercase letters, digits and hyphens.`}>
+        <input
+          id="tenant-slug"
+          className={inputClass()}
+          value={slug}
+          onChange={(event) => setSlug(event.target.value.toLowerCase())}
+          placeholder="acme"
+        />
+      </Field>
+
+      <fieldset className="space-y-1">
+        <legend className="text-sm font-medium">Products it holds</legend>
+        {active.map((product) => (
+          <label key={product.id} className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="size-4"
+              data-product={product.code}
+              checked={products.includes(product.code)}
+              onChange={(event) =>
+                setProducts(event.target.checked ? [...products, product.code] : products.filter((code) => code !== product.code))
+              }
+            />
+            {product.name}
+          </label>
+        ))}
+      </fieldset>
+
+      {maySearch && (
+        <Field id="tenant-admin" label="First administrator" hint="An existing account, found in the directory; leave empty to appoint one later.">
+          <SearchPicker
+            id="tenant-admin"
+            query={query}
+            onQueryChange={setQuery}
+            pending={found.isPending && search !== ''}
+            results={(found.data?.users ?? [])
+              .filter((user) => user.erased_at === null && typeof user.id === 'string')
+              .map((user) => ({ id: String(user.id), name: user.display_name ?? null, email: user.email ?? null }))}
+            value={admin}
+            onPick={setAdmin}
+            placeholder="ada@example.test"
+          />
+        </Field>
+      )}
+
+      {create.error !== null && <ErrorSurface error={create.error} />}
+
+      <div className="flex gap-2">
+        <Button type="submit" pending={create.isPending} disabled={name.trim() === '' || slug.trim() === ''}>
+          Create
+        </Button>
+        <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * Renaming, re-addressing, and giving the bare host to this organisation.
+ * A new address is refused by the server once an invoice exists — its
+ * links are in the world — and the refusal is shown beside the field.
+ */
+function TenantAddress({ tenantId, name, slug, isDefault }: { tenantId: string; name: string; slug: string; isDefault: boolean }) {
+  const me = useStaffIdentity();
+  const update = useUpdateTenant(tenantId);
+  const [draftName, setDraftName] = useState(name);
+  const [draftSlug, setDraftSlug] = useState(slug);
+
+  if (!can(staffAccess(me.data), 'staff.tenants.manage')) {
+    return null;
+  }
+
+  const dirty = draftName.trim() !== name || draftSlug.trim() !== slug;
+
+  return (
+    <section data-testid="tenant-address" className="space-y-3 border-t border-line pt-4">
+      <h3 className="text-sm font-semibold">Name and address</h3>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field id="tenant-rename" label="Name">
+          <input id="tenant-rename" className={inputClass()} value={draftName} onChange={(event) => setDraftName(event.target.value)} />
+        </Field>
+        <Field id="tenant-reslug" label="Address" hint="Kept once an invoice exists: its links are in the world.">
+          <input id="tenant-reslug" className={inputClass()} value={draftSlug} onChange={(event) => setDraftSlug(event.target.value.toLowerCase())} />
+        </Field>
+      </div>
+
+      {update.error !== null && <ErrorSurface error={update.error} />}
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          pending={update.isPending}
+          disabled={!dirty}
+          onClick={() =>
+            update.mutate({
+              ...(draftName.trim() !== name ? { name: draftName.trim() } : {}),
+              ...(draftSlug.trim() !== slug ? { slug: draftSlug.trim() } : {}),
+            })
+          }
+        >
+          Save
+        </Button>
+        {isDefault ? (
+          <span className="self-center text-xs text-muted">This organisation is the bare host.</span>
+        ) : (
+          <Button type="button" variant="secondary" pending={update.isPending} data-testid="make-default" onClick={() => update.mutate({ is_default: true })}>
+            Make it the bare host
+          </Button>
+        )}
+      </div>
     </section>
   );
 }

@@ -102,6 +102,7 @@ final class StaffPresenter
             'name' => $tenant->name,
             'slug' => $tenant->slug,
             'may_author_offers' => $tenant->mayAuthorOffers,
+            'is_default' => $account->isDefault,
             // Which products the platform has given this tenant (ADR-047):
             // the platform's answer, so it is on the staff shape and not on
             // the `Tenant` a tenant reads about itself.

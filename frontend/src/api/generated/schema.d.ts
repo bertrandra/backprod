@@ -2066,7 +2066,11 @@ export interface paths {
          */
         get: operations["listTenantsForStaff"];
         put?: never;
-        post?: never;
+        /**
+         * Make an organisation
+         * @description The only way an organisation comes to exist since sign-up stopped making them (2026-09-17): name, slug — its address, `hostname/{slug}/`, a lowercase word that is not one of the application's own paths — the products it holds by code, and optionally its first administrator, an existing user given TENANT_ADMIN on every product assigned. Recorded in the access log. Requires `staff.tenants.manage`.
+         */
+        post: operations["createTenantForStaff"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2092,7 +2096,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Rename, re-address or make default
+         * @description Partial: an absent field is untouched. A new slug is refused once the organisation has an invoice — its address is then in the world. `is_default: true` moves the bare host to this organisation; `false` leaves the bare host to nobody. Requires `staff.tenants.manage`.
+         */
+        patch: operations["updateTenantForStaff"];
         trace?: never;
     };
     "/api/v1/staff/tenants/{tenantId}/offer-authoring": {
@@ -3963,6 +3971,8 @@ export interface components {
         StaffTenant: components["schemas"]["Tenant"] & {
             /** @description In code order. A retired product a tenant still holds is listed with `active: false`. */
             products: components["schemas"]["PlatformProduct"][];
+            /** @description Whether the bare host addresses this organisation (2026-09-17). Every other organisation lives at hostname/{slug}/. */
+            is_default: boolean;
         };
         Member: {
             /** Format: uuid */
@@ -9262,6 +9272,64 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    createTenantForStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    slug: string;
+                    /** @description Product codes the organisation holds from the start (ADR-047). */
+                    products?: string[];
+                    /**
+                     * Format: uuid
+                     * @description An existing user, found in the directory, made TENANT_ADMIN.
+                     */
+                    admin_user_id?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The organisation, with its products. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tenant: components["schemas"]["StaffTenant"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected; a reserved or malformed slug lands here. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `SLUG_TAKEN` — another organisation already lives at that address. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     showTenantForStaff: {
         parameters: {
             query?: never;
@@ -9298,6 +9366,61 @@ export interface operations {
             404: components["responses"]["NotFound"];
             /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateTenantForStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    slug?: string;
+                    is_default?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The organisation as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tenant: components["schemas"]["StaffTenant"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — a reserved or malformed slug, or a bad field. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description `SLUG_TAKEN` — another organisation already lives at that address; or `TENANT_HAS_INVOICES` — an organisation with an invoice keeps its address. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

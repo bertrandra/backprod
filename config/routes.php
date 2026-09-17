@@ -128,6 +128,7 @@ use App\Staff\Controller\CreatePlanController;
 use App\Staff\Controller\CreateProductController;
 use App\Staff\Controller\CreateStaffOfferController;
 use App\Staff\Controller\CreateStaffOfferVersionController;
+use App\Staff\Controller\CreateTenantController;
 use App\Staff\Controller\GrantStaffRoleController;
 use App\Staff\Controller\ListAccessLogController;
 use App\Staff\Controller\ListPlatformProductsController;
@@ -164,6 +165,7 @@ use App\Staff\Controller\StaffIdentityController;
 use App\Staff\Controller\UnassignTenantProductController;
 use App\Staff\Controller\UpdatePlanController;
 use App\Staff\Controller\UpdateProductController;
+use App\Staff\Controller\UpdateTenantController;
 use App\Storage\Controller\CreateAssetLinkController;
 use App\Storage\Controller\DeleteAssetController;
 use App\Storage\Controller\DownloadAssetController;
@@ -503,7 +505,10 @@ return static function (RouteCollector $routes): void {
     );
 
     $routes->addRoute('GET', '/api/v1/staff/tenants', ListTenantsController::class);
+    // Organisations are made and re-addressed here and nowhere else (2026-09-17).
+    $routes->addRoute('POST', '/api/v1/staff/tenants', CreateTenantController::class);
     $routes->addRoute('GET', '/api/v1/staff/tenants/{tenantId}', ShowTenantController::class);
+    $routes->addRoute('PATCH', '/api/v1/staff/tenants/{tenantId}', UpdateTenantController::class);
 
     // Lending the platform's catalogue to one tenant. A write on a tenant
     // rather than a read of one, so it carries no motive header and its own

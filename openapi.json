@@ -2510,7 +2510,8 @@
           {
             "type": "object",
             "required": [
-              "products"
+              "products",
+              "is_default"
             ],
             "properties": {
               "products": {
@@ -2519,6 +2520,10 @@
                 "items": {
                   "$ref": "#/components/schemas/PlatformProduct"
                 }
+              },
+              "is_default": {
+                "type": "boolean",
+                "description": "Whether the bare host addresses this organisation (2026-09-17). Every other organisation lives at hostname/{slug}/."
               }
             }
           }
@@ -12511,6 +12516,107 @@
             "$ref": "#/components/responses/InternalError"
           }
         }
+      },
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "createTenantForStaff",
+        "summary": "Make an organisation",
+        "description": "The only way an organisation comes to exist since sign-up stopped making them (2026-09-17): name, slug — its address, `hostname/{slug}/`, a lowercase word that is not one of the application's own paths — the products it holds by code, and optionally its first administrator, an existing user given TENANT_ADMIN on every product assigned. Recorded in the access log. Requires `staff.tenants.manage`.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "slug"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "slug": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+                  },
+                  "products": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Product codes the organisation holds from the start (ADR-047)."
+                  },
+                  "admin_user_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uuid",
+                    "description": "An existing user, found in the directory, made TENANT_ADMIN."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The organisation, with its products.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "tenant"
+                  ],
+                  "properties": {
+                    "tenant": {
+                      "$ref": "#/components/schemas/StaffTenant"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected; a reserved or malformed slug lands here.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`SLUG_TAKEN` — another organisation already lives at that address.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     },
     "/api/v1/staff/tenants/{tenantId}": {
@@ -12581,6 +12687,104 @@
                 }
               }
             }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "updateTenantForStaff",
+        "summary": "Rename, re-address or make default",
+        "description": "Partial: an absent field is untouched. A new slug is refused once the organisation has an invoice — its address is then in the world. `is_default: true` moves the bare host to this organisation; `false` leaves the bare host to nobody. Requires `staff.tenants.manage`.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "slug": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+                  },
+                  "is_default": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The organisation as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "tenant"
+                  ],
+                  "properties": {
+                    "tenant": {
+                      "$ref": "#/components/schemas/StaffTenant"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — a reserved or malformed slug, or a bad field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`SLUG_TAKEN` — another organisation already lives at that address; or `TENANT_HAS_INVOICES` — an organisation with an invoice keeps its address.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
           }
         }
       }
