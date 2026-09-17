@@ -9,11 +9,12 @@ import { toApiError } from './session';
 
 export type Tenant = Schemas['Tenant'];
 
-export function useOrganisation() {
+export function useOrganisation(enabled = true) {
   const client = useApiClient();
 
   return useQuery({
     queryKey: keys.organisation.current,
+    enabled,
     queryFn: async (): Promise<Tenant> => {
       const { data, error, response } = await client.GET(
         '/api/v1/tenants/current',

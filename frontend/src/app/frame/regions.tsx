@@ -7,6 +7,7 @@ import { ConsoleContext, tenantIdIn } from '@/app/frame/ConsoleContext';
 import { useStaffIdentity } from '@/queries/staff';
 import { ProductSwitcher } from '@/app/frame/ProductSwitcher';
 import { useUnreadCount } from '@/queries/notifications';
+import { useOrganisation } from '@/queries/organisation';
 import { useSession } from '@/queries/session';
 import { touchTargetClass } from '@/ui/Field';
 import { cn } from '@/utils/cn';
@@ -34,6 +35,10 @@ export function ContextBar({
 }) {
   const { data } = useSession();
   const { pathname } = useLocation();
+  // The organisation by name. Every tenant role holds `tenant.read`, so this
+  // is asked wherever the bar is a tenant's; the id is what is shown until
+  // it answers, and where it cannot.
+  const organisation = useOrganisation(!platform && can(data, 'tenant.read'));
 
   // Inside a customer, the platform-wide switcher gives way to the picker
   // limited to what that customer holds; two product pickers in one bar
@@ -51,8 +56,16 @@ export function ContextBar({
         // "No organisation" was true on the console and said nothing useful.
         <ConsoleContext />
       ) : (
-        <span className="truncate text-sm text-muted">
-          {data?.tenantId.slice(0, 8) ?? 'No organisation'}
+        // Which organisation this screen is inside — by name. Eight characters
+        // of its uuid stood here from U1 to 2026-09-17, and the operator asked
+        // what the "incomprehensible code" was. The id stays on hover, because
+        // it is what a support ticket quotes.
+        <span
+          data-testid="context-organisation"
+          title={data?.tenantId}
+          className="truncate text-sm text-muted"
+        >
+          {organisation.data?.name ?? data?.tenantId.slice(0, 8) ?? 'No organisation'}
         </span>
       )}
 
