@@ -13,9 +13,12 @@ Stripe is the payment provider, built from
 [`docs/stripe-payments.md`](docs/stripe-payments.md) and recorded in
 [ADR-048](docs/adr/ADR-048-stripe-is-the-first-real-provider-and-the-page-talks-to-it.md).
 WhatsApp as a notification channel is specified, not built:
-[`docs/whatsapp-integration.md`](docs/whatsapp-integration.md). So is giving
-each tenant its own URL root, with self-service arrival and granted
-entitlements, and its complexity: [`docs/tenant-roots.md`](docs/tenant-roots.md).
+[`docs/whatsapp-integration.md`](docs/whatsapp-integration.md). Each tenant
+lives at its own URL root (`hostname/acme/`), its people arrive by themselves
+as USERs under a join policy, the platform makes tenants and may grant them an
+entitlement without a sale, and the invoice PDF says where the money stands:
+specified in [`docs/tenant-roots.md`](docs/tenant-roots.md) and recorded in
+[ADR-049](docs/adr/ADR-049-a-tenant-lives-at-its-own-root-and-its-people-arrive-by-themselves.md).
 
 ## Stack
 

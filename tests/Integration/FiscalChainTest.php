@@ -620,8 +620,10 @@ final class FiscalChainTest extends DatabaseApiTestCase
 
         $all = $this->decode($this->request('GET', '/api/v1/tax/transactions', $this->headers()));
         self::assertSame(2, $all['total'] ?? null);
+        $facts = $all['transactions'] ?? null;
+        self::assertIsArray($facts);
         $products = [];
-        foreach ($all['transactions'] ?? [] as $fact) {
+        foreach ($facts as $fact) {
             self::assertIsArray($fact);
             $products[] = $fact['product'] ?? null;
         }

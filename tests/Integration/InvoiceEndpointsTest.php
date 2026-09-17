@@ -541,9 +541,11 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
         $first = (string) $this->pdf($invoiceId)->getBody();
         $second = (string) $this->pdf($invoiceId)->getBody();
 
-        // mpdf stamps a creation time, so two renders would differ. Identical
-        // bytes are the proof that the second request rendered nothing.
-        self::assertSame($first, $second);
+        // The stored document is rendered once; what is served is that
+        // document with the status band stamped on at download time, and
+        // mpdf dates the stamping — so the two are compared without the
+        // dates. Identical otherwise is the proof that nothing re-rendered.
+        self::assertSame(self::undated($first), self::undated($second));
         self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM invoice_documents'));
     }
 
@@ -570,13 +572,16 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
         self::assertIsString($checksum);
         self::assertIsString($renderer);
 
-        self::assertSame(strlen($bytes), (int) $size);
-        self::assertSame(hash('sha256', $bytes), $checksum);
+        // The row describes the stored document — the legal one — not the
+        // served bytes, which carry a status band on top and are longer.
+        self::assertGreaterThan((int) $size, strlen($bytes));
+        self::assertNotSame(hash('sha256', $bytes), $checksum);
         self::assertStringStartsWith('mpdf/', $renderer);
 
-        // The ETag is that checksum, so a conditional request has something
-        // stable to compare against.
-        self::assertSame('"' . $checksum . '"', $response->getHeaderLine('ETag'));
+        // The ETag names the stored checksum and the band, so a conditional
+        // request has something stable to compare against and a paid invoice
+        // is fetched afresh.
+        self::assertStringStartsWith('"' . $checksum . '-', $response->getHeaderLine('ETag'));
     }
 
     /**
@@ -594,7 +599,54 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
 
         $this->saveProfile(['legal_name' => 'Acme Renamed SAS', 'city' => 'Marseille']);
 
-        self::assertSame($before, (string) $this->pdf($invoiceId)->getBody());
+        self::assertSame(self::undated($before), self::undated((string) $this->pdf($invoiceId)->getBody()));
+    }
+
+    /**
+     * The document says where the money stands, at download time
+     * (docs/tenant-roots.md §2.5): an invoice is generated before payment,
+     * so one with no word on the matter reads as a bill to somebody who has
+     * paid and as a receipt to somebody who has not. The band is stamped on
+     * the stored bytes; the stored bytes do not change.
+     */
+    public function testTheDocumentStatesItsStatusAtDownloadTime(): void
+    {
+        $invoiceId = $this->decode($this->issueSuccessfully())['id'] ?? null;
+        self::assertIsString($invoiceId);
+
+        // Issued, not yet paid: waiting, with the due date.
+        $pending = $this->pdf($invoiceId);
+        self::assertSame('PENDING', $pending->getHeaderLine('X-Invoice-Status'));
+        self::assertStringContainsString('EN ATTENTE DE PAIEMENT', (string) $pending->getBody());
+        $pendingTag = $pending->getHeaderLine('ETag');
+
+        // Past due: said so, with the date it went past.
+        $this->connection->executeStatement("UPDATE invoices SET due_at = now() - interval '3 days' WHERE id = :id", ['id' => $invoiceId]);
+        $overdue = $this->pdf($invoiceId);
+        self::assertSame('OVERDUE', $overdue->getHeaderLine('X-Invoice-Status'));
+        self::assertStringContainsString('ANCE D', (string) $overdue->getBody());
+        self::assertStringContainsString(' LE ' . (new \DateTimeImmutable('-3 days'))->format('d/m/Y'), (string) $overdue->getBody());
+
+        // Paid: the date and the reference, which is what an auditor asks for.
+        self::assertSame(200, $this->act($invoiceId, 'pay')->getStatusCode());
+        $paid = $this->pdf($invoiceId);
+        self::assertSame('PAID', $paid->getHeaderLine('X-Invoice-Status'));
+        self::assertStringContainsString('PAY', (string) $paid->getBody());
+        self::assertStringContainsString(' LE ' . date('d/m/Y'), (string) $paid->getBody());
+        self::assertStringNotContainsString('EN ATTENTE DE PAIEMENT', (string) $paid->getBody());
+        self::assertNotSame($pendingTag, $paid->getHeaderLine('ETag'));
+
+        // And one stored document throughout.
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM invoice_documents'));
+    }
+
+    /** A PDF without the moments mpdf writes into it, for comparing two stampings. */
+    private static function undated(string $pdf): string
+    {
+        $cleaned = preg_replace('#/(CreationDate|ModDate) \\(D:[^)]*\\)#', '', $pdf);
+        $cleaned = preg_replace('#/ID \\[<[0-9a-f]+> ?<[0-9a-f]+>\\]#i', '', (string) $cleaned);
+
+        return (string) $cleaned;
     }
 
     /**

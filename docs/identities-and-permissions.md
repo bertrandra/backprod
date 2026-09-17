@@ -113,32 +113,40 @@ en lecture et écriture, ses notifications et son propre compte. Tout le reste �
 abonnement, factures, paiements, devis, TVA, catalogue, membres, tenant, jobs —
 en **lecture seule**.
 
-Ce qui lui manque est exactement les dix `.manage`. La conséquence la plus
-visible à l'usage : **il voit les prix et ne peut pas acheter**, parce que
-l'ouverture d'une session de paiement est derrière `billing.manage`.
+Ce qui lui manque est exactement les dix `.manage`, et `UserRoleMatrixTest`
+le tient : un `USER` ne peut ni ouvrir un paiement, ni rembourser, ni émettre
+une facture ou un avoir, ni ajouter un membre, ni clore une période. La
+conséquence la plus visible à l'usage : **il voit les prix et ne peut pas
+acheter**, parce que l'ouverture d'une session de paiement est derrière
+`billing.manage`.
 
-### Client B2C — pas un rôle
+### Celui qui arrive par lui-même — un `USER` (ADR-049)
 
-**Il n'existe aucun type « B2C » dans le système**, et c'est le point où le
-modèle surprend le plus souvent.
+Depuis le 17 septembre 2026, **l'inscription ne crée plus de tenant**. Un
+tenant est créé par la plateforme (`POST /staff/tenants`, `staff.tenants.manage`),
+avec ses produits et son premier administrateur, et vit à sa propre racine
+d'URL (`hostname/acme/` ; la racine nue est celle du tenant par défaut).
 
-Quand quelqu'un choisit une offre sur la vitrine sans être connecté,
-l'inscription écrit en une seule transaction : un utilisateur, son mot de passe,
-**un tenant**, le produit qui lui est attribué, son appartenance, le rôle
-`TENANT_ADMIN` et un profil de facturation minimal. Un client particulier est donc, techniquement,
-l'administrateur de son propre tenant — avec les trente permissions que cela
-implique.
+Quelqu'un qui s'inscrit à `hostname/acme/` demande à Acme de l'accueillir :
+l'inscription écrit un utilisateur, son mot de passe et une appartenance
+`USER` sur chaque produit qu'Acme détient — et rien d'autre. La **politique
+d'adhésion** d'Acme (`tenants.join_policy`) décide si l'appartenance est active :
 
-Le nom de société est facultatif à l'inscription : à défaut, le tenant prend le
-nom affiché de la personne, ou son adresse e-mail.
+- `APPROVAL` (défaut) : en attente ; les administrateurs sont notifiés et
+  acceptent ou déclinent depuis l'écran Membres ;
+- `DOMAIN` : une adresse sur un domaine listé est admise immédiatement, toute
+  autre est refusée ;
+- `INVITATION` : personne n'arrive par lui-même.
 
-Ce que cela implique, pour de bon :
+Une appartenance en attente **n'est pas une appartenance** : aucun contexte ne
+se résout, `/me` répond 403, et la coquille dit « en attente d'Acme ».
 
-- il peut inviter d'autres personnes dans « son » espace — un compte particulier
-  devient une équipe sans migration ;
-- il peut résilier, changer d'offre et télécharger ses factures lui-même ;
-- il n'y a **pas de deuxième chemin de code** à maintenir pour le B2C : c'est le
-  même, avec un tenant dont il se trouve être le seul membre.
+Il n'existe toujours aucun type « B2C ». Un particulier est un `USER` du tenant
+à la racine duquel il s'est inscrit ; l'organisation achète (`billing.manage`
+est à l'administrateur), et **il voit les prix sans pouvoir acheter**. Ce que
+la plateforme peut aussi faire : **donner** à un tenant son droit d'usage d'un
+produit sans vente (`entitlements.source = GRANT`), pour un pilote, un
+partenaire ou son propre tenant par défaut.
 
 ### Visiteur
 
@@ -146,9 +154,10 @@ Aucune coquille, aucune session.
 
 Il voit la liste des produits **qui ont quelque chose d'advertisé** — et rien
 des autres (ADR-047) —, les offres d'un produit **explicitement advertisées** —
-filtrées en SQL, jamais chargées en mémoire puis masquées — et peut créer un
-compte puis vérifier son adresse. La page d'accueil est la vitrine ; se connecter est le chemin
-secondaire (ADR-041).
+filtrées en SQL, jamais chargées en mémoire puis masquées — pour le tenant à
+la racine duquel il se trouve, et peut demander à le rejoindre puis vérifier
+son adresse. La page d'accueil est la vitrine de ce tenant ; se connecter est
+le chemin secondaire (ADR-041, ADR-049).
 
 Il ne voit jamais une offre en vente mais non advertisée — être vendable et être
 montré sont deux décisions distinctes — ni quels produits la plateforme héberge :

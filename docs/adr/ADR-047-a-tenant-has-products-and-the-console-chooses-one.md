@@ -5,6 +5,12 @@
 now a public list of products, and it lists advertisements);
 [ADR-042](ADR-042-the-console-administers-products.md) (the console no longer
 names its product in the URL); `docs/ui-spec.md` §3.5, §4.1, §4.2
+**Amended by:** [ADR-049](ADR-049-a-tenant-lives-at-its-own-root-and-its-people-arrive-by-themselves.md)
+— a tenant is made by the platform (`POST /staff/tenants`) and nowhere else;
+memberships carry a status, and only ACTIVE ones are mirrored into anything
+that resolves; and beside *assigning* a product the platform may *grant* the
+entitlement to it (`entitlements.source = GRANT`), which is what a tenant that
+holds a product it has not bought needs in order to use it.
 **Relates to:** [ADR-013](ADR-013-product-context-resolution.md);
 [ADR-015](ADR-015-tenant-resolution.md);
 [ADR-039](ADR-039-the-installer-appoints-the-first-administrator.md);

@@ -8,8 +8,12 @@ use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceDocument;
 use App\Billing\Domain\InvoiceDocumentRepository;
 use App\Billing\Domain\InvoiceRenderer;
+use App\Billing\Domain\InvoiceStatus;
+use App\Billing\Domain\InvoiceStatusBand;
+use App\Payment\Domain\PaymentRepository;
 use App\Shared\Exceptions\ConflictException;
 use App\Storage\Domain\StorageProvider;
+use DateTimeImmutable;
 
 /**
  * The PDF of an invoice (§7 `GET /invoices/{id}/pdf`).
@@ -46,13 +50,14 @@ final class InvoiceDocuments
         private readonly InvoiceDocumentRepository $documents,
         private readonly InvoiceRenderer $renderer,
         private readonly StorageProvider $storage,
+        private readonly PaymentRepository $payments,
     ) {
     }
 
     /**
      * The document, its bytes and what to call the file.
      *
-     * @return array{document: InvoiceDocument, contents: string, filename: string, contentType: string}
+     * @return array{document: InvoiceDocument, contents: string, filename: string, contentType: string, band: InvoiceStatusBand}
      */
     public function pdf(string $tenantId, string $productId, string $invoiceId): array
     {
@@ -99,24 +104,37 @@ final class InvoiceDocuments
             return $this->served($document, $invoice);
         }
 
-        return [
-            'document' => $document,
-            'contents' => $contents,
-            'filename' => self::filenameFor($invoice),
-            'contentType' => $this->renderer->contentType(),
-        ];
+        return $this->stamped($document, $contents, $invoice);
     }
 
     /**
-     * @return array{document: InvoiceDocument, contents: string, filename: string, contentType: string}
+     * @return array{document: InvoiceDocument, contents: string, filename: string, contentType: string, band: InvoiceStatusBand}
      */
     private function served(InvoiceDocument $document, Invoice $invoice): array
     {
+        return $this->stamped($document, $this->storage->get($document->storageKey), $invoice);
+    }
+
+    /**
+     * The stored bytes with the status band of the moment on top
+     * (docs/tenant-roots.md §2.5): the body never differs from what was
+     * issued, the band says where the money stands today.
+     *
+     * @return array{document: InvoiceDocument, contents: string, filename: string, contentType: string, band: InvoiceStatusBand}
+     */
+    private function stamped(InvoiceDocument $document, string $contents, Invoice $invoice): array
+    {
+        $settling = $invoice->status === InvoiceStatus::PAID
+            ? $this->payments->latestForInvoice($invoice->tenantId, $invoice->productId, $invoice->id)
+            : null;
+        $band = InvoiceStatusBand::for($invoice, $settling, new DateTimeImmutable());
+
         return [
             'document' => $document,
-            'contents' => $this->storage->get($document->storageKey),
+            'contents' => $this->renderer->stamp($contents, $band),
             'filename' => self::filenameFor($invoice),
             'contentType' => $this->renderer->contentType(),
+            'band' => $band,
         ];
     }
 

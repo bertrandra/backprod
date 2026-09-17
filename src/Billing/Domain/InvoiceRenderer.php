@@ -24,6 +24,14 @@ interface InvoiceRenderer
     public function render(Invoice $invoice): string;
 
     /**
+     * The stored document with a status band on page one, composed at
+     * download time (docs/tenant-roots.md §2.5). The body is byte-for-byte
+     * what `render` produced and what storage holds; only the band differs
+     * from one download to the next, because only the money does.
+     */
+    public function stamp(string $document, InvoiceStatusBand $band): string;
+
+    /**
      * What produced it, engine and version, for the record beside the bytes.
      *
      * Recorded rather than assumed because a document that does not match
