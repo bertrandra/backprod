@@ -24,6 +24,7 @@ import { SearchPicker } from '@/ui/pickers/SearchPicker';
 import { type Person } from '@/ui/pickers/Select';
 
 import { AccessMotiveGate, MotiveInEffect } from './AccessMotiveGate';
+import { TenantEntitlements } from './TenantEntitlement';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
@@ -202,6 +203,8 @@ function TenantDetail({ tenantId }: { tenantId: string }) {
       <TenantAddress tenantId={tenantId} name={tenant.data.name} slug={tenant.data.slug} isDefault={tenant.data.is_default} />
 
       <TenantProducts tenantId={tenantId} held={tenant.data.products} />
+
+      <TenantEntitlements tenantId={tenantId} held={tenant.data.products} />
 
       <OfferAuthoring tenantId={tenantId} mayAuthor={tenant.data.may_author_offers} />
 

@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { recordingClient, renderAtRoute, stubClient, type Stubs } from '@/test-utils';
@@ -18,6 +18,21 @@ const BOREAS = { id: 'p-boreas', code: 'boreas', name: 'Boreas', active: true };
 const COMET = { id: 'p-comet', code: 'comet', name: 'Comet', active: false };
 
 const TENANT = { id: 't-1', name: 'Acme Ltd', slug: 'acme', may_author_offers: false, products: [ATLAS] };
+
+const PRO = { id: 'plan-pro', code: 'pro', name: 'Pro', rank: 20 };
+const ADVANCED = { id: 'f-1', code: 'advanced_3d', name: 'Advanced 3D', kind: 'BOOLEAN', unit: null };
+const PROJECTS = { id: 'f-2', code: 'max_projects', name: 'Projects', kind: 'QUOTA', unit: 'projects' };
+const GRANTED = {
+  tenant_id: 't-1',
+  product_id: 'p-atlas',
+  features: [
+    { code: 'advanced_3d', name: 'Advanced 3D', kind: 'BOOLEAN', limit: null },
+    { code: 'max_projects', name: 'Projects', kind: 'QUOTA', limit: 10 },
+  ],
+  valid_until: '2027-01-31T23:59:59Z',
+  granted_by: 's-1',
+  granted_at: '2026-09-17T10:00:00Z',
+};
 const OTHER = { id: 't-2', name: 'Globex', slug: 'globex', may_author_offers: false, products: [] };
 
 /** An administrator: the only staff identity that may change the flag. */
@@ -51,6 +66,8 @@ function clientFor(extra: Stubs = {}) {
     'DELETE /api/v1/staff/tenants/{tenantId}/products/{productId}': {
       data: { tenant: { ...TENANT, products: [] } },
     },
+    'GET /api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement': { data: { entitlement: null } },
+    'GET /api/v1/staff/catalogue': { data: { product: ATLAS, plans: [PRO], features: [ADVANCED, PROJECTS] } },
     ...extra,
   });
 }
@@ -551,5 +568,107 @@ describe('products held', () => {
     expect(boxes.map((box) => box.getAttribute('data-product'))).toEqual(['atlas']);
     expect(boxes.every((box) => box.disabled)).toBe(true);
     expect(requests.some((r) => r.path === '/api/v1/staff/products')).toBe(false);
+  });
+});
+
+/**
+ * What the platform gives without a sale (docs/tenant-roots.md §2.8): one
+ * panel per held product, the whole grant sent as one PUT, nothing assumed
+ * before the server answers.
+ */
+describe('the entitlement the platform gives', () => {
+  const open = { path: '/console/tenants', initial: `/console/tenants?selected=${TENANT.id}` } as const;
+
+  it('shows nothing given as exactly that, and a grant with its features, expiry and grantor', async () => {
+    renderAtRoute(
+      <StaffTenantsScreen />,
+      clientFor({
+        'GET /api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement': { data: { entitlement: GRANTED } },
+      }),
+      open,
+    );
+    await giveAMotive();
+
+    await waitFor(() => expect(screen.getByTestId('entitlement-atlas').getAttribute('data-granted')).toBe('true'));
+    expect(screen.getByTestId('granted-atlas').textContent).toContain('Projects');
+    expect(screen.getByTestId('granted-atlas').textContent).toContain('10');
+    expect(screen.getByTestId('entitlement-atlas').textContent).toContain('Until 2027-01-31');
+    expect(screen.getByTestId('entitlement-atlas').textContent).toContain('s-1');
+  });
+
+  it('sends the whole grant as one PUT — plan, ticked features with limits, expiry', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/me': { data: ADMIN },
+      'GET /api/v1/staff/tenants': { data: { tenants: [TENANT], total: 1, limit: 25, offset: 0 } },
+      'GET /api/v1/staff/tenants/{tenantId}': { data: { tenant: TENANT } },
+      'GET /api/v1/staff/products': { data: { products: [ATLAS] } },
+      'GET /api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement': { data: { entitlement: null } },
+      'GET /api/v1/staff/catalogue': { data: { product: ATLAS, plans: [PRO], features: [ADVANCED, PROJECTS] } },
+      'PUT /api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement': { data: { entitlement: GRANTED } },
+    });
+
+    renderAtRoute(<StaffTenantsScreen />, client, open);
+    await giveAMotive();
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Grant' })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Grant' }));
+
+    await waitFor(() => expect(screen.getByTestId('grant-form-atlas')).toBeTruthy());
+    fireEvent.change(screen.getByLabelText('Start from a plan'), { target: { value: 'pro' } });
+    fireEvent.click(screen.getByLabelText('Projects'));
+    fireEvent.change(screen.getByLabelText('Projects limit'), { target: { value: '50' } });
+    fireEvent.change(screen.getByLabelText('Until'), { target: { value: '2027-01-31' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save grant' }));
+
+    await waitFor(() =>
+      expect(requests.some((r) => r.method === 'PUT' && r.path.endsWith('/entitlement'))).toBe(true),
+    );
+    expect(requests.find((r) => r.method === 'PUT' && r.path.endsWith('/entitlement'))?.body).toEqual({
+      plan: 'pro',
+      features: [{ code: 'max_projects', limit: 50 }],
+      valid_until: '2027-01-31T23:59:59.000Z',
+    });
+
+    // The answer, not the form: what the server wrote is what is shown.
+    await waitFor(() => expect(screen.getByTestId('entitlement-atlas').getAttribute('data-granted')).toBe('true'));
+  });
+
+  it('withdraws with DELETE and asks again rather than assuming nothing', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/me': { data: ADMIN },
+      'GET /api/v1/staff/tenants': { data: { tenants: [TENANT], total: 1, limit: 25, offset: 0 } },
+      'GET /api/v1/staff/tenants/{tenantId}': { data: { tenant: TENANT } },
+      'GET /api/v1/staff/products': { data: { products: [ATLAS] } },
+      'GET /api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement': { data: { entitlement: GRANTED } },
+      'DELETE /api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement': { status: 204, data: {} },
+    });
+
+    renderAtRoute(<StaffTenantsScreen />, client, open);
+    await giveAMotive();
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Withdraw' })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Withdraw' }));
+
+    await waitFor(() => expect(requests.some((r) => r.method === 'DELETE' && r.path.endsWith('/entitlement'))).toBe(true));
+    await waitFor(() =>
+      expect(requests.filter((r) => r.method === 'GET' && r.path.endsWith('/entitlement')).length).toBeGreaterThan(1),
+    );
+  });
+
+  it('shows support the grant and offers nothing to change it', async () => {
+    renderAtRoute(
+      <StaffTenantsScreen />,
+      clientFor({
+        'GET /api/v1/staff/me': { data: SUPPORT },
+        'GET /api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement': { data: { entitlement: GRANTED } },
+      }),
+      open,
+    );
+    await giveAMotive();
+
+    await waitFor(() => expect(screen.getByTestId('granted-atlas')).toBeTruthy());
+    const panel = within(screen.getByTestId('entitlement-atlas'));
+    expect(panel.queryByRole('button', { name: 'Change' })).toBeNull();
+    expect(panel.queryByRole('button', { name: 'Withdraw' })).toBeNull();
   });
 });

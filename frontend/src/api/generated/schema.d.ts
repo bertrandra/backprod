@@ -2147,6 +2147,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the platform gave a tenant on a product
+         * @description The grant in force or lapsed on this product, or null when nothing was granted. `staff.tenants.read`, and no motive header: a grant is the platform’s own decision, not the customer’s data.
+         */
+        get: operations["showTenantEntitlement"];
+        /**
+         * Give a tenant its entitlement to a product, without a sale
+         * @description A pilot, a partner, an internal organisation, the operator’s own default tenant: the platform administrator grants the entitlement directly. The body states the whole grant and replaces whatever grant there was — PUT, so the same request twice is the same grant. `plan` is a shorthand for the grants of that plan’s most recently activated offer version; `features` add to it or override it, feature by feature (“the Pro plan, but with more projects”). At least one feature must result; to take everything away, withdraw. `staff.tenants.manage`, and the access log carries the feature list — a grant is a commercial decision somebody should be able to trace. Buying stays the ordinary road; this is the other one.
+         */
+        put: operations["grantTenantEntitlement"];
+        post?: never;
+        /**
+         * Take back what the platform gave
+         * @description Drops the grant. Whatever a subscription grants on the same product is untouched — it was never this. `staff.tenants.manage`; 204 whether or not there was a grant, because the state asked for is the same either way.
+         */
+        delete: operations["withdrawTenantEntitlement"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/tenants/{tenantId}/members": {
         parameters: {
             query?: never;
@@ -3522,8 +3550,11 @@ export interface components {
             /** @description Null means two different things, so `unlimited` says which. */
             limit: number | null;
             unlimited: boolean;
-            /** @description What produced it — a subscription grant, or an override negotiated outside one. */
-            source: string;
+            /**
+             * @description What produced it — a subscription grant, or an override negotiated outside one. `GRANT`: given by the platform without a sale (docs/tenant-roots.md §2.8) — shown as “provided by the platform”, never as a subscription to cancel.
+             * @enum {string}
+             */
+            source: "SUBSCRIPTION" | "OVERRIDE" | "GRANT";
             /** Format: date-time */
             valid_until: string | null;
         };
@@ -4567,6 +4598,33 @@ export interface components {
             name: string;
             /** @description Whether this is the organisation the bare host addresses. */
             is_default: boolean;
+        };
+        /** @description What the platform gave a tenant on one product without a sale (docs/tenant-roots.md §2.8): `entitlements` rows with `source = GRANT`. The resolver reads them like a subscription’s — `/me/entitlements` shows them with their source — so a grant changes nothing in how capabilities and quotas are answered. Where a grant and a subscription both hold a feature, the most generous wins, as between a seat and the tenant. */
+        GrantedEntitlement: {
+            /** Format: uuid */
+            tenant_id: string;
+            /** Format: uuid */
+            product_id: string;
+            features: {
+                code: string;
+                name: string;
+                /** @enum {string} */
+                kind: "BOOLEAN" | "QUOTA";
+                /** @description For a quota: the allowance, or null for unlimited. Always null for a boolean feature. */
+                limit: number | null;
+            }[];
+            /**
+             * Format: date-time
+             * @description When the grant lapses, or null for no end. A lapsed grant is a lapsed entitlement: nothing is invoiced and nothing renews itself — a person renews it.
+             */
+            valid_until: string | null;
+            /**
+             * Format: uuid
+             * @description The staff member who decided. Null once that account is erased.
+             */
+            granted_by: string | null;
+            /** Format: date-time */
+            granted_at: string;
         };
     };
     responses: {
@@ -9625,6 +9683,157 @@ export interface operations {
             404: components["responses"]["NotFound"];
             /** @description `PRODUCT_IN_USE` — a subscription on this tenant and product is still owed service: active, or cancelled with paid time left. Withdrawing the product would cut the customer off from what they paid for. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showTenantEntitlement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The tenant. */
+                tenantId: string;
+                /** @description A product the tenant holds (`assignTenantProduct`). Holding says the organisation may see the product; the grant says what it may do with it. */
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The grant, or null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        entitlement: components["schemas"]["GrantedEntitlement"] | null;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `TENANT_OR_PRODUCT_NOT_FOUND` — no such tenant, or it does not hold that product. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    grantTenantEntitlement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The tenant. */
+                tenantId: string;
+                /** @description A product the tenant holds (`assignTenantProduct`). Holding says the organisation may see the product; the grant says what it may do with it. */
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description A plan code of the product, as the starting point. */
+                    plan?: string | null;
+                    features?: {
+                        code: string;
+                        /** @description For a quota; omitted or null means unlimited. */
+                        limit?: number | null;
+                    }[];
+                    /**
+                     * Format: date-time
+                     * @description In the future, or omitted for no end.
+                     */
+                    valid_until?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The grant as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        entitlement: components["schemas"]["GrantedEntitlement"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — a feature item without a code, a negative limit, a date that cannot be read or is not in the future. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `TENANT_OR_PRODUCT_NOT_FOUND` — no such tenant, or it does not hold that product. `PLAN_NOT_FOUND`, `FEATURE_NOT_FOUND` — no plan or feature of the product has that code; nothing was written. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `GRANT_EMPTY` — nothing would be granted: no features named and the plan grants none. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    withdrawTenantEntitlement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The tenant. */
+                tenantId: string;
+                /** @description A product the tenant holds (`assignTenantProduct`). Holding says the organisation may see the product; the grant says what it may do with it. */
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Withdrawn. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `TENANT_OR_PRODUCT_NOT_FOUND` — no such tenant, or it does not hold that product. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

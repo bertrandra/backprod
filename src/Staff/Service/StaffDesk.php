@@ -8,6 +8,7 @@ use App\Product\Domain\Product;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
 use App\Staff\Domain\AccessMotive;
+use App\Staff\Domain\GrantedEntitlement;
 use App\Staff\Domain\StaffAccess;
 use App\Staff\Domain\StaffAccessEntry;
 use App\Staff\Domain\StaffAccessLog;
@@ -15,6 +16,7 @@ use App\Staff\Domain\StaffIdentity;
 use App\Staff\Domain\StaffPermission;
 use App\Staff\Domain\TenantAccount;
 use App\Staff\Domain\TenantDirectory;
+use App\Staff\Domain\TenantGrants;
 use App\Staff\Domain\TenantMemberAcrossProducts;
 use App\Staff\Domain\TenantMembers;
 use App\Staff\Domain\TenantProducts;
@@ -44,6 +46,7 @@ final class StaffDesk
         private readonly StaffAccessLog $trail,
         private readonly DefaultTenant $default,
         private readonly TenantMemberRepository $memberships,
+        private readonly TenantGrants $grants,
     ) {
     }
 
@@ -418,6 +421,135 @@ final class StaffDesk
         ));
 
         return $this->account($tenant);
+    }
+
+    /**
+     * What the platform gave a tenant on a product it holds, or null
+     * (docs/tenant-roots.md §2.8). Read from the console; the tenant reads
+     * the same rows through `/me/entitlements`, source and all.
+     */
+    public function grantOf(StaffIdentity $staff, string $tenantId, string $productId): ?GrantedEntitlement
+    {
+        $this->heldProduct($staff, $tenantId, $productId, 'READ_GRANT');
+
+        return $this->grants->of($tenantId, $productId);
+    }
+
+    /**
+     * Gives a tenant its entitlement to a product without a sale: a plan as
+     * the starting point (its latest active version's grants), explicit
+     * features on top or instead, an expiry or none. Replaces whatever grant
+     * there was. Only on a product the tenant holds — assigning (ADR-047) says
+     * an organisation may see a product, this says what it may do with it,
+     * and the second without the first would be an entitlement nobody can
+     * reach.
+     *
+     * @param array<string, int|null> $limits feature code → limit
+     *
+     * @throws NotFoundException TENANT_OR_PRODUCT_NOT_FOUND | PLAN_NOT_FOUND | FEATURE_NOT_FOUND
+     * @throws ConflictException GRANT_EMPTY when nothing would be granted
+     */
+    public function grantEntitlement(
+        StaffIdentity $staff,
+        string $tenantId,
+        string $productId,
+        ?string $planCode,
+        array $limits,
+        ?\DateTimeImmutable $validUntil,
+    ): GrantedEntitlement {
+        [$tenant, $product] = $this->heldProduct($staff, $tenantId, $productId, 'GRANT_ENTITLEMENT');
+
+        $fromPlan = [];
+
+        if ($planCode !== null) {
+            $fromPlan = $this->grants->limitsOfPlan($productId, $planCode);
+
+            if ($fromPlan === null) {
+                throw new NotFoundException('No plan of this product has that code.', ['plan' => $planCode], 'PLAN_NOT_FOUND');
+            }
+        }
+
+        // Explicit features win over the plan's: "the Pro plan, but with
+        // more projects" is the ordinary shape of a pilot.
+        $merged = array_merge($fromPlan, $limits);
+
+        if ($merged === []) {
+            throw new ConflictException('GRANT_EMPTY', 'A grant names at least one feature; to take everything away, withdraw it.');
+        }
+
+        $granted = $this->grants->grant($tenantId, $productId, $merged, $validUntil, $staff->userId);
+
+        // A grant is a commercial decision somebody should be able to trace:
+        // the trail carries what was given, not only that something was.
+        $this->trail->record(new StaffAccess(
+            $staff->userId,
+            $tenant->id,
+            $product->id,
+            'GRANT_ENTITLEMENT',
+            'tenant_entitlement',
+            $tenant->id,
+            StaffPermission::TENANTS_MANAGE,
+            [
+                'product_code' => $product->code,
+                'plan' => $planCode,
+                'features' => $merged,
+                'valid_until' => $validUntil?->format(\DateTimeInterface::ATOM),
+            ],
+        ));
+
+        return $granted;
+    }
+
+    public function withdrawEntitlement(StaffIdentity $staff, string $tenantId, string $productId): void
+    {
+        [$tenant, $product] = $this->heldProduct($staff, $tenantId, $productId, 'WITHDRAW_ENTITLEMENT');
+
+        $had = $this->grants->withdraw($tenantId, $productId);
+
+        $this->trail->record(new StaffAccess(
+            $staff->userId,
+            $tenant->id,
+            $product->id,
+            'WITHDRAW_ENTITLEMENT',
+            'tenant_entitlement',
+            $tenant->id,
+            StaffPermission::TENANTS_MANAGE,
+            ['product_code' => $product->code, 'had_grant' => $had],
+        ));
+    }
+
+    /**
+     * The tenant and one of the products it holds, or a traced miss.
+     *
+     * @return array{0: Tenant, 1: Product}
+     */
+    private function heldProduct(StaffIdentity $staff, string $tenantId, string $productId, string $action): array
+    {
+        $tenant = $this->tenants->find($tenantId);
+        $product = null;
+
+        foreach ($tenant === null ? [] : $this->products->of($tenantId) as $held) {
+            if ($held->id === $productId) {
+                $product = $held;
+            }
+        }
+
+        if ($tenant === null || $product === null) {
+            $this->trail->record(new StaffAccess(
+                $staff->userId,
+                null,
+                null,
+                'UPDATE_MISS',
+                'tenant_entitlement',
+                null,
+                StaffPermission::TENANTS_MANAGE,
+                ['tenant_id' => $tenantId, 'product_id' => $productId, 'action' => $action],
+            ));
+
+            throw new NotFoundException('The tenant does not hold that product.', [], 'TENANT_OR_PRODUCT_NOT_FOUND');
+        }
+
+        return [$tenant, $product];
     }
 
     private function account(Tenant $tenant): TenantAccount

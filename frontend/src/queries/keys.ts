@@ -140,6 +140,9 @@ export const keys = {
     // records has to actually happen (R14). `*Reads` is the prefix an
     // invalidation uses, because it must match every motive.
     tenantReads: (id: string) => ['staff', 'tenant', id] as const,
+    // What the platform gave on one product (2026-09-17): under the tenant's
+    // prefix, so assigning or withdrawing a product refreshes it too.
+    tenantEntitlement: (id: string, productId: string) => ['staff', 'tenant', id, 'entitlement', productId] as const,
     tenant: (id: string, purpose: string, reference: string) =>
       ['staff', 'tenant', id, purpose, reference] as const,
     tenantMembers: (id: string, product: string, purpose: string, reference: string) =>

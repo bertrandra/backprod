@@ -766,6 +766,100 @@ export function useAssignTenantProduct(tenantId: string) {
   });
 }
 
+export type GrantedEntitlement = Schemas['GrantedEntitlement'];
+
+/** The whole grant, as `grantTenantEntitlement` takes it. */
+export interface GrantInput {
+  readonly productId: string;
+  readonly plan: string | null;
+  readonly features: readonly { readonly code: string; readonly limit: number | null }[];
+  readonly valid_until: string | null;
+}
+
+/**
+ * What the platform gave a tenant on a product it holds, without a sale
+ * (docs/tenant-roots.md §2.8). Null when nothing was granted. No motive: a
+ * grant is the platform's own decision, not the customer's data.
+ */
+export function useTenantEntitlement(tenantId: string, productId: string, enabled = true) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.tenantEntitlement(tenantId, productId),
+    enabled,
+    queryFn: async (): Promise<GrantedEntitlement | null> => {
+      const { data, error, response } = await client.GET(
+        '/api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement',
+        { params: { path: { tenantId, productId } } },
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.entitlement;
+    },
+  });
+}
+
+/**
+ * Granting writes the answer into the cache — the API returned the grant it
+ * wrote — and withdrawing invalidates, since "nothing" is what the server
+ * says and not something to assume. Neither is optimistic: an entitlement
+ * is what a customer may use, and a panel that assumed it had been given
+ * would show a capability the API still refuses.
+ */
+export function useGrantTenantEntitlement(tenantId: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: GrantInput): Promise<GrantedEntitlement> => {
+      const { data, error, response } = await client.PUT(
+        '/api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement',
+        {
+          params: { path: { tenantId, productId: input.productId } },
+          body: {
+            plan: input.plan,
+            features: input.features.map((feature) => ({ code: feature.code, limit: feature.limit })),
+            valid_until: input.valid_until,
+          },
+        },
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.entitlement;
+    },
+    onSuccess: (granted, input) => {
+      queryClient.setQueryData(keys.staff.tenantEntitlement(tenantId, input.productId), granted);
+    },
+  });
+}
+
+export function useWithdrawTenantEntitlement(tenantId: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (productId: string): Promise<void> => {
+      const { error, response } = await client.DELETE(
+        '/api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement',
+        { params: { path: { tenantId, productId } } },
+      );
+
+      if (error !== undefined) {
+        throw toApiError(response.status, error);
+      }
+    },
+    onSuccess: async (_nothing, productId) => {
+      await queryClient.invalidateQueries({ queryKey: keys.staff.tenantEntitlement(tenantId, productId) });
+    },
+  });
+}
+
 export function useUnassignTenantProduct(tenantId: string) {
   const client = useApiClient();
   const queryClient = useQueryClient();

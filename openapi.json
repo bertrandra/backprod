@@ -857,7 +857,12 @@
           },
           "source": {
             "type": "string",
-            "description": "What produced it — a subscription grant, or an override negotiated outside one."
+            "description": "What produced it — a subscription grant, or an override negotiated outside one. `GRANT`: given by the platform without a sale (docs/tenant-roots.md §2.8) — shown as “provided by the platform”, never as a subscription to cancel.",
+            "enum": [
+              "SUBSCRIPTION",
+              "OVERRIDE",
+              "GRANT"
+            ]
           },
           "valid_until": {
             "type": [
@@ -4117,6 +4122,82 @@
           "is_default": {
             "type": "boolean",
             "description": "Whether this is the organisation the bare host addresses."
+          }
+        }
+      },
+      "GrantedEntitlement": {
+        "type": "object",
+        "description": "What the platform gave a tenant on one product without a sale (docs/tenant-roots.md §2.8): `entitlements` rows with `source = GRANT`. The resolver reads them like a subscription’s — `/me/entitlements` shows them with their source — so a grant changes nothing in how capabilities and quotas are answered. Where a grant and a subscription both hold a feature, the most generous wins, as between a seat and the tenant.",
+        "required": [
+          "tenant_id",
+          "product_id",
+          "features",
+          "valid_until",
+          "granted_by",
+          "granted_at"
+        ],
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "product_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "name",
+                "kind",
+                "limit"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "BOOLEAN",
+                    "QUOTA"
+                  ]
+                },
+                "limit": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "For a quota: the allowance, or null for unlimited. Always null for a boolean feature."
+                }
+              }
+            }
+          },
+          "valid_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the grant lapses, or null for no end. A lapsed grant is a lapsed entitlement: nothing is invoiced and nothing renews itself — a person renews it."
+          },
+          "granted_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The staff member who decided. Null once that account is erased."
+          },
+          "granted_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }
@@ -13056,6 +13137,287 @@
           },
           "409": {
             "description": "`PRODUCT_IN_USE` — a subscription on this tenant and product is still owed service: active, or cancelled with paid time left. Withdrawing the product would cut the customer off from what they paid for.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "showTenantEntitlement",
+        "summary": "What the platform gave a tenant on a product",
+        "description": "The grant in force or lapsed on this product, or null when nothing was granted. `staff.tenants.read`, and no motive header: a grant is the platform’s own decision, not the customer’s data.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "description": "The tenant.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "A product the tenant holds (`assignTenantProduct`). Holding says the organisation may see the product; the grant says what it may do with it.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The grant, or null.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "entitlement"
+                  ],
+                  "properties": {
+                    "entitlement": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/GrantedEntitlement"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "description": "`TENANT_OR_PRODUCT_NOT_FOUND` — no such tenant, or it does not hold that product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "grantTenantEntitlement",
+        "summary": "Give a tenant its entitlement to a product, without a sale",
+        "description": "A pilot, a partner, an internal organisation, the operator’s own default tenant: the platform administrator grants the entitlement directly. The body states the whole grant and replaces whatever grant there was — PUT, so the same request twice is the same grant. `plan` is a shorthand for the grants of that plan’s most recently activated offer version; `features` add to it or override it, feature by feature (“the Pro plan, but with more projects”). At least one feature must result; to take everything away, withdraw. `staff.tenants.manage`, and the access log carries the feature list — a grant is a commercial decision somebody should be able to trace. Buying stays the ordinary road; this is the other one.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "description": "The tenant.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "A product the tenant holds (`assignTenantProduct`). Holding says the organisation may see the product; the grant says what it may do with it.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "plan": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 64,
+                    "description": "A plan code of the product, as the starting point."
+                  },
+                  "features": {
+                    "type": "array",
+                    "maxItems": 200,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "code"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "limit": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "description": "For a quota; omitted or null means unlimited."
+                        }
+                      }
+                    }
+                  },
+                  "valid_until": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time",
+                    "description": "In the future, or omitted for no end."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The grant as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "entitlement"
+                  ],
+                  "properties": {
+                    "entitlement": {
+                      "$ref": "#/components/schemas/GrantedEntitlement"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — a feature item without a code, a negative limit, a date that cannot be read or is not in the future.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "description": "`TENANT_OR_PRODUCT_NOT_FOUND` — no such tenant, or it does not hold that product. `PLAN_NOT_FOUND`, `FEATURE_NOT_FOUND` — no plan or feature of the product has that code; nothing was written.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`GRANT_EMPTY` — nothing would be granted: no features named and the plan grants none.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "withdrawTenantEntitlement",
+        "summary": "Take back what the platform gave",
+        "description": "Drops the grant. Whatever a subscription grants on the same product is untouched — it was never this. `staff.tenants.manage`; 204 whether or not there was a grant, because the state asked for is the same either way.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "description": "The tenant.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "A product the tenant holds (`assignTenantProduct`). Holding says the organisation may see the product; the grant says what it may do with it.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Withdrawn."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "description": "`TENANT_OR_PRODUCT_NOT_FOUND` — no such tenant, or it does not hold that product.",
             "content": {
               "application/json": {
                 "schema": {
