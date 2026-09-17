@@ -2554,7 +2554,7 @@ export interface paths {
         };
         /**
          * The fiscal facts behind the documents
-         * @description One row per taxed line of a document, with the rule that produced it. Paginated.
+         * @description One row per taxed line of a document, with the rule that produced it. Paginated. Since 2026-09-17 answered across every product the tenant holds (docs/tenant-roots.md §2.7): a customer’s VAT picture is one. `X-Product` still resolves the caller’s context; `product` narrows the answer to one product’s rows when asked.
          */
         get: operations["listVatTransactions"];
         put?: never;
@@ -3791,6 +3791,8 @@ export interface components {
             reverse_charge: boolean;
             /** Format: date-time */
             transaction_date: string;
+            /** @description The code of the product the document was raised in. Every transaction has one; null only where a product has since been removed. */
+            product: string | null;
         };
         VatPeriod: {
             /** Format: uuid */
@@ -10750,6 +10752,8 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 /** @description How many to skip. */
                 offset?: components["parameters"]["Offset"];
+                /** @description A product code the tenant holds, to narrow to its rows. Omitted: every product. */
+                product?: string;
             };
             header: {
                 /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */

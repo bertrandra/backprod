@@ -589,6 +589,49 @@ final class FiscalChainTest extends DatabaseApiTestCase
         );
     }
 
+    // --- one fiscal picture per tenant ----------------------------------------
+
+    /**
+     * A customer's VAT history is one, across the products it holds
+     * (docs/tenant-roots.md §2.7, 2026-09-17). The product a screen was
+     * opened in resolves the context and narrows only when asked to.
+     */
+    public function testTheFiscalHistorySpansEveryProductTheTenantHoldsAndNamesEach(): void
+    {
+        $this->saveTaxProfile(['country_code' => 'FR', 'customer_kind' => 'B2C']);
+        $this->saveBillingProfile();
+        $this->subscribe();
+        self::assertSame(201, $this->request('POST', '/api/v1/billing/invoices', $this->headers())->getStatusCode());
+
+        // A second product the tenant holds, with a fact raised in it — by
+        // hand, since the point is the read and not a second whole chain.
+        $boreas = $this->id("INSERT INTO products (code, name, active) VALUES ('boreas', 'Boreas', true) RETURNING id");
+        $this->connection->executeStatement(
+            <<<'SQL'
+            INSERT INTO vat_transactions
+                (invoice_id, tenant_id, product_id, country, supply_type,
+                 taxable_base, vat_rate, vat_amount, currency, vat_regime, rule_id, transaction_date)
+            SELECT invoice_id, tenant_id, :boreas, country, supply_type,
+                   taxable_base, vat_rate, vat_amount, currency, vat_regime, rule_id, transaction_date + interval '1 minute'
+              FROM vat_transactions LIMIT 1
+            SQL,
+            ['boreas' => $boreas],
+        );
+
+        $all = $this->decode($this->request('GET', '/api/v1/tax/transactions', $this->headers()));
+        self::assertSame(2, $all['total'] ?? null);
+        $products = [];
+        foreach ($all['transactions'] ?? [] as $fact) {
+            self::assertIsArray($fact);
+            $products[] = $fact['product'] ?? null;
+        }
+        self::assertSame(['boreas', 'atlas'], $products);
+
+        // Narrowed on request, never by the header alone.
+        $one = $this->decode($this->request('GET', '/api/v1/tax/transactions?product=boreas', $this->headers()));
+        self::assertSame(1, $one['total'] ?? null);
+    }
+
     // --- authorization ----------------------------------------------------
 
     public function testReadingFiscalHistoryNeedsThePermission(): void

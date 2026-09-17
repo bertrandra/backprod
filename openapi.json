@@ -1623,7 +1623,8 @@
           "vat_regime",
           "rule_id",
           "reverse_charge",
-          "transaction_date"
+          "transaction_date",
+          "product"
         ],
         "description": "The fiscal fact, written in the same transaction as the document that caused it — a sale whose VAT row could be lost is a sale that cannot be declared.",
         "properties": {
@@ -1684,6 +1685,13 @@
           "transaction_date": {
             "type": "string",
             "format": "date-time"
+          },
+          "product": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The code of the product the document was raised in. Every transaction has one; null only where a product has since been removed."
           }
         }
       },
@@ -14978,7 +14986,7 @@
         ],
         "operationId": "listVatTransactions",
         "summary": "The fiscal facts behind the documents",
-        "description": "One row per taxed line of a document, with the rule that produced it. Paginated.",
+        "description": "One row per taxed line of a document, with the rule that produced it. Paginated. Since 2026-09-17 answered across every product the tenant holds (docs/tenant-roots.md §2.7): a customer’s VAT picture is one. `X-Product` still resolves the caller’s context; `product` narrows the answer to one product’s rows when asked.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
@@ -14991,6 +14999,16 @@
           },
           {
             "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "name": "product",
+            "in": "query",
+            "required": false,
+            "description": "A product code the tenant holds, to narrow to its rows. Omitted: every product.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
           }
         ],
         "responses": {
