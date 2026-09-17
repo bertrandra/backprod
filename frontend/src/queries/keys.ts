@@ -30,6 +30,7 @@ export const keys = {
   },
   members: {
     all: ['members'] as const,
+    requests: ['members', 'requests'] as const,
   },
   skin: {
     current: ['skin', 'current'] as const,

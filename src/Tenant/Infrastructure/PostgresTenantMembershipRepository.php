@@ -64,6 +64,7 @@ final class PostgresTenantMembershipRepository implements TenantMembershipReposi
                       AND (p.code <> 'catalog.manage' OR t.may_author_offers)
                 WHERE tm.user_id = :userId
                   AND tm.product_id = :productId
+                  AND tm.status = 'ACTIVE'
                 GROUP BY tm.tenant_id, tm.user_id, tm.product_id
                 ORDER BY tm.tenant_id
                 SQL,

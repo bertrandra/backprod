@@ -4,7 +4,14 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { can } from '@/app/access/access';
-import { useAddMember, useMembers, useRemoveMember, useUpdateMemberRoles } from '@/queries/members';
+import {
+  useAddMember,
+  useDecideJoinRequest,
+  useJoinRequests,
+  useMembers,
+  useRemoveMember,
+  useUpdateMemberRoles,
+} from '@/queries/members';
 import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
@@ -42,6 +49,8 @@ export function MembersScreen() {
   const add = useAddMember();
   const updateRoles = useUpdateMemberRoles();
   const remove = useRemoveMember();
+  const requests = useJoinRequests();
+  const decide = useDecideJoinRequest();
   const [confirming, setConfirming] = useState<string | null>(null);
 
   const mayManage = can(session.data, 'members.manage');
@@ -158,6 +167,56 @@ export function MembersScreen() {
 
       {updateRoles.error !== null && <ErrorSurface error={updateRoles.error} />}
       {remove.error !== null && <ErrorSurface error={remove.error} />}
+
+      {/* People who signed up at this organisation's root and are waiting
+          (2026-09-17). Shown to anybody who may read the members — the
+          question "who is asking?" is not an administrator's secret — and
+          decided by those who may manage them. Absent altogether when nobody
+          waits, rather than an empty section announcing a feature. */}
+      {requests.data !== undefined && requests.data.length > 0 && (
+        <section data-testid="join-requests" className="space-y-3 border-t border-line pt-4">
+          <h2 className="text-xl font-semibold">Waiting to join</h2>
+          <p className="text-sm text-muted">
+            They created an account at this organisation&rsquo;s address. Accepting makes them a
+            member on every product; declining keeps their account and drops the request.
+          </p>
+          <ul className="space-y-2">
+            {requests.data.map((request) => (
+              <li
+                key={request.user_id}
+                data-testid={`join-request-${request.user_id}`}
+                className="rounded-card border border-line bg-surface p-4 shadow-raise md:flex md:items-center md:gap-4"
+              >
+                <div className="min-w-0 md:flex-1">
+                  <p className="truncate text-sm font-medium">
+                    {request.display_name ?? request.email ?? 'Unnamed'}
+                  </p>
+                  <p className="truncate text-xs text-muted">{request.email ?? 'No email address'}</p>
+                </div>
+                {mayManage && (
+                  <div className="mt-3 flex flex-wrap gap-2 md:mt-0">
+                    <Button
+                      type="button"
+                      pending={decide.isPending && decide.variables?.userId === request.user_id}
+                      onClick={() => decide.mutate({ userId: request.user_id, decision: 'accept' })}
+                    >
+                      Accept
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => decide.mutate({ userId: request.user_id, decision: 'decline' })}
+                    >
+                      Decline
+                    </Button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+          {decide.error !== null && <ErrorSurface error={decide.error} />}
+        </section>
+      )}
 
       {mayManage && (
         <form

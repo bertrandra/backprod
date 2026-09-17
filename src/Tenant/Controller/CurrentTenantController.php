@@ -6,6 +6,7 @@ namespace App\Tenant\Controller;
 
 use App\Shared\Context\RequestContextReader;
 use App\Shared\Http\RouteHandler;
+use App\Tenant\Service\Joining;
 use App\Tenant\Service\TenantProfile;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
@@ -20,8 +21,10 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 final class CurrentTenantController implements RouteHandler
 {
-    public function __construct(private readonly TenantProfile $tenants)
-    {
+    public function __construct(
+        private readonly TenantProfile $tenants,
+        private readonly Joining $joining,
+    ) {
     }
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
@@ -30,7 +33,7 @@ final class CurrentTenantController implements RouteHandler
         $context->requirePermission('tenant.read');
 
         return new JsonResponse(
-            TenantPresenter::one($this->tenants->current($context->tenantId)),
+            TenantPresenter::one($this->tenants->current($context->tenantId), $this->joining->policy($context->tenantId)),
             200,
         );
     }

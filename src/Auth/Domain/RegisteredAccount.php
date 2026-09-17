@@ -14,12 +14,18 @@ namespace App\Auth\Domain;
  */
 final class RegisteredAccount
 {
+    /**
+     * @param string $membershipStatus ACTIVE, or PENDING while an administrator
+     *                                 has yet to look (JoinDecision)
+     */
     public function __construct(
         public readonly string $userId,
         public readonly string $authSubject,
         public readonly string $email,
         public readonly string $tenantId,
         public readonly string $productId,
+        public readonly string $tenantSlug = '',
+        public readonly string $membershipStatus = 'ACTIVE',
     ) {
     }
 }

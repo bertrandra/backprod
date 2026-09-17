@@ -180,8 +180,11 @@ use App\Tax\Controller\ListVatTransactionsController;
 use App\Tax\Controller\SaveTaxProfileController;
 use App\Tax\Controller\ShowTaxProfileController;
 use App\Tax\Controller\ShowVatPeriodController;
+use App\Tenant\Controller\AcceptJoinRequestController;
 use App\Tenant\Controller\AddMemberController;
 use App\Tenant\Controller\CurrentTenantController;
+use App\Tenant\Controller\DeclineJoinRequestController;
+use App\Tenant\Controller\ListJoinRequestsController;
 use App\Tenant\Controller\ListMembersController;
 use App\Tenant\Controller\RemoveMemberController;
 use App\Tenant\Controller\UpdateCurrentTenantController;
@@ -742,4 +745,8 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('POST', '/api/v1/tenants/current/members', AddMemberController::class);
     $routes->addRoute('PATCH', '/api/v1/tenants/current/members/{userId}', UpdateMemberController::class);
     $routes->addRoute('DELETE', '/api/v1/tenants/current/members/{userId}', RemoveMemberController::class);
+    // People who asked to join by themselves and are waiting (2026-09-17).
+    $routes->addRoute('GET', '/api/v1/tenants/current/members/requests', ListJoinRequestsController::class);
+    $routes->addRoute('POST', '/api/v1/tenants/current/members/{userId}/decline', DeclineJoinRequestController::class);
+    $routes->addRoute('POST', '/api/v1/tenants/current/members/{userId}/accept', AcceptJoinRequestController::class);
 };

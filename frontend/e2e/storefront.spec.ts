@@ -11,10 +11,11 @@ import { expect, test, type Page } from '@playwright/test';
  * that: prices visible with no session, signing in present but secondary, and
  * choosing an offer leading to an account rather than to a login form.
  *
- * The whole purchase is not driven here. Its last step is a payment provider's
- * hosted page, which no E2E suite should be pretending to be; what is asserted
- * is that the storefront hands off to the ordinary authenticated checkout,
- * which the integration suite then proves end to end against a real database.
+ * Since 2026-09-17 the door is a request to join the organisation at this
+ * root, not a purchase: a sign-up makes a USER membership, live or waiting,
+ * and a USER cannot check out (docs/tenant-roots.md §2.4). So the form ends
+ * at the root, where the shell says "in" or "waiting"; buying is the
+ * administrator's, on the catalogue, and `commerce.spec.ts` drives it.
  */
 const OFFER = {
   id: '44444444-4444-4444-8444-444444444444',
@@ -67,63 +68,19 @@ async function stubStorefront(page: Page, window: object = { product: { code: 'a
   });
   // The shop windows there are: one, so the page chooses it itself and
   // `?product=` in the address only agrees with it.
-  await page.route(/\/api\/v1\/public\/products$/, (route) => {
+  await page.route(/\/api\/v1\/public\/products(\?|$)/, (route) => {
     asked.push('/api/v1/public/products');
 
     return route.fulfill({ json: { products: [{ code: 'atlas', name: 'Atlas' }] } });
   });
+  // Whose window: the bare host's default organisation (2026-09-17).
+  await page.route(/\/api\/v1\/public\/tenant(\?|$)/, (route) => {
+    asked.push('/api/v1/public/tenant');
+
+    return route.fulfill({ json: { tenant: { slug: 'acme', name: 'Acme Ltd', is_default: true } } });
+  });
 
   return asked;
-}
-
-const SESSION = {
-  id: '88888888-8888-4888-8888-888888888888',
-  order_id: '88888888-8888-4888-8888-888888888888',
-  status: 'AWAITING_PAYMENT',
-  invoice_id: 'inv-1',
-  subscription_id: null,
-  payment_id: 'pay-1',
-  payment_status: 'PENDING',
-  net: { minor_units: 2900, currency: 'EUR' },
-  vat: { minor_units: 0, currency: 'EUR' },
-  gross: { minor_units: 2900, currency: 'EUR' },
-};
-
-async function stubSignUp(page: Page): Promise<void> {
-  await page.route('**/api/v1/auth/sign-up', (route) =>
-    route.fulfill({
-      status: 201,
-      json: { access_token: 'access-token', token_type: 'Bearer', expires_in: 3600, tenant_id: '77777777-7777-4777-8777-777777777777' },
-    }),
-  );
-}
-
-/**
- * A Stripe.js that is honestly not one, served where the real one would load
- * from. It satisfies what @stripe/react-stripe-js checks for, mounts a box
- * where the Payment Element would be, and `confirmPayment` resolves — the
- * browser's word, which the page must not read as a status.
- */
-async function stubStripeJs(page: Page): Promise<void> {
-  await page.route(/^https:\/\/js\.stripe\.com\/v3\/?(\?.*)?$/, (route) =>
-    route.fulfill({
-      contentType: 'application/javascript',
-      body: `
-        window.Stripe = function () {
-          const element = {
-            mount(node) { const box = document.createElement('div'); box.setAttribute('data-testid', 'fake-payment-element'); box.textContent = 'Card'; node.appendChild(box); },
-            unmount() {}, destroy() {}, on() {}, off() {}, once() {}, update() {}, collapse() {}, focus() {}, blur() {}, clear() {},
-          };
-          return {
-            elements() { return { create() { return element; }, getElement() { return null; }, update() {}, fetchUpdates() { return Promise.resolve({}); }, submit() { return Promise.resolve({}); }, on() {}, off() {} }; },
-            createToken() {}, createPaymentMethod() {}, confirmCardPayment() {},
-            confirmPayment() { return Promise.resolve({ paymentIntent: { status: 'succeeded' } }); },
-            _registerWrapper() {},
-          };
-        };
-      `,
-    }),
-  );
 }
 
 test.describe('the shop window', () => {
@@ -173,27 +130,28 @@ test.describe('the shop window', () => {
 });
 
 test.describe('choosing an offer', () => {
-  test('asks for an account rather than for a password', async ({ page }) => {
+  test('asks to join the organisation rather than for a password', async ({ page }) => {
     await stubStorefront(page);
 
     await page.goto('/?product=atlas');
     await page.getByRole('button', { name: 'Choose' }).click();
 
-    await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
-    // The price they chose stays in front of them while they type.
+    await expect(page.getByRole('heading', { name: 'Join Acme Ltd' })).toBeVisible();
+    // The price they chose stays in front of them — and who buys is said.
     await expect(page.getByTestId('chosen-offer')).toContainText('€29.00');
+    await expect(page.getByText(/an administrator buys/i)).toBeVisible();
   });
 
-  test('does not make a consumer invent a company', async ({ page }) => {
+  test('asks for nothing an organisation would be made of', async ({ page }) => {
     await stubStorefront(page);
 
     await page.goto('/?product=atlas');
     await page.getByRole('button', { name: 'Choose' }).click();
 
-    // Optional in the label, not merely optional in the validator: somebody
-    // buying for themselves has to be able to see that they may skip it.
-    await expect(page.getByLabel('Company (optional)')).toBeVisible();
-    await expect(page.getByText(/buying for yourself/i)).toBeVisible();
+    // No company, no country: the organisation at this root has both.
+    await expect(page.getByLabel('Email')).toBeVisible();
+    await expect(page.getByLabel(/Company/)).toHaveCount(0);
+    await expect(page.getByLabel(/Country/)).toHaveCount(0);
   });
 
   test('lets them go back to the offers', async ({ page }) => {
@@ -206,96 +164,56 @@ test.describe('choosing an offer', () => {
     await expect(page.getByText('Pro, monthly')).toBeVisible();
   });
 
-  test('creates the account and opens the checkout for what was chosen', async ({ page }) => {
+  test('has a door from the footer too, with nothing in hand', async ({ page }) => {
     await stubStorefront(page);
 
-    let boughtOfferId: unknown = null;
+    await page.goto('/?product=atlas');
+    await page.getByTestId('sign-up-link').click();
 
-    await page.route('**/api/v1/auth/sign-up', (route) =>
-      route.fulfill({
+    await expect(page.getByRole('heading', { name: 'Join Acme Ltd' })).toBeVisible();
+    await expect(page.getByTestId('chosen-offer')).toHaveCount(0);
+  });
+
+  test('creates the account, names the organisation, and goes to the root', async ({ page }) => {
+    await stubStorefront(page);
+
+    let sent: unknown = null;
+
+    await page.route('**/api/v1/auth/sign-up', (route) => {
+      sent = route.request().postDataJSON();
+
+      return route.fulfill({
         status: 201,
         json: {
           access_token: 'access-token',
           token_type: 'Bearer',
           expires_in: 3600,
           tenant_id: '77777777-7777-4777-8777-777777777777',
-        },
-      }),
-    );
-
-    await page.route('**/api/v1/checkout/sessions', (route) => {
-      boughtOfferId = (route.request().postDataJSON() as { offer_id?: unknown }).offer_id;
-
-      return route.fulfill({
-        status: 201,
-        json: {
-          session: {
-            ...SESSION,
-            client_secret: 'stub_secret_1',
-            payment_provider: { name: 'stub', publishable_key: null, sandbox: true },
-          },
+          tenant: 'acme',
+          membership: 'PENDING',
         },
       });
     });
-
-    await page.goto('/?product=atlas');
-    await page.getByRole('button', { name: 'Choose' }).click();
-
-    await page.getByLabel('Email').fill('ada@acme.test');
-    await page.getByLabel('Password').fill('a-long-enough-password');
-    await page.getByLabel('Company (optional)').fill('Acme Ltd');
-    await page.getByRole('button', { name: 'Create account and continue' }).click();
-
-    // The pay step, where the secret was born (ADR-048). The stub has no card
-    // form, so it says so and the order is the way on.
-    await expect(page.getByTestId('payment-panel')).toBeVisible();
-    // The offer they chose, bought on the session the sign-up issued — not a
-    // second anonymous purchase flow, and not a second choice to make.
-    expect(boughtOfferId).toBe(OFFER.id);
-    await expect(page.getByTestId('payment-no-panel')).toBeVisible();
-    await expect(page.getByTestId('sandbox-band')).toBeVisible();
-    await page.getByTestId('continue-to-order').click();
-    await expect(page).toHaveURL(/\/checkout\/88888888-8888-4888-8888-888888888888/);
-  });
-
-  test('pays through the provider\'s form when it has one, then lands on the order', async ({ page }) => {
-    await stubStorefront(page);
-    await stubSignUp(page);
-    await stubStripeJs(page);
-
-    await page.route('**/api/v1/checkout/sessions', (route) =>
-      route.fulfill({
-        status: 201,
-        json: {
-          session: {
-            ...SESSION,
-            client_secret: 'pi_1_secret_x',
-            payment_provider: { name: 'stripe', publishable_key: 'pk_test_e2e', sandbox: true },
-          },
-        },
-      }),
+    // Signed in at the root afterwards: nothing to open yet, and the shell
+    // says where they wait.
+    await page.route('**/api/v1/auth/refresh', (route) =>
+      route.fulfill({ json: { access_token: 'access-token', token_type: 'Bearer', expires_in: 3600 } }),
+    );
+    await page.route(/\/api\/v1\/products$/, (route) =>
+      route.fulfill({ json: { products: [], default: null, pending_memberships: [{ tenant: 'acme', name: 'Acme Ltd' }] } }),
     );
 
     await page.goto('/?product=atlas');
     await page.getByRole('button', { name: 'Choose' }).click();
+
     await page.getByLabel('Email').fill('ada@acme.test');
     await page.getByLabel('Password').fill('a-long-enough-password');
-    await page.getByRole('button', { name: 'Create account and continue' }).click();
+    await page.getByRole('button', { name: 'Create account and join' }).click();
 
-    // Stripe's form, in the page, with the amount the server named — and the
-    // sandbox said out loud.
-    await expect(page.getByTestId('stripe-form')).toBeVisible();
-    await expect(page.getByTestId('sandbox-band')).toBeVisible();
-    await expect(page.getByRole('button', { name: /^Pay/ })).toContainText('29');
-
-    // Enabled once Stripe.js has loaded — the fake one, from the route above.
-    await expect(page.getByRole('button', { name: /^Pay/ })).toBeEnabled();
-    await page.getByRole('button', { name: /^Pay/ }).click();
-
-    // Whatever the form said, the status page is where the answer is read.
-    await expect(page).toHaveURL(/\/checkout\/88888888-8888-4888-8888-888888888888/);
-    // The secret went to the provider and nowhere the page keeps.
-    expect(await page.evaluate(() => JSON.stringify(window.localStorage))).not.toContain('pi_1_secret');
+    await expect(page.getByTestId('waiting-for-approval')).toBeVisible();
+    await expect(page).toHaveURL(/\/$/);
+    // The organisation from the root, never typed; the product for the default.
+    expect(sent).toMatchObject({ email: 'ada@acme.test', tenant: 'acme', product: 'atlas' });
   });
 
   test('says plainly when the address already has an account', async ({ page }) => {
@@ -315,10 +233,10 @@ test.describe('choosing an offer', () => {
 
     await page.getByLabel('Email').fill('ada@acme.test');
     await page.getByLabel('Password').fill('a-long-enough-password');
-    await page.getByRole('button', { name: 'Create account and continue' }).click();
+    await page.getByRole('button', { name: 'Create account and join' }).click();
 
     // The one place this platform tells anybody an account exists. Somebody who
-    // cannot be told cannot finish the purchase they came for.
+    // cannot be told cannot finish what they came for.
     await expect(page.getByRole('alert')).toContainText('already has an account');
   });
 });

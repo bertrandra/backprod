@@ -9,6 +9,8 @@ use App\Product\Domain\Product;
 use App\Product\Domain\ProductFeature;
 use App\Product\Domain\ProductRegistry;
 use App\Product\Infrastructure\InMemoryProductRegistry;
+use App\Tenant\Domain\JoinRequests;
+use App\Tenant\Infrastructure\InMemoryJoinRequests;
 use App\Tests\Support\FakeAuthProvider;
 use App\User\Domain\PlatformUser;
 use App\User\Domain\UserDirectory;
@@ -40,6 +42,9 @@ final class ProductDiscoveryTest extends ApiTestCase
 
         $this->override([
             UserDirectory::class => new InMemoryUserDirectory(),
+            // And where the caller is still waiting to be let in (2026-09-17):
+            // nowhere, in this suite.
+            JoinRequests::class => new InMemoryJoinRequests(),
             // The list now says which product is the caller's default, which
             // is read from the user record — in memory here, as the identities.
             UserRepository::class => new InMemoryUserRepository([
@@ -84,6 +89,7 @@ final class ProductDiscoveryTest extends ApiTestCase
                 ['id' => 'prod-beacon', 'code' => 'beacon', 'name' => 'Beacon'],
             ],
             'default' => null,
+            'pending_memberships' => [],
         ], $this->decode($response));
     }
 

@@ -12,6 +12,7 @@ use App\Auth\Infrastructure\LocalJwtTokenIssuer;
 use App\Payment\Infrastructure\StubPaymentProvider;
 use App\Payment\Service\PaymentProviders;
 use App\Shared\Logging\ErrorLogLogger;
+use App\Tests\Support\TestDatabase;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
 
@@ -30,7 +31,7 @@ use Psr\Http\Message\ResponseInterface;
  *   - a stranger sees only what somebody deliberately advertised;
  *   - a stranger learns nothing else — not which products exist, not which
  *     offers exist, not whether an id is real;
- *   - a stranger can become a customer and buy, in two calls.
+ *   - a stranger can join the organisation at this root and buy, in two calls.
  */
 #[CoversNothing]
 final class StorefrontTest extends DatabaseApiTestCase
@@ -45,6 +46,7 @@ final class StorefrontTest extends DatabaseApiTestCase
     private string $advertised = '';
     private string $private = '';
     private string $staff = '';
+    private string $acme = '';
 
     protected function setUp(): void
     {
@@ -63,6 +65,21 @@ final class StorefrontTest extends DatabaseApiTestCase
         // this feature rests on.
         $this->advertised = $this->offer('pro-monthly', 'Pro, monthly', true);
         $this->private = $this->offer('reseller', 'Reseller terms', false);
+
+        // The organisation whose root the storefront is at (2026-09-17): a
+        // sign-up joins it rather than making one. It admits its own domain
+        // at once, so the person who signs up below can buy in the same
+        // breath; the other policies are JoiningTest's.
+        $this->acme = $this->id("INSERT INTO tenants (name, slug, join_policy) VALUES ('Acme Ltd', 'acme', 'DOMAIN') RETURNING id");
+        $this->connection->executeStatement(
+            "INSERT INTO tenant_join_domains (tenant_id, domain) VALUES (:tenant, 'acme.test')",
+            ['tenant' => $this->acme],
+        );
+        TestDatabase::assignProduct($this->connection, $this->acme, $this->product);
+        $this->connection->executeStatement(
+            "INSERT INTO billing_profiles (tenant_id, legal_name, billing_email, country_code) VALUES (:tenant, 'Acme Ltd', 'billing@acme.test', 'FR')",
+            ['tenant' => $this->acme],
+        );
 
         // A real administrator with a real password, rather than a fake
         // provider: this suite also exercises sign-up, which *issues* tokens,
@@ -392,15 +409,15 @@ final class StorefrontTest extends DatabaseApiTestCase
         self::assertFalse($this->isAdvertised($this->private));
     }
 
-    // --- A stranger becomes a customer --------------------------------------
+    // --- A stranger joins the organisation at this root ----------------------
 
-    public function testSigningUpCreatesAnAccountAnOrganisationAndASession(): void
+    public function testSigningUpJoinsTheOrganisationAtTheRootAsAUser(): void
     {
         $response = $this->signUp([
             'email' => 'ada@acme.test',
             'password' => 'a-long-enough-password',
             'display_name' => 'Ada',
-            'organisation' => 'Acme Ltd',
+            'tenant' => 'acme',
             'product' => 'atlas',
         ]);
 
@@ -409,32 +426,26 @@ final class StorefrontTest extends DatabaseApiTestCase
         $body = $this->decode($response);
 
         self::assertIsString($body['access_token'] ?? null);
-        self::assertIsString($body['tenant_id'] ?? null);
+        self::assertSame($this->acme, $body['tenant_id'] ?? null);
+        self::assertSame('acme', $body['tenant'] ?? null);
+        self::assertSame('ACTIVE', $body['membership'] ?? null);
 
-        // The organisation carries the company name, and the person
-        // administers it. Six rows or none.
-        self::assertSame('Acme Ltd', $this->connection->fetchOne(
-            'SELECT name FROM tenants WHERE id = :id',
-            ['id' => $body['tenant_id']],
-        ));
-        // The product they arrived for is the organisation's first product
-        // (ADR-047), and nobody on staff decided it.
-        self::assertSame(1, $this->connection->fetchOne(
+        // No organisation was made — the one at the root was joined — and
+        // the person is a USER of it, never its administrator (2026-09-17).
+        self::assertSame(1, $this->connection->fetchOne('SELECT count(*) FROM tenants'));
+        self::assertSame(['USER'], $this->connection->fetchFirstColumn(
             <<<'SQL'
-                SELECT count(*) FROM tenant_products tp
-                  JOIN products p ON p.id = tp.product_id
-                 WHERE tp.tenant_id = :tenant AND p.code = 'atlas' AND tp.assigned_by IS NULL
-                SQL,
-            ['tenant' => $body['tenant_id']],
-        ));
-        self::assertSame(1, $this->connection->fetchOne(
-            <<<'SQL'
-                SELECT count(*) FROM tenant_member_roles tmr
+                SELECT r.code FROM tenant_member_roles tmr
                   JOIN roles r ON r.id = tmr.role_id
-                 WHERE tmr.tenant_id = :tenant AND r.code = 'TENANT_ADMIN'
+                  JOIN users u ON u.id = tmr.user_id
+                 WHERE tmr.tenant_id = :tenant AND u.email = 'ada@acme.test'
                 SQL,
-            ['tenant' => $body['tenant_id']],
+            ['tenant' => $this->acme],
         ));
+        // Not staff either: the installer's first account is both because
+        // there is nobody else to be the second one; somebody who arrived at
+        // a storefront is not.
+        self::assertSame(1, $this->connection->fetchOne('SELECT count(*) FROM platform_staff'));
     }
 
     /**
@@ -449,6 +460,7 @@ final class StorefrontTest extends DatabaseApiTestCase
             'email' => 'ada@acme.test',
             'password' => 'a-long-enough-password',
             'display_name' => 'Ada',
+            'tenant' => 'acme',
             'product' => 'atlas',
         ]))['access_token'] ?? null;
         self::assertIsString($token);
@@ -458,6 +470,7 @@ final class StorefrontTest extends DatabaseApiTestCase
 
         $products = $this->decode($this->request('GET', '/api/v1/products', $bearer));
         self::assertSame('atlas', $products['default'] ?? null);
+        self::assertSame([], $products['pending_memberships'] ?? null);
         self::assertSame('atlas', $this->decode($this->request('GET', '/api/v1/me', $scoped))['default_product'] ?? null);
 
         // A product they do not hold is refused, and nothing moves.
@@ -482,44 +495,25 @@ final class StorefrontTest extends DatabaseApiTestCase
         self::assertSame('atlas', $this->decode($set)['default_product'] ?? null);
     }
 
-    public function testAConsumerIsNotMadeToInventACompany(): void
+    public function testAProductTheOrganisationDoesNotHoldIsNotRefusedButNotTheDefaultEither(): void
     {
+        $this->connection->executeStatement("INSERT INTO products (code, name, active) VALUES ('boreas', 'Boreas', true)");
+
         $response = $this->signUp([
-            'email' => 'sam@personal.test',
-            'password' => 'a-long-enough-password',
-            'display_name' => 'Sam Rivers',
-            'product' => 'atlas',
-        ]);
-
-        self::assertSame(201, $response->getStatusCode());
-
-        // An invoice still needs somebody to be addressed to, and that is who
-        // it is. Nothing records that this was the B2C case, because nothing
-        // downstream should behave differently.
-        self::assertSame('Sam Rivers', $this->connection->fetchOne(
-            'SELECT name FROM tenants WHERE id = :id',
-            ['id' => $this->decode($response)['tenant_id']],
-        ));
-    }
-
-    public function testTheNewAccountAdministersItsOwnOrganisationAndNothingElse(): void
-    {
-        $this->signUp([
             'email' => 'ada@acme.test',
             'password' => 'a-long-enough-password',
-            'product' => 'atlas',
+            'tenant' => 'acme',
+            'product' => 'boreas',
         ]);
 
-        // Not staff. The installer's first account is both because there is
-        // nobody else to be the second one; somebody who bought a subscription
-        // is not.
-        self::assertSame(1, $this->connection->fetchOne('SELECT count(*) FROM platform_staff'));
-
-        // And not an offer author: ADR-040's flag stays false, so the platform
-        // catalogue is not theirs to edit.
-        self::assertFalse((bool) $this->connection->fetchOne(
-            "SELECT may_author_offers FROM tenants WHERE name = 'ada@acme.test'",
-        ));
+        // The person came to join the organisation, not a product: what the
+        // page happened to show does not decide whether they may.
+        self::assertSame(201, $response->getStatusCode());
+        $token = $this->decode($response)['access_token'] ?? null;
+        self::assertIsString($token);
+        self::assertSame('atlas', $this->decode($this->request('GET', '/api/v1/products', [
+            'Authorization' => 'Bearer ' . $token,
+        ]))['default'] ?? null);
     }
 
     public function testTheAddressIsUnverifiedAndTheAccountWorksAnyway(): void
@@ -527,7 +521,7 @@ final class StorefrontTest extends DatabaseApiTestCase
         $response = $this->signUp([
             'email' => 'ada@acme.test',
             'password' => 'a-long-enough-password',
-            'product' => 'atlas',
+            'tenant' => 'acme',
         ]);
 
         self::assertSame(201, $response->getStatusCode());
@@ -545,7 +539,7 @@ final class StorefrontTest extends DatabaseApiTestCase
         $this->signUp([
             'email' => 'ada@acme.test',
             'password' => 'a-long-enough-password',
-            'product' => 'atlas',
+            'tenant' => 'acme',
         ]);
 
         $token = $this->emailedToken();
@@ -573,13 +567,13 @@ final class StorefrontTest extends DatabaseApiTestCase
         $this->signUp([
             'email' => 'ada@acme.test',
             'password' => 'a-long-enough-password',
-            'product' => 'atlas',
+            'tenant' => 'acme',
         ]);
 
         $again = $this->signUp([
             'email' => 'ADA@acme.test',
             'password' => 'another-long-password',
-            'product' => 'atlas',
+            'tenant' => 'acme',
         ]);
 
         // Case-insensitive, and answered rather than hidden: somebody who
@@ -587,19 +581,19 @@ final class StorefrontTest extends DatabaseApiTestCase
         // sign-in form is one click away.
         self::assertSame(409, $again->getStatusCode());
         self::assertSame('EMAIL_TAKEN', $this->errorOf($again)['code']);
-        self::assertSame(1, $this->connection->fetchOne('SELECT count(*) FROM tenants'));
+        self::assertSame(1, $this->connection->fetchOne('SELECT count(*) FROM tenant_members'));
     }
 
-    public function testSigningUpForAProductThatDoesNotExistCreatesNothing(): void
+    public function testSigningUpAtARootNobodyHasCreatesNothing(): void
     {
         $response = $this->signUp([
             'email' => 'ada@acme.test',
             'password' => 'a-long-enough-password',
-            'product' => 'no-such-product',
+            'tenant' => 'nowhere',
         ]);
 
         self::assertSame(404, $response->getStatusCode());
-        self::assertSame(0, $this->connection->fetchOne('SELECT count(*) FROM tenants'));
+        self::assertSame('TENANT_NOT_FOUND', $this->errorOf($response)['code'] ?? null);
         self::assertSame(1, $this->connection->fetchOne('SELECT count(*) FROM users'));
     }
 
@@ -608,35 +602,53 @@ final class StorefrontTest extends DatabaseApiTestCase
         $response = $this->signUp([
             'email' => 'ada@acme.test',
             'password' => 'short',
-            'product' => 'atlas',
+            'tenant' => 'acme',
         ]);
 
         self::assertSame(400, $response->getStatusCode());
-        self::assertSame(0, $this->connection->fetchOne('SELECT count(*) FROM tenants'));
+        self::assertSame(1, $this->connection->fetchOne('SELECT count(*) FROM users'));
     }
 
-    public function testTheSessionItIssuesCanImmediatelyBuyTheOfferTheyChose(): void
+    public function testTheSessionItIssuesSeesTheWindowAndCannotBuyFromIt(): void
     {
         $token = $this->decode($this->signUp([
             'email' => 'ada@acme.test',
             'password' => 'a-long-enough-password',
-            'organisation' => 'Acme Ltd',
+            'tenant' => 'acme',
             'product' => 'atlas',
         ]))['access_token'];
 
         self::assertIsString($token);
 
-        // The whole point: the purchase that follows is an ordinary
-        // authenticated checkout, on the membership the sign-up created, with
-        // no second anonymous flow and no rules of its own.
-        $checkout = $this->request(
-            'POST',
-            '/api/v1/checkout/sessions',
-            ['Authorization' => 'Bearer ' . $token, 'X-Product' => 'atlas'],
-            $this->json(['offer_id' => $this->advertised]),
+        $scoped = ['Authorization' => 'Bearer ' . $token, 'X-Product' => 'atlas'];
+
+        // The organisation is the customer and buying is its administrator's
+        // (docs/tenant-roots.md §2.4): somebody who arrived by themselves is
+        // a USER, sees the prices, and is refused the checkout by the
+        // ordinary permission gate — no rule of the storefront's own.
+        self::assertSame(200, $this->request('GET', '/api/v1/public/offers?product=atlas&tenant=acme')->getStatusCode());
+
+        $checkout = $this->request('POST', '/api/v1/checkout/sessions', $scoped, $this->json(['offer_id' => $this->advertised]));
+
+        self::assertSame(403, $checkout->getStatusCode());
+        self::assertSame(0, $this->connection->fetchOne('SELECT count(*) FROM orders'));
+
+        // Made an administrator by one who is, the same session buys: the
+        // road is the ordinary authenticated checkout, not a second flow.
+        $this->connection->executeStatement(
+            <<<'SQL'
+                INSERT INTO tenant_member_roles (tenant_id, product_id, user_id, role_id)
+                SELECT tm.tenant_id, tm.product_id, tm.user_id, r.id
+                  FROM tenant_members tm CROSS JOIN roles r
+                  JOIN users u ON u.id = tm.user_id
+                 WHERE tm.tenant_id = :tenant AND u.email = 'ada@acme.test' AND r.code = 'TENANT_ADMIN'
+                SQL,
+            ['tenant' => $this->acme],
         );
 
-        self::assertSame(201, $checkout->getStatusCode());
+        $bought = $this->request('POST', '/api/v1/checkout/sessions', $scoped, $this->json(['offer_id' => $this->advertised]));
+
+        self::assertSame(201, $bought->getStatusCode());
         self::assertSame(1, $this->connection->fetchOne('SELECT count(*) FROM orders'));
     }
 
@@ -645,7 +657,7 @@ final class StorefrontTest extends DatabaseApiTestCase
         $this->signUp([
             'email' => 'ada@acme.test',
             'password' => 'a-long-enough-password',
-            'product' => 'atlas',
+            'tenant' => 'acme',
         ]);
 
         $response = $this->request('POST', '/api/v1/auth/token', [], $this->json([

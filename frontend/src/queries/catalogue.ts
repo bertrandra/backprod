@@ -129,6 +129,8 @@ export function useProducts(enabled = true) {
  * second is only meaningful among the first, and the server says both in
  * one reply.
  */
+export type PendingMembership = { readonly tenant: string; readonly name: string };
+
 export function useMyProducts(enabled = true) {
   const client = useApiClient();
 
@@ -136,14 +138,19 @@ export function useMyProducts(enabled = true) {
     queryKey: keys.catalogue.myProducts,
     enabled,
     staleTime: CATALOGUE_STALE_MS,
-    queryFn: async (): Promise<{ readonly products: readonly Product[]; readonly default: string | null }> => {
+    queryFn: async (): Promise<{
+      readonly products: readonly Product[];
+      readonly default: string | null;
+      /** Where this person asked to join and is still waiting (2026-09-17). */
+      readonly pending: readonly PendingMembership[];
+    }> => {
       const { data, error, response } = await client.GET('/api/v1/products', {});
 
       if (error !== undefined || data === undefined) {
         throw toApiError(response.status, error);
       }
 
-      return { products: data.products, default: data.default ?? null };
+      return { products: data.products, default: data.default ?? null, pending: data.pending_memberships };
     },
   });
 }

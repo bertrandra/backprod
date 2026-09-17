@@ -21,9 +21,11 @@ use App\Tenant\Domain\Tenant;
 final class TenantPresenter
 {
     /**
-     * @return array{tenant: array{id: string, name: string, slug: string, may_author_offers: bool}}
+     * @param array{policy: string, domains: list<string>} $joining how people arrive by themselves (2026-09-17)
+     *
+     * @return array{tenant: array{id: string, name: string, slug: string, may_author_offers: bool, join_policy: string, join_domains: list<string>}}
      */
-    public static function one(Tenant $tenant): array
+    public static function one(Tenant $tenant, array $joining): array
     {
         return [
             'tenant' => [
@@ -31,6 +33,8 @@ final class TenantPresenter
                 'name' => $tenant->name,
                 'slug' => $tenant->slug,
                 'may_author_offers' => $tenant->mayAuthorOffers,
+                'join_policy' => $joining['policy'],
+                'join_domains' => $joining['domains'],
             ],
         ];
     }

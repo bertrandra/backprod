@@ -30,6 +30,7 @@ final class PostgresTenantMemberRepository implements TenantMemberRepository
                 LEFT JOIN roles r ON r.id = tmr.role_id
                 WHERE tm.tenant_id = :tenantId
                   AND tm.product_id = :productId
+                  AND tm.status = 'ACTIVE'
                 GROUP BY u.id, u.email, u.display_name
                 ORDER BY u.email NULLS LAST, u.id
                 SQL,

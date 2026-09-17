@@ -452,7 +452,10 @@
         "/members"
       ],
       "operations": [
+        "acceptJoinRequest",
         "addMember",
+        "declineJoinRequest",
+        "listJoinRequests",
         "listMembers",
         "removeMember",
         "updateMember"

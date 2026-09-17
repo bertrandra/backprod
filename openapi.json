@@ -2482,7 +2482,9 @@
           "id",
           "name",
           "slug",
-          "may_author_offers"
+          "may_author_offers",
+          "join_policy",
+          "join_domains"
         ],
         "properties": {
           "id": {
@@ -2498,6 +2500,22 @@
           "may_author_offers": {
             "type": "boolean",
             "description": "Whether the platform has lent this tenant the catalogue. False by default: offers are keyed on product, not tenant, so a tenant administrator editing them changes what every other customer of that product is sold on. When false, `catalog.manage` is not resolved for this tenant's members at all."
+          },
+          "join_policy": {
+            "type": "string",
+            "enum": [
+              "INVITATION",
+              "DOMAIN",
+              "APPROVAL"
+            ],
+            "description": "How people arrive by themselves at this organisation’s root. `APPROVAL` (default): anybody may ask, an administrator accepts. `DOMAIN`: an address on one of `join_domains` is in at once, any other is refused. `INVITATION`: nobody arrives by themselves; administrators add people."
+          },
+          "join_domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Email domains, lower-case, without `@`. Consulted only under `DOMAIN`, and required non-empty to switch to it."
           }
         }
       },
@@ -2535,7 +2553,8 @@
           "user_id",
           "email",
           "display_name",
-          "roles"
+          "roles",
+          "status"
         ],
         "properties": {
           "user_id": {
@@ -2560,6 +2579,14 @@
             "items": {
               "type": "string"
             }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "PENDING"
+            ],
+            "description": "`ACTIVE` for everybody `listMembers` returns; `PENDING` for the people `listJoinRequests` returns, who asked to join by themselves and are waiting on an administrator."
           }
         }
       },
@@ -9886,7 +9913,8 @@
                   "type": "object",
                   "required": [
                     "products",
-                    "default"
+                    "default",
+                    "pending_memberships"
                   ],
                   "properties": {
                     "products": {
@@ -9901,6 +9929,26 @@
                         "null"
                       ],
                       "description": "The code of this person's default product, among `products`, or null. Beside the list rather than on `/me` because `/me` needs a product and this is how a client learns which to name first."
+                    },
+                    "pending_memberships": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "tenant",
+                          "name"
+                        ],
+                        "properties": {
+                          "tenant": {
+                            "type": "string",
+                            "description": "The organisation’s slug."
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "description": "The organisations this person asked to join and is waiting on. Here rather than on `/me` because somebody with no live membership has no product to ask `/me` with; this is how a client says “waiting for approval” rather than “nothing”."
                     }
                   }
                 }
@@ -14997,7 +15045,7 @@
         ],
         "operationId": "updateCurrentTenant",
         "summary": "Rename the tenant",
-        "description": "Partial.",
+        "description": "Partial: each field is touched only when sent. Switching `join_policy` to `DOMAIN` needs at least one domain, in the same body or already stored; `400 JOIN_DOMAINS_REQUIRED` otherwise, and `400 VALIDATION_FAILED` for a policy outside the three or a domain that is not one.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
@@ -15014,7 +15062,23 @@
                 "type": "object",
                 "properties": {
                   "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "join_policy": {
+                    "type": "string",
+                    "enum": [
+                      "INVITATION",
+                      "DOMAIN",
+                      "APPROVAL"
+                    ]
+                  },
+                  "join_domains": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Replaces the list."
                   }
                 }
               }
@@ -15040,8 +15104,8 @@
               }
             }
           },
-          "422": {
-            "description": "A name that is not acceptable.",
+          "400": {
+            "description": "`VALIDATION_FAILED`, `JOIN_DOMAINS_REQUIRED`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15055,6 +15119,16 @@
           },
           "403": {
             "$ref": "#/components/responses/PermissionDenied"
+          },
+          "422": {
+            "description": "A name that is not acceptable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -15205,6 +15279,59 @@
         }
       }
     },
+    "/api/v1/tenants/current/members/requests": {
+      "get": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "listJoinRequests",
+        "summary": "Who asked to join and is waiting",
+        "description": "The people who signed up at this organisation’s root under the `APPROVAL` policy and have not been accepted or declined. `members.read`, like the members themselves. They do not appear in `listMembers`: a pending membership grants nothing and resolves no context.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requests, oldest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "requests"
+                  ],
+                  "properties": {
+                    "requests": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Member"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/tenants/current/members/{userId}": {
       "patch": {
         "tags": [
@@ -15326,6 +15453,114 @@
           },
           "403": {
             "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/current/members/{userId}/accept": {
+      "post": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "acceptJoinRequest",
+        "summary": "Let somebody in",
+        "description": "Makes a pending membership live on every product the organisation holds. `members.manage`. The person’s next `/me` answers; nothing else changes — the roles stay what sign-up wrote (USER), and re-roling is `updateMemberRoles`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Accepted."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "description": "`JOIN_REQUEST_NOT_FOUND` — nobody with that id is waiting.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/current/members/{userId}/decline": {
+      "post": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "declineJoinRequest",
+        "summary": "Turn somebody away",
+        "description": "Drops a pending membership. `members.manage`. The account stays — the person may ask again, or join elsewhere. A live member is not declined but removed (`removeMember`), which has the last-administrator rule a pending row never needs.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Declined."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "description": "`JOIN_REQUEST_NOT_FOUND` — nobody with that id is waiting.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -16092,8 +16327,8 @@
           "Session"
         ],
         "operationId": "signUp",
-        "summary": "Create an account, an organisation and a session",
-        "description": "Public. The only endpoint that creates an account from nothing — user, credential, tenant, TENANT_ADMIN membership of the named product — in one transaction. `organisation` is optional: somebody buying for themselves has no company and the tenant takes their own name instead, which nothing downstream branches on. The address is **not** verified first: a session is issued immediately and `users.email_verified_at` stays null until the confirmation link is followed. Unlike signing in, this says plainly when an address is taken — a person who cannot be told cannot finish the purchase they came for — and the public rate limit is what bounds the enumeration that permits. A minimal billing profile is created alongside the tenant — a checkout refuses an order it cannot invoice, and an account that could not buy anything would make the storefront’s promise false.",
+        "summary": "Create an account and ask to join the organisation at this root",
+        "description": "Public. Creates the account — user and credential — and a USER membership of the organisation named by `tenant` (the slug of the root the form was reached from) on every product that organisation holds, in one transaction. It never creates an organisation and never makes an administrator: organisations are made by the platform (`createTenantForStaff`), and the first administrator is named there. Whether the membership is live at once or waits is the organisation’s join policy: `APPROVAL` (the default) writes it `PENDING` and tells the administrators; `DOMAIN` makes it `ACTIVE` when the address’s domain is on the organisation’s list and refuses otherwise (`403 JOIN_DOMAIN_NOT_ALLOWED`); `INVITATION` refuses self-service altogether (`403 JOIN_BY_INVITATION`). The address is **not** verified first: a session is issued immediately and `users.email_verified_at` stays null until the confirmation link is followed. Unlike signing in, this says plainly when an address is taken — a person who cannot be told cannot finish what they came for — and the public rate limit is what bounds the enumeration that permits.",
         "requestBody": {
           "required": true,
           "content": {
@@ -16103,7 +16338,7 @@
                 "required": [
                   "email",
                   "password",
-                  "product"
+                  "tenant"
                 ],
                 "properties": {
                   "email": {
@@ -16120,25 +16355,18 @@
                   "product": {
                     "type": "string",
                     "maxLength": 64,
-                    "description": "The product code this account is being created for. A membership is per product, so an account without one would have no way in."
+                    "description": "The product code the person arrived through, if any. It becomes their default product when the organisation holds it; otherwise the first product the organisation holds does. The membership itself is written on every product the organisation holds.",
+                    "nullable": true
                   },
                   "display_name": {
                     "type": "string",
                     "nullable": true,
                     "maxLength": 200
                   },
-                  "organisation": {
+                  "tenant": {
                     "type": "string",
-                    "nullable": true,
-                    "maxLength": 200,
-                    "description": "The company name, when there is one. Omitted for a consumer; the tenant is then named after the person."
-                  },
-                  "country": {
-                    "type": "string",
-                    "nullable": true,
-                    "minLength": 2,
-                    "maxLength": 2,
-                    "description": "ISO 3166-1 alpha-2. Optional, and asked for because VAT depends on it rather than to make the form look complete."
+                    "maxLength": 63,
+                    "description": "The slug of the organisation to join — the root the form was reached from, or the default organisation’s slug on the bare host (`showPublicTenant` says which). `404 TENANT_NOT_FOUND` when no organisation has it."
                   }
                 }
               }
@@ -16147,7 +16375,7 @@
         },
         "responses": {
           "201": {
-            "description": "The account was created and a session issued. The refresh token leaves in a `Set-Cookie` header and never in the body.",
+            "description": "The account was created, a membership written, and a session issued. The refresh token leaves in a `Set-Cookie` header and never in the body.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16156,7 +16384,9 @@
                     "access_token",
                     "token_type",
                     "expires_in",
-                    "tenant_id"
+                    "tenant_id",
+                    "tenant",
+                    "membership"
                   ],
                   "properties": {
                     "access_token": {
@@ -16171,7 +16401,19 @@
                     "tenant_id": {
                       "type": "string",
                       "format": "uuid",
-                      "description": "The organisation just created. Returned because the checkout that follows resolves it anyway."
+                      "description": "The organisation joined."
+                    },
+                    "tenant": {
+                      "type": "string",
+                      "description": "Its slug — the root to return to."
+                    },
+                    "membership": {
+                      "type": "string",
+                      "enum": [
+                        "ACTIVE",
+                        "PENDING"
+                      ],
+                      "description": "`ACTIVE`: the person is in and `/me` answers. `PENDING`: an administrator has to accept first; `listProducts` lists nothing for them yet and names the organisation under `pending_memberships`."
                     }
                   }
                 }
@@ -16188,8 +16430,25 @@
               }
             }
           },
+          "403": {
+            "description": "`JOIN_DOMAIN_NOT_ALLOWED` — the organisation admits only addresses on its listed domains, and this one is not. `JOIN_BY_INVITATION` — the organisation does not take self-service requests at all.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "`TENANT_NOT_FOUND` — no organisation has that slug. `TENANT_HOLDS_NOTHING` — the organisation has been assigned no product yet, so there is nothing to be a member of.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "409": {
             "description": "`EMAIL_TAKEN` — that address already has an account. Sign in instead.",

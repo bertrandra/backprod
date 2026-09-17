@@ -2612,7 +2612,7 @@ export interface paths {
         head?: never;
         /**
          * Rename the tenant
-         * @description Partial.
+         * @description Partial: each field is touched only when sent. Switching `join_policy` to `DOMAIN` needs at least one domain, in the same body or already stored; `400 JOIN_DOMAINS_REQUIRED` otherwise, and `400 VALIDATION_FAILED` for a policy outside the three or a domain that is not one.
          */
         patch: operations["updateCurrentTenant"];
         trace?: never;
@@ -2638,6 +2638,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenants/current/members/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who asked to join and is waiting
+         * @description The people who signed up at this organisation’s root under the `APPROVAL` policy and have not been accepted or declined. `members.read`, like the members themselves. They do not appear in `listMembers`: a pending membership grants nothing and resolves no context.
+         */
+        get: operations["listJoinRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenants/current/members/{userId}": {
         parameters: {
             query?: never;
@@ -2657,6 +2677,46 @@ export interface paths {
          * @description Replaces the set; roles are not merged.
          */
         patch: operations["updateMember"];
+        trace?: never;
+    };
+    "/api/v1/tenants/current/members/{userId}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Let somebody in
+         * @description Makes a pending membership live on every product the organisation holds. `members.manage`. The person’s next `/me` answers; nothing else changes — the roles stay what sign-up wrote (USER), and re-roling is `updateMemberRoles`.
+         */
+        post: operations["acceptJoinRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/current/members/{userId}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Turn somebody away
+         * @description Drops a pending membership. `members.manage`. The account stays — the person may ask again, or join elsewhere. A live member is not declined but removed (`removeMember`), which has the last-administrator rule a pending row never needs.
+         */
+        post: operations["declineJoinRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/tenants/current/usage": {
@@ -2853,8 +2913,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Create an account, an organisation and a session
-         * @description Public. The only endpoint that creates an account from nothing — user, credential, tenant, TENANT_ADMIN membership of the named product — in one transaction. `organisation` is optional: somebody buying for themselves has no company and the tenant takes their own name instead, which nothing downstream branches on. The address is **not** verified first: a session is issued immediately and `users.email_verified_at` stays null until the confirmation link is followed. Unlike signing in, this says plainly when an address is taken — a person who cannot be told cannot finish the purchase they came for — and the public rate limit is what bounds the enumeration that permits. A minimal billing profile is created alongside the tenant — a checkout refuses an order it cannot invoice, and an account that could not buy anything would make the storefront’s promise false.
+         * Create an account and ask to join the organisation at this root
+         * @description Public. Creates the account — user and credential — and a USER membership of the organisation named by `tenant` (the slug of the root the form was reached from) on every product that organisation holds, in one transaction. It never creates an organisation and never makes an administrator: organisations are made by the platform (`createTenantForStaff`), and the first administrator is named there. Whether the membership is live at once or waits is the organisation’s join policy: `APPROVAL` (the default) writes it `PENDING` and tells the administrators; `DOMAIN` makes it `ACTIVE` when the address’s domain is on the organisation’s list and refuses otherwise (`403 JOIN_DOMAIN_NOT_ALLOWED`); `INVITATION` refuses self-service altogether (`403 JOIN_BY_INVITATION`). The address is **not** verified first: a session is issued immediately and `users.email_verified_at` stays null until the confirmation link is followed. Unlike signing in, this says plainly when an address is taken — a person who cannot be told cannot finish what they came for — and the public rate limit is what bounds the enumeration that permits.
          */
         post: operations["signUp"];
         delete?: never;
@@ -3966,6 +4026,13 @@ export interface components {
             slug: string;
             /** @description Whether the platform has lent this tenant the catalogue. False by default: offers are keyed on product, not tenant, so a tenant administrator editing them changes what every other customer of that product is sold on. When false, `catalog.manage` is not resolved for this tenant's members at all. */
             may_author_offers: boolean;
+            /**
+             * @description How people arrive by themselves at this organisation’s root. `APPROVAL` (default): anybody may ask, an administrator accepts. `DOMAIN`: an address on one of `join_domains` is in at once, any other is refused. `INVITATION`: nobody arrives by themselves; administrators add people.
+             * @enum {string}
+             */
+            join_policy: "INVITATION" | "DOMAIN" | "APPROVAL";
+            /** @description Email domains, lower-case, without `@`. Consulted only under `DOMAIN`, and required non-empty to switch to it. */
+            join_domains: string[];
         };
         /** @description A tenant as the platform sees it: the tenant, and the products it holds (ADR-047). `products` is the platform’s answer — which products it has assigned this tenant, through the console — so it lives on the staff shape and not on the `Tenant` a tenant reads about itself. */
         StaffTenant: components["schemas"]["Tenant"] & {
@@ -3981,6 +4048,11 @@ export interface components {
             email: string | null;
             display_name: string | null;
             roles: string[];
+            /**
+             * @description `ACTIVE` for everybody `listMembers` returns; `PENDING` for the people `listJoinRequests` returns, who asked to join by themselves and are waiting on an administrator.
+             * @enum {string}
+             */
+            status: "ACTIVE" | "PENDING";
         };
         /** @description Non-negotiable #21: a staff read of a tenant's data is never silent. Written in the same transaction as the read it records. */
         StaffAccessEntry: {
@@ -7772,6 +7844,12 @@ export interface operations {
                         products: components["schemas"]["Product"][];
                         /** @description The code of this person's default product, among `products`, or null. Beside the list rather than on `/me` because `/me` needs a product and this is how a client learns which to name first. */
                         default: string | null;
+                        /** @description The organisations this person asked to join and is waiting on. Here rather than on `/me` because somebody with no live membership has no product to ask `/me` with; this is how a client says “waiting for approval” rather than “nothing”. */
+                        pending_memberships: {
+                            /** @description The organisation’s slug. */
+                            tenant: string;
+                            name: string;
+                        }[];
                     };
                 };
             };
@@ -10733,6 +10811,10 @@ export interface operations {
             content: {
                 "application/json": {
                     name?: string;
+                    /** @enum {string} */
+                    join_policy?: "INVITATION" | "DOMAIN" | "APPROVAL";
+                    /** @description Replaces the list. */
+                    join_domains?: string[];
                 };
             };
         };
@@ -10746,6 +10828,15 @@ export interface operations {
                     "application/json": {
                         tenant: components["schemas"]["Tenant"];
                     };
+                };
+            };
+            /** @description `VALIDATION_FAILED`, `JOIN_DOMAINS_REQUIRED`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             401: components["responses"]["Unauthenticated"];
@@ -10849,6 +10940,37 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    listJoinRequests: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The requests, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        requests: components["schemas"]["Member"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     removeMember: {
         parameters: {
             query?: never;
@@ -10915,6 +11037,82 @@ export interface operations {
             404: components["responses"]["NotFound"];
             /** @description An unknown role. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    acceptJoinRequest: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `JOIN_REQUEST_NOT_FOUND` — nobody with that id is waiting. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    declineJoinRequest: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Declined. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `JOIN_REQUEST_NOT_FOUND` — nobody with that id is waiting. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11341,18 +11539,16 @@ export interface operations {
                     email: string;
                     /** @description Measured in bytes. The ceiling is bcrypt’s, not a preference. */
                     password: string;
-                    /** @description The product code this account is being created for. A membership is per product, so an account without one would have no way in. */
-                    product: string;
+                    /** @description The product code the person arrived through, if any. It becomes their default product when the organisation holds it; otherwise the first product the organisation holds does. The membership itself is written on every product the organisation holds. */
+                    product?: string | null;
                     display_name?: string | null;
-                    /** @description The company name, when there is one. Omitted for a consumer; the tenant is then named after the person. */
-                    organisation?: string | null;
-                    /** @description ISO 3166-1 alpha-2. Optional, and asked for because VAT depends on it rather than to make the form look complete. */
-                    country?: string | null;
+                    /** @description The slug of the organisation to join — the root the form was reached from, or the default organisation’s slug on the bare host (`showPublicTenant` says which). `404 TENANT_NOT_FOUND` when no organisation has it. */
+                    tenant: string;
                 };
             };
         };
         responses: {
-            /** @description The account was created and a session issued. The refresh token leaves in a `Set-Cookie` header and never in the body. */
+            /** @description The account was created, a membership written, and a session issued. The refresh token leaves in a `Set-Cookie` header and never in the body. */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -11364,9 +11560,16 @@ export interface operations {
                         expires_in: number;
                         /**
                          * Format: uuid
-                         * @description The organisation just created. Returned because the checkout that follows resolves it anyway.
+                         * @description The organisation joined.
                          */
                         tenant_id: string;
+                        /** @description Its slug — the root to return to. */
+                        tenant: string;
+                        /**
+                         * @description `ACTIVE`: the person is in and `/me` answers. `PENDING`: an administrator has to accept first; `listProducts` lists nothing for them yet and names the organisation under `pending_memberships`.
+                         * @enum {string}
+                         */
+                        membership: "ACTIVE" | "PENDING";
                     };
                 };
             };
@@ -11379,7 +11582,24 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            404: components["responses"]["NotFound"];
+            /** @description `JOIN_DOMAIN_NOT_ALLOWED` — the organisation admits only addresses on its listed domains, and this one is not. `JOIN_BY_INVITATION` — the organisation does not take self-service requests at all. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `TENANT_NOT_FOUND` — no organisation has that slug. `TENANT_HOLDS_NOTHING` — the organisation has been assigned no product yet, so there is nothing to be a member of. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             /** @description `EMAIL_TAKEN` — that address already has an account. Sign in instead. */
             409: {
                 headers: {

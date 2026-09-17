@@ -21,6 +21,8 @@ final class TenantMember
         public readonly ?string $email,
         public readonly ?string $displayName,
         public readonly array $roles,
+        /** ACTIVE, or PENDING while an administrator has yet to look (2026-09-17). */
+        public readonly string $status = 'ACTIVE',
     ) {
     }
 }

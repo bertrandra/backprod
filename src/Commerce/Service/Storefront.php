@@ -105,7 +105,7 @@ final class Storefront
 
         $holdings = $this->holdingsAt($tenantSlug);
 
-        if ($holdings !== null && !in_array($product->id, $holdings, true)) {
+        if ($holdings !== null && !isset(array_flip($holdings)[$product->id])) {
             // Not this organisation's product: nothing to show at this root.
             return ['product' => null, 'offers' => []];
         }

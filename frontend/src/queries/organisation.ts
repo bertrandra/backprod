@@ -58,15 +58,31 @@ export function useTenantUsage() {
   });
 }
 
-export function useRenameOrganisation() {
+export type JoinPolicy = Tenant['join_policy'];
+
+/**
+ * Partial since 2026-09-17: the name, and how people arrive by themselves —
+ * the join policy and, for DOMAIN, the domains. Each touched only when sent.
+ */
+export type OrganisationChange = {
+  readonly name?: string;
+  readonly join_policy?: JoinPolicy;
+  readonly join_domains?: readonly string[];
+};
+
+export function useUpdateOrganisation() {
   const client = useApiClient();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (name: string): Promise<Tenant> => {
+    mutationFn: async (change: OrganisationChange): Promise<Tenant> => {
       const { data, error, response } = await client.PATCH('/api/v1/tenants/current', {
         ...ambientParams(sessionSnapshot),
-        body: { name },
+        body: {
+          ...(change.name === undefined ? {} : { name: change.name }),
+          ...(change.join_policy === undefined ? {} : { join_policy: change.join_policy }),
+          ...(change.join_domains === undefined ? {} : { join_domains: [...change.join_domains] }),
+        },
       });
 
       if (error !== undefined || data === undefined) {
@@ -82,4 +98,11 @@ export function useRenameOrganisation() {
       queryClient.setQueryData(keys.organisation.current, tenant);
     },
   });
+}
+
+/** Renaming alone — the older shape, kept for the callers that only rename. */
+export function useRenameOrganisation() {
+  const update = useUpdateOrganisation();
+
+  return { ...update, mutate: (name: string, options?: Parameters<typeof update.mutate>[1]) => update.mutate({ name }, options) };
 }

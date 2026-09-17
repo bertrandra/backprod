@@ -35,6 +35,7 @@ export function StorefrontScreen({
   products,
   onChooseProduct,
   onChoose,
+  onSignUp,
   onSignIn,
 }: {
   productCode: string | null;
@@ -48,8 +49,10 @@ export function StorefrontScreen({
   /** The windows there are, or null while that is still being asked. */
   products: readonly PublicProduct[] | null;
   onChooseProduct: (code: string) => void;
-  /** What choosing an offer does. Lot B makes it sign-up-then-buy. */
+  /** What choosing an offer does: since 2026-09-17, open the door with it in hand. */
   onChoose: (offer: PublicOffer) => void;
+  /** The door with nothing in hand: ask to join the organisation. */
+  onSignUp?: () => void;
   onSignIn: () => void;
 }) {
   const slug = tenant === null || tenant === 'unknown' ? null : tenant.slug;
@@ -166,6 +169,22 @@ export function StorefrontScreen({
           >
             Sign in
           </button>
+          {/* The door with nothing in hand (2026-09-17): only once there is
+              an organisation to ask, which a bare host with no default and
+              an unknown slug both lack. */}
+          {onSignUp !== undefined && tenant !== null && (
+            <>
+              {' · New here? '}
+              <button
+                type="button"
+                data-testid="sign-up-link"
+                onClick={onSignUp}
+                className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                Ask to join {tenant.name}
+              </button>
+            </>
+          )}
         </p>
       </footer>
     </main>

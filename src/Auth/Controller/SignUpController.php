@@ -12,26 +12,21 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
- * `POST /api/v1/auth/sign-up` — a stranger becomes a customer.
+ * `POST /api/v1/auth/sign-up` — a person asks to join the organisation at
+ * the URL root (2026-09-17).
  *
- * The fourth public route, and the first that *creates* anything. Everything
- * else on this platform is reached by somebody who already has an account; a
- * storefront that sells to strangers needs a way in that does not go through
- * an administrator, and this is it.
- *
- * **`organisation` is optional and `display_name` is not required either.** A
- * consumer buying for themselves has no company and should not have to invent
- * one — the tenant takes their own name instead. A business types theirs, and
- * the invoice carries it from the first one. Nothing records which of the two
- * happened, because nothing downstream should behave differently.
- *
- * **`product` is required.** A membership is per product (§12.1), so an
- * account created without one would be an account with no way in — and
- * guessing a default would put somebody in a product they did not choose.
+ * The fourth public route, and the first that *creates* anything: a
+ * person. It no longer creates an organisation — those are made by the
+ * platform (`POST /staff/tenants`) — and it never makes an administrator.
+ * The person becomes a USER of the organisation named by `tenant`, the
+ * slug of the root they signed up at, on every product it holds; whether
+ * the membership is live at once or waits for an administrator is the
+ * organisation's join policy to decide, and a policy that admits nobody by
+ * themselves refuses the request before any account exists.
  *
  * It answers with a session, exactly as signing in does, and sets the same
- * refresh cookie. The purchase that follows is then an ordinary authenticated
- * checkout rather than a second anonymous flow with its own rules.
+ * refresh cookie — and says whether the membership is ACTIVE or PENDING, so
+ * the page can tell the person they are in, or waiting.
  */
 final class SignUpController implements RouteHandler
 {
@@ -47,20 +42,22 @@ final class SignUpController implements RouteHandler
             $body->requiredString('email', 320),
             $body->requiredSecret('password'),
             $body->optionalNullableString('display_name', 200),
-            $body->optionalNullableString('organisation', 200),
-            $body->requiredString('product', 64),
-            // Optional, and asked for because VAT depends on it rather than
-            // because a form looks more complete with it. Absent means the
-            // profile carries no country and whoever invoices decides what
-            // that means.
-            $body->optionalNullableString('country', 2),
+            // The organisation whose root the page is on (2026-09-17): the
+            // person asks to join it, as a USER, and its join policy answers.
+            $body->requiredString('tenant', 63),
+            // The product the page was showing, if any: their default from
+            // then on, provided the organisation holds it.
+            $body->optionalNullableString('product', 64),
         );
 
-        // The tenant id is returned because the client has just been given a
-        // token for an account with exactly one membership, and the checkout
-        // that follows resolves it anyway — saying so saves a round trip and
-        // makes the response describe what was actually created.
-        $created = SessionPresenter::one($session) + ['tenant_id' => $account->tenantId];
+        // What was made: a session, and a membership that is either live or
+        // waiting. A waiting one is told so plainly, because the person can
+        // sign in and yet reach nothing until an administrator has looked.
+        $created = SessionPresenter::one($session) + [
+            'tenant_id' => $account->tenantId,
+            'tenant' => $account->tenantSlug,
+            'membership' => $account->membershipStatus,
+        ];
 
         return RefreshCookie::set(
             new JsonResponse($created, 201),

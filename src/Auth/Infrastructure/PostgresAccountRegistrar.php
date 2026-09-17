@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Auth\Infrastructure;
 
 use App\Auth\Domain\AccountRegistrar;
+use App\Auth\Domain\JoinDecision;
 use App\Auth\Domain\RegisteredAccount;
 use App\Shared\Database\Row;
 use App\Shared\Exceptions\ConflictException;
@@ -51,41 +52,78 @@ final class PostgresAccountRegistrar implements AccountRegistrar
         );
     }
 
-    public function register(
+    public function join(
         string $email,
         #[SensitiveParameter] string $passwordHash,
         ?string $displayName,
-        string $organisation,
-        string $productCode,
-        ?string $countryCode,
+        string $tenantSlug,
+        ?string $productCode,
     ): RegisteredAccount {
-        $product = $this->connection->fetchAssociative(
+        $tenant = $this->connection->fetchAssociative(
+            'SELECT id, slug, join_policy FROM tenants WHERE slug = :slug',
+            ['slug' => $tenantSlug],
+        );
+
+        if ($tenant === false) {
+            throw new NotFoundException('No such organisation.', [], 'TENANT_NOT_FOUND');
+        }
+
+        $tenantId = Row::string($tenant, 'id');
+        $domains = $this->connection->fetchFirstColumn(
+            'SELECT domain FROM tenant_join_domains WHERE tenant_id = :tenant',
+            ['tenant' => $tenantId],
+        );
+
+        // Decided before anything is written: a refusal leaves no account
+        // behind, so a stranger refused at one organisation has not quietly
+        // acquired an account on the platform.
+        $status = JoinDecision::statusFor(
+            Row::string($tenant, 'join_policy'),
+            array_values(array_map(static fn (mixed $d): string => strtolower(is_string($d) ? $d : ''), $domains)),
+            $email,
+        );
+
+        $products = $this->connection->fetchFirstColumn(
+            <<<'SQL'
+                SELECT tp.product_id
+                  FROM tenant_products tp
+                  JOIN products p ON p.id = tp.product_id
+                 WHERE tp.tenant_id = :tenant AND p.active
+                 ORDER BY p.code
+                SQL,
+            ['tenant' => $tenantId],
+        );
+
+        if ($products === []) {
+            throw new NotFoundException('This organisation holds no product to join yet.', [], 'TENANT_HOLDS_NOTHING');
+        }
+
+        // The default product: the one they arrived through when the
+        // organisation holds it, else the first it holds. Never a refusal —
+        // the person came to join the organisation, not a product.
+        $firstProduct = $productCode === null ? null : $this->connection->fetchOne(
             'SELECT id FROM products WHERE code = :code AND active',
             ['code' => $productCode],
         );
-
-        if ($product === false) {
-            throw new NotFoundException('Unknown product.', [], 'PRODUCT_NOT_FOUND');
+        $held = array_flip(array_values(array_filter($products, 'is_string')));
+        if (!is_string($firstProduct) || !isset($held[$firstProduct])) {
+            $firstProduct = $products[0];
         }
 
-        $productId = Row::string($product, 'id');
+        if (!is_string($firstProduct)) {
+            throw new NotFoundException('This organisation holds no product to join yet.', [], 'TENANT_HOLDS_NOTHING');
+        }
 
         $this->connection->beginTransaction();
 
         try {
-            // `pending` then `local:<id>`, because the subject a token carries
-            // is derived from the id the insert has not returned yet. The same
-            // two-step the installer makes, and the reason the users table has
-            // no DEFAULT for it.
             $userId = $this->connection->fetchOne(
                 <<<'SQL'
                     INSERT INTO users (auth_subject, email, display_name, default_product_id)
                     VALUES ('pending', :email, :name, :product)
                     RETURNING id
                     SQL,
-                // The product signed up for is the one their screens open in
-                // until they choose another from the profile (2026-09-17).
-                ['email' => $email, 'name' => $displayName, 'product' => $productId],
+                ['email' => $email, 'name' => $displayName, 'product' => $firstProduct],
             );
 
             if (!is_string($userId)) {
@@ -102,68 +140,36 @@ final class PostgresAccountRegistrar implements AccountRegistrar
                 ['id' => $userId, 'email' => $email, 'hash' => $passwordHash],
             );
 
-            $tenantId = $this->connection->fetchOne(
-                'INSERT INTO tenants (name, slug) VALUES (:name, :slug) RETURNING id',
-                ['name' => $organisation, 'slug' => $this->freeSlug($organisation)],
-            );
-
-            if (!is_string($tenantId)) {
-                throw new ConflictException('TENANT_NOT_CREATED', 'The organisation could not be created.');
-            }
-
-            // The product the account is being created for is the tenant's
-            // first product (ADR-047). `assigned_by` stays NULL: nobody on
-            // staff decided this, the customer did by arriving here.
+            // A member of the organisation, on every product it holds
+            // (ADR-047), as a USER — never an administrator, whatever the
+            // organisation is (point 4 of 2026-09-17).
             $this->connection->executeStatement(
-                'INSERT INTO tenant_products (tenant_id, product_id) VALUES (:tenant, :product)',
-                ['tenant' => $tenantId, 'product' => $productId],
+                <<<'SQL'
+                    INSERT INTO tenant_members (tenant_id, product_id, user_id, status)
+                    SELECT tp.tenant_id, tp.product_id, :user, :status
+                      FROM tenant_products tp
+                     WHERE tp.tenant_id = :tenant
+                    SQL,
+                ['tenant' => $tenantId, 'user' => $userId, 'status' => $status],
             );
 
-            $this->connection->executeStatement(
-                'INSERT INTO tenant_members (tenant_id, product_id, user_id) VALUES (:tenant, :product, :user)',
-                ['tenant' => $tenantId, 'product' => $productId, 'user' => $userId],
-            );
-
-            // TENANT_ADMIN, and only that. They administer the organisation
-            // they just created — members, billing, the skin. Whether they may
-            // author offers is ADR-040's question and the answer is no until a
-            // platform administrator says otherwise, which is why nothing here
-            // touches `may_author_offers`.
             $this->connection->executeStatement(
                 <<<'SQL'
                     INSERT INTO tenant_member_roles (tenant_id, product_id, user_id, role_id)
-                    SELECT :tenant, :product, :user, id FROM roles WHERE code = 'TENANT_ADMIN'
+                    SELECT tp.tenant_id, tp.product_id, :user, r.id
+                      FROM tenant_products tp
+                      CROSS JOIN roles r
+                     WHERE tp.tenant_id = :tenant AND r.code = 'USER'
                     SQL,
-                ['tenant' => $tenantId, 'product' => $productId, 'user' => $userId],
-            );
-
-            // The invoice needs somebody to be addressed to before there is
-            // an invoice. Created here so the checkout that follows is not
-            // refused with BILLING_PROFILE_REQUIRED on an account that was
-            // built for exactly that purchase — the profile is editable
-            // afterwards like any other, and `billing.manage` is what the
-            // TENANT_ADMIN role above grants for it.
-            $this->connection->executeStatement(
-                <<<'SQL'
-                    INSERT INTO billing_profiles (tenant_id, legal_name, billing_email, country_code)
-                    VALUES (:tenant, :name, :email, :country)
-                    SQL,
-                [
-                    'tenant' => $tenantId,
-                    'name' => $organisation,
-                    'email' => $email,
-                    'country' => $countryCode,
-                ],
+                ['tenant' => $tenantId, 'user' => $userId],
             );
 
             $this->connection->commit();
 
-            return new RegisteredAccount($userId, 'local:' . $userId, $email, $tenantId, $productId);
+            return new RegisteredAccount($userId, 'local:' . $userId, $email, $tenantId, $firstProduct, Row::string($tenant, 'slug'), $status);
         } catch (UniqueConstraintViolationException $collision) {
             $this->connection->rollBack();
 
-            // Two sign-ups for one address, racing past `emailIsTaken`. The
-            // index is the authority and this is what it answers with.
             throw new ConflictException(
                 'EMAIL_TAKEN',
                 'That address already has an account.',
@@ -218,26 +224,5 @@ final class PostgresAccountRegistrar implements AccountRegistrar
         );
 
         return true;
-    }
-
-    /**
-     * A slug nobody is using, derived from what the person typed.
-     *
-     * The suffix is not cosmetic: `tenants.slug` is unique, and two companies
-     * called "Acme" will sign up eventually. Appending random hex rather than
-     * counting upwards avoids a query loop and avoids leaking how many
-     * organisations share a name.
-     */
-    private function freeSlug(string $organisation): string
-    {
-        $slug = strtolower(trim((string) preg_replace('/[^A-Za-z0-9]+/', '-', $organisation), '-'));
-        $slug = $slug === '' ? 'org' : substr($slug, 0, 40);
-
-        $taken = (bool) $this->connection->fetchOne(
-            'SELECT EXISTS (SELECT 1 FROM tenants WHERE slug = :slug)',
-            ['slug' => $slug],
-        );
-
-        return $taken ? $slug . '-' . bin2hex(random_bytes(3)) : $slug;
     }
 }
