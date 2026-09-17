@@ -184,3 +184,21 @@ describe('signing in', () => {
     expect(requests).toEqual([]);
   });
 });
+
+describe('the way around the form', () => {
+  it('offers the home page, as a plain link that works without a router', () => {
+    renderWith(<SignInScreen />, stubClient({}));
+
+    const home = screen.getByTestId('sign-in-home');
+    expect(home.tagName).toBe('A');
+    expect(home.getAttribute('href')).toBe('/');
+  });
+
+  it('does not seize focus, so the browser’s credential picker does not open over the button', () => {
+    renderWith(<SignInScreen />, stubClient({}));
+
+    // The operator's report: with a saved password, the first tap on "Sign
+    // in" only closed the picker the focused field had opened.
+    expect(document.activeElement).not.toBe(screen.getByLabelText('Email'));
+  });
+});

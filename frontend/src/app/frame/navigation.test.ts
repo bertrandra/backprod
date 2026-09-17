@@ -250,6 +250,8 @@ describe('the navigation is ordered by dependency', () => {
       'invoicing',
       'platform-catalogue',
       'storefront',
+      // Not on the chain — after it.
+      'menus',
     ]);
   });
 
@@ -306,5 +308,61 @@ describe("the console's own menu", () => {
 
     expect(firstTenantEntry(visibleNav(APP_NAV, both))?.to).toBe('/projects');
     expect(firstTenantEntry(visibleNav(APP_NAV, asPlatform(['staff.tenants.read'])))).toBeUndefined();
+  });
+});
+
+describe("the platform's menu setup", () => {
+  const both: Authorities = {
+    tenant: access(['billing.read', 'projects.read', 'account.read']),
+    platform: access(['staff.navigation.manage', 'admin.audit.read', 'staff.tenants.read']),
+  };
+
+  it('leaves out what the setup hides, per authority, and drops a section emptied by it', () => {
+    const before = idsOf(visibleNav(APP_NAV, both));
+    expect(before).toContain('invoices');
+    expect(before).toContain('projects');
+    expect(before).toContain('audit');
+
+    const after = visibleNav(APP_NAV, both, {
+      tenant: new Set(['invoices', 'credit-notes', 'projects']),
+      platform: new Set(['audit']),
+    });
+    const ids = idsOf(after);
+
+    expect(ids).not.toContain('invoices');
+    expect(ids).not.toContain('projects');
+    expect(ids).not.toContain('audit');
+    // Work held only Projects for this person, so the heading goes with it.
+    expect(after.map((section) => section.id)).not.toContain('work');
+    // And the rest is untouched.
+    expect(ids).toContain('profile');
+    expect(ids).toContain('tenants');
+  });
+
+  it('never lets a tenant-side id hide a platform entry of the same name, nor the reverse', () => {
+    // The console and the application both have a "conversations"-shaped
+    // entry; the ids differ, but the rule is by scope regardless.
+    const ids = idsOf(visibleNav(APP_NAV, both, { tenant: new Set(['audit', 'tenants']) }));
+
+    expect(ids).toContain('audit');
+    expect(ids).toContain('tenants');
+  });
+
+  it('never widens what permissions hide', () => {
+    const ids = idsOf(visibleNav(APP_NAV, asTenant(['billing.read']), { tenant: new Set() }));
+
+    expect(ids).not.toContain('projects');
+  });
+
+  it('cannot hide the setup screen from the person who holds it', () => {
+    const ids = idsOf(visibleNav(APP_NAV, asPlatform(['staff.navigation.manage']), { platform: new Set(['menus']) }));
+
+    expect(ids).toEqual(['menus']);
+  });
+
+  it('shapes the phone bottom bar the same way', () => {
+    const ids = bottomBarEntries(APP_NAV, both, 5, { tenant: new Set(['projects']) }).map((entry) => entry.id);
+
+    expect(ids).not.toContain('projects');
   });
 });

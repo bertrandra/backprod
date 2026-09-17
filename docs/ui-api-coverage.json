@@ -233,6 +233,17 @@
         "showQueue"
       ]
     },
+    "console.admin.menus": {
+      "authority": "platform",
+      "$comment": "What the shell shows each kind of person — platform administrator, tenant administrator, user — chosen by the platform administrator on 2026-09-17, platform-wide. Three checklists of the shell's own entries and, per audience, whether an entry with nothing behind it is shown at all. Hiding is courtesy, as it is for permissions; a section with no remaining entries disappears.",
+      "routes": [
+        "/console/menus"
+      ],
+      "operations": [
+        "setNavigationSetup",
+        "showNavigationSetup"
+      ]
+    },
     "console.admin.readiness": {
       "authority": "platform",
       "$comment": "The console's landing and the map of a maze. A fresh installation was navigable only by walking into its refusals — no plan so no offer, published but not advertised so an empty shop window, a checkout refusing with BILLING_NOT_CONFIGURED at the very end. Every refusal correct, together a maze. The chain is returned in dependency order so working down it never meets one, and the facts are read through the same ports the enforcing code reads.",
@@ -539,8 +550,10 @@
     "$comment": "Read by the shell to decide what exists for this person: which navigation entries appear, which actions are enabled, which empty state is honest. Not screens.",
     "operations": {
       "showMyEntitlements": "tenant",
+      "showMyNavigation": "tenant",
       "showMyPermissions": "tenant",
-      "showStaffIdentity": "platform"
+      "showStaffIdentity": "platform",
+      "showStaffNavigation": "platform"
     }
   },
   "not_in_ui": {

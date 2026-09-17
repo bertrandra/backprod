@@ -4,10 +4,13 @@ import { Button } from '@/ui/Field';
 import type { NavSection } from './navigation';
 
 /**
- * What the phone's bottom bar could not fit.
+ * The phone's menu: every section, in a drawer from the left.
  *
- * The bar holds five; everything else is here rather than unreachable, which is
- * the whole point of §4.2's rule that no region loses capability on a phone.
+ * The bar holds five; everything is here, which is the whole point of §4.2's
+ * rule that no region loses capability on a phone. It used to rise from the
+ * bottom behind a "More" button; since 2026-09-17 it opens from the three
+ * lines at the top left, and slides in from the same side, because a drawer
+ * that arrives from where it was asked for is one nobody has to look for.
  */
 export function MoreSheet({
   open,
@@ -25,15 +28,27 @@ export function MoreSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-stretch bg-black/40 md:hidden" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="All sections"
-        data-testid="more-sheet"
-        className="max-h-[70dvh] w-full overflow-y-auto rounded-t-2xl border-t border-line bg-raised p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-float"
+        aria-label="Menu"
+        data-testid="menu-sheet"
+        className="h-full w-[min(20rem,85vw)] overflow-y-auto border-r border-line bg-raised p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-float"
         onClick={(event) => event.stopPropagation()}
       >
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-sm font-semibold">Menu</p>
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={onClose}
+            className="min-h-[44px] min-w-[44px] rounded-control text-lg focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            ×
+          </button>
+        </div>
+
         {sections.map((section) => (
           <div key={section.id} className="mb-4">
             <p className="pb-1 text-[11px] font-semibold uppercase tracking-wide text-subtle">
@@ -56,7 +71,7 @@ export function MoreSheet({
         ))}
 
         {/* Last, and separated: it is not a section of the application, it is
-            the way out of it. On a phone this sheet is the only place the
+            the way out of it. On a phone this drawer is the only place the
             control fits — the bottom bar holds five destinations and none of
             them is an action. */}
         <div className="border-t border-line pt-3">

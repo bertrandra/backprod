@@ -69,6 +69,22 @@ with the catalogue its permission is defined in.
 Platform screens keep the `/console/*` prefix, so an address still says which
 authority it answers to, and every link ever written still resolves.
 
+**A second filter, after permissions and never instead of them: the
+platform's menu setup** (`console.admin.menus`, 2026-09-17). The platform
+administrator chooses, for each of three audiences — platform administrator,
+tenant administrator, user — which entries the shell shows, and whether an
+entry whose screen lists nothing yet for the reader is shown at all. The
+shell asks once per authority (`/me/navigation`, `/staff/me/navigation`),
+receives the ids to leave out already resolved, and applies them beside the
+permission filter: nothing hidden by permission is ever shown because a
+setup forgot it, a section left with no entries disappears, and the entry
+that opens the setup cannot be hidden from the person who holds it. It is
+courtesy in exactly the sense permissions gating is — the API refuses on
+permissions regardless — and platform-wide rather than per product, because
+the console is the same console whichever product is chosen and a
+customer's menu is a fact about the kind of person they are, not about what
+they bought.
+
 The console is not a superset of the tenant app. It answers different
 questions ("has the runner run since Tuesday", "which tenants are on this
 plan") with different data (aggregates, directories, audit) and a different
@@ -194,6 +210,7 @@ and USER. Placing it in the console would have been the intuitive mistake.
 | `console.admin.invoicing` | what a product needs configured before it can take money: the legal identity its invoices name (§25) and the supplier's own fiscal position (§25.3). ADR-042 gave the console a way to create a product and ADR-043 a way to price it, and a checkout against one built that way still refused with `BILLING_NOT_CONFIGURED` — the issuer lives in `product_configuration`, which only the demo seeder ever wrote (ADR-044). Behind `staff.products.manage`, not `staff.catalog.manage`: somebody trusted with the shop window is not thereby trusted with who the documents say is selling |
 | `console.admin.storefront` | what a stranger sees. Being on sale and being advertised are two decisions; this is the only place the second is made, behind `staff.catalog.manage` rather than `catalog.manage` (ADR-041). The product it administers is the one chosen in region A's switcher, which on the console lists every product the platform hosts (ADR-047) |
 | `console.admin.staff` | who holds a platform role, and appointing or removing them. The database keeps at least one administrator, so the last one is shown as protected rather than offered and then refused |
+| `console.admin.menus` | what the navigation shows each kind of person — platform administrator, tenant administrator, user — as three checklists of the shell's own entries, and per audience whether an entry with nothing behind it is shown. Stored as what is switched *off*, so a screen added tomorrow appears until somebody decides otherwise; saved whole and recorded in the access log |
 | `console.admin.queue` | queue liveness and the job list — "has the runner run" |
 | `console.admin.audit` | the audit trail |
 | `console.admin.erasure` | RGPD erasure, against legal retention (non-negotiable #15) |

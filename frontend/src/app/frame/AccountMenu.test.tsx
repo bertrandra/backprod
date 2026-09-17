@@ -66,6 +66,9 @@ describe('a tenant member', () => {
 
     await waitFor(() => expect(useSessionStore.getState().status).toBe('anonymous'));
     expect(requests.some((r) => r.method === 'POST' && r.path === '/api/v1/auth/sign-out')).toBe(true);
+    // And lands on the home page: the address moved before the session went,
+    // so the gate shows the storefront rather than a form for the page left.
+    expect(window.location.pathname).toBe('/');
   });
 
   it('closes on Escape and gives focus back to the circle', async () => {

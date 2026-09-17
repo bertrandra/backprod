@@ -1,5 +1,5 @@
 import { Outlet, useLocation } from '@tanstack/react-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { AppFrame } from '@/app/frame/AppFrame';
 import { CommandPalette, usePaletteShortcut } from '@/app/frame/CommandPalette';
@@ -12,10 +12,12 @@ import {
   platformSections,
   visibleNav,
   type Authorities,
+  type Hidden,
 } from '@/app/frame/navigation';
 import { BottomNav, ContextBar, PrimaryNav } from '@/app/frame/regions';
 import { StatusStrip } from '@/app/frame/StatusStrip';
 import { useProductContext } from '@/app/frame/useProductContext';
+import { useMyNavigation, useStaffNavigation } from '@/queries/navigation';
 import { useSession } from '@/queries/session';
 import { staffAccess, useStaffIdentity } from '@/queries/staff';
 import { EmptyState } from '@/ui/EmptyState';
@@ -50,6 +52,18 @@ export function AppShell() {
   const { productCode } = useProductContext();
   const session = useSession();
   const staff = useStaffIdentity();
+  // What the platform's menu setup leaves out for this person, one answer per
+  // authority, asked once each has said who this is. Nothing hidden until it
+  // answers, or if it never does.
+  const myMenu = useMyNavigation(session.data !== undefined);
+  const staffMenu = useStaffNavigation(staff.data !== undefined);
+  const hidden: Hidden = useMemo(
+    () => ({
+      tenant: myMenu.data === undefined ? undefined : new Set(myMenu.data),
+      platform: staffMenu.data === undefined ? undefined : new Set(staffMenu.data),
+    }),
+    [myMenu.data, staffMenu.data],
+  );
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -72,7 +86,7 @@ export function AppShell() {
     platform: staffAccess(staff.data),
   };
 
-  const sections = visibleNav(APP_NAV, authorities);
+  const sections = visibleNav(APP_NAV, authorities, hidden);
   // The console's own menu (ADR-047): the platform's sections, and the way
   // back to the application — rendered only while a console screen is in the
   // view, as that view's header.
@@ -109,7 +123,7 @@ export function AppShell() {
           <PrimaryNav sections={sections} />
         )
       }
-      bottomNav={<BottomNav entries={bottomBarEntries(APP_NAV, authorities)} />}
+      bottomNav={<BottomNav entries={bottomBarEntries(APP_NAV, authorities, 5, hidden)} />}
       // Region E watches *the tenant's* jobs through `/jobs`. On a platform
       // screen that is a tenant this person may not be in, so the strip is not
       // rendered there rather than showing an empty or borrowed one.

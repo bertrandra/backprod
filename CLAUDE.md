@@ -233,7 +233,9 @@ entitlements.
 
 **Gating is data.** The shell reads `/me/permissions` and `/me/entitlements`
 and hides or disables from those. Hiding is courtesy only — the API refuses
-regardless, and the frontend is never the authority.
+regardless, and the frontend is never the authority. The platform's menu
+setup (`/me/navigation`, `/staff/me/navigation`; ui-spec §2) is a second
+filter of the same kind, applied after permissions and never instead of them.
 
 **Every operation is reachable, or says why not.** `docs/ui-api-coverage.json`
 maps every operation in the contract to a screen area, to bootstrap, or to a
