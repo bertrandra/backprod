@@ -32,7 +32,7 @@ final class PublicOffersController implements RouteHandler
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
-        $window = $this->storefront->window(PublicRoute::productCode($request));
+        $window = $this->storefront->window(PublicRoute::productCode($request), PublicRoute::tenantSlug($request));
         $product = $window['product'];
 
         return new JsonResponse([

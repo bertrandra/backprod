@@ -8,6 +8,10 @@ use App\Commerce\Domain\CatalogueRepository;
 use App\Commerce\Domain\Offer;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
+use App\Staff\Domain\TenantProducts;
+use App\Tenant\Domain\DefaultTenant;
+use App\Tenant\Domain\Tenant;
+use App\Tenant\Domain\TenantRepository;
 use DateTimeImmutable;
 
 /**
@@ -37,7 +41,49 @@ final class Storefront
     public function __construct(
         private readonly CatalogueRepository $catalogue,
         private readonly ProductRepository $products,
+        private readonly TenantRepository $tenants,
+        private readonly TenantProducts $holdings,
+        private readonly DefaultTenant $default,
     ) {
+    }
+
+    /**
+     * The organisation a public page is for: the one at the slug, or the
+     * default tenant on the bare host, or none where no default is set —
+     * in which case the page is the platform's, as before roots.
+     *
+     * @return array{tenant: ?Tenant, isDefault: bool}
+     */
+    public function root(?string $slug): array
+    {
+        if ($slug !== null) {
+            $tenant = $this->tenants->findBySlug($slug);
+
+            return ['tenant' => $tenant, 'isDefault' => $tenant !== null && $tenant->id === $this->default->id()];
+        }
+
+        $id = $this->default->id();
+
+        return ['tenant' => $id === null ? null : $this->tenants->find($id), 'isDefault' => true];
+    }
+
+    /**
+     * The products a page at this root may show: the tenant's holdings
+     * (ADR-047), or every product where the page is the platform's own. A
+     * slug nobody has holds nothing, so it shows nothing — not a refusal,
+     * for the reason an unknown product code is not.
+     *
+     * @return ?list<string> product ids, or null for no narrowing
+     */
+    private function holdingsAt(?string $slug): ?array
+    {
+        $root = $this->root($slug);
+
+        if ($root['tenant'] === null) {
+            return $slug === null ? null : [];
+        }
+
+        return array_map(static fn (Product $p): string => $p->id, $this->holdings->of($root['tenant']->id));
     }
 
     /**
@@ -49,11 +95,18 @@ final class Storefront
      *
      * @return array{product: ?Product, offers: list<Offer>}
      */
-    public function window(string $productCode): array
+    public function window(string $productCode, ?string $tenantSlug = null): array
     {
         $product = $this->activeProduct($productCode);
 
         if ($product === null) {
+            return ['product' => null, 'offers' => []];
+        }
+
+        $holdings = $this->holdingsAt($tenantSlug);
+
+        if ($holdings !== null && !in_array($product->id, $holdings, true)) {
+            // Not this organisation's product: nothing to show at this root.
             return ['product' => null, 'offers' => []];
         }
 
@@ -88,12 +141,12 @@ final class Storefront
      *
      * @return list<Product>
      */
-    public function products(): array
+    public function products(?string $tenantSlug = null): array
     {
         $advertising = [];
 
         foreach ($this->products->activeProducts() as $product) {
-            if ($this->window($product->code)['offers'] !== []) {
+            if ($this->window($product->code, $tenantSlug)['offers'] !== []) {
                 $advertising[] = $product;
             }
         }

@@ -41,6 +41,7 @@ use App\Commerce\Controller\ListPlansController;
 use App\Commerce\Controller\PublicOfferController;
 use App\Commerce\Controller\PublicOffersController;
 use App\Commerce\Controller\PublicProductsController;
+use App\Commerce\Controller\PublicTenantController;
 use App\Commerce\Controller\PublishOfferVersionController;
 use App\Commerce\Controller\ResumeSubscriptionController;
 use App\Commerce\Controller\ShowOfferController;
@@ -239,6 +240,8 @@ return static function (RouteCollector $routes): void {
     // The shop windows a stranger may choose between: only products that
     // advertise something, so the list says nothing the windows do not.
     $routes->addRoute('GET', '/api/v1/public/products', PublicProductsController::class);
+    // The organisation at a URL root (2026-09-17), before any session.
+    $routes->addRoute('GET', '/api/v1/public/tenant', PublicTenantController::class);
 
     $routes->addRoute('GET', '/api/v1/me', MeController::class);
     $routes->addRoute('PATCH', '/api/v1/me', UpdateMeController::class);

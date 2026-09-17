@@ -2,7 +2,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { useState, type ReactNode } from 'react';
 
+import { detectRoot } from '@/app/root';
 import { buildRouter, type AppRouter } from '@/app/router';
+import { useSessionStore } from '@/state/session';
 import { SignInGate } from '@/features/auth/SignInGate';
 import { ApiError } from '@/queries/session';
 
@@ -68,7 +70,18 @@ export function AppProviders({
  * router would have every screen mount, request, and get a 401 first.
  */
 export function App({ router }: { router?: AppRouter }) {
-  const [resolved] = useState(() => router ?? buildRouter());
+  const [resolved] = useState(() => {
+    if (router !== undefined) {
+      return router;
+    }
+
+    // Where this page is: the organisation's root, or the bare host. Decided
+    // once, before the router exists, from the address alone.
+    const detected = detectRoot(window.location.pathname);
+    useSessionStore.getState().enterRoot(detected.root, detected.slug);
+
+    return buildRouter(detected.root);
+  });
 
   return (
     <AppProviders>

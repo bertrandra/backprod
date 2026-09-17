@@ -2775,6 +2775,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/tenant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The organisation at a URL root
+         * @description Public, because the page that asks has no session yet. `hostname/{slug}/` is an organisation's root (2026-09-17); the bare host is the default tenant's. A stranger learns the name to paint; a member arriving learns which of their memberships the page is about, before signing in. Without `tenant`, the default one — `404 NO_DEFAULT_TENANT` where none is set, which a page reads as "the platform's window, as before roots".
+         */
+        get: operations["showPublicTenant"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/storefront/offers": {
         parameters: {
             query?: never;
@@ -4458,6 +4478,13 @@ export interface components {
             platform_admin: components["schemas"]["AudienceMenu"];
             tenant_admin: components["schemas"]["AudienceMenu"];
             user: components["schemas"]["AudienceMenu"];
+        };
+        /** @description The organisation at a URL root, as a stranger may know it: its slug — already in the address bar — and the name the storefront paints. Nothing about who is a member or what it has bought. */
+        PublicTenant: {
+            slug: string;
+            name: string;
+            /** @description Whether this is the organisation the bare host addresses. */
+            is_default: boolean;
         };
     };
     responses: {
@@ -10934,6 +10961,8 @@ export interface operations {
             query: {
                 /** @description The product code the storefront is about. A public route resolves no ambient product — there is no context chain on it — so the filter is named explicitly. */
                 product: string;
+                /** @description The slug of the organisation whose URL root the page is on (2026-09-17). Narrows the window to the products that organisation holds; absent, the bare host's — the default tenant's, or the platform's where none is set. A slug nobody has shows nothing, as an unknown product does. */
+                tenant?: string;
             };
             header?: never;
             path?: never;
@@ -11010,7 +11039,10 @@ export interface operations {
     };
     listPublicProducts: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description The slug of the organisation whose URL root the page is on (2026-09-17). Narrows the window to the products that organisation holds; absent, the bare host's — the default tenant's, or the platform's where none is set. A slug nobody has shows nothing, as an unknown product does. */
+                tenant?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -11029,6 +11061,51 @@ export interface operations {
                             name: string;
                         }[];
                     };
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showPublicTenant: {
+        parameters: {
+            query?: {
+                /** @description The slug of the organisation whose URL root the page is on (2026-09-17). Narrows the window to the products that organisation holds; absent, the bare host's — the default tenant's, or the platform's where none is set. A slug nobody has shows nothing, as an unknown product does. */
+                tenant?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The organisation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tenant: components["schemas"]["PublicTenant"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — the slug is malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `TENANT_NOT_FOUND` — no organisation has this slug; or `NO_DEFAULT_TENANT` — nothing is set for the bare host. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             429: components["responses"]["TooManyRequests"];

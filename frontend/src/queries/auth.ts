@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { useApiClient } from '@/app/providers/ApiProvider';
+import { withRoot } from '@/app/root';
 import { useSessionStore } from '@/state/session';
 
 import { ApiError, toApiError } from './session';
@@ -222,7 +223,7 @@ export function useSignOut() {
       // moved before the session is forgotten, so the gate that renders next
       // sees the landing page and shows the storefront rather than a form
       // for a screen this person has just chosen to leave.
-      window.history.replaceState(null, '', '/');
+      window.history.replaceState(null, '', withRoot(useSessionStore.getState().root, '/'));
       forget();
       queryClient.clear();
     },

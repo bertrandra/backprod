@@ -3,7 +3,9 @@ import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { withRoot } from '@/app/root';
 import { useSignIn, useVerifyEmail } from '@/queries/auth';
+import { useSessionStore } from '@/state/session';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { PageHeader } from '@/ui/Page';
 
@@ -53,6 +55,7 @@ type Values = z.infer<typeof schema>;
 export function SignInScreen() {
   const signIn = useSignIn();
   const verification = useVerifyEmail();
+  const root = useSessionStore((state) => state.root);
 
   // Read from the address bar rather than from the router: this screen renders
   // *instead of* the router when there is no session, so there are no route
@@ -158,7 +161,7 @@ export function SignInScreen() {
           of the router, and the home page is the storefront the gate shows
           at the landing address. */}
       <p className="text-sm text-muted">
-        <a href="/" data-testid="sign-in-home" className="underline underline-offset-2">
+        <a href={withRoot(root, '/')} data-testid="sign-in-home" className="underline underline-offset-2">
           Back to the home page
         </a>
       </p>

@@ -308,9 +308,12 @@ const routeTree = rootRoute.addChildren([
   ]),
 ]);
 
-export function buildRouter() {
+export function buildRouter(basepath = '') {
   return createRouter({
     routeTree,
+    // The organisation's root, when the page is on one (`app/root.ts`): every
+    // Link and navigate then carries it without being told.
+    ...(basepath === '' ? {} : { basepath }),
     // Reached only if something falls outside every shell, which the catch-all
     // above makes unlikely — kept so such a case is still a page and not blank.
     defaultNotFoundComponent: () => (

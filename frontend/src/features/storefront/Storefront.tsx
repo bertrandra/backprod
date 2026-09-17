@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import { useProductContext } from '@/app/frame/useProductContext';
 import { PaymentElementPanel } from '@/features/commerce/payment/PaymentElementPanel';
 import { useOpenCheckoutSession, type OpenedCheckoutSession } from '@/queries/checkout';
-import { usePublicProducts, type PublicOffer } from '@/queries/storefront';
+import { withRoot } from '@/app/root';
+import { usePublicProducts, usePublicTenant, type PublicOffer } from '@/queries/storefront';
 import { useSessionStore } from '@/state/session';
 
 import { SignUpForm } from './SignUpForm';
@@ -36,7 +37,21 @@ import { StorefrontScreen } from './StorefrontScreen';
 export function Storefront({ onSignIn }: { onSignIn: () => void }) {
   const { productCode } = useProductContext();
   const chooseProduct = useSessionStore((state) => state.chooseProduct);
-  const products = usePublicProducts();
+  const root = useSessionStore((state) => state.root);
+  const slug = useSessionStore((state) => state.tenantSlug);
+  const enterRoot = useSessionStore((state) => state.enterRoot);
+  // Whose window this is (2026-09-17): the organisation at the slug, or the
+  // bare host's default. On the bare host the answer also teaches the store
+  // the default tenant's slug, which every request then names.
+  const tenant = usePublicTenant(slug);
+
+  useEffect(() => {
+    if (slug === null && tenant.data !== undefined && tenant.data !== null) {
+      enterRoot(root, tenant.data.slug);
+    }
+  }, [slug, tenant.data, root, enterRoot]);
+
+  const products = usePublicProducts(tenant.data?.slug ?? null);
   const [chosen, setChosen] = useState<PublicOffer | null>(null);
   // The session just opened, held for exactly as long as the render that
   // received its `client_secret` — the card form lives here, and the hop to
@@ -65,6 +80,7 @@ export function Storefront({ onSignIn }: { onSignIn: () => void }) {
     return (
       <StorefrontScreen
         productCode={productCode}
+        tenant={slug !== null && tenant.data === null ? 'unknown' : (tenant.data ?? null)}
         products={products.data ?? null}
         onChooseProduct={chooseProduct}
         onChoose={setChosen}
@@ -74,7 +90,7 @@ export function Storefront({ onSignIn }: { onSignIn: () => void }) {
   }
 
   if (opened !== null) {
-    const statusPage = `/checkout/${opened.id}`;
+    const statusPage = withRoot(root, `/checkout/${opened.id}`);
 
     return (
       <main className="mx-auto max-w-lg space-y-6 p-4 py-10">
@@ -125,7 +141,7 @@ export function Storefront({ onSignIn }: { onSignIn: () => void }) {
             // the failure is that screen's to explain. Telling them their
             // sign-up failed would send them to create a second account, which
             // the first would then refuse.
-            window.location.assign('/catalogue');
+            window.location.assign(withRoot(root, '/catalogue'));
           });
       }}
     />

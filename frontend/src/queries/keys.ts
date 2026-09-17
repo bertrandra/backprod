@@ -16,8 +16,10 @@ export const keys = {
    * the URL is all there is.
    */
   storefront: {
-    products: ['storefront', 'products'] as const,
-    window: (product: string) => ['storefront', 'offers', product] as const,
+    /** The organisation at a URL root; '' for the bare host. */
+    tenant: (slug: string) => ['storefront', 'tenant', slug] as const,
+    products: (tenant: string) => ['storefront', 'products', tenant] as const,
+    window: (product: string, tenant: string) => ['storefront', 'offers', tenant, product] as const,
     offer: (product: string, offerId: string) =>
       ['storefront', 'offer', product, offerId] as const,
     listing: (product: string) => ['storefront', 'listing', product] as const,

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 
 import { Storefront } from '@/features/storefront/Storefront';
+import { atRoot } from '@/app/root';
 import { useSessionStore } from '@/state/session';
 
 import { SignInScreen } from './SignInScreen';
@@ -38,6 +39,7 @@ export function SignInGate({ children }: { children: ReactNode }) {
   useSessionLifecycle();
 
   const status = useSessionStore((state) => state.status);
+  const root = useSessionStore((state) => state.root);
   const [wantsToSignIn, setWantsToSignIn] = useState(false);
 
   // The choice lasts one sign-in. Somebody who clicked "Sign in" on the
@@ -72,7 +74,7 @@ export function SignInGate({ children }: { children: ReactNode }) {
     return <>{children}</>;
   }
 
-  const atLanding = window.location.pathname === '/' || window.location.pathname === '';
+  const atLanding = atRoot(root, window.location.pathname);
 
   return atLanding && !wantsToSignIn ? (
     <Storefront onSignIn={() => setWantsToSignIn(true)} />

@@ -71,6 +71,7 @@ final class RouteSurfaceTest extends ApiTestCase
         'GET /api/v1/public/offers',
         'GET /api/v1/public/offers/{offerId}',
         'GET /api/v1/public/products',
+        'GET /api/v1/public/tenant',
         'POST /api/v1/webhooks/payments/{provider}',
         'POST /api/v1/webhooks/einvoice/{provider}',
         'GET /api/v1/downloads/{assetId}/content',

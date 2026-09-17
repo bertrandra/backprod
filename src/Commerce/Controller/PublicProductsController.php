@@ -30,7 +30,7 @@ final class PublicProductsController implements RouteHandler
     {
         $products = [];
 
-        foreach ($this->storefront->products() as $product) {
+        foreach ($this->storefront->products(PublicRoute::tenantSlug($request)) as $product) {
             $products[] = ['code' => $product->code, 'name' => $product->name];
         }
 

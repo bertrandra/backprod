@@ -145,10 +145,12 @@ use App\Tax\Domain\TaxRepository;
 use App\Tax\Domain\VatNumberValidator;
 use App\Tax\Infrastructure\PostgresTaxRepository;
 use App\Tax\Infrastructure\StubVatNumberValidator;
+use App\Tenant\Domain\DefaultTenant;
 use App\Tenant\Domain\TenantMemberRepository;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Domain\TenantRepository;
 use App\Tenant\Infrastructure\MemberUsageSource;
+use App\Tenant\Infrastructure\PostgresDefaultTenant;
 use App\Tenant\Infrastructure\PostgresTenantMemberRepository;
 use App\Tenant\Infrastructure\PostgresTenantMembershipRepository;
 use App\Tenant\Infrastructure\PostgresTenantRepository;
@@ -407,6 +409,8 @@ return static function (array $overrides = []): ContainerInterface {
         }),
         ProjectRepository::class => autowire(PostgresProjectRepository::class),
         TenantRepository::class => autowire(PostgresTenantRepository::class),
+        // Which organisation the bare host addresses (2026-09-17).
+        DefaultTenant::class => autowire(PostgresDefaultTenant::class),
         TenantMemberRepository::class => autowire(PostgresTenantMemberRepository::class),
         TenantMembershipRepository::class => autowire(PostgresTenantMembershipRepository::class),
 

@@ -49,6 +49,12 @@ export interface ApiContext {
   readonly token: () => string | null;
   /** The active product's code, or null before one is chosen. */
   readonly product: () => string | null;
+  /**
+   * The slug of the organisation whose root the page is on, or null on the
+   * bare host before it is known. Sent as `X-Tenant` (2026-09-17): the server
+   * still derives the tenant from membership, this only says which.
+   */
+  readonly tenant?: () => string | null;
 }
 
 export const PRODUCT_HEADER = 'X-Product';
@@ -187,12 +193,13 @@ export function ambientParams(context: ApiContext, tenantId?: string | null): Am
     throw new NoProductChosen();
   }
 
+  // An explicit tenant wins; otherwise the root the page is on, by slug.
+  const tenant =
+    tenantId === undefined || tenantId === null || tenantId === '' ? (context.tenant?.() ?? null) : tenantId;
+
   return {
     params: {
-      header:
-        tenantId === undefined || tenantId === null || tenantId === ''
-          ? { 'X-Product': product }
-          : { 'X-Product': product, 'X-Tenant': tenantId },
+      header: tenant === null || tenant === '' ? { 'X-Product': product } : { 'X-Product': product, 'X-Tenant': tenant },
     },
   };
 }

@@ -44,13 +44,48 @@ export interface Storefront {
   readonly offers: readonly PublicOffer[];
 }
 
-export function usePublicProducts() {
+export type PublicTenant = Schemas['PublicTenant'];
+
+/**
+ * The organisation at this page's root (2026-09-17) — the one at the slug,
+ * or the bare host's default. Not found is an answer here, not an error: it
+ * means "no such organisation" for a slug and "the platform's own window"
+ * for the bare host, and the screen says which.
+ */
+export function usePublicTenant(slug: string | null) {
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.storefront.products,
+    queryKey: keys.storefront.tenant(slug ?? ''),
+    queryFn: async (): Promise<PublicTenant | null> => {
+      const { data, error, response } = await client.GET('/api/v1/public/tenant', {
+        params: { query: slug === null ? {} : { tenant: slug } },
+      });
+
+      if (response.status === 404) {
+        return null;
+      }
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.tenant;
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+}
+
+export function usePublicProducts(tenant: string | null = null) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.storefront.products(tenant ?? ''),
     queryFn: async (): Promise<readonly PublicProduct[]> => {
-      const { data, error, response } = await client.GET('/api/v1/public/products');
+      const { data, error, response } = await client.GET('/api/v1/public/products', {
+        params: { query: tenant === null ? {} : { tenant } },
+      });
 
       if (error !== undefined || data === undefined) {
         throw toApiError(response.status, error);
@@ -63,15 +98,15 @@ export function usePublicProducts() {
   });
 }
 
-export function useStorefront(productCode: string | null) {
+export function useStorefront(productCode: string | null, tenant: string | null = null) {
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.storefront.window(productCode ?? ''),
+    queryKey: keys.storefront.window(productCode ?? '', tenant ?? ''),
     enabled: productCode !== null && productCode !== '',
     queryFn: async (): Promise<Storefront> => {
       const { data, error, response } = await client.GET('/api/v1/public/offers', {
-        params: { query: { product: productCode ?? '' } },
+        params: { query: tenant === null ? { product: productCode ?? '' } : { product: productCode ?? '', tenant } },
       });
 
       if (error !== undefined || data === undefined) {

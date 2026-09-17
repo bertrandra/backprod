@@ -4066,6 +4066,27 @@
             "$ref": "#/components/schemas/AudienceMenu"
           }
         }
+      },
+      "PublicTenant": {
+        "type": "object",
+        "description": "The organisation at a URL root, as a stranger may know it: its slug — already in the address bar — and the name the storefront paints. Nothing about who is a member or what it has bought.",
+        "required": [
+          "slug",
+          "name",
+          "is_default"
+        ],
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "is_default": {
+            "type": "boolean",
+            "description": "Whether this is the organisation the bare host addresses."
+          }
+        }
       }
     },
     "responses": {
@@ -15405,6 +15426,16 @@
               "type": "string",
               "maxLength": 64
             }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "description": "The slug of the organisation whose URL root the page is on (2026-09-17). Narrows the window to the products that organisation holds; absent, the bare host's — the default tenant's, or the platform's where none is set. A slug nobody has shows nothing, as an unknown product does."
           }
         ],
         "responses": {
@@ -15573,6 +15604,86 @@
                       }
                     }
                   }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "description": "The slug of the organisation whose URL root the page is on (2026-09-17). Narrows the window to the products that organisation holds; absent, the bare host's — the default tenant's, or the platform's where none is set. A slug nobody has shows nothing, as an unknown product does."
+          }
+        ]
+      }
+    },
+    "/api/v1/public/tenant": {
+      "get": {
+        "tags": [
+          "Storefront"
+        ],
+        "operationId": "showPublicTenant",
+        "summary": "The organisation at a URL root",
+        "description": "Public, because the page that asks has no session yet. `hostname/{slug}/` is an organisation's root (2026-09-17); the bare host is the default tenant's. A stranger learns the name to paint; a member arriving learns which of their memberships the page is about, before signing in. Without `tenant`, the default one — `404 NO_DEFAULT_TENANT` where none is set, which a page reads as \"the platform's window, as before roots\".",
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "description": "The slug of the organisation whose URL root the page is on (2026-09-17). Narrows the window to the products that organisation holds; absent, the bare host's — the default tenant's, or the platform's where none is set. A slug nobody has shows nothing, as an unknown product does."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The organisation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "tenant"
+                  ],
+                  "properties": {
+                    "tenant": {
+                      "$ref": "#/components/schemas/PublicTenant"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — the slug is malformed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`TENANT_NOT_FOUND` — no organisation has this slug; or `NO_DEFAULT_TENANT` — nothing is set for the bare host.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
