@@ -302,6 +302,20 @@ Not a visual style, which dates. Four properties, which do not:
 - **Fast on a bad connection.** Skeletons rather than spinners, stale data
   shown while revalidating, and no screen that blocks entirely on its slowest
   query.
+- **A code is chosen, never typed.** Where the API stores a value from a
+  closed vocabulary — a country (ISO 3166-1), a currency (ISO 4217), a
+  supply type, a person known by their user id — the screen offers it by the
+  name a person reads and sends the code underneath. `ui/pickers` holds the
+  controls: `CountrySelect` and `CurrencySelect` are native `<select>`s
+  named through `Intl.DisplayNames` in the reader's language, `PersonSelect`
+  lists the people a screen may already read, and `SearchPicker` is the ARIA
+  combobox for a list too long to open, such as the platform directory. A
+  two-letter box that refused `GBR` after it was typed was the state before
+  2026-09-17; the operator asked for better, and a validator on a code is
+  now the sign that a picker is missing. Where the reader lacks the
+  permission the list needs (`members.read`, `admin.directory.read`), the
+  id field stays — a control that needs a read the person is refused would
+  be a dead one.
 
 ---
 

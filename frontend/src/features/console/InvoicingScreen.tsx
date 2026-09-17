@@ -11,6 +11,7 @@ import {
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { CountrySelect, CurrencySelect } from '@/ui/pickers/Select';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { notice } from '@/ui/tone';
 import { PageHeader, Section } from '@/ui/Page';
@@ -187,12 +188,10 @@ function BillingIdentityForm({
             </FieldCell>
 
             <FieldCell width="short">
-              <Field id="supplier-country" label="Country" hint="Two letters, such as FR.">
-                <input
+              <Field id="supplier-country" label="Country">
+                <CountrySelect
                   id="supplier-country"
-                  className={inputClass()}
-                  maxLength={2}
-                  placeholder="FR"
+                  emptyLabel="Choose a country…"
                   value={form.country_code}
                   onChange={set('country_code')}
                 />
@@ -336,11 +335,9 @@ function TaxForm({ productCode, initial }: { productCode: string; initial: TaxSe
                 label="Jurisdiction"
                 hint="The country a VAT return is filed in — the supplier's, since that is the regime the invoice is issued under."
               >
-                <input
+                <CountrySelect
                   id="tax-country"
-                  className={inputClass()}
-                  maxLength={2}
-                  placeholder="FR"
+                  emptyLabel="Choose a country…"
                   value={country}
                   onChange={(event) => setCountry(event.target.value)}
                 />
@@ -348,11 +345,10 @@ function TaxForm({ productCode, initial }: { productCode: string; initial: TaxSe
             </FieldCell>
 
             <FieldCell width="short">
-              <Field id="tax-currency" label="Currency" hint="Three letters, such as EUR.">
-                <input
+              <Field id="tax-currency" label="Currency">
+                <CurrencySelect
                   id="tax-currency"
-                  className={inputClass()}
-                  maxLength={3}
+                  emptyLabel="Choose a currency…"
                   value={currency}
                   onChange={(event) => setCurrency(event.target.value)}
                 />

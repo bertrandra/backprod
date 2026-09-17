@@ -13673,8 +13673,13 @@
                       "string",
                       "null"
                     ],
-                    "maxLength": 32,
-                    "description": "Goods, services, digital services — what is supplied changes where it is taxed."
+                    "enum": [
+                      "GOODS",
+                      "SERVICES",
+                      "DIGITAL_SERVICES",
+                      null
+                    ],
+                    "description": "Goods, services, digital services — what is supplied changes where it is taxed. Null means the product's own default. The three are the platform's whole vocabulary (§25.3); anything else is refused."
                   }
                 }
               }

@@ -73,6 +73,14 @@ function baseStubs(extra: Record<string, Stub | (() => Stub)> = {}) {
       data: { messages: [message(1)], since_seq: 0, limit: 50 },
     },
     'POST /api/v1/conversations/{conversationId}/read': { data: { last_read_seq: 1 } },
+    'GET /api/v1/tenants/current/members': {
+      data: {
+        members: [
+          { user_id: participant().user_id, email: 'ada@acme.test', display_name: 'Ada', roles: ['TENANT_ADMIN'] },
+          { user_id: '11111111-1111-4111-8111-111111111111', email: 'grace@acme.test', display_name: 'Grace', roles: ['USER'] },
+        ],
+      },
+    },
     ...extra,
   });
 }
@@ -298,13 +306,33 @@ describe('participants', () => {
 
     await waitFor(() => expect(document.querySelectorAll('[data-participant]')).toHaveLength(1));
 
-    fireEvent.change(screen.getByLabelText(/add by user id/i), {
-      target: { value: '11111111-1111-4111-8111-111111111111' },
-    });
+    // By name, from the members the reader may list: the one already in the
+    // thread is not offered again, and the id travels underneath the name.
+    await waitFor(() => expect(screen.getByLabelText(/add a colleague/i)).toBeTruthy());
+    const picker = screen.getByLabelText<HTMLSelectElement>(/add a colleague/i);
+    expect([...picker.options].map((o) => o.textContent)).toEqual(['Choose a colleague…', 'Grace <grace@acme.test>']);
+    expect(screen.getByText('Ada <ada@acme.test>')).toBeTruthy();
+
+    fireEvent.change(picker, { target: { value: '11111111-1111-4111-8111-111111111111' } });
     fireEvent.click(screen.getByRole('button', { name: /^add$/i }));
 
     await waitFor(() => expect(document.querySelectorAll('[data-participant]')).toHaveLength(2));
     expect(added).toBe(1);
+  });
+
+  it('falls back to the user id where the members cannot be listed', async () => {
+    atThread(
+      baseStubs({
+        'GET /api/v1/me': {
+          data: { ...SESSION_WITH_MESSAGING, permissions: ['messages.read', 'messages.write'] },
+        },
+      }),
+    );
+
+    // No `members.read`: the list is not asked for, and the id field stays
+    // rather than a picker with nothing in it.
+    await waitFor(() => expect(screen.getByLabelText(/add by user id/i)).toBeTruthy());
+    expect(screen.queryByLabelText(/add a colleague/i)).toBeNull();
   });
 
   it('refuses anything that is not a user id, before asking the API', async () => {
@@ -312,6 +340,9 @@ describe('participants', () => {
 
     atThread(
       baseStubs({
+        'GET /api/v1/me': {
+          data: { ...SESSION_WITH_MESSAGING, permissions: ['messages.read', 'messages.write'] },
+        },
         'POST /api/v1/conversations/{conversationId}/participants': (): Stub => {
           added += 1;
 

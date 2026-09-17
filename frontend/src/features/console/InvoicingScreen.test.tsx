@@ -269,7 +269,7 @@ describe('the tax position', () => {
     });
   });
 
-  it('upper-cases the jurisdiction so one country is one jurisdiction', async () => {
+  it('offers the jurisdiction by name and sends its ISO code', async () => {
     const { client, requests } = recordingClient({
       'GET /api/v1/staff/configuration': {
         data: {
@@ -287,7 +287,13 @@ describe('the tax position', () => {
 
     await waitFor(() => expect(screen.getByLabelText('Jurisdiction')).toBeTruthy());
 
-    fireEvent.change(screen.getByLabelText('Jurisdiction'), { target: { value: 'be' } });
+    // A picker, not a two-letter box: "Belgium (BE)" is what is read, BE is
+    // what is sent, and there is no lowercase or three-letter code to refuse.
+    const jurisdiction = screen.getByLabelText<HTMLSelectElement>('Jurisdiction');
+    expect(jurisdiction.tagName).toBe('SELECT');
+    expect([...jurisdiction.options].map((o) => o.value)).toContain('BE');
+    fireEvent.change(jurisdiction, { target: { value: 'BE' } });
+    expect(jurisdiction.selectedOptions[0]?.textContent).toMatch(/\(BE\)$/);
     fireEvent.click(screen.getByRole('button', { name: /Save the tax position/i }));
 
     await waitFor(() =>

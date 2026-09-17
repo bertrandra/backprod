@@ -99,15 +99,24 @@ describe('the profile', () => {
     expect(saved).toBe(0);
   });
 
-  it('refuses a country code that is not two letters', async () => {
+  it('offers the country by name, so the code the rate is looked up by cannot be mistyped', async () => {
     renderWith(<BillingProfileScreen />, clientFor());
 
     await waitFor(() => expect(screen.getByLabelText(/^country$/i)).toBeTruthy());
 
-    fireEvent.change(screen.getByLabelText(/^country$/i), { target: { value: 'GBR' } });
-    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    // A picker: GBR, UK and Fr — each refused by the old validator after the
+    // person had typed it — are not offered, and "United Kingdom (GB)" is.
+    const country = screen.getByLabelText<HTMLSelectElement>(/^country$/i);
+    expect(country.tagName).toBe('SELECT');
+    // By value rather than by accessible name: the name is in the reader's own
+    // language (this machine may say "Royaume-Uni"), and computing 250 names
+    // in jsdom takes seconds. The value is the fact anyway.
+    const codes = [...country.options].map((o) => o.value);
+    expect(codes).toContain('GB');
+    expect(codes).not.toContain('GBR');
 
-    // The code the tax rules are looked up by — a wrong one is a wrong rate.
-    await waitFor(() => expect(screen.getByText(/ISO 3166/i)).toBeTruthy());
+    fireEvent.change(country, { target: { value: 'GB' } });
+    expect(country.value).toBe('GB');
+    expect(country.selectedOptions[0]?.textContent).toMatch(/\(GB\)$/);
   });
 });

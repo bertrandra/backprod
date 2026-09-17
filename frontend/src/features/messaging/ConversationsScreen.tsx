@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { can } from '@/app/access/access';
 import { useViewState } from '@/app/frame/viewState';
 
 import {
@@ -20,9 +21,12 @@ import {
   useStartConversation,
   type Participant,
 } from '@/queries/conversations';
+import { useMembers } from '@/queries/members';
+import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { PersonSelect, personLabel, type Person } from '@/ui/pickers/Select';
 import { SkeletonRows } from '@/ui/Skeleton';
 
 /**
@@ -338,6 +342,15 @@ function useMarkReadUpTo(conversationId: string, messages: readonly { seq: numbe
  * this component invented. A closed thread shows its participants and offers no
  * change: the backend refuses either way, and a control that always failed would
  * be worse than none.
+ *
+ * **Somebody is added by name, not by pasting an id.** The API takes a user
+ * id, as it should — an id is what a person *is* here — but nobody should
+ * have to fetch one from the members screen. Where the reader may list the
+ * members (`members.read`), the colleagues not yet in the thread are offered
+ * by name and the id travels underneath; where they may not, or the list
+ * did not come, the id field stays, because a control that needs a read the
+ * person is refused would be a dead one. The same list names the
+ * participants already here, instead of eight characters of uuid.
  */
 function Participants({
   conversationId,
@@ -350,6 +363,18 @@ function Participants({
 }) {
   const add = useAddParticipant(conversationId);
   const drop = useRemoveParticipant(conversationId);
+  const { data: session } = useSession();
+  const members = useMembers(can(session, 'members.read'));
+
+  const people = new Map<string, Person>(
+    (members.data ?? []).map((member) => [
+      member.user_id,
+      { id: member.user_id, name: member.display_name ?? null, email: member.email ?? null },
+    ]),
+  );
+  const present = new Set(participants.filter((p) => p.left_at === null).map((p) => p.user_id));
+  const candidates = [...people.values()].filter((person) => !present.has(person.id));
+  const byName = members.data !== undefined;
 
   const form = useForm<z.infer<typeof participantSchema>>({
     resolver: zodResolver(participantSchema),
@@ -368,7 +393,11 @@ function Participants({
             data-kind={participant.kind}
             className="flex flex-wrap items-center gap-2"
           >
-            <code className="text-xs">{participant.user_id.slice(0, 8)}</code>
+            {people.has(participant.user_id) ? (
+              <span className="font-medium">{personLabel(people.get(participant.user_id) as Person)}</span>
+            ) : (
+              <code className="text-xs">{participant.user_id.slice(0, 8)}</code>
+            )}
             <span className="text-xs text-subtle">
               {participant.kind} · read to #{participant.last_read_seq}
             </span>
@@ -404,17 +433,30 @@ function Participants({
             )(event);
           }}
         >
-          <Field
-            id="participant-user"
-            label="Add by user id"
-            error={form.formState.errors.user_id?.message}
-          >
-            <input
+          {byName ? (
+            <Field id="participant-user" label="Add a colleague" error={form.formState.errors.user_id?.message}>
+              <PersonSelect
+                id="participant-user"
+                people={candidates}
+                emptyLabel={candidates.length === 0 ? 'Everybody is already here' : 'Choose a colleague…'}
+                disabled={candidates.length === 0}
+                invalid={form.formState.errors.user_id !== undefined}
+                {...form.register('user_id')}
+              />
+            </Field>
+          ) : (
+            <Field
               id="participant-user"
-              className={inputClass(form.formState.errors.user_id !== undefined)}
-              {...form.register('user_id')}
-            />
-          </Field>
+              label="Add by user id"
+              error={form.formState.errors.user_id?.message}
+            >
+              <input
+                id="participant-user"
+                className={inputClass(form.formState.errors.user_id !== undefined)}
+                {...form.register('user_id')}
+              />
+            </Field>
+          )}
 
           <Button type="submit" pending={add.isPending}>
             Add

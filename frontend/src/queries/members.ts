@@ -9,11 +9,12 @@ import { toApiError } from './session';
 
 export type Member = Schemas['Member'];
 
-export function useMembers() {
+export function useMembers(enabled = true) {
   const client = useApiClient();
 
   return useQuery({
     queryKey: keys.members.all,
+    enabled,
     queryFn: async (): Promise<readonly Member[]> => {
       const { data, error, response } = await client.GET(
         '/api/v1/tenants/current/members',

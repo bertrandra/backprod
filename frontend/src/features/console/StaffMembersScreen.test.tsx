@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { renderWith, stubClient } from '@/test-utils';
+import { recordingClient, renderWith, stubClient, type Stub } from '@/test-utils';
 
 import { StaffMembersScreen } from './StaffMembersScreen';
 
@@ -29,15 +29,20 @@ const ROLES = [
   { code: 'SUPPORT_ADMIN', name: 'Support' },
 ];
 
-function clientFor(members: unknown[], meId = 'someone-else') {
-  return stubClient({
+function stubsFor(members: unknown[], meId = 'someone-else', permissions = ['staff.grant'], extra = {}) {
+  return {
     'GET /api/v1/staff/members': { data: { members, roles: ROLES } },
     'GET /api/v1/staff/me': {
-      data: { staff: { user_id: meId, roles: ['PLATFORM_ADMIN'], permissions: ['staff.grant'] } },
+      data: { staff: { user_id: meId, roles: ['PLATFORM_ADMIN'], permissions } },
     },
+    ...extra,
     'POST /api/v1/staff/members': { data: { members, roles: ROLES } },
     'DELETE /api/v1/staff/members/{userId}/roles/{role}': { data: { members, roles: ROLES } },
-  });
+  };
+}
+
+function clientFor(members: unknown[], meId = 'someone-else') {
+  return stubClient(stubsFor(members, meId));
 }
 
 describe('the last administrator', () => {
@@ -96,6 +101,50 @@ describe('appointing somebody', () => {
     const options = screen.getAllByRole('option').map((o) => o.textContent);
     expect(options).toContain('Support (SUPPORT_ADMIN)');
     expect(options).toContain('Platform administrator (PLATFORM_ADMIN)');
+  });
+
+  it('finds the person in the directory where it may be read, and sends their id', async () => {
+    const searches: string[] = [];
+    const { client, requests } = recordingClient(stubsFor([member('only-admin', ['PLATFORM_ADMIN'])], 'someone-else', ['staff.grant', 'admin.directory.read'], {
+      'GET /api/v1/admin/users': (): Stub => ({
+        data: {
+          users: [
+            { id: 'u-ada', email: 'ada@example.test', display_name: 'Ada Lovelace', created_at: '2026-01-01T00:00:00Z', erased_at: null },
+            { id: 'u-gone', email: null, display_name: null, created_at: '2026-01-01T00:00:00Z', erased_at: '2026-02-01T00:00:00Z' },
+          ],
+          total: 2,
+          limit: 8,
+          offset: 0,
+        },
+      }),
+    }));
+
+    renderWith(<StaffMembersScreen />, client);
+
+    await waitFor(() => expect(screen.getByLabelText('Who')).toBeTruthy());
+    expect(screen.queryByLabelText('User id')).toBeNull();
+
+    fireEvent.change(screen.getByLabelText('Who'), { target: { value: 'ada' } });
+
+    // Found, by the directory's own search — and an erased person, having
+    // neither name nor address, is not offered.
+    await waitFor(() => expect(screen.getByRole('option', { name: /Ada Lovelace/ })).toBeTruthy());
+    expect(screen.queryByRole('option', { name: /u-gone/ })).toBeNull();
+    searches.push(...requests.filter((r) => r.path === '/api/v1/admin/users').map((r) => String((r.query as { search?: string }).search)));
+    expect(searches).toContain('ada');
+
+    fireEvent.mouseDown(screen.getByRole('option', { name: /Ada Lovelace/ }));
+
+    // Chosen: read back as name and address, with the id that will be sent.
+    await waitFor(() => expect(document.querySelector('[data-picked="u-ada"]')).not.toBeNull());
+    expect(screen.getByText('u-ada')).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'SUPPORT_ADMIN' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Grant role' }));
+
+    await waitFor(() => expect(requests.some((r) => r.method === 'POST' && r.path === '/api/v1/staff/members')).toBe(true));
+    const sent = requests.find((r) => r.method === 'POST' && r.path === '/api/v1/staff/members');
+    expect((sent?.body as { user_id?: unknown }).user_id).toBe('u-ada');
   });
 
   it('cannot be submitted without both a user and a role', async () => {
