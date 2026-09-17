@@ -12,6 +12,8 @@ see [`docs/identities-and-permissions.md`](docs/identities-and-permissions.md).
 Stripe is the payment provider, built from
 [`docs/stripe-payments.md`](docs/stripe-payments.md) and recorded in
 [ADR-048](docs/adr/ADR-048-stripe-is-the-first-real-provider-and-the-page-talks-to-it.md).
+WhatsApp as a notification channel is specified, not built:
+[`docs/whatsapp-integration.md`](docs/whatsapp-integration.md).
 
 ## Stack
 
