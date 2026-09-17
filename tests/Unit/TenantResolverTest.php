@@ -6,8 +6,10 @@ namespace App\Tests\Unit;
 
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\ForbiddenException;
+use App\Tenant\Domain\Tenant;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
+use App\Tenant\Infrastructure\InMemoryTenantRepository;
 use App\Tenant\Service\TenantResolver;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
@@ -80,6 +82,26 @@ final class TenantResolverTest extends TestCase
     }
 
     /**
+     * The slug in a URL root selects the same way the id does (2026-09-17),
+     * and only among memberships: a slug of a tenant the user is not in is
+     * refused exactly as a foreign id is, so a root is not a way to discover
+     * which tenants exist either.
+     */
+    public function testTheSlugSelectsAmongMembershipsAndNeverBeyondThem(): void
+    {
+        $resolver = $this->resolverWith([
+            new TenantMembership('t1', 'u1', 'p1', ['USER']),
+            new TenantMembership('t2', 'u1', 'p1', ['TENANT_ADMIN']),
+        ]);
+
+        self::assertSame('t2', $resolver->resolve('u1', 'p1', 'two')->tenantId);
+
+        $foreignSlug = $this->refusalFor($resolver, 'nine');
+        $absentSlug = $this->refusalFor($resolver, 'no-such-root');
+        self::assertSame($foreignSlug, $absentSlug);
+    }
+
+    /**
      * A tenant the user does not belong to and a tenant that does not exist
      * must be indistinguishable, so the endpoint cannot be used to discover
      * which tenants exist.
@@ -115,6 +137,13 @@ final class TenantResolverTest extends TestCase
      */
     private function resolverWith(array $memberships): TenantResolver
     {
-        return new TenantResolver(new InMemoryTenantMembershipRepository($memberships));
+        return new TenantResolver(
+            new InMemoryTenantMembershipRepository($memberships),
+            new InMemoryTenantRepository([
+                new Tenant('t1', 'Tenant one', 'one'),
+                new Tenant('t2', 'Tenant two', 'two'),
+                new Tenant('t9', 'Nobody\'s', 'nine'),
+            ]),
+        );
     }
 }

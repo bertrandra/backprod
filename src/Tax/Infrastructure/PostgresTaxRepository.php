@@ -283,31 +283,33 @@ final class PostgresTaxRepository implements TaxRepository
      */
     public function transactionsFor(
         string $tenantId,
-        string $productId,
+        ?string $productCode,
         ?string $country,
         ?DateTimeImmutable $from,
         ?DateTimeImmutable $until,
         int $limit,
         int $offset,
     ): array {
-        if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
+        if (!Uuid::isValid($tenantId)) {
             return [];
         }
 
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT ' . self::TRANSACTION_COLUMNS . <<<'SQL'
-              FROM vat_transactions
-             WHERE tenant_id = :tenantId
-               AND product_id = :productId
-               AND (CAST(:country AS TEXT) IS NULL OR country = CAST(:country AS TEXT))
-               AND (CAST(:from AS TIMESTAMPTZ) IS NULL OR transaction_date >= CAST(:from AS TIMESTAMPTZ))
-               AND (CAST(:until AS TIMESTAMPTZ) IS NULL OR transaction_date < CAST(:until AS TIMESTAMPTZ))
-             ORDER BY transaction_date DESC, created_at DESC
+            'SELECT ' . self::qualified(self::TRANSACTION_COLUMNS, 't') . <<<'SQL'
+                   , p.code AS product_code
+              FROM vat_transactions t
+              JOIN products p ON p.id = t.product_id
+             WHERE t.tenant_id = :tenantId
+               AND (CAST(:product AS TEXT) IS NULL OR p.code = CAST(:product AS TEXT))
+               AND (CAST(:country AS TEXT) IS NULL OR t.country = CAST(:country AS TEXT))
+               AND (CAST(:from AS TIMESTAMPTZ) IS NULL OR t.transaction_date >= CAST(:from AS TIMESTAMPTZ))
+               AND (CAST(:until AS TIMESTAMPTZ) IS NULL OR t.transaction_date < CAST(:until AS TIMESTAMPTZ))
+             ORDER BY t.transaction_date DESC, t.created_at DESC
              LIMIT :limit OFFSET :offset
             SQL,
             [
                 'tenantId' => $tenantId,
-                'productId' => $productId,
+                'product' => $productCode,
                 'country' => $country === null ? null : strtoupper($country),
                 'from' => self::moment($from),
                 'until' => self::moment($until),
@@ -321,27 +323,28 @@ final class PostgresTaxRepository implements TaxRepository
 
     public function countTransactionsFor(
         string $tenantId,
-        string $productId,
+        ?string $productCode,
         ?string $country,
         ?DateTimeImmutable $from,
         ?DateTimeImmutable $until,
     ): int {
-        if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
+        if (!Uuid::isValid($tenantId)) {
             return 0;
         }
 
         $count = $this->connection->fetchOne(
             <<<'SQL'
-            SELECT count(*) FROM vat_transactions
-             WHERE tenant_id = :tenantId
-               AND product_id = :productId
-               AND (CAST(:country AS TEXT) IS NULL OR country = CAST(:country AS TEXT))
-               AND (CAST(:from AS TIMESTAMPTZ) IS NULL OR transaction_date >= CAST(:from AS TIMESTAMPTZ))
-               AND (CAST(:until AS TIMESTAMPTZ) IS NULL OR transaction_date < CAST(:until AS TIMESTAMPTZ))
+            SELECT count(*) FROM vat_transactions t
+              JOIN products p ON p.id = t.product_id
+             WHERE t.tenant_id = :tenantId
+               AND (CAST(:product AS TEXT) IS NULL OR p.code = CAST(:product AS TEXT))
+               AND (CAST(:country AS TEXT) IS NULL OR t.country = CAST(:country AS TEXT))
+               AND (CAST(:from AS TIMESTAMPTZ) IS NULL OR t.transaction_date >= CAST(:from AS TIMESTAMPTZ))
+               AND (CAST(:until AS TIMESTAMPTZ) IS NULL OR t.transaction_date < CAST(:until AS TIMESTAMPTZ))
             SQL,
             [
                 'tenantId' => $tenantId,
-                'productId' => $productId,
+                'product' => $productCode,
                 'country' => $country === null ? null : strtoupper($country),
                 'from' => self::moment($from),
                 'until' => self::moment($until),
@@ -655,7 +658,16 @@ final class PostgresTaxRepository implements TaxRepository
             Row::string($row, 'rule_id'),
             self::boolean($row, 'reverse_charge'),
             Row::timestamp($row, 'transaction_date'),
+            array_key_exists('product_code', $row) ? Row::nullableString($row, 'product_code') : null,
         );
+    }
+
+    /** `id, invoice_id` → `t.id, t.invoice_id`, for the one query that joins. */
+    private static function qualified(string $columns, string $alias): string
+    {
+        $names = array_map('trim', explode(',', $columns));
+
+        return implode(', ', array_map(static fn (string $name): string => $alias . '.' . $name, array_filter($names, static fn (string $n): bool => $n !== '')));
     }
 
     /**

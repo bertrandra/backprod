@@ -24,6 +24,8 @@ final class TenantAccount
     public function __construct(
         public readonly Tenant $tenant,
         public readonly array $products,
+        /** Whether the bare host addresses this organisation (2026-09-17). */
+        public readonly bool $isDefault = false,
     ) {
     }
 }

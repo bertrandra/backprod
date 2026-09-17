@@ -36,55 +36,58 @@ const WINDOW = { product: { code: 'atlas', name: 'Atlas' }, offers: [OFFER] };
 
 const ATLAS = { code: 'atlas', name: 'Atlas' };
 const BOREAS = { code: 'boreas', name: 'Boreas' };
+const ACME = { slug: 'acme', name: 'Acme Ltd', is_default: true };
 
 const CREATED = {
   access_token: 'access',
   token_type: 'Bearer',
   expires_in: 3600,
   tenant_id: 'tenant-1',
+  tenant: 'acme',
+  membership: 'ACTIVE',
 };
-
-const MONEY = { minor_units: 2900, currency: 'EUR' };
-const SESSION = {
-  id: 'order-1',
-  status: 'AWAITING_PAYMENT',
-  payment_id: 'pay-1',
-  net: MONEY,
-  vat: { minor_units: 0, currency: 'EUR' },
-  gross: MONEY,
-};
-// A provider with no card form in the page: the stub. What the pay step
-// does *without* Stripe is what these tests are about; the form itself is
-// PaymentElementPanel.test.tsx's.
-const STUB_PROVIDER = { name: 'stub', publishable_key: null, sandbox: true };
 
 function clientFor(extra: Stubs = {}) {
   return stubClient({
+    'GET /api/v1/public/tenant': { data: { tenant: ACME } },
     'GET /api/v1/public/products': { data: { products: [ATLAS] } },
     'GET /api/v1/public/offers': { data: WINDOW },
     'POST /api/v1/auth/sign-up': { status: 201, data: CREATED },
-    'POST /api/v1/checkout/sessions': { status: 201, data: { session: SESSION } },
     ...extra,
   });
 }
 
 /** Fills the form the way a person does, and submits it. */
-function signUpAs(fields: { email: string; password: string; organisation?: string }): void {
+function signUpAs(fields: { email: string; password: string; name?: string }): void {
   fireEvent.change(screen.getByLabelText('Email'), { target: { value: fields.email } });
   fireEvent.change(screen.getByLabelText('Password'), { target: { value: fields.password } });
 
-  if (fields.organisation !== undefined) {
-    fireEvent.change(screen.getByLabelText('Company (optional)'), {
-      target: { value: fields.organisation },
-    });
+  if (fields.name !== undefined) {
+    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: fields.name } });
   }
 
-  fireEvent.click(screen.getByRole('button', { name: /Create account and continue/i }));
+  fireEvent.click(screen.getByRole('button', { name: /Create account and join/i }));
+}
+
+/** Points the page at the offers and opens the door with the first one. */
+async function chooseTheOffer(): Promise<void> {
+  await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
+  fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
+  await waitFor(() => expect(screen.getByLabelText('Email')).toBeTruthy());
 }
 
 beforeEach(() => {
   window.localStorage.clear();
-  useSessionStore.setState({ token: null, productCode: 'atlas', status: 'anonymous', expiresAt: null });
+  // The root too: a bare-host render teaches the store the default slug,
+  // which would otherwise leak into the next test as an address.
+  useSessionStore.setState({
+    token: null,
+    productCode: 'atlas',
+    status: 'anonymous',
+    expiresAt: null,
+    root: '',
+    tenantSlug: null,
+  });
 });
 
 afterEach(() => {
@@ -228,25 +231,22 @@ describe('the shop window', () => {
 });
 
 describe('choosing an offer', () => {
-  it('asks for an account rather than for a sign-in', async () => {
+  it('opens the door with the offer in hand, and asks to join rather than to buy', async () => {
     renderWith(<Storefront onSignIn={() => undefined} />, clientFor());
 
-    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
+    await chooseTheOffer();
 
-    await waitFor(() => expect(screen.getByText(/Create your account/i)).toBeTruthy());
+    // The organisation at this root is the one being asked, by name; and the
+    // form says who buys, because a USER cannot (tenant-roots §2.4).
+    expect(screen.getByText(/Join Acme Ltd/i)).toBeTruthy();
+    expect(screen.getByText(/an administrator buys/i)).toBeTruthy();
   });
 
   it('keeps the chosen offer and its price in front of them while they type', async () => {
     renderWith(<Storefront onSignIn={() => undefined} />, clientFor());
 
-    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
+    await chooseTheOffer();
 
-    await waitFor(() => expect(screen.getByTestId('chosen-offer')).toBeTruthy());
-
-    // A purchase that turns out to cost something else is the complaint this
-    // avoids.
     const chosen = screen.getByTestId('chosen-offer');
     expect(chosen.textContent).toContain('Pro, monthly');
     expect(chosen.querySelector('[data-minor-units="2900"]')).not.toBeNull();
@@ -255,83 +255,80 @@ describe('choosing an offer', () => {
   it('lets them go back and choose differently', async () => {
     renderWith(<Storefront onSignIn={() => undefined} />, clientFor());
 
-    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
-
-    await waitFor(() => expect(screen.getByTestId('choose-another')).toBeTruthy());
+    await chooseTheOffer();
     fireEvent.click(screen.getByTestId('choose-another'));
 
     await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
   });
+
+  it('has a door with nothing in hand, from the footer', async () => {
+    renderWith(<Storefront onSignIn={() => undefined} />, clientFor());
+
+    await waitFor(() => expect(screen.getByTestId('sign-up-link')).toBeTruthy());
+    expect(screen.getByTestId('sign-up-link').textContent).toContain('Acme Ltd');
+    fireEvent.click(screen.getByTestId('sign-up-link'));
+
+    await waitFor(() => expect(screen.getByLabelText('Email')).toBeTruthy());
+    expect(screen.queryByTestId('chosen-offer')).toBeNull();
+  });
+
+  it('offers no door where there is no organisation to ask', async () => {
+    renderWith(
+      <Storefront onSignIn={() => undefined} />,
+      clientFor({
+        'GET /api/v1/public/tenant': {
+          status: 404,
+          error: { error: { code: 'NO_DEFAULT_TENANT', message: 'None.', details: {}, request_id: 'r' } },
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('sign-in-link')).toBeTruthy());
+    expect(screen.queryByTestId('sign-up-link')).toBeNull();
+  });
 });
 
 describe('creating the account', () => {
-  it('sends the company when there is one', async () => {
+  it('names the organisation at this root and the product on show, and no company', async () => {
     const { client, requests } = recordingClient({
+      'GET /api/v1/public/tenant': { data: { tenant: ACME } },
       'GET /api/v1/public/offers': { data: WINDOW },
       'POST /api/v1/auth/sign-up': { status: 201, data: CREATED },
-      'POST /api/v1/checkout/sessions': { status: 201, data: { session: SESSION } },
     });
 
     renderWith(<Storefront onSignIn={() => undefined} />, client);
 
-    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
-    await waitFor(() => expect(screen.getByLabelText('Email')).toBeTruthy());
-
-    signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password', organisation: 'Acme Ltd' });
+    await chooseTheOffer();
+    signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password', name: 'Ada' });
 
     await waitFor(() =>
       expect(requests.some((r) => r.path === '/api/v1/auth/sign-up')).toBe(true),
     );
 
+    // The slug from the store — the root the page is on — never typed; the
+    // product for the default; and nothing an organisation would be made of.
     const body = requests.find((r) => r.path === '/api/v1/auth/sign-up')?.body;
-
-    expect(body).toMatchObject({
+    expect(body).toEqual({
       email: 'ada@acme.test',
+      password: 'a-long-enough-password',
+      tenant: 'acme',
       product: 'atlas',
-      organisation: 'Acme Ltd',
+      display_name: 'Ada',
     });
-  });
-
-  it('sends no company at all when somebody is buying for themselves', async () => {
-    const { client, requests } = recordingClient({
-      'GET /api/v1/public/offers': { data: WINDOW },
-      'POST /api/v1/auth/sign-up': { status: 201, data: CREATED },
-      'POST /api/v1/checkout/sessions': { status: 201, data: { session: SESSION } },
-    });
-
-    renderWith(<Storefront onSignIn={() => undefined} />, client);
-
-    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
-    await waitFor(() => expect(screen.getByLabelText('Email')).toBeTruthy());
-
-    signUpAs({ email: 'sam@personal.test', password: 'a-long-enough-password' });
-
-    await waitFor(() =>
-      expect(requests.some((r) => r.path === '/api/v1/auth/sign-up')).toBe(true),
-    );
-
-    // Null, not "". The B2C case is the short one and the screen must not
-    // assert an empty company name it does not mean.
-    expect(requests.find((r) => r.path === '/api/v1/auth/sign-up')?.body).toMatchObject({
-      organisation: null,
-    });
+    expect(screen.queryByLabelText(/Company/i)).toBeNull();
+    expect(screen.queryByLabelText(/Country/i)).toBeNull();
   });
 
   it('refuses a password the contract would refuse, before sending it', async () => {
     const { client, requests } = recordingClient({
+      'GET /api/v1/public/tenant': { data: { tenant: ACME } },
       'GET /api/v1/public/offers': { data: WINDOW },
       'POST /api/v1/auth/sign-up': { status: 201, data: CREATED },
     });
 
     renderWith(<Storefront onSignIn={() => undefined} />, client);
 
-    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
-    await waitFor(() => expect(screen.getByLabelText('Email')).toBeTruthy());
-
+    await chooseTheOffer();
     signUpAs({ email: 'ada@acme.test', password: 'short' });
 
     await waitFor(() => expect(screen.getByText(/at least 12 characters/i)).toBeTruthy());
@@ -351,10 +348,7 @@ describe('creating the account', () => {
       }),
     );
 
-    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
-    await waitFor(() => expect(screen.getByLabelText('Email')).toBeTruthy());
-
+    await chooseTheOffer();
     signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
 
     // Unlike every other message about an existing account on this platform.
@@ -364,69 +358,26 @@ describe('creating the account', () => {
     );
   });
 
-  it('opens the checkout for what they chose, and pays where the secret was born', async () => {
-    const { client, requests } = recordingClient({
-      'GET /api/v1/public/offers': { data: WINDOW },
-      'POST /api/v1/auth/sign-up': { status: 201, data: CREATED },
-      'POST /api/v1/checkout/sessions': {
-        status: 201,
-        data: { session: { ...SESSION, client_secret: 'secret-1', payment_provider: STUB_PROVIDER } },
-      },
-    });
-
-    renderWith(<Storefront onSignIn={() => undefined} />, client);
-
-    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
-    await waitFor(() => expect(screen.getByLabelText('Email')).toBeTruthy());
-
-    signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
-
-    await waitFor(() =>
-      expect(requests.some((r) => r.path === '/api/v1/checkout/sessions')).toBe(true),
-    );
-
-    // The offer they chose, not one they are asked to choose again.
-    expect(requests.find((r) => r.path === '/api/v1/checkout/sessions')?.body).toEqual({
-      offer_id: 'offer-1',
-    });
-
-    // No hop yet: the render that received the secret is the one that can
-    // offer a card form (ADR-048), and a full navigation would lose it. The
-    // stub has no form, so the step says so and points at the order — which
-    // is also where somebody who changes their mind ends up.
-    await waitFor(() => expect(screen.getByTestId('payment-panel')).toBeTruthy());
-    expect(screen.getByTestId('payment-panel').getAttribute('data-provider')).toBe('stub');
-    expect(screen.getByTestId('payment-no-panel')).toBeTruthy();
-    expect(screen.getByTestId('sandbox-band')).toBeTruthy();
-    expect(screen.getByTestId('continue-to-order').getAttribute('href')).toBe('/checkout/order-1');
-  });
-
-  it('goes to the order without a pay step when there is nothing to pay', async () => {
-    // A free offer: no payment, no secret, no provider. The order is the
-    // only place to go.
+  it("says the organisation's policy in its own words when it refuses", async () => {
     renderWith(
       <Storefront onSignIn={() => undefined} />,
       clientFor({
-        'POST /api/v1/checkout/sessions': {
-          status: 201,
-          data: { session: { ...SESSION, payment_id: null, payment_provider: null } },
+        'POST /api/v1/auth/sign-up': {
+          status: 403,
+          error: {
+            error: { code: 'JOIN_DOMAIN_NOT_ALLOWED', message: 'No.', details: {}, request_id: 'r' },
+          },
         },
       }),
     );
 
-    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
-    await waitFor(() => expect(screen.getByLabelText('Email')).toBeTruthy());
+    await chooseTheOffer();
+    signUpAs({ email: 'ada@elsewhere.test', password: 'a-long-enough-password' });
 
-    signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
-
-    await waitFor(() => expect(screen.getByTestId('continue-to-order')).toBeTruthy());
-    expect(screen.queryByTestId('payment-panel')).toBeNull();
-    expect(screen.getByTestId('continue-to-order').textContent).toBe('Continue to your order');
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/own domain/i));
   });
 
-  it('puts them in the application when it is the checkout that failed', async () => {
+  it('goes to the root once the account exists, in or waiting alike', async () => {
     const assign = vi.fn();
 
     vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign });
@@ -434,44 +385,35 @@ describe('creating the account', () => {
     renderWith(
       <Storefront onSignIn={() => undefined} />,
       clientFor({
-        'POST /api/v1/checkout/sessions': {
-          status: 409,
-          error: {
-            error: { code: 'BILLING_PROFILE_REQUIRED', message: 'No profile.', details: {}, request_id: 'r' },
-          },
-        },
+        'POST /api/v1/auth/sign-up': { status: 201, data: { ...CREATED, membership: 'PENDING' } },
       }),
     );
 
-    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
-    await waitFor(() => expect(screen.getByLabelText('Email')).toBeTruthy());
-
+    await chooseTheOffer();
     signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
 
-    // The account exists by now, so the worst outcome available is the
-    // catalogue — where the same purchase is one click away. Telling somebody
-    // their sign-up failed would send them to create a second account, which
-    // the first would then refuse.
-    await waitFor(() => expect(assign).toHaveBeenCalledWith('/catalogue'));
+    // No checkout: a USER cannot buy, so there is no pay step to keep them
+    // here for. The root is where the shell says "in" or "waiting" — and it
+    // is a full navigation, so the session comes back from the cookie.
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/'));
+    expect(screen.queryByTestId('payment-panel')).toBeNull();
   });
 
   it('holds the token without declaring the person signed in, until it navigates', async () => {
+    const assign = vi.fn();
+
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign });
+
     renderWith(<Storefront onSignIn={() => undefined} />, clientFor());
 
-    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
-    await waitFor(() => expect(screen.getByLabelText('Email')).toBeTruthy());
-
+    await chooseTheOffer();
     signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
 
-    // On the pay step now, still on this page.
-    await waitFor(() => expect(screen.getByTestId('continue-to-order')).toBeTruthy());
+    await waitFor(() => expect(assign).toHaveBeenCalled());
 
-    // The token is usable — the checkout above needed it — and the status has
-    // *not* flipped, because `SignInGate` renders the application the instant
-    // it does, which would unmount this page mid-purchase. An E2E run found
-    // that; this is what keeps it fixed.
+    // The token is usable and the status has *not* flipped, because
+    // `SignInGate` renders the application the instant it does, which would
+    // unmount this page before it navigated.
     expect(useSessionStore.getState().token).toBe('access');
     expect(useSessionStore.getState().status).toBe('anonymous');
   });

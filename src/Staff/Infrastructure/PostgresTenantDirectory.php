@@ -92,4 +92,68 @@ final class PostgresTenantDirectory implements TenantDirectory
 
         return $row === false ? null : self::toTenant($row);
     }
+
+    public function create(string $name, string $slug): ?Tenant
+    {
+        // ON CONFLICT DO NOTHING rather than a read and a branch: two
+        // administrators creating the same slug at once would both read
+        // "free" and one would then fail on the unique index.
+        $row = $this->connection->fetchAssociative(
+            <<<'SQL'
+                INSERT INTO tenants (name, slug)
+                VALUES (:name, :slug)
+                ON CONFLICT (slug) DO NOTHING
+                RETURNING id, name, slug, may_author_offers
+                SQL,
+            ['name' => $name, 'slug' => $slug],
+        );
+
+        return $row === false ? null : self::toTenant($row);
+    }
+
+    public function rename(string $tenantId, string $name): ?Tenant
+    {
+        if (!Uuid::isValid($tenantId)) {
+            return null;
+        }
+
+        $row = $this->connection->fetchAssociative(
+            'UPDATE tenants SET name = :name, updated_at = now() WHERE id = :id RETURNING id, name, slug, may_author_offers',
+            ['id' => $tenantId, 'name' => $name],
+        );
+
+        return $row === false ? null : self::toTenant($row);
+    }
+
+    public function reslug(string $tenantId, string $slug): ?Tenant
+    {
+        if (!Uuid::isValid($tenantId)) {
+            return null;
+        }
+
+        $taken = $this->connection->fetchOne(
+            'SELECT 1 FROM tenants WHERE slug = :slug AND id <> :id',
+            ['slug' => $slug, 'id' => $tenantId],
+        );
+
+        if ($taken !== false) {
+            return null;
+        }
+
+        $row = $this->connection->fetchAssociative(
+            'UPDATE tenants SET slug = :slug, updated_at = now() WHERE id = :id RETURNING id, name, slug, may_author_offers',
+            ['id' => $tenantId, 'slug' => $slug],
+        );
+
+        return $row === false ? null : self::toTenant($row);
+    }
+
+    public function hasInvoices(string $tenantId): bool
+    {
+        if (!Uuid::isValid($tenantId)) {
+            return false;
+        }
+
+        return $this->connection->fetchOne('SELECT 1 FROM invoices WHERE tenant_id = :id LIMIT 1', ['id' => $tenantId]) !== false;
+    }
 }

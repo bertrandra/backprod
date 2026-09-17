@@ -85,6 +85,10 @@ final class PostgresDemoFixtures implements DemoFixtures
             'TRUNCATE TABLE ' . implode(', ', self::BUSINESS_TABLES) . ' RESTART IDENTITY CASCADE',
         );
 
+        // The bare host's organisation is about to be gone; the setting that
+        // names it goes too, or the storefront would point at nothing.
+        $this->connection->executeStatement("DELETE FROM platform_settings WHERE key = 'default_tenant'");
+
         return count(self::BUSINESS_TABLES);
     }
 
@@ -178,6 +182,17 @@ final class PostgresDemoFixtures implements DemoFixtures
                 ['name' => $tenant['name'], 'slug' => $key],
             );
         }
+
+        // Acme is the operator's own: the bare host addresses it (2026-09-17),
+        // and Globex lives at /globex/.
+        $this->connection->executeStatement(
+            <<<'SQL'
+                INSERT INTO platform_settings (key, value)
+                VALUES ('default_tenant', CAST(:value AS jsonb))
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+                SQL,
+            ['value' => json_encode(['tenant_id' => $tenants[DemoWorld::DEFAULT_TENANT]], JSON_THROW_ON_ERROR)],
+        );
 
         return $tenants;
     }

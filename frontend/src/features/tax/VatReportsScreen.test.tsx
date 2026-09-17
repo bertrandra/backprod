@@ -106,6 +106,7 @@ const TRANSACTION = {
   rule_id: 'fr.b2c.standard',
   reverse_charge: false,
   transaction_date: '2026-03-04T09:00:00Z',
+  product: 'atlas',
 };
 
 function clientFor(

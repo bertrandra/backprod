@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Staff\Service;
 
 use App\Product\Domain\Product;
+use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
 use App\Staff\Domain\AccessMotive;
+use App\Staff\Domain\GrantedEntitlement;
 use App\Staff\Domain\StaffAccess;
 use App\Staff\Domain\StaffAccessEntry;
 use App\Staff\Domain\StaffAccessLog;
@@ -14,10 +16,13 @@ use App\Staff\Domain\StaffIdentity;
 use App\Staff\Domain\StaffPermission;
 use App\Staff\Domain\TenantAccount;
 use App\Staff\Domain\TenantDirectory;
+use App\Staff\Domain\TenantGrants;
 use App\Staff\Domain\TenantMemberAcrossProducts;
 use App\Staff\Domain\TenantMembers;
 use App\Staff\Domain\TenantProducts;
+use App\Tenant\Domain\DefaultTenant;
 use App\Tenant\Domain\Tenant;
+use App\Tenant\Domain\TenantMemberRepository;
 
 /**
  * What platform staff may do across tenants, and the trail it leaves.
@@ -39,7 +44,134 @@ final class StaffDesk
         private readonly TenantProducts $products,
         private readonly TenantMembers $members,
         private readonly StaffAccessLog $trail,
+        private readonly DefaultTenant $default,
+        private readonly TenantMemberRepository $memberships,
+        private readonly TenantGrants $grants,
     ) {
+    }
+
+    /**
+     * Makes an organisation (2026-09-17), with its products and, when named,
+     * its first administrator — one act, one trail row. Since sign-up stopped
+     * making organisations this is the only way one comes to exist, so what
+     * the installer and the demonstration world do by hand, this does for a
+     * person at the console.
+     *
+     * The first administrator is an existing user, found in the directory,
+     * given TENANT_ADMIN on every product assigned here (mirrored, ADR-047).
+     * Nobody is invented: an address that has no account signs up at the
+     * organisation's root and is then promoted, which keeps one path for
+     * accounts.
+     *
+     * @param list<string> $productIds
+     *
+     * @throws ConflictException SLUG_TAKEN
+     */
+    public function createTenant(
+        StaffIdentity $staff,
+        string $name,
+        string $slug,
+        array $productIds,
+        ?string $adminUserId,
+    ): TenantAccount {
+        $tenant = $this->tenants->create($name, $slug);
+
+        if ($tenant === null) {
+            throw new ConflictException('SLUG_TAKEN', 'Another organisation already lives at that address.', ['slug' => $slug]);
+        }
+
+        foreach ($productIds as $productId) {
+            $this->products->assign($tenant->id, $productId, $staff->userId);
+        }
+
+        if ($adminUserId !== null && $productIds !== []) {
+            // Once: the repository mirrors the membership onto every product
+            // the organisation holds (ADR-047); the product named is the one
+            // the act is made in, and any it holds will do.
+            $this->memberships->addMember($tenant->id, $productIds[0], $adminUserId, ['TENANT_ADMIN']);
+        }
+
+        $this->trail->record(new StaffAccess(
+            $staff->userId,
+            $tenant->id,
+            null,
+            'CREATE',
+            'tenant',
+            $tenant->id,
+            StaffPermission::TENANTS_MANAGE,
+            ['slug' => $slug, 'products' => $productIds, 'admin_user_id' => $adminUserId],
+        ));
+
+        return $this->account($tenant);
+    }
+
+    /**
+     * Renames, re-addresses or makes default. Each is refused for its own
+     * reason before anything moves: an address with an invoice behind it has
+     * links in the world (D4), and a taken slug is somebody else's.
+     *
+     * @throws ConflictException SLUG_TAKEN | TENANT_HAS_INVOICES
+     */
+    public function updateTenant(
+        StaffIdentity $staff,
+        string $tenantId,
+        ?string $name,
+        ?string $slug,
+        ?bool $isDefault,
+    ): TenantAccount {
+        $tenant = $this->tenants->find($tenantId);
+
+        if ($tenant === null) {
+            $this->trail->record(new StaffAccess($staff->userId, null, null, 'UPDATE_MISS', 'tenant', $tenantId, StaffPermission::TENANTS_MANAGE, []));
+
+            throw new NotFoundException('Tenant not found.', [], 'TENANT_NOT_FOUND');
+        }
+
+        if ($slug !== null && $slug !== $tenant->slug) {
+            if ($this->tenants->hasInvoices($tenant->id)) {
+                throw new ConflictException(
+                    'TENANT_HAS_INVOICES',
+                    'An organisation with an invoice keeps its address: links to it are in the world.',
+                    ['slug' => $tenant->slug],
+                );
+            }
+
+            $moved = $this->tenants->reslug($tenant->id, $slug);
+
+            if ($moved === null) {
+                throw new ConflictException('SLUG_TAKEN', 'Another organisation already lives at that address.', ['slug' => $slug]);
+            }
+
+            $tenant = $moved;
+        }
+
+        if ($name !== null && $name !== $tenant->name) {
+            $tenant = $this->tenants->rename($tenant->id, $name) ?? $tenant;
+        }
+
+        if ($isDefault === true) {
+            $this->default->set($tenant->id);
+        } elseif ($isDefault === false && $this->default->id() === $tenant->id) {
+            $this->default->set(null);
+        }
+
+        $this->trail->record(new StaffAccess(
+            $staff->userId,
+            $tenant->id,
+            null,
+            'UPDATE',
+            'tenant',
+            $tenant->id,
+            StaffPermission::TENANTS_MANAGE,
+            array_filter(['name' => $name, 'slug' => $slug, 'is_default' => $isDefault], static fn ($v) => $v !== null),
+        ));
+
+        return $this->account($tenant);
+    }
+
+    public function isDefault(string $tenantId): bool
+    {
+        return $this->default->id() === $tenantId;
     }
 
     /**
@@ -291,9 +423,138 @@ final class StaffDesk
         return $this->account($tenant);
     }
 
+    /**
+     * What the platform gave a tenant on a product it holds, or null
+     * (docs/tenant-roots.md §2.8). Read from the console; the tenant reads
+     * the same rows through `/me/entitlements`, source and all.
+     */
+    public function grantOf(StaffIdentity $staff, string $tenantId, string $productId): ?GrantedEntitlement
+    {
+        $this->heldProduct($staff, $tenantId, $productId, 'READ_GRANT');
+
+        return $this->grants->of($tenantId, $productId);
+    }
+
+    /**
+     * Gives a tenant its entitlement to a product without a sale: a plan as
+     * the starting point (its latest active version's grants), explicit
+     * features on top or instead, an expiry or none. Replaces whatever grant
+     * there was. Only on a product the tenant holds — assigning (ADR-047) says
+     * an organisation may see a product, this says what it may do with it,
+     * and the second without the first would be an entitlement nobody can
+     * reach.
+     *
+     * @param array<string, int|null> $limits feature code → limit
+     *
+     * @throws NotFoundException TENANT_OR_PRODUCT_NOT_FOUND | PLAN_NOT_FOUND | FEATURE_NOT_FOUND
+     * @throws ConflictException GRANT_EMPTY when nothing would be granted
+     */
+    public function grantEntitlement(
+        StaffIdentity $staff,
+        string $tenantId,
+        string $productId,
+        ?string $planCode,
+        array $limits,
+        ?\DateTimeImmutable $validUntil,
+    ): GrantedEntitlement {
+        [$tenant, $product] = $this->heldProduct($staff, $tenantId, $productId, 'GRANT_ENTITLEMENT');
+
+        $fromPlan = [];
+
+        if ($planCode !== null) {
+            $fromPlan = $this->grants->limitsOfPlan($productId, $planCode);
+
+            if ($fromPlan === null) {
+                throw new NotFoundException('No plan of this product has that code.', ['plan' => $planCode], 'PLAN_NOT_FOUND');
+            }
+        }
+
+        // Explicit features win over the plan's: "the Pro plan, but with
+        // more projects" is the ordinary shape of a pilot.
+        $merged = array_merge($fromPlan, $limits);
+
+        if ($merged === []) {
+            throw new ConflictException('GRANT_EMPTY', 'A grant names at least one feature; to take everything away, withdraw it.');
+        }
+
+        $granted = $this->grants->grant($tenantId, $productId, $merged, $validUntil, $staff->userId);
+
+        // A grant is a commercial decision somebody should be able to trace:
+        // the trail carries what was given, not only that something was.
+        $this->trail->record(new StaffAccess(
+            $staff->userId,
+            $tenant->id,
+            $product->id,
+            'GRANT_ENTITLEMENT',
+            'tenant_entitlement',
+            $tenant->id,
+            StaffPermission::TENANTS_MANAGE,
+            [
+                'product_code' => $product->code,
+                'plan' => $planCode,
+                'features' => $merged,
+                'valid_until' => $validUntil?->format(\DateTimeInterface::ATOM),
+            ],
+        ));
+
+        return $granted;
+    }
+
+    public function withdrawEntitlement(StaffIdentity $staff, string $tenantId, string $productId): void
+    {
+        [$tenant, $product] = $this->heldProduct($staff, $tenantId, $productId, 'WITHDRAW_ENTITLEMENT');
+
+        $had = $this->grants->withdraw($tenantId, $productId);
+
+        $this->trail->record(new StaffAccess(
+            $staff->userId,
+            $tenant->id,
+            $product->id,
+            'WITHDRAW_ENTITLEMENT',
+            'tenant_entitlement',
+            $tenant->id,
+            StaffPermission::TENANTS_MANAGE,
+            ['product_code' => $product->code, 'had_grant' => $had],
+        ));
+    }
+
+    /**
+     * The tenant and one of the products it holds, or a traced miss.
+     *
+     * @return array{0: Tenant, 1: Product}
+     */
+    private function heldProduct(StaffIdentity $staff, string $tenantId, string $productId, string $action): array
+    {
+        $tenant = $this->tenants->find($tenantId);
+        $product = null;
+
+        foreach ($tenant === null ? [] : $this->products->of($tenantId) as $held) {
+            if ($held->id === $productId) {
+                $product = $held;
+            }
+        }
+
+        if ($tenant === null || $product === null) {
+            $this->trail->record(new StaffAccess(
+                $staff->userId,
+                null,
+                null,
+                'UPDATE_MISS',
+                'tenant_entitlement',
+                null,
+                StaffPermission::TENANTS_MANAGE,
+                ['tenant_id' => $tenantId, 'product_id' => $productId, 'action' => $action],
+            ));
+
+            throw new NotFoundException('The tenant does not hold that product.', [], 'TENANT_OR_PRODUCT_NOT_FOUND');
+        }
+
+        return [$tenant, $product];
+    }
+
     private function account(Tenant $tenant): TenantAccount
     {
-        return new TenantAccount($tenant, $this->products->of($tenant->id));
+        return new TenantAccount($tenant, $this->products->of($tenant->id), $this->default->id() === $tenant->id);
     }
 
     /**
@@ -304,9 +565,10 @@ final class StaffDesk
     private function accounts(array $tenants): array
     {
         $held = $this->products->ofMany(array_map(static fn (Tenant $tenant): string => $tenant->id, $tenants));
+        $default = $this->default->id();
 
         return array_map(
-            static fn (Tenant $tenant): TenantAccount => new TenantAccount($tenant, $held[$tenant->id] ?? []),
+            static fn (Tenant $tenant): TenantAccount => new TenantAccount($tenant, $held[$tenant->id] ?? [], $default === $tenant->id),
             $tenants,
         );
     }

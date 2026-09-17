@@ -16,8 +16,10 @@ export const keys = {
    * the URL is all there is.
    */
   storefront: {
-    products: ['storefront', 'products'] as const,
-    window: (product: string) => ['storefront', 'offers', product] as const,
+    /** The organisation at a URL root; '' for the bare host. */
+    tenant: (slug: string) => ['storefront', 'tenant', slug] as const,
+    products: (tenant: string) => ['storefront', 'products', tenant] as const,
+    window: (product: string, tenant: string) => ['storefront', 'offers', tenant, product] as const,
     offer: (product: string, offerId: string) =>
       ['storefront', 'offer', product, offerId] as const,
     listing: (product: string) => ['storefront', 'listing', product] as const,
@@ -28,6 +30,7 @@ export const keys = {
   },
   members: {
     all: ['members'] as const,
+    requests: ['members', 'requests'] as const,
   },
   skin: {
     current: ['skin', 'current'] as const,
@@ -137,6 +140,9 @@ export const keys = {
     // records has to actually happen (R14). `*Reads` is the prefix an
     // invalidation uses, because it must match every motive.
     tenantReads: (id: string) => ['staff', 'tenant', id] as const,
+    // What the platform gave on one product (2026-09-17): under the tenant's
+    // prefix, so assigning or withdrawing a product refreshes it too.
+    tenantEntitlement: (id: string, productId: string) => ['staff', 'tenant', id, 'entitlement', productId] as const,
     tenant: (id: string, purpose: string, reference: string) =>
       ['staff', 'tenant', id, purpose, reference] as const,
     tenantMembers: (id: string, product: string, purpose: string, reference: string) =>

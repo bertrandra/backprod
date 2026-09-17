@@ -371,7 +371,7 @@ final class Taxation
      */
     public function transactions(
         string $tenantId,
-        string $productId,
+        ?string $productCode,
         ?string $country,
         ?DateTimeImmutable $from,
         ?DateTimeImmutable $until,
@@ -381,14 +381,14 @@ final class Taxation
         return [
             'transactions' => $this->tax->transactionsFor(
                 $tenantId,
-                $productId,
+                $productCode,
                 $country,
                 $from,
                 $until,
                 $limit,
                 $offset,
             ),
-            'total' => $this->tax->countTransactionsFor($tenantId, $productId, $country, $from, $until),
+            'total' => $this->tax->countTransactionsFor($tenantId, $productCode, $country, $from, $until),
             'limit' => $limit,
             'offset' => $offset,
         ];

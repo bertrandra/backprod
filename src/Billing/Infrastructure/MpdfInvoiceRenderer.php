@@ -8,6 +8,7 @@ use App\Billing\Domain\AmountText;
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\InvoiceRenderer;
+use App\Billing\Domain\InvoiceStatusBand;
 use App\Billing\Domain\Money;
 use App\Billing\Domain\TaxRecord;
 use Mpdf\HTMLParserMode;
@@ -103,6 +104,83 @@ final class MpdfInvoiceRenderer implements InvoiceRenderer
         }
 
         return $bytes;
+    }
+
+    public function stamp(string $document, InvoiceStatusBand $band): string
+    {
+        $directory = rtrim($this->temporaryDirectory, '/') . '/mpdf';
+
+        if (!is_dir($directory) && !mkdir($directory, 0o700, true) && !is_dir($directory)) {
+            throw new RuntimeException('Cannot create a temporary directory for rendering.');
+        }
+
+        // The stored bytes, through a file: FPDI reads a source by path or
+        // stream, and a stream is what the temporary directory is for.
+        $source = tempnam($directory, 'inv');
+
+        if ($source === false) {
+            throw new RuntimeException('Cannot stage the invoice document for stamping.');
+        }
+
+        try {
+            file_put_contents($source, $document);
+
+            // Core fonts (mode c): the band is Latin text, and a core font
+            // writes it as the words themselves rather than as glyph ids.
+            $mpdf = new Mpdf(['mode' => 'c', 'tempDir' => $directory, 'format' => 'A4', 'margin_top' => 0, 'margin_bottom' => 0, 'margin_left' => 0, 'margin_right' => 0]);
+            $mpdf->SetCreator(self::CREATOR);
+            // Uncompressed and in a core font: the band is a few words on the
+            // first page, and words that can be read back out of the bytes
+            // are words a test can hold this to.
+            $mpdf->SetCompression(false);
+
+            $pages = $mpdf->setSourceFile($source);
+
+            for ($page = 1; $page <= $pages; ++$page) {
+                $template = $mpdf->importPage($page);
+                $size = $mpdf->getTemplateSize($template);
+                $mpdf->AddPageByArray([
+                    'orientation' => is_array($size) && ($size['orientation'] ?? 'P') === 'L' ? 'L' : 'P',
+                ]);
+                $mpdf->useTemplate($template);
+
+                if ($page === 1) {
+                    self::band($mpdf, $band);
+                }
+            }
+
+            $bytes = $mpdf->Output('', Destination::STRING_RETURN);
+        } catch (MpdfException $e) {
+            throw new RuntimeException('Failed to stamp the invoice document.', 0, $e);
+        } finally {
+            @unlink($source);
+        }
+
+        if (!is_string($bytes) || $bytes === '') {
+            throw new RuntimeException('Failed to stamp the invoice document.');
+        }
+
+        return $bytes;
+    }
+
+    /**
+     * The band lives in the top margin the rendered page leaves blank
+     * (16mm), so it never covers a line of the document it annotates.
+     */
+    private static function band(Mpdf $mpdf, InvoiceStatusBand $band): void
+    {
+        [$fill, $ink] = match ($band->kind) {
+            InvoiceStatusBand::PAID => [[223, 240, 223], [22, 92, 38]],
+            InvoiceStatusBand::OVERDUE => [[250, 224, 224], [140, 24, 24]],
+            InvoiceStatusBand::CANCELLED, InvoiceStatusBand::CREDITED => [[236, 236, 236], [70, 70, 70]],
+            default => [[255, 243, 214], [122, 80, 8]],
+        };
+
+        $mpdf->SetFillColor($fill[0], $fill[1], $fill[2]);
+        $mpdf->SetTextColor($ink[0], $ink[1], $ink[2]);
+        $mpdf->SetFont('helvetica', 'B', 9);
+        $mpdf->SetXY(16, 3);
+        $mpdf->Cell(178, 9, $band->text, 0, 0, 'C', true);
     }
 
     private static function documentTitle(Invoice $invoice): string

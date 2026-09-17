@@ -97,3 +97,61 @@ export function useRemoveMember() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.members.all }),
   });
 }
+
+/**
+ * Who asked to join by themselves and is waiting (2026-09-17).
+ *
+ * A separate list from the members, because a pending membership grants
+ * nothing and `listMembers` says so by leaving it out. `members.read`, like
+ * the members; deciding is `members.manage`.
+ */
+export function useJoinRequests(enabled = true) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.members.requests,
+    enabled,
+    queryFn: async (): Promise<readonly Member[]> => {
+      const { data, error, response } = await client.GET(
+        '/api/v1/tenants/current/members/requests',
+        ambientParams(sessionSnapshot),
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.requests;
+    },
+  });
+}
+
+/**
+ * Letting somebody in, or turning them away. Both invalidate rather than
+ * patch: accepting moves a person from one list to the other, and which
+ * roles they arrive with is the server's to say.
+ */
+export function useDecideJoinRequest() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { userId: string; decision: 'accept' | 'decline' }): Promise<void> => {
+      const ambient = ambientParams(sessionSnapshot);
+      const params = { ...ambient.params, path: { userId: input.userId } };
+
+      const { error, response } =
+        input.decision === 'accept'
+          ? await client.POST('/api/v1/tenants/current/members/{userId}/accept', { params })
+          : await client.POST('/api/v1/tenants/current/members/{userId}/decline', { params });
+
+      if (error !== undefined) {
+        throw toApiError(response.status, error);
+      }
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: keys.members.requests });
+      await queryClient.invalidateQueries({ queryKey: keys.members.all });
+    },
+  });
+}

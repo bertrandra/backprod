@@ -1,4 +1,4 @@
-import { useStorefront, type PublicOffer, type PublicProduct } from '@/queries/storefront';
+import { useStorefront, type PublicOffer, type PublicProduct, type PublicTenant } from '@/queries/storefront';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
@@ -31,25 +31,56 @@ import { SkeletonRows } from '@/ui/Skeleton';
  */
 export function StorefrontScreen({
   productCode,
+  tenant = null,
   products,
   onChooseProduct,
   onChoose,
+  onSignUp,
   onSignIn,
 }: {
   productCode: string | null;
+  /**
+   * The organisation whose root this is (2026-09-17): its name in the
+   * header, its slug on every window read. Null while unknown or on a bare
+   * host with no default; `'unknown'` for a slug nobody has, which is a
+   * page of its own rather than an empty shop.
+   */
+  tenant?: PublicTenant | 'unknown' | null;
   /** The windows there are, or null while that is still being asked. */
   products: readonly PublicProduct[] | null;
   onChooseProduct: (code: string) => void;
-  /** What choosing an offer does. Lot B makes it sign-up-then-buy. */
+  /** What choosing an offer does: since 2026-09-17, open the door with it in hand. */
   onChoose: (offer: PublicOffer) => void;
+  /** The door with nothing in hand: ask to join the organisation. */
+  onSignUp?: () => void;
   onSignIn: () => void;
 }) {
-  const storefront = useStorefront(productCode);
+  const slug = tenant === null || tenant === 'unknown' ? null : tenant.slug;
+  const storefront = useStorefront(productCode, slug);
   const several = products !== null && products.length > 1;
+
+  if (tenant === 'unknown') {
+    return (
+      <main className="mx-auto max-w-3xl space-y-8 p-4 py-10">
+        <EmptyState
+          title="No such organisation"
+          description="Nothing lives at this address. Check the link you were given, or go to the home page."
+        />
+        <p className="text-center text-sm">
+          <a href="/" className="underline underline-offset-2">Home page</a>
+        </p>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-3xl space-y-8 p-4 py-10">
       <header className="space-y-2 text-center">
+        {tenant !== null && (
+          <p data-testid="storefront-tenant" className="text-xs font-semibold uppercase tracking-wide text-subtle">
+            {tenant.name}
+          </p>
+        )}
         <h1 className="text-3xl font-semibold">
           {storefront.data?.product?.name ?? 'What we sell'}
         </h1>
@@ -138,6 +169,22 @@ export function StorefrontScreen({
           >
             Sign in
           </button>
+          {/* The door with nothing in hand (2026-09-17): only once there is
+              an organisation to ask, which a bare host with no default and
+              an unknown slug both lack. */}
+          {onSignUp !== undefined && tenant !== null && (
+            <>
+              {' · New here? '}
+              <button
+                type="button"
+                data-testid="sign-up-link"
+                onClick={onSignUp}
+                className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                Ask to join {tenant.name}
+              </button>
+            </>
+          )}
         </p>
       </footer>
     </main>

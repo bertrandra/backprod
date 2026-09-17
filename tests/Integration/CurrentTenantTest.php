@@ -66,7 +66,7 @@ final class CurrentTenantTest extends DatabaseApiTestCase
 
         self::assertSame(200, $response->getStatusCode());
         self::assertSame(
-            ['tenant' => ['id' => $this->tenant, 'name' => 'Acme Ltd', 'slug' => 'acme', 'may_author_offers' => true]],
+            ['tenant' => ['id' => $this->tenant, 'name' => 'Acme Ltd', 'slug' => 'acme', 'may_author_offers' => true, 'join_policy' => 'APPROVAL', 'join_domains' => []]],
             $this->decode($response),
         );
     }

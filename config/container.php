@@ -128,12 +128,14 @@ use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffRepository;
 use App\Staff\Domain\StaffRoster;
 use App\Staff\Domain\TenantDirectory;
+use App\Staff\Domain\TenantGrants;
 use App\Staff\Domain\TenantMembers;
 use App\Staff\Domain\TenantProducts;
 use App\Staff\Infrastructure\PostgresStaffAccessLog;
 use App\Staff\Infrastructure\PostgresStaffRepository;
 use App\Staff\Infrastructure\PostgresStaffRoster;
 use App\Staff\Infrastructure\PostgresTenantDirectory;
+use App\Staff\Infrastructure\PostgresTenantGrants;
 use App\Staff\Infrastructure\PostgresTenantMembers;
 use App\Staff\Infrastructure\PostgresTenantProducts;
 use App\Storage\Domain\AssetRepository;
@@ -145,10 +147,14 @@ use App\Tax\Domain\TaxRepository;
 use App\Tax\Domain\VatNumberValidator;
 use App\Tax\Infrastructure\PostgresTaxRepository;
 use App\Tax\Infrastructure\StubVatNumberValidator;
+use App\Tenant\Domain\DefaultTenant;
+use App\Tenant\Domain\JoinRequests;
 use App\Tenant\Domain\TenantMemberRepository;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Domain\TenantRepository;
 use App\Tenant\Infrastructure\MemberUsageSource;
+use App\Tenant\Infrastructure\PostgresDefaultTenant;
+use App\Tenant\Infrastructure\PostgresJoinRequests;
 use App\Tenant\Infrastructure\PostgresTenantMemberRepository;
 use App\Tenant\Infrastructure\PostgresTenantMembershipRepository;
 use App\Tenant\Infrastructure\PostgresTenantRepository;
@@ -407,6 +413,9 @@ return static function (array $overrides = []): ContainerInterface {
         }),
         ProjectRepository::class => autowire(PostgresProjectRepository::class),
         TenantRepository::class => autowire(PostgresTenantRepository::class),
+        // Which organisation the bare host addresses (2026-09-17).
+        DefaultTenant::class => autowire(PostgresDefaultTenant::class),
+        JoinRequests::class => autowire(PostgresJoinRequests::class),
         TenantMemberRepository::class => autowire(PostgresTenantMemberRepository::class),
         TenantMembershipRepository::class => autowire(PostgresTenantMembershipRepository::class),
 
@@ -522,6 +531,7 @@ return static function (array $overrides = []): ContainerInterface {
         StaffAccessLog::class => autowire(PostgresStaffAccessLog::class),
         TenantDirectory::class => autowire(PostgresTenantDirectory::class),
         TenantProducts::class => autowire(PostgresTenantProducts::class),
+        TenantGrants::class => autowire(PostgresTenantGrants::class),
         TenantMembers::class => autowire(PostgresTenantMembers::class),
         // The demonstration world's rows. One seeder behind the command line,
         // the installer and the console's reset, so there is one definition

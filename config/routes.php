@@ -41,6 +41,7 @@ use App\Commerce\Controller\ListPlansController;
 use App\Commerce\Controller\PublicOfferController;
 use App\Commerce\Controller\PublicOffersController;
 use App\Commerce\Controller\PublicProductsController;
+use App\Commerce\Controller\PublicTenantController;
 use App\Commerce\Controller\PublishOfferVersionController;
 use App\Commerce\Controller\ResumeSubscriptionController;
 use App\Commerce\Controller\ShowOfferController;
@@ -127,7 +128,9 @@ use App\Staff\Controller\CreatePlanController;
 use App\Staff\Controller\CreateProductController;
 use App\Staff\Controller\CreateStaffOfferController;
 use App\Staff\Controller\CreateStaffOfferVersionController;
+use App\Staff\Controller\CreateTenantController;
 use App\Staff\Controller\GrantStaffRoleController;
+use App\Staff\Controller\GrantTenantEntitlementController;
 use App\Staff\Controller\ListAccessLogController;
 use App\Staff\Controller\ListPlatformProductsController;
 use App\Staff\Controller\ListStaffController;
@@ -158,11 +161,14 @@ use App\Staff\Controller\ShowReadinessController;
 use App\Staff\Controller\ShowStaffNavigationController;
 use App\Staff\Controller\ShowSupportConversationController;
 use App\Staff\Controller\ShowTenantController;
+use App\Staff\Controller\ShowTenantEntitlementController;
 use App\Staff\Controller\ShowTenantTaxProfileController;
 use App\Staff\Controller\StaffIdentityController;
 use App\Staff\Controller\UnassignTenantProductController;
 use App\Staff\Controller\UpdatePlanController;
 use App\Staff\Controller\UpdateProductController;
+use App\Staff\Controller\UpdateTenantController;
+use App\Staff\Controller\WithdrawTenantEntitlementController;
 use App\Storage\Controller\CreateAssetLinkController;
 use App\Storage\Controller\DeleteAssetController;
 use App\Storage\Controller\DownloadAssetController;
@@ -177,8 +183,11 @@ use App\Tax\Controller\ListVatTransactionsController;
 use App\Tax\Controller\SaveTaxProfileController;
 use App\Tax\Controller\ShowTaxProfileController;
 use App\Tax\Controller\ShowVatPeriodController;
+use App\Tenant\Controller\AcceptJoinRequestController;
 use App\Tenant\Controller\AddMemberController;
 use App\Tenant\Controller\CurrentTenantController;
+use App\Tenant\Controller\DeclineJoinRequestController;
+use App\Tenant\Controller\ListJoinRequestsController;
 use App\Tenant\Controller\ListMembersController;
 use App\Tenant\Controller\RemoveMemberController;
 use App\Tenant\Controller\UpdateCurrentTenantController;
@@ -239,6 +248,8 @@ return static function (RouteCollector $routes): void {
     // The shop windows a stranger may choose between: only products that
     // advertise something, so the list says nothing the windows do not.
     $routes->addRoute('GET', '/api/v1/public/products', PublicProductsController::class);
+    // The organisation at a URL root (2026-09-17), before any session.
+    $routes->addRoute('GET', '/api/v1/public/tenant', PublicTenantController::class);
 
     $routes->addRoute('GET', '/api/v1/me', MeController::class);
     $routes->addRoute('PATCH', '/api/v1/me', UpdateMeController::class);
@@ -500,7 +511,10 @@ return static function (RouteCollector $routes): void {
     );
 
     $routes->addRoute('GET', '/api/v1/staff/tenants', ListTenantsController::class);
+    // Organisations are made and re-addressed here and nowhere else (2026-09-17).
+    $routes->addRoute('POST', '/api/v1/staff/tenants', CreateTenantController::class);
     $routes->addRoute('GET', '/api/v1/staff/tenants/{tenantId}', ShowTenantController::class);
+    $routes->addRoute('PATCH', '/api/v1/staff/tenants/{tenantId}', UpdateTenantController::class);
 
     // Lending the platform's catalogue to one tenant. A write on a tenant
     // rather than a read of one, so it carries no motive header and its own
@@ -524,6 +538,11 @@ return static function (RouteCollector $routes): void {
         '/api/v1/staff/tenants/{tenantId}/products/{productId}',
         UnassignTenantProductController::class,
     );
+    // What the platform gives a tenant on a product it holds, without a sale
+    // (docs/tenant-roots.md §2.8).
+    $routes->addRoute('GET', '/api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement', ShowTenantEntitlementController::class);
+    $routes->addRoute('PUT', '/api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement', GrantTenantEntitlementController::class);
+    $routes->addRoute('DELETE', '/api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement', WithdrawTenantEntitlementController::class);
 
     // Who belongs to a tenant, read-only, with a motive and on the record
     // (R14). The console's tenant workspace reads it; nothing writes here —
@@ -734,4 +753,8 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('POST', '/api/v1/tenants/current/members', AddMemberController::class);
     $routes->addRoute('PATCH', '/api/v1/tenants/current/members/{userId}', UpdateMemberController::class);
     $routes->addRoute('DELETE', '/api/v1/tenants/current/members/{userId}', RemoveMemberController::class);
+    // People who asked to join by themselves and are waiting (2026-09-17).
+    $routes->addRoute('GET', '/api/v1/tenants/current/members/requests', ListJoinRequestsController::class);
+    $routes->addRoute('POST', '/api/v1/tenants/current/members/{userId}/decline', DeclineJoinRequestController::class);
+    $routes->addRoute('POST', '/api/v1/tenants/current/members/{userId}/accept', AcceptJoinRequestController::class);
 };

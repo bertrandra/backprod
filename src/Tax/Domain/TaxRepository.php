@@ -72,11 +72,17 @@ interface TaxRepository
     ): array;
 
     /**
+     * The tenant's fiscal history across every product it holds
+     * (2026-09-17): a customer's VAT picture is one, and a product is a
+     * filter it may apply, not a wall between two halves of it.
+     *
+     * @param string|null $productCode narrows to one product; null answers across all
+     *
      * @return list<VatTransaction>
      */
     public function transactionsFor(
         string $tenantId,
-        string $productId,
+        ?string $productCode,
         ?string $country,
         ?DateTimeImmutable $from,
         ?DateTimeImmutable $until,
@@ -86,7 +92,7 @@ interface TaxRepository
 
     public function countTransactionsFor(
         string $tenantId,
-        string $productId,
+        ?string $productCode,
         ?string $country,
         ?DateTimeImmutable $from,
         ?DateTimeImmutable $until,

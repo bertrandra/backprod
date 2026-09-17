@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
+import type { paths } from '@/api/client';
 import { useApiClient } from '@/app/providers/ApiProvider';
+import { withRoot } from '@/app/root';
 import { useSessionStore } from '@/state/session';
 
 import { ApiError, toApiError } from './session';
@@ -97,8 +99,16 @@ function sayingForSignUp(error: unknown): string {
       return 'That address already has an account. Sign in instead.';
     }
 
+    if (error.status === 403) {
+      // The organisation's join policy, in its own words: by domain, or by
+      // invitation only. Either way the person cannot get in from here.
+      return error.code === 'JOIN_DOMAIN_NOT_ALLOWED'
+        ? 'This organisation only admits addresses on its own domain. Use your work address, or ask an administrator to add you.'
+        : 'This organisation adds people itself. Ask an administrator to add you.';
+    }
+
     if (error.status === 404) {
-      return 'This link does not name a product that is on sale. Check the address you followed.';
+      return 'No organisation lives at this address. Check the link you followed.';
     }
 
     if (error.status === 429) {
@@ -127,14 +137,20 @@ export class SignUpFailed extends Error {
 export interface NewAccount {
   readonly email: string;
   readonly password: string;
-  readonly product: string;
+  /** The slug of the organisation at this root — the one being asked. */
+  readonly tenant: string;
+  /** The product the page was showing, if any: their default from then on. */
+  readonly product?: string | null;
   readonly display_name?: string | null;
-  readonly organisation?: string | null;
-  readonly country?: string | null;
 }
 
+/** What a sign-up made: a session, and a membership that is live or waiting. */
+export type CreatedAccount = paths['/api/v1/auth/sign-up']['post']['responses']['201']['content']['application/json'];
+
 /**
- * A stranger becomes a customer, and the token is usable immediately.
+ * A stranger asks to join the organisation at this root, and the token is
+ * usable immediately (2026-09-17: a USER membership, live or pending —
+ * never an organisation, never an administrator).
  *
  * **`grantToken`, not `signIn`.** The difference is the whole reason that
  * action exists: `SignInGate` renders the application the instant the status
@@ -222,7 +238,7 @@ export function useSignOut() {
       // moved before the session is forgotten, so the gate that renders next
       // sees the landing page and shows the storefront rather than a form
       // for a screen this person has just chosen to leave.
-      window.history.replaceState(null, '', '/');
+      window.history.replaceState(null, '', withRoot(useSessionStore.getState().root, '/'));
       forget();
       queryClient.clear();
     },

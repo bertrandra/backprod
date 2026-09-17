@@ -11,15 +11,15 @@ use SensitiveParameter;
  *
  * Everywhere else a user already exists: `LocalCredentialRepository::save`
  * sets a password for one, `MemberAdministration::add` adds an existing
- * platform user to a tenant. A stranger arriving at the storefront has
- * neither, and the five rows they need — user, credential, tenant, membership,
- * role — have to appear together or not at all. Half of them is an account
- * that cannot sign in or a tenant nobody administers, and both are worse than
- * a failed sign-up.
+ * platform user to a tenant. A stranger arriving at an organisation's root
+ * has neither, and the rows they need — user, credential, a membership per
+ * product held, its USER role — have to appear together or not at all. Half
+ * of them is an account that cannot sign in, which is worse than a failed
+ * sign-up.
  *
- * So this is one method rather than five composed by a service: the
- * transaction is the invariant, and a service orchestrating five ports could
- * not hold one.
+ * So this is one method rather than four composed by a service: the
+ * transaction is the invariant, and a service orchestrating ports could not
+ * hold one.
  */
 interface AccountRegistrar
 {
@@ -29,41 +29,33 @@ interface AccountRegistrar
      * Asked before anything is written, so the answer is a 409 rather than a
      * constraint violation. It is a race — two sign-ups for the same address
      * can both pass this — which is why the unique index stays the authority
-     * and {@see register} may still fail.
+     * and {@see join} may still fail.
      */
     public function emailIsTaken(string $email): bool;
 
     /**
-     * The whole account, in one transaction.
+     * The account, and a request to join, in one transaction.
      *
-     * `organisation` is what the tenant is called. It is optional to the
-     * person signing up — a consumer has no company and should not be asked
-     * to invent one — and never optional to the platform: an invoice needs a
-     * bill-to name, so the caller passes the person's own name when there is
-     * no company, and the difference between the two cases is recorded
-     * nowhere because there is nothing downstream that should branch on it.
+     * Since 2026-09-17 a sign-up creates no organisation. The person asks
+     * the organisation whose URL root they are on to have them, as a USER.
+     * The organisation's join policy decides — the membership is ACTIVE or
+     * PENDING, or the request is refused — and the membership is mirrored
+     * onto every product the organisation holds (ADR-047). No billing
+     * profile is made: the organisation already has one.
      *
-     * A **billing profile** is created with it, which is why `organisation` is
-     * not optional here however optional it was on the form. A checkout
-     * refuses an order it cannot invoice — numbering is gapless, so a
-     * document raised by mistake cannot be deleted — and an account that
-     * could not buy anything would make the storefront's promise false. The
-     * profile is minimal: who the invoice is addressed to, where to send it,
-     * and the country VAT depends on when the person gave one.
+     * @param string      $passwordHash from `password_hash()`; the database refuses anything else
+     * @param string|null $productCode  the product the person arrived through; their default when the organisation holds it, else the first it holds
      *
-     * @param string  $passwordHash from `password_hash()`; the database refuses anything else
-     * @param ?string $countryCode  ISO 3166-1 alpha-2, or null when not asked for
-     *
-     * @throws \App\Shared\Exceptions\ConflictException if the address was taken between the check and here
-     * @throws \App\Shared\Exceptions\NotFoundException if the product does not exist or is inactive
+     * @throws \App\Shared\Exceptions\ConflictException  if the address was taken between the check and here
+     * @throws \App\Shared\Exceptions\NotFoundException  if no organisation has the slug, or it holds no product
+     * @throws \App\Shared\Exceptions\ForbiddenException JOIN_BY_INVITATION | JOIN_DOMAIN_NOT_ALLOWED
      */
-    public function register(
+    public function join(
         string $email,
         #[SensitiveParameter] string $passwordHash,
         ?string $displayName,
-        string $organisation,
-        string $productCode,
-        ?string $countryCode,
+        string $tenantSlug,
+        ?string $productCode,
     ): RegisteredAccount;
 
     /**

@@ -857,7 +857,12 @@
           },
           "source": {
             "type": "string",
-            "description": "What produced it — a subscription grant, or an override negotiated outside one."
+            "description": "What produced it — a subscription grant, or an override negotiated outside one. `GRANT`: given by the platform without a sale (docs/tenant-roots.md §2.8) — shown as “provided by the platform”, never as a subscription to cancel.",
+            "enum": [
+              "SUBSCRIPTION",
+              "OVERRIDE",
+              "GRANT"
+            ]
           },
           "valid_until": {
             "type": [
@@ -1618,7 +1623,8 @@
           "vat_regime",
           "rule_id",
           "reverse_charge",
-          "transaction_date"
+          "transaction_date",
+          "product"
         ],
         "description": "The fiscal fact, written in the same transaction as the document that caused it — a sale whose VAT row could be lost is a sale that cannot be declared.",
         "properties": {
@@ -1679,6 +1685,13 @@
           "transaction_date": {
             "type": "string",
             "format": "date-time"
+          },
+          "product": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The code of the product the document was raised in. Every transaction has one; null only where a product has since been removed."
           }
         }
       },
@@ -2482,7 +2495,9 @@
           "id",
           "name",
           "slug",
-          "may_author_offers"
+          "may_author_offers",
+          "join_policy",
+          "join_domains"
         ],
         "properties": {
           "id": {
@@ -2498,6 +2513,22 @@
           "may_author_offers": {
             "type": "boolean",
             "description": "Whether the platform has lent this tenant the catalogue. False by default: offers are keyed on product, not tenant, so a tenant administrator editing them changes what every other customer of that product is sold on. When false, `catalog.manage` is not resolved for this tenant's members at all."
+          },
+          "join_policy": {
+            "type": "string",
+            "enum": [
+              "INVITATION",
+              "DOMAIN",
+              "APPROVAL"
+            ],
+            "description": "How people arrive by themselves at this organisation’s root. `APPROVAL` (default): anybody may ask, an administrator accepts. `DOMAIN`: an address on one of `join_domains` is in at once, any other is refused. `INVITATION`: nobody arrives by themselves; administrators add people."
+          },
+          "join_domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Email domains, lower-case, without `@`. Consulted only under `DOMAIN`, and required non-empty to switch to it."
           }
         }
       },
@@ -2510,7 +2541,8 @@
           {
             "type": "object",
             "required": [
-              "products"
+              "products",
+              "is_default"
             ],
             "properties": {
               "products": {
@@ -2519,6 +2551,10 @@
                 "items": {
                   "$ref": "#/components/schemas/PlatformProduct"
                 }
+              },
+              "is_default": {
+                "type": "boolean",
+                "description": "Whether the bare host addresses this organisation (2026-09-17). Every other organisation lives at hostname/{slug}/."
               }
             }
           }
@@ -2530,7 +2566,8 @@
           "user_id",
           "email",
           "display_name",
-          "roles"
+          "roles",
+          "status"
         ],
         "properties": {
           "user_id": {
@@ -2555,6 +2592,14 @@
             "items": {
               "type": "string"
             }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "PENDING"
+            ],
+            "description": "`ACTIVE` for everybody `listMembers` returns; `PENDING` for the people `listJoinRequests` returns, who asked to join by themselves and are waiting on an administrator."
           }
         }
       },
@@ -4064,6 +4109,103 @@
           },
           "user": {
             "$ref": "#/components/schemas/AudienceMenu"
+          }
+        }
+      },
+      "PublicTenant": {
+        "type": "object",
+        "description": "The organisation at a URL root, as a stranger may know it: its slug — already in the address bar — and the name the storefront paints. Nothing about who is a member or what it has bought.",
+        "required": [
+          "slug",
+          "name",
+          "is_default"
+        ],
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "is_default": {
+            "type": "boolean",
+            "description": "Whether this is the organisation the bare host addresses."
+          }
+        }
+      },
+      "GrantedEntitlement": {
+        "type": "object",
+        "description": "What the platform gave a tenant on one product without a sale (docs/tenant-roots.md §2.8): `entitlements` rows with `source = GRANT`. The resolver reads them like a subscription’s — `/me/entitlements` shows them with their source — so a grant changes nothing in how capabilities and quotas are answered. Where a grant and a subscription both hold a feature, the most generous wins, as between a seat and the tenant.",
+        "required": [
+          "tenant_id",
+          "product_id",
+          "features",
+          "valid_until",
+          "granted_by",
+          "granted_at"
+        ],
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "product_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "name",
+                "kind",
+                "limit"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "BOOLEAN",
+                    "QUOTA"
+                  ]
+                },
+                "limit": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "For a quota: the allowance, or null for unlimited. Always null for a boolean feature."
+                }
+              }
+            }
+          },
+          "valid_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the grant lapses, or null for no end. A lapsed grant is a lapsed entitlement: nothing is invoiced and nothing renews itself — a person renews it."
+          },
+          "granted_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The staff member who decided. Null once that account is erased."
+          },
+          "granted_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }
@@ -9860,7 +10002,8 @@
                   "type": "object",
                   "required": [
                     "products",
-                    "default"
+                    "default",
+                    "pending_memberships"
                   ],
                   "properties": {
                     "products": {
@@ -9875,6 +10018,26 @@
                         "null"
                       ],
                       "description": "The code of this person's default product, among `products`, or null. Beside the list rather than on `/me` because `/me` needs a product and this is how a client learns which to name first."
+                    },
+                    "pending_memberships": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "tenant",
+                          "name"
+                        ],
+                        "properties": {
+                          "tenant": {
+                            "type": "string",
+                            "description": "The organisation’s slug."
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "description": "The organisations this person asked to join and is waiting on. Here rather than on `/me` because somebody with no live membership has no product to ask `/me` with; this is how a client says “waiting for approval” rather than “nothing”."
                     }
                   }
                 }
@@ -12490,6 +12653,107 @@
             "$ref": "#/components/responses/InternalError"
           }
         }
+      },
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "createTenantForStaff",
+        "summary": "Make an organisation",
+        "description": "The only way an organisation comes to exist since sign-up stopped making them (2026-09-17): name, slug — its address, `hostname/{slug}/`, a lowercase word that is not one of the application's own paths — the products it holds by code, and optionally its first administrator, an existing user given TENANT_ADMIN on every product assigned. Recorded in the access log. Requires `staff.tenants.manage`.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "slug"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "slug": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+                  },
+                  "products": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Product codes the organisation holds from the start (ADR-047)."
+                  },
+                  "admin_user_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uuid",
+                    "description": "An existing user, found in the directory, made TENANT_ADMIN."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The organisation, with its products.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "tenant"
+                  ],
+                  "properties": {
+                    "tenant": {
+                      "$ref": "#/components/schemas/StaffTenant"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected; a reserved or malformed slug lands here.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`SLUG_TAKEN` — another organisation already lives at that address.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     },
     "/api/v1/staff/tenants/{tenantId}": {
@@ -12560,6 +12824,104 @@
                 }
               }
             }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "updateTenantForStaff",
+        "summary": "Rename, re-address or make default",
+        "description": "Partial: an absent field is untouched. A new slug is refused once the organisation has an invoice — its address is then in the world. `is_default: true` moves the bare host to this organisation; `false` leaves the bare host to nobody. Requires `staff.tenants.manage`.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "slug": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+                  },
+                  "is_default": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The organisation as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "tenant"
+                  ],
+                  "properties": {
+                    "tenant": {
+                      "$ref": "#/components/schemas/StaffTenant"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — a reserved or malformed slug, or a bad field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`SLUG_TAKEN` — another organisation already lives at that address; or `TENANT_HAS_INVOICES` — an organisation with an invoice keeps its address.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
           }
         }
       }
@@ -12783,6 +13145,287 @@
           },
           "409": {
             "description": "`PRODUCT_IN_USE` — a subscription on this tenant and product is still owed service: active, or cancelled with paid time left. Withdrawing the product would cut the customer off from what they paid for.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "showTenantEntitlement",
+        "summary": "What the platform gave a tenant on a product",
+        "description": "The grant in force or lapsed on this product, or null when nothing was granted. `staff.tenants.read`, and no motive header: a grant is the platform’s own decision, not the customer’s data.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "description": "The tenant.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "A product the tenant holds (`assignTenantProduct`). Holding says the organisation may see the product; the grant says what it may do with it.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The grant, or null.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "entitlement"
+                  ],
+                  "properties": {
+                    "entitlement": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/GrantedEntitlement"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "description": "`TENANT_OR_PRODUCT_NOT_FOUND` — no such tenant, or it does not hold that product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "grantTenantEntitlement",
+        "summary": "Give a tenant its entitlement to a product, without a sale",
+        "description": "A pilot, a partner, an internal organisation, the operator’s own default tenant: the platform administrator grants the entitlement directly. The body states the whole grant and replaces whatever grant there was — PUT, so the same request twice is the same grant. `plan` is a shorthand for the grants of that plan’s most recently activated offer version; `features` add to it or override it, feature by feature (“the Pro plan, but with more projects”). At least one feature must result; to take everything away, withdraw. `staff.tenants.manage`, and the access log carries the feature list — a grant is a commercial decision somebody should be able to trace. Buying stays the ordinary road; this is the other one.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "description": "The tenant.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "A product the tenant holds (`assignTenantProduct`). Holding says the organisation may see the product; the grant says what it may do with it.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "plan": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 64,
+                    "description": "A plan code of the product, as the starting point."
+                  },
+                  "features": {
+                    "type": "array",
+                    "maxItems": 200,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "code"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "limit": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "description": "For a quota; omitted or null means unlimited."
+                        }
+                      }
+                    }
+                  },
+                  "valid_until": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time",
+                    "description": "In the future, or omitted for no end."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The grant as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "entitlement"
+                  ],
+                  "properties": {
+                    "entitlement": {
+                      "$ref": "#/components/schemas/GrantedEntitlement"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — a feature item without a code, a negative limit, a date that cannot be read or is not in the future.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "description": "`TENANT_OR_PRODUCT_NOT_FOUND` — no such tenant, or it does not hold that product. `PLAN_NOT_FOUND`, `FEATURE_NOT_FOUND` — no plan or feature of the product has that code; nothing was written.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`GRANT_EMPTY` — nothing would be granted: no features named and the plan grants none.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "withdrawTenantEntitlement",
+        "summary": "Take back what the platform gave",
+        "description": "Drops the grant. Whatever a subscription grants on the same product is untouched — it was never this. `staff.tenants.manage`; 204 whether or not there was a grant, because the state asked for is the same either way.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "description": "The tenant.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "A product the tenant holds (`assignTenantProduct`). Holding says the organisation may see the product; the grant says what it may do with it.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Withdrawn."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "description": "`TENANT_OR_PRODUCT_NOT_FOUND` — no such tenant, or it does not hold that product.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14343,7 +14986,7 @@
         ],
         "operationId": "listVatTransactions",
         "summary": "The fiscal facts behind the documents",
-        "description": "One row per taxed line of a document, with the rule that produced it. Paginated.",
+        "description": "One row per taxed line of a document, with the rule that produced it. Paginated. Since 2026-09-17 answered across every product the tenant holds (docs/tenant-roots.md §2.7): a customer’s VAT picture is one. `X-Product` still resolves the caller’s context; `product` narrows the answer to one product’s rows when asked.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
@@ -14356,6 +14999,16 @@
           },
           {
             "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "name": "product",
+            "in": "query",
+            "required": false,
+            "description": "A product code the tenant holds, to narrow to its rows. Omitted: every product.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
           }
         ],
         "responses": {
@@ -14772,7 +15425,7 @@
         ],
         "operationId": "updateCurrentTenant",
         "summary": "Rename the tenant",
-        "description": "Partial.",
+        "description": "Partial: each field is touched only when sent. Switching `join_policy` to `DOMAIN` needs at least one domain, in the same body or already stored; `400 JOIN_DOMAINS_REQUIRED` otherwise, and `400 VALIDATION_FAILED` for a policy outside the three or a domain that is not one.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
@@ -14789,7 +15442,23 @@
                 "type": "object",
                 "properties": {
                   "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "join_policy": {
+                    "type": "string",
+                    "enum": [
+                      "INVITATION",
+                      "DOMAIN",
+                      "APPROVAL"
+                    ]
+                  },
+                  "join_domains": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Replaces the list."
                   }
                 }
               }
@@ -14815,8 +15484,8 @@
               }
             }
           },
-          "422": {
-            "description": "A name that is not acceptable.",
+          "400": {
+            "description": "`VALIDATION_FAILED`, `JOIN_DOMAINS_REQUIRED`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14830,6 +15499,16 @@
           },
           "403": {
             "$ref": "#/components/responses/PermissionDenied"
+          },
+          "422": {
+            "description": "A name that is not acceptable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -14980,6 +15659,59 @@
         }
       }
     },
+    "/api/v1/tenants/current/members/requests": {
+      "get": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "listJoinRequests",
+        "summary": "Who asked to join and is waiting",
+        "description": "The people who signed up at this organisation’s root under the `APPROVAL` policy and have not been accepted or declined. `members.read`, like the members themselves. They do not appear in `listMembers`: a pending membership grants nothing and resolves no context.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requests, oldest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "requests"
+                  ],
+                  "properties": {
+                    "requests": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Member"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/tenants/current/members/{userId}": {
       "patch": {
         "tags": [
@@ -15101,6 +15833,114 @@
           },
           "403": {
             "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/current/members/{userId}/accept": {
+      "post": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "acceptJoinRequest",
+        "summary": "Let somebody in",
+        "description": "Makes a pending membership live on every product the organisation holds. `members.manage`. The person’s next `/me` answers; nothing else changes — the roles stay what sign-up wrote (USER), and re-roling is `updateMemberRoles`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Accepted."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "description": "`JOIN_REQUEST_NOT_FOUND` — nobody with that id is waiting.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/current/members/{userId}/decline": {
+      "post": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "declineJoinRequest",
+        "summary": "Turn somebody away",
+        "description": "Drops a pending membership. `members.manage`. The account stays — the person may ask again, or join elsewhere. A live member is not declined but removed (`removeMember`), which has the last-administrator rule a pending row never needs.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Declined."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "description": "`JOIN_REQUEST_NOT_FOUND` — nobody with that id is waiting.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -15405,6 +16245,16 @@
               "type": "string",
               "maxLength": 64
             }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "description": "The slug of the organisation whose URL root the page is on (2026-09-17). Narrows the window to the products that organisation holds; absent, the bare host's — the default tenant's, or the platform's where none is set. A slug nobody has shows nothing, as an unknown product does."
           }
         ],
         "responses": {
@@ -15573,6 +16423,86 @@
                       }
                     }
                   }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "description": "The slug of the organisation whose URL root the page is on (2026-09-17). Narrows the window to the products that organisation holds; absent, the bare host's — the default tenant's, or the platform's where none is set. A slug nobody has shows nothing, as an unknown product does."
+          }
+        ]
+      }
+    },
+    "/api/v1/public/tenant": {
+      "get": {
+        "tags": [
+          "Storefront"
+        ],
+        "operationId": "showPublicTenant",
+        "summary": "The organisation at a URL root",
+        "description": "Public, because the page that asks has no session yet. `hostname/{slug}/` is an organisation's root (2026-09-17); the bare host is the default tenant's. A stranger learns the name to paint; a member arriving learns which of their memberships the page is about, before signing in. Without `tenant`, the default one — `404 NO_DEFAULT_TENANT` where none is set, which a page reads as \"the platform's window, as before roots\".",
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "description": "The slug of the organisation whose URL root the page is on (2026-09-17). Narrows the window to the products that organisation holds; absent, the bare host's — the default tenant's, or the platform's where none is set. A slug nobody has shows nothing, as an unknown product does."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The organisation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "tenant"
+                  ],
+                  "properties": {
+                    "tenant": {
+                      "$ref": "#/components/schemas/PublicTenant"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — the slug is malformed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`TENANT_NOT_FOUND` — no organisation has this slug; or `NO_DEFAULT_TENANT` — nothing is set for the bare host.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -15777,8 +16707,8 @@
           "Session"
         ],
         "operationId": "signUp",
-        "summary": "Create an account, an organisation and a session",
-        "description": "Public. The only endpoint that creates an account from nothing — user, credential, tenant, TENANT_ADMIN membership of the named product — in one transaction. `organisation` is optional: somebody buying for themselves has no company and the tenant takes their own name instead, which nothing downstream branches on. The address is **not** verified first: a session is issued immediately and `users.email_verified_at` stays null until the confirmation link is followed. Unlike signing in, this says plainly when an address is taken — a person who cannot be told cannot finish the purchase they came for — and the public rate limit is what bounds the enumeration that permits. A minimal billing profile is created alongside the tenant — a checkout refuses an order it cannot invoice, and an account that could not buy anything would make the storefront’s promise false.",
+        "summary": "Create an account and ask to join the organisation at this root",
+        "description": "Public. Creates the account — user and credential — and a USER membership of the organisation named by `tenant` (the slug of the root the form was reached from) on every product that organisation holds, in one transaction. It never creates an organisation and never makes an administrator: organisations are made by the platform (`createTenantForStaff`), and the first administrator is named there. Whether the membership is live at once or waits is the organisation’s join policy: `APPROVAL` (the default) writes it `PENDING` and tells the administrators; `DOMAIN` makes it `ACTIVE` when the address’s domain is on the organisation’s list and refuses otherwise (`403 JOIN_DOMAIN_NOT_ALLOWED`); `INVITATION` refuses self-service altogether (`403 JOIN_BY_INVITATION`). The address is **not** verified first: a session is issued immediately and `users.email_verified_at` stays null until the confirmation link is followed. Unlike signing in, this says plainly when an address is taken — a person who cannot be told cannot finish what they came for — and the public rate limit is what bounds the enumeration that permits.",
         "requestBody": {
           "required": true,
           "content": {
@@ -15788,7 +16718,7 @@
                 "required": [
                   "email",
                   "password",
-                  "product"
+                  "tenant"
                 ],
                 "properties": {
                   "email": {
@@ -15805,25 +16735,18 @@
                   "product": {
                     "type": "string",
                     "maxLength": 64,
-                    "description": "The product code this account is being created for. A membership is per product, so an account without one would have no way in."
+                    "description": "The product code the person arrived through, if any. It becomes their default product when the organisation holds it; otherwise the first product the organisation holds does. The membership itself is written on every product the organisation holds.",
+                    "nullable": true
                   },
                   "display_name": {
                     "type": "string",
                     "nullable": true,
                     "maxLength": 200
                   },
-                  "organisation": {
+                  "tenant": {
                     "type": "string",
-                    "nullable": true,
-                    "maxLength": 200,
-                    "description": "The company name, when there is one. Omitted for a consumer; the tenant is then named after the person."
-                  },
-                  "country": {
-                    "type": "string",
-                    "nullable": true,
-                    "minLength": 2,
-                    "maxLength": 2,
-                    "description": "ISO 3166-1 alpha-2. Optional, and asked for because VAT depends on it rather than to make the form look complete."
+                    "maxLength": 63,
+                    "description": "The slug of the organisation to join — the root the form was reached from, or the default organisation’s slug on the bare host (`showPublicTenant` says which). `404 TENANT_NOT_FOUND` when no organisation has it."
                   }
                 }
               }
@@ -15832,7 +16755,7 @@
         },
         "responses": {
           "201": {
-            "description": "The account was created and a session issued. The refresh token leaves in a `Set-Cookie` header and never in the body.",
+            "description": "The account was created, a membership written, and a session issued. The refresh token leaves in a `Set-Cookie` header and never in the body.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15841,7 +16764,9 @@
                     "access_token",
                     "token_type",
                     "expires_in",
-                    "tenant_id"
+                    "tenant_id",
+                    "tenant",
+                    "membership"
                   ],
                   "properties": {
                     "access_token": {
@@ -15856,7 +16781,19 @@
                     "tenant_id": {
                       "type": "string",
                       "format": "uuid",
-                      "description": "The organisation just created. Returned because the checkout that follows resolves it anyway."
+                      "description": "The organisation joined."
+                    },
+                    "tenant": {
+                      "type": "string",
+                      "description": "Its slug — the root to return to."
+                    },
+                    "membership": {
+                      "type": "string",
+                      "enum": [
+                        "ACTIVE",
+                        "PENDING"
+                      ],
+                      "description": "`ACTIVE`: the person is in and `/me` answers. `PENDING`: an administrator has to accept first; `listProducts` lists nothing for them yet and names the organisation under `pending_memberships`."
                     }
                   }
                 }
@@ -15873,8 +16810,25 @@
               }
             }
           },
+          "403": {
+            "description": "`JOIN_DOMAIN_NOT_ALLOWED` — the organisation admits only addresses on its listed domains, and this one is not. `JOIN_BY_INVITATION` — the organisation does not take self-service requests at all.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "`TENANT_NOT_FOUND` — no organisation has that slug. `TENANT_HOLDS_NOTHING` — the organisation has been assigned no product yet, so there is nothing to be a member of.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "409": {
             "description": "`EMAIL_TAKEN` — that address already has an account. Sign in instead.",

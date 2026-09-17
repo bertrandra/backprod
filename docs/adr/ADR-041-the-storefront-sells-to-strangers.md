@@ -8,6 +8,12 @@ already assemble one `?product=` code at a time, so it reveals nothing the
 windows do not. What the platform *runs* stays private; what it *advertises*
 never was. Sign-up also writes a sixth row, the product assigned to the new
 tenant.
+**Amended by:** [ADR-049](ADR-049-a-tenant-lives-at-its-own-root-and-its-people-arrive-by-themselves.md)
+— the storefront is one organisation's, at its URL root, and sign-up no longer
+creates a tenant: it asks the organisation at the root to have the person as a
+USER, live or waiting by its join policy, and a USER cannot check out. The
+window still sells to strangers; the stranger who walks in is now a member,
+and the organisation's administrator buys.
 **Relates to:** [ADR-034](ADR-034-a-checkout-session-is-an-order.md);
 [ADR-038](ADR-038-this-platform-issues-its-own-sessions.md);
 [ADR-040](ADR-040-offer-authoring-is-lent-to-a-tenant.md);

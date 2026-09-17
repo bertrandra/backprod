@@ -39,6 +39,8 @@ final class VatTransaction
         public readonly string $ruleId,
         public readonly bool $reverseCharge,
         public readonly DateTimeImmutable $transactionDate,
+        /** The product's code, when read for a screen (2026-09-17); null straight after booking. */
+        public readonly ?string $productCode = null,
     ) {
     }
 }

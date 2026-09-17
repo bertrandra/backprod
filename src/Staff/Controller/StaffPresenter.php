@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Staff\Controller;
 
 use App\Product\Domain\Product;
+use App\Staff\Domain\GrantedEntitlement;
+use App\Staff\Domain\GrantedFeature;
 use App\Staff\Domain\StaffAccessEntry;
 use App\Staff\Domain\StaffIdentity;
 use App\Staff\Domain\StaffMember;
@@ -91,6 +93,29 @@ final class StaffPresenter
     }
 
     /**
+     * What the platform gave a tenant on one product (docs/tenant-roots.md
+     * §2.8): the features with their limits, until when, by whom, since when.
+     *
+     * @return array<string, mixed>
+     */
+    public static function grant(GrantedEntitlement $granted): array
+    {
+        return [
+            'tenant_id' => $granted->tenantId,
+            'product_id' => $granted->productId,
+            'features' => array_map(static fn (GrantedFeature $feature): array => [
+                'code' => $feature->code,
+                'name' => $feature->name,
+                'kind' => $feature->kind,
+                'limit' => $feature->limit,
+            ], $granted->features),
+            'valid_until' => $granted->validUntil?->setTimezone(new DateTimeZone('UTC'))->format(DateTimeInterface::RFC3339),
+            'granted_by' => $granted->grantedBy,
+            'granted_at' => $granted->grantedAt->setTimezone(new DateTimeZone('UTC'))->format(DateTimeInterface::RFC3339),
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function tenant(TenantAccount $account): array
@@ -102,6 +127,7 @@ final class StaffPresenter
             'name' => $tenant->name,
             'slug' => $tenant->slug,
             'may_author_offers' => $tenant->mayAuthorOffers,
+            'is_default' => $account->isDefault,
             // Which products the platform has given this tenant (ADR-047):
             // the platform's answer, so it is on the staff shape and not on
             // the `Tenant` a tenant reads about itself.

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Auth\Service;
 
 use App\Auth\Domain\AccountRegistrar;
+use App\Auth\Domain\JoinDecision;
 use App\Auth\Domain\LocalCredentialRepository;
 use App\Auth\Domain\RefreshTokenRepository;
 use App\Auth\Domain\RegisteredAccount;
@@ -14,6 +15,7 @@ use App\Notification\Domain\Channel;
 use App\Notification\Domain\NotificationRepository;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\UnauthenticatedException;
+use App\Tenant\Domain\JoinRequests;
 use Psr\Log\LoggerInterface;
 use SensitiveParameter;
 
@@ -50,6 +52,7 @@ final class Sessions
         private readonly LoggerInterface $logger,
         private readonly AccountRegistrar $registrar,
         private readonly NotificationRepository $notifications,
+        private readonly JoinRequests $requests,
         /**
          * Where this deployment is reachable, for the link in a confirmation
          * email. Empty when nobody configured it, and the link is then
@@ -61,7 +64,8 @@ final class Sessions
     }
 
     /**
-     * A stranger becomes a customer: account, organisation, and a session.
+     * A stranger asks to join the organisation at a root: account, a USER
+     * membership that is live or waiting, and a session (2026-09-17).
      *
      * **It lives here rather than in a service of its own** because signing up
      * ends in exactly what signing in ends in — a token pair from `start()` —
@@ -91,34 +95,40 @@ final class Sessions
         string $email,
         #[SensitiveParameter] string $password,
         ?string $displayName,
-        ?string $organisation,
-        string $productCode,
-        ?string $countryCode = null,
+        string $tenantSlug,
+        ?string $productCode,
     ): array {
         if ($this->registrar->emailIsTaken($email)) {
-            throw new ConflictException('EMAIL_TAKEN', 'That address already has an account.');
+            throw new ConflictException('EMAIL_TAKEN', 'That address already has an account. Sign in, and ask an administrator to add you.');
         }
 
-        // B2C and B2B differ by one optional field and nothing else. Somebody
-        // buying for themselves has no company to name and must not be made to
-        // invent one, so the tenant takes their own name — an invoice still
-        // needs somebody to be addressed to, and that is who it is. Neither
-        // case is recorded as a *kind* of customer: nothing downstream should
-        // branch on it, and a column saying B2C would invite something to.
-        $organisationName = $organisation !== null && trim($organisation) !== ''
-            ? trim($organisation)
-            : ($displayName ?? $email);
-
-        $account = $this->registrar->register(
+        $account = $this->registrar->join(
             $email,
             password_hash($password, PASSWORD_BCRYPT),
             $displayName,
-            $organisationName,
+            $tenantSlug,
             $productCode,
-            $countryCode,
         );
 
         $this->askForConfirmation($account);
+
+        if ($account->membershipStatus === JoinDecision::PENDING) {
+            // Every administrator of the organisation, once: a request nobody
+            // is told about is a person waiting on a screen nobody opens.
+            foreach ($this->requests->administratorsOf($account->tenantId) as $adminId) {
+                $this->notifications->raise(
+                    $account->tenantId,
+                    $account->productId,
+                    $adminId,
+                    'member.requested',
+                    Category::ACCOUNT,
+                    ['email' => $account->email, 'display_name' => $displayName],
+                    'member-requested:' . $account->tenantId . ':' . $account->userId,
+                    false,
+                    [Channel::SCREEN, Channel::EMAIL],
+                );
+            }
+        }
 
         return [$this->start($account->userId, $account->authSubject, $account->email)[0], $account];
     }

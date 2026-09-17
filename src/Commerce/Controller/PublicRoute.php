@@ -50,4 +50,31 @@ final class PublicRoute
 
         return trim($code);
     }
+
+    /**
+     * The organisation whose root the page is on, or null on the bare host.
+     *
+     * Optional where the product is required: a window is meaningless
+     * without a product and meaningful without a tenant — the bare host
+     * shows the default tenant's, and a slug nobody has answers as an empty
+     * window rather than a 404, for the reason an unknown product does.
+     */
+    public static function tenantSlug(ServerRequestInterface $request): ?string
+    {
+        $slug = $request->getQueryParams()['tenant'] ?? null;
+
+        if (!is_string($slug) || trim($slug) === '') {
+            return null;
+        }
+
+        if (mb_strlen($slug) > 64) {
+            throw new BadRequestException(
+                'VALIDATION_FAILED',
+                'The query string is not valid.',
+                ['field' => 'tenant', 'requirement' => 'must be at most 64 characters'],
+            );
+        }
+
+        return trim($slug);
+    }
 }

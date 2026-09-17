@@ -2,11 +2,13 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import { can } from '@/app/access/access';
+import { withRoot } from '@/app/root';
 import { PaymentElementPanel } from '@/features/commerce/payment/PaymentElementPanel';
 import { useOffers, usePlans, useProductCatalogue, type Offer } from '@/queries/catalogue';
 import { useOpenCheckoutSession, type OpenedCheckoutSession } from '@/queries/checkout';
 import { useCreateQuote } from '@/queries/sales';
 import { useSession } from '@/queries/session';
+import { useSessionStore } from '@/state/session';
 import { useSubscription } from '@/queries/subscription';
 import { useTaxProfile } from '@/queries/tax';
 import { EmptyState } from '@/ui/EmptyState';
@@ -61,6 +63,7 @@ export function CatalogueScreen() {
   // Read only where it may be: the query itself needs `subscription.read`,
   // and asking without it is a 403 for nothing.
   const subscription = useSubscription(can(session, 'subscription.read'));
+  const root = useSessionStore((state) => state.root);
 
   // One live subscription per product, and the API refuses a second order
   // (409 SUBSCRIPTION_ALREADY_ACTIVE). What it would refuse is not offered:
@@ -121,7 +124,7 @@ export function CatalogueScreen() {
           provider={order.payment_provider}
           clientSecret={order.client_secret}
           amount={order.gross}
-          returnUrl={new URL(`/checkout/${order.id}`, window.location.origin).toString()}
+          returnUrl={new URL(withRoot(root, `/checkout/${order.id}`), window.location.origin).toString()}
           // Whatever the form said, the order page says what the server knows.
           onSettled={() => void navigate(statusPage)}
         />

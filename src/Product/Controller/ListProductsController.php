@@ -8,6 +8,7 @@ use App\Identity\Service\Profile;
 use App\Product\Service\ProductCatalogue;
 use App\Shared\Context\IdentityContext;
 use App\Shared\Http\RouteHandler;
+use App\Tenant\Domain\JoinRequests;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -24,6 +25,7 @@ final class ListProductsController implements RouteHandler
     public function __construct(
         private readonly ProductCatalogue $catalogue,
         private readonly Profile $profile,
+        private readonly JoinRequests $requests,
     ) {
     }
 
@@ -37,6 +39,15 @@ final class ListProductsController implements RouteHandler
             // product and this is how the shell learns which one to name
             // first: the person's own default, among what they hold.
             'default' => $this->profile->defaultProductCode($identity->userId),
+            // The organisations this person asked to join and is waiting on
+            // (2026-09-17). Here rather than on `/me`, for the same reason
+            // as the default: somebody with no live membership has no
+            // product to ask `/me` with, and this is how the shell learns
+            // to say "waiting" rather than "nothing".
+            'pending_memberships' => array_map(
+                static fn (array $request): array => ['tenant' => $request['slug'], 'name' => $request['name']],
+                $this->requests->pendingFor($identity->userId),
+            ),
         ], 200);
     }
 }

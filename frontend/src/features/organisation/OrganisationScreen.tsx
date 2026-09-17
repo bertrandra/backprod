@@ -1,9 +1,15 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
 import { can } from '@/app/access/access';
-import { useOrganisation, useRenameOrganisation, useTenantUsage } from '@/queries/organisation';
+import {
+  useOrganisation,
+  useRenameOrganisation,
+  useTenantUsage,
+  useUpdateOrganisation,
+  type JoinPolicy,
+} from '@/queries/organisation';
 import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
@@ -17,10 +23,44 @@ const schema = z.object({
 
 type Values = z.infer<typeof schema>;
 
+const joinSchema = z.object({
+  policy: z.enum(['INVITATION', 'DOMAIN', 'APPROVAL']),
+  domains: z.string().trim(),
+});
+
+type JoinValues = z.infer<typeof joinSchema>;
+
+/** "acme.test, Acme.example" → the list the API takes; it lower-cases and validates. */
+function splitDomains(typed: string): string[] {
+  return typed
+    .split(',')
+    .map((domain) => domain.trim())
+    .filter((domain) => domain !== '');
+}
+
+const POLICIES: readonly { value: JoinPolicy; label: string; hint: string }[] = [
+  {
+    value: 'APPROVAL',
+    label: 'Ask an administrator',
+    hint: 'Anybody may ask; an administrator accepts or declines from the Members screen. The default.',
+  },
+  {
+    value: 'DOMAIN',
+    label: 'By email domain',
+    hint: 'An address on a listed domain is in at once; any other is refused.',
+  },
+  {
+    value: 'INVITATION',
+    label: 'By invitation only',
+    hint: 'Nobody arrives by themselves; administrators add people.',
+  },
+];
+
 export function OrganisationScreen() {
   const session = useSession();
   const organisation = useOrganisation();
   const rename = useRenameOrganisation();
+  const joining = useUpdateOrganisation();
   const usage = useTenantUsage();
 
   const mayManage = can(session.data, 'tenant.manage');
@@ -29,6 +69,15 @@ export function OrganisationScreen() {
     resolver: zodResolver(schema),
     values: { name: organisation.data?.name ?? '' },
   });
+
+  const joinForm = useForm<JoinValues>({
+    resolver: zodResolver(joinSchema),
+    values: {
+      policy: organisation.data?.join_policy ?? 'APPROVAL',
+      domains: (organisation.data?.join_domains ?? []).join(', '),
+    },
+  });
+  const chosenPolicy = useWatch({ control: joinForm.control, name: 'policy' });
 
   if (organisation.isPending) {
     return <SkeletonRows rows={4} />;
@@ -69,6 +118,77 @@ export function OrganisationScreen() {
 
           {mayManage && (
             <Button type="submit" pending={rename.isPending}>
+              Save
+            </Button>
+          )}
+        </form>
+      </section>
+
+      {/* How people arrive by themselves (2026-09-17). Somebody who signs
+          up at this organisation's address becomes a USER of it — or asks
+          to, or is refused — and this is the administrator's say in which. */}
+      <section className="space-y-4" data-testid="join-policy">
+        <h2 className="text-xl font-semibold">Who may join</h2>
+        <p className="text-sm text-muted">
+          Anybody can create an account at this organisation&rsquo;s address
+          {organisation.data?.slug !== undefined && (
+            <>
+              {' '}
+              (<code>/{organisation.data.slug}/</code>)
+            </>
+          )}
+          . This decides what happens when they do.
+        </p>
+
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            void joinForm.handleSubmit((values) =>
+              joining.mutate({
+                join_policy: values.policy,
+                join_domains: values.policy === 'DOMAIN' ? splitDomains(values.domains) : [],
+              }),
+            )(event);
+          }}
+        >
+          <fieldset className="space-y-2" disabled={!mayManage}>
+            <legend className="text-sm font-medium">Join policy</legend>
+            {POLICIES.map((option) => (
+              <label key={option.value} className="flex items-start gap-2 text-sm">
+                <input
+                  type="radio"
+                  value={option.value}
+                  className="mt-1"
+                  {...joinForm.register('policy')}
+                />
+                <span>
+                  <span className="font-medium">{option.label}</span>
+                  <span className="block text-xs text-muted">{option.hint}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+
+          {chosenPolicy === 'DOMAIN' && (
+            <Field
+              id="join-domains"
+              label="Email domains"
+              hint="Comma separated, such as acme.example. An address on one of these is in at once; any other is refused."
+              error={joinForm.formState.errors.domains?.message}
+            >
+              <input
+                id="join-domains"
+                className={inputClass(joinForm.formState.errors.domains !== undefined)}
+                readOnly={!mayManage}
+                {...joinForm.register('domains')}
+              />
+            </Field>
+          )}
+
+          {joining.error !== null && <ErrorSurface error={joining.error} />}
+
+          {mayManage && (
+            <Button type="submit" pending={joining.isPending}>
               Save
             </Button>
           )}

@@ -26,6 +26,7 @@ final class PostgresProductRegistry implements ProductRegistry
                 FROM products p
                 JOIN tenant_members tm ON tm.product_id = p.id
                 WHERE tm.user_id = :userId
+                  AND tm.status = 'ACTIVE'
                   AND p.active
                 ORDER BY p.code
                 SQL,
@@ -60,6 +61,7 @@ final class PostgresProductRegistry implements ProductRegistry
                 FROM products p
                 JOIN tenant_members tm ON tm.product_id = p.id
                 WHERE tm.user_id = :userId
+                  AND tm.status = 'ACTIVE'
                   AND p.id = :productId
                   AND p.active
                 LIMIT 1

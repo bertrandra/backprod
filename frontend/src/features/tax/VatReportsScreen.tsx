@@ -467,6 +467,10 @@ function Breakdown({ rows }: { rows: unknown }) {
  * heading says so: implying this list were the selected period's would be a
  * quiet lie, and somebody reconciling a declaration against it would be
  * comparing the wrong two numbers.
+ *
+ * **Across every product the organisation holds** (2026-09-17,
+ * docs/tenant-roots.md §2.7): a customer's VAT picture is one, so the
+ * product in the bar does not narrow this list — each row names its own.
  */
 function Transactions() {
   const transactions = useVatTransactions();
@@ -475,8 +479,9 @@ function Transactions() {
     <section className="space-y-3 border-t border-line pt-6">
       <h2 className="text-xl font-semibold">VAT transactions</h2>
       <p className="text-sm text-muted">
-        Every taxable event, newest first — across all periods, not only the one selected above.
-        Each carries the rule that decided its regime.
+        Every taxable event, newest first — across all periods, not only the one selected above,
+        and across every product this organisation holds. Each carries the rule that decided its
+        regime.
       </p>
 
       {transactions.isPending ? (
@@ -511,6 +516,12 @@ function Transactions() {
                   </span>
                   <span className="text-xs text-muted">
                     {formatVatRate(transaction.vat_rate)} · {transaction.supply_type}
+                    {transaction.product !== null && (
+                      <>
+                        {' · '}
+                        <code data-testid="transaction-product">{transaction.product}</code>
+                      </>
+                    )}
                   </span>
                   <span className="ml-auto">
                     <Amount

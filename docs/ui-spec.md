@@ -197,7 +197,7 @@ and USER. Placing it in the console would have been the intuitive mistake.
 
 | area | for |
 |---|---|
-| `public.storefront` | the shop window: the products with something advertised, offered as a choice when there are several and chosen when there is one; the offers the platform advertises for the chosen product; and the account somebody creates while buying one. Outside both shells and outside the sign-in gate — the person reading it has no session, no product and no permissions (ADR-041, ADR-047) |
+| `public.storefront` | one organisation's shop window, at its URL root (`/acme/`, or the bare host for the default tenant): the products it holds with something advertised, offered as a choice when there are several and chosen when there is one; the offers advertised for the chosen product; and the door — a request to **join** the organisation as a USER, live or waiting by its join policy, never a purchase (ADR-049). Outside both shells and outside the sign-in gate — the person reading it has no session, no product and no permissions (ADR-041, ADR-047) |
 | `console.support.tenants` | a tenant as support sees it — an audited, per-tenant read — and the two things about a tenant staff may change: which products it holds (ADR-047), and whether the platform lends it the catalogue. Both states are shown to anybody who may open the tenant; the controls appear only with `staff.tenants.manage` |
 | `console.support.conversations` | answering a thread, and closing it |
 | `console.support.access_log` | what staff looked at, which is the record that makes the above acceptable |

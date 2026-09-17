@@ -18,6 +18,7 @@ import { BottomNav, ContextBar, PrimaryNav } from '@/app/frame/regions';
 import { StatusStrip } from '@/app/frame/StatusStrip';
 import { useProductContext } from '@/app/frame/useProductContext';
 import { useMyNavigation, useStaffNavigation } from '@/queries/navigation';
+import { useMyProducts } from '@/queries/catalogue';
 import { useSession } from '@/queries/session';
 import { staffAccess, useStaffIdentity } from '@/queries/staff';
 import { EmptyState } from '@/ui/EmptyState';
@@ -52,6 +53,12 @@ export function AppShell() {
   const { productCode } = useProductContext();
   const session = useSession();
   const staff = useStaffIdentity();
+  // Somebody waiting to be let in holds no product and may still name one
+  // — the storefront chose it before they signed up — so "waiting" is
+  // decided by what they hold, not by whether a product is named.
+  const mine = useMyProducts();
+  const waitingOnly =
+    mine.data !== undefined && (mine.data.products ?? []).length === 0 && (mine.data.pending ?? []).length > 0;
   // What the platform's menu setup leaves out for this person, one answer per
   // authority, asked once each has said who this is. Nothing hidden until it
   // answers, or if it never does.
@@ -164,13 +171,8 @@ export function AppShell() {
 
           <Outlet />
         </>
-      ) : productCode === null ? (
-        // Nothing tenant-scoped can be read without a product: it is the root
-        // context, and the client refuses to build a request that lacks it.
-        <EmptyState
-          title="No product selected"
-          description="Everything in the application is scoped to a product. Choose one in the bar above to continue."
-        />
+      ) : productCode === null || waitingOnly ? (
+        <WithoutAProduct />
       ) : session.error !== null ? (
         // The session is the shell's own dependency, so its failure is rendered
         // here rather than by each screen — but only for the screens that need
@@ -181,5 +183,44 @@ export function AppShell() {
         <Outlet />
       )}
     </AppFrame>
+  );
+}
+
+/**
+ * The shell with no product to open in.
+ *
+ * Two different situations, and until 2026-09-17 one sentence for both.
+ * Somebody who asked to join an organisation and is waiting on its
+ * administrator has no product *yet* — `/products` names nothing but says
+ * where they wait — and telling them to "choose one in the bar above" is a
+ * door with nothing behind it. Everybody else is told the ordinary thing.
+ */
+function WithoutAProduct() {
+  const mine = useMyProducts();
+  // Tolerant of a partial answer — a stubbed or older server — the way the
+  // switcher beside it is: a missing list is an empty one, not a crash.
+  const products = mine.data?.products ?? [];
+  const waiting = products.length === 0 ? (mine.data?.pending ?? []) : [];
+
+  if (waiting.length > 0) {
+    const names = waiting.map((request) => request.name).join(', ');
+
+    return (
+      <div data-testid="waiting-for-approval">
+        <EmptyState
+          title={`Waiting for ${names}`}
+          description="An administrator has been asked to let you in. You will get an email when they have; until then there is nothing here to open. You can sign out from the account menu."
+        />
+      </div>
+    );
+  }
+
+  // Nothing tenant-scoped can be read without a product: it is the root
+  // context, and the client refuses to build a request that lacks it.
+  return (
+    <EmptyState
+      title="No product selected"
+      description="Everything in the application is scoped to a product. Choose one in the bar above to continue."
+    />
   );
 }

@@ -16,10 +16,17 @@ final class PostgresTenantRepository implements TenantRepository
 
     public function find(string $tenantId): ?Tenant
     {
-        $row = $this->connection->fetchAssociative(
-            'SELECT id, name, slug, may_author_offers FROM tenants WHERE id = :id',
-            ['id' => $tenantId],
-        );
+        return $this->one('SELECT id, name, slug, may_author_offers FROM tenants WHERE id = :key', $tenantId);
+    }
+
+    public function findBySlug(string $slug): ?Tenant
+    {
+        return $this->one('SELECT id, name, slug, may_author_offers FROM tenants WHERE slug = :key', $slug);
+    }
+
+    private function one(string $sql, string $key): ?Tenant
+    {
+        $row = $this->connection->fetchAssociative($sql, ['key' => $key]);
 
         if ($row === false) {
             return null;

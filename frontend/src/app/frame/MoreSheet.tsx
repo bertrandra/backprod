@@ -1,4 +1,6 @@
+import { withRoot } from '@/app/root';
 import { useSignOut } from '@/queries/auth';
+import { useSessionStore } from '@/state/session';
 import { Button } from '@/ui/Field';
 
 import type { NavSection } from './navigation';
@@ -22,6 +24,7 @@ export function MoreSheet({
   sections: readonly NavSection[];
 }) {
   const signOut = useSignOut();
+  const root = useSessionStore((state) => state.root);
 
   if (!open) {
     return null;
@@ -58,7 +61,7 @@ export function MoreSheet({
               {section.entries.map((entry) => (
                 <li key={entry.id}>
                   <a
-                    href={entry.to}
+                    href={withRoot(root, entry.to)}
                     data-nav-more={entry.id}
                     className="block min-h-[44px] py-2 text-sm text-ink"
                   >

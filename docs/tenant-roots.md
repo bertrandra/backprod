@@ -1,7 +1,11 @@
 # Tenants at their own URL root — specification and complexity
 
-**Status:** proposed, not scheduled. Written 2026-09-17 at the operator's
-request, before any code. Nothing below is built.
+**Status:** built, 2026-09-17, in seven phases on one branch; recorded in
+[ADR-049](adr/ADR-049-a-tenant-lives-at-its-own-root-and-its-people-arrive-by-themselves.md),
+which also lists the three premises below that the code corrected (VAT periods
+are per jurisdiction, not per tenant; grants live on offer versions, not plans;
+the sign-up form ends at the root, not at a checkout). Written 2026-09-17 at
+the operator's request, before any code.
 **Reading confirmed with the operator (revised the same day):** *the tenant
 stays a customer of the platform* — `acme` is an organisation that buys
 from the platform, its users are its own people, invoices are issued by

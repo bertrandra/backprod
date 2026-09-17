@@ -32,6 +32,17 @@ export interface Grant {
 interface SessionState {
   token: string | null;
   productCode: string | null;
+  /**
+   * The URL root this page is on — `'/acme'`, or `''` for the bare host —
+   * and the organisation's slug, sent as `X-Tenant` on every request so the
+   * server can choose among a person's memberships. Set once at boot from
+   * the address (`app/root.ts`); the bare host learns its slug from the
+   * default tenant once the storefront has asked. Never a credential and
+   * never forgotten on sign-out: it is where the person *is*, not who.
+   */
+  root: string;
+  tenantSlug: string | null;
+  enterRoot: (root: string, slug: string | null) => void;
   status: SessionStatus;
   /** When the access token stops being accepted, so a renewal can be scheduled. */
   expiresAt: number | null;
@@ -127,6 +138,9 @@ function remember(productCode: string | null): void {
 export const useSessionStore = create<SessionState>((set) => ({
   token: null,
   productCode: null,
+  root: '',
+  tenantSlug: null,
+  enterRoot: (root, tenantSlug) => set({ root, tenantSlug }),
   // `restoring` is the honest first state: nothing has been decided yet, and
   // whether there is a token to recover is a question only storage can answer.
   status: 'restoring',
@@ -163,4 +177,5 @@ export const useSessionStore = create<SessionState>((set) => ({
 export const sessionSnapshot = {
   token: () => useSessionStore.getState().token,
   product: () => useSessionStore.getState().productCode,
+  tenant: () => useSessionStore.getState().tenantSlug,
 };

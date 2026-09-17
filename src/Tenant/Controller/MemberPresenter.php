@@ -12,7 +12,7 @@ use App\Tenant\Domain\TenantMember;
 final class MemberPresenter
 {
     /**
-     * @return array{user_id: string, email: string|null, display_name: string|null, roles: list<string>}
+     * @return array{user_id: string, email: string|null, display_name: string|null, roles: list<string>, status: string}
      */
     public static function one(TenantMember $member): array
     {
@@ -21,13 +21,14 @@ final class MemberPresenter
             'email' => $member->email,
             'display_name' => $member->displayName,
             'roles' => $member->roles,
+            'status' => $member->status,
         ];
     }
 
     /**
      * @param list<TenantMember> $members
      *
-     * @return list<array{user_id: string, email: string|null, display_name: string|null, roles: list<string>}>
+     * @return list<array{user_id: string, email: string|null, display_name: string|null, roles: list<string>, status: string}>
      */
     public static function many(array $members): array
     {

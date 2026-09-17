@@ -10,6 +10,7 @@ import {
   useSchedule,
   useSubscription,
   type CancellationDecision,
+  type Entitlement,
 } from '@/queries/subscription';
 import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
@@ -65,6 +66,11 @@ export function SubscriptionScreen() {
   const current = subscription.data.subscription;
 
   if (current === null) {
+    // No subscription — but possibly something the platform gave
+    // (docs/tenant-roots.md §2.8), which is not a subscription to cancel and
+    // must not read as "nothing".
+    const provided = (entitlements.data ?? []).filter((entitlement) => entitlement.source === 'GRANT');
+
     return (
       <div className="max-w-3xl space-y-6">
         <h1 className="text-2xl font-semibold">Subscription</h1>
@@ -72,6 +78,7 @@ export function SubscriptionScreen() {
           title="No subscription"
           description="Nothing is subscribed in this product yet. An offer from the catalogue starts one."
         />
+        {provided.length > 0 && <ProvidedByThePlatform entitlements={provided} />}
       </div>
     );
   }
@@ -161,7 +168,11 @@ export function SubscriptionScreen() {
                       ? 'unlimited'
                       : `${String(entitlement.limit ?? 0)}${entitlement.unit === null ? '' : ` ${entitlement.unit}`}`}
                 </span>
-                <span className="text-xs text-subtle">from {entitlement.source}</span>
+                <span className="text-xs text-subtle">
+                  {entitlement.source === 'GRANT'
+                    ? `provided by the platform${entitlement.valid_until === null ? '' : ` until ${entitlement.valid_until.slice(0, 10)}`}`
+                    : `from ${entitlement.source}`}
+                </span>
               </li>
             ))}
           </ul>
@@ -375,4 +386,39 @@ function statusTone(status: string): Tone {
     default:
       return 'warning';
   }
+}
+
+/**
+ * What the platform gave, shown as what it is: not a subscription — nothing
+ * renews, nothing is invoiced, nothing here can be cancelled — but what
+ * this organisation may use on the product, until the date it was given
+ * for. A grant is renewed by a person at the platform.
+ */
+function ProvidedByThePlatform({ entitlements }: { entitlements: readonly Entitlement[] }) {
+  const until = entitlements.map((entitlement) => entitlement.valid_until).find((moment) => moment !== null) ?? null;
+
+  return (
+    <section data-testid="provided-by-platform" className="space-y-3 border-t border-line pt-6">
+      <h2 className="text-xl font-semibold">Provided by the platform</h2>
+      <p className="text-sm text-muted">
+        {until === null
+          ? 'These are yours to use without a subscription, with no end date.'
+          : `These are yours to use without a subscription, until ${until.slice(0, 10)}.`}
+      </p>
+      <ul className="space-y-1 text-sm">
+        {entitlements.map((entitlement) => (
+          <li key={entitlement.feature} data-entitlement={entitlement.feature} className="flex flex-wrap gap-2">
+            <span className="min-w-0 flex-1">{entitlement.name}</span>
+            <span className="text-muted">
+              {entitlement.kind === 'BOOLEAN'
+                ? 'included'
+                : entitlement.unlimited
+                  ? 'unlimited'
+                  : `${String(entitlement.limit ?? 0)}${entitlement.unit === null ? '' : ` ${entitlement.unit}`}`}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }

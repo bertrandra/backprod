@@ -50,11 +50,14 @@ final class ShowInvoicePdfController implements RouteHandler
             'Content-Length' => (string) strlen($rendered['contents']),
             'X-Content-Type-Options' => 'nosniff',
             'Content-Disposition' => sprintf('attachment; filename="%s"', $rendered['filename']),
-            // The document never changes once rendered, so it is safe to keep.
-            // Private, because it is one customer's invoice and a shared cache
-            // holding it would serve it to the next person through the proxy.
+            // The document never changes once rendered; the status band on
+            // top does (docs/tenant-roots.md §2.5), so the tag names both and
+            // a paid invoice is fetched afresh. Private, because it is one
+            // customer's invoice and a shared cache holding it would serve it
+            // to the next person through the proxy.
             'Cache-Control' => 'private, max-age=3600',
-            'ETag' => '"' . $rendered['document']->checksum . '"',
+            'ETag' => '"' . $rendered['document']->checksum . '-' . substr(hash('sha256', $rendered['band']->text), 0, 12) . '"',
+            'X-Invoice-Status' => $rendered['band']->kind,
         ]);
     }
 }

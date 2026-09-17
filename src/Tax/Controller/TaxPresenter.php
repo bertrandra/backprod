@@ -88,6 +88,7 @@ final class TaxPresenter
             'rule_id' => $transaction->ruleId,
             'reverse_charge' => $transaction->reverseCharge,
             'transaction_date' => $transaction->transactionDate->format(DATE_ATOM),
+            'product' => $transaction->productCode,
         ];
     }
 

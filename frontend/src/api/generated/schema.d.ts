@@ -2066,7 +2066,11 @@ export interface paths {
          */
         get: operations["listTenantsForStaff"];
         put?: never;
-        post?: never;
+        /**
+         * Make an organisation
+         * @description The only way an organisation comes to exist since sign-up stopped making them (2026-09-17): name, slug — its address, `hostname/{slug}/`, a lowercase word that is not one of the application's own paths — the products it holds by code, and optionally its first administrator, an existing user given TENANT_ADMIN on every product assigned. Recorded in the access log. Requires `staff.tenants.manage`.
+         */
+        post: operations["createTenantForStaff"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2092,7 +2096,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Rename, re-address or make default
+         * @description Partial: an absent field is untouched. A new slug is refused once the organisation has an invoice — its address is then in the world. `is_default: true` moves the bare host to this organisation; `false` leaves the bare host to nobody. Requires `staff.tenants.manage`.
+         */
+        patch: operations["updateTenantForStaff"];
         trace?: never;
     };
     "/api/v1/staff/tenants/{tenantId}/offer-authoring": {
@@ -2134,6 +2142,34 @@ export interface paths {
          * @description The memberships in that product go with it; the records keyed on it — projects, invoices, conversations — stay, because a record of what happened is not access to it. 200 with the tenant rather than 204, and 200 for a product the tenant never held: that is the state that was asked for.
          */
         delete: operations["unassignTenantProduct"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the platform gave a tenant on a product
+         * @description The grant in force or lapsed on this product, or null when nothing was granted. `staff.tenants.read`, and no motive header: a grant is the platform’s own decision, not the customer’s data.
+         */
+        get: operations["showTenantEntitlement"];
+        /**
+         * Give a tenant its entitlement to a product, without a sale
+         * @description A pilot, a partner, an internal organisation, the operator’s own default tenant: the platform administrator grants the entitlement directly. The body states the whole grant and replaces whatever grant there was — PUT, so the same request twice is the same grant. `plan` is a shorthand for the grants of that plan’s most recently activated offer version; `features` add to it or override it, feature by feature (“the Pro plan, but with more projects”). At least one feature must result; to take everything away, withdraw. `staff.tenants.manage`, and the access log carries the feature list — a grant is a commercial decision somebody should be able to trace. Buying stays the ordinary road; this is the other one.
+         */
+        put: operations["grantTenantEntitlement"];
+        post?: never;
+        /**
+         * Take back what the platform gave
+         * @description Drops the grant. Whatever a subscription grants on the same product is untouched — it was never this. `staff.tenants.manage`; 204 whether or not there was a grant, because the state asked for is the same either way.
+         */
+        delete: operations["withdrawTenantEntitlement"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2518,7 +2554,7 @@ export interface paths {
         };
         /**
          * The fiscal facts behind the documents
-         * @description One row per taxed line of a document, with the rule that produced it. Paginated.
+         * @description One row per taxed line of a document, with the rule that produced it. Paginated. Since 2026-09-17 answered across every product the tenant holds (docs/tenant-roots.md §2.7): a customer’s VAT picture is one. `X-Product` still resolves the caller’s context; `product` narrows the answer to one product’s rows when asked.
          */
         get: operations["listVatTransactions"];
         put?: never;
@@ -2604,7 +2640,7 @@ export interface paths {
         head?: never;
         /**
          * Rename the tenant
-         * @description Partial.
+         * @description Partial: each field is touched only when sent. Switching `join_policy` to `DOMAIN` needs at least one domain, in the same body or already stored; `400 JOIN_DOMAINS_REQUIRED` otherwise, and `400 VALIDATION_FAILED` for a policy outside the three or a domain that is not one.
          */
         patch: operations["updateCurrentTenant"];
         trace?: never;
@@ -2630,6 +2666,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenants/current/members/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who asked to join and is waiting
+         * @description The people who signed up at this organisation’s root under the `APPROVAL` policy and have not been accepted or declined. `members.read`, like the members themselves. They do not appear in `listMembers`: a pending membership grants nothing and resolves no context.
+         */
+        get: operations["listJoinRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenants/current/members/{userId}": {
         parameters: {
             query?: never;
@@ -2649,6 +2705,46 @@ export interface paths {
          * @description Replaces the set; roles are not merged.
          */
         patch: operations["updateMember"];
+        trace?: never;
+    };
+    "/api/v1/tenants/current/members/{userId}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Let somebody in
+         * @description Makes a pending membership live on every product the organisation holds. `members.manage`. The person’s next `/me` answers; nothing else changes — the roles stay what sign-up wrote (USER), and re-roling is `updateMemberRoles`.
+         */
+        post: operations["acceptJoinRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/current/members/{userId}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Turn somebody away
+         * @description Drops a pending membership. `members.manage`. The account stays — the person may ask again, or join elsewhere. A live member is not declined but removed (`removeMember`), which has the last-administrator rule a pending row never needs.
+         */
+        post: operations["declineJoinRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/tenants/current/usage": {
@@ -2775,6 +2871,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/tenant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The organisation at a URL root
+         * @description Public, because the page that asks has no session yet. `hostname/{slug}/` is an organisation's root (2026-09-17); the bare host is the default tenant's. A stranger learns the name to paint; a member arriving learns which of their memberships the page is about, before signing in. Without `tenant`, the default one — `404 NO_DEFAULT_TENANT` where none is set, which a page reads as "the platform's window, as before roots".
+         */
+        get: operations["showPublicTenant"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/storefront/offers": {
         parameters: {
             query?: never;
@@ -2825,8 +2941,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Create an account, an organisation and a session
-         * @description Public. The only endpoint that creates an account from nothing — user, credential, tenant, TENANT_ADMIN membership of the named product — in one transaction. `organisation` is optional: somebody buying for themselves has no company and the tenant takes their own name instead, which nothing downstream branches on. The address is **not** verified first: a session is issued immediately and `users.email_verified_at` stays null until the confirmation link is followed. Unlike signing in, this says plainly when an address is taken — a person who cannot be told cannot finish the purchase they came for — and the public rate limit is what bounds the enumeration that permits. A minimal billing profile is created alongside the tenant — a checkout refuses an order it cannot invoice, and an account that could not buy anything would make the storefront’s promise false.
+         * Create an account and ask to join the organisation at this root
+         * @description Public. Creates the account — user and credential — and a USER membership of the organisation named by `tenant` (the slug of the root the form was reached from) on every product that organisation holds, in one transaction. It never creates an organisation and never makes an administrator: organisations are made by the platform (`createTenantForStaff`), and the first administrator is named there. Whether the membership is live at once or waits is the organisation’s join policy: `APPROVAL` (the default) writes it `PENDING` and tells the administrators; `DOMAIN` makes it `ACTIVE` when the address’s domain is on the organisation’s list and refuses otherwise (`403 JOIN_DOMAIN_NOT_ALLOWED`); `INVITATION` refuses self-service altogether (`403 JOIN_BY_INVITATION`). The address is **not** verified first: a session is issued immediately and `users.email_verified_at` stays null until the confirmation link is followed. Unlike signing in, this says plainly when an address is taken — a person who cannot be told cannot finish what they came for — and the public rate limit is what bounds the enumeration that permits.
          */
         post: operations["signUp"];
         delete?: never;
@@ -3434,8 +3550,11 @@ export interface components {
             /** @description Null means two different things, so `unlimited` says which. */
             limit: number | null;
             unlimited: boolean;
-            /** @description What produced it — a subscription grant, or an override negotiated outside one. */
-            source: string;
+            /**
+             * @description What produced it — a subscription grant, or an override negotiated outside one. `GRANT`: given by the platform without a sale (docs/tenant-roots.md §2.8) — shown as “provided by the platform”, never as a subscription to cancel.
+             * @enum {string}
+             */
+            source: "SUBSCRIPTION" | "OVERRIDE" | "GRANT";
             /** Format: date-time */
             valid_until: string | null;
         };
@@ -3672,6 +3791,8 @@ export interface components {
             reverse_charge: boolean;
             /** Format: date-time */
             transaction_date: string;
+            /** @description The code of the product the document was raised in. Every transaction has one; null only where a product has since been removed. */
+            product: string | null;
         };
         VatPeriod: {
             /** Format: uuid */
@@ -3938,11 +4059,20 @@ export interface components {
             slug: string;
             /** @description Whether the platform has lent this tenant the catalogue. False by default: offers are keyed on product, not tenant, so a tenant administrator editing them changes what every other customer of that product is sold on. When false, `catalog.manage` is not resolved for this tenant's members at all. */
             may_author_offers: boolean;
+            /**
+             * @description How people arrive by themselves at this organisation’s root. `APPROVAL` (default): anybody may ask, an administrator accepts. `DOMAIN`: an address on one of `join_domains` is in at once, any other is refused. `INVITATION`: nobody arrives by themselves; administrators add people.
+             * @enum {string}
+             */
+            join_policy: "INVITATION" | "DOMAIN" | "APPROVAL";
+            /** @description Email domains, lower-case, without `@`. Consulted only under `DOMAIN`, and required non-empty to switch to it. */
+            join_domains: string[];
         };
         /** @description A tenant as the platform sees it: the tenant, and the products it holds (ADR-047). `products` is the platform’s answer — which products it has assigned this tenant, through the console — so it lives on the staff shape and not on the `Tenant` a tenant reads about itself. */
         StaffTenant: components["schemas"]["Tenant"] & {
             /** @description In code order. A retired product a tenant still holds is listed with `active: false`. */
             products: components["schemas"]["PlatformProduct"][];
+            /** @description Whether the bare host addresses this organisation (2026-09-17). Every other organisation lives at hostname/{slug}/. */
+            is_default: boolean;
         };
         Member: {
             /** Format: uuid */
@@ -3951,6 +4081,11 @@ export interface components {
             email: string | null;
             display_name: string | null;
             roles: string[];
+            /**
+             * @description `ACTIVE` for everybody `listMembers` returns; `PENDING` for the people `listJoinRequests` returns, who asked to join by themselves and are waiting on an administrator.
+             * @enum {string}
+             */
+            status: "ACTIVE" | "PENDING";
         };
         /** @description Non-negotiable #21: a staff read of a tenant's data is never silent. Written in the same transaction as the read it records. */
         StaffAccessEntry: {
@@ -4458,6 +4593,40 @@ export interface components {
             platform_admin: components["schemas"]["AudienceMenu"];
             tenant_admin: components["schemas"]["AudienceMenu"];
             user: components["schemas"]["AudienceMenu"];
+        };
+        /** @description The organisation at a URL root, as a stranger may know it: its slug — already in the address bar — and the name the storefront paints. Nothing about who is a member or what it has bought. */
+        PublicTenant: {
+            slug: string;
+            name: string;
+            /** @description Whether this is the organisation the bare host addresses. */
+            is_default: boolean;
+        };
+        /** @description What the platform gave a tenant on one product without a sale (docs/tenant-roots.md §2.8): `entitlements` rows with `source = GRANT`. The resolver reads them like a subscription’s — `/me/entitlements` shows them with their source — so a grant changes nothing in how capabilities and quotas are answered. Where a grant and a subscription both hold a feature, the most generous wins, as between a seat and the tenant. */
+        GrantedEntitlement: {
+            /** Format: uuid */
+            tenant_id: string;
+            /** Format: uuid */
+            product_id: string;
+            features: {
+                code: string;
+                name: string;
+                /** @enum {string} */
+                kind: "BOOLEAN" | "QUOTA";
+                /** @description For a quota: the allowance, or null for unlimited. Always null for a boolean feature. */
+                limit: number | null;
+            }[];
+            /**
+             * Format: date-time
+             * @description When the grant lapses, or null for no end. A lapsed grant is a lapsed entitlement: nothing is invoiced and nothing renews itself — a person renews it.
+             */
+            valid_until: string | null;
+            /**
+             * Format: uuid
+             * @description The staff member who decided. Null once that account is erased.
+             */
+            granted_by: string | null;
+            /** Format: date-time */
+            granted_at: string;
         };
     };
     responses: {
@@ -7735,6 +7904,12 @@ export interface operations {
                         products: components["schemas"]["Product"][];
                         /** @description The code of this person's default product, among `products`, or null. Beside the list rather than on `/me` because `/me` needs a product and this is how a client learns which to name first. */
                         default: string | null;
+                        /** @description The organisations this person asked to join and is waiting on. Here rather than on `/me` because somebody with no live membership has no product to ask `/me` with; this is how a client says “waiting for approval” rather than “nothing”. */
+                        pending_memberships: {
+                            /** @description The organisation’s slug. */
+                            tenant: string;
+                            name: string;
+                        }[];
                     };
                 };
             };
@@ -9235,6 +9410,64 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    createTenantForStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    slug: string;
+                    /** @description Product codes the organisation holds from the start (ADR-047). */
+                    products?: string[];
+                    /**
+                     * Format: uuid
+                     * @description An existing user, found in the directory, made TENANT_ADMIN.
+                     */
+                    admin_user_id?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The organisation, with its products. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tenant: components["schemas"]["StaffTenant"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected; a reserved or malformed slug lands here. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `SLUG_TAKEN` — another organisation already lives at that address. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     showTenantForStaff: {
         parameters: {
             query?: never;
@@ -9271,6 +9504,61 @@ export interface operations {
             404: components["responses"]["NotFound"];
             /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateTenantForStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    slug?: string;
+                    is_default?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The organisation as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tenant: components["schemas"]["StaffTenant"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — a reserved or malformed slug, or a bad field. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description `SLUG_TAKEN` — another organisation already lives at that address; or `TENANT_HAS_INVOICES` — an organisation with an invoice keeps its address. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9397,6 +9685,157 @@ export interface operations {
             404: components["responses"]["NotFound"];
             /** @description `PRODUCT_IN_USE` — a subscription on this tenant and product is still owed service: active, or cancelled with paid time left. Withdrawing the product would cut the customer off from what they paid for. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showTenantEntitlement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The tenant. */
+                tenantId: string;
+                /** @description A product the tenant holds (`assignTenantProduct`). Holding says the organisation may see the product; the grant says what it may do with it. */
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The grant, or null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        entitlement: components["schemas"]["GrantedEntitlement"] | null;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `TENANT_OR_PRODUCT_NOT_FOUND` — no such tenant, or it does not hold that product. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    grantTenantEntitlement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The tenant. */
+                tenantId: string;
+                /** @description A product the tenant holds (`assignTenantProduct`). Holding says the organisation may see the product; the grant says what it may do with it. */
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description A plan code of the product, as the starting point. */
+                    plan?: string | null;
+                    features?: {
+                        code: string;
+                        /** @description For a quota; omitted or null means unlimited. */
+                        limit?: number | null;
+                    }[];
+                    /**
+                     * Format: date-time
+                     * @description In the future, or omitted for no end.
+                     */
+                    valid_until?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The grant as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        entitlement: components["schemas"]["GrantedEntitlement"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — a feature item without a code, a negative limit, a date that cannot be read or is not in the future. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `TENANT_OR_PRODUCT_NOT_FOUND` — no such tenant, or it does not hold that product. `PLAN_NOT_FOUND`, `FEATURE_NOT_FOUND` — no plan or feature of the product has that code; nothing was written. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `GRANT_EMPTY` — nothing would be granted: no features named and the plan grants none. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    withdrawTenantEntitlement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The tenant. */
+                tenantId: string;
+                /** @description A product the tenant holds (`assignTenantProduct`). Holding says the organisation may see the product; the grant says what it may do with it. */
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Withdrawn. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `TENANT_OR_PRODUCT_NOT_FOUND` — no such tenant, or it does not hold that product. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10313,6 +10752,8 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 /** @description How many to skip. */
                 offset?: components["parameters"]["Offset"];
+                /** @description A product code the tenant holds, to narrow to its rows. Omitted: every product. */
+                product?: string;
             };
             header: {
                 /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
@@ -10583,6 +11024,10 @@ export interface operations {
             content: {
                 "application/json": {
                     name?: string;
+                    /** @enum {string} */
+                    join_policy?: "INVITATION" | "DOMAIN" | "APPROVAL";
+                    /** @description Replaces the list. */
+                    join_domains?: string[];
                 };
             };
         };
@@ -10596,6 +11041,15 @@ export interface operations {
                     "application/json": {
                         tenant: components["schemas"]["Tenant"];
                     };
+                };
+            };
+            /** @description `VALIDATION_FAILED`, `JOIN_DOMAINS_REQUIRED`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             401: components["responses"]["Unauthenticated"];
@@ -10699,6 +11153,37 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    listJoinRequests: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The requests, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        requests: components["schemas"]["Member"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     removeMember: {
         parameters: {
             query?: never;
@@ -10765,6 +11250,82 @@ export interface operations {
             404: components["responses"]["NotFound"];
             /** @description An unknown role. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    acceptJoinRequest: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `JOIN_REQUEST_NOT_FOUND` — nobody with that id is waiting. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    declineJoinRequest: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Declined. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `JOIN_REQUEST_NOT_FOUND` — nobody with that id is waiting. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10934,6 +11495,8 @@ export interface operations {
             query: {
                 /** @description The product code the storefront is about. A public route resolves no ambient product — there is no context chain on it — so the filter is named explicitly. */
                 product: string;
+                /** @description The slug of the organisation whose URL root the page is on (2026-09-17). Narrows the window to the products that organisation holds; absent, the bare host's — the default tenant's, or the platform's where none is set. A slug nobody has shows nothing, as an unknown product does. */
+                tenant?: string;
             };
             header?: never;
             path?: never;
@@ -11010,7 +11573,10 @@ export interface operations {
     };
     listPublicProducts: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description The slug of the organisation whose URL root the page is on (2026-09-17). Narrows the window to the products that organisation holds; absent, the bare host's — the default tenant's, or the platform's where none is set. A slug nobody has shows nothing, as an unknown product does. */
+                tenant?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -11029,6 +11595,51 @@ export interface operations {
                             name: string;
                         }[];
                     };
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showPublicTenant: {
+        parameters: {
+            query?: {
+                /** @description The slug of the organisation whose URL root the page is on (2026-09-17). Narrows the window to the products that organisation holds; absent, the bare host's — the default tenant's, or the platform's where none is set. A slug nobody has shows nothing, as an unknown product does. */
+                tenant?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The organisation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tenant: components["schemas"]["PublicTenant"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — the slug is malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `TENANT_NOT_FOUND` — no organisation has this slug; or `NO_DEFAULT_TENANT` — nothing is set for the bare host. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             429: components["responses"]["TooManyRequests"];
@@ -11141,18 +11752,16 @@ export interface operations {
                     email: string;
                     /** @description Measured in bytes. The ceiling is bcrypt’s, not a preference. */
                     password: string;
-                    /** @description The product code this account is being created for. A membership is per product, so an account without one would have no way in. */
-                    product: string;
+                    /** @description The product code the person arrived through, if any. It becomes their default product when the organisation holds it; otherwise the first product the organisation holds does. The membership itself is written on every product the organisation holds. */
+                    product?: string | null;
                     display_name?: string | null;
-                    /** @description The company name, when there is one. Omitted for a consumer; the tenant is then named after the person. */
-                    organisation?: string | null;
-                    /** @description ISO 3166-1 alpha-2. Optional, and asked for because VAT depends on it rather than to make the form look complete. */
-                    country?: string | null;
+                    /** @description The slug of the organisation to join — the root the form was reached from, or the default organisation’s slug on the bare host (`showPublicTenant` says which). `404 TENANT_NOT_FOUND` when no organisation has it. */
+                    tenant: string;
                 };
             };
         };
         responses: {
-            /** @description The account was created and a session issued. The refresh token leaves in a `Set-Cookie` header and never in the body. */
+            /** @description The account was created, a membership written, and a session issued. The refresh token leaves in a `Set-Cookie` header and never in the body. */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -11164,9 +11773,16 @@ export interface operations {
                         expires_in: number;
                         /**
                          * Format: uuid
-                         * @description The organisation just created. Returned because the checkout that follows resolves it anyway.
+                         * @description The organisation joined.
                          */
                         tenant_id: string;
+                        /** @description Its slug — the root to return to. */
+                        tenant: string;
+                        /**
+                         * @description `ACTIVE`: the person is in and `/me` answers. `PENDING`: an administrator has to accept first; `listProducts` lists nothing for them yet and names the organisation under `pending_memberships`.
+                         * @enum {string}
+                         */
+                        membership: "ACTIVE" | "PENDING";
                     };
                 };
             };
@@ -11179,7 +11795,24 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            404: components["responses"]["NotFound"];
+            /** @description `JOIN_DOMAIN_NOT_ALLOWED` — the organisation admits only addresses on its listed domains, and this one is not. `JOIN_BY_INVITATION` — the organisation does not take self-service requests at all. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `TENANT_NOT_FOUND` — no organisation has that slug. `TENANT_HOLDS_NOTHING` — the organisation has been assigned no product yet, so there is nothing to be a member of. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             /** @description `EMAIL_TAKEN` — that address already has an account. Sign in instead. */
             409: {
                 headers: {
