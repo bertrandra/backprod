@@ -180,6 +180,14 @@ async function stubbed(page: Page) {
     route.fulfill({ json: { subscription: null } }),
   );
 
+  // The catalogue names its product in the header; the catch-all's empty
+  // page has no product to name.
+  await page.route(/\/api\/v1\/products\/[^/]+\/catalog$/, (route) =>
+    route.fulfill({
+      json: { product: { id: SESSION.product_id, code: 'atlas', name: 'Atlas' }, features: [], configuration: {} },
+    }),
+  );
+
   await page.route(/\/api\/v1\/admin\/queue/, (route) =>
     route.fulfill({
       json: {
