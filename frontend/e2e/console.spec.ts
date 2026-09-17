@@ -240,7 +240,12 @@ test.describe('erasure', () => {
     await expect(grounds).toContainText('audit trail');
     await expect(page.getByText(/It is not a delete/i)).toBeVisible();
 
-    await page.getByLabel('User identifier').fill(PRESENT_USER.id);
+    // Found in the directory rather than pasted: the person is read back by
+    // name and address before the irreversible step, which is still the
+    // confirmation below.
+    await page.getByLabel('Who').fill('ada');
+    await page.getByRole('option', { name: /Ada/ }).click();
+    await expect(page.locator(`[data-picked="${PRESENT_USER.id}"]`)).toBeVisible();
     await page.getByRole('button', { name: /Erase this person/ }).click();
 
     const confirmation = page.getByTestId('erasure-confirmation');

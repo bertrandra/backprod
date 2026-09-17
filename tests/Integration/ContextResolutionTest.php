@@ -82,6 +82,7 @@ final class ContextResolutionTest extends ApiTestCase
             'user_id' => self::ALICE,
             'email' => 'alice@example.test',
             'display_name' => null,
+            'default_product' => null,
             'product_id' => 'prod-atlas',
             'tenant_id' => 'tenant-acme',
             'roles' => ['TENANT_ADMIN'],

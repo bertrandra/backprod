@@ -18,4 +18,10 @@ interface UserRepository
     public function findByEmail(string $email): array;
 
     public function updateDisplayName(string $userId, ?string $displayName): void;
+
+    /**
+     * The product a screen opens in when the address names none. Null
+     * clears it; the caller has checked the person holds the product.
+     */
+    public function updateDefaultProduct(string $userId, ?string $productId): void;
 }

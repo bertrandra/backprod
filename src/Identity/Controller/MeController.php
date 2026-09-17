@@ -33,6 +33,7 @@ final class MeController implements RouteHandler
             'user_id' => $context->userId,
             'email' => $user?->email,
             'display_name' => $user?->displayName,
+            'default_product' => $this->profile->defaultProductCode($context->userId),
             'product_id' => $context->productId,
             'tenant_id' => $context->tenantId,
             'roles' => $context->roles,

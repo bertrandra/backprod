@@ -123,6 +123,31 @@ export function useProducts(enabled = true) {
   });
 }
 
+/**
+ * The products this person may act in, and which of them their screens open
+ * in when the address names none — read together, because the answer to the
+ * second is only meaningful among the first, and the server says both in
+ * one reply.
+ */
+export function useMyProducts(enabled = true) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.catalogue.myProducts,
+    enabled,
+    staleTime: CATALOGUE_STALE_MS,
+    queryFn: async (): Promise<{ readonly products: readonly Product[]; readonly default: string | null }> => {
+      const { data, error, response } = await client.GET('/api/v1/products', {});
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return { products: data.products, default: data.default ?? null };
+    },
+  });
+}
+
 export function useProduct(productId: string | null) {
   const client = useApiClient();
 

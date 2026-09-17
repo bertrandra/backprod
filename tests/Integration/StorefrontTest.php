@@ -437,6 +437,51 @@ final class StorefrontTest extends DatabaseApiTestCase
         ));
     }
 
+    /**
+     * The product signed up for is where this person's screens open from
+     * then on (2026-09-17): said beside the product list — which a client
+     * can read before it has named a product — and on `/me`, and changeable
+     * from the profile to any product they hold, and to none of the others.
+     */
+    public function testTheProductSignedUpForIsTheDefaultUntilTheProfileSaysOtherwise(): void
+    {
+        $token = $this->decode($this->signUp([
+            'email' => 'ada@acme.test',
+            'password' => 'a-long-enough-password',
+            'display_name' => 'Ada',
+            'product' => 'atlas',
+        ]))['access_token'] ?? null;
+        self::assertIsString($token);
+
+        $bearer = ['Authorization' => 'Bearer ' . $token];
+        $scoped = $bearer + ['X-Product' => 'atlas'];
+
+        $products = $this->decode($this->request('GET', '/api/v1/products', $bearer));
+        self::assertSame('atlas', $products['default'] ?? null);
+        self::assertSame('atlas', $this->decode($this->request('GET', '/api/v1/me', $scoped))['default_product'] ?? null);
+
+        // A product they do not hold is refused, and nothing moves.
+        $this->connection->executeStatement("INSERT INTO products (code, name, active) VALUES ('boreas', 'Boreas', true)");
+        $refused = $this->request('PATCH', '/api/v1/me', $scoped, $this->json(['default_product' => 'boreas']));
+        self::assertSame(422, $refused->getStatusCode());
+        self::assertSame('PRODUCT_NOT_HELD', $this->errorOf($refused)['code'] ?? null);
+        self::assertSame('atlas', $this->decode($this->request('GET', '/api/v1/products', $bearer))['default'] ?? null);
+
+        // Cleared, the shell chooses; an absent field leaves it alone.
+        $cleared = $this->request('PATCH', '/api/v1/me', $scoped, $this->json(['default_product' => null]));
+        self::assertSame(200, $cleared->getStatusCode());
+        $body = $this->decode($cleared);
+        self::assertArrayHasKey('default_product', $body);
+        self::assertNull($body['default_product']);
+        $renamed = $this->decode($this->request('PATCH', '/api/v1/me', $scoped, $this->json(['display_name' => 'Ada L.'])));
+        self::assertArrayHasKey('default_product', $renamed);
+        self::assertNull($renamed['default_product']);
+
+        // And set again to the one they hold.
+        $set = $this->request('PATCH', '/api/v1/me', $scoped, $this->json(['default_product' => 'atlas']));
+        self::assertSame('atlas', $this->decode($set)['default_product'] ?? null);
+    }
+
     public function testAConsumerIsNotMadeToInventACompany(): void
     {
         $response = $this->signUp([

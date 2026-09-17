@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 
-import { useProducts } from '@/queries/catalogue';
+import { useMyProducts } from '@/queries/catalogue';
 import { usePlatformProducts } from '@/queries/staff';
 import { useSessionStore } from '@/state/session';
 import { touchTargetClass } from '@/ui/Field';
@@ -43,7 +43,7 @@ export function ProductSwitcher({ platform = false }: { platform?: boolean }) {
   const seed = useSessionStore((state) => state.chooseProduct);
   const chooseProduct = useChooseProduct();
 
-  const mine = useProducts(!platform);
+  const mine = useMyProducts(!platform);
   const platformProducts = usePlatformProducts(platform);
 
   const known: readonly ProductOption[] = platform
@@ -52,7 +52,11 @@ export function ProductSwitcher({ platform = false }: { platform?: boolean }) {
         name: product.active ? product.name : `${product.name} (retired)`,
         retired: !product.active,
       }))
-    : (mine.data ?? []).map((product) => ({ code: product.code, name: product.name, retired: false }));
+    : (mine.data?.products ?? []).map((product) => ({ code: product.code, name: product.name, retired: false }));
+
+  // The person's own default, where the server named one they still hold;
+  // the shell opens there rather than on whichever product sorts first.
+  const preferred = platform ? null : (mine.data?.default ?? null);
 
   const current = known.find((product) => product.code === productCode) ?? null;
 
@@ -72,12 +76,15 @@ export function ProductSwitcher({ platform = false }: { platform?: boolean }) {
       return;
     }
 
-    const first = known.find((product) => !product.retired) ?? known[0];
+    const first =
+      known.find((product) => product.code === preferred) ??
+      known.find((product) => !product.retired) ??
+      known[0];
 
     if (first !== undefined) {
       seed(first.code);
     }
-  }, [platform, productCode, known, seed]);
+  }, [platform, productCode, known, preferred, seed]);
 
   // Before the list arrives — or if it fails — the code is still the truth about
   // what every request is carrying, so it is shown rather than a spinner.

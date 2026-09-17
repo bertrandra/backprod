@@ -134,6 +134,21 @@ describe('with more than one', () => {
  * they still carry tenants and invoices — and never the membership list.
  */
 describe('with nothing chosen yet', () => {
+  it("chooses the person's default product where the server names one", async () => {
+    // The product signed up for, or the one chosen on the profile: where
+    // this person's screens open when the address names none.
+    renderWith(
+      <ProductSwitcher />,
+      stubClient({
+        'GET /api/v1/me': { data: SESSION },
+        'GET /api/v1/products': { data: { products: [ATLAS, BOREAS], default: 'boreas' } },
+      }),
+      { product: null },
+    );
+
+    await waitFor(() => expect(useSessionStore.getState().productCode).toBe('boreas'));
+  });
+
   it('chooses the first product this person has, so a sign-in at the landing address is not a blank screen', async () => {
     // Signing out forgets the product on purpose; signing in again at "/"
     // has no `?product=` to seed from. Before 2026-09-17 nothing chose,

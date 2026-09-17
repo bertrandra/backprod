@@ -15,9 +15,11 @@ use Psr\Http\Message\ServerRequestInterface;
 /**
  * PATCH /api/v1/me — update the caller's own profile.
  *
- * Only display_name is writable. Email and identity belong to the provider
- * (ADR-014); accepting them here would let the local record disagree with the
- * token that authenticated the caller.
+ * Only display_name and the default product are writable. Email and identity
+ * belong to the provider (ADR-014); accepting them here would let the local
+ * record disagree with the token that authenticated the caller. The default
+ * product is a code the person holds, checked by {@see Profile}; null clears
+ * it and the shell then chooses among what they have.
  */
 final class UpdateMeController implements RouteHandler
 {
@@ -39,10 +41,18 @@ final class UpdateMeController implements RouteHandler
             ? $this->profile->rename($context->userId, $body->optionalNullableString('display_name', 120))
             : $this->profile->of($context->userId);
 
+        if ($body->has('default_product')) {
+            $user = $this->profile->chooseDefaultProduct(
+                $context->userId,
+                $body->optionalNullableString('default_product', 64),
+            );
+        }
+
         return new JsonResponse([
             'user_id' => $context->userId,
             'email' => $user?->email,
             'display_name' => $user?->displayName,
+            'default_product' => $this->profile->defaultProductCode($context->userId),
         ], 200);
     }
 }
