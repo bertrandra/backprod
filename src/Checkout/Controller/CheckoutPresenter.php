@@ -53,6 +53,15 @@ final class CheckoutPresenter
             return 'CANCELLED';
         }
 
+        if ($payment !== null && $payment->isSettled()) {
+            // Paid, and yet not completed: the money arrived and the sale
+            // could not be released against it — the tenant's subscription
+            // to the product was already live by then. Neither "awaiting"
+            // nor "completed" is true, and the customer whose card this was
+            // should read neither.
+            return 'HELD';
+        }
+
         if ($payment !== null && $payment->isFinal() && !$payment->isSettled()) {
             // The order is still awaiting payment and the last attempt is
             // dead, which is the state a retry exists for. Reporting it as

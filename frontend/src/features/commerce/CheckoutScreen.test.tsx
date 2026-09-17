@@ -131,6 +131,32 @@ describe('when it completes', () => {
   });
 });
 
+describe('when the payment was collected but the sale could not start', () => {
+  it('says so, and stops waiting', async () => {
+    let polls = 0;
+
+    render(
+      clientFor((): Stub => {
+        polls += 1;
+
+        return { data: { session: session({ status: 'HELD', payment_status: 'SUCCEEDED' }) } };
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('payment-held')).toBeTruthy());
+
+    // The truthful sentence is neither "awaiting" nor "completed".
+    expect(screen.getByTestId('checkout-status').getAttribute('data-status')).toBe('HELD');
+    expect(screen.getByText(/will be refunded/i)).toBeTruthy();
+    expect(screen.queryByTestId('checkout-waiting')).toBeNull();
+
+    const after = polls;
+    await new Promise((resolve) => setTimeout(resolve, POLL_MS + 500));
+
+    expect(polls).toBe(after);
+  });
+});
+
 describe('when the payment failed', () => {
   it('says the order survives and that a retry is a new attempt', async () => {
     render(clientFor({ data: { session: session({ status: 'PAYMENT_FAILED' }) } }));

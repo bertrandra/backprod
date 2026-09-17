@@ -129,6 +129,22 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
         </ol>
       </section>
 
+      {current.status === 'HELD' && (
+        <section data-testid="payment-held" className={`${notice('warning')} space-y-2`}>
+          <p className="font-medium">Paid, and not started.</p>
+          {/* The one race the catalogue's refusal cannot reach: this order was
+              opened before another one was paid, and by the time this payment
+              arrived the subscription it was for had already begun. Nothing was
+              started twice; the money is recorded and is the operator's to
+              return. */}
+          <p>
+            The payment was collected, but this organisation already had a live subscription to
+            this product by the time it arrived, so nothing was started against it. Nothing has
+            been provisioned twice — the payment will be refunded.
+          </p>
+        </section>
+      )}
+
       {current.status === 'PAYMENT_FAILED' && (
         <section
           data-testid="payment-failed"
@@ -164,6 +180,8 @@ function statusTone(status: string): Tone {
       return 'success';
     case 'PAYMENT_FAILED':
       return 'danger';
+    case 'HELD':
+      return 'warning';
     case 'CANCELLED':
       return 'neutral';
     default:

@@ -7,6 +7,7 @@ import { useOffers, usePlans, useProductCatalogue, type Offer } from '@/queries/
 import { useOpenCheckoutSession, type OpenedCheckoutSession } from '@/queries/checkout';
 import { useCreateQuote } from '@/queries/sales';
 import { useSession } from '@/queries/session';
+import { useSubscription } from '@/queries/subscription';
 import { useTaxProfile } from '@/queries/tax';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
@@ -57,12 +58,24 @@ export function CatalogueScreen() {
   const quote = useCreateQuote();
   const checkout = useOpenCheckoutSession();
   const taxProfile = useTaxProfile();
+  // Read only where it may be: the query itself needs `subscription.read`,
+  // and asking without it is a 403 for nothing.
+  const subscription = useSubscription(can(session, 'subscription.read'));
+
+  // One live subscription per product, and the API refuses a second order
+  // (409 SUBSCRIPTION_ALREADY_ACTIVE). What it would refuse is not offered:
+  // the operator's rule, since the Quote button beside Buy — a function a
+  // person cannot use is hidden, not shown and then declined. Changing what
+  // is subscribed is the subscription screen's job. Until the read has
+  // answered, nobody is offered a button that may vanish.
+  const live = subscription.data?.subscription ?? null;
+  const subscribed = live !== null && live.status === 'ACTIVE';
+  const settled = !subscription.isPending || !can(session, 'subscription.read');
 
   // Both halves, and only both: the permission says who may raise one, the
-  // profile says whether this customer is one that gets one. Until the
-  // profile has answered, nobody is offered a button that may vanish.
-  const maySell = can(session, 'sales.manage') && taxProfile.data?.customer_kind === 'B2B';
-  const mayBuy = can(session, 'billing.manage');
+  // profile says whether this customer is one that gets one.
+  const maySell = settled && !subscribed && can(session, 'sales.manage') && taxProfile.data?.customer_kind === 'B2B';
+  const mayBuy = settled && !subscribed && can(session, 'billing.manage');
 
   // The checkout just opened, held for exactly as long as the render that
   // offers the form (ADR-034): never in a store, never across a navigation.
@@ -139,6 +152,17 @@ export function CatalogueScreen() {
 
       {quote.error !== null && <ErrorSurface error={quote.error} />}
       {checkout.error !== null && <ErrorSurface error={checkout.error} />}
+
+      {subscribed && live !== null && (
+        <p data-testid="already-subscribed" className="text-sm text-muted">
+          Subscribed to <span className="font-medium text-ink">{live.offer.name}</span>.
+          {' '}
+          <Link to="/subscription" className="underline underline-offset-2">
+            Change it from the subscription
+          </Link>
+          {' '}— an organisation holds one subscription per product, so nothing here can be bought beside it.
+        </p>
+      )}
 
       {offers.data.length === 0 ? (
         <EmptyState

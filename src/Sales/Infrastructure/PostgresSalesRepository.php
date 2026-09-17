@@ -372,6 +372,22 @@ final class PostgresSalesRepository implements SalesRepository
         );
     }
 
+    public function applyHoldOrder(Order $order, array $detail, ?string $actorUserId): void
+    {
+        // No status moves. The order is still awaiting, its invoice is paid,
+        // and the row below is the only new fact — the one that makes the
+        // pair explicable to whoever reads the ledger.
+        $this->record(
+            $order->tenantId,
+            $order->productId,
+            'ORDER_HELD',
+            $order->id,
+            $order->gross,
+            $actorUserId,
+            $detail,
+        );
+    }
+
     public function cancelOrder(Order $order, ?string $actorUserId): Order
     {
         return $this->connection->transactional(function () use ($order, $actorUserId): Order {
@@ -485,6 +501,9 @@ final class PostgresSalesRepository implements SalesRepository
         }
     }
 
+    /**
+     * @param array<string, mixed> $detail
+     */
     private function record(
         string $tenantId,
         string $productId,
@@ -492,13 +511,15 @@ final class PostgresSalesRepository implements SalesRepository
         ?string $orderId,
         Money $amount,
         ?string $actorUserId,
+        array $detail = [],
     ): void {
         $this->connection->executeStatement(
             <<<'SQL'
                 INSERT INTO financial_events
                     (tenant_id, product_id, type, order_id, amount_minor_units,
                      currency, actor_user_id, detail)
-                VALUES (:tenantId, :productId, :type, :order, :amount, :currency, :actor, '{}')
+                VALUES (:tenantId, :productId, :type, :order, :amount, :currency, :actor,
+                        CAST(:detail AS jsonb))
                 SQL,
             [
                 'tenantId' => $tenantId,
@@ -508,6 +529,7 @@ final class PostgresSalesRepository implements SalesRepository
                 'amount' => $amount->minorUnits,
                 'currency' => $amount->currency,
                 'actor' => $actorUserId,
+                'detail' => json_encode((object) $detail, JSON_THROW_ON_ERROR),
             ],
         );
     }

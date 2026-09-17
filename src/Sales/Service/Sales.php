@@ -8,6 +8,7 @@ use App\Billing\Domain\BillingProfileRepository;
 use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\Money;
 use App\Commerce\Domain\SubscribedOffer;
+use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Service\Catalogue;
 use App\Sales\Domain\Order;
 use App\Sales\Domain\OrderFulfilment;
@@ -41,10 +42,22 @@ use DateTimeImmutable;
  * tenant becomes quotable by declaring itself a business there. The
  * catalogue screen hides the button on the same fact, as courtesy; this is
  * the refusal.
+ *
+ * **One live subscription per product, and the sale is where that is said.**
+ * The schema holds the rule with a partial unique index; what an index
+ * cannot do is refuse politely, and it is reached last — after the order,
+ * the gaplessly numbered invoice and the card. The operator found the
+ * consequence on their own deployment on 2026-09-17: a second offer bought
+ * beside a live subscription, charged, and then a webhook that could only
+ * ever fail. So an order is refused at placement, before any document
+ * exists, while the tenant's subscription to the product is live. Changing
+ * what a customer has is `changeOffer` on the subscription, which is priced
+ * and dated as a change rather than as a second purchase.
  */
 final class Sales
 {
     public const QUOTE_REQUIRES_BUSINESS_CUSTOMER = 'QUOTE_REQUIRES_BUSINESS_CUSTOMER';
+    public const SUBSCRIPTION_ALREADY_ACTIVE = 'SUBSCRIPTION_ALREADY_ACTIVE';
 
     /**
      * How long a quote stands by default. Configurable per request; this is
@@ -60,6 +73,7 @@ final class Sales
         private readonly BillingProfileRepository $profiles,
         private readonly Taxation $taxation,
         private readonly OrderFulfilment $fulfilment,
+        private readonly SubscriptionRepository $subscriptions,
     ) {
     }
 
@@ -199,6 +213,7 @@ final class Sales
         }
 
         QuoteStatus::assertPermits($quote->status, QuoteStatus::ACCEPTED);
+        $this->refuseWhileSubscribed($tenantId, $productId);
 
         return $this->sales->placeOrder(
             $tenantId,
@@ -216,6 +231,7 @@ final class Sales
     public function order(string $tenantId, string $productId, string $offerId, ?string $actorUserId): Order
     {
         $offer = SubscribedOffer::from($this->catalogue->offerOnSale($productId, $offerId));
+        $this->refuseWhileSubscribed($tenantId, $productId);
 
         $line = InvoiceLine::of(
             1,
@@ -266,6 +282,33 @@ final class Sales
         }
 
         return $this->sales->fulfilOrder($order, $this->fulfilment, $actorUserId);
+    }
+
+    /**
+     * The refusal an order meets while the tenant's subscription to the
+     * product is live — asked before {@see SalesRepository::placeOrder} so
+     * nothing is written, and nothing numbered, for a sale that could only
+     * end in a payment the platform cannot honour.
+     *
+     * The tenant's own subscription, not a seat: the index this stands in
+     * front of is per (tenant, product) for `TENANT` subscribers, and a seat
+     * held by one person does not stop the company subscribing.
+     *
+     * @throws ConflictException SUBSCRIPTION_ALREADY_ACTIVE
+     */
+    private function refuseWhileSubscribed(string $tenantId, string $productId): void
+    {
+        $live = $this->subscriptions->findActive($tenantId, $productId);
+
+        if ($live === null) {
+            return;
+        }
+
+        throw new ConflictException(
+            self::SUBSCRIPTION_ALREADY_ACTIVE,
+            'This organisation already has a live subscription to this product. Change it from the subscription rather than buying a second one.',
+            ['subscription_id' => $live->id, 'offer_id' => $live->offer->offerId],
+        );
     }
 
     public function cancelOrder(string $tenantId, string $productId, string $orderId, ?string $actorUserId): Order

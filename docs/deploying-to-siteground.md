@@ -276,11 +276,15 @@ database reset on the *same* installation asks for `2026-000002/1` again
 and is handed back yesterday's intent, already paid: the form never becomes
 ready. Wait a day, or let the numbering move past the reused ones. (Two
 installations on one sandbox do not collide, provided each has a webhook
-endpoint — and secret — of its own.) And a second purchase for a tenant that already holds an active
-subscription is refused by the database when the webhook settles it —
-`subscriptions_one_active_tenant_subscription`, answered 500 so Stripe
-retries and the log names the constraint — because the checkout does not
-yet refuse it up front.
+endpoint — and secret — of its own.) And one tenant holds **one** live
+subscription per product: buying a second offer beside it is refused at
+checkout (`409 SUBSCRIPTION_ALREADY_ACTIVE`, and the catalogue hides Buy),
+so to walk the cards more than once either cancel the subscription first,
+sign up a second organisation, or reset the demonstration world from the
+console. Before 2026-09-17 that second purchase went through to the card
+and then failed at the webhook forever; a payment that stays PENDING with
+the money taken on a bundle from before then is that, and the demo reset is
+the cure.
 
 ### Somebody to sign in as
 
@@ -415,5 +419,7 @@ fuller list; these are the ones specific to shipping it this way.
 | Signing in works and the next page asks again | The refresh cookie is not coming back. It is `Secure`, so the site must be https — check that SiteGround's certificate is live and that you are not on a plain-http URL |
 | Uploads succeed and the files disappear later | `ASSET_STORAGE_ROOT` is unset, so they went to a swept temporary directory |
 | Everything works; nothing queued ever happens | No cron entry for `bin/run-jobs.php` |
+| A payment stays `PENDING` although Stripe shows it succeeded | No webhook is reaching the platform. In Stripe → Developers → Webhooks the endpoint must be `https://your-domain/api/v1/webhooks/payments/stripe` with the six events under *Taking money through Stripe*, and its signing secret must be this deployment's `STRIPE_WEBHOOK_SECRET` — a `whsec_` from `stripe listen` on somebody's laptop signs nothing the dashboard sends. `stripe events list` shows `pending_webhooks: 1` on every event the platform has not acknowledged; the endpoint's page in the dashboard shows what it answered |
+| A checkout reads `HELD` — paid, and not started | Two checkouts were opened before either was paid, and the second's money arrived after the first had started the subscription. Nothing was provisioned twice; refund the held payment from the payments screen. The ledger row is `ORDER_HELD` |
 | Legitimate users are throttled together | `TRUSTED_PROXIES` is unset, so every visitor shares one bucket behind the host's proxy |
 | A PHP fatal error appears in the browser | Something outside the front controller's `try`. Report it — the platform is meant to answer with the envelope and log the detail |

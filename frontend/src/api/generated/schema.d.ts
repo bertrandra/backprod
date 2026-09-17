@@ -4208,10 +4208,10 @@ export interface components {
              */
             order_id: string;
             /**
-             * @description `PAYMENT_FAILED` means the order still awaits payment and the last attempt is dead — the state a retry exists for. Reporting it as AWAITING_PAYMENT would hide that nothing is coming.
+             * @description `PAYMENT_FAILED` means the order still awaits payment and the last attempt is dead — the state a retry exists for. Reporting it as AWAITING_PAYMENT would hide that nothing is coming. `HELD` is the opposite anomaly: paid and yet not completed. The money arrived after the organisation's subscription to this product had already started — the race between two orders opened before either was paid — so nothing was provisioned twice, and the payment is the operator's to refund.
              * @enum {string}
              */
-            status: "AWAITING_PAYMENT" | "PAYMENT_FAILED" | "COMPLETED" | "CANCELLED";
+            status: "AWAITING_PAYMENT" | "PAYMENT_FAILED" | "COMPLETED" | "CANCELLED" | "HELD";
             /**
              * Format: uuid
              * @description Null only for an order with nothing to collect — a free offer.
@@ -5746,7 +5746,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `BILLING_PROFILE_REQUIRED` — the tenant has no billing profile, so nothing can be invoiced to it. Refused before any document is raised, because numbering is gapless. */
+            /** @description `BILLING_PROFILE_REQUIRED` — the tenant has no billing profile, so nothing can be invoiced to it. Or `SUBSCRIPTION_ALREADY_ACTIVE` — the organisation already has a live subscription to this product; changing what it has is a change on the subscription, not a second purchase. Refused before any document is raised, because numbering is gapless. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8378,7 +8378,16 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
-            /** @description The offer is not on sale. */
+            /** @description No such offer on sale in this product. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `SUBSCRIPTION_ALREADY_ACTIVE` — the organisation already has a live subscription to this product; changing what it has is a change on the subscription, not a second purchase. Refused before any document is raised, because numbering is gapless. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8660,7 +8669,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description No longer open — expired, or already decided. */
+            /** @description `QUOTE_EXPIRED` or `INVALID_QUOTE_TRANSITION` — no longer open: expired, or already decided. Or `SUBSCRIPTION_ALREADY_ACTIVE` — the organisation already has a live subscription to this product; changing what it has is a change on the subscription, not a second purchase. Refused before any document is raised, because numbering is gapless. */
             409: {
                 headers: {
                     [name: string]: unknown;

@@ -3499,9 +3499,10 @@
               "AWAITING_PAYMENT",
               "PAYMENT_FAILED",
               "COMPLETED",
-              "CANCELLED"
+              "CANCELLED",
+              "HELD"
             ],
-            "description": "`PAYMENT_FAILED` means the order still awaits payment and the last attempt is dead — the state a retry exists for. Reporting it as AWAITING_PAYMENT would hide that nothing is coming."
+            "description": "`PAYMENT_FAILED` means the order still awaits payment and the last attempt is dead — the state a retry exists for. Reporting it as AWAITING_PAYMENT would hide that nothing is coming. `HELD` is the opposite anomaly: paid and yet not completed. The money arrived after the organisation's subscription to this product had already started — the race between two orders opened before either was paid — so nothing was provisioned twice, and the payment is the operator's to refund."
           },
           "invoice_id": {
             "type": [
@@ -6458,7 +6459,7 @@
             }
           },
           "409": {
-            "description": "`BILLING_PROFILE_REQUIRED` — the tenant has no billing profile, so nothing can be invoiced to it. Refused before any document is raised, because numbering is gapless.",
+            "description": "`BILLING_PROFILE_REQUIRED` — the tenant has no billing profile, so nothing can be invoiced to it. Or `SUBSCRIPTION_ALREADY_ACTIVE` — the organisation already has a live subscription to this product; changing what it has is a change on the subscription, not a second purchase. Refused before any document is raised, because numbering is gapless.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11089,8 +11090,18 @@
               }
             }
           },
+          "404": {
+            "description": "No such offer on sale in this product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "409": {
-            "description": "The offer is not on sale.",
+            "description": "`SUBSCRIPTION_ALREADY_ACTIVE` — the organisation already has a live subscription to this product; changing what it has is a change on the subscription, not a second purchase. Refused before any document is raised, because numbering is gapless.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11545,7 +11556,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "No longer open — expired, or already decided.",
+            "description": "`QUOTE_EXPIRED` or `INVALID_QUOTE_TRANSITION` — no longer open: expired, or already decided. Or `SUBSCRIPTION_ALREADY_ACTIVE` — the organisation already has a live subscription to this product; changing what it has is a change on the subscription, not a second purchase. Refused before any document is raised, because numbering is gapless.",
             "content": {
               "application/json": {
                 "schema": {
