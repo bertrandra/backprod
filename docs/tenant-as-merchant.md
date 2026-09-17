@@ -14,7 +14,7 @@ activation), ADR-040 (offer authoring lent), ADR-041 (storefront), ADR-047
 
 ---
 
-## 0. The seven points, as asked
+## 0. The eight points, as asked
 
 1. A tenant has its own URL root: `hostname/acme/`, `hostname/globex/`;
    the default tenant uses `hostname/`.
@@ -26,8 +26,10 @@ activation), ADR-040 (offer authoring lent), ADR-041 (storefront), ADR-047
    plainly.
 6. A user cannot initiate a refund, a credit note, or issue an invoice.
 7. VAT periods, rates and regime are at tenant level.
+8. A tenant's entitlement to a product is **given by the platform
+   administrator** — not bought.
 
-Taken one by one, five of the seven are small. Taken together with the
+Taken one by one, five of the eight are small. Taken together with the
 reading above, they are **one change**: the axis of the platform turns.
 
 ## 1. What actually changes
@@ -48,7 +50,7 @@ Storefront: the platform's window, per product; sign-up creates a tenant
 Tomorrow:
 
 ```text
-Platform ──hosts──▶ Tenant (merchant, at /slug/) ──sells──▶ User (its customer)
+Platform ──grants──▶ Tenant (merchant, at /slug/) ──sells──▶ User (its customer)
                      └── members: TENANT_ADMIN runs the shop, USER buys
 Invoice: supplier = the tenant's billing identity
          customer = the user (a person, or a company they represent)
@@ -196,11 +198,11 @@ new model. Both shapes coexist by the nullable column, with no rewrite of
 issued documents — the invoice snapshot rule (§25) applied to the
 migration.
 
-**Decision D2** — can a `TENANT_ADMIN` still buy on behalf of the shop
-(the tenant as customer of the platform, e.g. the hosting fee)? If the
-platform charges its merchants, yes, and that is the default tenant selling
-to the other tenants — the existing model, which the nullable column keeps.
-Assumed yes.
+**Decision D2** — does the platform still *sell* to its merchants? No:
+point 8 (2.8) has the platform administrator *grant* a merchant its product
+entitlement. The nullable column keeps the shape for an ordinary invoice
+the default tenant may one day issue to a merchant (a hosting fee), which
+gates nothing.
 
 ### 2.5 The invoice PDF states its status — **S–M (1–2 days)**
 
@@ -262,6 +264,51 @@ the rate and rule they recorded (§25.3): nothing recomputes.
 counts within the tenant (`WHERE tenant_id = :tenant AND number LIKE …`),
 and the prefix may carry the tenant's own series. Existing numbers stay.
 
+### 2.8 Product entitlement is given to the tenant by the platform administrator — **M (3–4 days)**
+
+**Today.** A tenant *holds* a product by staff assignment (`tenant_products`,
+ADR-047) — that is reachability, nothing more. What a tenant may *use* of
+a product comes from a subscription: `entitlements` rows written when an
+offer version is activated (`source = SUBSCRIPTION`), with `OVERRIDE` for a
+negotiated exception. A merchant with no subscription holds a product it
+cannot use.
+
+**Target.** The platform administrator gives the merchant its entitlement to
+a product directly — which features, until when — without a sale. The
+merchant's own sales to its users are seats, as in 2.4; the merchant's
+*right to run the shop* is granted, not sold.
+
+**Design.**
+
+- `entitlements.source` gains **`GRANT`**, beside `SUBSCRIPTION` and
+  `OVERRIDE`; `subscription_id` is null for it; `granted_by` (staff user id)
+  and `valid_until` (nullable) name who and how long. The resolver already
+  reads entitlements by `(tenant, product)` whatever their source, so
+  capability checks, quotas and `/me/entitlements` change nothing.
+- **Staff API:** `PUT /api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement`
+  `{plan?: code, features: [codes], valid_until?}` — a plan is a shorthand
+  for its feature set, resolved at grant time into rows, as an offer
+  version's grants are at activation; `DELETE` withdraws. `staff.tenants.manage`,
+  recorded in the access log with the feature list (a grant is a commercial
+  decision somebody should be able to trace). Assigning a product
+  (ADR-047) and granting its entitlement stay two acts: the first says the
+  shop may exist, the second what it may do.
+- **Console:** the tenant workspace's Overview gets an *Entitlement* panel
+  per held product — the features ticked, the expiry, the grantor — beside
+  the existing product assignment. The readiness chain gains "entitled" as
+  a step before "can sell".
+- **Expiry:** `valid_until` past is the same as a lapsed subscription: the
+  entitlement resolver already asks the clock; `expireLapsed()` sweeps
+  grants too. Nothing is invoiced, nothing is renewed — a grant is renewed
+  by a person.
+
+**What it settles.** D2 below: the platform does not sell to its merchants
+through the default tenant; it grants. The existing subscription machinery
+stays for what merchants sell to their users. If the operator later charges
+merchants a hosting fee, that is an invoice the default tenant issues to
+the merchant's administrator as a customer (2.4's nullable column keeps
+the shape) — but it does not gate the entitlement.
+
 ## 3. The decision that sizes everything: whose money
 
 Today one Stripe account, the platform's, takes every payment. If acme
@@ -288,11 +335,12 @@ Each phase leaves `main` deployable and every gate green.
 | 1 | Tenant roots (2.1), sign-out to root, default tenant setting, reserved slugs | 4–6 |
 | 2 | Staff create/manage tenants (2.3); sign-up no longer creates one; demo world through the new path | 2–3 |
 | 3 | Supplier moves to the tenant (2.7): billing identity, tax position, numbering per tenant, VAT periods per tenant | 5–7 |
+| 3b | Entitlement granted by staff (2.8): `GRANT` source, staff endpoint, workspace panel, readiness step | 3–4 |
 | 4 | Customer becomes the user (2.4): profiles, nullable customer on documents, row filters for USER, checkout as seat, screens | 8–12 |
 | 5 | Money per tenant (3.B), readiness per tenant | 3–5 |
 | 6 | Per-tenant storefront (2.2), offers owned by the tenant | 3–4 |
 | 7 | PDF status (2.5); the USER matrix said and tested (2.6); docs, ADRs (ADR-049 "a tenant is a merchant", amendments to 013/015/040/041/047/048), demo world walk-through | 2–3 |
-| | **Total** | **27–40 days** (with option C for money: 35–50) |
+| | **Total** | **30–44 days** (with option C for money: 38–54) |
 
 Phases 1–2 are worth doing on their own; 3–6 are the axis turn and belong
 together, behind a feature flag or on a branch that lands whole, because
@@ -323,8 +371,9 @@ invoices from the tenant to itself.
 ## 6. Decisions to take before starting
 
 - **D1** — offers are owned by the tenant (assumed yes).
-- **D2** — the platform still sells to its merchants through the default
-  tenant (assumed yes; the nullable customer keeps it).
+- **D2** — settled by point 8: the platform *grants* its merchants their
+  product entitlement and does not sell it. A hosting fee, if one comes,
+  is an ordinary invoice from the default tenant and gates nothing.
 - **D3** — the tenant on API calls: `X-Tenant` with the slug as value
   (assumed; the header exists and the client sets it once).
 - **D4** — e-invoicing supplier per merchant: deferred.
