@@ -162,7 +162,9 @@ test.describe('deep links', () => {
 
   test('land on a real page for an unknown route instead of a blank screen', async ({ page }) => {
     await signedIn(page);
-    await page.goto('/nope?product=atlas');
+    // Under an organisation's root: since 2026-09-17 an unreserved first
+    // segment is a tenant's slug (ADR-049), so the unknown part is the second.
+    await page.goto('/nope/nothing-here?product=atlas');
 
     await expect(page.getByText('No such page')).toBeVisible();
     // The person keeps their navigation and can go somewhere else.

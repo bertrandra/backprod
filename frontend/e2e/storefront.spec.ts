@@ -178,9 +178,11 @@ test.describe('choosing an offer', () => {
     await stubStorefront(page);
 
     let sent: unknown = null;
+    let created = false;
 
     await page.route('**/api/v1/auth/sign-up', (route) => {
       sent = route.request().postDataJSON();
+      created = true;
 
       return route.fulfill({
         status: 201,
@@ -194,10 +196,14 @@ test.describe('choosing an offer', () => {
         },
       });
     });
-    // Signed in at the root afterwards: nothing to open yet, and the shell
-    // says where they wait.
+    // Signed in at the root afterwards — the cookie the sign-up set answers
+    // the refresh — with nothing to open yet, and the shell says where they
+    // wait. Before the sign-up there is no session, or the page would be
+    // the shell and not the window.
     await page.route('**/api/v1/auth/refresh', (route) =>
-      route.fulfill({ json: { access_token: 'access-token', token_type: 'Bearer', expires_in: 3600 } }),
+      created
+        ? route.fulfill({ json: { access_token: 'access-token', token_type: 'Bearer', expires_in: 3600 } })
+        : route.fulfill(NO_SESSION),
     );
     await page.route(/\/api\/v1\/products$/, (route) =>
       route.fulfill({ json: { products: [], default: null, pending_memberships: [{ tenant: 'acme', name: 'Acme Ltd' }] } }),

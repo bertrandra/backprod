@@ -53,6 +53,12 @@ export function AppShell() {
   const { productCode } = useProductContext();
   const session = useSession();
   const staff = useStaffIdentity();
+  // Somebody waiting to be let in holds no product and may still name one
+  // — the storefront chose it before they signed up — so "waiting" is
+  // decided by what they hold, not by whether a product is named.
+  const mine = useMyProducts();
+  const waitingOnly =
+    mine.data !== undefined && (mine.data.products ?? []).length === 0 && (mine.data.pending ?? []).length > 0;
   // What the platform's menu setup leaves out for this person, one answer per
   // authority, asked once each has said who this is. Nothing hidden until it
   // answers, or if it never does.
@@ -165,7 +171,7 @@ export function AppShell() {
 
           <Outlet />
         </>
-      ) : productCode === null ? (
+      ) : productCode === null || waitingOnly ? (
         <WithoutAProduct />
       ) : session.error !== null ? (
         // The session is the shell's own dependency, so its failure is rendered
@@ -191,7 +197,10 @@ export function AppShell() {
  */
 function WithoutAProduct() {
   const mine = useMyProducts();
-  const waiting = mine.data !== undefined && mine.data.products.length === 0 ? mine.data.pending : [];
+  // Tolerant of a partial answer — a stubbed or older server — the way the
+  // switcher beside it is: a missing list is an empty one, not a crash.
+  const products = mine.data?.products ?? [];
+  const waiting = products.length === 0 ? (mine.data?.pending ?? []) : [];
 
   if (waiting.length > 0) {
     const names = waiting.map((request) => request.name).join(', ');
