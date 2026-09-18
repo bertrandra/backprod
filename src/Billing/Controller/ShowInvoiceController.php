@@ -32,6 +32,7 @@ final class ShowInvoiceController implements RouteHandler
                 $context->tenantId,
                 $context->productId,
                 BillingRoute::invoiceId($request),
+                $context->documentsOf(),
             )),
             200,
         );

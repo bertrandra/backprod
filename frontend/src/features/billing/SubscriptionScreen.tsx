@@ -11,6 +11,7 @@ import {
   useSubscription,
   type CancellationDecision,
   type Entitlement,
+  type Subscription,
 } from '@/queries/subscription';
 import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
@@ -38,6 +39,13 @@ import { PageHeader } from '@/ui/Page';
  * `immediately` is a *request*: the contract says "the policy still decides;
  * asking does not make it so", and the screen says the same rather than
  * promising an immediate end it cannot deliver.
+ *
+ * **Two subscribers, shown apart** (§13.1, 2026-09-18). The organisation's
+ * subscription entitles everyone and is the administrator's to change or
+ * cancel — offered with `billing.manage`, the organisation's view, as the
+ * catalogue offers the purchase. A person's own seat is theirs: shown to its
+ * holder beside the organisation's, and given up by them alone, with the
+ * `seat` flag and never an id.
  */
 export function SubscriptionScreen() {
   const { data: session } = useSession();
@@ -54,6 +62,10 @@ export function SubscriptionScreen() {
   const [offerId, setOfferId] = useState('');
 
   const mayManage = can(session, 'subscription.manage');
+  // The organisation's subscription binds everyone; acting on it is offered
+  // with the organisation's view. Courtesy, as every gate here is — the API
+  // is the authority.
+  const mayManageOrganisation = mayManage && can(session, 'billing.manage');
 
   if (subscription.isPending) {
     return <SkeletonRows rows={8} />;
@@ -64,6 +76,17 @@ export function SubscriptionScreen() {
   }
 
   const current = subscription.data.subscription;
+  const seat = subscription.data.seat ?? null;
+
+  const ownSeat = seat === null ? null : (
+    <YourSeat
+      seat={seat}
+      mayManage={mayManage}
+      pending={cancel.isPending}
+      error={cancel.error}
+      onCancel={() => cancel.mutate({ seat: true })}
+    />
+  );
 
   if (current === null) {
     // No subscription — but possibly something the platform gave
@@ -74,9 +97,14 @@ export function SubscriptionScreen() {
     return (
       <div className="max-w-3xl space-y-6">
         <h1 className="text-2xl font-semibold">Subscription</h1>
+        {ownSeat}
         <EmptyState
-          title="No subscription"
-          description="Nothing is subscribed in this product yet. An offer from the catalogue starts one."
+          title={seat === null ? 'No subscription' : 'No subscription for the organisation'}
+          description={
+            seat === null
+              ? 'Nothing is subscribed in this product yet. An offer from the catalogue starts one.'
+              : 'Your seat is yours alone. An offer from the catalogue, bought for the organisation, starts one for everyone.'
+          }
         />
         {provided.length > 0 && <ProvidedByThePlatform entitlements={provided} />}
       </div>
@@ -89,8 +117,10 @@ export function SubscriptionScreen() {
     <div className="max-w-3xl space-y-8">
       <PageHeader
         title={'Subscription'}
-        description={<>{current.offer.name} · {current.offer.plan.name}</>}
+        description={<>{current.offer.name} · {current.offer.plan.name}{seat !== null && ' — the organisation\'s'}</>}
       />
+
+      {ownSeat}
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -179,7 +209,7 @@ export function SubscriptionScreen() {
         )}
       </section>
 
-      {mayManage && (
+      {mayManageOrganisation && (
         <>
           <section className="space-y-3 border-t border-line pt-6">
             <h2 className="text-xl font-semibold">Change offer</h2>
@@ -296,6 +326,95 @@ export function SubscriptionScreen() {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * The caller's own seat (§13.1): what it is, when it is paid to, and the one
+ * act its holder may take on it. No offer change — a seat is exchanged by
+ * ending one and buying another — and the preview of leaving is the same
+ * policy's, which the decision reports once it is asked.
+ */
+function YourSeat({
+  seat,
+  mayManage,
+  pending,
+  error,
+  onCancel,
+}: {
+  seat: Subscription;
+  mayManage: boolean;
+  pending: boolean;
+  error: unknown;
+  onCancel: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+
+  return (
+    <section data-testid="your-seat" data-status={seat.status} className="space-y-3 rounded-card border border-line bg-surface p-4 shadow-raise">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-xl font-semibold">Your seat</h2>
+        <span className={pill(statusTone(seat.status))}>{seat.status}</span>
+        {seat.cancel_at_period_end && (
+          <span data-testid="seat-cancelling" className="text-xs text-subtle">
+            ends
+            {seat.cancel_effective_at === null
+              ? ' at the period boundary'
+              : ` on ${new Date(seat.cancel_effective_at).toLocaleDateString()}`}
+          </span>
+        )}
+      </div>
+
+      <p className="text-sm">
+        <span className="font-medium">{seat.offer.name}</span> · {seat.offer.plan.name} — yours alone, paid with your own card.
+      </p>
+
+      <dl className="grid gap-3 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="text-xs uppercase tracking-wide text-subtle">Billed</dt>
+          <dd>
+            {seat.offer.version.billing_period.toLowerCase()} · <Amount money={seat.offer.version.price} />
+          </dd>
+          <dd className="text-xs text-subtle">
+            period {new Date(seat.current_period_start).toLocaleDateString()} —{' '}
+            {seat.current_period_end === null ? 'open' : new Date(seat.current_period_end).toLocaleDateString()}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs uppercase tracking-wide text-subtle">Commitment</dt>
+          <dd>
+            {seat.terms === null || seat.terms === undefined ? (
+              <span className="text-subtle">None recorded</span>
+            ) : (
+              <TermsSummary terms={seat.terms} />
+            )}
+          </dd>
+        </div>
+      </dl>
+
+      {mayManage && !seat.cancel_at_period_end && (
+        <div className="space-y-2">
+          {error !== null && error !== undefined && <ErrorSurface error={error} />}
+          {confirming ? (
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="danger" pending={pending} onClick={onCancel} data-testid="cancel-seat">
+                Give up your seat
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>
+                Keep it
+              </Button>
+            </div>
+          ) : (
+            <Button type="button" variant="danger" onClick={() => setConfirming(true)}>
+              Give up your seat…
+            </Button>
+          )}
+          <p className="text-xs text-muted">
+            The cancellation policy decides when it ends; what it decided is shown once asked.
+          </p>
+        </div>
+      )}
+    </section>
   );
 }
 

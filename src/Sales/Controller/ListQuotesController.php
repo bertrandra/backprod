@@ -33,6 +33,7 @@ final class ListQuotesController implements RouteHandler
             $context->productId,
             PageRequest::bounded($query, 'limit', self::DEFAULT_LIMIT, 1, self::MAX_LIMIT),
             PageRequest::bounded($query, 'offset', 0, 0, PHP_INT_MAX),
+            $context->documentsOf(),
         );
 
         return new JsonResponse([

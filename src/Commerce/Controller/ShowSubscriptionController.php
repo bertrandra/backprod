@@ -34,8 +34,13 @@ final class ShowSubscriptionController implements RouteHandler
 
         $current = $this->subscriptions->current($context->tenantId, $context->productId);
 
+        $seat = $this->subscriptions->seatOf($context->tenantId, $context->productId, $context->userId);
+
         return new JsonResponse([
             'subscription' => $current === null ? null : SubscriptionPresenter::one($current),
+            // The caller's own seat, beside the organisation's (2026-09-18):
+            // what the catalogue offers to buy depends on both.
+            'seat' => $seat === null ? null : SubscriptionPresenter::one($seat),
             'history' => SubscriptionPresenter::many(
                 $this->subscriptions->history($context->tenantId, $context->productId),
             ),

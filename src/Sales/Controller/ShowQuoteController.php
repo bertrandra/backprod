@@ -28,6 +28,7 @@ final class ShowQuoteController implements RouteHandler
                 $context->tenantId,
                 $context->productId,
                 SalesRoute::id($request, 'quoteId'),
+                $context->documentsOf(),
             )),
             200,
         );

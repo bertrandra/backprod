@@ -18,11 +18,11 @@ interface InvoiceRepository
     /**
      * @return list<Invoice>
      */
-    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset): array;
+    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array;
 
-    public function countForTenant(string $tenantId, string $productId): int;
+    public function countForTenant(string $tenantId, string $productId, ?string $ownedBy = null): int;
 
-    public function find(string $tenantId, string $productId, string $invoiceId): ?Invoice;
+    public function find(string $tenantId, string $productId, string $invoiceId, ?string $ownedBy = null): ?Invoice;
 
     /**
      * Issues an invoice in one transaction: writes the document and its

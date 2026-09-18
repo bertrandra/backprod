@@ -1,10 +1,18 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
+import { useOffers } from '@/queries/catalogue';
 import { useSessionStore } from '@/state/session';
 import { recordingClient, renderWith, SESSION, stubClient, type Stub } from '@/test-utils';
 
 import { ProductSwitcher } from './ProductSwitcher';
+
+/** A screen beside the switcher whose query key does not name the product. */
+function Offers() {
+  const offers = useOffers();
+
+  return <span data-testid="offers">{offers.data?.length ?? '…'}</span>;
+}
 
 /**
  * Switching product, and the reason it clears the cache.
@@ -97,6 +105,35 @@ describe('with more than one', () => {
     // Anything else on screen — projects, quotes, invoices — is asked again too,
     // which is the whole point: none of it was about Boreas.
     await waitFor(() => expect(productReads).toBeGreaterThan(1));
+  });
+
+  it('makes a screen whose key never named the product ask again', async () => {
+    // The catalogue's offers are keyed without the product — the product is
+    // on the request, not in the key — so emptying the cache alone left the
+    // mounted query showing the old product's offers until something else
+    // woke it (2026-09-18). The switch must make it *ask*, not merely forget.
+    let offerReads = 0;
+
+    renderWith(
+      <>
+        <ProductSwitcher />
+        <Offers />
+      </>,
+      clientFor([ATLAS, BOREAS], {
+        'GET /api/v1/offers': (): Stub => {
+          offerReads += 1;
+
+          return { data: { offers: [] } };
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('product-switcher')).toBeTruthy());
+    await waitFor(() => expect(offerReads).toBe(1));
+
+    fireEvent.change(screen.getByTestId('product-switcher'), { target: { value: 'boreas' } });
+
+    await waitFor(() => expect(offerReads).toBe(2));
   });
 
   it('does nothing when the same product is chosen again', async () => {

@@ -16,6 +16,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { notice } from '@/ui/tone';
 
 /**
  * `commerce.catalogue` — what is on sale.
@@ -30,11 +31,23 @@ import { SkeletonRows } from '@/ui/Skeleton';
  * typed honestly rather than asserted away" — so an offer with nothing sellable
  * says so instead of rendering a price it does not have.
  *
- * Two ways out of this screen, both gated on the permission that actually
- * governs them: a quote (`sales.manage`) and a checkout (`billing.pay`, which
- * both tenant roles hold since 2026-09-18 — a USER buys; issuing, crediting
- * and refunding stay `billing.manage` / `payments.manage`).
- * Someone who may only read the catalogue sees prices and no buttons.
+ * Three ways out of this screen, each gated on the permission that actually
+ * governs it: a quote (`sales.manage`), a seat of one's own (`billing.pay`,
+ * which both tenant roles hold since 2026-09-18 — a USER buys for
+ * themselves; issuing, crediting and refunding stay `billing.manage` /
+ * `payments.manage`), and the organisation's subscription (`billing.manage`,
+ * the administrator's, because it binds everyone). Someone who may only read
+ * the catalogue sees prices and no buttons.
+ *
+ * **A seat and the organisation's subscription are two purchases** (§13.1).
+ * The organisation holds one live subscription per product and a person
+ * holds one live seat, and the API refuses a second of either (409
+ * SUBSCRIPTION_ALREADY_ACTIVE / SEAT_ALREADY_ACTIVE) — so each button goes
+ * away on its own fact, read from `/subscription`, which answers both. **And
+ * says why**, twice: a notice at the top naming what is live, and in every
+ * row the sentence standing where the button was. A button that vanishes
+ * without a word reads as a screen that lost something (the operator's
+ * report, 2026-09-18), not as a purchase already made.
  *
  * **A quote is offered to a business.** The server refuses one for a tenant
  * whose tax profile does not say B2B (`QUOTE_REQUIRES_BUSINESS_CUSTOMER`);
@@ -67,24 +80,29 @@ export function CatalogueScreen() {
   const subscription = useSubscription(can(session, 'subscription.read'));
   const root = useSessionStore((state) => state.root);
 
-  // One live subscription per product, and the API refuses a second order
-  // (409 SUBSCRIPTION_ALREADY_ACTIVE). What it would refuse is not offered:
-  // the operator's rule, since the Quote button beside Buy — a function a
-  // person cannot use is hidden, not shown and then declined. Changing what
-  // is subscribed is the subscription screen's job. Until the read has
-  // answered, nobody is offered a button that may vanish.
+  // What it would refuse is not offered: the operator's rule, since the
+  // Quote button beside Buy — a function a person cannot use is hidden, not
+  // shown and then declined. Changing what is subscribed is the subscription
+  // screen's job. Until the read has answered, nobody is offered a button
+  // that may vanish.
   const live = subscription.data?.subscription ?? null;
+  const seat = subscription.data?.seat ?? null;
   const subscribed = live !== null && live.status === 'ACTIVE';
+  const seated = seat !== null && seat.status === 'ACTIVE';
   const settled = !subscription.isPending || !can(session, 'subscription.read');
 
   // Both halves, and only both: the permission says who may raise one, the
-  // profile says whether this customer is one that gets one.
+  // profile says whether this customer is one that gets one. A quote is the
+  // organisation's document, so the organisation's subscription retires it.
   const maySell = settled && !subscribed && can(session, 'sales.manage') && taxProfile.data?.customer_kind === 'B2B';
-  const mayBuy = settled && !subscribed && can(session, 'billing.pay');
+  const couldBuySeat = can(session, 'billing.pay');
+  const couldBuyForTenant = can(session, 'billing.manage');
+  const mayBuySeat = settled && !seated && couldBuySeat;
+  const mayBuyForTenant = settled && !subscribed && couldBuyForTenant;
 
   // The checkout just opened, held for exactly as long as the render that
   // offers the form (ADR-034): never in a store, never across a navigation.
-  const [opened, setOpened] = useState<{ session: OpenedCheckoutSession; offer: Offer } | null>(null);
+  const [opened, setOpened] = useState<{ session: OpenedCheckoutSession; offer: Offer; seat: boolean } | null>(null);
 
   if (offers.isPending || plans.isPending) {
     return <SkeletonRows rows={6} />;
@@ -110,15 +128,16 @@ export function CatalogueScreen() {
   );
 
   if (opened !== null) {
-    const { session: order, offer: bought } = opened;
+    const { session: order, offer: bought, seat: forSelf } = opened;
     const statusPage = { to: '/checkout/$sessionId' as const, params: { sessionId: order.id } };
 
     return (
-      <div className="max-w-lg space-y-6" data-testid="catalogue-pay">
+      <div className="max-w-lg space-y-6" data-testid="catalogue-pay" data-seat={forSelf}>
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold">Pay</h1>
           <p className="text-sm text-muted">
-            {bought.name} — the subscription starts when the payment is confirmed.
+            {bought.name}, {forSelf ? 'for yourself' : 'for the organisation'} —{' '}
+            {forSelf ? 'your seat' : 'the subscription'} starts when the payment is confirmed.
           </p>
         </header>
 
@@ -159,14 +178,34 @@ export function CatalogueScreen() {
       {checkout.error !== null && <ErrorSurface error={checkout.error} />}
 
       {subscribed && live !== null && (
-        <p data-testid="already-subscribed" className="text-sm text-muted">
-          Subscribed to <span className="font-medium text-ink">{live.offer.name}</span>.
-          {' '}
-          <Link to="/subscription" className="underline underline-offset-2">
-            Change it from the subscription
-          </Link>
-          {' '}— an organisation holds one subscription per product, so nothing here can be bought beside it.
-        </p>
+        <section data-testid="already-subscribed" className={`${notice('info')} space-y-1 text-sm`}>
+          <p className="font-medium">
+            {catalogue.data?.product.name ?? 'This product'} is already subscribed to: {live.offer.name}.
+          </p>
+          <p>
+            The organisation holds one subscription per product, so it is not offered for the
+            organisation again.{' '}
+            <Link to="/subscription" className="underline underline-offset-2">
+              Change or cancel it from the subscription
+            </Link>
+            .
+          </p>
+        </section>
+      )}
+
+      {seated && seat !== null && (
+        <section data-testid="already-seated" className={`${notice('info')} space-y-1 text-sm`}>
+          <p className="font-medium">
+            You already hold a seat on {catalogue.data?.product.name ?? 'this product'}: {seat.offer.name}.
+          </p>
+          <p>
+            A person holds one seat per product, so nothing here is offered for yourself again.{' '}
+            <Link to="/subscription" className="underline underline-offset-2">
+              Give it up from the subscription
+            </Link>{' '}
+            to take another.
+          </p>
+        </section>
       )}
 
       {offers.data.length === 0 ? (
@@ -195,7 +234,10 @@ export function CatalogueScreen() {
                       key={offer.id}
                       offer={offer}
                       maySell={maySell}
-                      mayBuy={mayBuy}
+                      mayBuySeat={mayBuySeat}
+                      mayBuyForTenant={mayBuyForTenant}
+                      seatTaken={settled && seated && couldBuySeat}
+                      tenantSubscribed={settled && subscribed && couldBuyForTenant}
                       quoting={quote.isPending}
                       buying={checkout.isPending}
                       onQuote={() =>
@@ -211,12 +253,15 @@ export function CatalogueScreen() {
                           },
                         )
                       }
-                      onBuy={() =>
-                        checkout.mutate(offer.id, {
-                          onSuccess: (session) => {
-                            setOpened({ session, offer });
+                      onBuy={(forSelf) =>
+                        checkout.mutate(
+                          { offerId: offer.id, seat: forSelf },
+                          {
+                            onSuccess: (session) => {
+                              setOpened({ session, offer, seat: forSelf });
+                            },
                           },
-                        })
+                        )
                       }
                     />
                   ))}
@@ -236,7 +281,10 @@ export function CatalogueScreen() {
                     key={offer.id}
                     offer={offer}
                     maySell={false}
-                    mayBuy={false}
+                    mayBuySeat={false}
+                    mayBuyForTenant={false}
+                    seatTaken={false}
+                    tenantSubscribed={false}
                     quoting={false}
                     buying={false}
                     onQuote={() => undefined}
@@ -255,7 +303,10 @@ export function CatalogueScreen() {
 function OfferRow({
   offer,
   maySell,
-  mayBuy,
+  mayBuySeat,
+  mayBuyForTenant,
+  seatTaken,
+  tenantSubscribed,
   quoting,
   buying,
   onQuote,
@@ -263,11 +314,17 @@ function OfferRow({
 }: {
   offer: Offer;
   maySell: boolean;
-  mayBuy: boolean;
+  mayBuySeat: boolean;
+  mayBuyForTenant: boolean;
+  /** The seat button is withheld because the person's seat is live: say so where it was. */
+  seatTaken: boolean;
+  /** The organisation's button is withheld because its subscription is live: say so where it was. */
+  tenantSubscribed: boolean;
   quoting: boolean;
   buying: boolean;
   onQuote: () => void;
-  onBuy: () => void;
+  /** `true` buys the caller's own seat, `false` the organisation's subscription. */
+  onBuy: (seat: boolean) => void;
 }) {
   const version = offer.version;
 
@@ -295,15 +352,36 @@ function OfferRow({
         <>
           <Amount money={version.price} className="text-sm font-medium" />
 
-          <div className="mt-2 flex flex-wrap gap-2 md:mt-0">
+          <div className="mt-2 flex flex-wrap items-center gap-2 md:mt-0">
+            {seatTaken && (
+              <span data-testid="seat-taken" className="text-xs text-muted">
+                Your seat is live
+              </span>
+            )}
+            {tenantSubscribed && (
+              <span data-testid="tenant-subscribed" className="text-xs text-muted">
+                Already subscribed for the organisation
+              </span>
+            )}
             {maySell && (
               <Button type="button" variant="secondary" pending={quoting} onClick={onQuote}>
                 Quote
               </Button>
             )}
-            {mayBuy && (
-              <Button type="button" pending={buying} onClick={onBuy}>
-                Buy
+            {mayBuySeat && (
+              <Button type="button" pending={buying} onClick={() => onBuy(true)} data-testid="buy-seat">
+                Buy for yourself
+              </Button>
+            )}
+            {mayBuyForTenant && (
+              <Button
+                type="button"
+                variant={mayBuySeat ? 'secondary' : 'primary'}
+                pending={buying}
+                onClick={() => onBuy(false)}
+                data-testid="buy-for-tenant"
+              >
+                Buy for the organisation
               </Button>
             )}
           </div>

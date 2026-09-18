@@ -19,6 +19,33 @@ or the person goes through the application first is the platform's choice
 storefront console sets it, and every `PublicTenant` says it). The paragraphs "A USER sees and cannot bind" and
 "the door is a request to join, not a purchase" below read as they were
 decided on 2026-09-17; this note is what stands.
+**Amended again 2026-09-18 — what a USER buys is a seat, and what they see is
+their own.** On the operator's site the default organisation was already
+subscribed, so a newcomer's checkout was refused (`SUBSCRIPTION_ALREADY_ACTIVE`)
+and fell back to the catalogue — "an auto payment with no card". The purchase
+a stranger makes with their own card cannot be the organisation's subscription:
+it is a **seat** (§13.1, `Subscriber::user`), theirs alone, beside the
+organisation's and never in its way. So `openCheckoutSession` takes
+`seat: true`, an order records its subscriber (`orders.subscriber_kind`,
+`subscriber_user_id`; migration `Version20260918130000`), the seat's
+activation binds the person, and one live seat per person is refused
+`SEAT_ALREADY_ACTIVE` while the organisation may still subscribe. The
+storefront always buys a seat; the catalogue offers *Buy for yourself*
+(`billing.pay`) and *Buy for the organisation* (`billing.manage`), each hidden
+on its own fact from `showSubscription`, which now also answers `seat`. The
+checkout session says what was bought (`description`) and for whom (`seat`),
+and the order page says in words when it is paid.
+**And a member sees only what concerns them.** Every read a USER holds on
+documents — invoices, payments, credit notes, orders, quotes, the invoice PDF,
+the checkout session — is narrowed by the reading services to their own: the
+orders that bought their seat, the invoices those raised, the payments and
+credit notes on them, the quotes they raised. Somebody else's is a 404. The
+organisation's view is `billing.manage` (`RequestContext::documentsOf()`),
+never a new permission. The fiscal record is the organisation's, so
+`tax.read` leaves USER (migration `Version20260918140000`).
+`subscription.manage` stays with USER for their seat; the API still lets it
+act on the organisation's subscription as decided above, and the screen
+offers those controls with `billing.manage` only.
 **Implements:** [docs/tenant-roots.md](../tenant-roots.md), with the
 departures recorded in §"What the spec had wrong"
 **Amends:** [ADR-041](ADR-041-the-storefront-sells-to-strangers.md) (the

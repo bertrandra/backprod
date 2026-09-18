@@ -33,6 +33,12 @@ final class CheckoutPresenter
             'net' => self::money($order->net->minorUnits, $order->net->currency),
             'vat' => self::money($order->vat->minorUnits, $order->vat->currency),
             'gross' => self::money($order->gross->minorUnits, $order->gross->currency),
+            // What was bought, in the words of the order's own line (2026-09-18):
+            // a status page that showed three amounts and two ids and never
+            // said which offer left the person unsure they had bought anything.
+            'description' => $order->lines[0]->description ?? null,
+            // And for whom: the organisation, or the person's own seat (§13.1).
+            'seat' => $order->subscriber->isSeat(),
         ];
     }
 

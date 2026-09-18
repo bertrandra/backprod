@@ -30,6 +30,7 @@ final class ShowPaymentController implements RouteHandler
             $context->tenantId,
             $context->productId,
             PaymentRoute::id($request, 'paymentId'),
+            $context->documentsOf(),
         );
 
         return new JsonResponse(

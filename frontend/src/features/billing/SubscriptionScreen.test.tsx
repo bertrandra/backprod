@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { renderWith, SESSION, stubClient, type Stub } from '@/test-utils';
+import { recordingClient, renderWith, SESSION, stubClient, type Stub, type Stubs } from '@/test-utils';
 
 import { SubscriptionScreen } from './SubscriptionScreen';
 
@@ -15,9 +15,18 @@ import { SubscriptionScreen } from './SubscriptionScreen';
  * And §13.1: a cancellation is a **decision**, not a boolean. What a customer
  * needs is when it takes effect, what it costs, and which rule said so.
  */
+// The administrator: the organisation's subscription is theirs to change
+// and cancel (`billing.manage`, the organisation's view — 2026-09-18).
 const SUBSCRIBER = {
   ...SESSION,
-  permissions: [...SESSION.permissions, 'subscription.read', 'subscription.manage', 'entitlements.read'],
+  permissions: [...SESSION.permissions, 'subscription.read', 'subscription.manage', 'billing.manage', 'entitlements.read'],
+};
+
+// A member: may act on their own seat and on nothing that binds the organisation.
+const MEMBER = {
+  ...SESSION,
+  roles: ['USER'],
+  permissions: ['subscription.read', 'subscription.manage', 'entitlements.read'],
 };
 
 const DECISION = {
@@ -63,17 +72,25 @@ function subscription(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function clientFor(extra: Record<string, Stub | (() => Stub)> = {}, sub: unknown = subscription()) {
-  return stubClient({
-    'GET /api/v1/me': { data: SUBSCRIBER },
-    'GET /api/v1/subscription': { data: { subscription: sub, history: [], events: [] } },
+function stubsFor(
+  extra: Record<string, Stub | (() => Stub)> = {},
+  sub: unknown = subscription(),
+  options: { seat?: unknown; session?: unknown } = {},
+): Stubs {
+  return {
+    'GET /api/v1/me': { data: options.session ?? SUBSCRIBER },
+    'GET /api/v1/subscription': { data: { subscription: sub, seat: options.seat ?? null, history: [], events: [] } },
     'GET /api/v1/subscription/schedule': {
       data: { subscription: sub, if_cancelled_now: DECISION },
     },
     'GET /api/v1/entitlements': { data: { entitlements: [] } },
     'GET /api/v1/offers': { data: { offers: [] } },
     ...extra,
-  });
+  };
+}
+
+function clientFor(extra: Record<string, Stub | (() => Stub)> = {}, sub: unknown = subscription()) {
+  return stubClient(stubsFor(extra, sub));
 }
 
 describe('periodicity and commitment', () => {
@@ -192,6 +209,58 @@ describe('with no subscription', () => {
     renderWith(<SubscriptionScreen />, clientFor({}, null));
 
     await waitFor(() => expect(screen.getByText(/no subscription/i)).toBeTruthy());
+  });
+});
+
+describe('a seat of one\'s own (§13.1)', () => {
+  const seat = () => subscription({ id: 'seat-1', subscriber: { kind: 'USER', user_id: 'u-1' } });
+
+  it('is shown to its holder beside the organisation\'s subscription, and given up with the flag', async () => {
+    const { client, requests } = recordingClient(
+      stubsFor(
+        {
+          'POST /api/v1/subscription/cancel': {
+            data: { ...seat(), cancel_at_period_end: true, cancellation: { ...DECISION, effect: 'AT_PERIOD_END', chargeable_months: 0 } },
+          },
+        },
+        subscription(),
+        { seat: seat(), session: MEMBER },
+      ),
+    );
+
+    renderWith(<SubscriptionScreen />, client);
+
+    await waitFor(() => expect(screen.getByTestId('your-seat')).toBeTruthy());
+    expect(screen.getByTestId('your-seat').textContent).toContain('Pro monthly');
+    // The organisation's is still shown — it is what entitles everyone —
+    // and none of its controls are: those are the administrator's.
+    expect(screen.getByTestId('periodicity')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /cancel…/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^change$/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /give up your seat…/i }));
+    fireEvent.click(screen.getByTestId('cancel-seat'));
+
+    // A flag, never an id: whose seat it is, the server already knows.
+    await waitFor(() =>
+      expect(requests.filter((request) => request.path === '/api/v1/subscription/cancel').map((request) => request.body)).toEqual([
+        { seat: true },
+      ]),
+    );
+  });
+
+  it('stands alone when the organisation has none', async () => {
+    renderWith(<SubscriptionScreen />, stubClient(stubsFor({}, null, { seat: seat(), session: MEMBER })));
+
+    await waitFor(() => expect(screen.getByTestId('your-seat')).toBeTruthy());
+    expect(screen.getByText(/no subscription for the organisation/i)).toBeTruthy();
+  });
+
+  it('is not shown to someone who holds none', async () => {
+    renderWith(<SubscriptionScreen />, clientFor());
+
+    await waitFor(() => expect(screen.getByTestId('periodicity')).toBeTruthy());
+    expect(screen.queryByTestId('your-seat')).toBeNull();
   });
 });
 

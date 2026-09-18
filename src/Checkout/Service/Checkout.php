@@ -50,9 +50,9 @@ final class Checkout
      *
      * @return array{order: Order, payment: Payment|null, client_secret: string|null, provider: array{name: string, sandbox: bool, client_key: string|null}|null}
      */
-    public function open(string $tenantId, string $productId, string $offerId, ?string $actorUserId): array
+    public function open(string $tenantId, string $productId, string $offerId, ?string $actorUserId, bool $seat = false): array
     {
-        $order = $this->sales->order($tenantId, $productId, $offerId, $actorUserId);
+        $order = $this->sales->order($tenantId, $productId, $offerId, $actorUserId, $seat);
         $order = $this->sales->fulfil($tenantId, $productId, $order->id, $actorUserId);
 
         if ($order->invoiceId === null) {
@@ -80,9 +80,9 @@ final class Checkout
      * nothing here to return it from. A caller who needs a fresh one retries
      * the payment, which is a new attempt and gets its own.
      */
-    public function show(string $tenantId, string $productId, string $sessionId): Order
+    public function show(string $tenantId, string $productId, string $sessionId, ?string $ownedBy = null): Order
     {
-        return $this->sales->showOrder($tenantId, $productId, $sessionId);
+        return $this->sales->showOrder($tenantId, $productId, $sessionId, $ownedBy);
     }
 
     /**

@@ -37,6 +37,7 @@ final class ShowCheckoutSessionController implements RouteHandler
             $context->tenantId,
             $context->productId,
             CheckoutRoute::id($request, 'sessionId'),
+            $context->documentsOf(),
         );
 
         // The latest attempt against this order's invoice, which is what

@@ -99,8 +99,8 @@ export function Storefront({ onSignIn }: { onSignIn: () => void }) {
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold">Pay</h1>
           <p className="text-sm text-muted">
-            {door.offer.name} — your account is ready; the subscription starts when the payment
-            is confirmed.
+            {door.offer.name}, for yourself — your account is ready; your seat starts when the
+            payment is confirmed.
           </p>
         </header>
 
@@ -148,8 +148,12 @@ export function Storefront({ onSignIn }: { onSignIn: () => void }) {
           return;
         }
 
+        // A stranger who just signed up buys a seat of their own (§13.1,
+        // 2026-09-18): paid with their card, theirs alone, and beside the
+        // organisation's subscription if it holds one. The organisation's
+        // purchase is the administrator's and is made from the catalogue.
         void checkout
-          .mutateAsync(offer.id)
+          .mutateAsync({ offerId: offer.id, seat: true })
           .then((session) => setOpened(session))
           .catch(() => {
             // The account exists and the person is holding a token, so the

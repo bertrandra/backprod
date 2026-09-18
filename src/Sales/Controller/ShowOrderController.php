@@ -28,6 +28,7 @@ final class ShowOrderController implements RouteHandler
                 $context->tenantId,
                 $context->productId,
                 SalesRoute::id($request, 'orderId'),
+                $context->documentsOf(),
             )),
             200,
         );

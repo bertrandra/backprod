@@ -12,11 +12,11 @@ interface CreditNoteRepository
     /**
      * @return list<CreditNote>
      */
-    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset): array;
+    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array;
 
-    public function countForTenant(string $tenantId, string $productId): int;
+    public function countForTenant(string $tenantId, string $productId, ?string $ownedBy = null): int;
 
-    public function find(string $tenantId, string $productId, string $creditNoteId): ?CreditNote;
+    public function find(string $tenantId, string $productId, string $creditNoteId, ?string $ownedBy = null): ?CreditNote;
 
     /**
      * Issues a credit note against an invoice and moves that invoice to

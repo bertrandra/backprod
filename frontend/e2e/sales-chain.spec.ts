@@ -152,8 +152,9 @@ function subscription(state: Chain) {
             version: { billing_period: 'MONTHLY', price: MONEY.net },
           },
         },
+        seat: null,
       }
-    : { subscription: null };
+    : { subscription: null, seat: null };
 }
 
 async function chain(page: Page): Promise<Chain> {

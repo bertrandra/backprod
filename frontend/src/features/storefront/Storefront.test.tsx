@@ -464,9 +464,13 @@ describe('creating the account', () => {
     );
 
     // The offer they chose, not one they are asked to choose again — bought
-    // on the session the sign-up issued, as a USER (billing.pay).
+    // on the session the sign-up issued, as a USER (billing.pay), and as a
+    // seat of their own (§13.1): a stranger's card buys nothing that binds
+    // the organisation, and the organisation's own subscription does not
+    // stand in the way.
     expect(requests.find((r) => r.path === '/api/v1/checkout/sessions')?.body).toEqual({
       offer_id: 'offer-1',
+      seat: true,
     });
 
     // No hop yet: the render that received the secret is the one that can

@@ -6,6 +6,7 @@ namespace App\Sales\Service;
 
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoicePaid;
+use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Sales\Domain\OrderFulfilment;
 use App\Sales\Domain\SalesRepository;
@@ -65,12 +66,17 @@ final class CompleteOrderOnPayment implements InvoicePaid
         // PostgreSQL. The index still stands behind this for two deliveries
         // landing in the same instant — that one is a 500 the provider
         // retries, and the retry reads the row.
-        $live = $this->subscriptions->findActive($invoice->tenantId, $invoice->productId);
+        $live = $order->subscriber->isSeat()
+            ? $this->liveSeat($invoice->tenantId, $invoice->productId, (string) $order->subscriber->userId)
+            : $this->subscriptions->findActive($invoice->tenantId, $invoice->productId);
 
         if ($live !== null) {
             $this->sales->applyHoldOrder(
                 $order,
-                ['reason' => Sales::SUBSCRIPTION_ALREADY_ACTIVE, 'subscription_id' => $live->id],
+                [
+                    'reason' => $order->subscriber->isSeat() ? Sales::SEAT_ALREADY_ACTIVE : Sales::SUBSCRIPTION_ALREADY_ACTIVE,
+                    'subscription_id' => $live->id,
+                ],
                 null,
             );
 
@@ -81,5 +87,17 @@ final class CompleteOrderOnPayment implements InvoicePaid
         // marked the invoice paid, and the subscription starting is part of
         // the same fact.
         $this->sales->applyCompleteOrder($order, $this->fulfilment, null);
+    }
+
+    /** The person's own live seat on the product, if they hold one (§13.1). */
+    private function liveSeat(string $tenantId, string $productId, string $userId): ?Subscription
+    {
+        foreach ($this->subscriptions->liveFor($tenantId, $productId, $userId) as $live) {
+            if ($live->subscriber->isSeat() && $live->status === 'ACTIVE') {
+                return $live;
+            }
+        }
+
+        return null;
     }
 }

@@ -30,6 +30,8 @@ function session(overrides: Record<string, unknown> = {}) {
     net: { minor_units: 2900, currency: 'EUR' },
     vat: { minor_units: 580, currency: 'EUR' },
     gross: { minor_units: 3480, currency: 'EUR' },
+    description: 'Pro monthly (v1)',
+    seat: false,
     ...overrides,
   };
 }
@@ -54,6 +56,25 @@ describe('a checkout opened from a link', () => {
     await waitFor(() => expect(screen.getByTestId('checkout-status')).toBeTruthy());
     expect(screen.getByText(/this is order/i)).toBeTruthy();
     expect(document.querySelector('[data-minor-units="3480"]')).not.toBeNull();
+  });
+
+  it('says what was bought, and for whom', async () => {
+    // Three amounts and two ids said what it cost and not what it was
+    // (2026-09-18): the order's own line does, and `seat` says whose.
+    render(clientFor({ data: { session: session() } }));
+
+    await waitFor(() => expect(screen.getByTestId('checkout-description')).toBeTruthy());
+    expect(screen.getByTestId('checkout-description').textContent).toContain('Pro monthly (v1)');
+    expect(screen.getByTestId('checkout-description').textContent).toContain('for the organisation');
+    expect(screen.getByTestId('checkout-description').getAttribute('data-seat')).toBe('false');
+  });
+
+  it('says a seat is the person’s own', async () => {
+    render(clientFor({ data: { session: session({ seat: true }) } }));
+
+    await waitFor(() => expect(screen.getByTestId('checkout-description')).toBeTruthy());
+    expect(screen.getByTestId('checkout-description').textContent).toContain('your own seat');
+    expect(screen.getByTestId('checkout-description').getAttribute('data-seat')).toBe('true');
   });
 
   it('says the id is the order’s, and links to the order list', async () => {
@@ -118,6 +139,10 @@ describe('when it completes', () => {
     );
 
     await waitFor(() => expect(screen.getByTestId('step-subscription').textContent).toContain('sub-1'));
+    // And says so in words, at the top: "When doing my check out I do not
+    // see I did purchase" was the operator's report (2026-09-18).
+    expect(screen.getByTestId('checkout-completed').textContent).toMatch(/paid/i);
+    expect(screen.getByTestId('checkout-completed').textContent).toMatch(/subscription has started/i);
 
     const after = polls;
     // Longer than the interval, deliberately: a 250 ms wait proved nothing,

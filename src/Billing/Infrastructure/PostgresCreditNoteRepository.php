@@ -33,39 +33,42 @@ final class PostgresCreditNoteRepository implements CreditNoteRepository
     ) {
     }
 
-    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset): array
+    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return [];
         }
 
+        // A person's own credit notes (2026-09-18): those against their
+        // seat's invoices.
         return $this->hydrateAll($this->connection->fetchAllAssociative(
             'SELECT ' . self::COLUMNS . <<<'SQL'
                  FROM credit_notes
                 WHERE tenant_id = :tenantId AND product_id = :productId
+                  AND (CAST(:ownedBy AS uuid) IS NULL OR invoice_id IN (SELECT invoice_id FROM orders WHERE subscriber_user_id = CAST(:ownedBy AS uuid) AND invoice_id IS NOT NULL))
                 ORDER BY issued_at DESC, id
                 LIMIT :limit OFFSET :offset
                 SQL,
-            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset],
+            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset, 'ownedBy' => $ownedBy],
             ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
         ));
     }
 
-    public function countForTenant(string $tenantId, string $productId): int
+    public function countForTenant(string $tenantId, string $productId, ?string $ownedBy = null): int
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return 0;
         }
 
         $count = $this->connection->fetchOne(
-            'SELECT count(*) FROM credit_notes WHERE tenant_id = :tenantId AND product_id = :productId',
-            ['tenantId' => $tenantId, 'productId' => $productId],
+            'SELECT count(*) FROM credit_notes WHERE tenant_id = :tenantId AND product_id = :productId AND (CAST(:ownedBy AS uuid) IS NULL OR invoice_id IN (SELECT invoice_id FROM orders WHERE subscriber_user_id = CAST(:ownedBy AS uuid) AND invoice_id IS NOT NULL))',
+            ['tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy],
         );
 
         return is_numeric($count) ? (int) $count : 0;
     }
 
-    public function find(string $tenantId, string $productId, string $creditNoteId): ?CreditNote
+    public function find(string $tenantId, string $productId, string $creditNoteId, ?string $ownedBy = null): ?CreditNote
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId) || !Uuid::isValid($creditNoteId)) {
             return null;
@@ -75,8 +78,9 @@ final class PostgresCreditNoteRepository implements CreditNoteRepository
             'SELECT ' . self::COLUMNS . <<<'SQL'
                  FROM credit_notes
                 WHERE id = :id AND tenant_id = :tenantId AND product_id = :productId
+                  AND (CAST(:ownedBy AS uuid) IS NULL OR invoice_id IN (SELECT invoice_id FROM orders WHERE subscriber_user_id = CAST(:ownedBy AS uuid) AND invoice_id IS NOT NULL))
                 SQL,
-            ['id' => $creditNoteId, 'tenantId' => $tenantId, 'productId' => $productId],
+            ['id' => $creditNoteId, 'tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy],
         );
 
         return $this->hydrateAll($rows)[0] ?? null;

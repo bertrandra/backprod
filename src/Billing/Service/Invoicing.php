@@ -54,19 +54,19 @@ final class Invoicing
     /**
      * @return array{invoices: list<Invoice>, total: int, limit: int, offset: int}
      */
-    public function list(string $tenantId, string $productId, int $limit, int $offset): array
+    public function list(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
     {
         return [
-            'invoices' => $this->invoices->listForTenant($tenantId, $productId, $limit, $offset),
-            'total' => $this->invoices->countForTenant($tenantId, $productId),
+            'invoices' => $this->invoices->listForTenant($tenantId, $productId, $limit, $offset, $ownedBy),
+            'total' => $this->invoices->countForTenant($tenantId, $productId, $ownedBy),
             'limit' => $limit,
             'offset' => $offset,
         ];
     }
 
-    public function show(string $tenantId, string $productId, string $invoiceId): Invoice
+    public function show(string $tenantId, string $productId, string $invoiceId, ?string $ownedBy = null): Invoice
     {
-        $invoice = $this->invoices->find($tenantId, $productId, $invoiceId);
+        $invoice = $this->invoices->find($tenantId, $productId, $invoiceId, $ownedBy);
 
         if ($invoice === null) {
             // Scoped by tenant and product in the query, so an invoice

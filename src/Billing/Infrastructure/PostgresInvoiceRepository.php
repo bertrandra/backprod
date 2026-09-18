@@ -48,41 +48,44 @@ final class PostgresInvoiceRepository implements InvoiceRepository
     {
     }
 
-    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset): array
+    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return [];
         }
 
+        // A person's own documents (2026-09-18) are the invoices their seat's
+        // orders raised — the organisation's, unnarrowed, when null.
         $rows = $this->connection->fetchAllAssociative(
             'SELECT ' . self::COLUMNS . <<<'SQL'
                  FROM invoices
                 WHERE tenant_id = :tenantId AND product_id = :productId
+                  AND (CAST(:ownedBy AS uuid) IS NULL OR id IN (SELECT invoice_id FROM orders WHERE subscriber_user_id = CAST(:ownedBy AS uuid) AND invoice_id IS NOT NULL))
                 ORDER BY coalesce(issued_at, created_at) DESC, id
                 LIMIT :limit OFFSET :offset
                 SQL,
-            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset],
+            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset, 'ownedBy' => $ownedBy],
             ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
         );
 
         return $this->hydrateAll($rows);
     }
 
-    public function countForTenant(string $tenantId, string $productId): int
+    public function countForTenant(string $tenantId, string $productId, ?string $ownedBy = null): int
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return 0;
         }
 
         $count = $this->connection->fetchOne(
-            'SELECT count(*) FROM invoices WHERE tenant_id = :tenantId AND product_id = :productId',
-            ['tenantId' => $tenantId, 'productId' => $productId],
+            'SELECT count(*) FROM invoices WHERE tenant_id = :tenantId AND product_id = :productId AND (CAST(:ownedBy AS uuid) IS NULL OR id IN (SELECT invoice_id FROM orders WHERE subscriber_user_id = CAST(:ownedBy AS uuid) AND invoice_id IS NOT NULL))',
+            ['tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy],
         );
 
         return is_numeric($count) ? (int) $count : 0;
     }
 
-    public function find(string $tenantId, string $productId, string $invoiceId): ?Invoice
+    public function find(string $tenantId, string $productId, string $invoiceId, ?string $ownedBy = null): ?Invoice
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId) || !Uuid::isValid($invoiceId)) {
             return null;
@@ -92,8 +95,9 @@ final class PostgresInvoiceRepository implements InvoiceRepository
             'SELECT ' . self::COLUMNS . <<<'SQL'
                  FROM invoices
                 WHERE id = :id AND tenant_id = :tenantId AND product_id = :productId
+                  AND (CAST(:ownedBy AS uuid) IS NULL OR id IN (SELECT invoice_id FROM orders WHERE subscriber_user_id = CAST(:ownedBy AS uuid) AND invoice_id IS NOT NULL))
                 SQL,
-            ['id' => $invoiceId, 'tenantId' => $tenantId, 'productId' => $productId],
+            ['id' => $invoiceId, 'tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy],
         );
 
         return $this->hydrateAll($rows)[0] ?? null;

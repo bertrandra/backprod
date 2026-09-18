@@ -36,19 +36,19 @@ final class CreditNotes
     /**
      * @return array{credit_notes: list<CreditNote>, total: int, limit: int, offset: int}
      */
-    public function list(string $tenantId, string $productId, int $limit, int $offset): array
+    public function list(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
     {
         return [
-            'credit_notes' => $this->creditNotes->listForTenant($tenantId, $productId, $limit, $offset),
-            'total' => $this->creditNotes->countForTenant($tenantId, $productId),
+            'credit_notes' => $this->creditNotes->listForTenant($tenantId, $productId, $limit, $offset, $ownedBy),
+            'total' => $this->creditNotes->countForTenant($tenantId, $productId, $ownedBy),
             'limit' => $limit,
             'offset' => $offset,
         ];
     }
 
-    public function show(string $tenantId, string $productId, string $creditNoteId): CreditNote
+    public function show(string $tenantId, string $productId, string $creditNoteId, ?string $ownedBy = null): CreditNote
     {
-        $note = $this->creditNotes->find($tenantId, $productId, $creditNoteId);
+        $note = $this->creditNotes->find($tenantId, $productId, $creditNoteId, $ownedBy);
 
         if ($note === null) {
             throw new NotFoundException('Credit note not found.', [], 'CREDIT_NOTE_NOT_FOUND');

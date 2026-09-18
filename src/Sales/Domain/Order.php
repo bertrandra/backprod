@@ -6,10 +6,15 @@ namespace App\Sales\Domain;
 
 use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\Money;
+use App\Commerce\Domain\Subscriber;
 use DateTimeImmutable;
 
 /**
- * What a tenant committed to buy.
+ * What a tenant — or, for a seat, one of its people — committed to buy.
+ *
+ * The subscriber (§13.1) is decided at checkout and travels with the order
+ * to the subscription it starts: `TENANT` for the organisation's own,
+ * `USER` for a seat the person pays for themselves (2026-09-18).
  *
  * A completed order names both the subscription it started and the invoice it
  * raised — the schema insists on it — because non-negotiable #20 wants the
@@ -41,6 +46,7 @@ final class Order
         public readonly ?DateTimeImmutable $completedAt,
         public readonly DateTimeImmutable $createdAt,
         public readonly array $lines,
+        public readonly Subscriber $subscriber = new Subscriber(Subscriber::TENANT, null),
     ) {
     }
 

@@ -193,6 +193,56 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
         self::assertSame('1', (string) (is_scalar($invoices) ? $invoices : 'not counted'));
     }
 
+    // --- A seat of one's own (2026-09-18) ----------------------------------------
+
+    public function testASeatIsBoughtBesideTheOrganisationsSubscriptionAndBindsThePerson(): void
+    {
+        // The organisation subscribes first; that is the case self-service
+        // met at the operator's default tenant, where the only order an
+        // order could be was the organisation's and so was refused.
+        $company = $this->sessionOf($this->open());
+        $this->pay($company, 'evt_company');
+
+        $response = $this->open(seat: true);
+
+        self::assertSame(201, $response->getStatusCode());
+        $seat = $this->sessionOf($response);
+        self::assertTrue($seat['seat'] ?? null);
+        self::assertFalse($company['seat'] ?? null);
+        // What it is, said: the offer's own line, not three amounts alone.
+        self::assertIsString($seat['description'] ?? null);
+        self::assertStringContainsString('Pro', $seat['description']);
+
+        $this->pay($seat, 'evt_seat');
+        $read = $this->sessionOf($this->show($seat));
+        self::assertSame('COMPLETED', $read['status'] ?? null);
+        self::assertIsString($read['subscription_id'] ?? null);
+
+        // The subscription the seat started binds the person (§13.1).
+        $bound = $this->connection->fetchAssociative(
+            'SELECT subscriber_kind, subscriber_user_id FROM subscriptions WHERE id = :id',
+            ['id' => $read['subscription_id']],
+        );
+        self::assertSame(['subscriber_kind' => 'USER', 'subscriber_user_id' => $this->user], $bound);
+
+        // And the organisation's own is untouched: two live rows, one each.
+        $live = $this->connection->fetchOne("SELECT count(*) FROM subscriptions WHERE status = 'ACTIVE'");
+        self::assertSame('2', (string) (is_scalar($live) ? $live : 'not counted'));
+    }
+
+    public function testASecondSeatIsRefusedWhileTheFirstIsLiveButNotByTheOrganisationsSubscription(): void
+    {
+        $first = $this->sessionOf($this->open(seat: true));
+        $this->pay($first, 'evt_seat');
+
+        $again = $this->open(seat: true);
+        self::assertSame(409, $again->getStatusCode());
+        self::assertSame('SEAT_ALREADY_ACTIVE', $this->errorOf($again)['code'] ?? null);
+
+        // A colleague's seat does not stop the company subscribing.
+        self::assertSame(201, $this->open()->getStatusCode());
+    }
+
     public function testASessionPaidAfterTheSubscriptionStartedReadsHeld(): void
     {
         // Two checkouts open before either is paid: the one race the
@@ -322,13 +372,13 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
 
     // --- Helpers ------------------------------------------------------------
 
-    private function open(): ResponseInterface
+    private function open(bool $seat = false): ResponseInterface
     {
         return $this->request(
             'POST',
             '/api/v1/checkout/sessions',
             $this->headers(),
-            $this->json(['offer_id' => $this->offer]),
+            $this->json($seat ? ['offer_id' => $this->offer, 'seat' => true] : ['offer_id' => $this->offer]),
         );
     }
 
