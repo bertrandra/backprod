@@ -6,6 +6,7 @@ namespace App\Sales\Infrastructure;
 
 use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\Money;
+use App\Commerce\Domain\Subscriber;
 use App\Sales\Domain\Order;
 use App\Sales\Domain\OrderFulfilment;
 use App\Sales\Domain\Quote;
@@ -39,37 +40,39 @@ final class PostgresSalesRepository implements SalesRepository
     private const ORDER_COLUMNS = <<<'SQL'
         id, tenant_id, product_id, quote_id, offer_version_id, subscription_id,
         invoice_id, status, currency, net_minor_units, vat_minor_units,
-        gross_minor_units, completed_at, created_at
+        gross_minor_units, completed_at, created_at, subscriber_kind, subscriber_user_id
         SQL;
 
     public function __construct(private readonly Connection $connection)
     {
     }
 
-    public function listQuotes(string $tenantId, string $productId, int $limit, int $offset): array
+    public function listQuotes(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return [];
         }
 
+        // A person's own quotes (2026-09-18) are the ones they raised.
         return $this->hydrateQuotes($this->connection->fetchAllAssociative(
             'SELECT ' . self::QUOTE_COLUMNS . <<<'SQL'
                  FROM quotes
                 WHERE tenant_id = :tenantId AND product_id = :productId
+                  AND (CAST(:ownedBy AS uuid) IS NULL OR created_by = CAST(:ownedBy AS uuid))
                 ORDER BY created_at DESC, id
                 LIMIT :limit OFFSET :offset
                 SQL,
-            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset],
+            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset, 'ownedBy' => $ownedBy],
             ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
         ));
     }
 
-    public function countQuotes(string $tenantId, string $productId): int
+    public function countQuotes(string $tenantId, string $productId, ?string $ownedBy = null): int
     {
-        return $this->countIn('quotes', $tenantId, $productId);
+        return $this->countIn('quotes', $tenantId, $productId, 'created_by', $ownedBy);
     }
 
-    public function findQuote(string $tenantId, string $productId, string $quoteId): ?Quote
+    public function findQuote(string $tenantId, string $productId, string $quoteId, ?string $ownedBy = null): ?Quote
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId) || !Uuid::isValid($quoteId)) {
             return null;
@@ -79,8 +82,9 @@ final class PostgresSalesRepository implements SalesRepository
             'SELECT ' . self::QUOTE_COLUMNS . <<<'SQL'
                  FROM quotes
                 WHERE id = :id AND tenant_id = :tenantId AND product_id = :productId
+                  AND (CAST(:ownedBy AS uuid) IS NULL OR created_by = CAST(:ownedBy AS uuid))
                 SQL,
-            ['id' => $quoteId, 'tenantId' => $tenantId, 'productId' => $productId],
+            ['id' => $quoteId, 'tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy],
         ))[0] ?? null;
     }
 
@@ -174,30 +178,32 @@ final class PostgresSalesRepository implements SalesRepository
         });
     }
 
-    public function listOrders(string $tenantId, string $productId, int $limit, int $offset): array
+    public function listOrders(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return [];
         }
 
+        // A person's own orders (2026-09-18) are the ones that bought their seat.
         return $this->hydrateOrders($this->connection->fetchAllAssociative(
             'SELECT ' . self::ORDER_COLUMNS . <<<'SQL'
                  FROM orders
                 WHERE tenant_id = :tenantId AND product_id = :productId
+                  AND (CAST(:ownedBy AS uuid) IS NULL OR subscriber_user_id = CAST(:ownedBy AS uuid))
                 ORDER BY created_at DESC, id
                 LIMIT :limit OFFSET :offset
                 SQL,
-            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset],
+            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset, 'ownedBy' => $ownedBy],
             ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
         ));
     }
 
-    public function countOrders(string $tenantId, string $productId): int
+    public function countOrders(string $tenantId, string $productId, ?string $ownedBy = null): int
     {
-        return $this->countIn('orders', $tenantId, $productId);
+        return $this->countIn('orders', $tenantId, $productId, 'subscriber_user_id', $ownedBy);
     }
 
-    public function findOrder(string $tenantId, string $productId, string $orderId): ?Order
+    public function findOrder(string $tenantId, string $productId, string $orderId, ?string $ownedBy = null): ?Order
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId) || !Uuid::isValid($orderId)) {
             return null;
@@ -207,8 +213,9 @@ final class PostgresSalesRepository implements SalesRepository
             'SELECT ' . self::ORDER_COLUMNS . <<<'SQL'
                  FROM orders
                 WHERE id = :id AND tenant_id = :tenantId AND product_id = :productId
+                  AND (CAST(:ownedBy AS uuid) IS NULL OR subscriber_user_id = CAST(:ownedBy AS uuid))
                 SQL,
-            ['id' => $orderId, 'tenantId' => $tenantId, 'productId' => $productId],
+            ['id' => $orderId, 'tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy],
         ))[0] ?? null;
     }
 
@@ -219,10 +226,13 @@ final class PostgresSalesRepository implements SalesRepository
         string $offerVersionId,
         array $lines,
         ?string $actorUserId,
+        ?Subscriber $subscriber = null,
     ): Order {
         if ($lines === []) {
             throw new RuntimeException('An order must have at least one line.');
         }
+
+        $subscriber ??= Subscriber::tenant();
 
         return $this->connection->transactional(function () use (
             $tenantId,
@@ -231,6 +241,7 @@ final class PostgresSalesRepository implements SalesRepository
             $offerVersionId,
             $lines,
             $actorUserId,
+            $subscriber,
         ): Order {
             [$currency, $net, $vat] = self::totals($lines);
 
@@ -246,9 +257,10 @@ final class PostgresSalesRepository implements SalesRepository
                 <<<'SQL'
                     INSERT INTO orders
                         (tenant_id, product_id, quote_id, offer_version_id, status, currency,
-                         net_minor_units, vat_minor_units, gross_minor_units, placed_by)
+                         net_minor_units, vat_minor_units, gross_minor_units, placed_by,
+                         subscriber_kind, subscriber_user_id)
                     VALUES (:tenantId, :productId, :quote, :version, 'PENDING', :currency,
-                            :net, :vat, :gross, :actor)
+                            :net, :vat, :gross, :actor, :subscriberKind, :subscriberUserId)
                     RETURNING id
                     SQL,
                 [
@@ -261,6 +273,8 @@ final class PostgresSalesRepository implements SalesRepository
                     'vat' => $vat,
                     'gross' => $net + $vat,
                     'actor' => $actorUserId,
+                    'subscriberKind' => $subscriber->kind,
+                    'subscriberUserId' => $subscriber->userId,
                 ],
             );
 
@@ -449,18 +463,22 @@ final class PostgresSalesRepository implements SalesRepository
         );
     }
 
-    private function countIn(string $table, string $tenantId, string $productId): int
+    private function countIn(string $table, string $tenantId, string $productId, string $ownerColumn = 'id', ?string $ownedBy = null): int
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return 0;
         }
 
-        // The table name is interpolated because an identifier cannot be a
-        // bound parameter; it comes from this class's own call sites and
-        // never from a caller.
+        // The table and column names are interpolated because an identifier
+        // cannot be a bound parameter; both come from this class's own call
+        // sites and never from a caller.
         $count = $this->connection->fetchOne(
-            sprintf('SELECT count(*) FROM %s WHERE tenant_id = :tenantId AND product_id = :productId', $table),
-            ['tenantId' => $tenantId, 'productId' => $productId],
+            sprintf(
+                'SELECT count(*) FROM %s WHERE tenant_id = :tenantId AND product_id = :productId AND (CAST(:ownedBy AS uuid) IS NULL OR %s = CAST(:ownedBy AS uuid))',
+                $table,
+                $ownerColumn,
+            ),
+            ['tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy],
         );
 
         return is_numeric($count) ? (int) $count : 0;
@@ -638,6 +656,7 @@ final class PostgresSalesRepository implements SalesRepository
                     Row::nullableTimestamp($row, 'completed_at'),
                     Row::timestamp($row, 'created_at'),
                     $lines[$id] ?? [],
+                    Subscriber::of(Row::string($row, 'subscriber_kind'), Row::nullableString($row, 'subscriber_user_id')),
                 );
             },
             $rows,

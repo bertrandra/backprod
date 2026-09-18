@@ -8,6 +8,7 @@ use App\Billing\Domain\BillingProfileRepository;
 use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\Money;
 use App\Commerce\Domain\SubscribedOffer;
+use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Service\Catalogue;
 use App\Sales\Domain\Order;
@@ -58,6 +59,7 @@ final class Sales
 {
     public const QUOTE_REQUIRES_BUSINESS_CUSTOMER = 'QUOTE_REQUIRES_BUSINESS_CUSTOMER';
     public const SUBSCRIPTION_ALREADY_ACTIVE = 'SUBSCRIPTION_ALREADY_ACTIVE';
+    public const SEAT_ALREADY_ACTIVE = 'SEAT_ALREADY_ACTIVE';
 
     /**
      * How long a quote stands by default. Configurable per request; this is
@@ -80,19 +82,19 @@ final class Sales
     /**
      * @return array{quotes: list<Quote>, total: int, limit: int, offset: int}
      */
-    public function quotes(string $tenantId, string $productId, int $limit, int $offset): array
+    public function quotes(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
     {
         return [
-            'quotes' => $this->sales->listQuotes($tenantId, $productId, $limit, $offset),
-            'total' => $this->sales->countQuotes($tenantId, $productId),
+            'quotes' => $this->sales->listQuotes($tenantId, $productId, $limit, $offset, $ownedBy),
+            'total' => $this->sales->countQuotes($tenantId, $productId, $ownedBy),
             'limit' => $limit,
             'offset' => $offset,
         ];
     }
 
-    public function showQuote(string $tenantId, string $productId, string $quoteId): Quote
+    public function showQuote(string $tenantId, string $productId, string $quoteId, ?string $ownedBy = null): Quote
     {
-        $quote = $this->sales->findQuote($tenantId, $productId, $quoteId);
+        $quote = $this->sales->findQuote($tenantId, $productId, $quoteId, $ownedBy);
 
         if ($quote === null) {
             throw new NotFoundException('Quote not found.', [], 'QUOTE_NOT_FOUND');
@@ -169,19 +171,19 @@ final class Sales
     /**
      * @return array{orders: list<Order>, total: int, limit: int, offset: int}
      */
-    public function orders(string $tenantId, string $productId, int $limit, int $offset): array
+    public function orders(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
     {
         return [
-            'orders' => $this->sales->listOrders($tenantId, $productId, $limit, $offset),
-            'total' => $this->sales->countOrders($tenantId, $productId),
+            'orders' => $this->sales->listOrders($tenantId, $productId, $limit, $offset, $ownedBy),
+            'total' => $this->sales->countOrders($tenantId, $productId, $ownedBy),
             'limit' => $limit,
             'offset' => $offset,
         ];
     }
 
-    public function showOrder(string $tenantId, string $productId, string $orderId): Order
+    public function showOrder(string $tenantId, string $productId, string $orderId, ?string $ownedBy = null): Order
     {
-        $order = $this->sales->findOrder($tenantId, $productId, $orderId);
+        $order = $this->sales->findOrder($tenantId, $productId, $orderId, $ownedBy);
 
         if ($order === null) {
             throw new NotFoundException('Order not found.', [], 'ORDER_NOT_FOUND');
@@ -227,11 +229,30 @@ final class Sales
 
     /**
      * Buys an offer without a quote first, which is the self-serve path.
+     *
+     * For the organisation, or — since 2026-09-18 — as a seat for the caller
+     * alone: `$seat` binds the person who is asking, who must be a member,
+     * and the refusal below is then about *their* seat rather than the
+     * organisation's subscription. The two do not stand in each other's way:
+     * a colleague's seat does not stop the company subscribing, and the
+     * company's subscription does not stop a person taking a seat of their
+     * own (§13.1).
+     *
+     * @throws ConflictException SUBSCRIPTION_ALREADY_ACTIVE | SEAT_ALREADY_ACTIVE
      */
-    public function order(string $tenantId, string $productId, string $offerId, ?string $actorUserId): Order
+    public function order(string $tenantId, string $productId, string $offerId, ?string $actorUserId, bool $seat = false): Order
     {
         $offer = SubscribedOffer::from($this->catalogue->offerOnSale($productId, $offerId));
-        $this->refuseWhileSubscribed($tenantId, $productId);
+
+        if ($seat) {
+            if ($actorUserId === null) {
+                throw new ConflictException('SEAT_NEEDS_A_PERSON', 'A seat is taken out by the person it is for.');
+            }
+
+            $this->refuseWhileSeated($tenantId, $productId, $actorUserId);
+        } else {
+            $this->refuseWhileSubscribed($tenantId, $productId);
+        }
 
         $line = InvoiceLine::of(
             1,
@@ -250,7 +271,34 @@ final class Sales
             $offer->version->id,
         );
 
-        return $this->sales->placeOrder($tenantId, $productId, null, $offer->version->id, [$line], $actorUserId);
+        return $this->sales->placeOrder(
+            $tenantId,
+            $productId,
+            null,
+            $offer->version->id,
+            [$line],
+            $actorUserId,
+            $seat && $actorUserId !== null ? Subscriber::user($actorUserId) : Subscriber::tenant(),
+        );
+    }
+
+    /**
+     * The seat's twin of {@see refuseWhileSubscribed}: one live seat per
+     * person per product, which is the other partial unique index (§13.1).
+     *
+     * @throws ConflictException SEAT_ALREADY_ACTIVE
+     */
+    private function refuseWhileSeated(string $tenantId, string $productId, string $userId): void
+    {
+        foreach ($this->subscriptions->liveFor($tenantId, $productId, $userId) as $live) {
+            if ($live->subscriber->isSeat() && $live->status === 'ACTIVE') {
+                throw new ConflictException(
+                    self::SEAT_ALREADY_ACTIVE,
+                    'You already hold a live seat on this product. Change it from the subscription rather than buying a second one.',
+                    ['subscription_id' => $live->id, 'offer_id' => $live->offer->offerId],
+                );
+            }
+        }
     }
 
     /**

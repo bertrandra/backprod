@@ -55,7 +55,7 @@ final class StubPaymentProvider implements PaymentProvider
         return null;
     }
 
-    public function authorize(Money $amount, string $reference): ProviderPayment
+    public function authorize(Money $amount, string $reference, ?string $attemptKey = null): ProviderPayment
     {
         // A real adapter calls the provider here. This one mints a handle
         // that is derived from the reference, so a test can predict it and a

@@ -105,23 +105,35 @@ par défaut ; changer l'habillage sans la capacité `white_label`.
 
 ### Membre d'un tenant — `USER`
 
-Coquille : application. 23 permissions sur 31.
+Coquille : application. 22 permissions sur 31.
 
 Il travaille : projets en **lecture et écriture** (créer, modifier, dupliquer,
 versionner, exporter, supprimer), assets en lecture et écriture, conversations
-en lecture et écriture, ses notifications et son propre compte. **Il achète**
-(depuis le 18 septembre 2026) : ouvrir un checkout, payer une facture, relancer
-un paiement (`billing.pay`) ; souscrire, changer d'offre, résilier
-(`subscription.manage`). Tout le reste — factures, avoirs, paiements, devis,
-TVA, catalogue, membres, tenant, jobs — en **lecture seule**.
+en lecture et écriture, ses notifications et son propre compte. **Il achète
+pour lui-même** (depuis le 18 septembre 2026) : ouvrir un checkout, payer une
+facture, relancer un paiement (`billing.pay`) ; souscrire, résilier
+(`subscription.manage`) — un **siège** (§13.1), payé avec sa propre carte,
+à côté de l'abonnement de l'organisation et sans le gêner. Tout le reste —
+catalogue, membres, tenant, jobs — en **lecture seule**.
 
-Ce qui lui manque est exactement les neuf `.manage` administratifs, et
-`UserRoleMatrixTest` le tient : un `USER` ne peut ni rembourser, ni émettre
-une facture ou un avoir, ni marquer une facture payée à la main, ni ajouter un
-membre, ni clore une période. La conséquence à l'usage : **quelqu'un qui
-s'inscrit à la racine d'une organisation paie dans la foulée** — la vitrine
-enchaîne l'inscription et le checkout — et laisse l'administration de l'argent
-à l'administrateur.
+**Il ne voit que ce qui le concerne.** Factures, paiements, avoirs, commandes
+et devis lui sont montrés **restreints aux siens** : les commandes qui ont
+acheté son siège, les factures qu'elles ont levées, les paiements dessus, les
+devis qu'il a lui-même demandés. Le document d'un autre est un 404, pas un
+403 — l'identifiant n'est pas le sien à connaître. La vue large — tout ce que
+l'organisation a jamais levé — vient avec `billing.manage`, celle de
+l'administrateur (`OwnDocumentsTest`). Le dossier fiscal (profil TVA, taux,
+périodes) est celui de l'organisation et rien n'y est adressé à une personne :
+`tax.read` n'est plus au membre.
+
+Ce qui lui manque est exactement les neuf `.manage` administratifs et
+`tax.read`, et `UserRoleMatrixTest` le tient : un `USER` ne peut ni
+rembourser, ni émettre une facture ou un avoir, ni marquer une facture payée à
+la main, ni ajouter un membre, ni clore une période. La conséquence à l'usage :
+**quelqu'un qui s'inscrit à la racine d'une organisation paie son siège dans
+la foulée** — la vitrine enchaîne l'inscription et le checkout — et laisse
+l'abonnement de l'organisation et l'administration de l'argent à
+l'administrateur.
 
 ### Celui qui arrive par lui-même — un `USER` (ADR-049)
 
@@ -194,15 +206,15 @@ accordée au rôle puis retirée à la résolution.
 | `catalog.read` | oui | oui | plans, features, offres |
 | `catalog.manage` | **prêté** | non | écrire et publier des offres |
 | `subscription.read` | oui | oui | abonnement, échéancier |
-| `subscription.manage` | oui | oui | souscrire, changer, résilier |
-| `billing.read` | oui | oui | factures, avoirs, profil |
+| `subscription.manage` | oui | oui | souscrire, changer, résilier — un membre, son siège |
+| `billing.read` | oui | oui | factures, avoirs, profil — un membre, **les siens** |
 | `billing.pay` | oui | oui | **le checkout**, payer une facture, relancer un paiement |
-| `billing.manage` | oui | non | émettre, annuler, créditer, marquer payée à la main, profil de facturation |
-| `payments.read` | oui | oui | paiements |
+| `billing.manage` | oui | non | émettre, annuler, créditer, marquer payée à la main, profil de facturation ; **la vue de l'organisation** |
+| `payments.read` | oui | oui | paiements — un membre, **les siens** |
 | `payments.manage` | oui | non | encaisser, rembourser |
-| `sales.read` | oui | oui | devis, commandes |
+| `sales.read` | oui | oui | devis, commandes — un membre, **les siens** |
 | `sales.manage` | oui | non | créer, accepter, exécuter |
-| `tax.read` | oui | oui | profil TVA, périodes, taux |
+| `tax.read` | oui | non | profil TVA, périodes, taux — le dossier fiscal est celui de l'organisation |
 | `tax.manage` | oui | non | régler le profil, clore une période |
 | `jobs.read` | oui | oui | travaux de fond |
 | `jobs.manage` | oui | non | lancer, annuler |
@@ -235,10 +247,14 @@ Les 17 permissions de plateforme.
 
 ## Les arêtes vives
 
-**Un membre achète, mais n'administre pas l'argent.** Le checkout, le paiement
+**Un membre achète pour lui, et ne voit que le sien.** Le checkout, le paiement
 d'une facture et la relance sont derrière `billing.pay`, que les deux rôles
-portent ; émettre, annuler, créditer, rembourser restent derrière
-`billing.manage` et `payments.manage`, que seul `TENANT_ADMIN` a. Jusqu'au
+portent ; ce qu'un membre achète est **un siège** (§13.1), et ce qu'il lit —
+factures, paiements, avoirs, commandes, devis — est restreint aux documents de
+ce siège par les services de lecture, sans permission nouvelle : la vue de
+l'organisation est `billing.manage`. Émettre, annuler, créditer, rembourser
+restent derrière `billing.manage` et `payments.manage`, que seul
+`TENANT_ADMIN` a. Jusqu'au
 17 septembre 2026 c'était l'inverse — le checkout vivait sous `billing.manage`
 et un membre voyait les prix sans pouvoir acheter ; l'opérateur a tranché :
 quelqu'un qui s'inscrit à la racine d'une organisation paie dans la foulée.

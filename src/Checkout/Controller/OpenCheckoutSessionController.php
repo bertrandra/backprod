@@ -21,10 +21,12 @@ use Psr\Http\Message\ServerRequestInterface;
  * mid-way leaves an order they can look up rather than a charge nobody can
  * account for.
  *
- * The body names an offer and nothing else. No amount: a client that could
- * name a figure could name a smaller one, and the price is the offer's. No
- * instrument: the customer gives that to the provider directly (§24, and
- * non-negotiable — card data never reaches PostgreSQL).
+ * The body names an offer and, since 2026-09-18, whether it is a seat. No
+ * amount: a client that could name a figure could name a smaller one, and
+ * the price is the offer's. No instrument: the customer gives that to the
+ * provider directly (§24, and non-negotiable — card data never reaches
+ * PostgreSQL). `seat: true` buys for the caller alone (§13.1) — whose seat
+ * it is comes from the resolved context, never from the body.
  *
  * The `client_secret` is returned here and nowhere else. It is short-lived
  * and it is a credential, so it is never stored (§31); a caller who needs a
@@ -39,12 +41,14 @@ final class OpenCheckoutSessionController implements RouteHandler
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
         $context = CheckoutRoute::manageable($request);
+        $body = JsonBody::of($request);
 
         $session = $this->checkout->open(
             $context->tenantId,
             $context->productId,
-            JsonBody::of($request)->requiredString('offer_id', 64),
+            $body->requiredString('offer_id', 64),
             $context->userId,
+            $body->optionalBool('seat'),
         );
 
         $body = CheckoutPresenter::session($session['order'], $session['payment']);

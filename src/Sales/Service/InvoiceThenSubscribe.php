@@ -131,12 +131,15 @@ final class InvoiceThenSubscribe implements OrderFulfilment
 
         $now = new DateTimeImmutable();
 
+        // The order's subscriber becomes the subscription's (§13.1): the
+        // organisation, or the one person whose seat this is.
         $subscription = $this->subscriptions->applyActivate(
             $order->tenantId,
             $order->productId,
             $offer,
             $offer->version->periodEndFrom($now),
             null,
+            $order->subscriber,
         );
 
         // The invoice was raised before the subscription existed, so it could

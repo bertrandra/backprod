@@ -19,6 +19,7 @@ use Psr\Log\NullLogger;
 use Stripe\Exception\ApiConnectionException;
 use Stripe\Exception\ApiErrorException;
 use Stripe\Exception\AuthenticationException;
+use Stripe\Exception\IdempotencyException;
 use Stripe\Exception\PermissionException;
 use Stripe\StripeClient;
 
@@ -94,7 +95,7 @@ final class StripePaymentProvider implements PaymentProvider
         return $this->publishableKey;
     }
 
-    public function authorize(Money $amount, string $reference): ProviderPayment
+    public function authorize(Money $amount, string $reference, ?string $attemptKey = null): ProviderPayment
     {
         $currency = strtolower($amount->currency);
 
@@ -119,9 +120,11 @@ final class StripePaymentProvider implements PaymentProvider
                     'description' => $reference,
                     'metadata' => ['reference' => $reference],
                 ],
-                // The reference names the attempt, so a retried call for the
-                // same attempt returns the same intent rather than a second one.
-                ['idempotency_key' => $this->idempotencyKey('authorize', $reference)],
+                // The attempt's own key, so a retried call for the same attempt
+                // returns the same intent rather than a second one — and a
+                // reset world's first invoice, numbered like the last world's,
+                // is a new attempt rather than yesterday's (2026-09-18).
+                ['idempotency_key' => $this->idempotencyKey('authorize', $attemptKey ?? $reference)],
             );
         } catch (ApiErrorException $failure) {
             throw $this->refused($failure, 'authorize', $reference);
@@ -253,11 +256,38 @@ final class StripePaymentProvider implements PaymentProvider
 
         $code = $failure->getStripeCode();
 
+        if ($failure instanceof IdempotencyException) {
+            // The provider remembers an earlier request under this attempt's
+            // key with different parameters. Every retry is a fresh attempt
+            // with a fresh key, so the person is told to try again rather
+            // than left with a refusal that reads as a declined card.
+            return new UnprocessableEntityException(
+                'PAYMENT_ATTEMPT_COLLIDED',
+                'The payment provider already knew this attempt under different terms. Nothing was charged; try again — a retry is a new attempt.',
+                ['provider_code' => is_string($code) ? $code : 'idempotency_error'],
+            );
+        }
+
         return new UnprocessableEntityException(
             'PAYMENT_PROVIDER_REFUSED',
-            'The payment provider refused the request.',
-            ['provider_code' => is_string($code) ? $code : null],
+            'The payment provider refused the request. Nothing was charged.',
+            ['provider_code' => is_string($code) ? $code : null, 'provider_message' => self::customerSafe($failure->getMessage())],
         );
+    }
+
+    /**
+     * Stripe's sentence, shortened for the person on the other side: no key,
+     * no request id, no URL — the log above keeps the whole of it — and cut
+     * at the first newline, which is where Stripe starts talking to the
+     * developer.
+     */
+    private static function customerSafe(string $message): ?string
+    {
+        $line = trim(strtok($message, "\n") ?: '');
+        $line = (string) preg_replace('/\b(sk|pk|whsec|rk)_[A-Za-z0-9_]+/', '[redacted]', $line);
+        $line = (string) preg_replace('#https?://\S+#', '', $line);
+
+        return $line === '' ? null : mb_substr($line, 0, 200);
     }
 
     /**

@@ -4495,6 +4495,10 @@ export interface components {
             net: components["schemas"]["Money"];
             vat: components["schemas"]["Money"];
             gross: components["schemas"]["Money"];
+            /** @description What was bought, in the words of the order’s own line — the offer and its version. So the status page says what this is, not only what it cost. */
+            description: string | null;
+            /** @description Whether this buys a seat for the person rather than a subscription for the organisation (§13.1). */
+            seat: boolean;
         };
         /** @description The refresh token is deliberately absent: it leaves in an `HttpOnly` cookie that no script can read, and putting it here as well would throw away the reason the cookie exists. */
         Session: {
@@ -6077,6 +6081,11 @@ export interface operations {
                      * @description An offer on sale in this product right now. A draft, an expired one, or one belonging to another product is not found.
                      */
                     offer_id: string;
+                    /**
+                     * @description Buy for the caller alone — a seat (§13.1) — rather than for the organisation (2026-09-18). Whose seat it is comes from the session, never from the body. A person holds one live seat per product and an organisation one live subscription per product; the two do not stand in each other's way, so a member may take a seat at an organisation that already subscribes, and vice versa.
+                     * @default false
+                     */
+                    seat?: boolean;
                 };
             };
         };
@@ -6107,7 +6116,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `BILLING_PROFILE_REQUIRED` — the tenant has no billing profile, so nothing can be invoiced to it. Or `SUBSCRIPTION_ALREADY_ACTIVE` — the organisation already has a live subscription to this product; changing what it has is a change on the subscription, not a second purchase. Refused before any document is raised, because numbering is gapless. */
+            /** @description `BILLING_PROFILE_REQUIRED` — the tenant has no billing profile, so nothing can be invoiced to it. Or `SUBSCRIPTION_ALREADY_ACTIVE` (or `SEAT_ALREADY_ACTIVE` for a seat) — the organisation already has a live subscription to this product; changing what it has is a change on the subscription, not a second purchase. Refused before any document is raised, because numbering is gapless. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6116,7 +6125,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `PAYMENT_PROVIDER_REFUSED` — the provider would not start this payment; `details.provider_code` carries its reason, written for operators. Or `PAYMENT_AMOUNT_UNSUPPORTED` — an amount the provider cannot represent in this currency. */
+            /** @description `PAYMENT_PROVIDER_REFUSED` — the provider would not start this payment; `details.provider_code` carries its reason, written for operators. Or `PAYMENT_AMOUNT_UNSUPPORTED` — an amount the provider cannot represent in this currency. `PAYMENT_ATTEMPT_COLLIDED` — the provider already knew this attempt under different terms; nothing was charged and a retry is a new attempt. `details.provider_message` carries the provider’s own sentence, shortened and with nothing secret in it. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10334,6 +10343,8 @@ export interface operations {
                         subscription: components["schemas"]["Subscription"] | null;
                         history: components["schemas"]["Subscription"][];
                         events: components["schemas"]["SubscriptionEvent"][];
+                        /** @description The caller’s own live seat on this product, or null (§13.1, 2026-09-18). Apart from `subscription`, the organisation’s, because the two bind different parties: a member may hold a seat at an organisation that also subscribes. */
+                        seat: components["schemas"]["Subscription"] | null;
                     };
                 };
             };

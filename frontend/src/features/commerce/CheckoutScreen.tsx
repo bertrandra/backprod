@@ -27,6 +27,12 @@ import { notice, pill, type Tone } from '@/ui/tone';
  * invoice is paid. Both are shown, in that order, because "invoiced" and
  * "provisioned" are different facts and only the second means the person has
  * what they bought.
+ *
+ * **What was bought is said, and for whom** (2026-09-18). Three amounts and
+ * two ids told a customer what it cost and not what it was; the order's own
+ * line does, and `seat` says whether it is their own seat or the
+ * organisation's subscription (§13.1). Once the money has arrived the page
+ * says so in words, at the top — that is the moment a person is looking for.
  */
 export function CheckoutScreen({ sessionId }: { sessionId: string }) {
   const session = useCheckoutSession(sessionId);
@@ -40,11 +46,22 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
   }
 
   const current = session.data;
+  // A stub from before the field existed answers nothing here; nothing
+  // is derived from its absence but a plainer sentence.
+  const description = current.description ?? null;
+  const forSelf = current.seat === true;
 
   return (
     <div className="max-w-2xl space-y-6">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Checkout</h1>
+        {description !== null && (
+          <p data-testid="checkout-description" data-seat={forSelf} className="text-sm">
+            <span className="font-medium">{description}</span>
+            {' — '}
+            {forSelf ? 'your own seat' : 'for the organisation'}
+          </p>
+        )}
         {/* Said out loud rather than hidden behind the word "session": the id is
             the order's, so somebody comparing this screen with /orders sees the
             same number in both places. */}
@@ -52,6 +69,17 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
           This is order <code>{current.order_id}</code>.
         </p>
       </header>
+
+      {current.status === 'COMPLETED' && (
+        <section data-testid="checkout-completed" className={`${notice('success')} space-y-1`}>
+          <p className="font-medium">Paid — thank you.</p>
+          <p>
+            {forSelf
+              ? 'Your seat has started; what it entitles you to is yours now.'
+              : 'The subscription has started; everyone in the organisation is entitled to it now.'}
+          </p>
+        </section>
+      )}
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
@@ -122,7 +150,8 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
               </span>
             ) : (
               <>
-                Subscription started — <code className="text-xs">{current.subscription_id}</code>
+                {forSelf ? 'Seat started' : 'Subscription started'} —{' '}
+                <code className="text-xs">{current.subscription_id}</code>
               </>
             )}
           </li>
@@ -138,7 +167,7 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
               started twice; the money is recorded and is the operator's to
               return. */}
           <p>
-            The payment was collected, but this organisation already had a live subscription to
+            The payment was collected, but {forSelf ? 'you already held a live seat on' : 'this organisation already had a live subscription to'}{' '}
             this product by the time it arrived, so nothing was started against it. Nothing has
             been provisioned twice — the payment will be refunded.
           </p>

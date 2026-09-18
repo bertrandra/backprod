@@ -53,8 +53,18 @@ interface PaymentProvider
      *
      * `reference` is this platform's own identifier for what is being paid,
      * passed through so a human comparing the two systems can line them up.
+     *
+     * `attemptKey` is what tells this attempt from every other one the
+     * provider has ever been asked about, for a provider that remembers
+     * requests (2026-09-18): the invoice's row id and the attempt number,
+     * never the invoice *number*, which restarts at 000001 in every
+     * installation and after every reset of the demonstration world — and a
+     * repeated number with a different amount is a request the provider
+     * refuses, and one with the same amount is yesterday's intent handed
+     * back. Null means the reference is the key, for providers with no
+     * memory.
      */
-    public function authorize(Money $amount, string $reference): ProviderPayment;
+    public function authorize(Money $amount, string $reference, ?string $attemptKey = null): ProviderPayment;
 
     /**
      * Verifies that a delivery came from the provider.

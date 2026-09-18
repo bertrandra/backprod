@@ -39,6 +39,7 @@ final class ShowInvoicePdfController implements RouteHandler
             $context->tenantId,
             $context->productId,
             BillingRoute::invoiceId($request),
+            $context->documentsOf(),
         );
 
         $stream = new Stream('php://temp', 'wb+');

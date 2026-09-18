@@ -53,6 +53,18 @@ final class RequestContext
         return in_array($permission, $this->permissions, true);
     }
 
+    /**
+     * Whose documents the caller may read (2026-09-18): null for the
+     * organisation's — the wider view, `billing.manage`, the administrator's —
+     * or their own id, for a member who sees what concerns them alone: the
+     * orders that bought their seat, the invoices those raised, the payments
+     * on them.
+     */
+    public function documentsOf(): ?string
+    {
+        return $this->can('billing.manage') ? null : $this->userId;
+    }
+
     public function requirePermission(string $permission): void
     {
         if (!$this->can($permission)) {

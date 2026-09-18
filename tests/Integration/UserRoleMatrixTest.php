@@ -32,7 +32,10 @@ final class UserRoleMatrixTest extends DatabaseTestCase
         'tenant.manage',
         'members.manage',
         'catalog.manage',
+        // The fiscal record is the organisation's, not a member's
+        // (2026-09-18): neither closing a period nor reading one.
         'tax.manage',
+        'tax.read',
         'jobs.manage',
         'skin.manage',
     ];
@@ -45,11 +48,13 @@ final class UserRoleMatrixTest extends DatabaseTestCase
         'billing.pay',
         'subscription.manage',
         'catalog.read',
+        // The reads are narrowed to what concerns the person — their seat's
+        // orders, invoices and payments (2026-09-18); the organisation's
+        // view comes with `billing.manage`, which a USER never holds.
         'billing.read',
         'payments.read',
         'sales.read',
         'subscription.read',
-        'tax.read',
         'members.read',
         'tenant.read',
         'account.read',

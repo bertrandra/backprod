@@ -157,8 +157,8 @@ added (§8).
 
 | area | for |
 |---|---|
-| `commerce.catalogue` | what is for sale: offers, plans, features, and the product's own catalogue |
-| `commerce.checkout` | buying in one flow — a session **is** an order (ADR-034) |
+| `commerce.catalogue` | what is for sale: offers, plans, features, and the product's own catalogue. Two purchases per offer (§13.1, 2026-09-18): *Buy for yourself* — a seat, `billing.pay` — and *Buy for the organisation* — `billing.manage`. Each is withheld on its own fact from `showSubscription` (a live seat, a live subscription), and the screen **says why** twice: a notice at the top naming what is live, and in the row the sentence standing where the button was |
+| `commerce.checkout` | buying in one flow — a session **is** an order (ADR-034). Says what was bought (`description`) and for whom (`seat`), and in words once it is paid |
 | `commerce.catalogue_authoring` | writing the catalogue: draft a version, publish it. `catalog.manage`, TENANT_ADMIN only — and only where the platform has lent this tenant the catalogue (ADR-040), since the permission is not resolved otherwise |
 | `sales.quotes` | a quote's life: raise, send, accept, reject |
 | `sales.orders` | an order's life: place, fulfil, cancel |
@@ -167,7 +167,7 @@ added (§8).
 
 | area | for |
 |---|---|
-| `tenant.subscription` | the subscription, its schedule, entitlements, changing offer, cancelling, resuming |
+| `tenant.subscription` | the organisation's subscription, its schedule, entitlements, changing offer, cancelling, resuming — those controls with `billing.manage`; and the caller's own seat (§13.1), shown to its holder beside it and given up by them alone |
 | `billing.invoices` | invoices, the PDF (ADR-035), issuing, cancelling, crediting |
 | `billing.payments` | payments, refunds, and retrying a failed attempt |
 | `billing.credit_notes` | credit notes, which are their own documents and not an invoice state |

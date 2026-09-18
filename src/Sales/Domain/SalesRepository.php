@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Sales\Domain;
 
 use App\Billing\Domain\InvoiceLine;
+use App\Commerce\Domain\Subscriber;
 use DateTimeImmutable;
 
 /**
@@ -18,11 +19,11 @@ interface SalesRepository
     /**
      * @return list<Quote>
      */
-    public function listQuotes(string $tenantId, string $productId, int $limit, int $offset): array;
+    public function listQuotes(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array;
 
-    public function countQuotes(string $tenantId, string $productId): int;
+    public function countQuotes(string $tenantId, string $productId, ?string $ownedBy = null): int;
 
-    public function findQuote(string $tenantId, string $productId, string $quoteId): ?Quote;
+    public function findQuote(string $tenantId, string $productId, string $quoteId, ?string $ownedBy = null): ?Quote;
 
     /**
      * @param list<InvoiceLine>    $lines
@@ -43,11 +44,11 @@ interface SalesRepository
     /**
      * @return list<Order>
      */
-    public function listOrders(string $tenantId, string $productId, int $limit, int $offset): array;
+    public function listOrders(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array;
 
-    public function countOrders(string $tenantId, string $productId): int;
+    public function countOrders(string $tenantId, string $productId, ?string $ownedBy = null): int;
 
-    public function findOrder(string $tenantId, string $productId, string $orderId): ?Order;
+    public function findOrder(string $tenantId, string $productId, string $orderId, ?string $ownedBy = null): ?Order;
 
     /**
      * Places an order, optionally from a quote, and marks that quote accepted
@@ -58,6 +59,7 @@ interface SalesRepository
      * writes cannot be separated.
      *
      * @param list<InvoiceLine> $lines
+     * @param Subscriber|null   $subscriber who the subscription will bind; null is the organisation
      */
     public function placeOrder(
         string $tenantId,
@@ -66,6 +68,7 @@ interface SalesRepository
         string $offerVersionId,
         array $lines,
         ?string $actorUserId,
+        ?Subscriber $subscriber = null,
     ): Order;
 
     /**

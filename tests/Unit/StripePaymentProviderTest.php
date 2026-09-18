@@ -131,6 +131,32 @@ final class StripePaymentProviderTest extends TestCase
         }
     }
 
+    public function testTheAttemptsOwnKeyOutranksTheReferenceForIdempotency(): void
+    {
+        $this->http->answer(['id' => 'pi_3', 'object' => 'payment_intent', 'client_secret' => 's']);
+
+        // The reference is for people and reaches the dashboard; the key is
+        // the invoice's row id and the attempt, which never repeats — the
+        // number does, after a reset of the demonstration world.
+        $this->provider()->authorize(Money::of(4900, 'EUR'), '2026-000001/1', '0d4f…-invoice-uuid/1');
+
+        self::assertSame('2026-000001/1', $this->http->requests[0]['params']['description']);
+        self::assertSame('authorize_' . hash_hmac('sha256', '0d4f…-invoice-uuid/1', 'whsec_unit'), $this->http->header(0, 'Idempotency-Key'));
+    }
+
+    public function testACollidingAttemptIsSaidToBeOneRatherThanADeclinedCard(): void
+    {
+        $this->http->answer(['error' => ['type' => 'idempotency_error', 'message' => 'Keys for idempotent requests can only be used with the same parameters they were first used with.']], 400);
+
+        try {
+            $this->provider()->authorize(Money::of(100, 'EUR'), 'F-1/1');
+            self::fail('expected a refusal');
+        } catch (UnprocessableEntityException $refusal) {
+            self::assertSame('PAYMENT_ATTEMPT_COLLIDED', $refusal->errorCode());
+            self::assertStringContainsString('try again', $refusal->getMessage());
+        }
+    }
+
     public function testRefundAsksForTheIntentAndMapsTheReason(): void
     {
         $this->http->answer(['id' => 're_1', 'object' => 'refund', 'status' => 'pending']);

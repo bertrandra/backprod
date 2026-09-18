@@ -19,7 +19,7 @@ final class Subscriber
     public const TENANT = 'TENANT';
     public const USER = 'USER';
 
-    private function __construct(
+    public function __construct(
         public readonly string $kind,
         public readonly ?string $userId,
     ) {

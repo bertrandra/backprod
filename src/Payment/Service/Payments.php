@@ -35,11 +35,11 @@ final class Payments
     /**
      * @return array{payments: list<Payment>, total: int, limit: int, offset: int}
      */
-    public function list(string $tenantId, string $productId, int $limit, int $offset): array
+    public function list(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
     {
         return [
-            'payments' => $this->payments->listForTenant($tenantId, $productId, $limit, $offset),
-            'total' => $this->payments->countForTenant($tenantId, $productId),
+            'payments' => $this->payments->listForTenant($tenantId, $productId, $limit, $offset, $ownedBy),
+            'total' => $this->payments->countForTenant($tenantId, $productId, $ownedBy),
             'limit' => $limit,
             'offset' => $offset,
         ];
@@ -55,9 +55,9 @@ final class Payments
         return $this->payments->latestForInvoice($tenantId, $productId, $invoiceId);
     }
 
-    public function show(string $tenantId, string $productId, string $paymentId): Payment
+    public function show(string $tenantId, string $productId, string $paymentId, ?string $ownedBy = null): Payment
     {
-        $payment = $this->payments->find($tenantId, $productId, $paymentId);
+        $payment = $this->payments->find($tenantId, $productId, $paymentId, $ownedBy);
 
         if ($payment === null) {
             throw new NotFoundException('Payment not found.', [], 'PAYMENT_NOT_FOUND');
@@ -109,7 +109,9 @@ final class Payments
         $attempt = $this->payments->attemptsForInvoice($invoice->id) + 1;
         $reference = sprintf('%s/%d', $invoice->number ?? $invoice->id, $attempt);
 
-        $started = $provider->authorize($invoice->gross, $reference);
+        // The reference is for people; the key is for the provider's memory
+        // (2026-09-18): the invoice's row id never repeats, its number does.
+        $started = $provider->authorize($invoice->gross, $reference, sprintf('%s/%d', $invoice->id, $attempt));
 
         $payment = $this->payments->start(
             $tenantId,

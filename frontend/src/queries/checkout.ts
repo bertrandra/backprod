@@ -70,16 +70,23 @@ export const POLL_MS = 2_000;
  * worst of both.
  *
  * The order lists are invalidated, because an order now exists.
+ *
+ * `seat` says who the purchase is for (§13.1, 2026-09-18): the caller's own
+ * seat when true, the organisation when false. A flag and never an id — the
+ * only two subscribers are the organisation and the person asking, both of
+ * which the server already knows.
  */
+export type OpenCheckoutInput = { offerId: string; seat: boolean };
+
 export function useOpenCheckoutSession() {
   const client = useApiClient();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (offerId: string): Promise<OpenedCheckoutSession> => {
+    mutationFn: async ({ offerId, seat }: OpenCheckoutInput): Promise<OpenedCheckoutSession> => {
       const { data, error, response } = await client.POST('/api/v1/checkout/sessions', {
         ...ambientParams(sessionSnapshot),
-        body: { offer_id: offerId },
+        body: { offer_id: offerId, seat },
       });
 
       if (error !== undefined || data === undefined) {

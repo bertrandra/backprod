@@ -24,7 +24,7 @@ import { cn } from '@/utils/cn';
  * chosen here is the one every screen reads and every request carries
  * (ADR-047): the console has no second product of its own in the URL.
  *
- * **Switching clears the query cache, deliberately and completely.** Every
+ * **Switching resets the query cache, deliberately and completely.** Every
  * cached answer was scoped to the previous product — `X-Product` is on every
  * request — so keeping any of it would mean showing one product's projects,
  * quotes or invoices under another's name. That is the single worst thing this
@@ -33,7 +33,13 @@ import { cn } from '@/utils/cn';
  * and for those few hundred milliseconds the numbers belong to somebody else's
  * product.
  *
- * Clearing is cheap and obviously correct. Being clever here is not.
+ * Reset, not clear (2026-09-18). `clear()` empties the cache but tells no
+ * mounted query, so a screen whose keys do not name the product — the
+ * catalogue, the subscription — kept showing the old answer until something
+ * else made it ask again; the operator switched product and watched the
+ * previous one's offers. `resetQueries()` empties *and* refetches every
+ * active query, so the screen goes back to loading and comes back with the
+ * product it now names. Being clever with partial keys here is not.
  *
  * A person with one product sees it named and no control: a switcher with one
  * option is a menu that does nothing.
@@ -146,8 +152,9 @@ export function useChooseProduct(): (code: string) => void {
       }
 
       chooseProduct(code);
-      // Everything in the cache was answered for the previous product.
-      queryClient.clear();
+      // Everything in the cache was answered for the previous product:
+      // dropped, and whatever is on screen asked again for this one.
+      void queryClient.resetQueries();
     },
     [chooseProduct, queryClient],
   );

@@ -59,11 +59,12 @@ final class InvoiceDocuments
      *
      * @return array{document: InvoiceDocument, contents: string, filename: string, contentType: string, band: InvoiceStatusBand}
      */
-    public function pdf(string $tenantId, string $productId, string $invoiceId): array
+    public function pdf(string $tenantId, string $productId, string $invoiceId, ?string $ownedBy = null): array
     {
-        // Scoped by tenant and product, so somebody else's invoice is a 404
-        // here for the same reason it is in `show`.
-        $invoice = $this->invoicing->show($tenantId, $productId, $invoiceId);
+        // Scoped by tenant and product — and by person, when the caller only
+        // sees their own — so somebody else's invoice is a 404 here for the
+        // same reason it is in `show`.
+        $invoice = $this->invoicing->show($tenantId, $productId, $invoiceId, $ownedBy);
 
         if ($invoice->number === null) {
             throw new ConflictException(

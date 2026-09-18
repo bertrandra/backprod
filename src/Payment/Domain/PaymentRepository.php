@@ -21,11 +21,11 @@ interface PaymentRepository
     /**
      * @return list<Payment>
      */
-    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset): array;
+    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array;
 
-    public function countForTenant(string $tenantId, string $productId): int;
+    public function countForTenant(string $tenantId, string $productId, ?string $ownedBy = null): int;
 
-    public function find(string $tenantId, string $productId, string $paymentId): ?Payment;
+    public function find(string $tenantId, string $productId, string $paymentId, ?string $ownedBy = null): ?Payment;
 
     public function findByReference(string $provider, string $providerPaymentId): ?Payment;
 

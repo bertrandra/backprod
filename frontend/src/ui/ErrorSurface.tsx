@@ -54,6 +54,25 @@ const WORDING: Record<string, { title: string; hint?: string }> = {
     title: 'The server answered unexpectedly',
     hint: 'This is usually a proxy or a gateway rather than the application.',
   },
+  // Money (2026-09-18). The server's `message` says what happened and its
+  // `details.provider_message` says what the provider said; the title says
+  // whether to try again, which is the one thing the person needs to know.
+  PAYMENT_PROVIDER_REFUSED: {
+    title: 'The payment could not be started',
+    hint: 'Nothing was charged. Try again in a moment; if it keeps happening, the reason below is what to tell support.',
+  },
+  PAYMENT_ATTEMPT_COLLIDED: {
+    title: 'This attempt clashed with an earlier one',
+    hint: 'Nothing was charged. Trying again starts a fresh attempt.',
+  },
+  SUBSCRIPTION_ALREADY_ACTIVE: {
+    title: 'The organisation already has a live subscription to this product',
+    hint: 'Change it from the subscription screen rather than buying a second one.',
+  },
+  SEAT_ALREADY_ACTIVE: {
+    title: 'You already hold a live seat on this product',
+    hint: 'Change it from the subscription screen rather than buying a second one.',
+  },
 };
 
 function detailLines(details: Readonly<Record<string, unknown>>): readonly string[] {
