@@ -149,3 +149,34 @@ export function usePublicOffer(productCode: string | null, offerId: string | nul
     retry: 1,
   });
 }
+
+export type DemoPage = Schemas['DemoPage'];
+
+/**
+ * The demonstration page (2026-09-18): what the platform hosts, who is in
+ * it and as what — for anybody, while a platform administrator has the
+ * switch on. Off is a 404, and the screen says so rather than erroring:
+ * "there is no demonstration page" is an answer.
+ */
+export function usePublicDemo() {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.storefront.demo,
+    queryFn: async (): Promise<DemoPage | null> => {
+      const { data, error, response } = await client.GET('/api/v1/public/demo', {});
+
+      if (response.status === 404) {
+        return null;
+      }
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    staleTime: 0,
+    retry: false,
+  });
+}

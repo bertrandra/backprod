@@ -2891,6 +2891,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/demo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The demonstration page
+         * @description Public, no session, no product. Answers only while a platform administrator has switched the page on (`setDemoPage`); otherwise `404 DEMO_PAGE_OFF`, indistinguishable from a page that does not exist, so a deployment that never meant to have one reveals nothing by having the route. Never cached: what it shows changes with every sale and sign-up, and the switch must take effect at once.
+         */
+        get: operations["showPublicDemo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/storefront/offers": {
         parameters: {
             query?: never;
@@ -3029,6 +3049,30 @@ export interface paths {
          * @description The widest destructive act on this platform. Behind `staff.demo.reset`, which PLATFORM_ADMIN alone holds; refused with `NOT_A_DEMO_DEPLOYMENT` while a product that is not the demonstration's exists, whatever the caller says — those are somebody's real products with legal documents under them. Reference data (permissions, roles, VAT rates) is untouched. Everybody is signed out by it, the caller included: their token names a `users` row that no longer exists. The answer says who to sign in as. No body.
          */
         post: operations["resetDemoWorld"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/demo/page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whether the public demonstration page is on
+         * @description `staff.demo.publish`.
+         */
+        get: operations["showDemoPage"];
+        /**
+         * Switch the public demonstration page on or off
+         * @description What the page shows — products and offers, organisations, their people and roles — is a membership’s answer everywhere else. Publishing it is the platform administrator’s decision: `staff.demo.publish`, PLATFORM_ADMIN alone, and apart from `staff.demo.reset` because wiping the world and publishing it are different trusts. Off by default on every deployment.
+         */
+        put: operations["setDemoPage"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4632,6 +4676,44 @@ export interface components {
             granted_by: string | null;
             /** Format: date-time */
             granted_at: string;
+        };
+        /** @description What the demonstration page shows: every active product with the offers on sale right now (advertised or not — it is a demonstration), and every organisation with the products it holds, its live subscriptions and its people with their roles. A membership’s answer everywhere else, published on purpose, and only while the switch is on. */
+        DemoPage: {
+            products: {
+                code: string;
+                name: string;
+                offers: {
+                    code: string;
+                    name: string;
+                    plan: string;
+                    billing_period: string;
+                    price: components["schemas"]["Money"];
+                    /** @description Whether the storefront advertises it. On sale and advertised are two decisions; this page shows both kinds and says which. */
+                    publicly_listed: boolean;
+                }[];
+            }[];
+            tenants: {
+                /** @description Its URL root: `/{slug}/`, or `/` when `is_default`. */
+                slug: string;
+                name: string;
+                is_default: boolean;
+                /** @enum {string} */
+                join_policy: "OPEN" | "INVITATION" | "DOMAIN" | "APPROVAL";
+                /** @description Product codes the organisation holds (ADR-047). */
+                products: string[];
+                subscriptions: {
+                    product: string;
+                    offer: string;
+                    plan: string;
+                    status: string;
+                }[];
+                /** @description ACTIVE members, one row each whatever the products the membership is mirrored on, with the roles they hold in the organisation. */
+                members: {
+                    display_name: string | null;
+                    email: string | null;
+                    roles: string[];
+                }[];
+            }[];
         };
     };
     responses: {
@@ -11651,6 +11733,37 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    showPublicDemo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DemoPage"];
+                };
+            };
+            /** @description `DEMO_PAGE_OFF` — the page is not switched on. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     listStorefrontOffers: {
         parameters: {
             query: {
@@ -12024,6 +12137,73 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showDemoPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The switch. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        published: boolean;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setDemoPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    published: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The switch as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        published: boolean;
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `published` is not a boolean. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

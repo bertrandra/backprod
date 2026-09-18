@@ -49,6 +49,7 @@ import { TenantWorkspaceScreen } from '@/features/console/TenantWorkspaceScreen'
 import { StorefrontScreen } from '@/features/console/StorefrontScreen';
 import { SupportConversationsScreen } from '@/features/console/SupportConversationsScreen';
 import { SignInScreen } from '@/features/auth/SignInScreen';
+import { DemoPage } from '@/features/demo/DemoPage';
 import { AppShell } from '@/app/shells/AppShell';
 import { EmptyState } from '@/ui/EmptyState';
 
@@ -157,6 +158,17 @@ const signInRoute = createRoute({
  * well only hid the platform's own screens from the person running it. The paths
  * are unchanged, so every link ever written still resolves.
  */
+/**
+ * The demonstration page (2026-09-18), outside the shell for the same reason
+ * as signing in: whoever reads it may have no session. `SignInGate` renders
+ * it for a stranger; this route renders it for somebody signed in.
+ */
+const demoRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/demo',
+  component: DemoPage,
+});
+
 const appShellRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'app-shell',
@@ -292,6 +304,7 @@ const routeTree = rootRoute.addChildren([
   // First, and a sibling of the shell rather than a child of it: a person here
   // has no session, so a frame would be full of things that cannot be filled in.
   signInRoute,
+  demoRoute,
   appShellRoute.addChildren([
     indexRoute,
     ...screenRoutes,

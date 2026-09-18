@@ -50,6 +50,7 @@ use App\Commerce\Controller\ShowSubscriptionController;
 use App\Commerce\Controller\SubscribeController;
 use App\Commerce\Controller\TenantUsageController;
 use App\Commerce\Controller\UpdateOfferController;
+use App\Demo\Controller\PublicDemoController;
 use App\EInvoice\Controller\EInvoiceWebhookController;
 use App\EInvoice\Controller\ListTransmissionsController;
 use App\EInvoice\Controller\SubmitInvoiceController;
@@ -150,12 +151,14 @@ use App\Staff\Controller\RenameStaffOfferController;
 use App\Staff\Controller\ResetDemoWorldController;
 use App\Staff\Controller\RevokeStaffRoleController;
 use App\Staff\Controller\SetBillingIdentityController;
+use App\Staff\Controller\SetDemoPageController;
 use App\Staff\Controller\SetNavigationSetupController;
 use App\Staff\Controller\SetOfferAuthoringController;
 use App\Staff\Controller\SetPublicListingController;
 use App\Staff\Controller\SetTaxSettingsController;
 use App\Staff\Controller\ShowCatalogueController;
 use App\Staff\Controller\ShowConfigurationController;
+use App\Staff\Controller\ShowDemoPageController;
 use App\Staff\Controller\ShowNavigationSetupController;
 use App\Staff\Controller\ShowReadinessController;
 use App\Staff\Controller\ShowStaffNavigationController;
@@ -250,6 +253,8 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/public/products', PublicProductsController::class);
     // The organisation at a URL root (2026-09-17), before any session.
     $routes->addRoute('GET', '/api/v1/public/tenant', PublicTenantController::class);
+    // The demonstration page (2026-09-18): 404 until the console switches it on.
+    $routes->addRoute('GET', '/api/v1/public/demo', PublicDemoController::class);
 
     $routes->addRoute('GET', '/api/v1/me', MeController::class);
     $routes->addRoute('PATCH', '/api/v1/me', UpdateMeController::class);
@@ -569,6 +574,8 @@ return static function (RouteCollector $routes): void {
     // The demonstration world, rebuilt from the console. Behind a permission
     // of its own, and refused while a product that is not the demo's exists.
     $routes->addRoute('POST', '/api/v1/staff/demo/reset', ResetDemoWorldController::class);
+    $routes->addRoute('GET', '/api/v1/staff/demo/page', ShowDemoPageController::class);
+    $routes->addRoute('PUT', '/api/v1/staff/demo/page', SetDemoPageController::class);
 
     // The platform's own catalogue, authored by the platform. ADR-040 made
     // `catalog.manage` a delegation to a tenant, which left the platform able

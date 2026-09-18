@@ -49,7 +49,9 @@ use App\Commerce\Infrastructure\PostgresOfferAuthoringRepository;
 use App\Commerce\Infrastructure\PostgresStorefrontListing;
 use App\Commerce\Infrastructure\PostgresSubscriptionRepository;
 use App\Demo\Domain\DemoFixtures;
+use App\Demo\Domain\DemoPage;
 use App\Demo\Infrastructure\PostgresDemoFixtures;
+use App\Demo\Infrastructure\PostgresDemoPage;
 use App\EInvoice\Domain\TransmissionEffect;
 use App\EInvoice\Domain\TransmissionRepository;
 use App\EInvoice\Infrastructure\PostgresTransmissionRepository;
@@ -415,6 +417,7 @@ return static function (array $overrides = []): ContainerInterface {
         TenantRepository::class => autowire(PostgresTenantRepository::class),
         // Which organisation the bare host addresses (2026-09-17).
         DefaultTenant::class => autowire(PostgresDefaultTenant::class),
+        DemoPage::class => autowire(PostgresDemoPage::class),
         JoinRequests::class => autowire(PostgresJoinRequests::class),
         TenantMemberRepository::class => autowire(PostgresTenantMemberRepository::class),
         TenantMembershipRepository::class => autowire(PostgresTenantMembershipRepository::class),

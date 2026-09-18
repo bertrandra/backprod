@@ -47,17 +47,19 @@ function matchedRouteIds(pathname: string): string[] {
 }
 
 /**
- * The one route that is legitimately outside the shell.
+ * The routes that are legitimately outside the shell.
  *
  * Enumerated rather than exempted by a pattern, and listed here rather than
  * loosened inside the assertion: the check below is about a route accidentally
  * escaping its frame, and the way to keep it meaningful is for every deliberate
- * escape to be a line somebody had to write.
+ * escape to be a line somebody had to write. Signing in, and the public
+ * demonstration page (2026-09-18) — both read by somebody who may have no
+ * session, so a frame would be full of things that cannot be filled in.
  */
-const OUTSIDE_THE_SHELL = ['/sign-in'];
+const OUTSIDE_THE_SHELL = ['/sign-in', '/demo'];
 
 describe('the shell', () => {
-  it('is the only child of the root, apart from signing in', () => {
+  it('is the only child of the root, apart from signing in and the demonstration page', () => {
     const unaccounted = routeIds().filter(
       (id) => id !== '__root__' && id !== SHELL && !id.startsWith(`${SHELL}/`),
     );

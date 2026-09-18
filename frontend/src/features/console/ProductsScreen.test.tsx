@@ -301,3 +301,41 @@ describe('the demonstration world', () => {
     expect(screen.queryByTestId('demo-world-done')).toBeNull();
   });
 });
+
+describe('the demonstration page switch', () => {
+  const PUBLISHER = { staff: { user_id: 'u-sam', roles: ['PLATFORM_ADMIN'], permissions: ['staff.products.manage', 'staff.demo.publish'] } };
+  const SUPPORT = { staff: { user_id: 'u-hedy', roles: ['SUPPORT_ADMIN'], permissions: ['staff.tenants.read'] } };
+
+  it('is offered only to whoever may publish, and reads the switch', async () => {
+    renderAtRoute(
+      <ProductsScreen />,
+      clientFor({ 'GET /api/v1/staff/me': { data: SUPPORT }, 'GET /api/v1/staff/demo/page': { data: { published: true } } }),
+      { path: '/console/products' },
+    );
+
+    await waitFor(() => expect(screen.getByTestId('product-list')).toBeTruthy());
+    await waitFor(() => expect(screen.queryByTestId('demo-page')).toBeNull());
+  });
+
+  it('sends the switch as PUT and shows what the server wrote', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/me': { data: PUBLISHER },
+      'GET /api/v1/staff/products': { data: { products: [] } },
+      'GET /api/v1/staff/demo/page': { data: { published: false } },
+      'PUT /api/v1/staff/demo/page': { data: { published: true } },
+    });
+
+    renderAtRoute(<ProductsScreen />, client, { path: '/console/products' });
+
+    await waitFor(() => expect(screen.getByTestId<HTMLInputElement>('demo-page-switch')).toBeTruthy());
+    expect(screen.getByTestId<HTMLInputElement>('demo-page-switch').checked).toBe(false);
+    expect(screen.getByTestId('demo-page').textContent).toContain('404');
+
+    fireEvent.click(screen.getByTestId('demo-page-switch'));
+
+    await waitFor(() => expect(requests.some((r) => r.method === 'PUT' && r.path === '/api/v1/staff/demo/page')).toBe(true));
+    expect(requests.find((r) => r.method === 'PUT')?.body).toEqual({ published: true });
+    await waitFor(() => expect(screen.getByTestId<HTMLInputElement>('demo-page-switch').checked).toBe(true));
+    expect(screen.getByTestId('demo-page').textContent).toContain('anybody');
+  });
+});

@@ -28,6 +28,7 @@ export const RESERVED: ReadonlySet<string> = new Set([
   'catalogue',
   'checkout',
   'console',
+  'demo',
   'conversations',
   'credit-notes',
   'invoices',

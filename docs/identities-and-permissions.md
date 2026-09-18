@@ -14,7 +14,7 @@ décrit ce que le code applique. Les décisions sont dans les ADR et dans
 Il n'y a pas quatre types d'utilisateur sur cette plateforme. Il y a **deux
 identités** qui ne se croisent jamais, **six rôles** répartis entre elles, et un
 visiteur qui n'en a aucune. Les chiffres qui suivent sont lus dans le schéma :
-31 permissions de tenant, 16 permissions de plateforme, 2 rôles de tenant,
+31 permissions de tenant, 17 permissions de plateforme, 2 rôles de tenant,
 4 rôles de plateforme.
 
 ## La frontière
@@ -210,7 +210,7 @@ accordée au rôle puis retirée à la résolution.
 
 ## La matrice, côté plateforme
 
-Les 16 permissions de plateforme.
+Les 17 permissions de plateforme.
 
 | Permission | `PLATFORM` | `SUPPORT` | `FINANCE` | `SALES` |
 | --- | --- | --- | --- | --- |
@@ -228,6 +228,7 @@ Les 16 permissions de plateforme.
 | `staff.jobs.read` | oui | non | non | non |
 | `staff.jobs.manage` | oui | non | non | non |
 | `staff.demo.reset` (vider et réensemencer le monde de démonstration) | oui | non | non | non |
+| `staff.demo.publish` (afficher ou masquer la page publique `/demo`) | oui | non | non | non |
 | `admin.directory.read` | oui | non | non | non |
 | `admin.audit.read` | oui | non | non | non |
 | `admin.privacy.erase` | oui | non | non | non |

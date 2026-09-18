@@ -232,6 +232,9 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
     <li><strong>Staff reads leave a trail.</strong> As Hedy, open a tenant with a purpose and reference; as Sam, read the access log.</li>
   </ol>
 
+  <h2>The demonstration page</h2>
+  <p><code>/demo</code> shows all of the above to anybody, with no sign-in — every product with its offers on sale, every organisation with a link to its root, its products, subscriptions and people with their roles. It is <strong>off on every deployment</strong> until a platform administrator switches it on from Console → Products (behind <code>staff.demo.publish</code>), because everywhere else that is a member's answer; while it is off, <code>/demo</code> is a 404. Switch it on here, and hand a visitor the one link.</p>
+
   <h2>Where it is defined</h2>
   <dl>
     <dt><code>src/Demo/Domain/DemoWorld.php</code></dt><dd>The one definition of the world — products, organisations, people, subscriptions. This page describes it; when one changes, so does the other.</dd>
