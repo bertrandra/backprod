@@ -609,7 +609,7 @@ final class StorefrontTest extends DatabaseApiTestCase
         self::assertSame(1, $this->connection->fetchOne('SELECT count(*) FROM users'));
     }
 
-    public function testTheSessionItIssuesSeesTheWindowAndCannotBuyFromIt(): void
+    public function testTheSessionItIssuesCanImmediatelyBuyTheOfferTheyChose(): void
     {
         $token = $this->decode($this->signUp([
             'email' => 'ada@acme.test',
@@ -622,34 +622,19 @@ final class StorefrontTest extends DatabaseApiTestCase
 
         $scoped = ['Authorization' => 'Bearer ' . $token, 'X-Product' => 'atlas'];
 
-        // The organisation is the customer and buying is its administrator's
-        // (docs/tenant-roots.md §2.4): somebody who arrived by themselves is
-        // a USER, sees the prices, and is refused the checkout by the
-        // ordinary permission gate — no rule of the storefront's own.
-        self::assertSame(200, $this->request('GET', '/api/v1/public/offers?product=atlas&tenant=acme')->getStatusCode());
-
+        // The whole point (2026-09-18): the purchase that follows is an
+        // ordinary authenticated checkout on the membership the sign-up
+        // created — a USER's, with `billing.pay` — and the organisation at
+        // the root is the customer the invoice goes to. No second anonymous
+        // flow and no rules of its own.
         $checkout = $this->request('POST', '/api/v1/checkout/sessions', $scoped, $this->json(['offer_id' => $this->advertised]));
 
-        self::assertSame(403, $checkout->getStatusCode());
-        self::assertSame(0, $this->connection->fetchOne('SELECT count(*) FROM orders'));
-
-        // Made an administrator by one who is, the same session buys: the
-        // road is the ordinary authenticated checkout, not a second flow.
-        $this->connection->executeStatement(
-            <<<'SQL'
-                INSERT INTO tenant_member_roles (tenant_id, product_id, user_id, role_id)
-                SELECT tm.tenant_id, tm.product_id, tm.user_id, r.id
-                  FROM tenant_members tm CROSS JOIN roles r
-                  JOIN users u ON u.id = tm.user_id
-                 WHERE tm.tenant_id = :tenant AND u.email = 'ada@acme.test' AND r.code = 'TENANT_ADMIN'
-                SQL,
-            ['tenant' => $this->acme],
-        );
-
-        $bought = $this->request('POST', '/api/v1/checkout/sessions', $scoped, $this->json(['offer_id' => $this->advertised]));
-
-        self::assertSame(201, $bought->getStatusCode());
+        self::assertSame(201, $checkout->getStatusCode());
         self::assertSame(1, $this->connection->fetchOne('SELECT count(*) FROM orders'));
+
+        // What stays the administrator's: issuing, crediting, refunding.
+        $issued = $this->request('POST', '/api/v1/billing/invoices', $scoped);
+        self::assertSame(403, $issued->getStatusCode());
     }
 
     public function testSigningInWithTheNewCredentialWorks(): void

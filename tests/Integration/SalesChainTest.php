@@ -78,7 +78,7 @@ final class SalesChainTest extends DatabaseApiTestCase
                     ['TENANT_ADMIN'],
                     [
                         'sales.read', 'sales.manage',
-                        'billing.read', 'billing.manage',
+                        'billing.read', 'billing.manage', 'billing.pay',
                         'payments.read', 'payments.manage',
                         'subscription.read', 'entitlements.read',
                         'tax.read', 'tax.manage',

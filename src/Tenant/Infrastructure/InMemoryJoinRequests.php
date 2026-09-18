@@ -42,7 +42,7 @@ final class InMemoryJoinRequests implements JoinRequests
 
     public function policyOf(string $tenantId): array
     {
-        return ['policy' => JoinDecision::APPROVAL, 'domains' => []];
+        return ['policy' => JoinDecision::OPEN, 'domains' => []];
     }
 
     public function setPolicy(string $tenantId, string $policy, array $domains): void

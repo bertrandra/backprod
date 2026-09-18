@@ -369,7 +369,7 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
                     $this->buyer,
                     $this->product,
                     ['TENANT_ADMIN'],
-                    ['billing.read', 'billing.manage', 'sales.read', 'sales.manage', 'subscription.read'],
+                    ['billing.read', 'billing.manage', 'billing.pay', 'sales.read', 'sales.manage', 'subscription.read'],
                 ),
             ]),
         ]);

@@ -91,7 +91,7 @@ final class PaymentWebhookTest extends DatabaseApiTestCase
                     $this->user,
                     $this->product,
                     ['TENANT_ADMIN'],
-                    ['billing.read', 'billing.manage', 'payments.read', 'payments.manage'],
+                    ['billing.read', 'billing.manage', 'billing.pay', 'payments.read', 'payments.manage'],
                 ),
             ]),
         ]);

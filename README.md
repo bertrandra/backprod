@@ -7,7 +7,7 @@ products; `product_id` is a first-class request context alongside `tenant_id`.
 See [`CLAUDE.md`](CLAUDE.md) for the rules that govern changes here, and
 [`docs/architecture-v2.md`](docs/architecture-v2.md) for the architecture
 decisions behind them. For who may do what —
-the two identities, the six roles and the 46 permissions between them —
+the two identities, the six roles and the 47 permissions between them —
 see [`docs/identities-and-permissions.md`](docs/identities-and-permissions.md).
 Stripe is the payment provider, built from
 [`docs/stripe-payments.md`](docs/stripe-payments.md) and recorded in
@@ -175,7 +175,7 @@ Quote → Order → Subscription → Invoice → Payment → e-invoice
 | `GET /api/v1/billing/credit-notes` | `billing.read` |
 | `GET /api/v1/billing/payments` | `payments.read` |
 | `GET /api/v1/billing/payments/{id}` | `payments.read` |
-| `POST /api/v1/billing/invoices/{id}/payments` | `payments.manage` |
+| `POST /api/v1/billing/invoices/{id}/payments` | `billing.pay` |
 | `POST /api/v1/billing/payments/{id}/refund` | `payments.manage` |
 | `GET /api/v1/sales/quotes` | `sales.read` |
 | `POST /api/v1/sales/quotes` | `sales.manage` |

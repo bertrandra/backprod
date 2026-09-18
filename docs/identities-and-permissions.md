@@ -14,7 +14,7 @@ décrit ce que le code applique. Les décisions sont dans les ADR et dans
 Il n'y a pas quatre types d'utilisateur sur cette plateforme. Il y a **deux
 identités** qui ne se croisent jamais, **six rôles** répartis entre elles, et un
 visiteur qui n'en a aucune. Les chiffres qui suivent sont lus dans le schéma :
-30 permissions de tenant, 16 permissions de plateforme, 2 rôles de tenant,
+31 permissions de tenant, 16 permissions de plateforme, 2 rôles de tenant,
 4 rôles de plateforme.
 
 ## La frontière
@@ -86,7 +86,7 @@ interposée.
 
 ### Administrateur de tenant — `TENANT_ADMIN`
 
-Coquille : application. 30 permissions sur 30 — **29 effectives**, voir
+Coquille : application. 31 permissions sur 31 — **30 effectives**, voir
 `catalog.manage` ci-dessous.
 
 **Objets** : son tenant, ses membres, son habillage ; son abonnement
@@ -105,20 +105,23 @@ par défaut ; changer l'habillage sans la capacité `white_label`.
 
 ### Membre d'un tenant — `USER`
 
-Coquille : application. 20 permissions sur 30.
+Coquille : application. 23 permissions sur 31.
 
 Il travaille : projets en **lecture et écriture** (créer, modifier, dupliquer,
 versionner, exporter, supprimer), assets en lecture et écriture, conversations
-en lecture et écriture, ses notifications et son propre compte. Tout le reste —
-abonnement, factures, paiements, devis, TVA, catalogue, membres, tenant, jobs —
-en **lecture seule**.
+en lecture et écriture, ses notifications et son propre compte. **Il achète**
+(depuis le 18 septembre 2026) : ouvrir un checkout, payer une facture, relancer
+un paiement (`billing.pay`) ; souscrire, changer d'offre, résilier
+(`subscription.manage`). Tout le reste — factures, avoirs, paiements, devis,
+TVA, catalogue, membres, tenant, jobs — en **lecture seule**.
 
-Ce qui lui manque est exactement les dix `.manage`, et `UserRoleMatrixTest`
-le tient : un `USER` ne peut ni ouvrir un paiement, ni rembourser, ni émettre
-une facture ou un avoir, ni ajouter un membre, ni clore une période. La
-conséquence la plus visible à l'usage : **il voit les prix et ne peut pas
-acheter**, parce que l'ouverture d'une session de paiement est derrière
-`billing.manage`.
+Ce qui lui manque est exactement les neuf `.manage` administratifs, et
+`UserRoleMatrixTest` le tient : un `USER` ne peut ni rembourser, ni émettre
+une facture ou un avoir, ni marquer une facture payée à la main, ni ajouter un
+membre, ni clore une période. La conséquence à l'usage : **quelqu'un qui
+s'inscrit à la racine d'une organisation paie dans la foulée** — la vitrine
+enchaîne l'inscription et le checkout — et laisse l'administration de l'argent
+à l'administrateur.
 
 ### Celui qui arrive par lui-même — un `USER` (ADR-049)
 
@@ -132,7 +135,8 @@ l'inscription écrit un utilisateur, son mot de passe et une appartenance
 `USER` sur chaque produit qu'Acme détient — et rien d'autre. La **politique
 d'adhésion** d'Acme (`tenants.join_policy`) décide si l'appartenance est active :
 
-- `APPROVAL` (défaut) : en attente ; les administrateurs sont notifiés et
+- `OPEN` (défaut depuis le 18 septembre 2026) : membre immédiatement ;
+- `APPROVAL` : en attente ; les administrateurs sont notifiés et
   acceptent ou déclinent depuis l'écran Membres ;
 - `DOMAIN` : une adresse sur un domaine listé est admise immédiatement, toute
   autre est refusée ;
@@ -142,8 +146,9 @@ Une appartenance en attente **n'est pas une appartenance** : aucun contexte ne
 se résout, `/me` répond 403, et la coquille dit « en attente d'Acme ».
 
 Il n'existe toujours aucun type « B2C ». Un particulier est un `USER` du tenant
-à la racine duquel il s'est inscrit ; l'organisation achète (`billing.manage`
-est à l'administrateur), et **il voit les prix sans pouvoir acheter**. Ce que
+à la racine duquel il s'est inscrit, et **il paie dans la foulée** : la
+politique d'adhésion par défaut est `OPEN` (membre immédiat) et `billing.pay`
+est à tout membre. Ce que
 la plateforme peut aussi faire : **donner** à un tenant son droit d'usage d'un
 produit sans vente (`entitlements.source = GRANT`), pour un pilote, un
 partenaire ou son propre tenant par défaut.
@@ -189,9 +194,10 @@ accordée au rôle puis retirée à la résolution.
 | `catalog.read` | oui | oui | plans, features, offres |
 | `catalog.manage` | **prêté** | non | écrire et publier des offres |
 | `subscription.read` | oui | oui | abonnement, échéancier |
-| `subscription.manage` | oui | non | souscrire, changer, résilier |
+| `subscription.manage` | oui | oui | souscrire, changer, résilier |
 | `billing.read` | oui | oui | factures, avoirs, profil |
-| `billing.manage` | oui | non | émettre, payer, créditer — **et le checkout** |
+| `billing.pay` | oui | oui | **le checkout**, payer une facture, relancer un paiement |
+| `billing.manage` | oui | non | émettre, annuler, créditer, marquer payée à la main, profil de facturation |
 | `payments.read` | oui | oui | paiements |
 | `payments.manage` | oui | non | encaisser, rembourser |
 | `sales.read` | oui | oui | devis, commandes |
@@ -228,10 +234,13 @@ Les 16 permissions de plateforme.
 
 ## Les arêtes vives
 
-**Un membre voit les prix et ne peut pas acheter.** Le checkout est derrière
-`billing.manage`, que le rôle `USER` n'a pas. C'est délibéré — engager la
-dépense d'une organisation n'est pas la même chose que travailler dedans — mais
-c'est la surprise la plus fréquente à l'usage.
+**Un membre achète, mais n'administre pas l'argent.** Le checkout, le paiement
+d'une facture et la relance sont derrière `billing.pay`, que les deux rôles
+portent ; émettre, annuler, créditer, rembourser restent derrière
+`billing.manage` et `payments.manage`, que seul `TENANT_ADMIN` a. Jusqu'au
+17 septembre 2026 c'était l'inverse — le checkout vivait sous `billing.manage`
+et un membre voyait les prix sans pouvoir acheter ; l'opérateur a tranché :
+quelqu'un qui s'inscrit à la racine d'une organisation paie dans la foulée.
 
 **`catalog.manage` est accordé, puis retiré.** Le rôle `TENANT_ADMIN` porte
 cette permission dans `role_permissions`, et la requête qui résout une
@@ -264,9 +273,9 @@ manquants (ADR-044).
 
 ## Deux nuances que les matrices ne montrent pas
 
-- La **session de paiement** et la **relance d'un paiement** passent par la même
-  garde `billing.manage` que la facturation, bien qu'elles vivent sous
-  `/checkout` et `/payments`.
+- La **session de paiement**, le **paiement d'une facture** et la **relance d'un
+  paiement** passent par `billing.pay`, bien qu'ils vivent sous `/checkout`,
+  `/billing` et `/payments` ; le remboursement reste sous `payments.manage`.
 - L'**habillage** se lit avec une simple appartenance et ne s'écrit qu'avec
   `skin.manage` *et* la capacité.
 

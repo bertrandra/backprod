@@ -31,7 +31,9 @@ import { SkeletonRows } from '@/ui/Skeleton';
  * says so instead of rendering a price it does not have.
  *
  * Two ways out of this screen, both gated on the permission that actually
- * governs them: a quote (`sales.manage`) and a checkout (`billing.manage`).
+ * governs them: a quote (`sales.manage`) and a checkout (`billing.pay`, which
+ * both tenant roles hold since 2026-09-18 — a USER buys; issuing, crediting
+ * and refunding stay `billing.manage` / `payments.manage`).
  * Someone who may only read the catalogue sees prices and no buttons.
  *
  * **A quote is offered to a business.** The server refuses one for a tenant
@@ -78,7 +80,7 @@ export function CatalogueScreen() {
   // Both halves, and only both: the permission says who may raise one, the
   // profile says whether this customer is one that gets one.
   const maySell = settled && !subscribed && can(session, 'sales.manage') && taxProfile.data?.customer_kind === 'B2B';
-  const mayBuy = settled && !subscribed && can(session, 'billing.manage');
+  const mayBuy = settled && !subscribed && can(session, 'billing.pay');
 
   // The checkout just opened, held for exactly as long as the render that
   // offers the form (ADR-034): never in a store, never across a navigation.

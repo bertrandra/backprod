@@ -12,11 +12,34 @@ import { expect, test, type Page } from '@playwright/test';
  * choosing an offer leading to an account rather than to a login form.
  *
  * Since 2026-09-17 the door is a request to join the organisation at this
- * root, not a purchase: a sign-up makes a USER membership, live or waiting,
- * and a USER cannot check out (docs/tenant-roots.md §2.4). So the form ends
- * at the root, where the shell says "in" or "waiting"; buying is the
- * administrator's, on the catalogue, and `commerce.spec.ts` drives it.
+ * root: a sign-up makes a USER membership, live or waiting by the join
+ * policy. Since 2026-09-18 a USER may buy, so under the default (OPEN) the
+ * purchase follows the sign-up on this very page — the ordinary
+ * authenticated checkout, with the card form where the secret was born
+ * (ADR-048). Under APPROVAL the form ends at the root, where the shell says
+ * "waiting".
  */
+const CREATED = {
+  access_token: 'access-token',
+  token_type: 'Bearer',
+  expires_in: 3600,
+  tenant_id: '77777777-7777-4777-8777-777777777777',
+  tenant: 'acme',
+  membership: 'ACTIVE',
+};
+
+const SESSION = {
+  id: '88888888-8888-4888-8888-888888888888',
+  order_id: '88888888-8888-4888-8888-888888888888',
+  status: 'AWAITING_PAYMENT',
+  invoice_id: 'inv-1',
+  subscription_id: null,
+  payment_id: 'pay-1',
+  payment_status: 'PENDING',
+  net: { minor_units: 2900, currency: 'EUR' },
+  vat: { minor_units: 0, currency: 'EUR' },
+  gross: { minor_units: 2900, currency: 'EUR' },
+};
 const OFFER = {
   id: '44444444-4444-4444-8444-444444444444',
   code: 'pro-monthly',
@@ -48,7 +71,11 @@ const NO_SESSION = {
  * trap `accessibility.spec.ts` recorded in U9, where a catch-all added last
  * silently answered everything.
  */
-async function stubStorefront(page: Page, window: object = { product: { code: 'atlas', name: 'Atlas' }, offers: [OFFER] }): Promise<string[]> {
+async function stubStorefront(
+  page: Page,
+  window: object = { product: { code: 'atlas', name: 'Atlas' }, offers: [OFFER] },
+  joinPolicy = 'OPEN',
+): Promise<string[]> {
   const asked: string[] = [];
 
   await page.route(/\/api\/v1\//, (route) => {
@@ -77,7 +104,7 @@ async function stubStorefront(page: Page, window: object = { product: { code: 'a
   await page.route(/\/api\/v1\/public\/tenant(\?|$)/, (route) => {
     asked.push('/api/v1/public/tenant');
 
-    return route.fulfill({ json: { tenant: { slug: 'acme', name: 'Acme Ltd', is_default: true } } });
+    return route.fulfill({ json: { tenant: { slug: 'acme', name: 'Acme Ltd', is_default: true, join_policy: joinPolicy } } });
   });
 
   return asked;
@@ -137,9 +164,9 @@ test.describe('choosing an offer', () => {
     await page.getByRole('button', { name: 'Choose' }).click();
 
     await expect(page.getByRole('heading', { name: 'Join Acme Ltd' })).toBeVisible();
-    // The price they chose stays in front of them — and who buys is said.
+    // The price they chose stays in front of them — and what follows is said.
     await expect(page.getByTestId('chosen-offer')).toContainText('€29.00');
-    await expect(page.getByText(/an administrator buys/i)).toBeVisible();
+    await expect(page.getByText(/pay straight after/i)).toBeVisible();
   });
 
   test('asks for nothing an organisation would be made of', async ({ page }) => {
@@ -174,8 +201,55 @@ test.describe('choosing an offer', () => {
     await expect(page.getByTestId('chosen-offer')).toHaveCount(0);
   });
 
-  test('creates the account, names the organisation, and goes to the root', async ({ page }) => {
+  test('creates the account and opens the checkout for what was chosen', async ({ page }) => {
     await stubStorefront(page);
+
+    let sent: unknown = null;
+    let boughtOfferId: unknown = null;
+
+    await page.route('**/api/v1/auth/sign-up', (route) => {
+      sent = route.request().postDataJSON();
+
+      return route.fulfill({ status: 201, json: CREATED });
+    });
+    await page.route('**/api/v1/checkout/sessions', (route) => {
+      boughtOfferId = (route.request().postDataJSON() as { offer_id?: unknown }).offer_id;
+
+      return route.fulfill({
+        status: 201,
+        json: {
+          session: {
+            ...SESSION,
+            client_secret: 'stub_secret_1',
+            payment_provider: { name: 'stub', publishable_key: null, sandbox: true },
+          },
+        },
+      });
+    });
+
+    await page.goto('/?product=atlas');
+    await page.getByRole('button', { name: 'Choose' }).click();
+
+    await page.getByLabel('Email').fill('ada@acme.test');
+    await page.getByLabel('Password').fill('a-long-enough-password');
+    await page.getByRole('button', { name: 'Create account and continue' }).click();
+
+    // The pay step, where the secret was born (ADR-048). The stub has no card
+    // form, so it says so and the order is the way on.
+    await expect(page.getByTestId('payment-panel')).toBeVisible();
+    // The organisation from the root, never typed; the product for the
+    // default; and the offer they chose, bought on the session the sign-up
+    // issued — as a USER, not a second anonymous flow.
+    expect(sent).toMatchObject({ email: 'ada@acme.test', tenant: 'acme', product: 'atlas' });
+    expect(boughtOfferId).toBe(OFFER.id);
+    await expect(page.getByTestId('payment-no-panel')).toBeVisible();
+    await expect(page.getByTestId('sandbox-band')).toBeVisible();
+    await page.getByTestId('continue-to-order').click();
+    await expect(page).toHaveURL(/\/checkout\/88888888-8888-4888-8888-888888888888/);
+  });
+
+  test('goes to the root to wait where an administrator accepts first', async ({ page }) => {
+    await stubStorefront(page, undefined, 'APPROVAL');
 
     let sent: unknown = null;
     let created = false;
@@ -212,6 +286,7 @@ test.describe('choosing an offer', () => {
     await page.goto('/?product=atlas');
     await page.getByRole('button', { name: 'Choose' }).click();
 
+    await expect(page.getByText(/accepts new members/i)).toBeVisible();
     await page.getByLabel('Email').fill('ada@acme.test');
     await page.getByLabel('Password').fill('a-long-enough-password');
     await page.getByRole('button', { name: 'Create account and join' }).click();
@@ -239,7 +314,7 @@ test.describe('choosing an offer', () => {
 
     await page.getByLabel('Email').fill('ada@acme.test');
     await page.getByLabel('Password').fill('a-long-enough-password');
-    await page.getByRole('button', { name: 'Create account and join' }).click();
+    await page.getByRole('button', { name: 'Create account and continue' }).click();
 
     // The one place this platform tells anybody an account exists. Somebody who
     // cannot be told cannot finish what they came for.

@@ -13,8 +13,10 @@ use PHPUnit\Framework\Attributes\CoversNothing;
  * Since 2026-09-17 everybody who arrives by themselves is a USER of the
  * organisation at the root, so this is the matrix a stranger ends up with.
  * A USER sees — the catalogue, the invoices, the payments, the orders — and
- * cannot bind the organisation: no checkout, no refund, no credit note, no
- * invoice issued, no member added, no period closed. The reads are in the
+ * buys: checkout, paying an invoice, the subscription (2026-09-18). What
+ * they cannot do is administer the money and the organisation: no refund,
+ * no credit note, no invoice issued or marked paid by hand, no member
+ * added, no period closed. The reads are in the
  * migrations and so are the refusals; this holds both to the words in the
  * documentation, so a migration that quietly lent `billing.manage` to USER
  * fails here rather than at a customer's bank.
@@ -22,12 +24,11 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 #[CoversNothing]
 final class UserRoleMatrixTest extends DatabaseTestCase
 {
-    /** The acts that bind the organisation, and which a USER never gets. */
+    /** The administrative acts a USER never gets. */
     private const NEVER = [
         'billing.manage',
         'payments.manage',
         'sales.manage',
-        'subscription.manage',
         'tenant.manage',
         'members.manage',
         'catalog.manage',
@@ -38,6 +39,11 @@ final class UserRoleMatrixTest extends DatabaseTestCase
 
     /** What a USER sees, which is the point of letting them in. */
     private const ALWAYS = [
+        // Buying (2026-09-18): checkout, paying an invoice, and the
+        // subscription itself. Issuing, crediting and refunding are not
+        // buying and stay above.
+        'billing.pay',
+        'subscription.manage',
         'catalog.read',
         'billing.read',
         'payments.read',

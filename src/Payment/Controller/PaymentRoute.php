@@ -26,6 +26,16 @@ final class PaymentRoute
         return self::contextFor($request, 'payments.manage');
     }
 
+    /**
+     * Paying, as distinct from managing payments (2026-09-18): a USER may
+     * start a payment on the organisation's invoice; refunding stays with
+     * `payments.manage`, which is the administrator's.
+     */
+    public static function payable(ServerRequestInterface $request): RequestContext
+    {
+        return self::contextFor($request, 'billing.pay');
+    }
+
     public static function id(ServerRequestInterface $request, string $attribute): string
     {
         $value = $request->getAttribute($attribute);

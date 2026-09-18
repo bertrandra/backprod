@@ -18,7 +18,7 @@ const SESSION = {
   product_id: '22222222-2222-4222-8222-222222222222',
   tenant_id: '33333333-3333-4333-8333-333333333333',
   roles: ['TENANT_ADMIN'],
-  permissions: ['catalog.read', 'catalog.manage', 'billing.manage', 'sales.read', 'sales.manage'],
+  permissions: ['catalog.read', 'catalog.manage', 'billing.manage', 'billing.pay', 'sales.read', 'sales.manage'],
   capabilities: [],
 };
 
@@ -220,7 +220,10 @@ test.describe('a checkout whose connection drops', () => {
  * browser's word, which the page must not read as a status.
  */
 async function stubStripeJs(page: Page): Promise<void> {
-  await page.route(/^https:\/\/js\.stripe\.com\/v3\/?(\?.*)?$/, (route) =>
+  // Whichever URL the SDK asks for: `/v3` or `/<release-train>/stripe.js`.
+  // Matching only `/v3` let the real Stripe.js load under some runs — an
+  // iframe with a fake secret, and a Pay button that never came back.
+  await page.route(/^https:\/\/js\.stripe\.com\/(v3\/?|[a-z]+\/stripe\.js)(\?.*)?$/, (route) =>
     route.fulfill({
       contentType: 'application/javascript',
       body: `

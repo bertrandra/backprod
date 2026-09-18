@@ -68,7 +68,7 @@ final class FiscalChainTest extends DatabaseApiTestCase
                     ['TENANT_ADMIN'],
                     [
                         'tax.read', 'tax.manage',
-                        'billing.read', 'billing.manage',
+                        'billing.read', 'billing.manage', 'billing.pay',
                         'subscription.read', 'subscription.manage',
                         // The order path is exercised by the terms-changed
                         // test, which needs to place and fulfil one.

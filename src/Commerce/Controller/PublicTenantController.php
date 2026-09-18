@@ -7,6 +7,7 @@ namespace App\Commerce\Controller;
 use App\Commerce\Service\Storefront;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Http\RouteHandler;
+use App\Tenant\Domain\JoinRequests;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -27,8 +28,10 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 final class PublicTenantController implements RouteHandler
 {
-    public function __construct(private readonly Storefront $storefront)
-    {
+    public function __construct(
+        private readonly Storefront $storefront,
+        private readonly JoinRequests $joining,
+    ) {
     }
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
@@ -46,7 +49,15 @@ final class PublicTenantController implements RouteHandler
         }
 
         return new JsonResponse([
-            'tenant' => ['slug' => $tenant->slug, 'name' => $tenant->name, 'is_default' => $root['isDefault']],
+            'tenant' => [
+                'slug' => $tenant->slug,
+                'name' => $tenant->name,
+                'is_default' => $root['isDefault'],
+                // How a sign-up here ends (2026-09-18): the form says "you can
+                // pay straight after" or "an administrator accepts you first"
+                // before the person types, not after.
+                'join_policy' => $this->joining->policyOf($tenant->id)['policy'],
+            ],
         ], 200);
     }
 }

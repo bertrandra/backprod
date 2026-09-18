@@ -1,6 +1,21 @@
 # ADR-049 — A tenant lives at its own root, and its people arrive by themselves
 
-**Status:** accepted
+**Status:** accepted; amended 2026-09-18 — **a USER can buy.** The operator
+read self-service as "sign up at the root and pay there and then", which two
+things below contradicted: the default join policy `APPROVAL` (the newcomer
+waited) and the checkout behind `billing.manage` (which also issues invoices
+and credit notes). So: `OPEN` is a fourth join policy and the default —
+organisations that never chose one moved to it; paying is its own permission,
+`billing.pay` (checkout, pay an invoice, retry a payment), held by both
+tenant roles; `subscription.manage` is held by USER too; issuing, cancelling,
+crediting, marking paid by hand and refunding stay `billing.manage` /
+`payments.manage`, the administrator's. The storefront opens the checkout on
+the session the sign-up issued when the membership is live and an offer was
+chosen, and goes to the root to wait otherwise. `PublicTenant.join_policy`
+lets the form say which before the person types. Migration
+`Version20260918090000`. The paragraphs "A USER sees and cannot bind" and
+"the door is a request to join, not a purchase" below read as they were
+decided on 2026-09-17; this note is what stands.
 **Implements:** [docs/tenant-roots.md](../tenant-roots.md), with the
 departures recorded in §"What the spec had wrong"
 **Amends:** [ADR-041](ADR-041-the-storefront-sells-to-strangers.md) (the

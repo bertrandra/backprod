@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 
 import { useProductContext } from '@/app/frame/useProductContext';
 import { withRoot } from '@/app/root';
+import { PaymentElementPanel } from '@/features/commerce/payment/PaymentElementPanel';
+import { useOpenCheckoutSession, type OpenedCheckoutSession } from '@/queries/checkout';
 import { usePublicProducts, usePublicTenant, type PublicOffer } from '@/queries/storefront';
 import { useSessionStore } from '@/state/session';
 
@@ -15,12 +17,14 @@ import { StorefrontScreen } from './StorefrontScreen';
  * organisation (2026-09-17). The offers are what that organisation's
  * products advertise; a stranger sees prices and nothing else.
  *
- * **The door is a request to join, not a purchase.** Sign-up makes a USER
- * membership of the organisation — live or waiting, by its join policy —
- * and a USER cannot check out (docs/tenant-roots.md §2.4). So there is no
- * pay step here any more: once the account exists the page goes to the
- * root, where the shell opens the member's catalogue or says "waiting". The
- * offer they chose is carried onto the form so they know what to ask for.
+ * **The door is a request to join, and the purchase follows it.** Sign-up
+ * makes a USER membership of the organisation — live or waiting, by its
+ * join policy — and since 2026-09-18 a USER may buy (`billing.pay`). So when
+ * the membership is live and an offer was chosen, the checkout opens right
+ * here on the session the sign-up issued and the card form lives on this
+ * page (ADR-048); when the person is waiting, or came in with nothing in
+ * hand, the page goes to the root, where the shell opens the catalogue or
+ * says "waiting".
  *
  * **Holding the token without declaring the person signed in.** `SignInGate`
  * renders the application the instant the status flips; the page navigates
@@ -48,6 +52,12 @@ export function Storefront({ onSignIn }: { onSignIn: () => void }) {
   // The door: open with the offer they came from, open from the footer with
   // none, or shut.
   const [door, setDoor] = useState<{ offer: PublicOffer | null } | null>(null);
+  // The session just opened, held for exactly as long as the render that
+  // received its `client_secret` — the card form lives here, and the hop to
+  // /checkout/{id} afterwards is a full navigation that restores the session
+  // and, by design, cannot carry the secret (ADR-034, ADR-048).
+  const [opened, setOpened] = useState<OpenedCheckoutSession | null>(null);
+  const checkout = useOpenCheckoutSession();
 
   // The windows a stranger may choose between (ADR-047). With exactly one,
   // it is chosen for them — a dropdown with one option is a question with one
@@ -81,18 +91,72 @@ export function Storefront({ onSignIn }: { onSignIn: () => void }) {
     );
   }
 
+  if (opened !== null && door.offer !== null) {
+    const statusPage = withRoot(root, `/checkout/${opened.id}`);
+
+    return (
+      <main className="mx-auto max-w-lg space-y-6 p-4 py-10">
+        <header className="space-y-1">
+          <h1 className="text-2xl font-semibold">Pay</h1>
+          <p className="text-sm text-muted">
+            {door.offer.name} — your account is ready; the subscription starts when the payment
+            is confirmed.
+          </p>
+        </header>
+
+        <PaymentElementPanel
+          provider={opened.payment_provider}
+          clientSecret={opened.client_secret}
+          amount={opened.gross}
+          returnUrl={new URL(statusPage, window.location.origin).toString()}
+          // Whatever the form said, the status page says what the server knows.
+          onSettled={() => window.location.assign(statusPage)}
+        />
+
+        {/* Always there: a free offer has nothing to pay, a provider with no
+            card form confirms on its own, and somebody who changes their mind
+            still has an order to come back to (ADR-034). */}
+        <p className="text-sm text-muted">
+          <a href={statusPage} data-testid="continue-to-order" className="underline underline-offset-2">
+            Continue to your order
+          </a>
+          {opened.client_secret !== null && opened.client_secret !== undefined && ' — it can be paid from there later.'}
+        </p>
+      </main>
+    );
+  }
+
+  const offer = door.offer;
+
   return (
     <SignUpForm
       tenant={known}
-      offer={door.offer}
+      offer={offer}
       productCode={productCode}
       onBack={() => setDoor(null)}
       onSignIn={onSignIn}
-      onCreated={() => {
-        // In, or waiting: the root says which. A full navigation, so the
-        // session is restored from the cookie and the shell boots as it
-        // would on any reload.
-        window.location.assign(withRoot(root, '/'));
+      onCreated={(created) => {
+        if (offer === null || created.membership !== 'ACTIVE') {
+          // Nothing in hand, or waiting on an administrator: the root says
+          // which. A full navigation, so the session is restored from the
+          // cookie and the shell boots as it would on any reload.
+          window.location.assign(withRoot(root, '/'));
+
+          return;
+        }
+
+        void checkout
+          .mutateAsync(offer.id)
+          .then((session) => setOpened(session))
+          .catch(() => {
+            // The account exists and the person is holding a token, so the
+            // worst outcome available is landing them at the root — the
+            // catalogue, where the same purchase is one click away and the
+            // failure is that screen's to explain. Telling them their
+            // sign-up failed would send them to create a second account,
+            // which the first would then refuse.
+            window.location.assign(withRoot(root, '/'));
+          });
       }}
     />
   );
