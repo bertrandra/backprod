@@ -185,8 +185,8 @@ and USER. Placing it in the console would have been the intuitive mistake.
 
 | area | for |
 |---|---|
-| `tenant.organisation` | the company: its details and its usage against quota |
-| `tenant.members` | who is in it, and with which role |
+| `tenant.organisation` | the company: its details, its join policy and its usage against quota. On the menu for `tenant.manage` only (2026-09-18): a USER may read it through the API and by address, but administering the organisation is the administrator's, and an entry to a screen one can only look at is noise |
+| `tenant.members` | who is in it, and with which role, and who is waiting to join. On the menu for `members.manage` only (2026-09-18), for the same reason as the organisation |
 | `tenant.branding` | white label — colours and logo, gated by `skin.manage` **and** the `white_label` entitlement |
 | `account.profile` | the person, not the company — the display name, and the **default product**: where their screens open when a link does not say which, set at sign-up to the product signed up for and chosen here among the products they hold (2026-09-17) |
 | `account.notifications` | the inbox: unread count, reading, per-notification delivery detail |
