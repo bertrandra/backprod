@@ -7,7 +7,7 @@ products; `product_id` is a first-class request context alongside `tenant_id`.
 See [`CLAUDE.md`](CLAUDE.md) for the rules that govern changes here, and
 [`docs/architecture-v2.md`](docs/architecture-v2.md) for the architecture
 decisions behind them. For who may do what —
-the two identities, the six roles and the 47 permissions between them —
+the two identities, the six roles and the 48 permissions between them —
 see [`docs/identities-and-permissions.md`](docs/identities-and-permissions.md).
 Stripe is the payment provider, built from
 [`docs/stripe-payments.md`](docs/stripe-payments.md) and recorded in

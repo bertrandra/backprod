@@ -66,6 +66,14 @@ final class StaffPermission
     public const DEMO_RESET = 'staff.demo.reset';
 
     /**
+     * Showing the public demonstration page (2026-09-18) — what the
+     * platform hosts, who is in it and as what, to anybody. PLATFORM_ADMIN
+     * alone, and apart from DEMO_RESET: wiping the world and publishing it
+     * are different trusts.
+     */
+    public const DEMO_PUBLISH = 'staff.demo.publish';
+
+    /**
      * Choosing which menu entries the shell shows each kind of person, and
      * whether an entry with nothing behind it is shown at all. Platform-wide
      * and PLATFORM_ADMIN alone: what every customer's administrator can find

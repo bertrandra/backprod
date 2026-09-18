@@ -221,7 +221,9 @@
         "listPlatformProducts",
         "createProduct",
         "updateProduct",
-        "resetDemoWorld"
+        "resetDemoWorld",
+        "setDemoPage",
+        "showDemoPage"
       ]
     },
     "console.admin.queue": {
@@ -365,6 +367,16 @@
         "showConversation",
         "startConversation"
       ]
+    },
+    "public.demo": {
+      "authority": "public",
+      "routes": [
+        "/demo"
+      ],
+      "operations": [
+        "showPublicDemo"
+      ],
+      "$comment": "The demonstration page (2026-09-18): what the platform hosts, who is in it and as what, to anybody — off until a platform administrator switches it on from the Products screen (setDemoPage), and a 404 while it is off. Outside both shells and the sign-in gate, like the storefront; a link to each organisation's root is what it offers next."
     },
     "public.storefront": {
       "authority": "public",

@@ -4220,6 +4220,171 @@
             "format": "date-time"
           }
         }
+      },
+      "DemoPage": {
+        "type": "object",
+        "description": "What the demonstration page shows: every active product with the offers on sale right now (advertised or not — it is a demonstration), and every organisation with the products it holds, its live subscriptions and its people with their roles. A membership’s answer everywhere else, published on purpose, and only while the switch is on.",
+        "required": [
+          "products",
+          "tenants"
+        ],
+        "properties": {
+          "products": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "name",
+                "offers"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "offers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "code",
+                      "name",
+                      "plan",
+                      "billing_period",
+                      "price",
+                      "publicly_listed"
+                    ],
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "plan": {
+                        "type": "string"
+                      },
+                      "billing_period": {
+                        "type": "string"
+                      },
+                      "price": {
+                        "$ref": "#/components/schemas/Money"
+                      },
+                      "publicly_listed": {
+                        "type": "boolean",
+                        "description": "Whether the storefront advertises it. On sale and advertised are two decisions; this page shows both kinds and says which."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "tenants": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "slug",
+                "name",
+                "is_default",
+                "join_policy",
+                "products",
+                "subscriptions",
+                "members"
+              ],
+              "properties": {
+                "slug": {
+                  "type": "string",
+                  "description": "Its URL root: `/{slug}/`, or `/` when `is_default`."
+                },
+                "name": {
+                  "type": "string"
+                },
+                "is_default": {
+                  "type": "boolean"
+                },
+                "join_policy": {
+                  "type": "string",
+                  "enum": [
+                    "OPEN",
+                    "INVITATION",
+                    "DOMAIN",
+                    "APPROVAL"
+                  ]
+                },
+                "products": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Product codes the organisation holds (ADR-047)."
+                },
+                "subscriptions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "product",
+                      "offer",
+                      "plan",
+                      "status"
+                    ],
+                    "properties": {
+                      "product": {
+                        "type": "string"
+                      },
+                      "offer": {
+                        "type": "string"
+                      },
+                      "plan": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "members": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "display_name",
+                      "email",
+                      "roles"
+                    ],
+                    "properties": {
+                      "display_name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "email": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "roles": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "description": "ACTIVE members, one row each whatever the products the membership is mirrored on, with the roles they hold in the organisation."
+                }
+              }
+            }
+          }
+        }
       }
     },
     "responses": {
@@ -16529,6 +16694,44 @@
         }
       }
     },
+    "/api/v1/public/demo": {
+      "get": {
+        "tags": [
+          "Storefront"
+        ],
+        "operationId": "showPublicDemo",
+        "summary": "The demonstration page",
+        "description": "Public, no session, no product. Answers only while a platform administrator has switched the page on (`setDemoPage`); otherwise `404 DEMO_PAGE_OFF`, indistinguishable from a page that does not exist, so a deployment that never meant to have one reveals nothing by having the route. Never cached: what it shows changes with every sale and sign-up, and the switch must take effect at once.",
+        "responses": {
+          "200": {
+            "description": "The page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`DEMO_PAGE_OFF` — the page is not switched on.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/staff/storefront/offers": {
       "get": {
         "tags": [
@@ -17173,6 +17376,116 @@
           },
           "409": {
             "description": "`NOT_A_DEMO_DEPLOYMENT` — the platform hosts products that are not the demonstration's; `details.products` names them.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/demo/page": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "showDemoPage",
+        "summary": "Whether the public demonstration page is on",
+        "description": "`staff.demo.publish`.",
+        "responses": {
+          "200": {
+            "description": "The switch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "published"
+                  ],
+                  "properties": {
+                    "published": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "setDemoPage",
+        "summary": "Switch the public demonstration page on or off",
+        "description": "What the page shows — products and offers, organisations, their people and roles — is a membership’s answer everywhere else. Publishing it is the platform administrator’s decision: `staff.demo.publish`, PLATFORM_ADMIN alone, and apart from `staff.demo.reset` because wiping the world and publishing it are different trusts. Off by default on every deployment.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "published"
+                ],
+                "properties": {
+                  "published": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The switch as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "published"
+                  ],
+                  "properties": {
+                    "published": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — `published` is not a boolean.",
             "content": {
               "application/json": {
                 "schema": {

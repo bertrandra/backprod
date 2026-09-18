@@ -16,6 +16,8 @@ export const keys = {
    * the URL is all there is.
    */
   storefront: {
+    /** The public demonstration page (2026-09-18). */
+    demo: ['storefront', 'demo'] as const,
     /** The organisation at a URL root; '' for the bare host. */
     tenant: (slug: string) => ['storefront', 'tenant', slug] as const,
     products: (tenant: string) => ['storefront', 'products', tenant] as const,
@@ -133,6 +135,7 @@ export const keys = {
   },
   staff: {
     identity: ['staff', 'me'] as const,
+    demoPage: ['staff', 'demo', 'page'] as const,
     tenantLists: ['staff', 'tenants'] as const,
     tenants: (limit: number, offset: number) => ['staff', 'tenants', limit, offset] as const,
     // The motive is part of a read's key, so a read made for one reason is never

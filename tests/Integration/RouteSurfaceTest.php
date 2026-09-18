@@ -72,6 +72,9 @@ final class RouteSurfaceTest extends ApiTestCase
         'GET /api/v1/public/offers/{offerId}',
         'GET /api/v1/public/products',
         'GET /api/v1/public/tenant',
+        // The demonstration page: a 404 until switched on, so the route itself
+        // reveals nothing.
+        'GET /api/v1/public/demo',
         'POST /api/v1/webhooks/payments/{provider}',
         'POST /api/v1/webhooks/einvoice/{provider}',
         'GET /api/v1/downloads/{assetId}/content',

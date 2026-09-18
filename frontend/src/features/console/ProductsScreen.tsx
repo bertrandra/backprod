@@ -7,7 +7,9 @@ import { useChooseProduct } from '@/app/frame/ProductSwitcher';
 import {
   useCreateProduct,
   usePlatformProducts,
+  useDemoPage,
   useResetDemoWorld,
+  useSetDemoPage,
   useStaffIdentity,
   useUpdateProduct,
   type DemoWorld,
@@ -178,8 +180,66 @@ export function ProductsScreen() {
         </form>
       </section>
 
+      <DemoPagePanel />
+
       <DemoWorldPanel />
     </div>
+  );
+}
+
+/**
+ * The public demonstration page's switch (2026-09-18).
+ *
+ * `/demo` shows what the platform hosts — products and offers, every
+ * organisation with its people and their roles — to anybody, with no
+ * session. That is a membership's answer everywhere else, so it is off
+ * until whoever holds `staff.demo.publish` turns it on here, and the copy
+ * says what is being published rather than calling it a feature flag.
+ */
+function DemoPagePanel() {
+  const me = useStaffIdentity();
+  const mayPublish = me.data?.permissions.includes('staff.demo.publish') ?? false;
+  const page = useDemoPage(mayPublish);
+  const set = useSetDemoPage();
+
+  if (!mayPublish) {
+    return null;
+  }
+
+  return (
+    <section className="space-y-3 border-t border-line pt-4" data-testid="demo-page">
+      <h2 className="text-xl font-semibold">Demonstration page</h2>
+
+      <p className="text-sm text-muted">
+        <a href="/demo" className="underline underline-offset-2" target="_blank" rel="noreferrer">
+          <code>/demo</code>
+        </a>{' '}
+        shows anybody, with no sign-in, every product and its offers on sale, and every
+        organisation with its address, its products, its subscriptions and its people with their
+        roles. Everywhere else that is a member&rsquo;s answer; switch it on only on a deployment
+        that exists to be shown.
+      </p>
+
+      {page.error !== null && <ErrorSurface error={page.error} onRetry={() => void page.refetch()} />}
+      {set.error !== null && <ErrorSurface error={set.error} />}
+
+      {page.isPending ? (
+        <SkeletonRows rows={1} />
+      ) : (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            data-testid="demo-page-switch"
+            checked={page.data ?? false}
+            disabled={set.isPending}
+            onChange={(event) => set.mutate(event.target.checked)}
+          />
+          <span>
+            {(page.data ?? false) ? 'Shown — /demo answers to anybody' : 'Hidden — /demo is a 404'}
+          </span>
+        </label>
+      )}
+    </section>
   );
 }
 

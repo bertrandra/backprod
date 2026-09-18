@@ -1055,6 +1055,49 @@ export function useResetDemoWorld() {
 }
 
 /**
+ * The public demonstration page's switch (2026-09-18). Read and set behind
+ * `staff.demo.publish`; the answer is written into the cache, since the API
+ * returns the switch it wrote.
+ */
+export function useDemoPage(enabled = true) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.demoPage,
+    enabled,
+    queryFn: async (): Promise<boolean> => {
+      const { data, error, response } = await client.GET('/api/v1/staff/demo/page', {});
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.published;
+    },
+  });
+}
+
+export function useSetDemoPage() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (published: boolean): Promise<boolean> => {
+      const { data, error, response } = await client.PUT('/api/v1/staff/demo/page', { body: { published } });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.published;
+    },
+    onSuccess: (published) => {
+      queryClient.setQueryData(keys.staff.demoPage, published);
+    },
+  });
+}
+
+/**
  * The platform's own catalogue — the plans and features an offer is built out
  * of, for one product.
  *

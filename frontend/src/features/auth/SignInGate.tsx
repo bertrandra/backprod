@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 
+import { DemoPage } from '@/features/demo/DemoPage';
 import { Storefront } from '@/features/storefront/Storefront';
 import { atRoot } from '@/app/root';
 import { useSessionStore } from '@/state/session';
@@ -72,6 +73,12 @@ export function SignInGate({ children }: { children: ReactNode }) {
 
   if (status === 'signed-in') {
     return <>{children}</>;
+  }
+
+  // The demonstration page is public and global (2026-09-18): `demo` is a
+  // reserved first segment, so it is never an organisation's root.
+  if (window.location.pathname === '/demo' || window.location.pathname === '/demo/') {
+    return <DemoPage />;
   }
 
   const atLanding = atRoot(root, window.location.pathname);
