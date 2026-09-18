@@ -8114,6 +8114,12 @@ export interface operations {
                             tenant: string;
                             name: string;
                         }[];
+                        /** @description The organisations this person is a live member of (2026-09-18), whatever the products. How a page puts its address under the right root after signing in: a member of Acme who signed in at the bare host belongs at `/acme/`. Beside `pending_memberships` for the same reason that one is here — this is the one read a client can make before it knows a product or a tenant. */
+                        memberships: {
+                            /** @description The organisation’s slug — the word its URL root is made of. */
+                            tenant: string;
+                            name: string;
+                        }[];
                     };
                 };
             };

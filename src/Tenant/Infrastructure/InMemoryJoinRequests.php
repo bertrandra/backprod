@@ -14,14 +14,22 @@ use App\Tenant\Domain\TenantMember;
  */
 final class InMemoryJoinRequests implements JoinRequests
 {
-    /** @param array<string, list<array{tenant_id: string, slug: string, name: string}>> $pending by user id */
-    public function __construct(private array $pending = [])
+    /**
+     * @param array<string, list<array{tenant_id: string, slug: string, name: string}>> $pending by user id
+     * @param array<string, list<array{tenant_id: string, slug: string, name: string}>> $members by user id
+     */
+    public function __construct(private array $pending = [], private array $members = [])
     {
     }
 
     public function pendingFor(string $userId): array
     {
         return $this->pending[$userId] ?? [];
+    }
+
+    public function memberOf(string $userId): array
+    {
+        return $this->members[$userId] ?? [];
     }
 
     /** @return list<TenantMember> */

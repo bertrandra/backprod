@@ -137,9 +137,15 @@ export function Storefront({ onSignIn }: { onSignIn: () => void }) {
       onSignIn={onSignIn}
       onCreated={(created) => {
         // The platform's choice (2026-09-18): the checkout right here, or
-        // the application first — the root is the catalogue, and the same
-        // offer is one click away there.
-        if (offer === null || created.membership !== 'ACTIVE' || known.after_sign_up === 'CATALOGUE') {
+        // the application first — the catalogue, where the same offer is
+        // one click away, in the product they chose on this page.
+        if (offer !== null && created.membership === 'ACTIVE' && known.after_sign_up === 'CATALOGUE') {
+          window.location.assign(`${withRoot(root, '/catalogue')}?product=${encodeURIComponent(productCode ?? '')}`);
+
+          return;
+        }
+
+        if (offer === null || created.membership !== 'ACTIVE') {
           // Nothing in hand, or waiting on an administrator: the root says
           // which. A full navigation, so the session is restored from the
           // cookie and the shell boots as it would on any reload.

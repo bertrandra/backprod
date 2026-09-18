@@ -40,6 +40,30 @@ final class PostgresJoinRequests implements JoinRequests
         ], $rows);
     }
 
+    public function memberOf(string $userId): array
+    {
+        if (!Uuid::isValid($userId)) {
+            return [];
+        }
+
+        $rows = $this->connection->fetchAllAssociative(
+            <<<'SQL'
+                SELECT DISTINCT t.id, t.slug, t.name
+                  FROM tenant_members tm
+                  JOIN tenants t ON t.id = tm.tenant_id
+                 WHERE tm.user_id = :user AND tm.status = 'ACTIVE'
+                 ORDER BY t.name
+                SQL,
+            ['user' => $userId],
+        );
+
+        return array_map(static fn (array $row): array => [
+            'tenant_id' => Row::string($row, 'id'),
+            'slug' => Row::string($row, 'slug'),
+            'name' => Row::string($row, 'name'),
+        ], $rows);
+    }
+
     public function pendingIn(string $tenantId): array
     {
         $rows = $this->connection->fetchAllAssociative(

@@ -52,11 +52,12 @@ export type PublicTenant = Schemas['PublicTenant'];
  * means "no such organisation" for a slug and "the platform's own window"
  * for the bare host, and the screen says which.
  */
-export function usePublicTenant(slug: string | null) {
+export function usePublicTenant(slug: string | null, enabled = true) {
   const client = useApiClient();
 
   return useQuery({
     queryKey: keys.storefront.tenant(slug ?? ''),
+    enabled,
     queryFn: async (): Promise<PublicTenant | null> => {
       const { data, error, response } = await client.GET('/api/v1/public/tenant', {
         params: { query: slug === null ? {} : { tenant: slug } },

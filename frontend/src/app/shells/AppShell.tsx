@@ -1,5 +1,5 @@
-import { Outlet, useLocation, useNavigate } from '@tanstack/react-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Outlet, useLocation } from '@tanstack/react-router';
+import { useCallback, useMemo, useState } from 'react';
 
 import { AppFrame } from '@/app/frame/AppFrame';
 import { CommandPalette, usePaletteShortcut } from '@/app/frame/CommandPalette';
@@ -7,7 +7,6 @@ import { MoreSheet } from '@/app/frame/MoreSheet';
 import {
   APP_NAV,
   bottomBarEntries,
-  firstEntry,
   visibleNav,
   type Authorities,
   type Hidden,
@@ -22,6 +21,8 @@ import { staffAccess, useStaffIdentity } from '@/queries/staff';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { SkeletonRows } from '@/ui/Skeleton';
+
+import { useLanding } from './landing';
 
 /**
  * One shell, for one person, showing what their permissions actually allow.
@@ -77,7 +78,6 @@ export function AppShell() {
   usePaletteShortcut(openPalette);
 
   const { pathname } = useLocation();
-  const navigate = useNavigate();
 
   // Which authority the *current screen* answers to, from its own address. The
   // paths did not change when the shells merged, so `/console` still marks the
@@ -93,20 +93,9 @@ export function AppShell() {
 
   const sections = visibleNav(APP_NAV, authorities, hidden);
 
-  // The landing address, signed in, goes to the first screen in this
-  // person's menu (2026-09-18) — the same place whether they came in by the
-  // storefront's link or by a deep link's sign-in form, and the same screen
-  // the rail leads with. Only the exact root: a deep link keeps its address,
-  // and `replace` keeps the empty landing out of the history. Until the
-  // menu has an entry there is nothing to go to, and the catalogue stands.
-  const first = firstEntry(sections);
-  const atLanding = pathname === '/' && !onPlatformScreen;
-
-  useEffect(() => {
-    if (atLanding && first !== undefined) {
-      void navigate({ to: first.to, replace: true, search: (previous: Record<string, unknown>) => previous });
-    }
-  }, [atLanding, first, navigate]);
+  // The landing address, signed in: the person's root, their product, and
+  // the first screen in their menu (`landing.ts`, 2026-09-18).
+  useLanding(pathname === '/' && !onPlatformScreen, sections);
 
   return (
     <AppFrame

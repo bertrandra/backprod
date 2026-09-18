@@ -108,6 +108,8 @@ final class JoiningTest extends DatabaseApiTestCase
         $products = $this->decode($this->request('GET', '/api/v1/products', ['Authorization' => 'Bearer ' . $token]));
         self::assertSame([], $products['products'] ?? null);
         self::assertSame([['tenant' => 'acme', 'name' => 'Acme Ltd']], $products['pending_memberships'] ?? null);
+        // Waiting is not belonging: no root is theirs yet.
+        self::assertSame([], $products['memberships'] ?? null);
 
         // The administrator was told, once; the ordinary member was not.
         self::assertSame(1, $this->connection->fetchOne(
@@ -136,6 +138,11 @@ final class JoiningTest extends DatabaseApiTestCase
         $accepted = $this->request('POST', '/api/v1/tenants/current/members/' . $zed . '/accept', $this->as('ann@acme.test'));
 
         self::assertSame(204, $accepted->getStatusCode());
+
+        // And a root of their own now: the shell puts the address under it.
+        $products = $this->decode($this->request('GET', '/api/v1/products', ['Authorization' => 'Bearer ' . $stranger]));
+        self::assertSame([['tenant' => 'acme', 'name' => 'Acme Ltd']], $products['memberships'] ?? null);
+        self::assertSame([], $products['pending_memberships'] ?? null);
 
         // Both products, in one decision (ADR-047), and still a USER.
         foreach (['atlas', 'boreas'] as $code) {

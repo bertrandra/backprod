@@ -564,7 +564,9 @@ describe('after the sign-up, by the platform’s choice', () => {
 
     signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
 
-    await waitFor(() => expect(assign).toHaveBeenCalledWith('/'));
+    // The catalogue itself, in the product chosen on this page — not the
+    // root, which now leads to the first screen in the menu (2026-09-18).
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/catalogue?product=atlas'));
     expect(requests.some((r) => r.path === '/api/v1/checkout/sessions')).toBe(false);
   });
 });

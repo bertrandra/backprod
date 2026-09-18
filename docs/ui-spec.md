@@ -267,9 +267,16 @@ every console screen follows it (ADR-047).
 **Region B's section headings read as headings** (2026-09-18): a rule above,
 small capitals with letter-spacing, the ink colour — three cues, because with
 one the operator could not tell Work from the entries under it. **Signing in
-lands on the first entry** the rail offers, in the tree's own order, whether
-the person came by the storefront's link or by a deep link's form (`/` inside
-the shell forwards there; a deep link keeps its address).
+lands where the person belongs** (`app/shells/landing.ts`): `/` inside the
+shell settles three things in order — the **root** (a member of Acme who
+signed in at the bare host is moved to `/acme/`; the default organisation's
+members belong at the bare host; `listProducts.memberships` says which), the
+**product** (their own default — the one they signed up for or chose on
+their profile — unless the address names one), and the **screen** (the first
+entry the rail offers, in the tree's own order: the console for a platform
+administrator, Work for a member). A deep link keeps its address. After a
+self-service sign-up the platform's `after_sign_up` decides: the checkout on
+the storefront, or the catalogue in the product chosen there.
 
 **Region C's header carries nothing of the console's own.** It did — a bar
 of dropdowns per platform section with a "Tenant app" link back (ADR-047),

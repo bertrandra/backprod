@@ -10293,7 +10293,8 @@
                   "required": [
                     "products",
                     "default",
-                    "pending_memberships"
+                    "pending_memberships",
+                    "memberships"
                   ],
                   "properties": {
                     "products": {
@@ -10328,6 +10329,26 @@
                         }
                       },
                       "description": "The organisations this person asked to join and is waiting on. Here rather than on `/me` because somebody with no live membership has no product to ask `/me` with; this is how a client says “waiting for approval” rather than “nothing”."
+                    },
+                    "memberships": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "tenant",
+                          "name"
+                        ],
+                        "properties": {
+                          "tenant": {
+                            "type": "string",
+                            "description": "The organisation’s slug — the word its URL root is made of."
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "description": "The organisations this person is a live member of (2026-09-18), whatever the products. How a page puts its address under the right root after signing in: a member of Acme who signed in at the bare host belongs at `/acme/`. Beside `pending_memberships` for the same reason that one is here — this is the one read a client can make before it knows a product or a tenant."
                     }
                   }
                 }

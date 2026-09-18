@@ -39,6 +39,14 @@ final class ListProductsController implements RouteHandler
             // product and this is how the shell learns which one to name
             // first: the person's own default, among what they hold.
             'default' => $this->profile->defaultProductCode($identity->userId),
+            // The organisations this person belongs to, by slug (2026-09-18):
+            // how the shell puts the address under the right root after a
+            // sign-in — a member of Acme who signed in at the bare host
+            // belongs at `/acme/`, and the slug is what the root is made of.
+            'memberships' => array_map(
+                static fn (array $membership): array => ['tenant' => $membership['slug'], 'name' => $membership['name']],
+                $this->requests->memberOf($identity->userId),
+            ),
             // The organisations this person asked to join and is waiting on
             // (2026-09-17). Here rather than on `/me`, for the same reason
             // as the default: somebody with no live membership has no
