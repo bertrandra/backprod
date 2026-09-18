@@ -21,7 +21,7 @@ final class CheckoutRoute
     public static function manageable(ServerRequestInterface $request): RequestContext
     {
         $context = RequestContextReader::from($request);
-        $context->requirePermission('billing.manage');
+        $context->requirePermission('billing.pay');
 
         return $context;
     }

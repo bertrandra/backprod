@@ -32,7 +32,7 @@ const newAttempt = (provider: unknown = { name: 'stub', publishable_key: null, s
  * person who thinks their previous attempt is resuming will not understand why
  * the card is asked for again.
  */
-const PAYER = { ...SESSION, permissions: [...SESSION.permissions, 'payments.read', 'payments.manage'] };
+const PAYER = { ...SESSION, permissions: [...SESSION.permissions, 'payments.read', 'payments.manage', 'billing.pay'] };
 
 function payment(overrides: Record<string, unknown> = {}) {
   return {

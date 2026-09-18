@@ -27,7 +27,7 @@ vi.mock('@stripe/react-stripe-js', () => ({
  */
 const BUYER = {
   ...SESSION,
-  permissions: [...SESSION.permissions, 'catalog.read', 'billing.manage', 'sales.manage'],
+  permissions: [...SESSION.permissions, 'catalog.read', 'billing.pay', 'sales.manage'],
 };
 
 // A business, as the tax profile records it: the one fact a quote turns on.

@@ -31,6 +31,7 @@ const SESSION = {
     'sales.manage',
     'billing.read',
     'billing.manage',
+    'billing.pay',
     'payments.read',
     'payments.manage',
     'subscription.read',

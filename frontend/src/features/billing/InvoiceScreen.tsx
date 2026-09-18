@@ -55,7 +55,10 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
   const [confirming, setConfirming] = useState<'cancel' | 'credit' | null>(null);
 
   const mayManage = can(session, 'billing.manage');
-  const mayPay = can(session, 'payments.manage');
+  // Paying is its own permission (2026-09-18): a USER pays the
+  // organisation's invoice; marking it paid by hand, cancelling and
+  // crediting stay the administrator's.
+  const mayPay = can(session, 'billing.pay');
 
   if (invoice.isPending) {
     return <SkeletonRows rows={8} />;
@@ -185,7 +188,7 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
 
       <InvoiceDocument invoiceId={invoiceId} issued={issued} />
 
-      {mayManage && (
+      {(mayManage || mayPay) && (
         <section className="space-y-3 border-t border-line pt-6">
           <h2 className="text-xl font-semibold">Actions</h2>
 
@@ -195,7 +198,7 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
           {startPayment.error !== null && <ErrorSurface error={startPayment.error} />}
 
           <div className="flex flex-wrap gap-2">
-            {current.status === 'ISSUED' && (
+            {current.status === 'ISSUED' && mayManage && (
               <Button
                 type="button"
                 variant="secondary"
@@ -218,13 +221,13 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
 
             {/* Offered only while the document can still change. Once final it
                 is corrected by a credit note instead. */}
-            {!current.final && confirming !== 'cancel' && (
+            {!current.final && mayManage && confirming !== 'cancel' && (
               <Button type="button" variant="danger" onClick={() => setConfirming('cancel')}>
                 Cancel the invoice…
               </Button>
             )}
 
-            {current.final && confirming !== 'credit' && (
+            {current.final && mayManage && confirming !== 'credit' && (
               <Button type="button" variant="secondary" onClick={() => setConfirming('credit')}>
                 Issue a credit note…
               </Button>

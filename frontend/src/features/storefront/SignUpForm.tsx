@@ -17,14 +17,15 @@ import { PageHeader } from '@/ui/Page';
  * company to name and no country to ask for — the organisation has both.
  * An address to sign in with, a password, and a name to be known by.
  *
- * **The offer, when they came from one, stays in front of them** — and the
- * form says plainly that an administrator buys it. A USER sees prices and
- * cannot check out; telling them after the account exists would be a form
- * that promised something the API refuses.
+ * **The offer, when they came from one, stays in front of them** — and is
+ * bought there and then (2026-09-18): a USER holds `billing.pay`, so the
+ * checkout that follows is the ordinary authenticated one, on the session
+ * the sign-up issued.
  *
  * **Whether they are in at once or waiting is the organisation's policy**,
- * and the answer comes back with the session. The page then goes to the
- * root, where the shell either opens the catalogue or says "waiting".
+ * and the public tenant says which before they type: under `APPROVAL` the
+ * form says an administrator accepts first and the page goes to the root
+ * to wait; otherwise it says they can pay straight after, and does.
  *
  * **The address is not confirmed first.** They are in (or waiting) now and
  * confirm from an email afterwards.
@@ -66,6 +67,9 @@ export function SignUpForm({
   onSignIn: () => void;
 }) {
   const signUp = useSignUp();
+  // Under APPROVAL a newcomer waits; under anything else that admits them
+  // they are in at once. INVITATION refuses, and the API says so on submit.
+  const waits = tenant.join_policy === 'APPROVAL';
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -77,7 +81,11 @@ export function SignUpForm({
       <PageHeader
         title={`Join ${tenant.name}`}
         description={
-          'You will see the catalogue and what the organisation subscribes to; an administrator buys. We will email you a link to confirm your address.'
+          waits
+            ? 'An administrator of the organisation accepts new members; you will be told by email. We will also send you a link to confirm your address.'
+            : offer === null
+              ? 'You will be a member straight away. We will email you a link to confirm your address — your account works in the meantime.'
+              : 'You will be able to pay straight after. We will email you a link to confirm your address — your account works in the meantime.'
         }
       />
 
@@ -91,7 +99,9 @@ export function SignUpForm({
             {offer.version !== null && <Amount money={offer.version.price} className="font-medium" />}
           </div>
           <p className="mt-1 text-xs text-muted">
-            What you came for. An administrator of {tenant.name} takes it out for the organisation.
+            {waits
+              ? `What you came for. Once an administrator of ${tenant.name} has accepted you, it is one click away in the catalogue.`
+              : `What you came for, taken out for ${tenant.name}.`}
           </p>
           <button
             type="button"
@@ -174,7 +184,7 @@ export function SignUpForm({
         )}
 
         <Button type="submit" pending={signUp.isPending}>
-          Create account and join
+          {offer !== null && !waits ? 'Create account and continue' : 'Create account and join'}
         </Button>
       </form>
 

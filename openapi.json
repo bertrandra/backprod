@@ -2517,11 +2517,12 @@
           "join_policy": {
             "type": "string",
             "enum": [
+              "OPEN",
               "INVITATION",
               "DOMAIN",
               "APPROVAL"
             ],
-            "description": "How people arrive by themselves at this organisation’s root. `APPROVAL` (default): anybody may ask, an administrator accepts. `DOMAIN`: an address on one of `join_domains` is in at once, any other is refused. `INVITATION`: nobody arrives by themselves; administrators add people."
+            "description": "How people arrive by themselves at this organisation’s root. `OPEN` (default): anybody who signs up is in at once. `APPROVAL`: anybody may ask, an administrator accepts. `DOMAIN`: an address on one of `join_domains` is in at once, any other is refused. `INVITATION`: nobody arrives by themselves; administrators add people."
           },
           "join_domains": {
             "type": "array",
@@ -4118,7 +4119,8 @@
         "required": [
           "slug",
           "name",
-          "is_default"
+          "is_default",
+          "join_policy"
         ],
         "properties": {
           "slug": {
@@ -4130,6 +4132,16 @@
           "is_default": {
             "type": "boolean",
             "description": "Whether this is the organisation the bare host addresses."
+          },
+          "join_policy": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "INVITATION",
+              "DOMAIN",
+              "APPROVAL"
+            ],
+            "description": "How a sign-up at this root ends. `OPEN` (the default) and a matching `DOMAIN`: in at once, and able to pay straight after. `APPROVAL`: an administrator accepts first. `INVITATION`: no self-service at all."
           }
         }
       },
@@ -5846,7 +5858,7 @@
         ],
         "operationId": "startPayment",
         "summary": "Begin a payment through the provider",
-        "description": "Returns the payment **and the provider's client secret**, which is what the browser needs to complete the charge. Card data never reaches this API (§24): the client talks to the provider directly and the platform learns the outcome by webhook.",
+        "description": "Returns the payment **and the provider's client secret**, which is what the browser needs to complete the charge. Card data never reaches this API (§24): the client talks to the provider directly and the platform learns the outcome by webhook. Since 2026-09-18 the permission is `billing.pay`, which both tenant roles hold: a USER who signed up at the organisation’s root pays there and then; issuing, crediting and refunding stay administrative.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
@@ -6565,7 +6577,7 @@
         ],
         "operationId": "openCheckoutSession",
         "summary": "Buy an offer in one call",
-        "description": "Places the order, raises its invoice and asks the provider to authorize — three calls a client could already make. What this adds is that the client no longer orchestrates them, and that a dropped connection leaves an order they can look up rather than a charge nobody can account for.\n\n**The body names an offer and nothing else.** No amount, because a client that could name a figure could name a smaller one; the price is the offer's. No instrument, because the customer gives that to the provider directly — card data never reaches this platform's database (§24).\n\n**It does not start the subscription.** That waits for the money, through the same webhook everything else arrives by. A checkout that activated on creation would extend credit to anyone who can reach this endpoint.",
+        "description": "Places the order, raises its invoice and asks the provider to authorize — three calls a client could already make. What this adds is that the client no longer orchestrates them, and that a dropped connection leaves an order they can look up rather than a charge nobody can account for.\n\n**The body names an offer and nothing else.** No amount, because a client that could name a figure could name a smaller one; the price is the offer's. No instrument, because the customer gives that to the provider directly — card data never reaches this platform's database (§24).\n\n**It does not start the subscription.** That waits for the money, through the same webhook everything else arrives by. A checkout that activated on creation would extend credit to anyone who can reach this endpoint. Since 2026-09-18 the permission is `billing.pay`, which both tenant roles hold: a USER who signed up at the organisation’s root pays there and then; issuing, crediting and refunding stay administrative.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
@@ -6694,7 +6706,7 @@
         ],
         "operationId": "showCheckoutSession",
         "summary": "Where the purchase got to",
-        "description": "The status is derived from the order and its latest payment rather than stored: the order knows whether it completed, the payment knows whether money moved, and a third status written down could disagree with both.\n\nNo `client_secret` — there is nothing to return it from.",
+        "description": "The status is derived from the order and its latest payment rather than stored: the order knows whether it completed, the payment knows whether money moved, and a third status written down could disagree with both.\n\nNo `client_secret` — there is nothing to return it from. Since 2026-09-18 the permission is `billing.pay`, which both tenant roles hold: a USER who signed up at the organisation’s root pays there and then; issuing, crediting and refunding stay administrative.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
@@ -9828,7 +9840,7 @@
         ],
         "operationId": "retryPayment",
         "summary": "Try to collect an invoice again",
-        "description": "A **new** payment against the same invoice, never a resurrection of the old one. `PaymentStatus` is deliberately one-way and says why: the customer may have used a different instrument, and two attempts that must be told apart cannot share a provider reference.\n\nRefused while the previous attempt is still in flight — a second authorization then risks collecting twice for one debt — and refused if it succeeded, where there is nothing to retry.",
+        "description": "A **new** payment against the same invoice, never a resurrection of the old one. `PaymentStatus` is deliberately one-way and says why: the customer may have used a different instrument, and two attempts that must be told apart cannot share a provider reference.\n\nRefused while the previous attempt is still in flight — a second authorization then risks collecting twice for one debt — and refused if it succeeded, where there is nothing to retry. Since 2026-09-18 the permission is `billing.pay`, which both tenant roles hold: a USER who signed up at the organisation’s root pays there and then; issuing, crediting and refunding stay administrative.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
@@ -15448,6 +15460,7 @@
                   "join_policy": {
                     "type": "string",
                     "enum": [
+                      "OPEN",
                       "INVITATION",
                       "DOMAIN",
                       "APPROVAL"
@@ -16708,7 +16721,7 @@
         ],
         "operationId": "signUp",
         "summary": "Create an account and ask to join the organisation at this root",
-        "description": "Public. Creates the account — user and credential — and a USER membership of the organisation named by `tenant` (the slug of the root the form was reached from) on every product that organisation holds, in one transaction. It never creates an organisation and never makes an administrator: organisations are made by the platform (`createTenantForStaff`), and the first administrator is named there. Whether the membership is live at once or waits is the organisation’s join policy: `APPROVAL` (the default) writes it `PENDING` and tells the administrators; `DOMAIN` makes it `ACTIVE` when the address’s domain is on the organisation’s list and refuses otherwise (`403 JOIN_DOMAIN_NOT_ALLOWED`); `INVITATION` refuses self-service altogether (`403 JOIN_BY_INVITATION`). The address is **not** verified first: a session is issued immediately and `users.email_verified_at` stays null until the confirmation link is followed. Unlike signing in, this says plainly when an address is taken — a person who cannot be told cannot finish what they came for — and the public rate limit is what bounds the enumeration that permits.",
+        "description": "Public. Creates the account — user and credential — and a USER membership of the organisation named by `tenant` (the slug of the root the form was reached from) on every product that organisation holds, in one transaction. It never creates an organisation and never makes an administrator: organisations are made by the platform (`createTenantForStaff`), and the first administrator is named there. Whether the membership is live at once or waits is the organisation’s join policy: `OPEN` (the default) makes it `ACTIVE` — the person can check out in the same breath, since a USER holds `billing.pay` and `subscription.manage`; `APPROVAL` writes it `PENDING` and tells the administrators; `DOMAIN` makes it `ACTIVE` when the address’s domain is on the organisation’s list and refuses otherwise (`403 JOIN_DOMAIN_NOT_ALLOWED`); `INVITATION` refuses self-service altogether (`403 JOIN_BY_INVITATION`). The address is **not** verified first: a session is issued immediately and `users.email_verified_at` stays null until the confirmation link is followed. Unlike signing in, this says plainly when an address is taken — a person who cannot be told cannot finish what they came for — and the public rate limit is what bounds the enumeration that permits.",
         "requestBody": {
           "required": true,
           "content": {

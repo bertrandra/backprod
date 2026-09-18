@@ -71,7 +71,7 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
                     $this->user,
                     $this->product,
                     ['TENANT_ADMIN'],
-                    ['billing.read', 'billing.manage', 'sales.read', 'sales.manage', 'subscription.read'],
+                    ['billing.read', 'billing.manage', 'billing.pay', 'sales.read', 'sales.manage', 'subscription.read'],
                 ),
             ]),
         ]);
@@ -229,7 +229,7 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
                     $this->user,
                     $this->product,
                     ['TENANT_ADMIN'],
-                    ['billing.read', 'billing.manage', 'sales.read', 'sales.manage'],
+                    ['billing.read', 'billing.manage', 'billing.pay', 'sales.read', 'sales.manage'],
                 ),
             ]),
         ]);

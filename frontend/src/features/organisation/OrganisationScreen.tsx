@@ -24,7 +24,7 @@ const schema = z.object({
 type Values = z.infer<typeof schema>;
 
 const joinSchema = z.object({
-  policy: z.enum(['INVITATION', 'DOMAIN', 'APPROVAL']),
+  policy: z.enum(['OPEN', 'INVITATION', 'DOMAIN', 'APPROVAL']),
   domains: z.string().trim(),
 });
 
@@ -40,9 +40,14 @@ function splitDomains(typed: string): string[] {
 
 const POLICIES: readonly { value: JoinPolicy; label: string; hint: string }[] = [
   {
+    value: 'OPEN',
+    label: 'Anybody',
+    hint: 'Whoever signs up at this address is a member at once, and can buy. The default.',
+  },
+  {
     value: 'APPROVAL',
     label: 'Ask an administrator',
-    hint: 'Anybody may ask; an administrator accepts or declines from the Members screen. The default.',
+    hint: 'Anybody may ask; an administrator accepts or declines from the Members screen.',
   },
   {
     value: 'DOMAIN',
@@ -73,7 +78,7 @@ export function OrganisationScreen() {
   const joinForm = useForm<JoinValues>({
     resolver: zodResolver(joinSchema),
     values: {
-      policy: organisation.data?.join_policy ?? 'APPROVAL',
+      policy: organisation.data?.join_policy ?? 'OPEN',
       domains: (organisation.data?.join_domains ?? []).join(', '),
     },
   });

@@ -54,6 +54,8 @@ export function PaymentsScreen() {
   const [retried, setRetried] = useState<{ of: string; started: StartedPayment } | null>(null);
 
   const mayManage = can(session, 'payments.manage');
+  // Retrying a failed payment is paying (2026-09-18); refunding is not.
+  const mayPay = can(session, 'billing.pay');
 
   if (payments.isPending) {
     return <SkeletonRows rows={6} />;
@@ -104,9 +106,9 @@ export function PaymentsScreen() {
 
               <Failure payment={payment} />
 
-              {mayManage && (
+              {(mayManage || mayPay) && (
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {isRetryable(payment) && (
+                  {isRetryable(payment) && mayPay && (
                     <Button
                       type="button"
                       pending={retry.isPending}
@@ -123,7 +125,7 @@ export function PaymentsScreen() {
                     </Button>
                   )}
 
-                  {isRefundable(payment) && refunding !== payment.id && (
+                  {isRefundable(payment) && mayManage && refunding !== payment.id && (
                     <Button
                       type="button"
                       variant="secondary"

@@ -19,6 +19,8 @@ use App\Shared\Exceptions\ForbiddenException;
  */
 final class JoinDecision
 {
+    /** In at once, whoever they are — the default since 2026-09-18, so a stranger can sign up and pay. */
+    public const OPEN = 'OPEN';
     public const INVITATION = 'INVITATION';
     public const DOMAIN = 'DOMAIN';
     public const APPROVAL = 'APPROVAL';
@@ -29,7 +31,7 @@ final class JoinDecision
     /** @return list<string> */
     public static function policies(): array
     {
-        return [self::INVITATION, self::DOMAIN, self::APPROVAL];
+        return [self::OPEN, self::INVITATION, self::DOMAIN, self::APPROVAL];
     }
 
     /**
@@ -42,6 +44,7 @@ final class JoinDecision
     public static function statusFor(string $policy, array $allowedDomains, string $email): string
     {
         return match ($policy) {
+            self::OPEN => self::ACTIVE,
             self::APPROVAL => self::PENDING,
             self::DOMAIN => in_array(self::domainOf($email), $allowedDomains, true)
                 ? self::ACTIVE

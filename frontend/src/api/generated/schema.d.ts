@@ -456,7 +456,7 @@ export interface paths {
         put?: never;
         /**
          * Begin a payment through the provider
-         * @description Returns the payment **and the provider's client secret**, which is what the browser needs to complete the charge. Card data never reaches this API (§24): the client talks to the provider directly and the platform learns the outcome by webhook.
+         * @description Returns the payment **and the provider's client secret**, which is what the browser needs to complete the charge. Card data never reaches this API (§24): the client talks to the provider directly and the platform learns the outcome by webhook. Since 2026-09-18 the permission is `billing.pay`, which both tenant roles hold: a USER who signed up at the organisation’s root pays there and then; issuing, crediting and refunding stay administrative.
          */
         post: operations["startPayment"];
         delete?: never;
@@ -624,7 +624,7 @@ export interface paths {
          *
          *     **The body names an offer and nothing else.** No amount, because a client that could name a figure could name a smaller one; the price is the offer's. No instrument, because the customer gives that to the provider directly — card data never reaches this platform's database (§24).
          *
-         *     **It does not start the subscription.** That waits for the money, through the same webhook everything else arrives by. A checkout that activated on creation would extend credit to anyone who can reach this endpoint.
+         *     **It does not start the subscription.** That waits for the money, through the same webhook everything else arrives by. A checkout that activated on creation would extend credit to anyone who can reach this endpoint. Since 2026-09-18 the permission is `billing.pay`, which both tenant roles hold: a USER who signed up at the organisation’s root pays there and then; issuing, crediting and refunding stay administrative.
          */
         post: operations["openCheckoutSession"];
         delete?: never;
@@ -644,7 +644,7 @@ export interface paths {
          * Where the purchase got to
          * @description The status is derived from the order and its latest payment rather than stored: the order knows whether it completed, the payment knows whether money moved, and a third status written down could disagree with both.
          *
-         *     No `client_secret` — there is nothing to return it from.
+         *     No `client_secret` — there is nothing to return it from. Since 2026-09-18 the permission is `billing.pay`, which both tenant roles hold: a USER who signed up at the organisation’s root pays there and then; issuing, crediting and refunding stay administrative.
          */
         get: operations["showCheckoutSession"];
         put?: never;
@@ -1375,7 +1375,7 @@ export interface paths {
          * Try to collect an invoice again
          * @description A **new** payment against the same invoice, never a resurrection of the old one. `PaymentStatus` is deliberately one-way and says why: the customer may have used a different instrument, and two attempts that must be told apart cannot share a provider reference.
          *
-         *     Refused while the previous attempt is still in flight — a second authorization then risks collecting twice for one debt — and refused if it succeeded, where there is nothing to retry.
+         *     Refused while the previous attempt is still in flight — a second authorization then risks collecting twice for one debt — and refused if it succeeded, where there is nothing to retry. Since 2026-09-18 the permission is `billing.pay`, which both tenant roles hold: a USER who signed up at the organisation’s root pays there and then; issuing, crediting and refunding stay administrative.
          */
         post: operations["retryPayment"];
         delete?: never;
@@ -2942,7 +2942,7 @@ export interface paths {
         put?: never;
         /**
          * Create an account and ask to join the organisation at this root
-         * @description Public. Creates the account — user and credential — and a USER membership of the organisation named by `tenant` (the slug of the root the form was reached from) on every product that organisation holds, in one transaction. It never creates an organisation and never makes an administrator: organisations are made by the platform (`createTenantForStaff`), and the first administrator is named there. Whether the membership is live at once or waits is the organisation’s join policy: `APPROVAL` (the default) writes it `PENDING` and tells the administrators; `DOMAIN` makes it `ACTIVE` when the address’s domain is on the organisation’s list and refuses otherwise (`403 JOIN_DOMAIN_NOT_ALLOWED`); `INVITATION` refuses self-service altogether (`403 JOIN_BY_INVITATION`). The address is **not** verified first: a session is issued immediately and `users.email_verified_at` stays null until the confirmation link is followed. Unlike signing in, this says plainly when an address is taken — a person who cannot be told cannot finish what they came for — and the public rate limit is what bounds the enumeration that permits.
+         * @description Public. Creates the account — user and credential — and a USER membership of the organisation named by `tenant` (the slug of the root the form was reached from) on every product that organisation holds, in one transaction. It never creates an organisation and never makes an administrator: organisations are made by the platform (`createTenantForStaff`), and the first administrator is named there. Whether the membership is live at once or waits is the organisation’s join policy: `OPEN` (the default) makes it `ACTIVE` — the person can check out in the same breath, since a USER holds `billing.pay` and `subscription.manage`; `APPROVAL` writes it `PENDING` and tells the administrators; `DOMAIN` makes it `ACTIVE` when the address’s domain is on the organisation’s list and refuses otherwise (`403 JOIN_DOMAIN_NOT_ALLOWED`); `INVITATION` refuses self-service altogether (`403 JOIN_BY_INVITATION`). The address is **not** verified first: a session is issued immediately and `users.email_verified_at` stays null until the confirmation link is followed. Unlike signing in, this says plainly when an address is taken — a person who cannot be told cannot finish what they came for — and the public rate limit is what bounds the enumeration that permits.
          */
         post: operations["signUp"];
         delete?: never;
@@ -4060,10 +4060,10 @@ export interface components {
             /** @description Whether the platform has lent this tenant the catalogue. False by default: offers are keyed on product, not tenant, so a tenant administrator editing them changes what every other customer of that product is sold on. When false, `catalog.manage` is not resolved for this tenant's members at all. */
             may_author_offers: boolean;
             /**
-             * @description How people arrive by themselves at this organisation’s root. `APPROVAL` (default): anybody may ask, an administrator accepts. `DOMAIN`: an address on one of `join_domains` is in at once, any other is refused. `INVITATION`: nobody arrives by themselves; administrators add people.
+             * @description How people arrive by themselves at this organisation’s root. `OPEN` (default): anybody who signs up is in at once. `APPROVAL`: anybody may ask, an administrator accepts. `DOMAIN`: an address on one of `join_domains` is in at once, any other is refused. `INVITATION`: nobody arrives by themselves; administrators add people.
              * @enum {string}
              */
-            join_policy: "INVITATION" | "DOMAIN" | "APPROVAL";
+            join_policy: "OPEN" | "INVITATION" | "DOMAIN" | "APPROVAL";
             /** @description Email domains, lower-case, without `@`. Consulted only under `DOMAIN`, and required non-empty to switch to it. */
             join_domains: string[];
         };
@@ -4600,6 +4600,11 @@ export interface components {
             name: string;
             /** @description Whether this is the organisation the bare host addresses. */
             is_default: boolean;
+            /**
+             * @description How a sign-up at this root ends. `OPEN` (the default) and a matching `DOMAIN`: in at once, and able to pay straight after. `APPROVAL`: an administrator accepts first. `INVITATION`: no self-service at all.
+             * @enum {string}
+             */
+            join_policy: "OPEN" | "INVITATION" | "DOMAIN" | "APPROVAL";
         };
         /** @description What the platform gave a tenant on one product without a sale (docs/tenant-roots.md §2.8): `entitlements` rows with `source = GRANT`. The resolver reads them like a subscription’s — `/me/entitlements` shows them with their source — so a grant changes nothing in how capabilities and quotas are answered. Where a grant and a subscription both hold a feature, the most generous wins, as between a seat and the tenant. */
         GrantedEntitlement: {
@@ -11025,7 +11030,7 @@ export interface operations {
                 "application/json": {
                     name?: string;
                     /** @enum {string} */
-                    join_policy?: "INVITATION" | "DOMAIN" | "APPROVAL";
+                    join_policy?: "OPEN" | "INVITATION" | "DOMAIN" | "APPROVAL";
                     /** @description Replaces the list. */
                     join_domains?: string[];
                 };

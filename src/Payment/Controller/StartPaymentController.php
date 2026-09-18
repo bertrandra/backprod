@@ -28,7 +28,7 @@ final class StartPaymentController implements RouteHandler
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
-        $context = PaymentRoute::manageable($request);
+        $context = PaymentRoute::payable($request);
 
         $started = $this->payments->start(
             $context->tenantId,

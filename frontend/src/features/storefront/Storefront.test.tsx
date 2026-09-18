@@ -36,7 +36,22 @@ const WINDOW = { product: { code: 'atlas', name: 'Atlas' }, offers: [OFFER] };
 
 const ATLAS = { code: 'atlas', name: 'Atlas' };
 const BOREAS = { code: 'boreas', name: 'Boreas' };
-const ACME = { slug: 'acme', name: 'Acme Ltd', is_default: true };
+const ACME = { slug: 'acme', name: 'Acme Ltd', is_default: true, join_policy: 'OPEN' };
+const GUARDED = { ...ACME, join_policy: 'APPROVAL' };
+
+const MONEY = { minor_units: 2900, currency: 'EUR' };
+const SESSION = {
+  id: 'order-1',
+  status: 'AWAITING_PAYMENT',
+  payment_id: 'pay-1',
+  net: MONEY,
+  vat: { minor_units: 0, currency: 'EUR' },
+  gross: MONEY,
+};
+// A provider with no card form in the page: the stub. What the pay step
+// does *without* Stripe is what these tests are about; the form itself is
+// PaymentElementPanel.test.tsx's.
+const STUB_PROVIDER = { name: 'stub', publishable_key: null, sandbox: true };
 
 const CREATED = {
   access_token: 'access',
@@ -53,6 +68,7 @@ function clientFor(extra: Stubs = {}) {
     'GET /api/v1/public/products': { data: { products: [ATLAS] } },
     'GET /api/v1/public/offers': { data: WINDOW },
     'POST /api/v1/auth/sign-up': { status: 201, data: CREATED },
+    'POST /api/v1/checkout/sessions': { status: 201, data: { session: SESSION } },
     ...extra,
   });
 }
@@ -66,7 +82,7 @@ function signUpAs(fields: { email: string; password: string; name?: string }): v
     fireEvent.change(screen.getByLabelText('Your name'), { target: { value: fields.name } });
   }
 
-  fireEvent.click(screen.getByRole('button', { name: /Create account and join/i }));
+  fireEvent.click(screen.getByRole('button', { name: /Create account and (join|continue)/i }));
 }
 
 /** Points the page at the offers and opens the door with the first one. */
@@ -231,15 +247,28 @@ describe('the shop window', () => {
 });
 
 describe('choosing an offer', () => {
-  it('opens the door with the offer in hand, and asks to join rather than to buy', async () => {
+  it('opens the door with the offer in hand, to join and pay', async () => {
     renderWith(<Storefront onSignIn={() => undefined} />, clientFor());
 
     await chooseTheOffer();
 
-    // The organisation at this root is the one being asked, by name; and the
-    // form says who buys, because a USER cannot (tenant-roots §2.4).
+    // The organisation at this root is the one being asked, by name; and
+    // under OPEN the form promises the purchase that follows.
     expect(screen.getByText(/Join Acme Ltd/i)).toBeTruthy();
-    expect(screen.getByText(/an administrator buys/i)).toBeTruthy();
+    expect(screen.getByText(/pay straight after/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Create account and continue' })).toBeTruthy();
+  });
+
+  it('says an administrator accepts first where the policy is approval', async () => {
+    renderWith(
+      <Storefront onSignIn={() => undefined} />,
+      clientFor({ 'GET /api/v1/public/tenant': { data: { tenant: GUARDED } } }),
+    );
+
+    await chooseTheOffer();
+
+    expect(screen.getByText(/accepts new members/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Create account and join' })).toBeTruthy();
   });
 
   it('keeps the chosen offer and its price in front of them while they type', async () => {
@@ -377,7 +406,98 @@ describe('creating the account', () => {
     await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/own domain/i));
   });
 
-  it('goes to the root once the account exists, in or waiting alike', async () => {
+  it('goes to the root to wait when the membership is pending, with no checkout', async () => {
+    const assign = vi.fn();
+
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign });
+
+    const { client, requests } = recordingClient({
+      'GET /api/v1/public/tenant': { data: { tenant: GUARDED } },
+      'GET /api/v1/public/offers': { data: WINDOW },
+      'POST /api/v1/auth/sign-up': { status: 201, data: { ...CREATED, membership: 'PENDING' } },
+    });
+
+    renderWith(<Storefront onSignIn={() => undefined} />, client);
+
+    await chooseTheOffer();
+    signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
+
+    // Nothing to buy with yet: the root is where the shell says "waiting",
+    // and it is a full navigation, so the session comes back from the cookie.
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/'));
+    expect(requests.some((r) => r.path === '/api/v1/checkout/sessions')).toBe(false);
+  });
+
+  it('goes to the root when they came in with nothing in hand', async () => {
+    const assign = vi.fn();
+
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign });
+
+    renderWith(<Storefront onSignIn={() => undefined} />, clientFor());
+
+    await waitFor(() => expect(screen.getByTestId('sign-up-link')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('sign-up-link'));
+    await waitFor(() => expect(screen.getByLabelText('Email')).toBeTruthy());
+    signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/'));
+  });
+
+  it('opens the checkout for what they chose, and pays where the secret was born', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/public/tenant': { data: { tenant: ACME } },
+      'GET /api/v1/public/offers': { data: WINDOW },
+      'POST /api/v1/auth/sign-up': { status: 201, data: CREATED },
+      'POST /api/v1/checkout/sessions': {
+        status: 201,
+        data: { session: { ...SESSION, client_secret: 'secret-1', payment_provider: STUB_PROVIDER } },
+      },
+    });
+
+    renderWith(<Storefront onSignIn={() => undefined} />, client);
+
+    await chooseTheOffer();
+    signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
+
+    await waitFor(() =>
+      expect(requests.some((r) => r.path === '/api/v1/checkout/sessions')).toBe(true),
+    );
+
+    // The offer they chose, not one they are asked to choose again — bought
+    // on the session the sign-up issued, as a USER (billing.pay).
+    expect(requests.find((r) => r.path === '/api/v1/checkout/sessions')?.body).toEqual({
+      offer_id: 'offer-1',
+    });
+
+    // No hop yet: the render that received the secret is the one that can
+    // offer a card form (ADR-048), and a full navigation would lose it. The
+    // stub has no form, so the step says so and points at the order.
+    await waitFor(() => expect(screen.getByTestId('payment-panel')).toBeTruthy());
+    expect(screen.getByTestId('payment-panel').getAttribute('data-provider')).toBe('stub');
+    expect(screen.getByTestId('payment-no-panel')).toBeTruthy();
+    expect(screen.getByTestId('sandbox-band')).toBeTruthy();
+    expect(screen.getByTestId('continue-to-order').getAttribute('href')).toBe('/checkout/order-1');
+  });
+
+  it('goes to the order without a pay step when there is nothing to pay', async () => {
+    renderWith(
+      <Storefront onSignIn={() => undefined} />,
+      clientFor({
+        'POST /api/v1/checkout/sessions': {
+          status: 201,
+          data: { session: { ...SESSION, payment_id: null, payment_provider: null } },
+        },
+      }),
+    );
+
+    await chooseTheOffer();
+    signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
+
+    await waitFor(() => expect(screen.getByTestId('continue-to-order')).toBeTruthy());
+    expect(screen.queryByTestId('payment-panel')).toBeNull();
+  });
+
+  it('puts them at the root when it is the checkout that failed', async () => {
     const assign = vi.fn();
 
     vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign });
@@ -385,35 +505,35 @@ describe('creating the account', () => {
     renderWith(
       <Storefront onSignIn={() => undefined} />,
       clientFor({
-        'POST /api/v1/auth/sign-up': { status: 201, data: { ...CREATED, membership: 'PENDING' } },
+        'POST /api/v1/checkout/sessions': {
+          status: 409,
+          error: {
+            error: { code: 'BILLING_PROFILE_REQUIRED', message: 'No profile.', details: {}, request_id: 'r' },
+          },
+        },
       }),
     );
 
     await chooseTheOffer();
     signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
 
-    // No checkout: a USER cannot buy, so there is no pay step to keep them
-    // here for. The root is where the shell says "in" or "waiting" — and it
-    // is a full navigation, so the session comes back from the cookie.
+    // The account exists by now, so the worst outcome available is the
+    // catalogue at the root — where the same purchase is one click away.
     await waitFor(() => expect(assign).toHaveBeenCalledWith('/'));
-    expect(screen.queryByTestId('payment-panel')).toBeNull();
   });
 
   it('holds the token without declaring the person signed in, until it navigates', async () => {
-    const assign = vi.fn();
-
-    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign });
-
     renderWith(<Storefront onSignIn={() => undefined} />, clientFor());
 
     await chooseTheOffer();
     signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
 
-    await waitFor(() => expect(assign).toHaveBeenCalled());
+    // On the pay step now, still on this page.
+    await waitFor(() => expect(screen.getByTestId('continue-to-order')).toBeTruthy());
 
-    // The token is usable and the status has *not* flipped, because
-    // `SignInGate` renders the application the instant it does, which would
-    // unmount this page before it navigated.
+    // The token is usable — the checkout above needed it — and the status has
+    // *not* flipped, because `SignInGate` renders the application the instant
+    // it does, which would unmount this page mid-purchase.
     expect(useSessionStore.getState().token).toBe('access');
     expect(useSessionStore.getState().status).toBe('anonymous');
   });

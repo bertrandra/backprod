@@ -62,10 +62,37 @@ final class JoiningTest extends DatabaseApiTestCase
         ]);
     }
 
-    // --- APPROVAL, the default ------------------------------------------------
+    // --- OPEN, the default ----------------------------------------------------
 
-    public function testByDefaultAStrangerWaitsAndTheAdministratorsAreTold(): void
+    /**
+     * Since 2026-09-18 the default admits at once: the operator's reading of
+     * self-service is that somebody who signs up at a root and chooses an
+     * offer pays for it there and then, and a USER may (billing.pay).
+     */
+    public function testByDefaultAStrangerIsInAtOnceAndMayBuy(): void
     {
+        $response = $this->signUp('zed@elsewhere.test');
+
+        self::assertSame(201, $response->getStatusCode());
+        self::assertSame('ACTIVE', $this->decode($response)['membership'] ?? null);
+
+        $me = $this->decode($this->request('GET', '/api/v1/me/permissions', ['Authorization' => 'Bearer ' . $this->tokenIn($response), 'X-Product' => 'atlas']));
+        $permissions = $me['permissions'] ?? null;
+        self::assertIsArray($permissions);
+        self::assertContains('billing.pay', $permissions);
+        self::assertContains('subscription.manage', $permissions);
+        self::assertNotContains('billing.manage', $permissions);
+        self::assertNotContains('payments.manage', $permissions);
+
+        // Nobody was asked, nobody was told.
+        self::assertSame(0, $this->connection->fetchOne("SELECT count(*) FROM notifications WHERE type = 'member.requested'"));
+    }
+
+    // --- APPROVAL ----------------------------------------------------------------
+
+    public function testUnderApprovalAStrangerWaitsAndTheAdministratorsAreTold(): void
+    {
+        $this->policy('APPROVAL');
         $response = $this->signUp('zed@elsewhere.test');
 
         self::assertSame(201, $response->getStatusCode());
@@ -102,6 +129,7 @@ final class JoiningTest extends DatabaseApiTestCase
 
     public function testAcceptingMakesTheMembershipLiveOnEveryProduct(): void
     {
+        $this->policy('APPROVAL');
         $stranger = $this->tokenIn($this->signUp('zed@elsewhere.test'));
         $zed = $this->userId('zed@elsewhere.test');
 
@@ -130,6 +158,7 @@ final class JoiningTest extends DatabaseApiTestCase
 
     public function testDecliningDropsTheRequestAndKeepsTheAccount(): void
     {
+        $this->policy('APPROVAL');
         $stranger = $this->tokenIn($this->signUp('zed@elsewhere.test'));
         $zed = $this->userId('zed@elsewhere.test');
 
@@ -147,6 +176,7 @@ final class JoiningTest extends DatabaseApiTestCase
 
     public function testOnlyAnAdministratorDecides(): void
     {
+        $this->policy('APPROVAL');
         $this->signUp('zed@elsewhere.test');
         $zed = $this->userId('zed@elsewhere.test');
 
@@ -201,14 +231,14 @@ final class JoiningTest extends DatabaseApiTestCase
     public function testThePolicyIsReadWithTheOrganisationAndDomainNeedsADomain(): void
     {
         $shown = $this->tenantIn($this->request('GET', '/api/v1/tenants/current', $this->as('ann@acme.test')));
-        self::assertSame('APPROVAL', $shown['join_policy'] ?? null);
+        self::assertSame('OPEN', $shown['join_policy'] ?? null);
         self::assertSame([], $shown['join_domains'] ?? null);
 
         $empty = $this->request('PATCH', '/api/v1/tenants/current', $this->as('ann@acme.test'), $this->json(['join_policy' => 'DOMAIN']));
         self::assertSame(400, $empty->getStatusCode());
         self::assertSame('JOIN_DOMAINS_REQUIRED', $this->errorOf($empty)['code'] ?? null);
 
-        $bogus = $this->request('PATCH', '/api/v1/tenants/current', $this->as('ann@acme.test'), $this->json(['join_policy' => 'OPEN']));
+        $bogus = $this->request('PATCH', '/api/v1/tenants/current', $this->as('ann@acme.test'), $this->json(['join_policy' => 'ANYONE']));
         self::assertSame(400, $bogus->getStatusCode());
 
         $notADomain = $this->request('PATCH', '/api/v1/tenants/current', $this->as('ann@acme.test'), $this->json(['join_domains' => ['@acme.test']]));
@@ -217,7 +247,7 @@ final class JoiningTest extends DatabaseApiTestCase
         // Unchanged by all of it, and renaming touches nothing but the name.
         $renamed = $this->tenantIn($this->request('PATCH', '/api/v1/tenants/current', $this->as('ann@acme.test'), $this->json(['name' => 'Acme Limited'])));
         self::assertSame('Acme Limited', $renamed['name'] ?? null);
-        self::assertSame('APPROVAL', $renamed['join_policy'] ?? null);
+        self::assertSame('OPEN', $renamed['join_policy'] ?? null);
 
         // A USER reads it and may not set it.
         self::assertSame(403, $this->request('PATCH', '/api/v1/tenants/current', $this->as('uma@acme.test'), $this->json(['join_policy' => 'INVITATION']))->getStatusCode());
@@ -234,6 +264,11 @@ final class JoiningTest extends DatabaseApiTestCase
             'tenant' => 'acme',
             'product' => 'atlas',
         ]));
+    }
+
+    private function policy(string $policy): void
+    {
+        $this->connection->executeStatement('UPDATE tenants SET join_policy = :policy WHERE id = :id', ['policy' => $policy, 'id' => $this->acme]);
     }
 
     /** @return array<string, string> */

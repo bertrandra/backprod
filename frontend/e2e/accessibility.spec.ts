@@ -34,6 +34,7 @@ const SESSION = {
     'account.read',
     'billing.read',
     'billing.manage',
+    'billing.pay',
     'catalog.read',
     'catalog.manage',
     'jobs.read',

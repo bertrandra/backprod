@@ -33,7 +33,7 @@ vi.mock('@stripe/react-stripe-js', () => ({
  */
 const BILLER = {
   ...SESSION,
-  permissions: [...SESSION.permissions, 'billing.read', 'billing.manage', 'payments.manage'],
+  permissions: [...SESSION.permissions, 'billing.read', 'billing.manage', 'billing.pay', 'payments.manage'],
 };
 
 const INVOICE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';

@@ -65,7 +65,7 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
                     $this->user,
                     $this->product,
                     ['TENANT_ADMIN'],
-                    ['billing.read', 'billing.manage', 'subscription.read', 'subscription.manage'],
+                    ['billing.read', 'billing.manage', 'billing.pay', 'subscription.read', 'subscription.manage'],
                 ),
             ]),
         ]);

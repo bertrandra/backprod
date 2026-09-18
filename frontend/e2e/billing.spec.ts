@@ -21,7 +21,7 @@ const SESSION = {
   product_id: '22222222-2222-4222-8222-222222222222',
   tenant_id: '33333333-3333-4333-8333-333333333333',
   roles: ['TENANT_ADMIN'],
-  permissions: ['billing.read', 'billing.manage', 'payments.read', 'payments.manage'],
+  permissions: ['billing.read', 'billing.manage', 'billing.pay', 'payments.read', 'payments.manage'],
   capabilities: [],
 };
 
