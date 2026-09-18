@@ -1,7 +1,15 @@
 import { Link } from '@tanstack/react-router';
+import { useState } from 'react';
 
-import { isAwaitingPayment, useCheckoutSession } from '@/queries/checkout';
+import { can } from '@/app/access/access';
+import { withRoot } from '@/app/root';
+import { PaymentElementPanel } from '@/features/commerce/payment/PaymentElementPanel';
+import { isAwaitingPayment, useCancelCheckoutSession, useCheckoutSession } from '@/queries/checkout';
+import { useStartPayment, type StartedPayment } from '@/queries/payments';
+import { useSession } from '@/queries/session';
+import { useSessionStore } from '@/state/session';
 import { ErrorSurface } from '@/ui/ErrorSurface';
+import { Button } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { notice, pill, type Tone } from '@/ui/tone';
@@ -33,9 +41,24 @@ import { notice, pill, type Tone } from '@/ui/tone';
  * line does, and `seat` says whether it is their own seat or the
  * organisation's subscription (§13.1). Once the money has arrived the page
  * says so in words, at the top — that is the moment a person is looking for.
+ *
+ * **Unpaid, the page offers the two ways out** (2026-09-18). The buyer who
+ * closed the card form is back here with an order awaiting money: *Pay now*
+ * starts a fresh attempt on the invoice — a new secret, born on this page and
+ * used on it, since the old one is gone by design — and *Cancel this
+ * purchase* gives the order up, invoice and all. Both are `billing.pay`, the
+ * buyer's own permission, and both answer the operator's report that an
+ * abandoned checkout left nothing to do but wait.
  */
 export function CheckoutScreen({ sessionId }: { sessionId: string }) {
   const session = useCheckoutSession(sessionId);
+  const { data: me } = useSession();
+  const root = useSessionStore((state) => state.root);
+  const cancel = useCancelCheckoutSession();
+  // A fresh attempt, held for exactly as long as the render that received
+  // its secret (ADR-034, ADR-048).
+  const [attempt, setAttempt] = useState<StartedPayment | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   if (session.isPending) {
     return <SkeletonRows rows={5} />;
@@ -50,6 +73,11 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
   // is derived from its absence but a plainer sentence.
   const description = current.description ?? null;
   const forSelf = current.seat === true;
+  // Unpaid and payable: awaiting, or the last attempt failed. Either way a
+  // new attempt is the answer and giving up is the alternative.
+  const unpaid =
+    (isAwaitingPayment(current.status) || current.status === 'PAYMENT_FAILED') && current.invoice_id !== null;
+  const mayAct = unpaid && can(me, 'billing.pay');
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -181,15 +209,65 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
         >
           <p className="font-medium">The last payment attempt failed.</p>
           {/* Honest about both halves: the order is still there, and the secret
-              from the previous attempt is gone. A retry is a new attempt, and it
-              lives with payments rather than here. */}
+              from the previous attempt is gone. A retry is a new attempt. */}
           <p>
-            The order is intact and nothing has been charged. Retrying starts a new attempt — the
+            The order is intact and nothing has been charged. Paying again starts a new attempt — the
             credential from the last one is deliberately not kept, so it cannot be resumed.
           </p>
-          <p className="text-xs text-muted">
-            Retrying a payment is on the payment itself, which arrives with billing.
-          </p>
+        </section>
+      )}
+
+      {current.status === 'CANCELLED' && (
+        <section data-testid="checkout-cancelled" className={`${notice('neutral')} space-y-1`}>
+          <p className="font-medium">This purchase was cancelled.</p>
+          <p>Nothing was charged and nothing was started. The catalogue has the same offer if you change your mind.</p>
+        </section>
+      )}
+
+      {mayAct && current.invoice_id !== null && (
+        <section data-testid="checkout-actions" className="space-y-3 border-t border-line pt-4">
+          {attempt !== null ? (
+            <PayNow
+              attempt={attempt}
+              returnUrl={new URL(withRoot(root, `/checkout/${current.id}`), window.location.origin).toString()}
+              onSettled={() => {
+                setAttempt(null);
+                void session.refetch();
+              }}
+            />
+          ) : (
+            <>
+              <h2 className="text-xl font-semibold">Not paid yet</h2>
+              <p className="text-sm text-muted">
+                Pay it now — a fresh attempt, with a new card form — or give the purchase up. Giving it
+                up cancels its invoice too; nothing has been charged either way.
+              </p>
+              {cancel.error !== null && <ErrorSurface error={cancel.error} />}
+              <div className="flex flex-wrap gap-2">
+                <StartAttempt invoiceId={current.invoice_id} onStarted={setAttempt} />
+                {confirming ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      pending={cancel.isPending}
+                      data-testid="cancel-checkout"
+                      onClick={() => cancel.mutate(current.id, { onSettled: () => setConfirming(false) })}
+                    >
+                      Cancel this purchase
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>
+                      Keep it
+                    </Button>
+                  </>
+                ) : (
+                  <Button type="button" variant="secondary" onClick={() => setConfirming(true)}>
+                    Cancel this purchase…
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
         </section>
       )}
 
@@ -199,6 +277,55 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
         </Link>
         {' — this one is in there, whatever happens to this page.'}
       </p>
+    </div>
+  );
+}
+
+/**
+ * The button that asks for a new attempt. Its own component so the mutation
+ * is keyed to the invoice it collects, as `useStartPayment` requires.
+ */
+function StartAttempt({ invoiceId, onStarted }: { invoiceId: string; onStarted: (attempt: StartedPayment) => void }) {
+  const start = useStartPayment(invoiceId);
+
+  return (
+    <>
+      {start.error !== null && <ErrorSurface error={start.error} />}
+      <Button
+        type="button"
+        pending={start.isPending}
+        data-testid="pay-now"
+        onClick={() => start.mutate(undefined, { onSuccess: onStarted })}
+      >
+        Pay now
+      </Button>
+    </>
+  );
+}
+
+/**
+ * The card form for a fresh attempt, where its secret was born (ADR-048).
+ * Whatever the form says, the page's own read says what the server knows.
+ */
+function PayNow({
+  attempt,
+  returnUrl,
+  onSettled,
+}: {
+  attempt: StartedPayment;
+  returnUrl: string;
+  onSettled: () => void;
+}) {
+  return (
+    <div className="max-w-lg space-y-3" data-testid="checkout-pay">
+      <h2 className="text-xl font-semibold">Pay</h2>
+      <PaymentElementPanel
+        provider={attempt.payment_provider}
+        clientSecret={attempt.client_secret}
+        amount={attempt.amount}
+        returnUrl={returnUrl}
+        onSettled={onSettled}
+      />
     </div>
   );
 }

@@ -139,7 +139,8 @@
       ],
       "operations": [
         "openCheckoutSession",
-        "showCheckoutSession"
+        "showCheckoutSession",
+        "cancelCheckoutSession"
       ]
     },
     "console.admin.audit": {

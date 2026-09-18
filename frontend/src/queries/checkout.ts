@@ -108,6 +108,44 @@ export function useOpenCheckoutSession() {
 }
 
 /**
+ * Giving up on a purchase before it is paid (2026-09-18).
+ *
+ * The response *is* the new state — the session, now CANCELLED — so it is
+ * written into the cache; the order and invoice lists are invalidated because
+ * both documents changed. Nothing optimistic: an invoice is cancelled by this,
+ * and a screen that assumed it would be would have said a legal document was
+ * void before the server did.
+ */
+export function useCancelCheckoutSession() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (sessionId: string): Promise<CheckoutSession> => {
+      const ambient = ambientParams(sessionSnapshot);
+
+      const { data, error, response } = await client.POST('/api/v1/checkout/sessions/{sessionId}/cancel', {
+        params: { ...ambient.params, path: { sessionId } },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.session;
+    },
+    onSuccess: async (session) => {
+      queryClient.setQueryData(keys.checkout.session(session.id), session);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.sales.orderLists }),
+        queryClient.invalidateQueries({ queryKey: keys.billing.invoiceLists }),
+        queryClient.invalidateQueries({ queryKey: keys.billing.paymentLists }),
+      ]);
+    },
+  });
+}
+
+/**
  * Reading a session back.
  *
  * This is what a reload gets, and what a link to `/checkout/{id}` opens: the

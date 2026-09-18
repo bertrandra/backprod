@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router';
+import type React from 'react';
 
 import { useSignOut } from '@/queries/auth';
 import { Button, touchTargetClass } from '@/ui/Field';
@@ -26,8 +27,29 @@ import type { NavEntry, NavSection } from './navigation';
  * native disclosure: keyboard-operable, announced, closable with Escape by the
  * browser, and needing no script to be any of those things. A menu built from
  * divs and `onClick` would have to reimplement all four and would get one
- * wrong.
+ * wrong. The one thing a disclosure does not do by itself is close when a
+ * choice is made — the page changes underneath and the list stays open over
+ * it (the operator's report, 2026-09-18) — so choosing closes it, and
+ * opening one closes the others.
  */
+function closeSiblings(event: React.SyntheticEvent<HTMLDetailsElement>) {
+  const opened = event.currentTarget;
+
+  if (!opened.open) {
+    return;
+  }
+
+  for (const other of opened.parentElement?.querySelectorAll('details[open]') ?? []) {
+    if (other !== opened) {
+      other.removeAttribute('open');
+    }
+  }
+}
+
+function closeOwn(event: React.MouseEvent<HTMLAnchorElement>) {
+  event.currentTarget.closest('details')?.removeAttribute('open');
+}
+
 export function ConsoleMenuBar({
   sections,
   tenantApp,
@@ -41,7 +63,7 @@ export function ConsoleMenuBar({
   return (
     <nav aria-label="Console" data-testid="console-menu" className="hidden flex-wrap items-center gap-1 md:flex">
       {sections.map((section) => (
-        <details key={section.id} className="group relative" data-console-section={section.id}>
+        <details key={section.id} className="group relative" data-console-section={section.id} onToggle={closeSiblings}>
           <summary
             className={cn(
               touchTargetClass,
@@ -62,6 +84,7 @@ export function ConsoleMenuBar({
                   to={entry.to}
                   data-console-nav={entry.id}
                   aria-current={entry.to === currentPath ? 'page' : undefined}
+                  onClick={closeOwn}
                   className={cn(
                     'block rounded-control px-3 py-2 text-sm text-ink hover:bg-well focus-visible:outline-2 focus-visible:outline-offset-2',
                     entry.to === currentPath && 'font-semibold',

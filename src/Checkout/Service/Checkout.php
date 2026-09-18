@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Checkout\Service;
 
+use App\Billing\Domain\InvoiceStatus;
+use App\Billing\Service\Invoicing;
 use App\Payment\Domain\Payment;
 use App\Payment\Service\Payments;
 use App\Sales\Domain\Order;
@@ -36,6 +38,7 @@ final class Checkout
     public function __construct(
         private readonly Sales $sales,
         private readonly Payments $payments,
+        private readonly Invoicing $invoicing,
     ) {
     }
 
@@ -83,6 +86,54 @@ final class Checkout
     public function show(string $tenantId, string $productId, string $sessionId, ?string $ownedBy = null): Order
     {
         return $this->sales->showOrder($tenantId, $productId, $sessionId, $ownedBy);
+    }
+
+    /**
+     * Giving up on a purchase before it is paid (2026-09-18).
+     *
+     * The buyer closed the card form, or thought better of it: the order is
+     * waiting for money that is not coming, and the invoice it raised is a
+     * debt nobody intends to settle. Both are cancelled, invoice first — its
+     * number stays, as a cancelled document, because numbering is gapless
+     * (§26) — and the order after, so a failure between the two leaves an
+     * order that still says what happened to its invoice.
+     *
+     * Refused once money has moved: a settled attempt is a sale to release
+     * or a payment to refund, never a purchase to forget. And refused for a
+     * completed or already cancelled order, where there is nothing to give
+     * up.
+     */
+    public function cancel(string $tenantId, string $productId, string $sessionId, ?string $actorUserId, ?string $ownedBy = null): Order
+    {
+        $order = $this->sales->showOrder($tenantId, $productId, $sessionId, $ownedBy);
+
+        if ($order->status !== Order::AWAITING_PAYMENT) {
+            throw new ConflictException(
+                'CHECKOUT_NOT_CANCELLABLE',
+                'Only a checkout still waiting for its payment can be cancelled.',
+                ['status' => $order->status],
+            );
+        }
+
+        if ($order->invoiceId !== null) {
+            $latest = $this->payments->latestFor($tenantId, $productId, $order->invoiceId);
+
+            if ($latest !== null && $latest->isSettled()) {
+                throw new ConflictException(
+                    'CHECKOUT_ALREADY_PAID',
+                    'The payment has arrived; this purchase can no longer be cancelled.',
+                    ['payment_id' => $latest->id, 'payment_status' => $latest->status],
+                );
+            }
+
+            $invoice = $this->invoicing->show($tenantId, $productId, $order->invoiceId);
+
+            if ($invoice->status !== InvoiceStatus::CANCELLED) {
+                $this->invoicing->cancel($tenantId, $productId, $order->invoiceId, $actorUserId);
+            }
+        }
+
+        return $this->sales->abandonOrder($order, $actorUserId);
     }
 
     /**

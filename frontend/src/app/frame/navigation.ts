@@ -207,7 +207,9 @@ export const APP_NAV: readonly NavSection[] = [
       { id: 'invoices', label: 'Invoices', to: '/invoices', scope: 'tenant', permission: 'billing.read' },
       { id: 'payments', label: 'Payments', to: '/payments', scope: 'tenant', permission: 'payments.read', secondary: true },
       { id: 'credit-notes', label: 'Credit notes', to: '/credit-notes', scope: 'tenant', permission: 'billing.read', secondary: true },
-      { id: 'billing-profile', label: 'Billing profile', to: '/billing-profile', scope: 'tenant', permission: 'billing.read', secondary: true },
+      // The organisation's legal identity on its invoices: the administrator's
+      // to see and to set (2026-09-18), like Organisation and Members.
+      { id: 'billing-profile', label: 'Billing profile', to: '/billing-profile', scope: 'tenant', permission: 'billing.manage', secondary: true },
       { id: 'tax', label: 'Tax profile', to: '/tax', scope: 'tenant', permission: 'tax.read', secondary: true },
       { id: 'tax-rates', label: 'Rates and regimes', to: '/tax/rates', scope: 'tenant', permission: 'tax.read', secondary: true },
       { id: 'tax-reports', label: 'VAT periods', to: '/tax/reports', scope: 'tenant', permission: 'tax.read', secondary: true },

@@ -276,7 +276,23 @@ personne) :
 Un bouton retiré est **toujours expliqué** — bandeau en haut nommant ce qui est
 actif, phrase dans la ligne à la place du bouton — parce qu'un bouton qui
 disparaît sans un mot se lit comme un écran qui a perdu quelque chose, pas
-comme un achat déjà fait (retour de l'opérateur, 18 septembre 2026). Sur la
+comme un achat déjà fait (retour de l'opérateur, 18 septembre 2026). Et
+seulement à qui aurait eu le bouton : un membre n'est pas averti que
+l'organisation est abonnée, puisque l'achat pour l'organisation n'a jamais été
+le sien — ce serait les affaires d'un autre.
+
+**Un achat non payé se règle ou s'abandonne.** Depuis l'écran de la commande
+(`/checkout/{id}`), tant que l'argent n'est pas arrivé — en attente, ou
+dernière tentative échouée — `billing.pay` offre *Pay now* (nouvelle tentative
+sur la facture, formulaire de carte sur place) et *Cancel this purchase*
+(`cancelCheckoutSession` : la commande et sa facture passent à `CANCELLED`, le
+numéro de facture reste, séquence sans trou oblige). Un membre n'abandonne que
+sa propre commande — celle d'un collègue est un 404 pour lui. Refusé dès qu'un
+paiement a abouti.
+
+**Le profil de facturation est à l'administrateur.** L'entrée de menu est
+derrière `billing.manage` (comme Organisation et Membres) ; l'API le lit encore
+avec `billing.read`, l'écrit avec `billing.manage`. Sur la
 vitrine, après l'inscription, il n'y a pas de choix : c'est toujours un siège.
 Un administrateur peut donc aussi s'acheter un siège personnel — cohérent avec
 §13.1, et une ligne à changer si l'on préfère ne lui laisser que l'organisation.

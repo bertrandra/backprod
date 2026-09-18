@@ -133,6 +133,25 @@ final class OwnDocumentsTest extends DatabaseApiTestCase
         }
     }
 
+    public function testAMemberCannotGiveUpAColleaguesPurchase(): void
+    {
+        $company = $this->sessionOf($this->open('alice-token'));
+        self::assertIsString($company['id']);
+
+        $response = $this->request('POST', '/api/v1/checkout/sessions/' . $company['id'] . '/cancel', $this->headers('bob-token'));
+        self::assertSame(404, $response->getStatusCode());
+
+        // Untouched: still waiting for the administrator's money.
+        self::assertSame('AWAITING_PAYMENT', $this->sessionOf($this->get('alice-token', '/api/v1/checkout/sessions/' . $company['id']))['status'] ?? null);
+
+        // Their own, they may.
+        $seat = $this->sessionOf($this->open('bob-token', seat: true));
+        self::assertIsString($seat['id']);
+        $given = $this->request('POST', '/api/v1/checkout/sessions/' . $seat['id'] . '/cancel', $this->headers('bob-token'));
+        self::assertSame(200, $given->getStatusCode());
+        self::assertSame('CANCELLED', $this->sessionOf($given)['status'] ?? null);
+    }
+
     public function testAMembersOwnDocumentsReadBack(): void
     {
         $seat = $this->sessionOf($this->open('bob-token', seat: true));
