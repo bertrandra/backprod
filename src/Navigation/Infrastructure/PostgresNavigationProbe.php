@@ -31,9 +31,15 @@ final class PostgresNavigationProbe implements NavigationProbe
         'jobs' => 'SELECT 1 FROM jobs WHERE tenant_id = :t',
         'quotes' => 'SELECT 1 FROM quotes WHERE tenant_id = :t AND product_id = :p',
         'orders' => 'SELECT 1 FROM orders WHERE tenant_id = :t AND product_id = :p',
+        // Any subscription, live or not: a lapsed one is still something to
+        // show, and "nothing" means nothing was ever taken out.
+        'subscription' => 'SELECT 1 FROM subscriptions WHERE tenant_id = :t AND product_id = :p',
         'invoices' => 'SELECT 1 FROM invoices WHERE tenant_id = :t AND product_id = :p',
         'payments' => 'SELECT 1 FROM payments WHERE tenant_id = :t AND product_id = :p',
         'credit-notes' => 'SELECT 1 FROM credit_notes WHERE tenant_id = :t AND product_id = :p',
+        // VAT periods read the tenant's whole fiscal history (2026-09-17),
+        // so the list is empty until the first fact is booked in any product.
+        'tax-reports' => 'SELECT 1 FROM vat_transactions WHERE tenant_id = :t',
         'conversations' => 'SELECT 1 FROM conversations WHERE tenant_id = :t AND product_id = :p',
         'notifications' => 'SELECT 1 FROM notifications WHERE tenant_id = :t AND product_id = :p',
     ];

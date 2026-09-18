@@ -161,6 +161,10 @@ final class NavigationSetupTest extends DatabaseApiTestCase
         self::assertIsArray($empty);
         self::assertContains('invoices', $empty);
         self::assertContains('projects', $empty);
+        // A subscription never taken out and a fiscal history with no fact in
+        // it are "nothing to show" too (2026-09-18).
+        self::assertContains('subscription', $empty);
+        self::assertContains('tax-reports', $empty);
         // Never a settings screen or a profile: those list nothing to count.
         self::assertNotContains('billing-profile', $empty);
         self::assertNotContains('profile', $empty);

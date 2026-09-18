@@ -215,8 +215,12 @@ export const APP_NAV: readonly NavSection[] = [
     id: 'organisation',
     label: 'Organisation',
     entries: [
-      { id: 'organisation', label: 'Organisation', to: '/organisation', scope: 'tenant', permission: 'tenant.read', secondary: true },
-      { id: 'members', label: 'Members', to: '/members', scope: 'tenant', permission: 'members.read', secondary: true },
+      // Administering the organisation and its people is the tenant
+      // administrator's (2026-09-18): a USER may *read* both through the API,
+      // but an entry to a screen they can only look at is noise on their menu.
+      // The screens stay reachable by address for a reader.
+      { id: 'organisation', label: 'Organisation', to: '/organisation', scope: 'tenant', permission: 'tenant.manage', secondary: true },
+      { id: 'members', label: 'Members', to: '/members', scope: 'tenant', permission: 'members.manage', secondary: true },
       { id: 'profile', label: 'Your profile', to: '/profile', scope: 'tenant', permission: 'account.read', secondary: true },
       { id: 'branding', label: 'Branding', to: '/branding', scope: 'tenant', permission: 'skin.manage', secondary: true },
       { id: 'notification-settings', label: 'Notification settings', to: '/notification-settings', scope: 'tenant', permission: 'notifications.read', secondary: true },
