@@ -74,7 +74,9 @@ export function CatalogueScreen() {
   const catalogue = useProductCatalogue(session?.productId ?? null);
   const quote = useCreateQuote();
   const checkout = useOpenCheckoutSession();
-  const taxProfile = useTaxProfile();
+  // Read only where it may be (2026-09-18): the fiscal record is the
+  // organisation's, and a member asking for it is a 403 for nothing.
+  const taxProfile = useTaxProfile(can(session, 'tax.read'));
   // Read only where it may be: the query itself needs `subscription.read`,
   // and asking without it is a 403 for nothing.
   const subscription = useSubscription(can(session, 'subscription.read'));
@@ -177,7 +179,11 @@ export function CatalogueScreen() {
       {quote.error !== null && <ErrorSurface error={quote.error} />}
       {checkout.error !== null && <ErrorSurface error={checkout.error} />}
 
-      {subscribed && live !== null && (
+      {/* Each notice explains a button *this person* would otherwise have
+          had (2026-09-18): a member was never offered the organisation's
+          purchase, so telling them the organisation is subscribed explains
+          nothing and reads as somebody else's business. */}
+      {subscribed && live !== null && couldBuyForTenant && (
         <section data-testid="already-subscribed" className={`${notice('info')} space-y-1 text-sm`}>
           <p className="font-medium">
             {catalogue.data?.product.name ?? 'This product'} is already subscribed to: {live.offer.name}.
@@ -193,7 +199,7 @@ export function CatalogueScreen() {
         </section>
       )}
 
-      {seated && seat !== null && (
+      {seated && seat !== null && couldBuySeat && (
         <section data-testid="already-seated" className={`${notice('info')} space-y-1 text-sm`}>
           <p className="font-medium">
             You already hold a seat on {catalogue.data?.product.name ?? 'this product'}: {seat.offer.name}.

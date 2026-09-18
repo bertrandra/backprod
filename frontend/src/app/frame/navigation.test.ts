@@ -63,8 +63,10 @@ describe('what the navigation offers', () => {
 
     // Everything `billing.read` opens, and nothing else. Written out in full
     // rather than counted, so an entry appearing under the wrong permission
-    // fails here.
-    expect(idsOf(sections)).toEqual(['invoices', 'credit-notes', 'billing-profile']);
+    // fails here. The billing profile is not among them (2026-09-18): the
+    // organisation's legal identity is the administrator's, `billing.manage`.
+    expect(idsOf(sections)).toEqual(['invoices', 'credit-notes']);
+    expect(idsOf(visibleNav(APP_NAV, asTenant(['billing.read', 'billing.manage'])))).toContain('billing-profile');
   });
 
   it('grows when a permission is added', () => {

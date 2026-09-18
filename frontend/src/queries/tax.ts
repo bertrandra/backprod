@@ -40,11 +40,12 @@ export function isClosed(period: VatPeriod): boolean {
   return period.status === 'CLOSED';
 }
 
-export function useTaxProfile() {
+export function useTaxProfile(enabled = true) {
   const client = useApiClient();
 
   return useQuery({
     queryKey: keys.tax.profile,
+    enabled,
     queryFn: async (): Promise<TaxProfile> => {
       const { data, error, response } = await client.GET(
         '/api/v1/tax/profile',

@@ -378,4 +378,28 @@ final class Sales
 
         return $this->sales->cancelOrder($order, $actorUserId);
     }
+
+    /**
+     * Abandons an order that is still waiting for its money (2026-09-18).
+     *
+     * The one case {@see cancelOrder} refuses — an invoice exists — and the
+     * one case where refusing is wrong: the buyer closed the card form, no
+     * money moved, and the invoice is a debt nobody intends to settle. The
+     * checkout, which raised that invoice, cancels it *first* (ISSUED →
+     * CANCELLED, its number kept, as gapless numbering requires) and then
+     * calls this; an order whose invoice is still live is refused here so
+     * that the two cannot come apart.
+     */
+    public function abandonOrder(Order $order, ?string $actorUserId): Order
+    {
+        if ($order->status !== Order::AWAITING_PAYMENT) {
+            throw new ConflictException(
+                'ORDER_NOT_CANCELLABLE',
+                'Only an order still waiting for its payment can be abandoned.',
+                ['status' => $order->status],
+            );
+        }
+
+        return $this->sales->cancelOrder($order, $actorUserId);
+    }
 }

@@ -29,7 +29,7 @@ vi.mock('@stripe/react-stripe-js', () => ({
 // themselves (`billing.pay`), and raises quotes.
 const BUYER = {
   ...SESSION,
-  permissions: [...SESSION.permissions, 'catalog.read', 'billing.pay', 'billing.manage', 'sales.manage'],
+  permissions: [...SESSION.permissions, 'catalog.read', 'billing.pay', 'billing.manage', 'sales.manage', 'tax.read'],
 };
 
 // A member, as self-service leaves them: buys a seat of their own and nothing
@@ -194,6 +194,26 @@ describe('what the catalogue offers to do', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: SEAT_BUTTON })).toBeTruthy());
     expect(screen.queryByRole('button', { name: TENANT_BUTTON })).toBeNull();
     expect(screen.queryByRole('button', { name: /^quote$/i })).toBeNull();
+  });
+
+  it('tells a member nothing about the organisation\'s subscription — it was never theirs to buy', async () => {
+    // The notice explains a button this person would otherwise have had.
+    // A member never had the organisation's, so the organisation being
+    // subscribed is somebody else's business (the operator's report,
+    // 2026-09-18); their own seat is still offered.
+    render(clientFor([offer('o-1', ZEBRA)], subscriptionRead(live()), MEMBER));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: SEAT_BUTTON })).toBeTruthy());
+    expect(screen.queryByTestId('already-subscribed')).toBeNull();
+    expect(screen.queryByTestId('tenant-subscribed')).toBeNull();
+  });
+
+  it('never asks a member for the fiscal record it may not read', async () => {
+    const { client, requests } = recordingClient(stubsFor([offer('o-1', ZEBRA)], subscriptionRead(null), MEMBER));
+    render(client);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: SEAT_BUTTON })).toBeTruthy());
+    expect(requests.some((request) => request.path === '/api/v1/tax/profile')).toBe(false);
   });
 
   it('still offers a seat while the organisation is subscribed, and only then withholds the organisation\'s', async () => {

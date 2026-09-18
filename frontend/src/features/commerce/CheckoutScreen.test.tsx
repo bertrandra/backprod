@@ -1,8 +1,19 @@
-import { screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { describe, expect, it, vi } from 'vitest';
 
 import { POLL_MS } from '@/queries/checkout';
-import { renderAtRoute, SESSION, stubClient, type Stub } from '@/test-utils';
+import { recordingClient, renderAtRoute, SESSION, stubClient, type Stub, type Stubs } from '@/test-utils';
+
+// Stripe's SDK, replaced: what is under test is that a fresh attempt's form
+// is offered on this page, not what Stripe does inside it.
+vi.mock('@stripe/stripe-js', () => ({ loadStripe: vi.fn(() => Promise.resolve({ confirmPayment: vi.fn() })) }));
+vi.mock('@stripe/react-stripe-js', () => ({
+  Elements: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  PaymentElement: () => <div data-testid="stripe-payment-element" />,
+  useStripe: () => ({ confirmPayment: vi.fn() }),
+  useElements: () => ({}),
+}));
 
 import { CheckoutScreen } from './CheckoutScreen';
 
@@ -14,7 +25,7 @@ import { CheckoutScreen } from './CheckoutScreen';
  * There is no session state to restore, because a checkout session *is* an order
  * (ADR-034) — so "recovering" is just reading it, which is what a reload does.
  */
-const BUYER = { ...SESSION, permissions: [...SESSION.permissions, 'billing.manage'] };
+const BUYER = { ...SESSION, permissions: [...SESSION.permissions, 'billing.manage', 'billing.pay'] };
 
 const ORDER_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
@@ -36,11 +47,16 @@ function session(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function clientFor(stub: Stub | (() => Stub)) {
-  return stubClient({
+function stubsFor(stub: Stub | (() => Stub), extra: Stubs = {}): Stubs {
+  return {
     'GET /api/v1/me': { data: BUYER },
     'GET /api/v1/checkout/sessions/{sessionId}': stub,
-  });
+    ...extra,
+  };
+}
+
+function clientFor(stub: Stub | (() => Stub), extra: Stubs = {}) {
+  return stubClient(stubsFor(stub, extra));
 }
 
 const render = (client: ReturnType<typeof stubClient>) =>
@@ -210,6 +226,95 @@ describe('when the payment failed', () => {
     await new Promise((resolve) => setTimeout(resolve, POLL_MS + 500));
 
     expect(polls).toBe(after);
+  });
+});
+
+describe('an unpaid checkout', () => {
+  // The buyer closed the card form and is back at the order (2026-09-18):
+  // it must offer to pay, and to give up.
+  const STARTED = {
+    id: 'pay-2',
+    invoice_id: 'inv-1',
+    provider: 'stripe',
+    provider_payment_id: 'pi_2',
+    status: 'PENDING',
+    settled: false,
+    final: false,
+    amount: { minor_units: 3480, currency: 'EUR' },
+    method: 'card',
+    failure_code: null,
+    failure_reason: null,
+    succeeded_at: null,
+    failed_at: null,
+    created_at: '2026-01-03T08:59:00Z',
+    client_secret: 'pi_2_secret_never_stored',
+    payment_provider: { name: 'stripe', publishable_key: 'pk_test_1', sandbox: true },
+  };
+
+  it('offers a fresh attempt, and the card form where its secret was born', async () => {
+    const { client, requests } = recordingClient(
+      stubsFor({ data: { session: session({ invoice_id: 'inv-1', payment_id: 'pay-1', payment_status: 'PENDING' }) } }, {
+        'POST /api/v1/billing/invoices/{invoiceId}/payments': { status: 201, data: STARTED },
+      }),
+    );
+    render(client);
+
+    await waitFor(() => expect(screen.getByTestId('pay-now')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('pay-now'));
+
+    // A new attempt on the invoice — never the old one revived.
+    await waitFor(() => expect(requests.some((r) => r.path === '/api/v1/billing/invoices/{invoiceId}/payments')).toBe(true));
+    await waitFor(() => expect(screen.getByTestId('checkout-pay')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('stripe-payment-element')).toBeTruthy());
+  });
+
+  it('offers to give it up, asks first, and shows the order cancelled afterwards', async () => {
+    const { client, requests } = recordingClient(
+      stubsFor({ data: { session: session({ invoice_id: 'inv-1', payment_id: 'pay-1', payment_status: 'PENDING' }) } }, {
+        'POST /api/v1/checkout/sessions/{sessionId}/cancel': {
+          data: { session: session({ status: 'CANCELLED', invoice_id: 'inv-1', payment_id: 'pay-1', payment_status: 'PENDING' }) },
+        },
+      }),
+    );
+    render(client);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /cancel this purchase…/i })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /cancel this purchase…/i }));
+    expect(requests.some((r) => r.path === '/api/v1/checkout/sessions/{sessionId}/cancel')).toBe(false);
+
+    fireEvent.click(screen.getByTestId('cancel-checkout'));
+
+    await waitFor(() => expect(screen.getByTestId('checkout-cancelled')).toBeTruthy());
+    expect(screen.getByTestId('checkout-status').getAttribute('data-status')).toBe('CANCELLED');
+    // And nothing more to do: both ways out are gone with the order.
+    expect(screen.queryByTestId('checkout-actions')).toBeNull();
+  });
+
+  it('offers the same two ways out after a failed attempt', async () => {
+    render(clientFor({ data: { session: session({ status: 'PAYMENT_FAILED', invoice_id: 'inv-1', payment_id: 'pay-1', payment_status: 'FAILED' }) } }));
+
+    await waitFor(() => expect(screen.getByTestId('payment-failed')).toBeTruthy());
+    expect(screen.getByTestId('pay-now')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /cancel this purchase…/i })).toBeTruthy();
+  });
+
+  it('offers neither once it is paid', async () => {
+    render(clientFor({ data: { session: session({ status: 'COMPLETED', invoice_id: 'inv-1', subscription_id: 'sub-1' }) } }));
+
+    await waitFor(() => expect(screen.getByTestId('checkout-completed')).toBeTruthy());
+    expect(screen.queryByTestId('checkout-actions')).toBeNull();
+  });
+
+  it('offers neither to someone who may not pay', async () => {
+    render(
+      stubClient({
+        'GET /api/v1/me': { data: { ...SESSION, permissions: ['billing.read'] } },
+        'GET /api/v1/checkout/sessions/{sessionId}': { data: { session: session({ invoice_id: 'inv-1' }) } },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('checkout-status')).toBeTruthy());
+    expect(screen.queryByTestId('checkout-actions')).toBeNull();
   });
 });
 

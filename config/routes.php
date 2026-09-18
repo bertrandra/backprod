@@ -26,6 +26,7 @@ use App\Billing\Controller\SaveBillingProfileController;
 use App\Billing\Controller\ShowBillingProfileController;
 use App\Billing\Controller\ShowInvoiceController;
 use App\Billing\Controller\ShowInvoicePdfController;
+use App\Checkout\Controller\CancelCheckoutSessionController;
 use App\Checkout\Controller\OpenCheckoutSessionController;
 use App\Checkout\Controller\RetryPaymentController;
 use App\Checkout\Controller\ShowCheckoutSessionController;
@@ -340,6 +341,7 @@ return static function (RouteCollector $routes): void {
     // A retry is a new attempt with its own provider reference, never a
     // resurrection: PaymentStatus is one-way, because the customer may have
     // used a different instrument and the two must be told apart.
+    $routes->addRoute('POST', '/api/v1/checkout/sessions/{sessionId}/cancel', CancelCheckoutSessionController::class);
     $routes->addRoute('POST', '/api/v1/payments/{paymentId}/retry', RetryPaymentController::class);
 
     // How a finalised invoice is corrected. Never by editing it: it has a

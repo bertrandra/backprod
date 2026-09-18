@@ -193,6 +193,65 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
         self::assertSame('1', (string) (is_scalar($invoices) ? $invoices : 'not counted'));
     }
 
+    // --- Giving up before paying (2026-09-18) ------------------------------------
+
+    public function testAnUnpaidCheckoutCanBeGivenUpAndTakesItsInvoiceWithIt(): void
+    {
+        $session = $this->sessionOf($this->open());
+        self::assertIsString($session['invoice_id']);
+
+        $response = $this->cancel($session);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('CANCELLED', $this->sessionOf($response)['status'] ?? null);
+        self::assertSame('CANCELLED', $this->sessionOf($this->show($session))['status'] ?? null);
+
+        // The invoice is cancelled, not deleted: its number stays, as a
+        // cancelled document, because the sequence has no gaps (§26).
+        $invoice = $this->connection->fetchAssociative(
+            'SELECT status, number FROM invoices WHERE id = :id',
+            ['id' => $session['invoice_id']],
+        );
+        self::assertIsArray($invoice);
+        self::assertSame('CANCELLED', $invoice['status']);
+        self::assertIsString($invoice['number']);
+
+        // And nothing collectable is left: a new attempt on it is refused.
+        $attempt = $this->request(
+            'POST',
+            '/api/v1/billing/invoices/' . $session['invoice_id'] . '/payments',
+            $this->headers(),
+        );
+        self::assertSame(409, $attempt->getStatusCode());
+        self::assertSame('INVOICE_NOT_PAYABLE', $this->errorOf($attempt)['code'] ?? null);
+        $count = $this->connection->fetchOne('SELECT count(*) FROM subscriptions');
+        self::assertSame('0', (string) (is_scalar($count) ? $count : 'not counted'));
+    }
+
+    public function testAPaidCheckoutCannotBeGivenUp(): void
+    {
+        $session = $this->sessionOf($this->open());
+        $this->pay($session, 'evt_paid');
+
+        $response = $this->cancel($session);
+
+        // Completed, so nothing to give up: undoing a sale is a credit note
+        // and a cancellation, each a deliberate act with its own document.
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame('CHECKOUT_NOT_CANCELLABLE', $this->errorOf($response)['code'] ?? null);
+    }
+
+    public function testAGivenUpCheckoutCannotBeGivenUpTwice(): void
+    {
+        $session = $this->sessionOf($this->open());
+        $this->cancel($session);
+
+        $again = $this->cancel($session);
+
+        self::assertSame(409, $again->getStatusCode());
+        self::assertSame('CHECKOUT_NOT_CANCELLABLE', $this->errorOf($again)['code'] ?? null);
+    }
+
     // --- A seat of one's own (2026-09-18) ----------------------------------------
 
     public function testASeatIsBoughtBesideTheOrganisationsSubscriptionAndBindsThePerson(): void
@@ -415,6 +474,17 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
             [StubPaymentProvider::SIGNATURE_HEADER => (new StubPaymentProvider(self::SECRET))->sign($body)],
             $body,
         );
+    }
+
+    /**
+     * @param array<string, mixed> $session
+     */
+    private function cancel(array $session): ResponseInterface
+    {
+        $id = $session['id'];
+        self::assertIsString($id);
+
+        return $this->request('POST', '/api/v1/checkout/sessions/' . $id . '/cancel', $this->headers());
     }
 
     private function retry(string $paymentId): ResponseInterface

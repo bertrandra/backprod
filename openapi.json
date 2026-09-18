@@ -6961,6 +6961,86 @@
         }
       }
     },
+    "/api/v1/checkout/sessions/{sessionId}/cancel": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "cancelCheckoutSession",
+        "summary": "Give up on a purchase before it is paid",
+        "description": "The buyer closed the card form, or thought better of it (2026-09-18): the order is waiting for money that is not coming, and the invoice it raised is a debt nobody intends to settle. Both are cancelled — the invoice first, its number kept as a cancelled document because numbering is gapless (§26), the order after.\n\nThe buyer's own act, behind `billing.pay` like opening a session, and on the buyer's own session: a member cancels what they were buying, never what a colleague is (their session is a 404). Refused once money has moved — a settled payment is a sale to release or a refund to ask for, never a purchase to forget — and for a completed or already cancelled order.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The order id returned when the session was opened."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The session, now `CANCELLED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "session"
+                  ],
+                  "properties": {
+                    "session": {
+                      "$ref": "#/components/schemas/CheckoutSession"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session in this tenant and product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CHECKOUT_NOT_CANCELLABLE` — the order is completed or already cancelled. `CHECKOUT_ALREADY_PAID` — a payment has settled against its invoice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/conversations": {
       "get": {
         "tags": [

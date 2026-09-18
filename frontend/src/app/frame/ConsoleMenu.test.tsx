@@ -44,6 +44,37 @@ describe('the menu bar', () => {
     expect(current.map((l) => l.getAttribute('data-console-nav'))).toEqual(['tenants']);
   });
 
+  it('closes a dropdown once a screen is chosen, and closes the others when one opens', async () => {
+    // A native disclosure stays open over the page that changed underneath
+    // it (the operator's report, 2026-09-18); choosing must close it.
+    const sections = platformSections(platform(EVERYTHING));
+
+    renderAtRoute(
+      <ConsoleMenuBar sections={sections} tenantApp={undefined} currentPath="/console/tenants" />,
+      stubClient({}),
+      { path: '/console/tenants' },
+    );
+
+    await waitFor(() => expect(screen.getByTestId('console-menu')).toBeTruthy());
+    const [setup, demo] = [...screen.getByTestId('console-menu').querySelectorAll('details')];
+    expect(setup).toBeDefined();
+    expect(demo).toBeDefined();
+
+    setup!.open = true;
+    fireEvent(setup!, new Event('toggle'));
+    expect(setup!.open).toBe(true);
+
+    // Opening a second closes the first.
+    demo!.open = true;
+    fireEvent(demo!, new Event('toggle'));
+    expect(setup!.open).toBe(false);
+    expect(demo!.open).toBe(true);
+
+    // Choosing closes the one it was chosen from.
+    fireEvent.click(demo!.querySelector('a[data-console-nav]') as HTMLElement);
+    expect(demo!.open).toBe(false);
+  });
+
   it('points the way back at the application when there is one, else the front door', async () => {
     const both = visibleNav(APP_NAV, {
       tenant: { permissions: ['projects.read'], capabilities: [] },

@@ -655,6 +655,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/checkout/sessions/{sessionId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Give up on a purchase before it is paid
+         * @description The buyer closed the card form, or thought better of it (2026-09-18): the order is waiting for money that is not coming, and the invoice it raised is a debt nobody intends to settle. Both are cancelled — the invoice first, its number kept as a cancelled document because numbering is gapless (§26), the order after.
+         *
+         *     The buyer's own act, behind `billing.pay` like opening a session, and on the buyer's own session: a member cancels what they were buying, never what a colleague is (their session is a 404). Refused once money has moved — a settled payment is a sale to release or a refund to ask for, never a purchase to forget — and for a completed or already cancelled order.
+         */
+        post: operations["cancelCheckoutSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversations": {
         parameters: {
             query?: never;
@@ -6179,6 +6201,58 @@ export interface operations {
             403: components["responses"]["PermissionDenied"];
             /** @description No such session in this tenant and product. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    cancelCheckoutSession: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                /** @description The order id returned when the session was opened. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The session, now `CANCELLED`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        session: components["schemas"]["CheckoutSession"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description No such session in this tenant and product. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `CHECKOUT_NOT_CANCELLABLE` — the order is completed or already cancelled. `CHECKOUT_ALREADY_PAID` — a payment has settled against its invoice. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
