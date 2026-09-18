@@ -37,7 +37,7 @@ describe('the menu bar', () => {
       [...screen.getByTestId('console-menu').querySelectorAll('details')].map((d) =>
         d.getAttribute('data-console-section'),
       ),
-    ).toEqual(['setup', 'customers', 'platform']);
+    ).toEqual(['setup', 'demo', 'customers', 'platform']);
 
     // The current screen, and only it, is the page.
     const current = screen.getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page');
