@@ -11,6 +11,7 @@ use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Domain\InvoiceStatus;
 use App\Billing\Domain\Money;
 use App\Billing\Domain\TaxRecord;
+use App\Commerce\Domain\OfferLineDetails;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
 use DateTimeImmutable;
@@ -44,8 +45,10 @@ final class PostgresInvoiceRepository implements InvoiceRepository
         customer_snapshot::text AS customer_snapshot
         SQL;
 
-    public function __construct(private readonly Connection $connection)
-    {
+    public function __construct(
+        private readonly Connection $connection,
+        private readonly OfferLineDetails $offers,
+    ) {
     }
 
     public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
@@ -493,7 +496,40 @@ final class PostgresInvoiceRepository implements InvoiceRepository
             );
         }
 
-        return $lines;
+        return $this->describe($lines);
+    }
+
+    /**
+     * Every line said in the customer's words (2026-09-19), from the version
+     * it names — one query for the lot, never one per line.
+     *
+     * @param array<string, list<InvoiceLine>> $lines
+     *
+     * @return array<string, list<InvoiceLine>>
+     */
+    private function describe(array $lines): array
+    {
+        $versions = [];
+
+        foreach ($lines as $own) {
+            foreach ($own as $line) {
+                if ($line->sourceOfferVersionId !== null) {
+                    $versions[] = $line->sourceOfferVersionId;
+                }
+            }
+        }
+
+        $details = $this->offers->describe($versions);
+
+        return array_map(
+            static fn (array $own): array => array_map(
+                static fn (InvoiceLine $line): InvoiceLine => $line->sourceOfferVersionId === null
+                    ? $line
+                    : $line->describedBy($details[$line->sourceOfferVersionId] ?? null),
+                $own,
+            ),
+            $lines,
+        );
     }
 
     /**

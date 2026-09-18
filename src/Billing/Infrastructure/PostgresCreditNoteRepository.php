@@ -10,7 +10,9 @@ use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Domain\InvoiceStatus;
+use App\Billing\Domain\LineOffer;
 use App\Billing\Domain\Money;
+use App\Commerce\Domain\OfferLineDetails;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
 use Doctrine\DBAL\ArrayParameterType;
@@ -30,6 +32,7 @@ final class PostgresCreditNoteRepository implements CreditNoteRepository
     public function __construct(
         private readonly Connection $connection,
         private readonly InvoiceRepository $invoices,
+        private readonly OfferLineDetails $offers,
     ) {
     }
 
@@ -220,11 +223,13 @@ final class PostgresCreditNoteRepository implements CreditNoteRepository
 
         $ids = array_map(static fn (array $row): string => Row::string($row, 'id'), $rows);
         $lines = $this->linesOf($ids);
+        $sold = $this->soldOn(array_map(static fn (array $row): string => Row::string($row, 'invoice_id'), $rows));
 
         return array_map(
-            static function (array $row) use ($lines): CreditNote {
+            static function (array $row) use ($lines, $sold): CreditNote {
                 $id = Row::string($row, 'id');
                 $currency = Row::string($row, 'currency');
+                $offer = $sold[Row::string($row, 'invoice_id')] ?? null;
 
                 return new CreditNote(
                     $id,
@@ -239,11 +244,60 @@ final class PostgresCreditNoteRepository implements CreditNoteRepository
                     Row::timestamp($row, 'issued_at'),
                     self::decode($row, 'supplier_snapshot'),
                     self::decode($row, 'customer_snapshot'),
-                    $lines[$id] ?? [],
+                    $offer === null
+                        ? ($lines[$id] ?? [])
+                        : array_map(static fn (InvoiceLine $line): InvoiceLine => $line->describedBy($offer), $lines[$id] ?? []),
                 );
             },
             $rows,
         );
+    }
+
+    /**
+     * What each credited invoice sold, in the customer's words (2026-09-19).
+     * A credit note's lines mirror the invoice's and name no version of
+     * their own, so the invoice's first line says what the note is about —
+     * one query for the invoices, one for the versions.
+     *
+     * @param list<string> $invoiceIds
+     *
+     * @return array<string, LineOffer> by invoice id
+     */
+    private function soldOn(array $invoiceIds): array
+    {
+        $ids = array_values(array_unique($invoiceIds));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $rows = $this->connection->fetchAllAssociative(
+            <<<'SQL'
+                SELECT DISTINCT ON (invoice_id) invoice_id, source_offer_version_id
+                  FROM invoice_lines
+                 WHERE invoice_id IN (:ids) AND source_offer_version_id IS NOT NULL
+                 ORDER BY invoice_id, position
+                SQL,
+            ['ids' => $ids],
+            ['ids' => ArrayParameterType::STRING],
+        );
+
+        $versionOf = [];
+
+        foreach ($rows as $row) {
+            $versionOf[Row::string($row, 'invoice_id')] = Row::string($row, 'source_offer_version_id');
+        }
+
+        $details = $this->offers->describe(array_values($versionOf));
+        $sold = [];
+
+        foreach ($versionOf as $invoiceId => $versionId) {
+            if (isset($details[$versionId])) {
+                $sold[$invoiceId] = $details[$versionId];
+            }
+        }
+
+        return $sold;
     }
 
     /**

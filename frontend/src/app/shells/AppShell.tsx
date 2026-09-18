@@ -3,13 +3,10 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { AppFrame } from '@/app/frame/AppFrame';
 import { CommandPalette, usePaletteShortcut } from '@/app/frame/CommandPalette';
-import { ConsoleMenuBar, ConsoleMenuSheet } from '@/app/frame/ConsoleMenu';
 import { MoreSheet } from '@/app/frame/MoreSheet';
 import {
   APP_NAV,
   bottomBarEntries,
-  firstTenantEntry,
-  platformSections,
   visibleNav,
   type Authorities,
   type Hidden,
@@ -24,6 +21,8 @@ import { staffAccess, useStaffIdentity } from '@/queries/staff';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { SkeletonRows } from '@/ui/Skeleton';
+
+import { useLanding } from './landing';
 
 /**
  * One shell, for one person, showing what their permissions actually allow.
@@ -74,7 +73,6 @@ export function AppShell() {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [consoleMenuOpen, setConsoleMenuOpen] = useState(false);
 
   const openPalette = useCallback(() => setPaletteOpen(true), []);
   usePaletteShortcut(openPalette);
@@ -94,11 +92,10 @@ export function AppShell() {
   };
 
   const sections = visibleNav(APP_NAV, authorities, hidden);
-  // The console's own menu (ADR-047): the platform's sections, and the way
-  // back to the application — rendered only while a console screen is in the
-  // view, as that view's header.
-  const consoleSections = platformSections(sections);
-  const tenantApp = firstTenantEntry(sections);
+
+  // The landing address, signed in: the person's root, their product, and
+  // the first screen in their menu (`landing.ts`, 2026-09-18).
+  useLanding(pathname === '/' && !onPlatformScreen, sections);
 
   return (
     <AppFrame
@@ -107,13 +104,7 @@ export function AppShell() {
           platform={onPlatformScreen}
           onOpenPalette={openPalette}
           onOpenMore={() => setMoreOpen(true)}
-          onOpenConsoleMenu={() => setConsoleMenuOpen(true)}
         />
-      }
-      viewHeader={
-        onPlatformScreen && consoleSections.length > 0 ? (
-          <ConsoleMenuBar sections={consoleSections} tenantApp={tenantApp} currentPath={pathname} />
-        ) : undefined
       }
       primaryNav={
         // A skeleton only while **neither** authority has answered.
@@ -139,13 +130,6 @@ export function AppShell() {
         <>
           <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
           <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} sections={sections} />
-          <ConsoleMenuSheet
-            open={consoleMenuOpen && onPlatformScreen}
-            onClose={() => setConsoleMenuOpen(false)}
-            sections={consoleSections}
-            tenantApp={tenantApp}
-            currentPath={pathname}
-          />
         </>
       }
     >

@@ -15,6 +15,7 @@ import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { LineOfferSummary } from '@/ui/LineOffer';
 import { Amount, formatVatRate } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
@@ -118,7 +119,9 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
             {current.lines.map((line) => (
               <TR key={line.position} data-line={line.position}>
                 <Td className="text-xs text-subtle">{line.position}</Td>
-                <Td>{line.description}</Td>
+                <Td>
+                  <LineOfferSummary line={line} />
+                </Td>
                 <Td numeric>{line.quantity}</Td>
                 <Td numeric>
                   <Amount money={line.unit_price} />
@@ -347,6 +350,9 @@ function Party({
     <div data-testid={testId}>
       <p className="text-xs uppercase tracking-wide text-subtle">{label}</p>
       <p className="font-medium">{text('legal_name') ?? '—'}</p>
+      {/* A seat's invoice is the organisation's, for one of its people
+          (§13.1): the person it is for, as recorded when it was issued. */}
+      <Person party={party} />
       {text('vat_number') !== null && (
         <p className="text-xs text-muted">
           VAT {text('vat_number')}
@@ -362,6 +368,29 @@ function Party({
       )}
       <p className="text-xs text-subtle">as recorded when this was issued</p>
     </div>
+  );
+}
+
+function Person({ party }: { party: Record<string, unknown> }) {
+  const person = party.person;
+
+  if (typeof person !== 'object' || person === null) {
+    return null;
+  }
+
+  const record = person as Record<string, unknown>;
+  const name = typeof record.name === 'string' ? record.name : null;
+  const email = typeof record.email === 'string' ? record.email : null;
+
+  if (name === null && email === null) {
+    return null;
+  }
+
+  return (
+    <p data-testid="customer-person" className="text-xs text-muted">
+      for {name ?? email}
+      {email !== null && name !== email && ` (${email})`}
+    </p>
   );
 }
 

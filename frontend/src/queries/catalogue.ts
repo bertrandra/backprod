@@ -141,6 +141,8 @@ export function useMyProducts(enabled = true) {
     queryFn: async (): Promise<{
       readonly products: readonly Product[];
       readonly default: string | null;
+      /** The organisations this person belongs to, by slug (2026-09-18): where their root is. */
+      readonly memberships: readonly PendingMembership[];
       /** Where this person asked to join and is still waiting (2026-09-17). */
       readonly pending: readonly PendingMembership[];
     }> => {
@@ -150,7 +152,13 @@ export function useMyProducts(enabled = true) {
         throw toApiError(response.status, error);
       }
 
-      return { products: data.products, default: data.default ?? null, pending: data.pending_memberships };
+      // Tolerant of a stubbed or older server: a missing list is an empty one.
+      return {
+        products: data.products,
+        default: data.default ?? null,
+        memberships: data.memberships ?? [],
+        pending: data.pending_memberships ?? [],
+      };
     },
   });
 }

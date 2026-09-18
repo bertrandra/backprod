@@ -3648,7 +3648,7 @@ export interface components {
             /** Format: date-time */
             valid_until: string | null;
         };
-        /** @description Supplier or customer **as they were when the document was issued**, copied rather than referenced (§25). A later change of address must not rewrite an invoice already sent, and an RGPD erasure deliberately leaves this standing. */
+        /** @description Supplier or customer **as they were when the document was issued**, copied rather than referenced (§25). A later change of address must not rewrite an invoice already sent, and an RGPD erasure deliberately leaves this standing. For a seat (§13.1), the customer carries `person: {name, email}` — whom the organisation’s invoice is for — copied in at issue like the rest (2026-09-19). */
         PartySnapshot: {
             [key: string]: unknown;
         };
@@ -3672,6 +3672,8 @@ export interface components {
              * @description Which offer version priced this line. Attribution runs through here, never through the subscription's *current* offer, which would credit today's offer with money an older one earned.
              */
             source_offer_version_id: string | null;
+            /** @description What the line sold, in the customer’s words (2026-09-19): resolved on read from `source_offer_version_id` — a version is immutable, so what it belonged to does not move — and never a second snapshot. Null for a line that names no version. */
+            offer: components["schemas"]["LineOffer"] | null;
         };
         TaxRecord: {
             jurisdiction: string;
@@ -3971,6 +3973,8 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             lines: components["schemas"]["InvoiceLine"][];
+            /** @description Whether this buys a seat for the person rather than a subscription for the organisation (§13.1, 2026-09-19). */
+            seat: boolean;
         };
         Notification: {
             /** Format: uuid */
@@ -4769,6 +4773,18 @@ export interface components {
                     roles: string[];
                 }[];
             }[];
+        };
+        /** @description The product, the offer, its plan and how it is billed, for a document line (2026-09-19). The words a customer reads on the invoice, beside the amounts the line snapshotted. */
+        LineOffer: {
+            product: {
+                code: string;
+                name: string;
+            };
+            code: string;
+            name: string;
+            plan: string;
+            billing_period: string;
+            version: number;
         };
     };
     responses: {
@@ -7353,7 +7369,12 @@ export interface operations {
                 "application/json": {
                     /** @enum {string} */
                     channel: "EMAIL" | "SMS" | "WHATSAPP";
-                    purpose: string;
+                    /**
+                     * @description What the consent is for. `TRANSACTIONAL` — messages about the account and its money: a failed payment, an invoice, a renewal notice. `MARKETING` — offers and news, which is off until chosen (§27.1). The server refuses anything else.
+                     * @default TRANSACTIONAL
+                     * @enum {string}
+                     */
+                    purpose: "TRANSACTIONAL" | "MARKETING";
                     /** @description Where the opt-in came from. The evidence, not just the claim. */
                     source: string;
                     evidence?: {
@@ -8106,6 +8127,12 @@ export interface operations {
                         /** @description The organisations this person asked to join and is waiting on. Here rather than on `/me` because somebody with no live membership has no product to ask `/me` with; this is how a client says “waiting for approval” rather than “nothing”. */
                         pending_memberships: {
                             /** @description The organisation’s slug. */
+                            tenant: string;
+                            name: string;
+                        }[];
+                        /** @description The organisations this person is a live member of (2026-09-18), whatever the products. How a page puts its address under the right root after signing in: a member of Acme who signed in at the bare host belongs at `/acme/`. Beside `pending_memberships` for the same reason that one is here — this is the one read a client can make before it knows a product or a tenant. */
+                        memberships: {
+                            /** @description The organisation’s slug — the word its URL root is made of. */
                             tenant: string;
                             name: string;
                         }[];

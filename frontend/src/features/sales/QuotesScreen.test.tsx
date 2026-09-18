@@ -188,8 +188,11 @@ describe('the money', () => {
   it('shows the pinned version that priced the quote', async () => {
     render(clientFor([quote()]));
 
-    await waitFor(() => expect(screen.getByText(/priced by offer version/i)).toBeTruthy());
-    expect(screen.getByText('v-1')).toBeTruthy();
+    // In words, and the version's id on hover for a support ticket
+    // (2026-09-19) — never in the text, where it was nobody's to read.
+    await waitFor(() => expect(screen.getByText(/priced as/i)).toBeTruthy());
+    expect(screen.getByText(/priced as/i).getAttribute('title')).toContain('v-1');
+    expect(screen.queryByText('v-1')).toBeNull();
   });
 
   it('renders every amount from its own minor units', async () => {

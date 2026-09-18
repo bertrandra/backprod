@@ -15,6 +15,7 @@ use App\Sales\Domain\Order;
 use App\Sales\Domain\OrderFulfilment;
 use App\Shared\Exceptions\ConflictException;
 use App\Tax\Service\Taxation;
+use App\User\Domain\UserRepository;
 use DateTimeImmutable;
 
 /**
@@ -46,7 +47,35 @@ final class InvoiceThenSubscribe implements OrderFulfilment
         private readonly Catalogue $catalogue,
         private readonly SupplierIdentity $supplier,
         private readonly Taxation $taxation,
+        private readonly UserRepository $users,
     ) {
+    }
+
+    /**
+     * Whom the invoice is to (2026-09-19). The organisation's legal identity
+     * always — it is the customer — and, for a seat, the person it is for:
+     * copied in like the rest of the snapshot, so a later change of name or
+     * an erasure (§26) leaves the document as it was sent.
+     *
+     * @param array<string, mixed> $snapshot
+     *
+     * @return array<string, mixed>
+     */
+    private function customerOf(Order $order, array $snapshot): array
+    {
+        if (!$order->subscriber->isSeat() || $order->subscriber->userId === null) {
+            return $snapshot;
+        }
+
+        $person = $this->users->find($order->subscriber->userId);
+
+        if ($person === null) {
+            return $snapshot;
+        }
+
+        return $snapshot + [
+            'person' => ['name' => $person->displayName ?? $person->email, 'email' => $person->email],
+        ];
     }
 
     public function invoice(Order $order): array
@@ -92,7 +121,7 @@ final class InvoiceThenSubscribe implements OrderFulfilment
             null,
             $order->lines,
             $supplier,
-            $profile->snapshot(),
+            $this->customerOf($order, $profile->snapshot()),
             SupplierIdentity::jurisdictionOf($supplier),
             $now,
             $offer->version->periodEndFrom($now),

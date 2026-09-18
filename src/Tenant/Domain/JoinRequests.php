@@ -22,6 +22,17 @@ interface JoinRequests
     public function pendingFor(string $userId): array;
 
     /**
+     * The organisations this person is a live member of, by slug (2026-09-18):
+     * what a page needs to put its address under the right root once the
+     * person has signed in — a member of Acme who signed in at the bare host
+     * belongs at `/acme/`. The counterpart of {@see pendingFor}, and read the
+     * same way: distinct organisations, whatever the products.
+     *
+     * @return list<array{tenant_id: string, slug: string, name: string}>
+     */
+    public function memberOf(string $userId): array;
+
+    /**
      * The people waiting on this organisation, oldest first.
      *
      * @return list<TenantMember>

@@ -158,6 +158,7 @@ added (§8).
 | area | for |
 |---|---|
 | `commerce.catalogue` | what is for sale: offers, plans, features, and the product's own catalogue. Two purchases per offer (§13.1, 2026-09-18): *Buy for yourself* — a seat, `billing.pay` — and *Buy for the organisation* — `billing.manage`. Each is withheld on its own fact from `showSubscription` (a live seat, a live subscription), and the screen **says why** twice: a notice at the top naming what is live, and in the row the sentence standing where the button was. A USER sees one button (*for yourself*); the case table is in `docs/identities-and-permissions.md` §"Les arêtes vives" |
+| `sales.orders`, `sales.quotes`, `billing.invoices`, `billing.credit_notes`, `billing.payments` | **No internal keys in words** (2026-09-19). Every document line says what it sold — product, offer, plan, billing period, version — from `InvoiceLine.offer`, which the server resolves from the version that priced the line; an order says for whom (`seat`); a seat's invoice names the person it is for (`customer.person`); a related document is a link, never a uuid in the text (the id stays on hover or in the href for a support ticket). A payment shows each moment with its time — started, succeeded, failed — the instrument and provider, the invoice it collects, and the provider's own reference |
 | `commerce.checkout` | buying in one flow — a session **is** an order (ADR-034). Says what was bought (`description`) and for whom (`seat`), and in words once it is paid. Unpaid — awaiting, or the last attempt failed — it offers the two ways out to `billing.pay`: *Pay now* (a fresh attempt on the invoice, its form on this page) and *Cancel this purchase* (`cancelCheckoutSession`: the invoice cancelled with it, its number kept) |
 | `commerce.catalogue_authoring` | writing the catalogue: draft a version, publish it. `catalog.manage`, TENANT_ADMIN only — and only where the platform has lent this tenant the catalogue (ADR-040), since the permission is not resolved otherwise |
 | `sales.quotes` | a quote's life: raise, send, accept, reject |
@@ -256,16 +257,35 @@ reader can say where a thing belongs before knowing what it looks like.
 critical rule); every request carries `X-Product` and is tenant-scoped. Making
 the active product ambiently visible is how a person avoids acting in the wrong
 one, and it is the reason A is a permanent region rather than a setting buried
-in a menu. On `/console/*` the switcher lists every product the platform hosts
-rather than the ones this person belongs to — a platform role grants no
-membership — and every console screen follows it (ADR-047).
+in a menu. It reads **organisation, then product** — "Acme · Product: Atlas",
+a hairline and the word between them (2026-09-18): the product is still what
+every request carries, but a person reads where they are before what they are
+in, and the switcher is a plain control rather than a black badge. On
+`/console/*` the switcher lists every product the platform hosts rather than
+the ones this person belongs to — a platform role grants no membership — and
+every console screen follows it (ADR-047).
 
-**Region C's header carries the console's own menu on `/console/*`.** A bar
-with one disclosure per platform section, the current screen marked, and one
-way back to the application. This is not the "global concern" the table
-forbids: it is the navigation of the screen family the view belongs to, shown
-only while that family is in the view. Region B stays the primary navigation of
-the whole application (ADR-047).
+**Region B's section headings read as headings** (2026-09-18): a rule above,
+small capitals with letter-spacing, the ink colour — three cues, because with
+one the operator could not tell Work from the entries under it. **Signing in
+lands where the person belongs** (`app/shells/landing.ts`): `/` inside the
+shell settles three things in order — the **root** (a member of Acme who
+signed in at the bare host is moved to `/acme/`; the default organisation's
+members belong at the bare host; `listProducts.memberships` says which), the
+**product** (their own default — the one they signed up for or chose on
+their profile — unless the address names one), and the **screen** (the first
+entry the rail offers, in the tree's own order: the console for a platform
+administrator, Work for a member). A deep link keeps its address. After a
+self-service sign-up the platform's `after_sign_up` decides: the checkout on
+the storefront, or the catalogue in the product chosen there.
+
+**Region C's header carries nothing of the console's own.** It did — a bar
+of dropdowns per platform section with a "Tenant app" link back (ADR-047),
+and a full-screen sheet on a phone. Both were removed on 2026-09-18 at the
+operator's request: the one shell's rail already lists every platform screen
+the role allows, so the bar said the same thing twice, and the way back was a
+link to a front door the rail's own tenant entries already open. Region B is
+the navigation of the whole application, console included.
 
 **Region E exists because the backend is honest about time.** Jobs are
 cron-polled, exports are asynchronous, the queue has a liveness signal.
@@ -280,8 +300,8 @@ a region that vanished on mobile would be a capability only desktop users have.
 | region | desktop | mobile (< 768 px) |
 |---|---|---|
 | **A** Context bar | full bar | compact header: product initial, title, alerts, avatar |
-| **B** Primary nav | persistent left rail | bottom tab bar, ≤ 5 destinations, the rest behind **More** |
-| **C** View | header + body, side by side with D; on `/console/*` the header is the console's menu bar | full width; list and detail become two pushed routes, not two panes; on `/console/*` a **Menu** button in A opens the console's menu as a full-screen sheet |
+| **B** Primary nav | persistent left rail | bottom tab bar, ≤ 5 destinations, the rest in the drawer the **≡** button in A opens — every section, console included, and no sign-out (that is the account circle's, at every width) |
+| **C** View | header + body, side by side with D | full width; list and detail become two pushed routes, not two panes |
 | **D** Inspector | docked right panel | bottom sheet with snap points, or a pushed route for long detail |
 | **E** Status strip | persistent footer strip | collapses to a badge in A; expands to a sheet |
 | **F** Overlay | dialogs, palette | sheets from the bottom; the palette is full-screen |

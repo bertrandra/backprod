@@ -160,6 +160,55 @@ test.describe('arriving with no session', () => {
     // A menu: the sidebar's entry on a desktop, the bottom bar's on a phone.
     await expect(page.locator('[data-nav="profile"]:visible, [data-nav-bottom="profile"]:visible')).toHaveCount(1);
     await expect(page.getByTestId('account-menu')).toHaveText('A');
+    // And the first screen in that menu is where they land (2026-09-18):
+    // the same place a deep link's form leads, not a page the menu leads
+    // with somewhere else.
+    await expect(page).toHaveURL(/\/profile/);
+  });
+
+  test('signing in at the bare host as a member of another organisation lands under its own root', async ({ page }) => {
+    await stubApi(page);
+    await stubAuth(page, { token: { status: 200, json: SESSION } });
+    // No session until the password is exchanged; from then on the cookie
+    // restores one, which is what the full navigation to /zenith/ relies on.
+    let signedIn = false;
+    await page.route('**/api/v1/auth/token', (route) => {
+      signedIn = true;
+
+      return route.fulfill({ status: 200, json: SESSION });
+    });
+    await page.route('**/api/v1/auth/refresh', (route) =>
+      route.fulfill(signedIn ? { status: 200, json: SESSION } : NO_SESSION),
+    );
+    // The bare host is Acme's window; this person belongs to Zenith.
+    await page.route(/\/api\/v1\/public\/tenant(\?|$)/, (route) =>
+      route.fulfill({ json: { tenant: { slug: 'acme', name: 'Acme Ltd', is_default: true, join_policy: 'OPEN', after_sign_up: 'PAY' } } }),
+    );
+    await page.route(/\/api\/v1\/products$/, (route) =>
+      route.fulfill({
+        json: {
+          products: [{ id: ME.product_id, code: 'atlas', name: 'Atlas' }],
+          default: 'atlas',
+          memberships: [{ tenant: 'zenith', name: 'Zenith' }],
+          pending_memberships: [],
+        },
+      }),
+    );
+    await page.route(/\/api\/v1\/public\/products$/, (route) =>
+      route.fulfill({ json: { products: [{ code: 'atlas', name: 'Atlas' }] } }),
+    );
+    await page.route(/\/api\/v1\/public\/offers/, (route) => route.fulfill({ json: { offers: [] } }));
+
+    await page.goto('/');
+    await page.getByTestId('sign-in-link').click();
+    await page.getByLabel('Email').fill('ada@zenith.test');
+    await page.getByLabel('Password').fill('correct horse');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+
+    // Moved to /zenith/ — a full navigation, the session restored from the
+    // cookie — and from there to the first screen in the menu (2026-09-18).
+    await expect(page).toHaveURL(/\/zenith\/profile/);
+    await expect(page.getByTestId('active-product')).toHaveAttribute('data-product', 'atlas');
   });
 
   test('keeps the deep link it was asked for, and lands there after signing in', async ({ page }) => {

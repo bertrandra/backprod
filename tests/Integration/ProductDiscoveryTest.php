@@ -89,6 +89,7 @@ final class ProductDiscoveryTest extends ApiTestCase
                 ['id' => 'prod-beacon', 'code' => 'beacon', 'name' => 'Beacon'],
             ],
             'default' => null,
+            'memberships' => [],
             'pending_memberships' => [],
         ], $this->decode($response));
     }

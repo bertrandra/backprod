@@ -15,23 +15,26 @@ import { cn } from '@/utils/cn';
 import type { NavEntry, NavSection } from './navigation';
 
 /**
- * Region A. Product first, because product is the root context.
+ * Region A. The organisation first, then the product (2026-09-18): the
+ * product is still the root context of every request, but the person reads
+ * the bar as "where am I, then what am I in" — Acme, Atlas — and the
+ * operator asked for that order. A hairline between the two says they are
+ * two facts, not one label.
  *
  * `platform` says the screen answers to the platform (`/console/*`): the
  * switcher then lists every product the platform hosts rather than the ones
- * this person belongs to (ADR-047), and the phone's button opens the console's
- * own menu rather than the application's More sheet.
+ * this person belongs to (ADR-047). The phone's button opens the one drawer
+ * there is; the console's own menu is gone (2026-09-18) since the rail
+ * already lists every platform screen.
  */
 export function ContextBar({
   platform = false,
   onOpenPalette,
   onOpenMore,
-  onOpenConsoleMenu,
 }: {
   platform?: boolean;
   onOpenPalette: () => void;
   onOpenMore?: () => void;
-  onOpenConsoleMenu?: () => void;
 }) {
   const { data } = useSession();
   const { pathname } = useLocation();
@@ -45,7 +48,7 @@ export function ContextBar({
   // would leave the reader guessing which one the screen obeys.
   const insideTenant = platform && tenantIdIn(pathname) !== null;
 
-  const openMenu = platform ? onOpenConsoleMenu : onOpenMore;
+  const openMenu = onOpenMore;
 
   return (
     <>
@@ -56,8 +59,8 @@ export function ContextBar({
       {openMenu !== undefined && (
         <button
           type="button"
-          data-testid={platform ? 'console-menu-button' : 'menu-button'}
-          aria-label={platform ? 'Console menu' : 'Menu'}
+          data-testid="menu-button"
+          aria-label="Menu"
           onClick={openMenu}
           className={cn(
             touchTargetClass,
@@ -69,10 +72,6 @@ export function ContextBar({
           </svg>
         </button>
       )}
-
-      {/* U1 showed the product id here and deferred the switcher to U5, which is
-          where `listProducts` lives. It is a real switcher now. */}
-      {!insideTenant && <ProductSwitcher platform={platform} />}
 
       {platform ? (
         // Which level this screen answers to, and the pickers that narrow it.
@@ -86,9 +85,21 @@ export function ContextBar({
         <span
           data-testid="context-organisation"
           title={data?.tenantId}
-          className="truncate text-sm text-muted"
+          className="truncate text-sm font-semibold text-ink"
         >
           {organisation.data?.name ?? data?.tenantId.slice(0, 8) ?? 'No organisation'}
+        </span>
+      )}
+
+      {/* U1 showed the product id here and deferred the switcher to U5, which is
+          where `listProducts` lives. It is a real switcher now — after the
+          organisation, behind a hairline, with the word said so the control
+          reads as a product and not as a second name for the organisation. */}
+      {!insideTenant && (
+        <span className="flex min-w-0 items-center gap-2">
+          <span aria-hidden="true" className="h-5 w-px shrink-0 bg-line" />
+          <span className="text-2xs font-semibold uppercase tracking-wide text-subtle">Product</span>
+          <ProductSwitcher platform={platform} />
         </span>
       )}
 
@@ -156,13 +167,25 @@ function UnreadBadge() {
   );
 }
 
-/** Region B on desktop. */
+/**
+ * Region B on desktop.
+ *
+ * A section's heading is set apart from its entries in three ways at once —
+ * a rule above it, small capitals with letter-spacing, and the ink colour
+ * rather than the entries' muted one — because with one (the size alone) the
+ * operator could not tell the heading from the entries under it
+ * (2026-09-18). It stays unclickable and unpadded on the left so that the
+ * entries' rail reads as *theirs*.
+ */
 export function PrimaryNav({ sections }: { sections: readonly NavSection[] }) {
   return (
-    <ul className="space-y-5">
-      {sections.map((section) => (
-        <li key={section.id}>
-          <p className="px-2.5 pb-1.5 text-2xs font-semibold uppercase text-subtle">
+    <ul className="space-y-4">
+      {sections.map((section, index) => (
+        <li key={section.id} className={cn(index > 0 && 'border-t border-line pt-3')}>
+          <p
+            data-nav-section={section.id}
+            className="px-2.5 pb-1.5 text-2xs font-bold uppercase tracking-[0.12em] text-ink"
+          >
             {section.label}
           </p>
           <ul className="space-y-0.5">

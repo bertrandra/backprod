@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import { PaymentElementPanel } from '@/features/commerce/payment/PaymentElementPanel';
@@ -17,6 +18,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
+import { When } from '@/ui/When';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
@@ -103,6 +105,55 @@ export function PaymentsScreen() {
                   <Amount money={payment.amount} className="font-medium" />
                 </span>
               </div>
+
+              {/* The facts of the attempt, with their times (2026-09-19): when
+                  it was started, when it settled or failed, by what, and
+                  the invoice it collects. */}
+              <dl className="mt-2 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2" data-testid="payment-details">
+                <div className="flex gap-2">
+                  <dt className="text-subtle">Started</dt>
+                  <dd><When at={payment.created_at} testId="payment-started" /></dd>
+                </div>
+                {payment.succeeded_at !== null && (
+                  <div className="flex gap-2">
+                    <dt className="text-subtle">Succeeded</dt>
+                    <dd><When at={payment.succeeded_at} testId="payment-succeeded" /></dd>
+                  </div>
+                )}
+                {payment.failed_at !== null && (
+                  <div className="flex gap-2">
+                    <dt className="text-subtle">Failed</dt>
+                    <dd><When at={payment.failed_at} testId="payment-failed-at" /></dd>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <dt className="text-subtle">By</dt>
+                  <dd>
+                    {payment.method ?? 'not recorded'} via {payment.provider}
+                  </dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt className="text-subtle">For</dt>
+                  <dd>
+                    <Link to="/invoices/$invoiceId" params={{ invoiceId: payment.invoice_id }} className="underline decoration-dotted">
+                      the invoice
+                    </Link>
+                    {payment.subscription_id !== null && (
+                      <>
+                        {' · '}
+                        <Link to="/subscription" className="underline decoration-dotted">
+                          the subscription
+                        </Link>
+                      </>
+                    )}
+                  </dd>
+                </div>
+                <div className="flex gap-2 sm:col-span-2">
+                  <dt className="text-subtle">Reference</dt>
+                  {/* The provider's own handle: what support quotes to them. */}
+                  <dd className="select-all font-mono text-[11px]">{payment.provider_payment_id}</dd>
+                </div>
+              </dl>
 
               <Failure payment={payment} />
 

@@ -141,6 +141,34 @@ describe('the document on screen', () => {
     expect(screen.getByTestId('customer').textContent).toContain('Acme Ltd');
     expect(screen.getAllByText(/as recorded when this was issued/i).length).toBe(2);
   });
+
+  it('says what each line sold — product, offer, plan, billing — and whom the invoice is for', async () => {
+    // The words a customer reads (2026-09-19), beside the amounts the line
+    // snapshotted; and, for a seat, the person the organisation's invoice
+    // is for.
+    render(
+      clientFor(
+        {},
+        invoice({
+          customer: { legal_name: 'Acme Ltd', person: { name: 'Ada', email: 'ada@acme.test' } },
+          lines: [
+            line(1, {
+              offer: { product: { code: 'atlas', name: 'Atlas' }, code: 'pro-monthly', name: 'Pro monthly', plan: 'Pro', billing_period: 'MONTHLY', version: 1 },
+            }),
+            // A line from before versions were recorded keeps its description.
+            line(2, { source_offer_version_id: null, offer: null }),
+          ],
+        }),
+      ),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('line-offer')).toBeTruthy());
+    expect(screen.getByTestId('line-offer').textContent).toContain('Atlas');
+    expect(screen.getByTestId('line-offer').textContent).toContain('Pro monthly');
+    expect(screen.getByTestId('line-offer').textContent).toMatch(/Pro plan · billed monthly · version 1/);
+    expect(screen.getByText('Line 2')).toBeTruthy();
+    expect(screen.getByTestId('customer-person').textContent).toBe('for Ada (ada@acme.test)');
+  });
 });
 
 describe('the stored PDF', () => {

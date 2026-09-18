@@ -1,6 +1,8 @@
+import { Link } from '@tanstack/react-router';
 import { useCreditNotes } from '@/queries/billing';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
+import { LineOfferSummary } from '@/ui/LineOffer';
 import { Amount, formatVatRate } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
@@ -77,7 +79,10 @@ export function CreditNotesScreen() {
               </p>
 
               <p className="mt-1 text-xs text-subtle">
-                corrects invoice <code>{note.invoice_id}</code>
+                corrects{' '}
+                <Link to="/invoices/$invoiceId" params={{ invoiceId: note.invoice_id }} className="underline decoration-dotted">
+                  the invoice
+                </Link>
                 {note.reason !== null && ` — ${note.reason}`}
               </p>
 
@@ -85,7 +90,9 @@ export function CreditNotesScreen() {
                 <ul className="mt-2 space-y-1 border-t border-line pt-2 text-xs">
                   {note.lines.map((line) => (
                     <li key={line.position} className="flex flex-wrap gap-2">
-                      <span className="min-w-0 flex-1 truncate">{line.description}</span>
+                      <span className="min-w-0 flex-1">
+                        <LineOfferSummary line={line} />
+                      </span>
                       <span className="text-subtle">
                         VAT {formatVatRate(line.vat_rate_basis_points)}
                       </span>

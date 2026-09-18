@@ -1,7 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { renderWith, SESSION, stubClient, type Stub } from '@/test-utils';
+import { renderAtRoute, SESSION, stubClient, type Stub } from '@/test-utils';
 
 import { CreditNotesScreen } from './CreditNotesScreen';
 
@@ -56,7 +56,7 @@ function clientFor(notes: unknown[]) {
 
 describe('a credit note', () => {
   it('has its own number, from its own sequence', async () => {
-    renderWith(<CreditNotesScreen />, clientFor([NOTE]));
+    renderAtRoute(<CreditNotesScreen />, clientFor([NOTE]), { path: '/credit-notes' });
 
     await waitFor(() =>
       expect(screen.getByTestId('credit-note-number').textContent).toBe('CN-2026-000007'),
@@ -65,7 +65,7 @@ describe('a credit note', () => {
   });
 
   it('states its direction rather than leaving a sign to be inferred', async () => {
-    renderWith(<CreditNotesScreen />, clientFor([NOTE]));
+    renderAtRoute(<CreditNotesScreen />, clientFor([NOTE]), { path: '/credit-notes' });
 
     await waitFor(() => expect(screen.getByTestId('direction').textContent).toBe('CREDIT'));
     // Not rendered as a negative amount: the amounts are positive and the
@@ -75,15 +75,17 @@ describe('a credit note', () => {
   });
 
   it('names the invoice it corrects, which keeps its own number', async () => {
-    renderWith(<CreditNotesScreen />, clientFor([NOTE]));
+    renderAtRoute(<CreditNotesScreen />, clientFor([NOTE]), { path: '/credit-notes' });
 
-    await waitFor(() => expect(screen.getByText(/corrects invoice/i)).toBeTruthy());
-    expect(screen.getByText('inv-1')).toBeTruthy();
+    // A link to the invoice, not its id in words (2026-09-19).
+    await waitFor(() => expect(screen.getByRole('link', { name: /the invoice/i })).toBeTruthy());
+    expect(screen.getByRole('link', { name: /the invoice/i }).getAttribute('href')).toContain('inv-1');
+    expect(screen.queryByText('inv-1')).toBeNull();
     expect(screen.getByText(/keeps its own number and totals/i)).toBeTruthy();
   });
 
   it('renders its lines with the rate from basis points', async () => {
-    renderWith(<CreditNotesScreen />, clientFor([NOTE]));
+    renderAtRoute(<CreditNotesScreen />, clientFor([NOTE]), { path: '/credit-notes' });
 
     await waitFor(() => expect(screen.getByText(/VAT 5\.5%/)).toBeTruthy());
   });
@@ -91,7 +93,7 @@ describe('a credit note', () => {
 
 describe('with none', () => {
   it('explains where one comes from', async () => {
-    renderWith(<CreditNotesScreen />, clientFor([]));
+    renderAtRoute(<CreditNotesScreen />, clientFor([]), { path: '/credit-notes' });
 
     await waitFor(() => expect(screen.getByText(/no credit notes/i)).toBeTruthy());
     expect(screen.getByText(/from an invoice that needs correcting/i)).toBeTruthy();

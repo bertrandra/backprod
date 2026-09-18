@@ -115,6 +115,16 @@ final class InvoicePresenter
             'vat' => self::money($line->vat),
             'gross' => self::money($line->gross),
             'source_offer_version_id' => $line->sourceOfferVersionId,
+            // What the line sold, in the customer's words (2026-09-19):
+            // resolved from the version, never a second snapshot.
+            'offer' => $line->offer === null ? null : [
+                'product' => ['code' => $line->offer->productCode, 'name' => $line->offer->productName],
+                'code' => $line->offer->offerCode,
+                'name' => $line->offer->offerName,
+                'plan' => $line->offer->planName,
+                'billing_period' => $line->offer->billingPeriod,
+                'version' => $line->offer->version,
+            ],
         ];
     }
 

@@ -7,6 +7,7 @@ import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
+import { lineOfferLabel } from '@/ui/LineOffer';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
@@ -79,6 +80,12 @@ export function InvoicesScreen() {
                   <Amount money={invoice.gross} className="font-medium" />
                 </span>
               </div>
+
+              {lineOfferLabel(invoice.lines) !== '' && (
+                <p className="mt-1 text-sm" data-testid="invoice-what">
+                  {lineOfferLabel(invoice.lines)}
+                </p>
+              )}
 
               <p className="mt-1 text-xs text-muted">
                 net <Amount money={invoice.net} /> · VAT <Amount money={invoice.vat} />
