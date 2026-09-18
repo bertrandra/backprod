@@ -252,6 +252,13 @@ does not — so without it the payments screen shows no method. Every other
 event is accepted and ignored, so subscribing to more costs nothing but
 traffic.
 
+The three keys may live in `.env`, or in a second file **`backprod-app/payment.env`**
+beside it, kept apart from the rest of the configuration (2026-09-18). The
+application, `bin/preflight.php`, `bin/run-jobs.php` and the seeder read both
+files, `.env` first: a value in `.env` wins over the same name in `payment.env`,
+and a value already in the real environment wins over both. `payment.env` sits
+next to `.env`, outside the document root, and is never uploaded with a bundle.
+
 **Start in a sandbox.** Sandbox and test-mode keys read `sk_test_` / `pk_test_`
 and move no money; the console's setup chain says *Stripe (sandbox)*, the
 checkout shows a *Test payment* band, and `bin/preflight.php` warns when

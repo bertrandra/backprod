@@ -144,10 +144,10 @@ fi
 
 say "What must not be in it"
 
-if find "$BUNDLE" -name '.env' -o -name '.env.local' -o -name '.env.production' | grep -q .; then
-    fail "a .env file is in the bundle — secrets belong on the host, not in an archive"
+if find "$BUNDLE" -name '.env' -o -name '.env.local' -o -name '.env.production' -o -name 'payment.env' | grep -q .; then
+    fail "a .env or payment.env file is in the bundle — secrets belong on the host, not in an archive"
 else
-    pass "no .env anywhere; only .env.example"
+    pass "no .env or payment.env anywhere; only .env.example"
 fi
 
 if [ -d "$APP/tests" ]; then

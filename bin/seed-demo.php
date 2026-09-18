@@ -45,6 +45,8 @@ use Psr\Container\ContainerInterface;
 require __DIR__ . '/../vendor/autoload.php';
 
 Dotenv::createImmutable(dirname(__DIR__))->safeLoad();
+// And the payment provider's keys, when kept apart (2026-09-18); `.env` wins.
+Dotenv::createImmutable(dirname(__DIR__), 'payment.env')->safeLoad();
 
 $containerFactory = require __DIR__ . '/../config/container.php';
 assert(is_callable($containerFactory));

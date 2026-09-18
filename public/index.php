@@ -12,8 +12,14 @@ use Psr\Http\Server\RequestHandlerInterface;
 require __DIR__ . '/../vendor/autoload.php';
 
 // Immutable: a value already set in the real environment wins over .env, so a
-// deployment's configuration cannot be overridden by a stray file.
+// deployment's configuration cannot be overridden by a stray file. Two files,
+// both optional: `.env`, then `payment.env` for the payment provider's keys
+// kept apart from the rest (2026-09-18). Two loads rather than one with two
+// names, because one load merges the files and the later definition wins;
+// loaded separately, the second is immutable against the first, so what
+// `.env` says, `payment.env` cannot override.
 Dotenv::createImmutable(dirname(__DIR__))->safeLoad();
+Dotenv::createImmutable(dirname(__DIR__), 'payment.env')->safeLoad();
 
 /**
  * Everything from here is inside one try, and the reason is a deployment.
