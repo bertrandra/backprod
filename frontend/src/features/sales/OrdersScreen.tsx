@@ -7,7 +7,9 @@ import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
+import { LineOfferSummary } from '@/ui/LineOffer';
 import { Amount } from '@/ui/Money';
+import { When } from '@/ui/When';
 import { SkeletonRows } from '@/ui/Skeleton';
 
 import { useViewState } from '@/app/frame/viewState';
@@ -87,7 +89,25 @@ export function OrdersScreen() {
                   <span className="text-xs text-subtle">from a quote</span>
                 )}
                 <span className="ml-auto text-xs text-subtle">
-                  {new Date(order.created_at).toLocaleString()}
+                  placed <When at={order.created_at} />
+                  {order.completed_at !== null && (
+                    <>
+                      {' · '}completed <When at={order.completed_at} />
+                    </>
+                  )}
+                </span>
+              </div>
+
+              {/* What was bought and for whom, in words (2026-09-19): the
+                  ids that stood here were nobody's to read. */}
+              <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="order-what">
+                {order.lines[0] !== undefined ? (
+                  <LineOfferSummary line={order.lines[0]} />
+                ) : (
+                  <span className="text-subtle">Nothing on this order</span>
+                )}
+                <span className="text-xs text-subtle" data-testid="order-for">
+                  {order.seat === true ? 'for yourself — a seat' : 'for the organisation'}
                 </span>
               </div>
 
@@ -178,7 +198,10 @@ function PaymentGate({ order }: { order: Order }) {
           <span className="text-subtle">Not invoiced</span>
         ) : (
           <>
-            Invoiced — <code>{order.invoice_id}</code>
+            Invoiced —{' '}
+            <Link to="/invoices/$invoiceId" params={{ invoiceId: order.invoice_id }} className="underline decoration-dotted">
+              open the invoice
+            </Link>
           </>
         )}
       </li>
@@ -189,7 +212,10 @@ function PaymentGate({ order }: { order: Order }) {
           </span>
         ) : (
           <>
-            Provisioned — <code>{order.subscription_id}</code>
+            {order.seat === true ? 'Seat started' : 'Subscription started'} —{' '}
+            <Link to="/subscription" className="underline decoration-dotted">
+              see it
+            </Link>
           </>
         )}
       </li>

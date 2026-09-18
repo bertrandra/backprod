@@ -40,6 +40,7 @@ use App\Commerce\Domain\CatalogueAdministration;
 use App\Commerce\Domain\CatalogueRepository;
 use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\OfferAuthoringRepository;
+use App\Commerce\Domain\OfferLineDetails;
 use App\Commerce\Domain\StorefrontListing;
 use App\Commerce\Domain\StorefrontSettings;
 use App\Commerce\Domain\SubscriptionRepository;
@@ -47,6 +48,7 @@ use App\Commerce\Infrastructure\PostgresCatalogueAdministration;
 use App\Commerce\Infrastructure\PostgresCatalogueRepository;
 use App\Commerce\Infrastructure\PostgresEntitlementRepository;
 use App\Commerce\Infrastructure\PostgresOfferAuthoringRepository;
+use App\Commerce\Infrastructure\PostgresOfferLineDetails;
 use App\Commerce\Infrastructure\PostgresStorefrontListing;
 use App\Commerce\Infrastructure\PostgresStorefrontSettings;
 use App\Commerce\Infrastructure\PostgresSubscriptionRepository;
@@ -304,6 +306,7 @@ return static function (array $overrides = []): ContainerInterface {
         // first: Sales, subscription and every other reader depends on
         // CatalogueRepository, and none of them may publish.
         OfferAuthoringRepository::class => autowire(PostgresOfferAuthoringRepository::class),
+        OfferLineDetails::class => autowire(PostgresOfferLineDetails::class),
         SubscriptionRepository::class => autowire(PostgresSubscriptionRepository::class),
 
         // One adapter, two ports. Writing happens everywhere and reading on

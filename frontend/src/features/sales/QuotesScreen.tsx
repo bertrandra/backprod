@@ -6,6 +6,7 @@ import { useAcceptQuote, useQuotes, useRejectQuote, type Quote } from '@/queries
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
+import { LineOfferSummary, lineOfferLabel } from '@/ui/LineOffer';
 import { Amount, formatVatRate } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
@@ -95,10 +96,11 @@ export function QuotesScreen() {
                 </span>
               </div>
 
-              <p className="mt-1 text-xs text-muted">
+              <p className="mt-1 text-xs text-muted" title={`offer version ${quote.offer_version_id}`}>
                 {/* The pinned version, which is why a catalogue change cannot
-                    reprice this quote. */}
-                priced by offer version <code>{quote.offer_version_id}</code>
+                    reprice this quote — said in words (2026-09-19); its id
+                    stays on hover, for a support ticket. */}
+                priced as {lineOfferLabel(quote.lines) || 'the offer version it pinned'}
               </p>
 
               {quote.open && (
@@ -175,7 +177,9 @@ function QuoteLines({ quote }: { quote: Quote }) {
         // Keyed by `position`, which the document defines and the API guarantees
         // — an array index would renumber the lines if the order ever changed.
         <li key={line.position} className="flex flex-wrap gap-2">
-          <span className="min-w-0 flex-1 truncate">{line.description}</span>
+          <span className="min-w-0 flex-1">
+            <LineOfferSummary line={line} />
+          </span>
           <span className="text-subtle">×{line.quantity}</span>
           <span className="text-subtle">VAT {formatVatRate(line.vat_rate_basis_points)}</span>
           {/* Rendered, never summed: every total is the server's and appears above. */}

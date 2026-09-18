@@ -67,7 +67,9 @@ describe('the payment gate', () => {
     render(clientFor([order({ status: 'AWAITING_PAYMENT', invoice_id: 'inv-1' })]));
 
     await waitFor(() => expect(screen.getByTestId('gate-invoice').textContent).toMatch(/invoiced/i));
-    expect(screen.getByTestId('gate-invoice').textContent).toContain('inv-1');
+    // A link to the document, not its id in the text (2026-09-19).
+    expect(screen.getByTestId('gate-invoice').querySelector('a')?.getAttribute('href')).toContain('inv-1');
+    expect(screen.getByTestId('gate-invoice').textContent).not.toContain('inv-1');
     expect(screen.getByTestId('gate-subscription').textContent).toMatch(/not provisioned/i);
     expect(screen.getByTestId('gate-subscription').textContent).toMatch(
       /before the invoice is paid/i,
@@ -82,9 +84,43 @@ describe('the payment gate', () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByTestId('gate-subscription').textContent).toContain('sub-1'),
+      expect(screen.getByTestId('gate-subscription').textContent).toMatch(/subscription started/i),
     );
-    expect(screen.getByTestId('gate-invoice').textContent).toContain('inv-1');
+    expect(screen.getByTestId('gate-subscription').querySelector('a')?.getAttribute('href')).toContain('/subscription');
+    expect(screen.getByTestId('gate-invoice').querySelector('a')?.getAttribute('href')).toContain('inv-1');
+    // And no id in words anywhere on the card: they were nobody's to read.
+    expect(screen.getByTestId('gate-subscription').textContent).not.toContain('sub-1');
+  });
+
+  it('says what was bought, and for whom', async () => {
+    render(
+      clientFor([
+        order({
+          seat: true,
+          lines: [
+            {
+              position: 1,
+              description: 'Pro monthly (v1) — subscription',
+              quantity: 1,
+              unit_price: { minor_units: 2900, currency: 'EUR' },
+              discount: { minor_units: 0, currency: 'EUR' },
+              net: { minor_units: 2900, currency: 'EUR' },
+              vat_rate_basis_points: 2000,
+              vat: { minor_units: 580, currency: 'EUR' },
+              gross: { minor_units: 3480, currency: 'EUR' },
+              source_offer_version_id: 'v-1',
+              offer: { product: { code: 'atlas', name: 'Atlas' }, code: 'pro-monthly', name: 'Pro monthly', plan: 'Pro', billing_period: 'MONTHLY', version: 1 },
+            },
+          ],
+        }),
+      ]),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('order-what')).toBeTruthy());
+    expect(screen.getByTestId('order-what').textContent).toContain('Atlas');
+    expect(screen.getByTestId('order-what').textContent).toContain('Pro monthly');
+    expect(screen.getByTestId('order-what').textContent).toMatch(/billed monthly/i);
+    expect(screen.getByTestId('order-for').textContent).toMatch(/for yourself/i);
   });
 });
 
@@ -127,7 +163,7 @@ describe('fulfilling', () => {
 
     await waitFor(() => expect(fulfilled).toBe(1));
     // The invoice came from the server, not from this screen.
-    await waitFor(() => expect(screen.getByTestId('gate-invoice').textContent).toContain('inv-9'));
+    await waitFor(() => expect(screen.getByTestId('gate-invoice').querySelector('a')?.getAttribute('href')).toContain('inv-9'));
     expect(screen.getByTestId('gate-subscription').textContent).toMatch(/not provisioned/i);
   });
 });

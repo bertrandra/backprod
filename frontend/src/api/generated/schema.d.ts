@@ -3648,7 +3648,7 @@ export interface components {
             /** Format: date-time */
             valid_until: string | null;
         };
-        /** @description Supplier or customer **as they were when the document was issued**, copied rather than referenced (§25). A later change of address must not rewrite an invoice already sent, and an RGPD erasure deliberately leaves this standing. */
+        /** @description Supplier or customer **as they were when the document was issued**, copied rather than referenced (§25). A later change of address must not rewrite an invoice already sent, and an RGPD erasure deliberately leaves this standing. For a seat (§13.1), the customer carries `person: {name, email}` — whom the organisation’s invoice is for — copied in at issue like the rest (2026-09-19). */
         PartySnapshot: {
             [key: string]: unknown;
         };
@@ -3672,6 +3672,8 @@ export interface components {
              * @description Which offer version priced this line. Attribution runs through here, never through the subscription's *current* offer, which would credit today's offer with money an older one earned.
              */
             source_offer_version_id: string | null;
+            /** @description What the line sold, in the customer’s words (2026-09-19): resolved on read from `source_offer_version_id` — a version is immutable, so what it belonged to does not move — and never a second snapshot. Null for a line that names no version. */
+            offer: components["schemas"]["LineOffer"] | null;
         };
         TaxRecord: {
             jurisdiction: string;
@@ -3971,6 +3973,8 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             lines: components["schemas"]["InvoiceLine"][];
+            /** @description Whether this buys a seat for the person rather than a subscription for the organisation (§13.1, 2026-09-19). */
+            seat: boolean;
         };
         Notification: {
             /** Format: uuid */
@@ -4769,6 +4773,18 @@ export interface components {
                     roles: string[];
                 }[];
             }[];
+        };
+        /** @description The product, the offer, its plan and how it is billed, for a document line (2026-09-19). The words a customer reads on the invoice, beside the amounts the line snapshotted. */
+        LineOffer: {
+            product: {
+                code: string;
+                name: string;
+            };
+            code: string;
+            name: string;
+            plan: string;
+            billing_period: string;
+            version: number;
         };
     };
     responses: {

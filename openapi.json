@@ -875,7 +875,7 @@
       },
       "PartySnapshot": {
         "type": "object",
-        "description": "Supplier or customer **as they were when the document was issued**, copied rather than referenced (§25). A later change of address must not rewrite an invoice already sent, and an RGPD erasure deliberately leaves this standing.",
+        "description": "Supplier or customer **as they were when the document was issued**, copied rather than referenced (§25). A later change of address must not rewrite an invoice already sent, and an RGPD erasure deliberately leaves this standing. For a seat (§13.1), the customer carries `person: {name, email}` — whom the organisation’s invoice is for — copied in at issue like the rest (2026-09-19).",
         "additionalProperties": true
       },
       "InvoiceLine": {
@@ -890,7 +890,8 @@
           "vat_rate_basis_points",
           "vat",
           "gross",
-          "source_offer_version_id"
+          "source_offer_version_id",
+          "offer"
         ],
         "properties": {
           "position": {
@@ -933,6 +934,17 @@
             ],
             "format": "uuid",
             "description": "Which offer version priced this line. Attribution runs through here, never through the subscription's *current* offer, which would credit today's offer with money an older one earned."
+          },
+          "offer": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LineOffer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the line sold, in the customer’s words (2026-09-19): resolved on read from `source_offer_version_id` — a version is immutable, so what it belonged to does not move — and never a second snapshot. Null for a line that names no version."
           }
         }
       },
@@ -1883,7 +1895,8 @@
           "gross",
           "completed_at",
           "created_at",
-          "lines"
+          "lines",
+          "seat"
         ],
         "description": "The payment gate is readable straight off the document: an `invoice_id` from fulfilment onwards, a `subscription_id` only once that invoice is paid. Both non-null is #20's chain complete.",
         "properties": {
@@ -1952,6 +1965,10 @@
             "items": {
               "$ref": "#/components/schemas/InvoiceLine"
             }
+          },
+          "seat": {
+            "type": "boolean",
+            "description": "Whether this buys a seat for the person rather than a subscription for the organisation (§13.1, 2026-09-19)."
           }
         }
       },
@@ -4405,6 +4422,50 @@
                 }
               }
             }
+          }
+        }
+      },
+      "LineOffer": {
+        "type": "object",
+        "required": [
+          "product",
+          "code",
+          "name",
+          "plan",
+          "billing_period",
+          "version"
+        ],
+        "description": "The product, the offer, its plan and how it is billed, for a document line (2026-09-19). The words a customer reads on the invoice, beside the amounts the line snapshotted.",
+        "properties": {
+          "product": {
+            "type": "object",
+            "required": [
+              "code",
+              "name"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "string"
+          },
+          "billing_period": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
           }
         }
       }

@@ -277,6 +277,38 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
         self::assertSame('COMPLETED', $read['status'] ?? null);
         self::assertIsString($read['subscription_id'] ?? null);
 
+        // The invoice says what was sold, in words, and whom it is for (2026-09-19).
+        self::assertIsString($seat['invoice_id']);
+        self::assertIsString($company['invoice_id']);
+        self::assertIsString($seat['id']);
+        $invoice = $this->decode($this->request('GET', '/api/v1/billing/invoices/' . $seat['invoice_id'], $this->headers()));
+        $lines = $invoice['lines'] ?? null;
+        self::assertIsArray($lines);
+        $line = $lines[0] ?? null;
+        self::assertIsArray($line);
+        $offer = $line['offer'] ?? null;
+        self::assertIsArray($offer);
+        self::assertSame(['code' => 'atlas', 'name' => 'Atlas'], $offer['product'] ?? null);
+        self::assertSame('Atlas Pro', $offer['name'] ?? null);
+        self::assertSame('Pro', $offer['plan'] ?? null);
+        self::assertSame('MONTHLY', $offer['billing_period'] ?? null);
+        $customer = $invoice['customer'] ?? null;
+        self::assertIsArray($customer);
+        // Named as the identity chain knows them — the address it recorded
+        // for the subject, which the fake provider derives from the token.
+        $person = $customer['person'] ?? null;
+        self::assertIsArray($person);
+        self::assertIsString($person['email'] ?? null);
+        self::assertStringContainsString('alice', $person['email']);
+        self::assertSame($person['email'], $person['name'] ?? null);
+        // The organisation's own invoice names nobody: it is the organisation's.
+        $companyInvoice = $this->decode($this->request('GET', '/api/v1/billing/invoices/' . $company['invoice_id'], $this->headers()));
+        $companyCustomer = $companyInvoice['customer'] ?? null;
+        self::assertIsArray($companyCustomer);
+        self::assertArrayNotHasKey('person', $companyCustomer);
+        // And the order says for whom.
+        self::assertTrue($this->decode($this->request('GET', '/api/v1/sales/orders/' . $seat['id'], $this->headers()))['seat'] ?? null);
+
         // The subscription the seat started binds the person (§13.1).
         $bound = $this->connection->fetchAssociative(
             'SELECT subscriber_kind, subscriber_user_id FROM subscriptions WHERE id = :id',

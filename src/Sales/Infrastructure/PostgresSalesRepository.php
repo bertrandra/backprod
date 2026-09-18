@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Sales\Infrastructure;
 
 use App\Billing\Domain\InvoiceLine;
+use App\Billing\Domain\LineOffer;
 use App\Billing\Domain\Money;
+use App\Commerce\Domain\OfferLineDetails;
 use App\Commerce\Domain\Subscriber;
 use App\Sales\Domain\Order;
 use App\Sales\Domain\OrderFulfilment;
@@ -43,8 +45,10 @@ final class PostgresSalesRepository implements SalesRepository
         gross_minor_units, completed_at, created_at, subscriber_kind, subscriber_user_id
         SQL;
 
-    public function __construct(private readonly Connection $connection)
-    {
+    public function __construct(
+        private readonly Connection $connection,
+        private readonly OfferLineDetails $offers,
+    ) {
     }
 
     public function listQuotes(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
@@ -595,11 +599,14 @@ final class PostgresSalesRepository implements SalesRepository
 
         $ids = array_map(static fn (array $row): string => Row::string($row, 'id'), $rows);
         $lines = $this->linesOf('quote_lines', 'quote_id', $ids, 'quotes');
+        $details = $this->detailsFor($rows);
 
         return array_map(
-            static function (array $row) use ($lines): Quote {
+            static function (array $row) use ($lines, $details): Quote {
                 $id = Row::string($row, 'id');
                 $currency = Row::string($row, 'currency');
+                $version = Row::string($row, 'offer_version_id');
+                $offer = $details[$version] ?? null;
 
                 return new Quote(
                     $id,
@@ -615,7 +622,7 @@ final class PostgresSalesRepository implements SalesRepository
                     Row::nullableTimestamp($row, 'sent_at'),
                     Row::nullableTimestamp($row, 'decided_at'),
                     Row::timestamp($row, 'created_at'),
-                    $lines[$id] ?? [],
+                    self::describedAs($lines[$id] ?? [], $version, $offer),
                 );
             },
             $rows,
@@ -635,11 +642,14 @@ final class PostgresSalesRepository implements SalesRepository
 
         $ids = array_map(static fn (array $row): string => Row::string($row, 'id'), $rows);
         $lines = $this->linesOf('order_lines', 'order_id', $ids, 'orders');
+        $details = $this->detailsFor($rows);
 
         return array_map(
-            static function (array $row) use ($lines): Order {
+            static function (array $row) use ($lines, $details): Order {
                 $id = Row::string($row, 'id');
                 $currency = Row::string($row, 'currency');
+                $version = Row::string($row, 'offer_version_id');
+                $offer = $details[$version] ?? null;
 
                 return new Order(
                     $id,
@@ -655,12 +665,42 @@ final class PostgresSalesRepository implements SalesRepository
                     Money::of(Row::integer($row, 'gross_minor_units'), $currency),
                     Row::nullableTimestamp($row, 'completed_at'),
                     Row::timestamp($row, 'created_at'),
-                    $lines[$id] ?? [],
+                    self::describedAs($lines[$id] ?? [], $version, $offer),
                     Subscriber::of(Row::string($row, 'subscriber_kind'), Row::nullableString($row, 'subscriber_user_id')),
                 );
             },
             $rows,
         );
+    }
+
+    /**
+     * What each document sold, in the customer's words (2026-09-19). A quote
+     * or an order names one version for the whole document, so every line
+     * of it is described by that one — one query for a page of them.
+     *
+     * @param list<array<string, mixed>> $rows
+     *
+     * @return array<string, LineOffer>
+     */
+    private function detailsFor(array $rows): array
+    {
+        return $this->offers->describe(
+            array_map(static fn (array $row): string => Row::string($row, 'offer_version_id'), $rows),
+        );
+    }
+
+    /**
+     * Every line of a document pinned to the version the document names —
+     * so an order's lines carry it into the invoice they become — and said
+     * in the customer's words where the version is known.
+     *
+     * @param list<InvoiceLine> $lines
+     *
+     * @return list<InvoiceLine>
+     */
+    private static function describedAs(array $lines, string $version, ?LineOffer $offer): array
+    {
+        return array_map(static fn (InvoiceLine $line): InvoiceLine => $line->pinnedTo($version, $offer), $lines);
     }
 
     /**

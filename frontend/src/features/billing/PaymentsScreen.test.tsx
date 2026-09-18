@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { renderWith, SESSION, stubClient, type Stub } from '@/test-utils';
+import { renderAtRoute, SESSION, stubClient, type Stub } from '@/test-utils';
 
 import { PaymentsScreen } from './PaymentsScreen';
 
@@ -75,17 +75,32 @@ describe('a failed payment', () => {
   it('shows why, with both the reason and the code', async () => {
     // Different questions: the reason is what to tell the person, the code is
     // what to quote to the provider.
-    renderWith(<PaymentsScreen />, clientFor([payment()]));
+    renderAtRoute(<PaymentsScreen />, clientFor([payment()]), { path: '/payments' });
 
     await waitFor(() => expect(screen.getByTestId('failure')).toBeTruthy());
     expect(screen.getByTestId('failure').textContent).toContain('The card was declined.');
     expect(screen.getByTestId('failure').textContent).toContain('card_declined');
   });
 
+  it('says when it was started and when it failed, to the minute, and what it was for', async () => {
+    // A date alone did not answer somebody who paid twice that day
+    // (2026-09-19): each moment carries its time, and the invoice is a link.
+    renderAtRoute(<PaymentsScreen />, clientFor([payment()]), { path: '/payments' });
+
+    await waitFor(() => expect(screen.getByTestId('payment-details')).toBeTruthy());
+    expect(screen.getByTestId('payment-started').getAttribute('datetime')).toBe('2026-01-01T09:59:00Z');
+    expect(screen.getByTestId('payment-failed-at').getAttribute('datetime')).toBe('2026-01-01T10:00:00Z');
+    // The time, not only the date: the two moments read differently.
+    expect(screen.getByTestId('payment-started').textContent).not.toBe(screen.getByTestId('payment-failed-at').textContent);
+    expect(screen.getByTestId('payment-details').textContent).toContain('card via stripe');
+    expect(screen.getByTestId('payment-details').querySelector('a')?.getAttribute('href')).toContain('inv-1');
+    expect(screen.getByTestId('payment-details').textContent).toContain('pi_1');
+  });
+
   it('offers a retry that says it is a new attempt', async () => {
     let retried = 0;
 
-    renderWith(
+    renderAtRoute(
       <PaymentsScreen />,
       clientFor([payment()], {
         'POST /api/v1/payments/{paymentId}/retry': (): Stub => {
@@ -94,6 +109,7 @@ describe('a failed payment', () => {
           return { data: newAttempt(), status: 201 };
         },
       }),
+      { path: '/payments' },
     );
 
     await waitFor(() => expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy());
@@ -110,7 +126,7 @@ describe('a failed payment', () => {
   });
 
   it('offers the card form right there when the provider has one', async () => {
-    renderWith(
+    renderAtRoute(
       <PaymentsScreen />,
       clientFor([payment()], {
         'POST /api/v1/payments/{paymentId}/retry': {
@@ -118,6 +134,7 @@ describe('a failed payment', () => {
           status: 201,
         },
       }),
+      { path: '/payments' },
     );
 
     await waitFor(() => expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy());
@@ -131,7 +148,7 @@ describe('a failed payment', () => {
   });
 
   it('never puts the new credential anywhere it could be found', async () => {
-    renderWith(
+    renderAtRoute(
       <PaymentsScreen />,
       clientFor([payment()], {
         'POST /api/v1/payments/{paymentId}/retry': {
@@ -139,6 +156,7 @@ describe('a failed payment', () => {
           status: 201,
         },
       }),
+      { path: '/payments' },
     );
 
     await waitFor(() => expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy());
@@ -158,7 +176,7 @@ describe('a succeeded payment', () => {
   it('can be refunded, with a reason chosen rather than typed', async () => {
     let refunded: string | null = null;
 
-    renderWith(
+    renderAtRoute(
       <PaymentsScreen />,
       clientFor([payment({ status: 'SUCCEEDED', settled: true, failure_code: null, failure_reason: null })], {
         'POST /api/v1/billing/payments/{paymentId}/refund': (): Stub => {
@@ -167,6 +185,7 @@ describe('a succeeded payment', () => {
           return { data: {}, status: 202 };
         },
       }),
+      { path: '/payments' },
     );
 
     await waitFor(() => expect(screen.getByRole('button', { name: /refund/i })).toBeTruthy());
@@ -182,9 +201,10 @@ describe('a succeeded payment', () => {
   });
 
   it('says the money leaves asynchronously', async () => {
-    renderWith(
+    renderAtRoute(
       <PaymentsScreen />,
       clientFor([payment({ status: 'SUCCEEDED', settled: true, failure_code: null, failure_reason: null })]),
+      { path: '/payments' },
     );
 
     await waitFor(() => expect(screen.getByRole('button', { name: /refund…/i })).toBeTruthy());
@@ -194,9 +214,10 @@ describe('a succeeded payment', () => {
   });
 
   it('offers no retry — there is nothing to retry', async () => {
-    renderWith(
+    renderAtRoute(
       <PaymentsScreen />,
       clientFor([payment({ status: 'SUCCEEDED', settled: true, failure_code: null, failure_reason: null })]),
+      { path: '/payments' },
     );
 
     await waitFor(() => expect(screen.getByRole('button', { name: /refund…/i })).toBeTruthy());
@@ -206,21 +227,23 @@ describe('a succeeded payment', () => {
 
 describe('an unsettled payment', () => {
   it('cannot be refunded — only settled money can be given back', async () => {
-    renderWith(
+    renderAtRoute(
       <PaymentsScreen />,
       clientFor([payment({ status: 'SUCCEEDED', settled: false, failure_code: null, failure_reason: null })]),
+      { path: '/payments' },
     );
 
-    await waitFor(() => expect(screen.getByText(/stripe/)).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByText(/stripe/).length).toBeGreaterThan(0));
     expect(screen.queryByRole('button', { name: /refund…/i })).toBeNull();
   });
 });
 
 describe('someone who may only read', () => {
   it('sees the payments and none of the actions', async () => {
-    renderWith(
+    renderAtRoute(
       <PaymentsScreen />,
       clientFor([payment()], {}, { ...SESSION, permissions: ['payments.read'] }),
+      { path: '/payments' },
     );
 
     await waitFor(() => expect(screen.getByTestId('failure')).toBeTruthy());

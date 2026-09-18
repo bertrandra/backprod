@@ -28,7 +28,37 @@ final class InvoiceLine
         public readonly Money $vat,
         public readonly Money $gross,
         public readonly ?string $sourceOfferVersionId,
+        /** What the line sold, in words — resolved on read, never stored (2026-09-19). */
+        public readonly ?LineOffer $offer = null,
     ) {
+    }
+
+    public function describedBy(?LineOffer $offer): self
+    {
+        return $this->pinnedTo($this->sourceOfferVersionId, $offer);
+    }
+
+    /**
+     * The same line, naming the version that priced it. A quote's or an
+     * order's lines are stored without one — the document names it once for
+     * all of them — so it is put back on read, and travels with the line
+     * into the invoice it becomes (2026-09-19).
+     */
+    public function pinnedTo(?string $sourceOfferVersionId, ?LineOffer $offer): self
+    {
+        return new self(
+            $this->position,
+            $this->description,
+            $this->quantity,
+            $this->unitPrice,
+            $this->discount,
+            $this->net,
+            $this->vatRateBasisPoints,
+            $this->vat,
+            $this->gross,
+            $sourceOfferVersionId,
+            $offer,
+        );
     }
 
     /**
