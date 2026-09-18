@@ -116,7 +116,9 @@ export function ProductSwitcher({ platform = false }: { platform?: boolean }) {
         onChange={(event) => chooseProduct(event.target.value)}
         className={cn(
           touchTargetClass,
-          'rounded-control bg-inverse px-2 py-1 text-xs font-semibold text-on-inverse focus-visible:outline-2 focus-visible:outline-offset-2',
+          // No inverse fill (2026-09-18): a black block in the bar read as a
+          // badge, not as a control, and shouted over the organisation's name.
+          'rounded-control border border-line bg-surface px-2 py-1 text-xs font-semibold text-ink shadow-raise focus-visible:outline-2 focus-visible:outline-offset-2',
         )}
       >
         {known.map((product) => (

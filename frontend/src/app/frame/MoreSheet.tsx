@@ -1,7 +1,6 @@
 import { withRoot } from '@/app/root';
-import { useSignOut } from '@/queries/auth';
 import { useSessionStore } from '@/state/session';
-import { Button } from '@/ui/Field';
+import { cn } from '@/utils/cn';
 
 import type { NavSection } from './navigation';
 
@@ -13,6 +12,10 @@ import type { NavSection } from './navigation';
  * bottom behind a "More" button; since 2026-09-17 it opens from the three
  * lines at the top left, and slides in from the same side, because a drawer
  * that arrives from where it was asked for is one nobody has to look for.
+ *
+ * No sign-out here (2026-09-18): the account menu in the bar carries it at
+ * every width, and a drawer that also did was the one place where the phone
+ * differed from the desktop for no reason.
  */
 export function MoreSheet({
   open,
@@ -23,7 +26,6 @@ export function MoreSheet({
   onClose: () => void;
   sections: readonly NavSection[];
 }) {
-  const signOut = useSignOut();
   const root = useSessionStore((state) => state.root);
 
   if (!open) {
@@ -52,9 +54,9 @@ export function MoreSheet({
           </button>
         </div>
 
-        {sections.map((section) => (
-          <div key={section.id} className="mb-4">
-            <p className="pb-1 text-[11px] font-semibold uppercase tracking-wide text-subtle">
+        {sections.map((section, index) => (
+          <div key={section.id} className={cn('mb-4', index > 0 && 'border-t border-line pt-3')}>
+            <p className="pb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-ink">
               {section.label}
             </p>
             <ul>
@@ -73,20 +75,6 @@ export function MoreSheet({
           </div>
         ))}
 
-        {/* Last, and separated: it is not a section of the application, it is
-            the way out of it. On a phone this drawer is the only place the
-            control fits — the bottom bar holds five destinations and none of
-            them is an action. */}
-        <div className="border-t border-line pt-3">
-          <Button
-            type="button"
-            variant="secondary"
-            pending={signOut.isPending}
-            onClick={() => signOut.mutate()}
-          >
-            Sign out
-          </Button>
-        </div>
       </div>
     </div>
   );

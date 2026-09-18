@@ -32,6 +32,8 @@ export type Consent = Schemas['Consent'];
 export const CATEGORIES = ['BILLING', 'ACCOUNT', 'SECURITY', 'SUPPORT', 'MARKETING'] as const;
 export const CHANNELS = ['SCREEN', 'EMAIL', 'SMS', 'WHATSAPP'] as const;
 export const CONSENT_CHANNELS = ['EMAIL', 'SMS', 'WHATSAPP'] as const;
+/** What a consent is for (§27.1): the two the server accepts, and nothing typed. */
+export const CONSENT_PURPOSES = ['TRANSACTIONAL', 'MARKETING'] as const;
 
 export type Category = (typeof CATEGORIES)[number];
 export type Channel = (typeof CHANNELS)[number];
@@ -249,7 +251,7 @@ export function useGrantConsent() {
   return useMutation({
     mutationFn: async (input: {
       channel: (typeof CONSENT_CHANNELS)[number];
-      purpose: string;
+      purpose: (typeof CONSENT_PURPOSES)[number];
       source: string;
     }): Promise<void> => {
       const { error, response } = await client.POST('/api/v1/notifications/consents', {

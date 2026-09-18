@@ -195,7 +195,9 @@ export const APP_NAV: readonly NavSection[] = [
       // Authoring is a different job from buying, and a different permission —
       // one ADR-040 makes a *lending*, so most tenants never see this.
       { id: 'offers', label: 'Offer authoring', to: '/offers', scope: 'tenant', permission: 'catalog.manage', secondary: true },
-      { id: 'quotes', label: 'Quotes', to: '/quotes', scope: 'tenant', permission: 'sales.read', secondary: true },
+      // A quote is raised by `sales.manage` and only the administrator holds
+      // it, so a member's Quotes screen was always empty (2026-09-18).
+      { id: 'quotes', label: 'Quotes', to: '/quotes', scope: 'tenant', permission: 'sales.manage', secondary: true },
       { id: 'orders', label: 'Orders', to: '/orders', scope: 'tenant', permission: 'sales.read', secondary: true },
     ],
   },
@@ -285,28 +287,12 @@ export function bottomBarEntries(
 }
 
 /**
- * The sections that answer to the platform: the console's own menu (ADR-047).
- *
- * A section is the platform's when every entry in it is. Sections carry no
- * scope of their own — entries do — and a section mixing the two would be a
- * menu that says one thing under a heading that says another, so the filter
- * is strict rather than "any entry".
+ * Where a person lands after signing in (2026-09-18): the first screen the
+ * navigation offers them, in the tree's own order — Work before Commerce,
+ * the platform's setup before its customers. The catalogue used to be the
+ * landing for a member, which put a screen in front of them that was not the
+ * first thing in their menu; the operator asked that the two agree.
  */
-export function platformSections(sections: readonly NavSection[]): readonly NavSection[] {
-  return sections.filter(
-    (section) =>
-      section.entries.length > 0 && section.entries.every((entry) => entry.scope === 'platform'),
-  );
-}
-
-/**
- * Where "the application" is for this person: the first tenant entry they may
- * open, or nowhere. The console's way back — a platform administrator who is
- * also a member of a tenant has an application to return to; one who is not
- * has only the front door.
- */
-export function firstTenantEntry(sections: readonly NavSection[]): NavEntry | undefined {
-  return sections
-    .flatMap((section) => section.entries)
-    .find((entry) => entry.scope === 'tenant');
+export function firstEntry(sections: readonly NavSection[]): NavEntry | undefined {
+  return sections.flatMap((section) => section.entries)[0];
 }

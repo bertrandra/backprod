@@ -7353,7 +7353,12 @@ export interface operations {
                 "application/json": {
                     /** @enum {string} */
                     channel: "EMAIL" | "SMS" | "WHATSAPP";
-                    purpose: string;
+                    /**
+                     * @description What the consent is for. `TRANSACTIONAL` — messages about the account and its money: a failed payment, an invoice, a renewal notice. `MARKETING` — offers and news, which is off until chosen (§27.1). The server refuses anything else.
+                     * @default TRANSACTIONAL
+                     * @enum {string}
+                     */
+                    purpose: "TRANSACTIONAL" | "MARKETING";
                     /** @description Where the opt-in came from. The evidence, not just the claim. */
                     source: string;
                     evidence?: {

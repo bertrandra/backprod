@@ -5,8 +5,7 @@ import type { Access } from '@/app/access/access';
 import {
   APP_NAV,
   bottomBarEntries,
-  firstTenantEntry,
-  platformSections,
+  firstEntry,
   visibleNav,
   type Authorities,
   type NavSection,
@@ -277,40 +276,22 @@ describe('the navigation is ordered by dependency', () => {
   });
 });
 
-describe("the console's own menu", () => {
-  it('is the sections whose every entry answers to the platform', () => {
-    const everything = asPlatform(entriesOf('platform').map((entry) => entry.permission));
+describe('where signing in lands', () => {
+  it('is the first screen the menu offers, in the tree\'s own order', () => {
+    // A member: Work leads, so Projects. An administrator of the platform
+    // who is also a member: the platform's setup leads, as the tree says.
+    expect(firstEntry(visibleNav(APP_NAV, asTenant(['projects.read', 'billing.read'])))?.to).toBe('/projects');
+    expect(firstEntry(visibleNav(APP_NAV, asTenant(['billing.read'])))?.to).toBe('/invoices');
 
-    // Exactly the four the tree leads with; no tenant section is ever in it.
-    expect(platformSections(visibleNav(APP_NAV, everything)).map((s) => s.id)).toEqual([
-      'setup',
-      'demo',
-      'customers',
-      'platform',
-    ]);
-  });
-
-  it('offers nothing to somebody with no platform role', () => {
-    const tenantOnly = asTenant(entriesOf('tenant').map((entry) => entry.permission));
-
-    expect(platformSections(visibleNav(APP_NAV, tenantOnly))).toEqual([]);
-  });
-
-  it('shrinks with the permissions, section by section', () => {
-    // Tenants alone: the "customers" section, nothing from setup or platform.
-    const support = asPlatform(['staff.tenants.read']);
-
-    expect(platformSections(visibleNav(APP_NAV, support)).map((s) => s.id)).toEqual(['customers']);
-  });
-
-  it('points the way back at the first tenant screen the person may open, else nowhere', () => {
     const both: Authorities = {
-      tenant: access(['projects.read', 'billing.read']),
-      platform: access(['staff.tenants.read']),
+      tenant: access(['projects.read']),
+      platform: access(['staff.products.manage']),
     };
+    expect(firstEntry(visibleNav(APP_NAV, both))?.to).toMatch(/^\/console\//);
+  });
 
-    expect(firstTenantEntry(visibleNav(APP_NAV, both))?.to).toBe('/projects');
-    expect(firstTenantEntry(visibleNav(APP_NAV, asPlatform(['staff.tenants.read'])))).toBeUndefined();
+  it('is nowhere for somebody the menu offers nothing to', () => {
+    expect(firstEntry(visibleNav(APP_NAV, asTenant([])))).toBeUndefined();
   });
 });
 

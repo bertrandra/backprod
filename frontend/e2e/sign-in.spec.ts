@@ -160,6 +160,10 @@ test.describe('arriving with no session', () => {
     // A menu: the sidebar's entry on a desktop, the bottom bar's on a phone.
     await expect(page.locator('[data-nav="profile"]:visible, [data-nav-bottom="profile"]:visible')).toHaveCount(1);
     await expect(page.getByTestId('account-menu')).toHaveText('A');
+    // And the first screen in that menu is where they land (2026-09-18):
+    // the same place a deep link's form leads, not a page the menu leads
+    // with somewhere else.
+    await expect(page).toHaveURL(/\/profile/);
   });
 
   test('keeps the deep link it was asked for, and lands there after signing in', async ({ page }) => {

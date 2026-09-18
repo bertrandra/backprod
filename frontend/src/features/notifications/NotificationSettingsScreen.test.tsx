@@ -204,7 +204,12 @@ describe('a consent', () => {
 
     await waitFor(() => expect(screen.getByLabelText(/purpose/i)).toBeTruthy());
 
-    fireEvent.change(screen.getByLabelText(/purpose/i), { target: { value: 'delivery alerts' } });
+    // A choice between the two purposes the server accepts, explained beside
+    // it (2026-09-18) — not a free field that the server refused unread.
+    const purpose = screen.getByLabelText<HTMLSelectElement>(/purpose/i);
+    expect([...purpose.options].map((option) => option.value)).toEqual(['TRANSACTIONAL', 'MARKETING']);
+    expect(screen.getByText(/failed payment/i)).toBeTruthy();
+    fireEvent.change(purpose, { target: { value: 'MARKETING' } });
     fireEvent.click(screen.getByRole('button', { name: /grant consent/i }));
 
     // Refused here rather than by the API: the evidence is the point of the

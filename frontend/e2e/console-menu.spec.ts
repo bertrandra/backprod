@@ -3,16 +3,17 @@ import { expect, test } from './support/app';
 import type { Page } from '@playwright/test';
 
 /**
- * The console's own navigation (ADR-047), at both widths.
+ * How a platform administrator moves between the console's screens.
  *
- * A platform administrator used to have no way between the admin screens
- * that was theirs: the left rail listed them among everything else on a
- * desktop, and a phone's five-slot bottom bar buried most of them under
- * "More". Now every console screen carries a menu of exactly the platform's
- * screens — grouped, the current one marked, one way back — as a bar on a
- * desktop and a full-screen sheet on a phone. What this suite proves is
- * reachability: every admin screen the role allows is one interaction away
- * from any other.
+ * There was a menu of the console's own — a bar of dropdowns over every
+ * `/console/*` screen and a full-screen sheet on a phone, with a "Tenant app"
+ * link back (ADR-047). The operator asked for both to go (2026-09-18): the
+ * one shell's rail already lists every platform screen the role allows, so
+ * the bar said the same thing twice, and the way back was a link to a
+ * front door that the rail's own tenant entries already open. What this
+ * suite proves is what remains: every admin screen is one interaction away
+ * from any other — the rail on a desktop, the one drawer on a phone — and
+ * nothing else is on top of the screen.
  */
 const STAFF = {
   staff: {
@@ -46,6 +47,7 @@ async function consoleStubs(page: Page) {
     route.fulfill({ json: { tenants: [], entries: [], users: [], jobs: [], erasures: [], total: 0, limit: 25, offset: 0 } }),
   );
   await page.route(/\/api\/v1\/staff\/me$/, (route) => route.fulfill({ json: STAFF }));
+  await page.route(/\/api\/v1\/staff\/me\/navigation$/, (route) => route.fulfill({ json: { hidden: [] } }));
   await page.route(/\/api\/v1\/staff\/products$/, (route) => route.fulfill({ json: { products: [PRODUCT] } }));
   // No membership: a platform administrator and nothing else.
   await page.route(/\/api\/v1\/me$/, (route) =>
@@ -56,8 +58,8 @@ async function consoleStubs(page: Page) {
   );
 }
 
-test.describe('the console menu', () => {
-  test('lists every admin screen the role allows, grouped, and marks the current one', async ({
+test.describe('moving between console screens', () => {
+  test('is the rail on a desktop and the drawer on a phone, with nothing on top of the screen', async ({
     page,
     viewport,
   }) => {
@@ -66,77 +68,27 @@ test.describe('the console menu', () => {
 
     const narrow = (viewport?.width ?? 1280) < 768;
 
-    if (narrow) {
-      // A phone: the bar is gone and the button in the context bar opens the sheet.
-      await expect(page.getByTestId('console-menu')).toBeHidden();
-      await page.getByTestId('console-menu-button').click();
-      await expect(page.getByTestId('console-menu-sheet')).toBeVisible();
-    } else {
-      await expect(page.getByTestId('console-menu')).toBeVisible();
-      await expect(page.getByTestId('console-menu-button')).toBeHidden();
-    }
-
-    const menu = narrow ? page.getByTestId('console-menu-sheet') : page.getByTestId('console-menu');
-
-    // The three groups the tree leads with.
-    await expect(menu.locator('[data-console-section]')).toHaveText([/Setup/, /Customers/, /Platform/]);
-    // Fourteen admin screens for a full administrator, and the current one is the page.
-    await expect(menu.locator('[data-console-nav]')).toHaveCount(14);
-    await expect(menu.locator('[data-console-nav][aria-current="page"]')).toHaveAttribute(
-      'data-console-nav',
-      'tenants',
-    );
-  });
-
-  test('takes somebody from one admin screen to another, and back to the front door', async ({
-    page,
-    viewport,
-  }) => {
-    await consoleStubs(page);
-    await page.goto('/console/tenants');
-
-    const narrow = (viewport?.width ?? 1280) < 768;
+    // No bar over the view, no sheet of its own, no way-back link: the
+    // operator asked for all three to go.
+    await expect(page.getByTestId('console-menu')).toHaveCount(0);
+    await expect(page.getByTestId('console-menu-sheet')).toHaveCount(0);
+    await expect(page.getByTestId('tenant-app-link')).toHaveCount(0);
 
     if (narrow) {
-      await page.getByTestId('console-menu-button').click();
-      await page.getByTestId('console-menu-sheet').locator('[data-console-nav="audit"]').click();
-      await expect(page.getByTestId('console-menu-sheet')).toBeHidden();
+      await page.getByRole('button', { name: 'Menu' }).click();
+      await expect(page.getByTestId('menu-sheet')).toBeVisible();
+      // Fourteen admin screens for a full administrator, in the one drawer.
+      await expect(page.getByTestId('menu-sheet').locator('[data-nav-more]')).toHaveCount(14);
+      // And no sign-out there: the account circle carries it at every width.
+      await expect(page.getByTestId('menu-sheet').getByRole('button', { name: 'Sign out' })).toHaveCount(0);
+      await page.getByTestId('menu-sheet').locator('[data-nav-more="audit"]').click();
     } else {
-      // Open the group, then the screen: a native disclosure, so one click each.
-      await page.getByTestId('console-menu').locator('[data-console-section="platform"] summary').click();
-      await page.getByTestId('console-menu').locator('[data-console-nav="audit"]').click();
+      await expect(page.locator('[data-region="primary-nav"] [data-nav]')).toHaveCount(14);
+      // The section headings read as headings: named, above their entries.
+      await expect(page.locator('[data-nav-section="setup"]')).toBeVisible();
+      await page.locator('[data-nav="audit"]').click();
     }
 
     await expect(page).toHaveURL(/\/console\/audit$/);
-
-    // The way back: no membership, so the front door. Looked for inside the
-    // menu that is showing — the bar and the sheet each carry one.
-    if (narrow) {
-      await page.getByTestId('console-menu-button').click();
-    }
-    const menu = narrow ? page.getByTestId('console-menu-sheet') : page.getByTestId('console-menu');
-    await expect(menu.getByTestId('tenant-app-link')).toHaveAttribute('href', '/');
-  });
-
-  test('is absent from the application', async ({ page }) => {
-    await page.route(/\/api\/v1\/me$/, (route) =>
-      route.fulfill({
-        json: {
-          user_id: 'u', email: 'ada@acme.test', display_name: 'Ada', product_id: PRODUCT.id, tenant_id: 't',
-          roles: ['TENANT_ADMIN'], permissions: ['projects.read'], capabilities: [],
-        },
-      }),
-    );
-    await page.route(/\/api\/v1\/staff\/me$/, (route) => route.fulfill({ json: STAFF }));
-    await page.route(/\/api\/v1\/products$/, (route) => route.fulfill({ json: { products: [PRODUCT] } }));
-    await page.route(/\/api\/v1\/projects/, (route) => route.fulfill({ json: { projects: [], total: 0, limit: 25, offset: 0 } }));
-
-    await page.goto('/projects?product=atlas');
-
-    // A tenant screen, even for somebody who is also on staff: region C's header
-    // is the console's, not the application's.
-    await expect(page.locator('[data-region="view-body"]')).toBeVisible();
-    await expect(page.getByTestId('console-menu')).toHaveCount(0);
-    await expect(page.getByTestId('console-menu-button')).toHaveCount(0);
   });
 });

@@ -256,16 +256,28 @@ reader can say where a thing belongs before knowing what it looks like.
 critical rule); every request carries `X-Product` and is tenant-scoped. Making
 the active product ambiently visible is how a person avoids acting in the wrong
 one, and it is the reason A is a permanent region rather than a setting buried
-in a menu. On `/console/*` the switcher lists every product the platform hosts
-rather than the ones this person belongs to — a platform role grants no
-membership — and every console screen follows it (ADR-047).
+in a menu. It reads **organisation, then product** — "Acme · Product: Atlas",
+a hairline and the word between them (2026-09-18): the product is still what
+every request carries, but a person reads where they are before what they are
+in, and the switcher is a plain control rather than a black badge. On
+`/console/*` the switcher lists every product the platform hosts rather than
+the ones this person belongs to — a platform role grants no membership — and
+every console screen follows it (ADR-047).
 
-**Region C's header carries the console's own menu on `/console/*`.** A bar
-with one disclosure per platform section, the current screen marked, and one
-way back to the application. This is not the "global concern" the table
-forbids: it is the navigation of the screen family the view belongs to, shown
-only while that family is in the view. Region B stays the primary navigation of
-the whole application (ADR-047).
+**Region B's section headings read as headings** (2026-09-18): a rule above,
+small capitals with letter-spacing, the ink colour — three cues, because with
+one the operator could not tell Work from the entries under it. **Signing in
+lands on the first entry** the rail offers, in the tree's own order, whether
+the person came by the storefront's link or by a deep link's form (`/` inside
+the shell forwards there; a deep link keeps its address).
+
+**Region C's header carries nothing of the console's own.** It did — a bar
+of dropdowns per platform section with a "Tenant app" link back (ADR-047),
+and a full-screen sheet on a phone. Both were removed on 2026-09-18 at the
+operator's request: the one shell's rail already lists every platform screen
+the role allows, so the bar said the same thing twice, and the way back was a
+link to a front door the rail's own tenant entries already open. Region B is
+the navigation of the whole application, console included.
 
 **Region E exists because the backend is honest about time.** Jobs are
 cron-polled, exports are asynchronous, the queue has a liveness signal.
@@ -280,8 +292,8 @@ a region that vanished on mobile would be a capability only desktop users have.
 | region | desktop | mobile (< 768 px) |
 |---|---|---|
 | **A** Context bar | full bar | compact header: product initial, title, alerts, avatar |
-| **B** Primary nav | persistent left rail | bottom tab bar, ≤ 5 destinations, the rest behind **More** |
-| **C** View | header + body, side by side with D; on `/console/*` the header is the console's menu bar | full width; list and detail become two pushed routes, not two panes; on `/console/*` a **Menu** button in A opens the console's menu as a full-screen sheet |
+| **B** Primary nav | persistent left rail | bottom tab bar, ≤ 5 destinations, the rest in the drawer the **≡** button in A opens — every section, console included, and no sign-out (that is the account circle's, at every width) |
+| **C** View | header + body, side by side with D | full width; list and detail become two pushed routes, not two panes |
 | **D** Inspector | docked right panel | bottom sheet with snap points, or a pushed route for long detail |
 | **E** Status strip | persistent footer strip | collapses to a badge in A; expands to a sheet |
 | **F** Overlay | dialogs, palette | sheets from the bottom; the palette is full-screen |

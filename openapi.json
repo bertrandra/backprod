@@ -9052,7 +9052,13 @@
                     ]
                   },
                   "purpose": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                      "TRANSACTIONAL",
+                      "MARKETING"
+                    ],
+                    "default": "TRANSACTIONAL",
+                    "description": "What the consent is for. `TRANSACTIONAL` — messages about the account and its money: a failed payment, an invoice, a renewal notice. `MARKETING` — offers and news, which is off until chosen (§27.1). The server refuses anything else."
                   },
                   "source": {
                     "type": "string",

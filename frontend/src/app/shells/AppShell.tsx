@@ -1,15 +1,13 @@
-import { Outlet, useLocation } from '@tanstack/react-router';
-import { useCallback, useMemo, useState } from 'react';
+import { Outlet, useLocation, useNavigate } from '@tanstack/react-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { AppFrame } from '@/app/frame/AppFrame';
 import { CommandPalette, usePaletteShortcut } from '@/app/frame/CommandPalette';
-import { ConsoleMenuBar, ConsoleMenuSheet } from '@/app/frame/ConsoleMenu';
 import { MoreSheet } from '@/app/frame/MoreSheet';
 import {
   APP_NAV,
   bottomBarEntries,
-  firstTenantEntry,
-  platformSections,
+  firstEntry,
   visibleNav,
   type Authorities,
   type Hidden,
@@ -74,12 +72,12 @@ export function AppShell() {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [consoleMenuOpen, setConsoleMenuOpen] = useState(false);
 
   const openPalette = useCallback(() => setPaletteOpen(true), []);
   usePaletteShortcut(openPalette);
 
   const { pathname } = useLocation();
+  const navigate = useNavigate();
 
   // Which authority the *current screen* answers to, from its own address. The
   // paths did not change when the shells merged, so `/console` still marks the
@@ -94,11 +92,21 @@ export function AppShell() {
   };
 
   const sections = visibleNav(APP_NAV, authorities, hidden);
-  // The console's own menu (ADR-047): the platform's sections, and the way
-  // back to the application — rendered only while a console screen is in the
-  // view, as that view's header.
-  const consoleSections = platformSections(sections);
-  const tenantApp = firstTenantEntry(sections);
+
+  // The landing address, signed in, goes to the first screen in this
+  // person's menu (2026-09-18) — the same place whether they came in by the
+  // storefront's link or by a deep link's sign-in form, and the same screen
+  // the rail leads with. Only the exact root: a deep link keeps its address,
+  // and `replace` keeps the empty landing out of the history. Until the
+  // menu has an entry there is nothing to go to, and the catalogue stands.
+  const first = firstEntry(sections);
+  const atLanding = pathname === '/' && !onPlatformScreen;
+
+  useEffect(() => {
+    if (atLanding && first !== undefined) {
+      void navigate({ to: first.to, replace: true, search: (previous: Record<string, unknown>) => previous });
+    }
+  }, [atLanding, first, navigate]);
 
   return (
     <AppFrame
@@ -107,13 +115,7 @@ export function AppShell() {
           platform={onPlatformScreen}
           onOpenPalette={openPalette}
           onOpenMore={() => setMoreOpen(true)}
-          onOpenConsoleMenu={() => setConsoleMenuOpen(true)}
         />
-      }
-      viewHeader={
-        onPlatformScreen && consoleSections.length > 0 ? (
-          <ConsoleMenuBar sections={consoleSections} tenantApp={tenantApp} currentPath={pathname} />
-        ) : undefined
       }
       primaryNav={
         // A skeleton only while **neither** authority has answered.
@@ -139,13 +141,6 @@ export function AppShell() {
         <>
           <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
           <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} sections={sections} />
-          <ConsoleMenuSheet
-            open={consoleMenuOpen && onPlatformScreen}
-            onClose={() => setConsoleMenuOpen(false)}
-            sections={consoleSections}
-            tenantApp={tenantApp}
-            currentPath={pathname}
-          />
         </>
       }
     >

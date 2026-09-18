@@ -6,6 +6,7 @@ import {
   CATEGORIES,
   CHANNELS,
   CONSENT_CHANNELS,
+  CONSENT_PURPOSES,
   isUndisableable,
   useConsents,
   useGrantConsent,
@@ -35,7 +36,7 @@ import { SkeletonRows } from '@/ui/Skeleton';
  */
 const consentSchema = z.object({
   channel: z.enum(CONSENT_CHANNELS),
-  purpose: z.string().trim().min(1, 'Say what the consent is for.'),
+  purpose: z.enum(CONSENT_PURPOSES),
   source: z.string().trim().min(1, 'Record where the opt-in came from.'),
 });
 
@@ -52,7 +53,7 @@ export function NotificationSettingsScreen() {
 
   const form = useForm<ConsentValues>({
     resolver: zodResolver(consentSchema),
-    defaultValues: { channel: 'EMAIL', purpose: '', source: '' },
+    defaultValues: { channel: 'EMAIL', purpose: 'TRANSACTIONAL', source: '' },
   });
 
   if (preferences.isPending) {
@@ -196,16 +197,23 @@ export function NotificationSettingsScreen() {
             </select>
           </Field>
 
+          {/* A choice, not a free field (2026-09-18): the server accepts two
+              purposes and refused whatever a person typed, with nothing on the
+              screen saying what would have been accepted. */}
           <Field
             id="consent-purpose"
             label="Purpose"
+            hint="Transactional: messages about your account and its money — a failed payment, an invoice, a renewal notice. Marketing: offers and news, off until you choose it."
             error={form.formState.errors.purpose?.message}
           >
-            <input
+            <select
               id="consent-purpose"
               className={inputClass(form.formState.errors.purpose !== undefined)}
               {...form.register('purpose')}
-            />
+            >
+              <option value="TRANSACTIONAL">Transactional — account and money</option>
+              <option value="MARKETING">Marketing — offers and news</option>
+            </select>
           </Field>
 
           <Field
