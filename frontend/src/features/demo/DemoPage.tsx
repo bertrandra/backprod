@@ -15,7 +15,7 @@ import { SkeletonRows } from '@/ui/Skeleton';
  *
  * Everything here is a membership's answer everywhere else, which is why
  * the page exists only while a platform administrator has switched it on
- * (Console → Products). Off is a 404 from the API and one sentence here;
+ * (Console → Demo). Off is a 404 from the API and one sentence here;
  * nothing is cached, so the switch takes effect at once.
  */
 export function DemoPage() {
@@ -42,7 +42,7 @@ export function DemoPage() {
       <main className="mx-auto max-w-4xl space-y-8 p-4 py-10" data-testid="demo-off">
         <EmptyState
           title="No demonstration page"
-          description="This deployment does not show one. A platform administrator can switch it on from Console → Products."
+          description="This deployment does not show one. A platform administrator can switch it on from Console → Demo."
         />
         <p className="text-center text-sm">
           <a href="/" className="underline underline-offset-2">

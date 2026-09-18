@@ -140,7 +140,7 @@
   <p>From a shell, against a migrated database (<code>DATABASE_DSN</code> set, or in <code>.env</code>):</p>
 <pre><code>composer run demo:seed          # seed it into an empty database
 composer run demo:reset         # wipe the business tables first, then seed</code></pre>
-  <p>Or from the console: signed in as the platform administrator, <strong>Console → Products → Reset the demonstration world</strong> does the same as <code>demo:reset</code> — after a second, explicit yes, because it empties every business table, the reader's own account included, and signs everybody out. It then lists who to sign in as. It is refused while the platform hosts a product that is not one of the four: that is somebody's real product.</p>
+  <p>Or from the console: signed in as the platform administrator, <strong>Console → Demo → Reset the demonstration world</strong> does the same as <code>demo:reset</code> — after a second, explicit yes, because it empties every business table, the reader's own account included, and signs everybody out. It then lists who to sign in as. It is refused while the platform hosts a product that is not one of the four: that is somebody's real product.</p>
   <p>The seeder refuses a database where any of the four product codes already exists, so it never doubles a catalogue. It reads the world back afterwards — subscriptions active, invoices numbered, every offer advertised, every product with its tax position, every role held by exactly one person — and fails loudly if anything does not hold. Reference data (permissions, roles, EU VAT rates) comes from migrations and is never touched.</p>
   <p>The SiteGround installer (<code>setup.php</code>) seeds the same world after writing <code>.env</code> and running the migrations. It asks for no product and no account of your own: you sign in as the people below.</p>
 
@@ -233,7 +233,7 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
   </ol>
 
   <h2>The demonstration page</h2>
-  <p><code>/demo</code> shows all of the above to anybody, with no sign-in — every product with its offers on sale, every organisation with a link to its root, its products, subscriptions and people with their roles. It is <strong>off on every deployment</strong> until a platform administrator switches it on from Console → Products (behind <code>staff.demo.publish</code>), because everywhere else that is a member's answer; while it is off, <code>/demo</code> is a 404. Switch it on here, and hand a visitor the one link.</p>
+  <p><code>/demo</code> shows all of the above to anybody, with no sign-in — every product with its offers on sale, every organisation with a link to its root, its products, subscriptions and people with their roles. It is <strong>off on every deployment</strong> until a platform administrator switches it on from Console → Demo (behind <code>staff.demo.publish</code>), because everywhere else that is a member's answer; while it is off, <code>/demo</code> is a 404. Switch it on here, and hand a visitor the one link.</p>
 
   <h2>Where it is defined</h2>
   <dl>

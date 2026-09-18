@@ -279,9 +279,10 @@ describe("the console's own menu", () => {
   it('is the sections whose every entry answers to the platform', () => {
     const everything = asPlatform(entriesOf('platform').map((entry) => entry.permission));
 
-    // Exactly the three the tree leads with; no tenant section is ever in it.
+    // Exactly the four the tree leads with; no tenant section is ever in it.
     expect(platformSections(visibleNav(APP_NAV, everything)).map((s) => s.id)).toEqual([
       'setup',
+      'demo',
       'customers',
       'platform',
     ]);

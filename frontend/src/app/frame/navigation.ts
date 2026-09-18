@@ -145,6 +145,16 @@ export const APP_NAV: readonly NavSection[] = [
     ],
   },
   {
+    // The demonstration, apart from setting the platform up (2026-09-18):
+    // showing the deployment to a visitor and resetting the world it is
+    // shown with are neither setup nor customers.
+    id: 'demo',
+    label: 'Demo',
+    entries: [
+      { id: 'demo', label: 'Demonstration', to: '/console/demo', scope: 'platform', permission: 'staff.demo.publish' },
+    ],
+  },
+  {
     id: 'customers',
     label: 'Customers',
     entries: [

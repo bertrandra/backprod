@@ -211,6 +211,18 @@
         "showMetrics"
       ]
     },
+    "console.admin.demo": {
+      "authority": "platform",
+      "routes": [
+        "/console/demo"
+      ],
+      "operations": [
+        "resetDemoWorld",
+        "setDemoPage",
+        "showDemoPage"
+      ],
+      "$comment": "The demonstration, on a screen of its own (2026-09-18): the public /demo page's switch (staff.demo.publish) and the reset of the demonstration world (staff.demo.reset, refused while a product that is not the demo's exists). Neither is administering products, where both used to sit."
+    },
     "console.admin.products": {
       "authority": "platform",
       "$comment": "The top of the model. A product is what tenants belong to and what offers are priced for, and until this screen existed only the installer could create one and nothing at all could list them — listProducts resolves through membership, which a platform role never grants. There is no delete: a product carries invoices, and an invoice is a legal document. The demonstration world is reset from here too, behind staff.demo.reset: the products are what it is made of, and it is refused while one that is not the demo's exists.",
@@ -220,10 +232,7 @@
       "operations": [
         "listPlatformProducts",
         "createProduct",
-        "updateProduct",
-        "resetDemoWorld",
-        "setDemoPage",
-        "showDemoPage"
+        "updateProduct"
       ]
     },
     "console.admin.queue": {
@@ -378,7 +387,7 @@
       "operations": [
         "showPublicDemo"
       ],
-      "$comment": "The demonstration page (2026-09-18): what the platform hosts, who is in it and as what, to anybody — off until a platform administrator switches it on from the Products screen (setDemoPage), and a 404 while it is off. Outside both shells and the sign-in gate, like the storefront; a link to each organisation's root is what it offers next."
+      "$comment": "The demonstration page (2026-09-18): what the platform hosts, who is in it and as what, to anybody — off until a platform administrator switches it on from the Demonstration screen (setDemoPage), and a 404 while it is off. Outside both shells and the sign-in gate, like the storefront; a link to each organisation's root is what it offers next."
     },
     "public.storefront": {
       "authority": "public",

@@ -49,6 +49,7 @@ import { TenantWorkspaceScreen } from '@/features/console/TenantWorkspaceScreen'
 import { StorefrontScreen } from '@/features/console/StorefrontScreen';
 import { SupportConversationsScreen } from '@/features/console/SupportConversationsScreen';
 import { SignInScreen } from '@/features/auth/SignInScreen';
+import { DemoScreen } from '@/features/console/DemoScreen';
 import { DemoPage } from '@/features/demo/DemoPage';
 import { AppShell } from '@/app/shells/AppShell';
 import { EmptyState } from '@/ui/EmptyState';
@@ -124,6 +125,7 @@ const PLATFORM_SCREEN_ROUTES: readonly { path: string; component: () => React.JS
   { path: '/console/catalogue', component: ConsoleCatalogueScreen },
   { path: '/console/invoicing', component: InvoicingScreen },
   { path: '/console/menus', component: MenusScreen },
+  { path: '/console/demo', component: DemoScreen },
   { path: '/console/staff', component: StaffMembersScreen },
   { path: '/console/storefront', component: StorefrontScreen },
   { path: '/console/queue', component: QueueScreen },
