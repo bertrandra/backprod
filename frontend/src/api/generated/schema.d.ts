@@ -2951,6 +2951,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/storefront/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How a self-service sign-up ends
+         * @description Platform-wide. `staff.catalog.manage`, the storefront console’s own permission.
+         */
+        get: operations["showStorefrontSettings"];
+        /**
+         * Decide how a self-service sign-up ends
+         * @description A USER who signed up at an organisation’s root may buy (ADR-049, amended 2026-09-18). Whether the checkout opens there and then (`PAY`, the default) or the person lands in the application first and picks the offer again from the catalogue (`CATALOGUE`) is the operator’s call — one setting for the whole platform, about the shape of the front door rather than about any customer. `staff.catalog.manage`.
+         */
+        put: operations["setStorefrontSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/sign-up": {
         parameters: {
             query?: never;
@@ -4649,6 +4673,11 @@ export interface components {
              * @enum {string}
              */
             join_policy: "OPEN" | "INVITATION" | "DOMAIN" | "APPROVAL";
+            /**
+             * @description What follows a sign-up that chose an offer, once the person is in (the platform’s choice, `setStorefrontSettings`). `PAY`: the checkout opens on the storefront page, on the session the sign-up issued. `CATALOGUE`: the page goes to the organisation’s root — the member’s catalogue — where the offer is picked again and bought from there.
+             * @enum {string}
+             */
+            after_sign_up: "PAY" | "CATALOGUE";
         };
         /** @description What the platform gave a tenant on one product without a sale (docs/tenant-roots.md §2.8): `entitlements` rows with `source = GRANT`. The resolver reads them like a subscription’s — `/me/entitlements` shows them with their source — so a grant changes nothing in how capabilities and quotas are answered. Where a grant and a subscription both hold a feature, the most generous wins, as between a seat and the tenant. */
         GrantedEntitlement: {
@@ -11852,6 +11881,76 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showStorefrontSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The setting. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        after_sign_up: "PAY" | "CATALOGUE";
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setStorefrontSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    after_sign_up: "PAY" | "CATALOGUE";
+                };
+            };
+        };
+        responses: {
+            /** @description The setting as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        after_sign_up: "PAY" | "CATALOGUE";
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `after_sign_up` is not one of `PAY`, `CATALOGUE`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

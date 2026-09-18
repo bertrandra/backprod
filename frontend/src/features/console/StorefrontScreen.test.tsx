@@ -179,3 +179,56 @@ describe('the storefront console', () => {
     await waitFor(() => expect(screen.getByText(/Nothing to advertise/i)).toBeTruthy());
   });
 });
+
+describe('after a sign-up', () => {
+  const ADMIN = { staff: { user_id: 's-1', roles: ['PLATFORM_ADMIN'], permissions: ['staff.catalog.manage'] } };
+  const SUPPORT = { staff: { user_id: 's-2', roles: ['SUPPORT_ADMIN'], permissions: ['staff.tenants.read'] } };
+
+  it('is offered to whoever administers the storefront, with the setting in force', async () => {
+    renderAtRoute(
+      <StorefrontScreen />,
+      clientFor({
+        'GET /api/v1/staff/me': { data: ADMIN },
+        'GET /api/v1/staff/storefront/settings': { data: { after_sign_up: 'CATALOGUE' } },
+      }),
+      ROUTE,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('after-sign-up')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByLabelText<HTMLInputElement>(/The application first/).checked).toBe(true),
+    );
+  });
+
+  it('is absent for support, and shown even before a product is chosen', async () => {
+    renderAtRoute(
+      <StorefrontScreen />,
+      clientFor({ 'GET /api/v1/staff/me': { data: SUPPORT } }),
+      { ...ROUTE, product: null },
+    );
+
+    await waitFor(() => expect(screen.getByText('No product chosen')).toBeTruthy());
+    expect(screen.queryByTestId('after-sign-up')).toBeNull();
+  });
+
+  it('sends the choice as PUT and shows what the server wrote', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/me': { data: ADMIN },
+      'GET /api/v1/staff/storefront/settings': { data: { after_sign_up: 'PAY' } },
+      'PUT /api/v1/staff/storefront/settings': { data: { after_sign_up: 'CATALOGUE' } },
+    });
+
+    renderAtRoute(<StorefrontScreen />, client, { ...ROUTE, product: null });
+
+    await waitFor(() => expect(screen.getByLabelText(/Pay right there/)).toBeTruthy());
+    fireEvent.click(screen.getByLabelText(/The application first/));
+
+    await waitFor(() =>
+      expect(requests.some((r) => r.method === 'PUT' && r.path === '/api/v1/staff/storefront/settings')).toBe(true),
+    );
+    expect(requests.find((r) => r.method === 'PUT')?.body).toEqual({ after_sign_up: 'CATALOGUE' });
+    await waitFor(() =>
+      expect(screen.getByLabelText<HTMLInputElement>(/The application first/).checked).toBe(true),
+    );
+  });
+});

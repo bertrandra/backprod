@@ -136,7 +136,10 @@ export function Storefront({ onSignIn }: { onSignIn: () => void }) {
       onBack={() => setDoor(null)}
       onSignIn={onSignIn}
       onCreated={(created) => {
-        if (offer === null || created.membership !== 'ACTIVE') {
+        // The platform's choice (2026-09-18): the checkout right here, or
+        // the application first — the root is the catalogue, and the same
+        // offer is one click away there.
+        if (offer === null || created.membership !== 'ACTIVE' || known.after_sign_up === 'CATALOGUE') {
           // Nothing in hand, or waiting on an administrator: the root says
           // which. A full navigation, so the session is restored from the
           // cookie and the shell boots as it would on any reload.

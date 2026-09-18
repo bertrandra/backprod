@@ -1097,6 +1097,54 @@ export function useSetDemoPage() {
   });
 }
 
+export type AfterSignUp = Schemas['PublicTenant']['after_sign_up'];
+
+/**
+ * How a self-service sign-up ends (2026-09-18): the checkout on the
+ * storefront page, or the application first. Platform-wide, behind
+ * `staff.catalog.manage`; the answer is written into the cache, since the
+ * API returns the setting it wrote.
+ */
+export function useStorefrontSettings(enabled = true) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.storefrontSettings,
+    enabled,
+    queryFn: async (): Promise<AfterSignUp> => {
+      const { data, error, response } = await client.GET('/api/v1/staff/storefront/settings', {});
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.after_sign_up;
+    },
+  });
+}
+
+export function useSetStorefrontSettings() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (afterSignUp: AfterSignUp): Promise<AfterSignUp> => {
+      const { data, error, response } = await client.PUT('/api/v1/staff/storefront/settings', {
+        body: { after_sign_up: afterSignUp },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.after_sign_up;
+    },
+    onSuccess: (afterSignUp) => {
+      queryClient.setQueryData(keys.staff.storefrontSettings, afterSignUp);
+    },
+  });
+}
+
 /**
  * The platform's own catalogue — the plans and features an offer is built out
  * of, for one product.

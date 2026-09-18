@@ -278,7 +278,9 @@
       ],
       "operations": [
         "listStorefrontOffers",
-        "setOfferPublicListing"
+        "setOfferPublicListing",
+        "setStorefrontSettings",
+        "showStorefrontSettings"
       ]
     },
     "console.support.access_log": {

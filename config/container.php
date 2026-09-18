@@ -41,12 +41,14 @@ use App\Commerce\Domain\CatalogueRepository;
 use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\OfferAuthoringRepository;
 use App\Commerce\Domain\StorefrontListing;
+use App\Commerce\Domain\StorefrontSettings;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Infrastructure\PostgresCatalogueAdministration;
 use App\Commerce\Infrastructure\PostgresCatalogueRepository;
 use App\Commerce\Infrastructure\PostgresEntitlementRepository;
 use App\Commerce\Infrastructure\PostgresOfferAuthoringRepository;
 use App\Commerce\Infrastructure\PostgresStorefrontListing;
+use App\Commerce\Infrastructure\PostgresStorefrontSettings;
 use App\Commerce\Infrastructure\PostgresSubscriptionRepository;
 use App\Demo\Domain\DemoFixtures;
 use App\Demo\Domain\DemoPage;
@@ -418,6 +420,7 @@ return static function (array $overrides = []): ContainerInterface {
         // Which organisation the bare host addresses (2026-09-17).
         DefaultTenant::class => autowire(PostgresDefaultTenant::class),
         DemoPage::class => autowire(PostgresDemoPage::class),
+        StorefrontSettings::class => autowire(PostgresStorefrontSettings::class),
         JoinRequests::class => autowire(PostgresJoinRequests::class),
         TenantMemberRepository::class => autowire(PostgresTenantMemberRepository::class),
         TenantMembershipRepository::class => autowire(PostgresTenantMembershipRepository::class),

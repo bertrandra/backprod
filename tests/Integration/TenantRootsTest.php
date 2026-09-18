@@ -93,7 +93,7 @@ final class TenantRootsTest extends DatabaseApiTestCase
         $response = $this->request('GET', '/api/v1/public/tenant?tenant=acme');
 
         self::assertSame(200, $response->getStatusCode());
-        self::assertSame(['tenant' => ['slug' => 'acme', 'name' => 'Acme Ltd', 'is_default' => false, 'join_policy' => 'OPEN']], $this->decode($response));
+        self::assertSame(['tenant' => ['slug' => 'acme', 'name' => 'Acme Ltd', 'is_default' => false, 'join_policy' => 'OPEN', 'after_sign_up' => 'PAY']], $this->decode($response));
 
         self::assertSame(404, $this->request('GET', '/api/v1/public/tenant?tenant=nowhere')->getStatusCode());
         // No default set: the bare host is nobody's, and says so.
