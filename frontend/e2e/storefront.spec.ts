@@ -104,7 +104,7 @@ async function stubStorefront(
   await page.route(/\/api\/v1\/public\/tenant(\?|$)/, (route) => {
     asked.push('/api/v1/public/tenant');
 
-    return route.fulfill({ json: { tenant: { slug: 'acme', name: 'Acme Ltd', is_default: true, join_policy: joinPolicy } } });
+    return route.fulfill({ json: { tenant: { slug: 'acme', name: 'Acme Ltd', is_default: true, join_policy: joinPolicy, after_sign_up: 'PAY' } } });
   });
 
   return asked;

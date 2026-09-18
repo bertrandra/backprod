@@ -4120,7 +4120,8 @@
           "slug",
           "name",
           "is_default",
-          "join_policy"
+          "join_policy",
+          "after_sign_up"
         ],
         "properties": {
           "slug": {
@@ -4142,6 +4143,14 @@
               "APPROVAL"
             ],
             "description": "How a sign-up at this root ends. `OPEN` (the default) and a matching `DOMAIN`: in at once, and able to pay straight after. `APPROVAL`: an administrator accepts first. `INVITATION`: no self-service at all."
+          },
+          "after_sign_up": {
+            "type": "string",
+            "enum": [
+              "PAY",
+              "CATALOGUE"
+            ],
+            "description": "What follows a sign-up that chose an offer, once the person is in (the platform’s choice, `setStorefrontSettings`). `PAY`: the checkout opens on the storefront page, on the session the sign-up issued. `CATALOGUE`: the page goes to the organisation’s root — the member’s catalogue — where the offer is picked again and bought from there."
           }
         }
       },
@@ -16901,6 +16910,128 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/storefront/settings": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "showStorefrontSettings",
+        "summary": "How a self-service sign-up ends",
+        "description": "Platform-wide. `staff.catalog.manage`, the storefront console’s own permission.",
+        "responses": {
+          "200": {
+            "description": "The setting.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "after_sign_up"
+                  ],
+                  "properties": {
+                    "after_sign_up": {
+                      "type": "string",
+                      "enum": [
+                        "PAY",
+                        "CATALOGUE"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "setStorefrontSettings",
+        "summary": "Decide how a self-service sign-up ends",
+        "description": "A USER who signed up at an organisation’s root may buy (ADR-049, amended 2026-09-18). Whether the checkout opens there and then (`PAY`, the default) or the person lands in the application first and picks the offer again from the catalogue (`CATALOGUE`) is the operator’s call — one setting for the whole platform, about the shape of the front door rather than about any customer. `staff.catalog.manage`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "after_sign_up"
+                ],
+                "properties": {
+                  "after_sign_up": {
+                    "type": "string",
+                    "enum": [
+                      "PAY",
+                      "CATALOGUE"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The setting as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "after_sign_up"
+                  ],
+                  "properties": {
+                    "after_sign_up": {
+                      "type": "string",
+                      "enum": [
+                        "PAY",
+                        "CATALOGUE"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — `after_sign_up` is not one of `PAY`, `CATALOGUE`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"

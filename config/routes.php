@@ -155,6 +155,7 @@ use App\Staff\Controller\SetDemoPageController;
 use App\Staff\Controller\SetNavigationSetupController;
 use App\Staff\Controller\SetOfferAuthoringController;
 use App\Staff\Controller\SetPublicListingController;
+use App\Staff\Controller\SetStorefrontSettingsController;
 use App\Staff\Controller\SetTaxSettingsController;
 use App\Staff\Controller\ShowCatalogueController;
 use App\Staff\Controller\ShowConfigurationController;
@@ -162,6 +163,7 @@ use App\Staff\Controller\ShowDemoPageController;
 use App\Staff\Controller\ShowNavigationSetupController;
 use App\Staff\Controller\ShowReadinessController;
 use App\Staff\Controller\ShowStaffNavigationController;
+use App\Staff\Controller\ShowStorefrontSettingsController;
 use App\Staff\Controller\ShowSupportConversationController;
 use App\Staff\Controller\ShowTenantController;
 use App\Staff\Controller\ShowTenantEntitlementController;
@@ -655,6 +657,10 @@ return static function (RouteCollector $routes): void {
         '/api/v1/staff/storefront/offers/{offerId}',
         SetPublicListingController::class,
     );
+    // How a self-service sign-up ends (2026-09-18): pay right there, or the
+    // application first. Platform-wide, on the storefront console.
+    $routes->addRoute('GET', '/api/v1/staff/storefront/settings', ShowStorefrontSettingsController::class);
+    $routes->addRoute('PUT', '/api/v1/staff/storefront/settings', SetStorefrontSettingsController::class);
 
     $routes->addRoute('GET', '/api/v1/staff/access-log', ListAccessLogController::class);
 

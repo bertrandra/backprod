@@ -36,7 +36,7 @@ const WINDOW = { product: { code: 'atlas', name: 'Atlas' }, offers: [OFFER] };
 
 const ATLAS = { code: 'atlas', name: 'Atlas' };
 const BOREAS = { code: 'boreas', name: 'Boreas' };
-const ACME = { slug: 'acme', name: 'Acme Ltd', is_default: true, join_policy: 'OPEN' };
+const ACME = { slug: 'acme', name: 'Acme Ltd', is_default: true, join_policy: 'OPEN', after_sign_up: 'PAY' };
 const GUARDED = { ...ACME, join_policy: 'APPROVAL' };
 
 const MONEY = { minor_units: 2900, currency: 'EUR' };
@@ -536,5 +536,31 @@ describe('creating the account', () => {
     // it does, which would unmount this page mid-purchase.
     expect(useSessionStore.getState().token).toBe('access');
     expect(useSessionStore.getState().status).toBe('anonymous');
+  });
+});
+
+describe('after the sign-up, by the platform’s choice', () => {
+  it('goes to the catalogue instead of paying here when the platform says so', async () => {
+    const assign = vi.fn();
+
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign });
+
+    const { client, requests } = recordingClient({
+      'GET /api/v1/public/tenant': { data: { tenant: { ...ACME, after_sign_up: 'CATALOGUE' } } },
+      'GET /api/v1/public/offers': { data: WINDOW },
+      'POST /api/v1/auth/sign-up': { status: 201, data: CREATED },
+    });
+
+    renderWith(<Storefront onSignIn={() => undefined} />, client);
+
+    await chooseTheOffer();
+    // The form says so before they type: no promise of paying here.
+    expect(screen.queryByText(/pay straight after/i)).toBeNull();
+    expect(screen.getByText(/one click away in the catalogue/i)).toBeTruthy();
+
+    signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/'));
+    expect(requests.some((r) => r.path === '/api/v1/checkout/sessions')).toBe(false);
   });
 });

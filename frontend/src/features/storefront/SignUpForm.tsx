@@ -70,6 +70,9 @@ export function SignUpForm({
   // Under APPROVAL a newcomer waits; under anything else that admits them
   // they are in at once. INVITATION refuses, and the API says so on submit.
   const waits = tenant.join_policy === 'APPROVAL';
+  // And once in, whether the checkout follows here or the application
+  // comes first (the platform's choice, on the public tenant).
+  const paysHere = tenant.after_sign_up === 'PAY';
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -83,7 +86,7 @@ export function SignUpForm({
         description={
           waits
             ? 'An administrator of the organisation accepts new members; you will be told by email. We will also send you a link to confirm your address.'
-            : offer === null
+            : offer === null || !paysHere
               ? 'You will be a member straight away. We will email you a link to confirm your address — your account works in the meantime.'
               : 'You will be able to pay straight after. We will email you a link to confirm your address — your account works in the meantime.'
         }
@@ -101,7 +104,9 @@ export function SignUpForm({
           <p className="mt-1 text-xs text-muted">
             {waits
               ? `What you came for. Once an administrator of ${tenant.name} has accepted you, it is one click away in the catalogue.`
-              : `What you came for, taken out for ${tenant.name}.`}
+              : paysHere
+                ? `What you came for, taken out for ${tenant.name}.`
+                : 'What you came for. It is one click away in the catalogue once your account exists.'}
           </p>
           <button
             type="button"
@@ -184,7 +189,7 @@ export function SignUpForm({
         )}
 
         <Button type="submit" pending={signUp.isPending}>
-          {offer !== null && !waits ? 'Create account and continue' : 'Create account and join'}
+          {offer !== null && !waits && paysHere ? 'Create account and continue' : 'Create account and join'}
         </Button>
       </form>
 

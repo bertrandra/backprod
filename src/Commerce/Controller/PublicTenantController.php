@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commerce\Controller;
 
+use App\Commerce\Domain\StorefrontSettings;
 use App\Commerce\Service\Storefront;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Http\RouteHandler;
@@ -31,6 +32,7 @@ final class PublicTenantController implements RouteHandler
     public function __construct(
         private readonly Storefront $storefront,
         private readonly JoinRequests $joining,
+        private readonly StorefrontSettings $settings,
     ) {
     }
 
@@ -57,6 +59,10 @@ final class PublicTenantController implements RouteHandler
                 // pay straight after" or "an administrator accepts you first"
                 // before the person types, not after.
                 'join_policy' => $this->joining->policyOf($tenant->id)['policy'],
+                // And, once in, whether the checkout opens right here or the
+                // application comes first — the platform's choice, said on
+                // every root so the form can say what follows.
+                'after_sign_up' => $this->settings->afterSignUp(),
             ],
         ], 200);
     }

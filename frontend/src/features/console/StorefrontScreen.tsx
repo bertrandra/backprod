@@ -1,6 +1,13 @@
 import { Link } from '@tanstack/react-router';
 
-import { useSetOfferPublicListing, useStorefrontOffers } from '@/queries/staff';
+import {
+  useSetOfferPublicListing,
+  useSetStorefrontSettings,
+  useStaffIdentity,
+  useStorefrontOffers,
+  useStorefrontSettings,
+  type AfterSignUp,
+} from '@/queries/staff';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
@@ -44,18 +51,21 @@ export function StorefrontScreen() {
 
   if (productCode === null || productCode === '') {
     return (
-      <EmptyState
-        title="No product chosen"
-        description="The storefront is per product. Choose one in the bar above — the switcher there lists every product the platform hosts."
-        action={
-          <Link
-            to="/console/products"
-            className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
-          >
-            Go to Products
-          </Link>
-        }
-      />
+      <div className="max-w-3xl space-y-6">
+        <EmptyState
+          title="No product chosen"
+          description="The storefront is per product. Choose one in the bar above — the switcher there lists every product the platform hosts."
+          action={
+            <Link
+              to="/console/products"
+              className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              Go to Products
+            </Link>
+          }
+        />
+        <AfterSignUpPanel />
+      </div>
     );
   }
 
@@ -91,6 +101,8 @@ export function StorefrontScreen() {
       />
 
       {decide.error !== null && <ErrorSurface error={decide.error} />}
+
+      <AfterSignUpPanel />
 
       {offers.data.offers.length === 0 ? (
         <EmptyState
@@ -138,5 +150,77 @@ export function StorefrontScreen() {
         </ul>
       )}
     </div>
+  );
+}
+
+const AFTER_SIGN_UP: readonly { value: AfterSignUp; label: string; hint: string }[] = [
+  {
+    value: 'PAY',
+    label: 'Pay right there',
+    hint: 'The checkout opens on the storefront page, on the session the sign-up issued: account, card, done.',
+  },
+  {
+    value: 'CATALOGUE',
+    label: 'The application first',
+    hint: "The person lands in the application at the organisation's catalogue and picks the offer again from there — one more step, and a look around before paying.",
+  },
+];
+
+/**
+ * How a self-service sign-up ends (2026-09-18), for the whole platform.
+ *
+ * A USER may buy, so the question is only *where*: on the storefront page
+ * the moment the account exists, or from the catalogue once they are in.
+ * Platform-wide and on this screen because it is about the shape of the
+ * front door, not about any product or customer — and shown whether or not
+ * a product is chosen above, for the same reason.
+ */
+function AfterSignUpPanel() {
+  const me = useStaffIdentity();
+  const mayManage = me.data?.permissions.includes('staff.catalog.manage') ?? false;
+  const setting = useStorefrontSettings(mayManage);
+  const set = useSetStorefrontSettings();
+
+  if (!mayManage) {
+    return null;
+  }
+
+  return (
+    <section className="space-y-3 border-t border-line pt-4" data-testid="after-sign-up">
+      <h2 className="text-xl font-semibold">After a sign-up</h2>
+      <p className="text-sm text-muted">
+        Somebody who chooses an offer on a storefront and creates an account is a member who may
+        buy. Whether they pay there and then, or go through the application first, is decided
+        here for every storefront.
+      </p>
+
+      {setting.error !== null && <ErrorSurface error={setting.error} onRetry={() => void setting.refetch()} />}
+      {set.error !== null && <ErrorSurface error={set.error} />}
+
+      {setting.isPending ? (
+        <SkeletonRows rows={2} />
+      ) : (
+        <fieldset className="space-y-2" disabled={set.isPending}>
+          <legend className="sr-only">After a sign-up</legend>
+          {AFTER_SIGN_UP.map((option) => (
+            <label key={option.value} className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                name="after-sign-up"
+                value={option.value}
+                data-after-sign-up={option.value}
+                className="mt-1"
+                checked={setting.data === option.value}
+                onChange={() => set.mutate(option.value)}
+              />
+              <span>
+                <span className="font-medium">{option.label}</span>
+                <span className="block text-xs text-muted">{option.hint}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      )}
+    </section>
   );
 }

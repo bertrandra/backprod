@@ -13,7 +13,10 @@ crediting, marking paid by hand and refunding stay `billing.manage` /
 the session the sign-up issued when the membership is live and an offer was
 chosen, and goes to the root to wait otherwise. `PublicTenant.join_policy`
 lets the form say which before the person types. Migration
-`Version20260918090000`. The paragraphs "A USER sees and cannot bind" and
+`Version20260918090000`. Whether that checkout opens on the storefront page
+or the person goes through the application first is the platform's choice
+(`platform_settings.storefront.after_sign_up`, `PAY` by default; the
+storefront console sets it, and every `PublicTenant` says it). The paragraphs "A USER sees and cannot bind" and
 "the door is a request to join, not a purchase" below read as they were
 decided on 2026-09-17; this note is what stands.
 **Implements:** [docs/tenant-roots.md](../tenant-roots.md), with the

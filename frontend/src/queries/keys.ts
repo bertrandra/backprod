@@ -136,6 +136,7 @@ export const keys = {
   staff: {
     identity: ['staff', 'me'] as const,
     demoPage: ['staff', 'demo', 'page'] as const,
+    storefrontSettings: ['staff', 'storefront', 'settings'] as const,
     tenantLists: ['staff', 'tenants'] as const,
     tenants: (limit: number, offset: number) => ['staff', 'tenants', limit, offset] as const,
     // The motive is part of a read's key, so a read made for one reason is never
