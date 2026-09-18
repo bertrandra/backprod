@@ -259,6 +259,28 @@ restent derrière `billing.manage` et `payments.manage`, que seul
 et un membre voyait les prix sans pouvoir acheter ; l'opérateur a tranché :
 quelqu'un qui s'inscrit à la racine d'une organisation paie dans la foulée.
 
+**Ce que le catalogue propose, à qui.** Deux achats par offre, chacun derrière
+sa permission et retiré sur son propre fait (lu dans `showSubscription`, qui
+répond `subscription` — celui de l'organisation — et `seat` — le siège de la
+personne) :
+
+| Qui | Boutons visibles |
+| --- | --- |
+| `USER` sans siège | *Buy for yourself* seulement — sa carte, son siège |
+| `USER` avec un siège actif | aucun ; « Your seat is live » dans la ligne, et le bandeau en haut renvoie vers Subscription pour le rendre |
+| `TENANT_ADMIN`, rien d'actif | les deux : *Buy for yourself* (principal) et *Buy for the organisation* (secondaire) |
+| `TENANT_ADMIN`, organisation déjà abonnée | *Buy for yourself* seulement ; « Already subscribed for the organisation » à la place de l'autre |
+| `TENANT_ADMIN`, siège personnel actif | *Buy for the organisation* seulement |
+| lecteur (`catalog.read` seul) | aucun bouton et aucune explication : les prix, c'est ce que sa permission lui donne |
+
+Un bouton retiré est **toujours expliqué** — bandeau en haut nommant ce qui est
+actif, phrase dans la ligne à la place du bouton — parce qu'un bouton qui
+disparaît sans un mot se lit comme un écran qui a perdu quelque chose, pas
+comme un achat déjà fait (retour de l'opérateur, 18 septembre 2026). Sur la
+vitrine, après l'inscription, il n'y a pas de choix : c'est toujours un siège.
+Un administrateur peut donc aussi s'acheter un siège personnel — cohérent avec
+§13.1, et une ligne à changer si l'on préfère ne lui laisser que l'organisation.
+
 **`catalog.manage` est accordé, puis retiré.** Le rôle `TENANT_ADMIN` porte
 cette permission dans `role_permissions`, et la requête qui résout une
 appartenance la retire par un `LEFT JOIN` conditionnel tant que

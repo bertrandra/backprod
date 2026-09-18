@@ -157,7 +157,7 @@ added (§8).
 
 | area | for |
 |---|---|
-| `commerce.catalogue` | what is for sale: offers, plans, features, and the product's own catalogue. Two purchases per offer (§13.1, 2026-09-18): *Buy for yourself* — a seat, `billing.pay` — and *Buy for the organisation* — `billing.manage`. Each is withheld on its own fact from `showSubscription` (a live seat, a live subscription), and the screen **says why** twice: a notice at the top naming what is live, and in the row the sentence standing where the button was |
+| `commerce.catalogue` | what is for sale: offers, plans, features, and the product's own catalogue. Two purchases per offer (§13.1, 2026-09-18): *Buy for yourself* — a seat, `billing.pay` — and *Buy for the organisation* — `billing.manage`. Each is withheld on its own fact from `showSubscription` (a live seat, a live subscription), and the screen **says why** twice: a notice at the top naming what is live, and in the row the sentence standing where the button was. A USER sees one button (*for yourself*); the case table is in `docs/identities-and-permissions.md` §"Les arêtes vives" |
 | `commerce.checkout` | buying in one flow — a session **is** an order (ADR-034). Says what was bought (`description`) and for whom (`seat`), and in words once it is paid |
 | `commerce.catalogue_authoring` | writing the catalogue: draft a version, publish it. `catalog.manage`, TENANT_ADMIN only — and only where the platform has lent this tenant the catalogue (ADR-040), since the permission is not resolved otherwise |
 | `sales.quotes` | a quote's life: raise, send, accept, reject |
