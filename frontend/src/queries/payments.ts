@@ -127,6 +127,8 @@ export function useStartPayment(invoiceId: string) {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: keys.billing.paymentLists }),
         queryClient.invalidateQueries({ queryKey: keys.billing.invoice(invoiceId) }),
+        // A first payment makes the Payments entry worth showing (2026-09-19).
+        queryClient.invalidateQueries({ queryKey: keys.navigation.mine }),
       ]);
     },
   });

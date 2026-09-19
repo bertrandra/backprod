@@ -55,6 +55,14 @@ export interface ApiContext {
    * still derives the tenant from membership, this only says which.
    */
   readonly tenant?: () => string | null;
+  /**
+   * What to do with a session the server has stopped honouring (2026-09-19).
+   * `renewed` receives the pair a successful refresh answered; `expired` is
+   * told when the refresh was refused — and the page then shows the form
+   * rather than thirty screens each saying "you are signed out".
+   */
+  readonly renewed?: (grant: { accessToken: string; expiresIn: number }) => void;
+  readonly expired?: () => void;
 }
 
 export const PRODUCT_HEADER = 'X-Product';
@@ -138,6 +146,97 @@ export function offlineMiddleware(): Middleware {
         }),
         { status: 503, headers: { 'Content-Type': 'application/json' } },
       );
+    },
+  };
+}
+
+/**
+ * A session that lapsed while nobody was looking (2026-09-19).
+ *
+ * The lifecycle hook renews the token a minute before it expires — while
+ * the tab is awake. A laptop closed for the night wakes with a timer that
+ * never fired and a token an hour dead, and the first screen to ask
+ * anything was answered 401 and said "you are signed out" while the store
+ * still said signed in; nothing led to the form. So the transport handles
+ * it where it happens: a 401 on a request that carried a bearer token asks
+ * `/auth/refresh` **once** — every concurrent 401 joins the same attempt,
+ * because a second refresh with a cookie the first just rotated is what
+ * ADR-038 treats as theft — and, renewed, sends the same request again with
+ * the new token. Refused, it tells the context the session is over, and the
+ * gate shows the sign-in form on its own.
+ *
+ * The auth routes themselves are left alone: a 401 from them *is* the
+ * answer, and renewing on a failed sign-in would loop.
+ */
+export function renewalMiddleware(
+  context: ApiContext,
+  baseUrl: string,
+  send: (request: Request) => Promise<Response>,
+): Middleware {
+  const bodies = new Map<string, Request>();
+  let renewing: Promise<string | null> | null = null;
+
+  const renew = (): Promise<string | null> => {
+    renewing ??= (async () => {
+      try {
+        const answer = await send(new Request(`${baseUrl}/api/v1/auth/refresh`, { method: 'POST', credentials: 'include' }));
+
+        if (!answer.ok) {
+          context.expired?.();
+
+          return null;
+        }
+
+        const grant = (await answer.json()) as { access_token?: unknown; expires_in?: unknown };
+
+        if (typeof grant.access_token !== 'string' || typeof grant.expires_in !== 'number') {
+          context.expired?.();
+
+          return null;
+        }
+
+        context.renewed?.({ accessToken: grant.access_token, expiresIn: grant.expires_in });
+
+        return grant.access_token;
+      } catch {
+        // Unreachable is not expired: the offline middleware says so, and
+        // the session stays until the server actually refuses it.
+        return null;
+      } finally {
+        renewing = null;
+      }
+    })();
+
+    return renewing;
+  };
+
+  return {
+    onRequest({ id, request }) {
+      // A body can be read once; the copy is what a retry sends.
+      if (request.headers.has('Authorization') && !request.url.includes('/api/v1/auth/')) {
+        bodies.set(id, request.clone());
+      }
+
+      return undefined;
+    },
+    async onResponse({ id, response }) {
+      const original = bodies.get(id);
+      bodies.delete(id);
+
+      if (original === undefined || response.status !== 401) {
+        return undefined;
+      }
+
+      const token = await renew();
+
+      if (token === null) {
+        return undefined;
+      }
+
+      const again = new Request(original, { headers: new Headers(original.headers) });
+      again.headers.set('Authorization', `Bearer ${token}`);
+
+      return send(again);
     },
   };
 }
@@ -268,6 +367,8 @@ export function createApiClient({ baseUrl = DEFAULT_BASE_URL, context, fetch }: 
   const client = createClient<paths>(fetch === undefined ? { baseUrl } : { baseUrl, fetch });
 
   client.use(contextMiddleware(context));
+  // A lapsed session is renewed once and the request sent again (2026-09-19).
+  client.use(renewalMiddleware(context, baseUrl, fetch ?? ((request) => globalThis.fetch(request))));
   // After the context middleware, so a request that was built correctly and
   // then failed to travel is the case this handles.
   client.use(offlineMiddleware());

@@ -178,4 +178,8 @@ export const sessionSnapshot = {
   token: () => useSessionStore.getState().token,
   product: () => useSessionStore.getState().productCode,
   tenant: () => useSessionStore.getState().tenantSlug,
+  // A session the server stopped honouring (2026-09-19): renewed by the
+  // transport, or forgotten — and the gate shows the form.
+  renewed: (grant: { accessToken: string; expiresIn: number }) => useSessionStore.getState().signIn(grant),
+  expired: () => useSessionStore.getState().forget(),
 };

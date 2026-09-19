@@ -109,6 +109,8 @@ async function refreshSubscription(
     queryClient.invalidateQueries({ queryKey: keys.subscription.entitlements }),
     // And it may have raised an invoice.
     queryClient.invalidateQueries({ queryKey: keys.billing.invoiceLists }),
+    // And the menu's empty-hiding entries may now have something (2026-09-19).
+    queryClient.invalidateQueries({ queryKey: keys.navigation.mine }),
   ]);
 }
 
