@@ -61,14 +61,18 @@ final class DemoResetTest extends DatabaseApiTestCase
         self::assertSame(DemoWorld::PASSWORD, $world['password'] ?? null);
         self::assertSame(['atlas', 'boreas', 'ceres', 'delos'], array_column($this->listIn($world, 'products'), 'code'));
         self::assertSame(
-            ['ada@demo.test', 'grace@demo.test', 'sam@demo.test', 'hedy@demo.test', 'fran@demo.test', 'sal@demo.test'],
+            [
+                'backprod@raillard.org',
+                'acme-admin@raillard.org', 'acme-user1@raillard.org', 'acme-user2@raillard.org',
+                'globex-admin@raillard.org', 'globex-user1@raillard.org', 'globex-user2@raillard.org',
+            ],
             array_column($this->listIn($world, 'people'), 'email'),
         );
         self::assertSame(['2026-000001', '2026-000002'], $world['invoices'] ?? null);
 
         // What the database holds: the world and nothing else.
         self::assertSame(4, $this->rowCount('SELECT count(*) FROM products'));
-        self::assertSame(6, $this->rowCount('SELECT count(*) FROM users'));
+        self::assertSame(7, $this->rowCount('SELECT count(*) FROM users'));
         self::assertSame(2, $this->rowCount("SELECT count(*) FROM subscriptions WHERE status = 'ACTIVE'"));
         self::assertSame(0, $this->rowCount("SELECT count(*) FROM tenants WHERE slug = 'leftover'"));
         self::assertSame(0, $this->rowCount('SELECT count(*) FROM users WHERE id = :id', ['id' => $this->admin]));

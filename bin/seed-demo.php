@@ -113,7 +113,7 @@ if (!$world->holds()) {
 }
 
 printf("\nEvery account above signs in with the password %s - see docs/demo-world.html.\n", DemoWorld::PASSWORD);
-printf("Start at /sign-in?product=atlas as %s (tenant) or %s (console).\n", DemoWorld::email('ada'), DemoWorld::email('sam'));
+printf("Start at /sign-in?product=atlas as %s (tenant) or %s (console).\n", DemoWorld::email('acme-admin'), DemoWorld::email('backprod'));
 printf("The API needs AUTH_SIGNING_SECRET set to at least 32 characters, or sign-in answers 503.\n");
 
 exit(0);

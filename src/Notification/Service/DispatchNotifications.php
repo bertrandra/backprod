@@ -172,8 +172,9 @@ final class DispatchNotifications implements JobHandler
             return Delivery::SUPPRESSED;
         }
 
-        $subject = self::subjectFor($notification);
-        $body = self::bodyFor($notification);
+        // A notice somebody acts on from an inbox has words of its own
+        // (2026-09-19); the rest keep the generic form.
+        [$subject, $body] = MailWording::for($notification) ?? [self::subjectFor($notification), self::bodyFor($notification)];
 
         try {
             $providerMessageId = $notifier->send($address, $subject, $body, $notification->payload);

@@ -224,7 +224,7 @@ function resetPasswordForm(): string
         . inputRow('Password', 'db_pass', 'password')
         . '</fieldset>'
         . '<fieldset><legend>Change a password</legend>'
-        . inputRow('Account email', 'reset_email', 'email', 'sam@demo.test')
+        . inputRow('Account email', 'reset_email', 'email', 'backprod@raillard.org')
         . inputRow('New password (12–72 characters)', 'reset_password', 'password')
         . inputRow('Confirm new password', 'reset_password_confirm', 'password')
         . '</fieldset>'

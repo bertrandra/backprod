@@ -27,7 +27,7 @@ const CONTENTS = {
       join_policy: 'OPEN',
       products: ['atlas'],
       subscriptions: [{ product: 'atlas', offer: 'Pro, monthly', plan: 'Pro', status: 'ACTIVE' }],
-      members: [{ display_name: 'Ada Lovelace', email: 'ada@demo.test', roles: ['TENANT_ADMIN'] }],
+      members: [{ display_name: 'ACME tenant admin', email: 'acme-admin@raillard.org', roles: ['TENANT_ADMIN'] }],
     },
     { slug: 'globex', name: 'Globex SA', is_default: false, join_policy: 'OPEN', products: ['atlas'], subscriptions: [], members: [] },
   ],
