@@ -135,6 +135,106 @@ describe('the request context as a parameter', () => {
   });
 });
 
+/**
+ * A session that lapsed while nobody was looking (2026-09-19): a 401 on a
+ * bearer request renews once and sends the request again; a refusal tells
+ * the context the session is over; concurrent 401s share one renewal.
+ */
+describe('a lapsed session', () => {
+  function json(body: unknown, status = 200): Response {
+    return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  }
+
+  function harness(refreshAnswers: () => Response) {
+    const seen: { url: string; authorization: string | null }[] = [];
+    let token = 'stale';
+    const renewed: string[] = [];
+    let expired = 0;
+
+    const context: ApiContext = {
+      token: () => token,
+      product: () => 'atlas',
+      renewed: (grant) => {
+        token = grant.accessToken;
+        renewed.push(grant.accessToken);
+      },
+      expired: () => {
+        expired += 1;
+      },
+    };
+
+    const client = createApiClient({
+      baseUrl: 'https://example.test',
+      context,
+      fetch: (request) => {
+        seen.push({ url: new URL(request.url, 'https://example.test').pathname, authorization: request.headers.get('Authorization') });
+
+        if (request.url.endsWith('/api/v1/auth/refresh')) {
+          return Promise.resolve(refreshAnswers());
+        }
+
+        return Promise.resolve(
+          request.headers.get('Authorization') === 'Bearer fresh'
+            ? json({ user_id: 'u' })
+            : json({ error: { code: 'UNAUTHENTICATED', message: 'no', details: {}, request_id: 'r' } }, 401),
+        );
+      },
+    });
+
+    return { client, seen, renewed, expired: () => expired };
+  }
+
+  it('renews once on a 401 and sends the request again with the new token', async () => {
+    const { client, seen, renewed } = harness(() => json({ access_token: 'fresh', token_type: 'Bearer', expires_in: 3600 }));
+
+    const { data, response } = await client.GET('/api/v1/me', { params: { header: { 'X-Product': 'atlas' } } });
+
+    expect(response.status).toBe(200);
+    expect(data).toEqual({ user_id: 'u' });
+    expect(renewed).toEqual(['fresh']);
+    expect(seen.map((s) => `${s.url} ${s.authorization ?? '-'}`)).toEqual([
+      '/api/v1/me Bearer stale',
+      '/api/v1/auth/refresh -',
+      '/api/v1/me Bearer fresh',
+    ]);
+  });
+
+  it('tells the context the session is over when the refresh is refused, and does not retry', async () => {
+    const { client, seen, renewed, expired } = harness(() => json({ error: { code: 'UNAUTHENTICATED' } }, 401));
+
+    const { response } = await client.GET('/api/v1/me', { params: { header: { 'X-Product': 'atlas' } } });
+
+    expect(response.status).toBe(401);
+    expect(renewed).toEqual([]);
+    expect(expired()).toBe(1);
+    expect(seen.map((s) => s.url)).toEqual(['/api/v1/me', '/api/v1/auth/refresh']);
+  });
+
+  it('shares one renewal between requests that fail together', async () => {
+    // A second refresh with the cookie the first just rotated is what the
+    // server treats as theft (ADR-038): there must be exactly one.
+    const { client, seen } = harness(() => json({ access_token: 'fresh', token_type: 'Bearer', expires_in: 3600 }));
+
+    await Promise.all([
+      client.GET('/api/v1/me', { params: { header: { 'X-Product': 'atlas' } } }),
+      client.GET('/api/v1/me/permissions', { params: { header: { 'X-Product': 'atlas' } } }),
+    ]);
+
+    expect(seen.filter((s) => s.url === '/api/v1/auth/refresh')).toHaveLength(1);
+    expect(seen.filter((s) => s.authorization === 'Bearer fresh')).toHaveLength(2);
+  });
+
+  it('leaves the auth routes alone: their 401 is the answer', async () => {
+    const { client, seen, expired } = harness(() => json({ access_token: 'fresh', token_type: 'Bearer', expires_in: 3600 }));
+
+    const { response } = await client.POST('/api/v1/auth/token', { body: { email: 'a@b.c', password: 'wrong password here' } });
+
+    expect(response.status).toBe(401);
+    expect(seen.map((s) => s.url)).toEqual(['/api/v1/auth/token']);
+    expect(expired()).toBe(0);
+  });
+});
+
 describe('the generated contract', () => {
   it('is same-origin by default, so no request is cross-origin', () => {
     expect(DEFAULT_BASE_URL.startsWith('http')).toBe(false);

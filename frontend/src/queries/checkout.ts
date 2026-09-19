@@ -102,6 +102,9 @@ export function useOpenCheckoutSession() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: keys.sales.orderLists }),
         queryClient.invalidateQueries({ queryKey: keys.checkout.session(session.id) }),
+        // An order, an invoice and a payment now exist, so the entries the
+        // menu hides while empty have something to show (2026-09-19).
+        queryClient.invalidateQueries({ queryKey: keys.navigation.mine }),
       ]);
     },
   });
@@ -140,6 +143,7 @@ export function useCancelCheckoutSession() {
         queryClient.invalidateQueries({ queryKey: keys.sales.orderLists }),
         queryClient.invalidateQueries({ queryKey: keys.billing.invoiceLists }),
         queryClient.invalidateQueries({ queryKey: keys.billing.paymentLists }),
+        queryClient.invalidateQueries({ queryKey: keys.navigation.mine }),
       ]);
     },
   });
