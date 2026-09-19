@@ -87,6 +87,7 @@ final class DispatchNotifications implements JobHandler
         private readonly Notifications $service,
         private readonly UserRepository $users,
         iterable $notifiers,
+        private readonly MailWording $wording,
     ) {
         $byChannel = [];
 
@@ -174,7 +175,7 @@ final class DispatchNotifications implements JobHandler
 
         // A notice somebody acts on from an inbox has words of its own
         // (2026-09-19); the rest keep the generic form.
-        [$subject, $body] = MailWording::for($notification) ?? [self::subjectFor($notification), self::bodyFor($notification)];
+        [$subject, $body] = $this->wording->for($notification) ?? [self::subjectFor($notification), self::bodyFor($notification)];
 
         try {
             $providerMessageId = $notifier->send($address, $subject, $body, $notification->payload);

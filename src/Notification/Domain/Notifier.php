@@ -22,6 +22,13 @@ interface Notifier
     public function channel(): string;
 
     /**
+     * Whether anything actually leaves through this channel (2026-09-19).
+     * The log stand-in says no; a mail host, an SMS router say yes. What
+     * the tester asks before sending, and the console before offering to.
+     */
+    public function isLive(): bool;
+
+    /**
      * @param array<string, mixed> $payload
      * @throws \RuntimeException when the provider refuses or is unreachable
      */

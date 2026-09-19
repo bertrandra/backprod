@@ -26,6 +26,11 @@ final class ScreenChannel implements Notifier
         return Channel::SCREEN;
     }
 
+    public function isLive(): bool
+    {
+        return true;
+    }
+
     /**
      * @param array<string, mixed> $payload
      */

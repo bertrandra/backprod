@@ -37,6 +37,11 @@ final class LogNotifier implements Notifier
         return $this->channel;
     }
 
+    public function isLive(): bool
+    {
+        return false;
+    }
+
     /**
      * @param array<string, mixed> $payload
      */

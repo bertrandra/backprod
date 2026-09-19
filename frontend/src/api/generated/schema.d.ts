@@ -3041,6 +3041,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/mail/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The words the platform’s mails say
+         * @description `staff.mail.manage` (2026-09-19). Every editable kind of mail — the reset link, the invitation, the password-changed notice, the address confirmation — with its default, what stands today and its placeholders. Other notices keep a generic rendering and are not editable.
+         */
+        get: operations["showMailTemplates"];
+        /**
+         * Change the words the platform’s mails say
+         * @description `staff.mail.manage` (2026-09-19). The whole set at once: `{templates: {type: {subject, body}}}`. A type left out, or given an empty subject and body, goes back to its default; an unknown type is ignored. Placeholders are `{link}` and `{email}`; a misspelt one stays as written, which is how the editor sees it.
+         */
+        put: operations["setMailTemplates"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/mail/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send yourself a test mail
+         * @description `staff.mail.manage` (2026-09-19). One kind of mail, rendered with a sample payload, sent to the caller's own address **inside the request** — the one place a mail is sent outside the job queue, because the point is to see it arrive or fail now, with the mail host's own reason.
+         */
+        post: operations["sendTestMail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/sign-up": {
         parameters: {
             query?: never;
@@ -4894,6 +4938,22 @@ export interface components {
             owner: boolean;
             quota: number | null;
             members: components["schemas"]["SubscriptionMember"][];
+        };
+        /** @description The words one kind of mail says (2026-09-19): what stands today, the default it may go back to, and the placeholders it may use — `{link}`, `{email}` — which are filled from the notice when it is sent. */
+        MailTemplate: {
+            /** @description The notification type, e.g. `account.password_reset`. */
+            type: string;
+            /** @description When this mail is sent, in a sentence. */
+            about: string;
+            placeholders: string[];
+            default: {
+                subject: string;
+                body: string;
+            };
+            subject: string;
+            body: string;
+            /** @description Whether the platform administrator changed it from the default. */
+            customised: boolean;
         };
     };
     responses: {
@@ -12349,6 +12409,134 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showMailTemplates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The templates. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        templates: components["schemas"]["MailTemplate"][];
+                        /** @description Whether mail actually leaves this deployment (`MAIL_DSN` set). False means the templates are recorded but nothing is sent, and a test is refused. */
+                        live: boolean;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setMailTemplates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    templates: {
+                        [key: string]: {
+                            subject: string;
+                            body: string;
+                        };
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description The templates as they now stand. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        templates: components["schemas"]["MailTemplate"][];
+                        /** @description Whether mail actually leaves this deployment (`MAIL_DSN` set). False means the templates are recorded but nothing is sent, and a test is refused. */
+                        live: boolean;
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    sendTestMail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    type: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Sent. What the host answered is the reference to quote to it. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        to: string;
+                        subject: string;
+                        provider_message_id: string;
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — no such template. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `MAIL_NOT_CONFIGURED` — `MAIL_DSN` is empty, nothing leaves; `MAIL_SEND_FAILED` — the host refused or could not be reached, with its sentence (redacted of anything that looks like a credential); `NO_ADDRESS` — the caller has none. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

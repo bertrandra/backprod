@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit;
 
 use App\Notification\Domain\Channel;
+use App\Notification\Domain\MailTemplates;
 use App\Notification\Domain\Notification;
 use App\Notification\Infrastructure\SmtpNotifier;
 use App\Notification\Service\MailWording;
@@ -87,7 +88,18 @@ final class SmtpNotifierTest extends TestCase
 
     public function testTheMailsSomebodyActsOnHaveWordsOfTheirOwn(): void
     {
-        $reset = MailWording::for(self::notice('account.password_reset', ['link' => 'https://example.test/sign-in?reset=abc']));
+        $wording = new MailWording(new class () implements MailTemplates {
+            public function overrides(): array
+            {
+                return ['account.invitation' => ['subject' => 'Bienvenue', 'body' => 'Voici votre lien : {link}']];
+            }
+
+            public function save(array $overrides): void
+            {
+            }
+        });
+
+        $reset = $wording->for(self::notice('account.password_reset', ['link' => 'https://example.test/sign-in?reset=abc']));
         self::assertNotNull($reset);
         [$subject, $body] = $reset;
         self::assertSame('Set a new password', $subject);
@@ -95,13 +107,21 @@ final class SmtpNotifierTest extends TestCase
         self::assertStringContainsString('thirty minutes', $body);
         self::assertStringNotContainsString('purpose', $body);
 
-        $invitation = MailWording::for(self::notice('account.invitation', ['link' => 'https://example.test/globex/sign-in?reset=xyz']));
+        // The administrator's own words win where they set them, placeholders filled.
+        $invitation = $wording->for(self::notice('account.invitation', ['link' => 'https://example.test/globex/sign-in?reset=xyz']));
         self::assertNotNull($invitation);
-        self::assertStringContainsString('seven days', $invitation[1]);
-        self::assertStringContainsString('/globex/sign-in?reset=xyz', $invitation[1]);
+        self::assertSame('Bienvenue', $invitation[0]);
+        self::assertSame('Voici votre lien : https://example.test/globex/sign-in?reset=xyz', $invitation[1]);
 
         // Everything else keeps the generic form.
-        self::assertNull(MailWording::for(self::notice('payment.failed', [])));
+        self::assertNull($wording->for(self::notice('payment.failed', [])));
+
+        // The catalogue says what is customised.
+        $catalogue = $wording->catalogue();
+        self::assertSame(['account.password_reset', 'account.invitation', 'account.password_changed', 'account.email_verification'], array_column($catalogue, 'type'));
+        self::assertTrue($catalogue[1]['customised']);
+        self::assertFalse($catalogue[0]['customised']);
+        self::assertSame(['link', 'email'], $catalogue[0]['placeholders']);
     }
 
     /**

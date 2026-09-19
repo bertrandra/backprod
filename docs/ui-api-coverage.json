@@ -280,6 +280,18 @@
         "revokePlatformRole"
       ]
     },
+    "console.admin.mail": {
+      "authority": "platform",
+      "$comment": "The words the platform's mails say, and a test of the mail host (2026-09-19). Behind staff.mail.manage. The four mails a person acts on from an inbox are editable, with placeholders; everything else keeps a generic rendering. The test is sent inside the request, to the caller's own address, so the mail host's answer is seen now.",
+      "routes": [
+        "/console/mail"
+      ],
+      "operations": [
+        "showMailTemplates",
+        "setMailTemplates",
+        "sendTestMail"
+      ]
+    },
     "console.admin.storefront": {
       "authority": "platform",
       "$comment": "What the public page advertises. Behind staff.catalog.manage rather than catalog.manage: ADR-040 lets the platform lend the latter to a tenant, and a tenant authoring its own offers must not decide what a stranger is shown. The product it administers is the one chosen in the context bar's switcher, which on the console lists every product the platform hosts (ADR-047): a platform role grants no membership, so the choice is made from the platform's own list rather than from what somebody belongs to.",

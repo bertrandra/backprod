@@ -69,6 +69,7 @@ const STAFF = {
       'admin.audit.read',
       'admin.privacy.erase',
       'staff.navigation.manage',
+      'staff.mail.manage',
       'staff.demo.publish',
       'staff.demo.reset',
     ],
@@ -133,6 +134,24 @@ async function stubbed(page: Page) {
   await page.route(/\/api\/v1\/staff\/me$/, (route) => route.fulfill({ json: STAFF }));
   await page.route(/\/api\/v1\/(me|staff\/me)\/navigation$/, (route) => route.fulfill({ json: { hidden: [] } }));
   await page.route(/\/api\/v1\/staff\/demo\/page$/, (route) => route.fulfill({ json: { published: false } }));
+  await page.route(/\/api\/v1\/staff\/mail\/templates$/, (route) =>
+    route.fulfill({
+      json: {
+        live: false,
+        templates: [
+          {
+            type: 'account.password_reset',
+            about: 'Somebody asked to set a new password.',
+            placeholders: ['link', 'email'],
+            default: { subject: 'Set a new password', body: 'Open this link: {link}' },
+            subject: 'Set a new password',
+            body: 'Open this link: {link}',
+            customised: false,
+          },
+        ],
+      },
+    }),
+  );
   await page.route(/\/api\/v1\/staff\/navigation$/, (route) =>
     route.fulfill({ json: { navigation: { platform_admin: EVERY_MENU, tenant_admin: EVERY_MENU, user: EVERY_MENU } } }),
   );
@@ -254,6 +273,7 @@ const CONSOLE_ROUTES = [
   '/console/audit',
   '/console/erasure',
   '/console/menus',
+  '/console/mail',
   '/console/demo',
 ] as const;
 

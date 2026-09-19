@@ -253,6 +253,7 @@ describe('the navigation is ordered by dependency', () => {
       'storefront',
       // Not on the chain — after it.
       'menus',
+      'mail',
     ]);
   });
 

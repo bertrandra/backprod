@@ -156,8 +156,10 @@ use App\Staff\Controller\RenameFeatureController;
 use App\Staff\Controller\RenameStaffOfferController;
 use App\Staff\Controller\ResetDemoWorldController;
 use App\Staff\Controller\RevokeStaffRoleController;
+use App\Staff\Controller\SendTestMailController;
 use App\Staff\Controller\SetBillingIdentityController;
 use App\Staff\Controller\SetDemoPageController;
+use App\Staff\Controller\SetMailTemplatesController;
 use App\Staff\Controller\SetNavigationSetupController;
 use App\Staff\Controller\SetOfferAuthoringController;
 use App\Staff\Controller\SetPublicListingController;
@@ -166,6 +168,7 @@ use App\Staff\Controller\SetTaxSettingsController;
 use App\Staff\Controller\ShowCatalogueController;
 use App\Staff\Controller\ShowConfigurationController;
 use App\Staff\Controller\ShowDemoPageController;
+use App\Staff\Controller\ShowMailTemplatesController;
 use App\Staff\Controller\ShowNavigationSetupController;
 use App\Staff\Controller\ShowReadinessController;
 use App\Staff\Controller\ShowStaffNavigationController;
@@ -678,6 +681,10 @@ return static function (RouteCollector $routes): void {
     // application first. Platform-wide, on the storefront console.
     $routes->addRoute('GET', '/api/v1/staff/storefront/settings', ShowStorefrontSettingsController::class);
     $routes->addRoute('PUT', '/api/v1/staff/storefront/settings', SetStorefrontSettingsController::class);
+    // The words the platform's mails say, and a test of the mail host (2026-09-19).
+    $routes->addRoute('GET', '/api/v1/staff/mail/templates', ShowMailTemplatesController::class);
+    $routes->addRoute('PUT', '/api/v1/staff/mail/templates', SetMailTemplatesController::class);
+    $routes->addRoute('POST', '/api/v1/staff/mail/test', SendTestMailController::class);
 
     $routes->addRoute('GET', '/api/v1/staff/access-log', ListAccessLogController::class);
 

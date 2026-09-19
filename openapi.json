@@ -4549,6 +4549,60 @@
             }
           }
         }
+      },
+      "MailTemplate": {
+        "type": "object",
+        "required": [
+          "type",
+          "about",
+          "placeholders",
+          "default",
+          "subject",
+          "body",
+          "customised"
+        ],
+        "description": "The words one kind of mail says (2026-09-19): what stands today, the default it may go back to, and the placeholders it may use — `{link}`, `{email}` — which are filled from the notice when it is sent.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "The notification type, e.g. `account.password_reset`."
+          },
+          "about": {
+            "type": "string",
+            "description": "When this mail is sent, in a sentence."
+          },
+          "placeholders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "default": {
+            "type": "object",
+            "required": [
+              "subject",
+              "body"
+            ],
+            "properties": {
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          },
+          "subject": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "customised": {
+            "type": "boolean",
+            "description": "Whether the platform administrator changed it from the default."
+          }
+        }
       }
     },
     "responses": {
@@ -17552,6 +17606,238 @@
           },
           "400": {
             "description": "`VALIDATION_FAILED` — `after_sign_up` is not one of `PAY`, `CATALOGUE`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/mail/templates": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "showMailTemplates",
+        "summary": "The words the platform’s mails say",
+        "description": "`staff.mail.manage` (2026-09-19). Every editable kind of mail — the reset link, the invitation, the password-changed notice, the address confirmation — with its default, what stands today and its placeholders. Other notices keep a generic rendering and are not editable.",
+        "responses": {
+          "200": {
+            "description": "The templates.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "templates",
+                    "live"
+                  ],
+                  "properties": {
+                    "templates": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MailTemplate"
+                      }
+                    },
+                    "live": {
+                      "type": "boolean",
+                      "description": "Whether mail actually leaves this deployment (`MAIL_DSN` set). False means the templates are recorded but nothing is sent, and a test is refused."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "setMailTemplates",
+        "summary": "Change the words the platform’s mails say",
+        "description": "`staff.mail.manage` (2026-09-19). The whole set at once: `{templates: {type: {subject, body}}}`. A type left out, or given an empty subject and body, goes back to its default; an unknown type is ignored. Placeholders are `{link}` and `{email}`; a misspelt one stays as written, which is how the editor sees it.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "templates"
+                ],
+                "properties": {
+                  "templates": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "required": [
+                        "subject",
+                        "body"
+                      ],
+                      "properties": {
+                        "subject": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "body": {
+                          "type": "string",
+                          "maxLength": 10000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The templates as they now stand.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "templates",
+                    "live"
+                  ],
+                  "properties": {
+                    "templates": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MailTemplate"
+                      }
+                    },
+                    "live": {
+                      "type": "boolean",
+                      "description": "Whether mail actually leaves this deployment (`MAIL_DSN` set). False means the templates are recorded but nothing is sent, and a test is refused."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/mail/test": {
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "sendTestMail",
+        "summary": "Send yourself a test mail",
+        "description": "`staff.mail.manage` (2026-09-19). One kind of mail, rendered with a sample payload, sent to the caller's own address **inside the request** — the one place a mail is sent outside the job queue, because the point is to see it arrive or fail now, with the mail host's own reason.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sent. What the host answered is the reference to quote to it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "to",
+                    "subject",
+                    "provider_message_id"
+                  ],
+                  "properties": {
+                    "to": {
+                      "type": "string"
+                    },
+                    "subject": {
+                      "type": "string"
+                    },
+                    "provider_message_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — no such template.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`MAIL_NOT_CONFIGURED` — `MAIL_DSN` is empty, nothing leaves; `MAIL_SEND_FAILED` — the host refused or could not be reached, with its sentence (redacted of anything that looks like a credential); `NO_ADDRESS` — the caller has none.",
             "content": {
               "application/json": {
                 "schema": {
