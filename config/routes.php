@@ -11,7 +11,9 @@ use App\Admin\Controller\ListAdminUsersController;
 use App\Admin\Controller\ListAuditController;
 use App\Admin\Controller\ShowMetricsController;
 use App\Admin\Controller\ShowQueueController;
+use App\Auth\Controller\ForgotPasswordController;
 use App\Auth\Controller\RefreshSessionController;
+use App\Auth\Controller\ResetPasswordController;
 use App\Auth\Controller\SignInController;
 use App\Auth\Controller\SignOutController;
 use App\Auth\Controller\SignUpController;
@@ -30,6 +32,7 @@ use App\Checkout\Controller\CancelCheckoutSessionController;
 use App\Checkout\Controller\OpenCheckoutSessionController;
 use App\Checkout\Controller\RetryPaymentController;
 use App\Checkout\Controller\ShowCheckoutSessionController;
+use App\Commerce\Controller\AddPersonController;
 use App\Commerce\Controller\CancelSubscriptionController;
 use App\Commerce\Controller\ChangeOfferController;
 use App\Commerce\Controller\CreateOfferController;
@@ -38,12 +41,14 @@ use App\Commerce\Controller\ListEntitlementsController;
 use App\Commerce\Controller\ListFeaturesController;
 use App\Commerce\Controller\ListOffersController;
 use App\Commerce\Controller\ListOfferVersionsController;
+use App\Commerce\Controller\ListPeopleController;
 use App\Commerce\Controller\ListPlansController;
 use App\Commerce\Controller\PublicOfferController;
 use App\Commerce\Controller\PublicOffersController;
 use App\Commerce\Controller\PublicProductsController;
 use App\Commerce\Controller\PublicTenantController;
 use App\Commerce\Controller\PublishOfferVersionController;
+use App\Commerce\Controller\RemovePersonController;
 use App\Commerce\Controller\ResumeSubscriptionController;
 use App\Commerce\Controller\ShowOfferController;
 use App\Commerce\Controller\ShowScheduleController;
@@ -238,6 +243,11 @@ return static function (RouteCollector $routes): void {
     // never issues a session: a link that did would be a credential living in
     // an inbox.
     $routes->addRoute('POST', '/api/v1/auth/verify-email', VerifyEmailController::class);
+    // A forgotten password, and the link that sets a new one (2026-09-19).
+    // Both public and both authenticate the request itself — an address that
+    // is only ever answered 202, and a single-use token from a mail.
+    $routes->addRoute('POST', '/api/v1/auth/password/forgot', ForgotPasswordController::class);
+    $routes->addRoute('POST', '/api/v1/auth/password/reset', ResetPasswordController::class);
 
     // --- The shop window --------------------------------------------------
     // The only reads on this platform that answer somebody with no account.
@@ -303,6 +313,11 @@ return static function (RouteCollector $routes): void {
     // when am I committed, and when may I leave (§13.1). No side effect, and
     // the same decision the cancel route acts on.
     $routes->addRoute('GET', '/api/v1/subscription/schedule', ShowScheduleController::class);
+    // The people a subscription covers (2026-09-19): read by anybody who may
+    // read the subscription, changed by its owner alone.
+    $routes->addRoute('GET', '/api/v1/subscription/people', ListPeopleController::class);
+    $routes->addRoute('POST', '/api/v1/subscription/people', AddPersonController::class);
+    $routes->addRoute('DELETE', '/api/v1/subscription/people/{userId}', RemovePersonController::class);
     $routes->addRoute('POST', '/api/v1/subscription/resume', ResumeSubscriptionController::class);
 
     $routes->addRoute('GET', '/api/v1/entitlements', ListEntitlementsController::class);

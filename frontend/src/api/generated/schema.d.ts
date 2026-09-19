@@ -2441,6 +2441,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/subscription/people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who a subscription covers, and how many it may
+         * @description `subscription.read`. `?seat` names the caller's own seat rather than the organisation's subscription (2026-09-19).
+         */
+        get: operations["listSubscriptionPeople"];
+        put?: never;
+        /**
+         * The owner adds somebody to the subscription
+         * @description `subscription.manage`, and the owner alone — whoever activated it (2026-09-19). A member of the organisation by `user_id`, or anybody by `email`: an address with no account gets one, a live USER membership of the organisation on every product it holds, and an invitation link (seven days) to set a password; an address with an account is added, and made a member if it was not one. Within the offer's `users` quota, which counts the owner.
+         */
+        post: operations["addSubscriptionPerson"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscription/people/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * The owner removes somebody from the subscription
+         * @description `subscription.manage`, and the owner alone (2026-09-19). The person keeps their account and membership; they lose what the subscription entitled them to. Removing somebody absent is nothing.
+         */
+        delete: operations["removeSubscriptionPerson"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tax/calculate": {
         parameters: {
             query?: never;
@@ -3037,6 +3081,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/password/forgot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask for a link to set a new password
+         * @description Public, under the public rate limit (2026-09-19). **Always 202**, whether or not the address has an account: the answer that would tell the two apart is the enumeration the sign-in form is built to refuse. Where there is an account, a single-use link — thirty minutes, stored as its SHA-256 — goes to its address as a SECURITY notice, the one category nobody can switch off.
+         */
+        post: operations["forgotPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set a new password from the emailed link
+         * @description Public, because the person may be on a device that never signed in (2026-09-19). The same link serves a *reset* somebody asked for and an *invitation* for a person added to a subscription by address who never had a password. **It signs nobody in** — the opposite: every session of the account is revoked, and the person signs in afresh with what they just chose. Unknown, expired and spent links are one answer, so tokens cannot be probed.
+         */
+        post: operations["resetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/products": {
         parameters: {
             query?: never;
@@ -3586,6 +3670,11 @@ export interface components {
             terms: components["schemas"]["SubscriptionTerms"];
             /** Format: date-time */
             ended_at: string | null;
+            /**
+             * Format: uuid
+             * @description Who activated it (2026-09-19): the person a seat is for, or the administrator who bought the organisation’s; null for one a job started. The owner manages the subscription’s people.
+             */
+            owner_user_id: string | null;
         };
         /** @description Why the answer is what it is. What a customer needs is not `cancelled: true` but *when* it takes effect and which rule decided that (§13.1) — so the rule's id travels with the decision and the reasons are in plain words. */
         CancellationDecision: {
@@ -4785,6 +4874,26 @@ export interface components {
             plan: string;
             billing_period: string;
             version: number;
+        };
+        /** @description A person a subscription covers beside its owner (2026-09-19). Entitlement resolution counts them: a member of Ada’s seat is entitled by it. */
+        SubscriptionMember: {
+            /** Format: uuid */
+            user_id: string;
+            email: string | null;
+            display_name: string | null;
+            /** Format: date-time */
+            added_at: string;
+        };
+        /** @description Who a subscription covers and how many it may (2026-09-19). The quota is the offer’s `users` feature, counting the owner; 1 when the offer sold none — a seat is one person’s unless it says otherwise; null for unlimited. */
+        SubscriptionPeople: {
+            /** Format: uuid */
+            subscription_id: string;
+            /** Format: uuid */
+            owner_user_id: string | null;
+            /** @description Whether the caller is the owner, and so may add and remove people. */
+            owner: boolean;
+            quota: number | null;
+            members: components["schemas"]["SubscriptionMember"][];
         };
     };
     responses: {
@@ -10688,6 +10797,183 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    listSubscriptionPeople: {
+        parameters: {
+            query?: {
+                /** @description Present names the caller's own seat rather than the organisation's subscription. */
+                seat?: string;
+            };
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The people. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionPeople"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `NO_SUBSCRIPTION` — no live seat, or no live subscription for the organisation. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    addSubscriptionPerson: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description The caller's own seat rather than the organisation's subscription.
+                     * @default false
+                     */
+                    seat?: boolean;
+                    /**
+                     * Format: uuid
+                     * @description A member of the organisation.
+                     */
+                    user_id?: string;
+                    /**
+                     * Format: email
+                     * @description Anybody, by address. One of `user_id` and `email`.
+                     */
+                    email?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Added. `invited` says an account was created and a link sent. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        member: components["schemas"]["SubscriptionMember"];
+                        invited: boolean;
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — neither a member nor a valid address was named. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `NOT_THE_OWNER` — only whoever activated the subscription manages its people; `PERMISSION_DENIED` without `subscription.manage`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `NO_SUBSCRIPTION`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `PEOPLE_QUOTA_REACHED` — every place the offer sold is taken; `ALREADY_THE_OWNER`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    removeSubscriptionPerson: {
+        parameters: {
+            query?: {
+                /** @description Present names the caller's own seat rather than the organisation's subscription. */
+                seat?: string;
+            };
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed, or never there. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `NOT_THE_OWNER`; `PERMISSION_DENIED`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `NO_SUBSCRIPTION`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     calculateTax: {
         parameters: {
             query?: never;
@@ -12182,6 +12468,87 @@ export interface operations {
                 };
             };
             /** @description `VERIFICATION_FAILED` — the token is unknown, expired or already used, or `VALIDATION_FAILED` if none was sent. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    forgotPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: email */
+                    email: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Accepted — and nothing more is said. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        accepted: boolean;
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — no address was sent. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    resetPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                    /** @description Bounded as at sign-up: 72 is bcrypt’s ceiling. */
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The password is set and every earlier session is gone. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        reset: boolean;
+                    };
+                };
+            };
+            /** @description `RESET_LINK_INVALID` — the link is unknown, expired or already used; `VALIDATION_FAILED` for a password outside its bounds. */
             400: {
                 headers: {
                     [name: string]: unknown;

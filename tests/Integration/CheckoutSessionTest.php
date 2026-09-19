@@ -301,6 +301,13 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
         self::assertIsString($person['email'] ?? null);
         self::assertStringContainsString('alice', $person['email']);
         self::assertSame($person['email'], $person['name'] ?? null);
+        // Who sells and who buys: a seat is the organisation selling to one
+        // of its people, so the organisation is the supplier and the person
+        // the customer (2026-09-19).
+        $supplier = $invoice['supplier'] ?? null;
+        self::assertIsArray($supplier);
+        self::assertSame('Acme SARL', $supplier['legal_name'] ?? null);
+        self::assertSame($person['name'], $customer['legal_name'] ?? null);
         // The organisation's own invoice names nobody: it is the organisation's.
         $companyInvoice = $this->decode($this->request('GET', '/api/v1/billing/invoices/' . $company['invoice_id'], $this->headers()));
         $companyCustomer = $companyInvoice['customer'] ?? null;

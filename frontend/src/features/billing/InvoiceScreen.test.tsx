@@ -150,7 +150,8 @@ describe('the document on screen', () => {
       clientFor(
         {},
         invoice({
-          customer: { legal_name: 'Acme Ltd', person: { name: 'Ada', email: 'ada@acme.test' } },
+          // A seat's invoice (2026-09-19): the person is the customer, sold to by their organisation.
+          customer: { legal_name: 'Ada', person: { name: 'Ada', email: 'ada@acme.test' }, organisation: 'Acme Ltd' },
           lines: [
             line(1, {
               offer: { product: { code: 'atlas', name: 'Atlas' }, code: 'pro-monthly', name: 'Pro monthly', plan: 'Pro', billing_period: 'MONTHLY', version: 1 },
@@ -167,7 +168,8 @@ describe('the document on screen', () => {
     expect(screen.getByTestId('line-offer').textContent).toContain('Pro monthly');
     expect(screen.getByTestId('line-offer').textContent).toMatch(/Pro plan · billed monthly · version 1/);
     expect(screen.getByText('Line 2')).toBeTruthy();
-    expect(screen.getByTestId('customer-person').textContent).toBe('for Ada (ada@acme.test)');
+    expect(screen.getByTestId('customer').textContent).toContain('Ada');
+    expect(screen.getByTestId('customer-person').textContent).toBe('ada@acme.test · a member of Acme Ltd');
   });
 });
 

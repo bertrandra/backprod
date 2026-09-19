@@ -14,6 +14,7 @@ use App\Commerce\Domain\SubscribedOffer;
 use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionEvent;
+use App\Commerce\Domain\SubscriptionMember;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Domain\SubscriptionTerms;
 use App\Shared\Database\Row;
@@ -46,7 +47,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
         s.subscriber_kind, s.subscriber_user_id,
         s.term_months, s.term_ends_at, s.commitment_months, s.commitment_ends_at,
         s.cancellation_policy, s.renewal, s.early_termination, s.notice_days,
-        s.cancel_effective_at,
+        s.cancel_effective_at, s.owner_user_id,
         o.id AS offer_id, o.code AS offer_code, o.name AS offer_name,
         pl.id AS plan_id, pl.code AS plan_code, pl.name AS plan_name, pl.rank AS plan_rank,
         v.version, v.status AS version_status, v.billing_period,
@@ -135,11 +136,11 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
             <<<'SQL'
                 INSERT INTO subscriptions
                     (tenant_id, product_id, offer_version_id, current_period_end,
-                     subscriber_kind, subscriber_user_id,
+                     subscriber_kind, subscriber_user_id, owner_user_id,
                      term_months, term_ends_at, commitment_months, commitment_ends_at,
                      cancellation_policy, renewal, early_termination, notice_days)
                 VALUES (:tenantId, :productId, :versionId, :periodEnd,
-                        :subscriberKind, :subscriberUserId,
+                        :subscriberKind, :subscriberUserId, :ownerUserId,
                         :termMonths, :termEndsAt, :commitmentMonths, :commitmentEndsAt,
                         :cancellationPolicy, :renewal, :earlyTermination, :noticeDays)
                 RETURNING id
@@ -151,6 +152,10 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
                 'periodEnd' => self::moment($periodEnd),
                 'subscriberKind' => $subscriber->kind,
                 'subscriberUserId' => $subscriber->userId,
+                // The owner (2026-09-19): the person a seat is for, else
+                // whoever activated it — the administrator who bought the
+                // organisation's, or nobody for a subscription a job started.
+                'ownerUserId' => $subscriber->isSeat() ? $subscriber->userId : $actorUserId,
                 'termMonths' => $terms->termMonths,
                 'termEndsAt' => self::moment($terms->termEndsFrom($startedAt)),
                 'commitmentMonths' => $terms->commitmentMonths,
@@ -717,6 +722,52 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
             Row::nullableTimestamp($row, 'term_ends_at'),
             Row::nullableTimestamp($row, 'commitment_ends_at'),
             Row::nullableTimestamp($row, 'cancel_effective_at'),
+            Row::nullableString($row, 'owner_user_id'),
+        );
+    }
+
+    public function membersOf(string $subscriptionId): array
+    {
+        if (!Uuid::isValid($subscriptionId)) {
+            return [];
+        }
+
+        $rows = $this->connection->fetchAllAssociative(
+            <<<'SQL'
+                SELECT m.user_id, u.email, u.display_name, m.added_at
+                  FROM subscription_members m
+                  JOIN users u ON u.id = m.user_id
+                 WHERE m.subscription_id = :id
+                 ORDER BY m.added_at, u.email
+                SQL,
+            ['id' => $subscriptionId],
+        );
+
+        return array_map(static fn (array $row): SubscriptionMember => new SubscriptionMember(
+            Row::string($row, 'user_id'),
+            Row::nullableString($row, 'email'),
+            Row::nullableString($row, 'display_name'),
+            Row::timestamp($row, 'added_at'),
+        ), $rows);
+    }
+
+    public function addMember(string $subscriptionId, string $userId, ?string $addedBy): void
+    {
+        $this->connection->executeStatement(
+            <<<'SQL'
+                INSERT INTO subscription_members (subscription_id, user_id, added_by)
+                VALUES (:id, :user, :by)
+                ON CONFLICT DO NOTHING
+                SQL,
+            ['id' => $subscriptionId, 'user' => $userId, 'by' => $addedBy],
+        );
+    }
+
+    public function removeMember(string $subscriptionId, string $userId): void
+    {
+        $this->connection->executeStatement(
+            'DELETE FROM subscription_members WHERE subscription_id = :id AND user_id = :user',
+            ['id' => $subscriptionId, 'user' => $userId],
         );
     }
 

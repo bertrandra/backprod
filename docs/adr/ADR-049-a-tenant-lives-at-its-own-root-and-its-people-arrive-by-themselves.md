@@ -46,6 +46,17 @@ never a new permission. The fiscal record is the organisation's, so
 `subscription.manage` stays with USER for their seat; the API still lets it
 act on the organisation's subscription as decided above, and the screen
 offers those controls with `billing.manage` only.
+**And on 2026-09-19:** a seat's invoice is the organisation selling to one
+of its people — the organisation's legal identity is the supplier, the
+person the customer, the VAT jurisdiction the organisation's country; the
+organisation's own subscription stays sold by the product's supplier. A
+subscription has an owner (whoever activated it) and, within the offer's
+`users` quota, its people — added from the organisation's members or by
+address, the latter given an account with no usable password and an
+invitation link (`password_resets`, purpose INVITATION); a member of a seat
+is entitled by it. A forgotten password is reset by the same link
+mechanism, always answered 202, and every session is revoked when it is
+used. Migration `Version20260919090000`.
 **Implements:** [docs/tenant-roots.md](../tenant-roots.md), with the
 departures recorded in §"What the spec had wrong"
 **Amends:** [ADR-041](ADR-041-the-storefront-sells-to-strangers.md) (the

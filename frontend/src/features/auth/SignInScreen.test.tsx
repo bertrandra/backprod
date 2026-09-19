@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useSessionStore } from '@/state/session';
 import { recordingClient, renderWith, stubClient } from '@/test-utils';
@@ -24,6 +24,10 @@ const SESSION = { access_token: 'access', token_type: 'Bearer', expires_in: 3600
 beforeEach(() => {
   window.localStorage.clear();
   useSessionStore.setState({ token: null, productCode: null, status: 'anonymous', expiresAt: null });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 function fillIn(email: string, password: string): void {
@@ -200,5 +204,63 @@ describe('the way around the form', () => {
     // The operator's report: with a saved password, the first tap on "Sign
     // in" only closed the picker the focused field had opened.
     expect(document.activeElement).not.toBe(screen.getByLabelText('Email'));
+  });
+});
+
+describe('a forgotten password (2026-09-19)', () => {
+  it('asks for the address and says the same thing whatever the server knows', async () => {
+    const { client, requests } = recordingClient({
+      'POST /api/v1/auth/password/forgot': { data: { accepted: true }, status: 202 },
+    });
+    renderWith(<SignInScreen />, client);
+
+    fireEvent.click(screen.getByTestId('forgot-password'));
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@acme.test' } });
+    fireEvent.click(screen.getByRole('button', { name: /send the link/i }));
+
+    await waitFor(() => expect(screen.getByTestId('forgot-sent')).toBeTruthy());
+    expect(requests.find((r) => r.path === '/api/v1/auth/password/forgot')?.body).toEqual({ email: 'ada@acme.test' });
+    // "If that address has an account": no more than the server says.
+    expect(screen.getByTestId('forgot-sent').textContent).toMatch(/if that address has an account/i);
+  });
+});
+
+describe('the link that sets a password (2026-09-19)', () => {
+  it('sets it from the token in the address, then hands over to the sign-in form', async () => {
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, search: '?reset=tok-1' });
+    const { client, requests } = recordingClient({
+      'POST /api/v1/auth/password/reset': { data: { reset: true } },
+    });
+    renderWith(<SignInScreen />, client);
+
+    // The reset form, not the sign-in one.
+    expect(screen.queryByLabelText('Email')).toBeNull();
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'a brand new passphrase' } });
+    fireEvent.click(screen.getByRole('button', { name: /set the password/i }));
+
+    await waitFor(() => expect(screen.getByTestId('reset-done')).toBeTruthy());
+    expect(requests.find((r) => r.path === '/api/v1/auth/password/reset')?.body).toEqual({ token: 'tok-1', password: 'a brand new passphrase' });
+    // Nobody is signed in by a link: the form is there to sign in with.
+    expect(useSessionStore.getState().token).toBeNull();
+    expect(screen.getByLabelText('Email')).toBeTruthy();
+  });
+
+  it('says a dead link is dead, in one sentence', async () => {
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, search: '?reset=spent' });
+    renderWith(
+      <SignInScreen />,
+      stubClient({
+        'POST /api/v1/auth/password/reset': {
+          status: 400,
+          error: { error: { code: 'RESET_LINK_INVALID', message: 'That link is no longer valid — it may have been used already or expired. Ask for a new one.', details: {}, request_id: 'r' } },
+        },
+      }),
+    );
+
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'a brand new passphrase' } });
+    fireEvent.click(screen.getByRole('button', { name: /set the password/i }));
+
+    await waitFor(() => expect(screen.getByTestId('reset-failed')).toBeTruthy());
+    expect(screen.getByTestId('reset-failed').textContent).toMatch(/no longer valid/i);
   });
 });

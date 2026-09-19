@@ -264,6 +264,67 @@ describe('a seat of one\'s own (§13.1)', () => {
   });
 });
 
+describe('the people a subscription covers (2026-09-19)', () => {
+  const PEOPLE = {
+    subscription_id: 'sub-1',
+    owner_user_id: 'u-1',
+    owner: true,
+    quota: 3,
+    members: [{ user_id: 'u-9', email: 'bo@acme.test', display_name: 'Bo', added_at: '2026-09-19T08:00:00Z' }],
+  };
+
+  it('is shown to the owner with the quota, and adds by email, saying an account was made', async () => {
+    const { client, requests } = recordingClient(
+      stubsFor({
+        'GET /api/v1/subscription/people': { data: PEOPLE },
+        'GET /api/v1/tenants/current/members': { data: { members: [] } },
+        'POST /api/v1/subscription/people': {
+          status: 201,
+          data: { member: { user_id: 'u-10', email: 'cy@elsewhere.test', display_name: null, added_at: '2026-09-19T09:00:00Z' }, invited: true },
+        },
+      }),
+    );
+
+    renderWith(<SubscriptionScreen />, client);
+
+    await waitFor(() => expect(screen.getByTestId('subscription-people')).toBeTruthy());
+    expect(screen.getByTestId('people-count').textContent).toBe('2 of 3 covered');
+    expect(screen.getByText('Bo')).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText(/or anybody, by email/i), { target: { value: 'cy@elsewhere.test' } });
+    fireEvent.click(screen.getByTestId('invite-person'));
+
+    await waitFor(() => expect(screen.getByTestId('person-invited')).toBeTruthy());
+    expect(requests.find((r) => r.method === 'POST' && r.path === '/api/v1/subscription/people')?.body).toEqual({
+      seat: false,
+      email: 'cy@elsewhere.test',
+    });
+    expect(screen.getByTestId('person-invited').textContent).toMatch(/link to choose a password/i);
+  });
+
+  it('offers no controls to somebody who is not the owner, and says who decides', async () => {
+    renderWith(
+      <SubscriptionScreen />,
+      stubClient(stubsFor({ 'GET /api/v1/subscription/people': { data: { ...PEOPLE, owner: false, owner_user_id: 'u-2' } } })),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('subscription-people')).toBeTruthy());
+    expect(screen.queryByTestId('add-person')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^remove$/i })).toBeNull();
+    expect(screen.getByText(/whoever activated this subscription decides/i)).toBeTruthy();
+  });
+
+  it('says when every place is taken', async () => {
+    renderWith(
+      <SubscriptionScreen />,
+      stubClient(stubsFor({ 'GET /api/v1/subscription/people': { data: { ...PEOPLE, quota: 2 } } })),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('people-full')).toBeTruthy());
+    expect(screen.queryByTestId('add-person')).toBeNull();
+  });
+});
+
 describe('someone who may only read', () => {
   it('sees the state and none of the actions', async () => {
     renderWith(

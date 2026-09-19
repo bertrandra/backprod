@@ -573,6 +573,8 @@ return static function (array $overrides = []): ContainerInterface {
                     '/api/v1/auth/sign-out',
                     '/api/v1/auth/sign-up',
                     '/api/v1/auth/verify-email',
+                    '/api/v1/auth/password/forgot',
+                    '/api/v1/auth/password/reset',
                 ],
                 identityOnlyPaths: ['/api/v1/products'],
                 // Unauthenticated, because the sender is a payment provider

@@ -182,6 +182,77 @@ export function useCancelSubscription() {
   });
 }
 
+export type SubscriptionPeople = Schemas['SubscriptionPeople'];
+export type SubscriptionMember = Schemas['SubscriptionMember'];
+
+/**
+ * The people a subscription covers, and how many it may (2026-09-19).
+ * `seat` names the caller's own seat rather than the organisation's.
+ */
+export function usePeople(seat: boolean, enabled = true) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.subscription.people(seat),
+    enabled,
+    queryFn: async (): Promise<SubscriptionPeople> => {
+      const ambient = ambientParams(sessionSnapshot);
+      const { data, error, response } = await client.GET('/api/v1/subscription/people', {
+        params: { ...ambient.params, query: seat ? { seat: '1' } : {} },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      // Tolerant of a stubbed or older server: a missing list is an empty one.
+      return { ...data, members: data.members ?? [], quota: data.quota ?? null, owner: data.owner ?? false };
+    },
+    retry: false,
+  });
+}
+
+/** The owner adds somebody: a member by id, or anybody by address. Nothing optimistic — an account may be created. */
+export function useAddPerson(seat: boolean) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (who: { user_id: string } | { email: string }) => {
+      const { data, error, response } = await client.POST('/api/v1/subscription/people', {
+        ...ambientParams(sessionSnapshot),
+        body: { seat, ...who },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.subscription.people(seat) }),
+  });
+}
+
+export function useRemovePerson(seat: boolean) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (userId: string): Promise<void> => {
+      const ambient = ambientParams(sessionSnapshot);
+      const { error, response } = await client.DELETE('/api/v1/subscription/people/{userId}', {
+        params: { ...ambient.params, path: { userId }, query: seat ? { seat: '1' } : {} },
+      });
+
+      if (error !== undefined) {
+        throw toApiError(response.status, error);
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.subscription.people(seat) }),
+  });
+}
+
 export function useResumeSubscription() {
   const client = useApiClient();
   const queryClient = useQueryClient();

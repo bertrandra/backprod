@@ -41,6 +41,10 @@ final class PostgresEntitlementRepository implements EntitlementRepository
                  WHERE s.id = e.subscription_id
                    AND s.subscriber_kind = 'USER'
                    AND s.subscriber_user_id IS DISTINCT FROM CAST(:userId AS uuid)
+                   AND NOT EXISTS (
+                         SELECT 1 FROM subscription_members m
+                          WHERE m.subscription_id = s.id AND m.user_id = CAST(:userId AS uuid)
+                       )
               )
         SQL;
 
@@ -48,7 +52,9 @@ final class PostgresEntitlementRepository implements EntitlementRepository
      * Why that NOT EXISTS is written the way it is (§13.1).
      *
      * It excludes exactly one thing: an entitlement whose subscription is a
-     * seat belonging to somebody else. Everything else survives — an
+     * seat belonging to somebody else — and not to one of the seat's people
+     * either (2026-09-19): a member of Ada's seat is entitled by it, within
+     * the quota Ada's offer sold. Everything else survives — an
      * override has no subscription at all, so the subquery finds nothing and
      * the row is kept.
      *

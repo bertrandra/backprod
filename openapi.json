@@ -610,7 +610,8 @@
           "cancelled_at",
           "subscriber",
           "terms",
-          "ended_at"
+          "ended_at",
+          "owner_user_id"
         ],
         "properties": {
           "id": {
@@ -699,6 +700,14 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "owner_user_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Who activated it (2026-09-19): the person a seat is for, or the administrator who bought the organisation’s; null for one a job started. The owner manages the subscription’s people."
           }
         }
       },
@@ -4466,6 +4475,78 @@
           },
           "version": {
             "type": "integer"
+          }
+        }
+      },
+      "SubscriptionMember": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "email",
+          "display_name",
+          "added_at"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "added_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A person a subscription covers beside its owner (2026-09-19). Entitlement resolution counts them: a member of Ada’s seat is entitled by it."
+      },
+      "SubscriptionPeople": {
+        "type": "object",
+        "required": [
+          "subscription_id",
+          "owner_user_id",
+          "owner",
+          "quota",
+          "members"
+        ],
+        "description": "Who a subscription covers and how many it may (2026-09-19). The quota is the offer’s `users` feature, counting the owner; 1 when the offer sold none — a seat is one person’s unless it says otherwise; null for unlimited.",
+        "properties": {
+          "subscription_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "owner_user_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "owner": {
+            "type": "boolean",
+            "description": "Whether the caller is the owner, and so may add and remove people."
+          },
+          "quota": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubscriptionMember"
+            }
           }
         }
       }
@@ -14846,6 +14927,254 @@
         }
       }
     },
+    "/api/v1/subscription/people": {
+      "get": {
+        "tags": [
+          "Subscription"
+        ],
+        "operationId": "listSubscriptionPeople",
+        "summary": "Who a subscription covers, and how many it may",
+        "description": "`subscription.read`. `?seat` names the caller's own seat rather than the organisation's subscription (2026-09-19).",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "seat",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Present names the caller's own seat rather than the organisation's subscription."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The people.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionPeople"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NO_SUBSCRIPTION` — no live seat, or no live subscription for the organisation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Subscription"
+        ],
+        "operationId": "addSubscriptionPerson",
+        "summary": "The owner adds somebody to the subscription",
+        "description": "`subscription.manage`, and the owner alone — whoever activated it (2026-09-19). A member of the organisation by `user_id`, or anybody by `email`: an address with no account gets one, a live USER membership of the organisation on every product it holds, and an invitation link (seven days) to set a password; an address with an account is added, and made a member if it was not one. Within the offer's `users` quota, which counts the owner.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "seat": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "The caller's own seat rather than the organisation's subscription."
+                  },
+                  "user_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "A member of the organisation."
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 254,
+                    "description": "Anybody, by address. One of `user_id` and `email`."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Added. `invited` says an account was created and a link sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "member",
+                    "invited"
+                  ],
+                  "properties": {
+                    "member": {
+                      "$ref": "#/components/schemas/SubscriptionMember"
+                    },
+                    "invited": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — neither a member nor a valid address was named.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`NOT_THE_OWNER` — only whoever activated the subscription manages its people; `PERMISSION_DENIED` without `subscription.manage`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NO_SUBSCRIPTION`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`PEOPLE_QUOTA_REACHED` — every place the offer sold is taken; `ALREADY_THE_OWNER`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/subscription/people/{userId}": {
+      "delete": {
+        "tags": [
+          "Subscription"
+        ],
+        "operationId": "removeSubscriptionPerson",
+        "summary": "The owner removes somebody from the subscription",
+        "description": "`subscription.manage`, and the owner alone (2026-09-19). The person keeps their account and membership; they lose what the subscription entitled them to. Removing somebody absent is nothing.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "seat",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Present names the caller's own seat rather than the organisation's subscription."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed, or never there."
+          },
+          "403": {
+            "description": "`NOT_THE_OWNER`; `PERMISSION_DENIED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NO_SUBSCRIPTION`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/tax/calculate": {
       "post": {
         "tags": [
@@ -17442,6 +17771,144 @@
           },
           "400": {
             "description": "`VERIFICATION_FAILED` — the token is unknown, expired or already used, or `VALIDATION_FAILED` if none was sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password/forgot": {
+      "post": {
+        "tags": [
+          "Session"
+        ],
+        "operationId": "forgotPassword",
+        "summary": "Ask for a link to set a new password",
+        "description": "Public, under the public rate limit (2026-09-19). **Always 202**, whether or not the address has an account: the answer that would tell the two apart is the enumeration the sign-in form is built to refuse. Where there is an account, a single-use link — thirty minutes, stored as its SHA-256 — goes to its address as a SECURITY notice, the one category nobody can switch off.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 254
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted — and nothing more is said.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "accepted"
+                  ],
+                  "properties": {
+                    "accepted": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — no address was sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password/reset": {
+      "post": {
+        "tags": [
+          "Session"
+        ],
+        "operationId": "resetPassword",
+        "summary": "Set a new password from the emailed link",
+        "description": "Public, because the person may be on a device that never signed in (2026-09-19). The same link serves a *reset* somebody asked for and an *invitation* for a person added to a subscription by address who never had a password. **It signs nobody in** — the opposite: every session of the account is revoked, and the person signs in afresh with what they just chose. Unknown, expired and spent links are one answer, so tokens cannot be probed.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token",
+                  "password"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 12,
+                    "maxLength": 72,
+                    "description": "Bounded as at sign-up: 72 is bcrypt’s ceiling."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The password is set and every earlier session is gone.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "reset"
+                  ],
+                  "properties": {
+                    "reset": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`RESET_LINK_INVALID` — the link is unknown, expired or already used; `VALIDATION_FAILED` for a password outside its bounds.",
             "content": {
               "application/json": {
                 "schema": {
