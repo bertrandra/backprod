@@ -1123,6 +1123,74 @@ export function useStorefrontSettings(enabled = true) {
   });
 }
 
+export type MailTemplate = Schemas['MailTemplate'];
+export type MailTemplates = { readonly templates: readonly MailTemplate[]; readonly live: boolean };
+
+/**
+ * The words the platform's mails say (2026-09-19): each editable kind with
+ * its default, what stands today and its placeholders — and whether mail
+ * leaves this deployment at all.
+ */
+export function useMailTemplates(enabled = true) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.mailTemplates,
+    enabled,
+    queryFn: async (): Promise<MailTemplates> => {
+      const { data, error, response } = await client.GET('/api/v1/staff/mail/templates', {});
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+  });
+}
+
+/** The whole set at once; the response is the new state and is written into the cache. */
+export function useSetMailTemplates() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (templates: Record<string, { subject: string; body: string }>): Promise<MailTemplates> => {
+      const { data, error, response } = await client.PUT('/api/v1/staff/mail/templates', {
+        body: { templates },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    onSuccess: (state) => {
+      queryClient.setQueryData(keys.staff.mailTemplates, state);
+    },
+  });
+}
+
+/** A test mail of one kind, to the caller's own address, sent inside the request. */
+export function useSendTestMail() {
+  const client = useApiClient();
+
+  return useMutation({
+    mutationFn: async (type: string) => {
+      const { data, error, response } = await client.POST('/api/v1/staff/mail/test', {
+        body: { type },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+  });
+}
+
 export function useSetStorefrontSettings() {
   const client = useApiClient();
   const queryClient = useQueryClient();

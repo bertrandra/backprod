@@ -40,6 +40,11 @@ final class SmtpNotifier implements Notifier
         return Channel::EMAIL;
     }
 
+    public function isLive(): bool
+    {
+        return true;
+    }
+
     /**
      * @param array<string, mixed> $payload
      */

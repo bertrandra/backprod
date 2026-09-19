@@ -80,4 +80,5 @@ final class StaffPermission
      * is the platform administrator's decision.
      */
     public const NAVIGATION_MANAGE = 'staff.navigation.manage';
+    public const MAIL_MANAGE = 'staff.mail.manage';
 }

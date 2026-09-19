@@ -83,12 +83,17 @@ use App\Navigation\Domain\NavigationSetupRepository;
 use App\Navigation\Infrastructure\PostgresNavigationProbe;
 use App\Navigation\Infrastructure\PostgresNavigationSetup;
 use App\Notification\Domain\Channel;
+use App\Notification\Domain\MailTemplates;
 use App\Notification\Domain\NotificationRepository;
+use App\Notification\Domain\Notifier;
 use App\Notification\Infrastructure\LogNotifier;
+use App\Notification\Infrastructure\PostgresMailTemplates;
 use App\Notification\Infrastructure\PostgresNotificationRepository;
 use App\Notification\Infrastructure\ScreenChannel;
 use App\Notification\Infrastructure\SmtpNotifier;
 use App\Notification\Service\DispatchNotifications;
+use App\Notification\Service\MailTester;
+use App\Notification\Service\MailWording;
 use App\Notification\Service\Notifications;
 use App\Payment\Domain\PaymentRepository;
 use App\Payment\Domain\PaymentSettlement;
@@ -505,32 +510,40 @@ return static function (array $overrides = []): ContainerInterface {
         // as Stripe: a configured provider is wired, an absent one leaves
         // the honest stand-in, and no code path guesses. The DSN carries the
         // host and the credentials and lives in .env only (§31).
+        'notification.email' => factory(static function (LoggerInterface $logger) use ($env): Notifier {
+            $dsn = $env('MAIL_DSN');
+
+            return $dsn === ''
+                ? new LogNotifier(Channel::EMAIL, $logger)
+                : new SmtpNotifier(
+                    Transport::fromDsn($dsn),
+                    Address::create($env('MAIL_FROM', 'no-reply@localhost')),
+                );
+        }),
+        MailTemplates::class => autowire(PostgresMailTemplates::class),
+        MailTester::class => autowire(MailTester::class)
+            ->constructorParameter('email', get('notification.email'))
+            ->constructorParameter('appUrl', $env('APP_URL')),
         DispatchNotifications::class => factory(
-            static function (
+            static fn (
                 NotificationRepository $repository,
                 Notifications $notifications,
                 UserRepository $users,
                 LoggerInterface $logger,
-            ) use ($env): DispatchNotifications {
-                $dsn = $env('MAIL_DSN');
-
-                return new DispatchNotifications(
-                    $repository,
-                    $notifications,
-                    $users,
-                    [
-                        new ScreenChannel(),
-                        $dsn === ''
-                            ? new LogNotifier(Channel::EMAIL, $logger)
-                            : new SmtpNotifier(
-                                Transport::fromDsn($dsn),
-                                Address::create($env('MAIL_FROM', 'no-reply@localhost')),
-                            ),
-                        new LogNotifier(Channel::SMS, $logger),
-                        new LogNotifier(Channel::WHATSAPP, $logger),
-                    ],
-                );
-            },
+                MailWording $wording,
+                ContainerInterface $container,
+            ): DispatchNotifications => new DispatchNotifications(
+                $repository,
+                $notifications,
+                $users,
+                array_filter([
+                    new ScreenChannel(),
+                    $container->get('notification.email'),
+                    new LogNotifier(Channel::SMS, $logger),
+                    new LogNotifier(Channel::WHATSAPP, $logger),
+                ], static fn (mixed $channel): bool => $channel instanceof Notifier),
+                $wording,
+            ),
         ),
 
         JobRepository::class => autowire(PostgresJobRepository::class),

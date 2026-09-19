@@ -142,6 +142,8 @@ export const APP_NAV: readonly NavSection[] = [
       // kind of person. The one entry the setup cannot hide from the person
       // who holds it, or the choice could not be undone.
       { id: 'menus', label: 'Menus', to: '/console/menus', scope: 'platform', permission: 'staff.navigation.manage' },
+      // The words the platform's mails say, and a test of the mail host (2026-09-19).
+      { id: 'mail', label: 'Mail', to: '/console/mail', scope: 'platform', permission: 'staff.mail.manage' },
     ],
   },
   {
