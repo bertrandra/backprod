@@ -13,6 +13,7 @@ import { Button } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { notice, pill, type Tone } from '@/ui/tone';
+import { t } from '@/i18n';
 
 /**
  * `commerce.checkout` — one lifecycle, because there is only one thing.
@@ -82,29 +83,29 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
   return (
     <div className="max-w-2xl space-y-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Checkout</h1>
+        <h1 className="text-2xl font-semibold">{t("Checkout")}</h1>
         {description !== null && (
           <p data-testid="checkout-description" data-seat={forSelf} className="text-sm">
             <span className="font-medium">{description}</span>
             {' — '}
-            {forSelf ? 'your own seat' : 'for the organisation'}
+            {forSelf ? t("your own seat") : t("for the organisation")}
           </p>
         )}
         {/* Said out loud rather than hidden behind the word "session": the id is
             the order's, so somebody comparing this screen with /orders sees the
             same number in both places. */}
         <p className="text-xs text-subtle">
-          This is order <code>{current.order_id}</code>.
+          {t("This is order")}{' '}<code>{current.order_id}</code>.
         </p>
       </header>
 
       {current.status === 'COMPLETED' && (
         <section data-testid="checkout-completed" className={`${notice('success')} space-y-1`}>
-          <p className="font-medium">Paid — thank you.</p>
+          <p className="font-medium">{t("Paid — thank you.")}</p>
           <p>
             {forSelf
-              ? 'Your seat has started; what it entitles you to is yours now.'
-              : 'The subscription has started; everyone in the organisation is entitled to it now.'}
+              ? t("Your seat has started; what it entitles you to is yours now.")
+              : t("The subscription has started; everyone in the organisation is entitled to it now.")}
           </p>
         </section>
       )}
@@ -124,26 +125,25 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
             // arrives through a webhook, so the page is waiting on something
             // that is genuinely elsewhere.
             <span data-testid="checkout-waiting" className="text-xs text-subtle">
-              waiting for the payment to be confirmed…
-            </span>
+              {t("waiting for the payment to be confirmed…")}</span>
           )}
         </div>
 
         <dl className="grid grid-cols-3 gap-3 text-sm">
           <div>
-            <dt className="text-xs text-subtle">Net</dt>
+            <dt className="text-xs text-subtle">{t("Net")}</dt>
             <dd>
               <Amount money={current.net} />
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-subtle">VAT</dt>
+            <dt className="text-xs text-subtle">{t("VAT")}</dt>
             <dd>
               <Amount money={current.vat} />
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-subtle">Total</dt>
+            <dt className="text-xs text-subtle">{t("Total")}</dt>
             <dd className="font-medium">
               <Amount money={current.gross} />
             </dd>
@@ -152,7 +152,7 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
       </section>
 
       <section className="space-y-2 border-t border-line pt-4 text-sm">
-        <h2 className="text-xl font-semibold">What has happened</h2>
+        <h2 className="text-xl font-semibold">{t("What has happened")}</h2>
 
         {/* Two steps, never collapsed into one. An invoice exists from fulfilment;
             a subscription only once the money arrived. */}
@@ -160,25 +160,22 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
           <li data-testid="step-invoice">
             {current.invoice_id === null ? (
               <span className="text-subtle">
-                Not invoiced yet
-                <span className="ml-1 text-xs">
-                  (or nothing to collect — a free offer raises no invoice)
-                </span>
+                {t("Not invoiced yet")}<span className="ml-1 text-xs">
+                  {t("(or nothing to collect — a free offer raises no invoice)")}</span>
               </span>
             ) : (
               <>
-                Invoiced — <code className="text-xs">{current.invoice_id}</code>
+                {t("Invoiced —")}{' '}<code className="text-xs">{current.invoice_id}</code>
               </>
             )}
           </li>
           <li data-testid="step-subscription">
             {current.subscription_id === null ? (
               <span className="text-subtle">
-                Not started — nothing is provisioned before the money arrives
-              </span>
+                {t("Not started — nothing is provisioned before the money arrives")}</span>
             ) : (
               <>
-                {forSelf ? 'Seat started' : 'Subscription started'} —{' '}
+                {forSelf ? t("Seat started") : t("Subscription started")} —{' '}
                 <code className="text-xs">{current.subscription_id}</code>
               </>
             )}
@@ -188,17 +185,15 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
 
       {current.status === 'HELD' && (
         <section data-testid="payment-held" className={`${notice('warning')} space-y-2`}>
-          <p className="font-medium">Paid, and not started.</p>
+          <p className="font-medium">{t("Paid, and not started.")}</p>
           {/* The one race the catalogue's refusal cannot reach: this order was
               opened before another one was paid, and by the time this payment
               arrived the subscription it was for had already begun. Nothing was
               started twice; the money is recorded and is the operator's to
               return. */}
           <p>
-            The payment was collected, but {forSelf ? 'you already held a live seat on' : 'this organisation already had a live subscription to'}{' '}
-            this product by the time it arrived, so nothing was started against it. Nothing has
-            been provisioned twice — the payment will be refunded.
-          </p>
+            {t("The payment was collected, but")}{' '}{forSelf ? t("you already held a live seat on") : t("this organisation already had a live subscription to")}{' '}
+            {t("this product by the time it arrived, so nothing was started against it. Nothing has been provisioned twice — the payment will be refunded.")}</p>
         </section>
       )}
 
@@ -207,20 +202,18 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
           data-testid="payment-failed"
           className={`${notice('danger')} space-y-2`}
         >
-          <p className="font-medium">The last payment attempt failed.</p>
+          <p className="font-medium">{t("The last payment attempt failed.")}</p>
           {/* Honest about both halves: the order is still there, and the secret
               from the previous attempt is gone. A retry is a new attempt. */}
           <p>
-            The order is intact and nothing has been charged. Paying again starts a new attempt — the
-            credential from the last one is deliberately not kept, so it cannot be resumed.
-          </p>
+            {t("The order is intact and nothing has been charged. Paying again starts a new attempt — the credential from the last one is deliberately not kept, so it cannot be resumed.")}</p>
         </section>
       )}
 
       {current.status === 'CANCELLED' && (
         <section data-testid="checkout-cancelled" className={`${notice('neutral')} space-y-1`}>
-          <p className="font-medium">This purchase was cancelled.</p>
-          <p>Nothing was charged and nothing was started. The catalogue has the same offer if you change your mind.</p>
+          <p className="font-medium">{t("This purchase was cancelled.")}</p>
+          <p>{t("Nothing was charged and nothing was started. The catalogue has the same offer if you change your mind.")}</p>
         </section>
       )}
 
@@ -237,11 +230,9 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
             />
           ) : (
             <>
-              <h2 className="text-xl font-semibold">Not paid yet</h2>
+              <h2 className="text-xl font-semibold">{t("Not paid yet")}</h2>
               <p className="text-sm text-muted">
-                Pay it now — a fresh attempt, with a new card form — or give the purchase up. Giving it
-                up cancels its invoice too; nothing has been charged either way.
-              </p>
+                {t("Pay it now — a fresh attempt, with a new card form — or give the purchase up. Giving it up cancels its invoice too; nothing has been charged either way.")}</p>
               {cancel.error !== null && <ErrorSurface error={cancel.error} />}
               <div className="flex flex-wrap gap-2">
                 <StartAttempt invoiceId={current.invoice_id} onStarted={setAttempt} />
@@ -254,16 +245,13 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
                       data-testid="cancel-checkout"
                       onClick={() => cancel.mutate(current.id, { onSettled: () => setConfirming(false) })}
                     >
-                      Cancel this purchase
-                    </Button>
+                      {t("Cancel this purchase")}</Button>
                     <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>
-                      Keep it
-                    </Button>
+                      {t("Keep it")}</Button>
                   </>
                 ) : (
                   <Button type="button" variant="secondary" onClick={() => setConfirming(true)}>
-                    Cancel this purchase…
-                  </Button>
+                    {t("Cancel this purchase…")}</Button>
                 )}
               </div>
             </>
@@ -273,9 +261,8 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
 
       <p className="text-sm">
         <Link to="/orders" className="underline decoration-dotted">
-          All orders
-        </Link>
-        {' — this one is in there, whatever happens to this page.'}
+          {t("All orders")}</Link>
+        {t(" — this one is in there, whatever happens to this page.")}
       </p>
     </div>
   );
@@ -297,8 +284,7 @@ function StartAttempt({ invoiceId, onStarted }: { invoiceId: string; onStarted: 
         data-testid="pay-now"
         onClick={() => start.mutate(undefined, { onSuccess: onStarted })}
       >
-        Pay now
-      </Button>
+        {t("Pay now")}</Button>
     </>
   );
 }
@@ -318,7 +304,7 @@ function PayNow({
 }) {
   return (
     <div className="max-w-lg space-y-3" data-testid="checkout-pay">
-      <h2 className="text-xl font-semibold">Pay</h2>
+      <h2 className="text-xl font-semibold">{t("Pay")}</h2>
       <PaymentElementPanel
         provider={attempt.payment_provider}
         clientSecret={attempt.client_secret}

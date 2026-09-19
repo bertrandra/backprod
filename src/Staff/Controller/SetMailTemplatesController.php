@@ -9,6 +9,7 @@ use App\Notification\Service\MailWording;
 use App\Shared\Exceptions\BadRequestException;
 use App\Shared\Http\JsonBody;
 use App\Shared\Http\RouteHandler;
+use App\Shared\Validation\Locale;
 use App\Staff\Domain\StaffPermission;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
@@ -33,6 +34,12 @@ final class SetMailTemplatesController implements RouteHandler
         StaffRoute::permitted($request, StaffPermission::MAIL_MANAGE);
 
         $body = JsonBody::of($request);
+        $locale = $body->has('locale') ? $body->requiredString('locale', 8) : Locale::DEFAULT;
+
+        if (!Locale::isKnown($locale)) {
+            throw new BadRequestException('VALIDATION_FAILED', 'The request body is not valid.', ['field' => 'locale', 'requirement' => 'one of ' . implode(', ', Locale::ALL)]);
+        }
+
         $raw = $body->requiredObject('templates');
 
         /** @var array<string, array{subject: string, body: string}> $templates */
@@ -53,8 +60,13 @@ final class SetMailTemplatesController implements RouteHandler
             $templates[$type] = ['subject' => $subject, 'body' => $text];
         }
 
-        $this->wording->save($templates);
+        $this->wording->save($templates, $locale);
 
-        return new JsonResponse(['templates' => $this->wording->catalogue(), 'live' => $this->tester->isLive()], 200);
+        return new JsonResponse([
+            'locale' => $locale,
+            'locales' => Locale::ALL,
+            'templates' => $this->wording->catalogue($locale),
+            'live' => $this->tester->isLive(),
+        ], 200);
     }
 }

@@ -6,6 +6,7 @@ import { exportedAssetId, useCreateAssetLink } from '@/queries/assets';
 import { isUnfinished, useJobs, type Job } from '@/queries/jobs';
 import { useSession } from '@/queries/session';
 import { pill } from '@/ui/tone';
+import { t } from '@/i18n';
 
 /**
  * Region E, made real.
@@ -86,8 +87,7 @@ export function StatusStrip() {
   if (!allowed || (running.length === 0 && finished.length === 0)) {
     return (
       <p data-testid="status-strip-idle" className="text-subtle">
-        No background work
-      </p>
+        {t("No background work")}</p>
     );
   }
 
@@ -98,8 +98,7 @@ export function StatusStrip() {
           data-testid="running-count"
           className={pill('warning')}
         >
-          {running.length} running
-        </span>
+          {running.length} {t("running")}</span>
       )}
 
       {finished.map((job) => {
@@ -125,8 +124,7 @@ export function StatusStrip() {
                 }
                 className="underline decoration-dotted focus-visible:outline-2 focus-visible:outline-offset-2"
               >
-                Download
-              </button>
+                {t("Download")}</button>
             )}
           </span>
         );
@@ -140,12 +138,11 @@ export function StatusStrip() {
         onClick={() => setExpanded((open) => !open)}
         className="text-xs underline decoration-dotted focus-visible:outline-2 focus-visible:outline-offset-2 md:hidden"
       >
-        {expanded ? 'Hide' : 'Details'}
+        {expanded ? t("Hide") : t("Details")}
       </button>
 
       <Link to="/jobs" className="ml-auto hidden text-xs underline decoration-dotted md:inline">
-        All background work
-      </Link>
+        {t("All background work")}</Link>
 
       {expanded && (
         <ul data-testid="strip-sheet" className="w-full space-y-1 pt-2 text-xs md:hidden">
@@ -157,8 +154,7 @@ export function StatusStrip() {
           ))}
           <li>
             <Link to="/jobs" className="underline decoration-dotted">
-              All background work
-            </Link>
+              {t("All background work")}</Link>
           </li>
         </ul>
       )}

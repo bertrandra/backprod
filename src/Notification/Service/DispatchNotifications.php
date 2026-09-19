@@ -175,7 +175,9 @@ final class DispatchNotifications implements JobHandler
 
         // A notice somebody acts on from an inbox has words of its own
         // (2026-09-19); the rest keep the generic form.
-        [$subject, $body] = $this->wording->for($notification) ?? [self::subjectFor($notification), self::bodyFor($notification)];
+        // In the recipient's language (ADR-050), English where they chose none.
+        $recipient = $this->users->find($notification->recipientUserId);
+        [$subject, $body] = $this->wording->for($notification, $recipient->locale ?? 'en') ?? [self::subjectFor($notification), self::bodyFor($notification)];
 
         try {
             $providerMessageId = $notifier->send($address, $subject, $body, $notification->payload);

@@ -9,6 +9,7 @@ import { CountrySelect } from '@/ui/pickers/Select';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
 import { FieldCell, FieldGroup, FieldRow, FormActions, FormCard } from '@/ui/Form';
+import { t } from '@/i18n';
 
 /**
  * `billing.profile` — the legal identity that appears on the document.
@@ -75,8 +76,8 @@ export function BillingProfileScreen() {
   return (
     <div className="max-w-2xl space-y-6">
       <PageHeader
-        title={'Billing identity'}
-        description={'This is what appears on invoices. It is copied onto each document when the document is issued, so changing it here affects future invoices and never one already sent.'}
+        title={t("Billing identity")}
+        description={t("This is what appears on invoices. It is copied onto each document when the document is issued, so changing it here affects future invoices and never one already sent.")}
       />
 
       <FormCard
@@ -98,11 +99,11 @@ export function BillingProfileScreen() {
       >
         <FieldGroup
           legend="Who is being invoiced"
-          hint="The legal identity the invoice names. A VAT number here is what decides whether VAT is charged at all on a cross-border sale."
+          hint={t("The legal identity the invoice names. A VAT number here is what decides whether VAT is charged at all on a cross-border sale.")}
         >
           <Field
             id="legal_name"
-            label="Legal name"
+            label={t("Legal name")}
             error={form.formState.errors.legal_name?.message}
           >
             <input
@@ -114,13 +115,13 @@ export function BillingProfileScreen() {
 
           <FieldRow>
             <FieldCell width="medium">
-              <Field id="vat_number" label="VAT number" hint="Optional.">
+              <Field id="vat_number" label={t("VAT number")} hint={t("Optional.")}>
                 <input id="vat_number" className={inputClass()} {...form.register('vat_number')} />
               </Field>
             </FieldCell>
 
             <FieldCell width="medium">
-              <Field id="registration_number" label="Registration number" hint="Optional.">
+              <Field id="registration_number" label={t("Registration number")} hint={t("Optional.")}>
                 <input
                   id="registration_number"
                   className={inputClass()}
@@ -133,9 +134,9 @@ export function BillingProfileScreen() {
 
         <FieldGroup
           legend="Where they are"
-          hint="The country is what the tax rules are looked up by, so it decides the rate as much as the address decides the delivery."
+          hint={t("The country is what the tax rules are looked up by, so it decides the rate as much as the address decides the delivery.")}
         >
-          <Field id="address_line1" label="Address">
+          <Field id="address_line1" label={t("Address")}>
             <input
               id="address_line1"
               className={inputClass()}
@@ -143,7 +144,7 @@ export function BillingProfileScreen() {
             />
           </Field>
 
-          <Field id="address_line2" label="Address, continued" hint="Optional.">
+          <Field id="address_line2" label={t("Address, continued")} hint={t("Optional.")}>
             <input
               id="address_line2"
               className={inputClass()}
@@ -155,7 +156,7 @@ export function BillingProfileScreen() {
             {/* Three questions that are one answer, at widths that say how much
                 each of them wants: a postcode is not as long as a city. */}
             <FieldCell width="short">
-              <Field id="postal_code" label="Postal code">
+              <Field id="postal_code" label={t("Postal code")}>
                 <input
                   id="postal_code"
                   className={inputClass()}
@@ -165,7 +166,7 @@ export function BillingProfileScreen() {
             </FieldCell>
 
             <FieldCell>
-              <Field id="city" label="City">
+              <Field id="city" label={t("City")}>
                 <input id="city" className={inputClass()} {...form.register('city')} />
               </Field>
             </FieldCell>
@@ -173,7 +174,7 @@ export function BillingProfileScreen() {
             <FieldCell width="short">
               <Field
                 id="country_code"
-                label="Country"
+                label={t("Country")}
                 error={form.formState.errors.country_code?.message}
               >
                 <CountrySelect
@@ -190,7 +191,7 @@ export function BillingProfileScreen() {
         <FieldGroup legend="Where the invoice is sent">
           <Field
             id="billing_email"
-            label="Billing email"
+            label={t("Billing email")}
             error={form.formState.errors.billing_email?.message}
           >
             <input
@@ -208,14 +209,12 @@ export function BillingProfileScreen() {
           note={
             save.isSuccess && (
               <p data-testid="saved" className="text-sm text-muted">
-                Saved. Invoices issued from now on will carry this.
-              </p>
+                {t("Saved. Invoices issued from now on will carry this.")}</p>
             )
           }
         >
           <Button type="submit" pending={save.isPending}>
-            Save
-          </Button>
+            {t("Save")}</Button>
         </FormActions>
       </FormCard>
     </div>

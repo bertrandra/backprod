@@ -15,6 +15,7 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { useViewState } from '@/app/frame/viewState';
 import { pill, type Tone } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
+import { t } from '@/i18n';
 
 /**
  * `sales.orders` — and the payment gate, read straight off the document.
@@ -54,8 +55,8 @@ export function OrdersScreen() {
   return (
     <div className="max-w-3xl space-y-4">
       <PageHeader
-        title={'Orders'}
-        meta={<>{orders.data.total} in this product</>}
+        title={t("Orders")}
+        meta={<>{orders.data.total} {t("in this product")}</>}
       />
 
       {fulfil.error !== null && <ErrorSurface error={fulfil.error} />}
@@ -63,8 +64,8 @@ export function OrdersScreen() {
 
       {orders.data.orders.length === 0 ? (
         <EmptyState
-          title="No orders"
-          description="An order is placed from the catalogue, or created by accepting a quote."
+          title={t("No orders")}
+          description={t("An order is placed from the catalogue, or created by accepting a quote.")}
         />
       ) : (
         <ul className="space-y-2">
@@ -86,13 +87,13 @@ export function OrdersScreen() {
                   {order.status.replace(/_/g, ' ')}
                 </span>
                 {order.quote_id !== null && (
-                  <span className="text-xs text-subtle">from a quote</span>
+                  <span className="text-xs text-subtle">{t("from a quote")}</span>
                 )}
                 <span className="ml-auto text-xs text-subtle">
-                  placed <When at={order.created_at} />
+                  {t("placed")}{' '}<When at={order.created_at} />
                   {order.completed_at !== null && (
                     <>
-                      {' · '}completed <When at={order.completed_at} />
+                      {' · '}{t("completed")}{' '}<When at={order.completed_at} />
                     </>
                   )}
                 </span>
@@ -104,17 +105,17 @@ export function OrdersScreen() {
                 {order.lines[0] !== undefined ? (
                   <LineOfferSummary line={order.lines[0]} />
                 ) : (
-                  <span className="text-subtle">Nothing on this order</span>
+                  <span className="text-subtle">{t("Nothing on this order")}</span>
                 )}
                 <span className="text-xs text-subtle" data-testid="order-for">
-                  {order.seat === true ? 'for yourself — a seat' : 'for the organisation'}
+                  {order.seat === true ? t("for yourself — a seat") : t("for the organisation")}
                 </span>
               </div>
 
               <div className="mt-2 flex flex-wrap items-baseline gap-3">
                 <Amount money={order.gross} className="font-medium" />
                 <span className="text-xs text-subtle">
-                  net <Amount money={order.net} /> · VAT <Amount money={order.vat} />
+                  {t("net")}{' '}<Amount money={order.net} /> {t("· VAT")}{' '}<Amount money={order.vat} />
                 </span>
               </div>
 
@@ -125,8 +126,7 @@ export function OrdersScreen() {
                   {confirming === order.id ? (
                     <>
                       <span className="w-full text-xs text-muted">
-                        Cancelling an order cannot be undone.
-                      </span>
+                        {t("Cancelling an order cannot be undone.")}</span>
                       <Button
                         type="button"
                         variant="danger"
@@ -135,11 +135,9 @@ export function OrdersScreen() {
                           cancel.mutate(order.id, { onSettled: () => setConfirming(null) })
                         }
                       >
-                        Cancel permanently
-                      </Button>
+                        {t("Cancel permanently")}</Button>
                       <Button type="button" variant="secondary" onClick={() => setConfirming(null)}>
-                        Keep it
-                      </Button>
+                        {t("Keep it")}</Button>
                     </>
                   ) : (
                     <>
@@ -149,16 +147,14 @@ export function OrdersScreen() {
                           pending={fulfil.isPending}
                           onClick={() => fulfil.mutate(order.id)}
                         >
-                          Fulfil
-                        </Button>
+                          {t("Fulfil")}</Button>
                       )}
                       <Button
                         type="button"
                         variant="secondary"
                         onClick={() => setConfirming(order.id)}
                       >
-                        Cancel order
-                      </Button>
+                        {t("Cancel order")}</Button>
                     </>
                   )}
                 </div>
@@ -171,8 +167,7 @@ export function OrdersScreen() {
                     params={{ sessionId: order.id }}
                     className="underline decoration-dotted"
                   >
-                    Open the checkout for this order
-                  </Link>
+                    {t("Open the checkout for this order")}</Link>
                 </p>
               )}
             </li>
@@ -195,27 +190,24 @@ function PaymentGate({ order }: { order: Order }) {
     <ol className="mt-2 space-y-1 text-xs" data-testid="payment-gate">
       <li data-testid="gate-invoice">
         {order.invoice_id === null ? (
-          <span className="text-subtle">Not invoiced</span>
+          <span className="text-subtle">{t("Not invoiced")}</span>
         ) : (
           <>
-            Invoiced —{' '}
+            {t("Invoiced —")}{' '}
             <Link to="/invoices/$invoiceId" params={{ invoiceId: order.invoice_id }} className="underline decoration-dotted">
-              open the invoice
-            </Link>
+              {t("open the invoice")}</Link>
           </>
         )}
       </li>
       <li data-testid="gate-subscription">
         {order.subscription_id === null ? (
           <span className="text-subtle">
-            Not provisioned — nothing starts before the invoice is paid
-          </span>
+            {t("Not provisioned — nothing starts before the invoice is paid")}</span>
         ) : (
           <>
-            {order.seat === true ? 'Seat started' : 'Subscription started'} —{' '}
+            {order.seat === true ? t("Seat started") : t("Subscription started")} —{' '}
             <Link to="/subscription" className="underline decoration-dotted">
-              see it
-            </Link>
+              {t("see it")}</Link>
           </>
         )}
       </li>

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { t } from '@/i18n';
 
 /**
  * Region F, as a shell.
@@ -56,7 +57,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Command palette"
+        aria-label={t("Command palette")}
         data-testid="command-palette"
         // Full width on a phone, where a centred narrow dialog wastes the
         // screen it is competing for.
@@ -66,11 +67,11 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         <input
           ref={inputRef}
           type="search"
-          aria-label="Search commands"
-          placeholder="Search — commands arrive with the screens that have them"
+          aria-label={t("Search commands")}
+          placeholder={t("Search — commands arrive with the screens that have them")}
           className="w-full rounded-control border border-line bg-surface px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
         />
-        <p className="mt-2 px-1 text-xs text-subtle">Nothing to run yet (U1).</p>
+        <p className="mt-2 px-1 text-xs text-subtle">{t("Nothing to run yet (U1).")}</p>
       </div>
     </div>
   );

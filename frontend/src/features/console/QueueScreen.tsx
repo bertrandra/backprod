@@ -12,6 +12,7 @@ import { Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { panel } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `console.admin.queue` — has the runner run since Tuesday.
@@ -42,16 +43,16 @@ export function QueueScreen() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title={'Queue'}
-        description={'The runner is polled by cron, so nothing announces that it has stopped. What is below is the clock, and a verdict against a threshold you can change.'}
+        title={t("Queue")}
+        description={t("The runner is polled by cron, so nothing announces that it has stopped. What is below is the clock, and a verdict against a threshold you can change.")}
       />
 
       <section className="space-y-4">
         <div className="max-w-xs">
           <Field
             id="stale_after"
-            label="Call it stale after"
-            hint="Seconds. This is the threshold the verdict is measured against."
+            label={t("Call it stale after")}
+            hint={t("Seconds. This is the threshold the verdict is measured against.")}
           >
             <input
               id="stale_after"
@@ -84,10 +85,10 @@ export function QueueScreen() {
 
       <section className="space-y-3 border-t border-line pt-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="text-xl font-semibold">Jobs</h2>
+          <h2 className="text-xl font-semibold">{t("Jobs")}</h2>
 
           <div className="w-48">
-            <Field id="status" label="Status">
+            <Field id="status" label={t("Status")}>
               <select
                 id="status"
                 className={inputClass()}
@@ -96,7 +97,7 @@ export function QueueScreen() {
               >
                 {STATUSES.map((value) => (
                   <option key={value} value={value}>
-                    {value === '' ? 'Any' : value}
+                    {value === '' ? t("Any") : value}
                   </option>
                 ))}
               </select>
@@ -110,13 +111,13 @@ export function QueueScreen() {
           <ErrorSurface error={jobs.error} onRetry={() => void jobs.refetch()} />
         ) : jobs.data.jobs.length === 0 ? (
           <EmptyState
-            title="No jobs"
-            description="Nothing matches. An empty queue and a stopped runner look alike — the clock above says which."
+            title={t("No jobs")}
+            description={t("Nothing matches. An empty queue and a stopped runner look alike — the clock above says which.")}
           />
         ) : (
           <>
             <p data-testid="job-count" className="text-xs text-subtle">
-              Showing {jobs.data.jobs.length} of {jobs.data.total}.
+              {t("Showing")}{' '}{jobs.data.jobs.length} {t("of")}{' '}{jobs.data.total}.
             </p>
             <ul className="space-y-2">
               {jobs.data.jobs.map((job) => (
@@ -167,11 +168,9 @@ function Liveness({ health }: { health: Health }) {
         role="alert"
         className={panel('danger')}
       >
-        <p className="font-medium text-danger">The runner has never run.</p>
+        <p className="font-medium text-danger">{t("The runner has never run.")}</p>
         <p className="mt-1 text-danger">
-          Not an idle queue — nothing has ever polled it. Every count below would read zero either
-          way, which is why this is said rather than left to be inferred.
-        </p>
+          {t("Not an idle queue — nothing has ever polled it. Every count below would read zero either way, which is why this is said rather than left to be inferred.")}</p>
       </div>
     );
   }
@@ -190,31 +189,30 @@ function Liveness({ health }: { health: Health }) {
     >
       <p data-testid="verdict" className="font-medium">
         {stale
-          ? `The runner has not finished a pass within ${seconds(health.stale_after_seconds)}.`
-          : 'The runner is keeping up.'}
+          ? t("The runner has not finished a pass within {value}.", { value: seconds(health.stale_after_seconds) })
+          : t("The runner is keeping up.")}
       </p>
 
       <dl className="grid gap-3 sm:grid-cols-3">
         <div>
-          <dt className="text-xs uppercase tracking-wide text-muted">Last pass finished</dt>
+          <dt className="text-xs uppercase tracking-wide text-muted">{t("Last pass finished")}</dt>
           <dd data-testid="last-finished">
-            {seconds(health.last_run.seconds_since_finished)} ago
-          </dd>
+            {t("{value} ago", { value: seconds(health.last_run.seconds_since_finished) })}</dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-muted">Unfinished passes</dt>
+          <dt className="text-xs uppercase tracking-wide text-muted">{t("Unfinished passes")}</dt>
           <dd data-testid="unfinished">
             {health.unfinished_runs}
             {health.oldest_unfinished_seconds !== null &&
-              ` · oldest ${seconds(health.oldest_unfinished_seconds)}`}
+              t(" · oldest {value}", { value: seconds(health.oldest_unfinished_seconds) })}
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-muted">Backlog due</dt>
+          <dt className="text-xs uppercase tracking-wide text-muted">{t("Backlog due")}</dt>
           <dd data-testid="backlog">
             {typeof health.backlog.due === 'number' ? health.backlog.due : '—'}
             {typeof health.backlog.oldest_due_seconds === 'number' &&
-              ` · oldest ${seconds(health.backlog.oldest_due_seconds)}`}
+              t(" · oldest {value}", { value: seconds(health.backlog.oldest_due_seconds) })}
           </dd>
         </div>
       </dl>
@@ -237,7 +235,7 @@ function JobRow({ job }: { job: AdminJob }) {
           {job.status ?? 'unknown'}
         </span>
         <span className="text-xs text-muted">
-          attempt {job.attempts ?? 0} of {job.max_attempts ?? 0}
+          {t("attempt")}{' '}{job.attempts ?? 0} {t("of")}{' '}{job.max_attempts ?? 0}
         </span>
       </div>
 
@@ -248,10 +246,10 @@ function JobRow({ job }: { job: AdminJob }) {
       )}
 
       <p className="mt-1 text-xs text-subtle">
-        created {job.created_at === undefined ? '—' : new Date(job.created_at).toLocaleString()}
+        {t("created")}{' '}{job.created_at === undefined ? '—' : new Date(job.created_at).toLocaleString(currentLocale())}
         {job.leased_until !== null &&
           job.leased_until !== undefined &&
-          ` · leased until ${new Date(job.leased_until).toLocaleTimeString()}`}
+          t(" · leased until {value}", { value: new Date(job.leased_until).toLocaleTimeString(currentLocale()) })}
       </p>
     </li>
   );

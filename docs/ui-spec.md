@@ -189,7 +189,7 @@ and USER. Placing it in the console would have been the intuitive mistake.
 | `tenant.organisation` | the company: its details, its join policy and its usage against quota. On the menu for `tenant.manage` only (2026-09-18): a USER may read it through the API and by address, but administering the organisation is the administrator's, and an entry to a screen one can only look at is noise |
 | `tenant.members` | who is in it, and with which role, and who is waiting to join. On the menu for `members.manage` only (2026-09-18), for the same reason as the organisation |
 | `tenant.branding` | white label — colours and logo, gated by `skin.manage` **and** the `white_label` entitlement |
-| `account.profile` | the person, not the company — the display name, and the **default product**: where their screens open when a link does not say which, set at sign-up to the product signed up for and chosen here among the products they hold (2026-09-17) |
+| `account.profile` | the person, not the company — the display name, and the **default product**: where their screens open when a link does not say which, set at sign-up to the product signed up for and chosen here among the products they hold (2026-09-17); and the **language** they read in — one of the five the platform speaks (ADR-050), applied the moment it is saved, and the one their mails are written in |
 | `account.notifications` | the inbox: unread count, reading, per-notification delivery detail |
 | `account.notification_settings` | channel preferences, and consents that are provable and revocable (non-negotiable #24) |
 | `messaging.conversations` | threads, messages, participants, read state |
@@ -211,7 +211,7 @@ and USER. Placing it in the console would have been the intuitive mistake.
 | `console.admin.demo` | the demonstration, on a screen of its own in a menu section of its own (2026-09-18): the public `/demo` page's switch, behind `staff.demo.publish`, and the demonstration world put back the way it started, behind `staff.demo.reset` and a second explicit step — the server refuses while a product that is not the demo's exists. Neither is administering products, where both used to sit |
 | `console.admin.readiness` | the console's landing and the map of a maze: the chain a product has to complete before it can sell, in dependency order, with what is counted or missing at each step and exactly one "do this next". Every fact is read through the port the enforcing code reads — including asking the clock whether a version is sellable now — so it cannot report ready where a checkout would refuse (ADR-045) |
 | `console.admin.invoicing` | what a product needs configured before it can take money: the legal identity its invoices name (§25) and the supplier's own fiscal position (§25.3). ADR-042 gave the console a way to create a product and ADR-043 a way to price it, and a checkout against one built that way still refused with `BILLING_NOT_CONFIGURED` — the issuer lives in `product_configuration`, which only the demo seeder ever wrote (ADR-044). Behind `staff.products.manage`, not `staff.catalog.manage`: somebody trusted with the shop window is not thereby trusted with who the documents say is selling |
-| `console.admin.mail` | the words the platform's mails say (2026-09-19): the four a person acts on from an inbox — reset link, invitation, password changed, address confirmation — each with a subject and body the platform administrator rewrites (`{link}`, `{email}` filled at send time; emptying both puts the default back), behind `staff.mail.manage`. Says whether mail leaves at all (`MAIL_DSN`) and offers *Send me a test* per kind — sent inside the request to the administrator's own address, so the host's answer is seen now, with its reason when it fails |
+| `console.admin.mail` | the words the platform's mails say (2026-09-19): the four a person acts on from an inbox — reset link, invitation, password changed, address confirmation — each with a subject and body the platform administrator rewrites (`{link}`, `{email}` filled at send time; emptying both puts the default back), behind `staff.mail.manage`. Says whether mail leaves at all (`MAIL_DSN`) and offers *Send me a test* per kind — sent inside the request to the administrator's own address, so the host's answer is seen now, with its reason when it fails. One tab per language (ADR-050): the words are per language and per kind, a kind with no words of its own in a language shows English's, and the test goes out in the language being edited |
 | `console.admin.storefront` | what a stranger sees. Being on sale and being advertised are two decisions; this is the only place the second is made, behind `staff.catalog.manage` rather than `catalog.manage` (ADR-041). The product it administers is the one chosen in region A's switcher, which on the console lists every product the platform hosts (ADR-047). Also where the platform decides how a self-service sign-up ends — pay right there, or the application first — for every storefront at once (2026-09-18) |
 | `console.admin.staff` | who holds a platform role, and appointing or removing them. The database keeps at least one administrator, so the last one is shown as protected rather than offered and then refused |
 | `console.admin.menus` | what the navigation shows each kind of person — platform administrator, tenant administrator, user — as three checklists of the shell's own entries, and per audience whether an entry with nothing behind it is shown. Stored as what is switched *off*, so a screen added tomorrow appears until somebody decides otherwise; saved whole and recorded in the access log |
@@ -379,6 +379,14 @@ Consequences that bind this document:
   the API refuses it regardless (non-negotiable #6). A screen that only hides
   is still safe, and a screen that only refuses is merely unhelpful — but a
   frontend that decides is wrong.
+
+**The language is presentation** (ADR-050). Every sentence a screen says is
+`t('English sentence')`; French, Spanish, German and Italian are catalogues
+keyed by the English, one lazily loaded chunk each, and English needs none.
+Codes, enumerations, offer names and the API's messages are not translated —
+the contract is English. Sentences a table carries (a navigation label, an
+error's title) are translated where rendered, never where declared. `npm run
+gate:i18n` fails the build when a catalogue and the screens disagree.
 
 Server state is TanStack Query's. Client state — a panel's open/closed, an
 unsent draft, canvas selection — is Zustand's and never enters that chain.

@@ -17,6 +17,8 @@ import { toApiError, type Session } from './session';
 export type ProfilePatch = {
   readonly display_name?: string | null;
   readonly default_product?: string | null;
+  /** The language they read in (ADR-050). */
+  readonly locale?: 'en' | 'fr' | 'es' | 'de' | 'it';
 };
 
 export function useUpdateProfile() {
@@ -34,13 +36,13 @@ export function useUpdateProfile() {
         throw toApiError(response.status, error);
       }
 
-      return { display_name: data.display_name ?? null, default_product: data.default_product ?? null };
+      return { display_name: data.display_name ?? null, default_product: data.default_product ?? null, locale: data.locale };
     },
     onSuccess: async (stored) => {
       // The name appears in region A, so patching the cached session updates the
       // whole shell at once instead of leaving the header stale until a refetch.
       queryClient.setQueryData<Session>(keys.session.me, (previous) =>
-        previous === undefined ? previous : { ...previous, displayName: stored.display_name ?? null },
+        previous === undefined ? previous : { ...previous, displayName: stored.display_name ?? null, locale: stored.locale ?? previous.locale },
       );
       // The default is read beside the product list, which now disagrees.
       await queryClient.invalidateQueries({ queryKey: keys.catalogue.myProducts });

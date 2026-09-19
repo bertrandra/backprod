@@ -91,7 +91,7 @@ final class SmtpNotifierTest extends TestCase
         $wording = new MailWording(new class () implements MailTemplates {
             public function overrides(): array
             {
-                return ['account.invitation' => ['subject' => 'Bienvenue', 'body' => 'Voici votre lien : {link}']];
+                return ['fr' => ['account.invitation' => ['subject' => 'Bienvenue', 'body' => 'Voici votre lien : {link}']]];
             }
 
             public function save(array $overrides): void
@@ -108,7 +108,7 @@ final class SmtpNotifierTest extends TestCase
         self::assertStringNotContainsString('purpose', $body);
 
         // The administrator's own words win where they set them, placeholders filled.
-        $invitation = $wording->for(self::notice('account.invitation', ['link' => 'https://example.test/globex/sign-in?reset=xyz']));
+        $invitation = $wording->for(self::notice('account.invitation', ['link' => 'https://example.test/globex/sign-in?reset=xyz']), 'fr');
         self::assertNotNull($invitation);
         self::assertSame('Bienvenue', $invitation[0]);
         self::assertSame('Voici votre lien : https://example.test/globex/sign-in?reset=xyz', $invitation[1]);
@@ -116,8 +116,13 @@ final class SmtpNotifierTest extends TestCase
         // Everything else keeps the generic form.
         self::assertNull($wording->for(self::notice('payment.failed', [])));
 
-        // The catalogue says what is customised.
-        $catalogue = $wording->catalogue();
+        // English keeps its default where only French was set.
+        $english = $wording->for(self::notice('account.invitation', ['link' => 'x']));
+        self::assertNotNull($english);
+        self::assertSame('You have been added — choose your password', $english[0]);
+
+        // The catalogue says what is customised, per language.
+        $catalogue = $wording->catalogue('fr');
         self::assertSame(['account.password_reset', 'account.invitation', 'account.password_changed', 'account.email_verification'], array_column($catalogue, 'type'));
         self::assertTrue($catalogue[1]['customised']);
         self::assertFalse($catalogue[0]['customised']);

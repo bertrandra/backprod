@@ -65,4 +65,8 @@ final class InMemoryUserRepository implements UserRepository
 
         $this->byId[$userId] = new PlatformUser($user->id, $user->authSubject, $user->email, $user->displayName, $productId);
     }
+
+    public function updateLocale(string $userId, string $locale): void
+    {
+    }
 }

@@ -7,6 +7,7 @@ import { useSessionStore } from '@/state/session';
 
 import { SignInScreen } from './SignInScreen';
 import { useSessionLifecycle } from './useSessionLifecycle';
+import { t } from '@/i18n';
 
 /**
  * Nothing renders behind this without a token.
@@ -65,8 +66,7 @@ export function SignInGate({ children }: { children: ReactNode }) {
     return (
       <main className="mx-auto flex min-h-dvh max-w-sm items-center justify-center p-4">
         <p role="status" aria-busy="true" className="text-sm text-muted">
-          Restoring your session…
-        </p>
+          {t("Restoring your session…")}</p>
       </main>
     );
   }

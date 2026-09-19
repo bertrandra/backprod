@@ -22,6 +22,7 @@ import { pill, type Tone } from '@/ui/tone';
 import { Table, TBody, Td, Th, THead, TR } from '@/ui/Table';
 
 import { InvoiceNumber, statusTone } from './InvoicesScreen';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * One invoice: the document, its money, and everything that can happen to it.
@@ -76,7 +77,7 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
     <div className="max-w-3xl space-y-8">
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold">Invoice</h1>
+          <h1 className="text-2xl font-semibold">{t("Invoice")}</h1>
           <span
             data-testid="invoice-status"
             className={pill(statusTone(current.status))}
@@ -86,15 +87,14 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
           <InvoiceNumber invoice={current} />
           {!current.final && (
             <span data-testid="not-final" className="text-xs text-subtle">
-              can still change
-            </span>
+              {t("can still change")}</span>
           )}
         </div>
 
         {current.period_start !== null && current.period_end !== null && (
           <p className="text-xs text-subtle">
-            covers {new Date(current.period_start).toLocaleDateString()} —{' '}
-            {new Date(current.period_end).toLocaleDateString()}
+            {t("covers")}{' '}{new Date(current.period_start).toLocaleDateString(currentLocale())} —{' '}
+            {new Date(current.period_end).toLocaleDateString(currentLocale())}
           </p>
         )}
       </header>
@@ -102,17 +102,17 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
       <Parties invoice={current} />
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Lines</h2>
+        <h2 className="text-xl font-semibold">{t("Lines")}</h2>
 
-        <Table caption="Invoice lines: description, quantity, unit price, net, VAT and gross">
+        <Table caption={t("Invoice lines: description, quantity, unit price, net, VAT and gross")}>
           <THead>
             <Th>#</Th>
-            <Th>Description</Th>
-            <Th numeric>Qty</Th>
-            <Th numeric>Unit</Th>
-            <Th numeric>Net</Th>
-            <Th numeric>VAT</Th>
-            <Th numeric>Gross</Th>
+            <Th>{t("Description")}</Th>
+            <Th numeric>{t("Qty")}</Th>
+            <Th numeric>{t("Unit")}</Th>
+            <Th numeric>{t("Net")}</Th>
+            <Th numeric>{t("VAT")}</Th>
+            <Th numeric>{t("Gross")}</Th>
           </THead>
 
           <TBody>
@@ -147,7 +147,7 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Tax</h2>
+        <h2 className="text-xl font-semibold">{t("Tax")}</h2>
 
         {/* One row per jurisdiction and rate. They sum to the invoice's VAT —
             the backend asserts it, and this renders both rather than checking. */}
@@ -157,10 +157,10 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
                 data-tax={tax.jurisdiction}
                 className="flex flex-wrap gap-2">
               <span className="min-w-0 flex-1">
-                {tax.jurisdiction} at {formatVatRate(tax.rate_basis_points)}
+                {tax.jurisdiction} {t("at")}{' '}{formatVatRate(tax.rate_basis_points)}
               </span>
               <span className="text-muted">
-                on <Amount money={tax.taxable} />
+                {t("on")}{' '}<Amount money={tax.taxable} />
               </span>
               <Amount money={tax.tax} />
             </li>
@@ -169,19 +169,19 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
 
         <dl className="grid grid-cols-3 gap-3 border-t border-line pt-3 text-sm">
           <div>
-            <dt className="text-xs text-subtle">Net</dt>
+            <dt className="text-xs text-subtle">{t("Net")}</dt>
             <dd>
               <Amount money={current.net} />
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-subtle">VAT</dt>
+            <dt className="text-xs text-subtle">{t("VAT")}</dt>
             <dd>
               <Amount money={current.vat} />
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-subtle">Total</dt>
+            <dt className="text-xs text-subtle">{t("Total")}</dt>
             <dd className="font-medium">
               <Amount money={current.gross} />
             </dd>
@@ -193,7 +193,7 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
 
       {(mayManage || mayPay) && (
         <section className="space-y-3 border-t border-line pt-6">
-          <h2 className="text-xl font-semibold">Actions</h2>
+          <h2 className="text-xl font-semibold">{t("Actions")}</h2>
 
           {cancel.error !== null && <ErrorSurface error={cancel.error} />}
           {markPaid.error !== null && <ErrorSurface error={markPaid.error} />}
@@ -208,8 +208,7 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
                 pending={markPaid.isPending}
                 onClick={() => markPaid.mutate(invoiceId)}
               >
-                Mark paid
-              </Button>
+                {t("Mark paid")}</Button>
             )}
 
             {current.status === 'ISSUED' && mayPay && started === null && (
@@ -218,22 +217,19 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
                 pending={startPayment.isPending}
                 onClick={() => startPayment.mutate(undefined, { onSuccess: setStarted })}
               >
-                Take a payment
-              </Button>
+                {t("Take a payment")}</Button>
             )}
 
             {/* Offered only while the document can still change. Once final it
                 is corrected by a credit note instead. */}
             {!current.final && mayManage && confirming !== 'cancel' && (
               <Button type="button" variant="danger" onClick={() => setConfirming('cancel')}>
-                Cancel the invoice…
-              </Button>
+                {t("Cancel the invoice…")}</Button>
             )}
 
             {current.final && mayManage && confirming !== 'credit' && (
               <Button type="button" variant="secondary" onClick={() => setConfirming('credit')}>
-                Issue a credit note…
-              </Button>
+                {t("Issue a credit note…")}</Button>
             )}
           </div>
 
@@ -255,8 +251,7 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
           {confirming === 'cancel' && (
             <div className="flex flex-wrap gap-2">
               <span className="w-full text-xs text-muted">
-                Cancelling cannot be undone.
-              </span>
+                {t("Cancelling cannot be undone.")}</span>
               <Button
                 type="button"
                 variant="danger"
@@ -265,21 +260,17 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
                   cancel.mutate(invoiceId, { onSettled: () => setConfirming(null) })
                 }
               >
-                Cancel it
-              </Button>
+                {t("Cancel it")}</Button>
               <Button type="button" variant="secondary" onClick={() => setConfirming(null)}>
-                Keep it
-              </Button>
+                {t("Keep it")}</Button>
             </div>
           )}
 
           {confirming === 'credit' && (
             <div className="max-w-md space-y-3">
               <p className="text-xs text-muted">
-                A credit note is its own document, with its own number. The invoice keeps its
-                number and its totals.
-              </p>
-              <Field id="reason" label="Reason" hint="Optional, and kept on the document.">
+                {t("A credit note is its own document, with its own number. The invoice keeps its number and its totals.")}</p>
+              <Field id="reason" label={t("Reason")} hint={t("Optional, and kept on the document.")}>
                 <input
                   id="reason"
                   className={inputClass()}
@@ -298,11 +289,9 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
                     })
                   }
                 >
-                  Issue the credit note
-                </Button>
+                  {t("Issue the credit note")}</Button>
                 <Button type="button" variant="secondary" onClick={() => setConfirming(null)}>
-                  Not now
-                </Button>
+                  {t("Not now")}</Button>
               </div>
             </div>
           )}
@@ -325,8 +314,8 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
 function Parties({ invoice }: { invoice: { supplier: Record<string, unknown>; customer: Record<string, unknown> } }) {
   return (
     <section className="grid gap-4 text-sm sm:grid-cols-2">
-      <Party label="From" party={invoice.supplier} testId="supplier" />
-      <Party label="To" party={invoice.customer} testId="customer" />
+      <Party label={t("From")} party={invoice.supplier} testId="supplier" />
+      <Party label={t("To")} party={invoice.customer} testId="customer" />
     </section>
   );
 }
@@ -355,7 +344,7 @@ function Party({
       <Person party={party} />
       {text('vat_number') !== null && (
         <p className="text-xs text-muted">
-          VAT {text('vat_number')}
+          {t("VAT")}{' '}{text('vat_number')}
         </p>
       )}
       {text('address_line1') !== null && (
@@ -366,7 +355,7 @@ function Party({
           {text('country_code') !== null && ` (${text('country_code') ?? ''})`}
         </p>
       )}
-      <p className="text-xs text-subtle">as recorded when this was issued</p>
+      <p className="text-xs text-subtle">{t("as recorded when this was issued")}</p>
     </div>
   );
 }
@@ -395,7 +384,7 @@ function Person({ party }: { party: Record<string, unknown> }) {
     <p data-testid="customer-person" className="text-xs text-muted">
       {email !== null && name !== email ? email : null}
       {email !== null && name !== email && organisation !== null ? ' · ' : null}
-      {organisation !== null ? `a member of ${organisation}` : null}
+      {organisation !== null ? t("a member of {organisation}", { organisation: organisation }) : null}
     </p>
   );
 }
@@ -417,13 +406,11 @@ function InvoiceDocument({ invoiceId, issued }: { invoiceId: string; issued: boo
   if (!issued) {
     return (
       <section className="space-y-2">
-        <h2 className="text-xl font-semibold">Document</h2>
+        <h2 className="text-xl font-semibold">{t("Document")}</h2>
         {/* Not an error: an invoice with no number has no document, and asking
             for one answers 409 INVOICE_NOT_RENDERABLE. */}
         <p data-testid="no-document" className="text-sm text-muted">
-          There is no document yet. One is rendered when the invoice is issued, and then never
-          again — the stored file is the invoice.
-        </p>
+          {t("There is no document yet. One is rendered when the invoice is issued, and then never again — the stored file is the invoice.")}</p>
       </section>
     );
   }
@@ -432,7 +419,7 @@ function InvoiceDocument({ invoiceId, issued }: { invoiceId: string; issued: boo
 
   return (
     <section className="space-y-2">
-      <h2 className="text-xl font-semibold">Document</h2>
+      <h2 className="text-xl font-semibold">{t("Document")}</h2>
 
       {pdf.isPending ? (
         <SkeletonRows rows={1} />
@@ -447,14 +434,11 @@ function InvoiceDocument({ invoiceId, issued }: { invoiceId: string; issued: boo
           data-testid="pdf-download"
           onClick={() => saveBlob(blob, `invoice-${invoiceId}.pdf`)}
         >
-          Download the PDF
-        </Button>
+          {t("Download the PDF")}</Button>
       )}
 
       <p className="text-xs text-subtle">
-        Rendered once when the invoice was issued and stored — these are the same bytes every
-        time, which is why they are fetched once and kept.
-      </p>
+        {t("Rendered once when the invoice was issued and stored — these are the same bytes every time, which is why they are fetched once and kept.")}</p>
     </section>
   );
 }
@@ -505,7 +489,7 @@ function Transmissions({
 
   return (
     <section className="space-y-3 border-t border-line pt-6">
-      <h2 className="text-xl font-semibold">E-invoicing</h2>
+      <h2 className="text-xl font-semibold">{t("E-invoicing")}</h2>
 
       {submit.error !== null && <ErrorSurface error={submit.error} />}
 
@@ -515,8 +499,8 @@ function Transmissions({
         <ErrorSurface error={transmissions.error} onRetry={() => void transmissions.refetch()} />
       ) : transmissions.data.length === 0 ? (
         <EmptyState
-          title="Not transmitted"
-          description="This invoice has not been sent to a certified platform."
+          title={t("Not transmitted")}
+          description={t("This invoice has not been sent to a certified platform.")}
         />
       ) : (
         <ul className="space-y-3">
@@ -536,17 +520,16 @@ function Transmissions({
                   {transmission.status}
                 </span>
                 {!transmission.settled && (
-                  <span className="text-xs text-subtle">still in flight</span>
+                  <span className="text-xs text-subtle">{t("still in flight")}</span>
                 )}
               </div>
 
               {transmission.status === 'REJECTED' ? (
                 <p data-testid="rejection" className="text-xs text-danger">
-                  Rejected
-                  {transmission.rejection_code !== null && ` (${transmission.rejection_code})`}
+                  {t("Rejected")}{transmission.rejection_code !== null && ` (${transmission.rejection_code})`}
                   {transmission.rejection_reason !== null && `: ${transmission.rejection_reason}`}
-                  {' — the platform read the document and refused it. Sending the same document '}
-                  {'again would be refused the same way.'}
+                  {t(" — the platform read the document and refused it. Sending the same document ")}
+                  {t("again would be refused the same way.")}
                 </p>
               ) : (
                 <ol className="flex flex-wrap gap-2 text-xs" data-testid="progression">
@@ -570,7 +553,7 @@ function Transmissions({
 
               {transmission.provider_document_id !== null && (
                 <p className="text-xs text-subtle">
-                  platform reference <code>{transmission.provider_document_id}</code>
+                  {t("platform reference")}{' '}<code>{transmission.provider_document_id}</code>
                 </p>
               )}
             </li>
@@ -580,8 +563,7 @@ function Transmissions({
 
       {mayManage && (
         <Button type="button" pending={submit.isPending} onClick={() => submit.mutate()}>
-          Transmit
-        </Button>
+          {t("Transmit")}</Button>
       )}
     </section>
   );

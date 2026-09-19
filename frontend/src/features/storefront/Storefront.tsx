@@ -9,6 +9,7 @@ import { useSessionStore } from '@/state/session';
 
 import { SignUpForm } from './SignUpForm';
 import { StorefrontScreen } from './StorefrontScreen';
+import { t } from '@/i18n';
 
 /**
  * The page a stranger lands on: an organisation's window, and the door in.
@@ -97,11 +98,9 @@ export function Storefront({ onSignIn }: { onSignIn: () => void }) {
     return (
       <main className="mx-auto max-w-lg space-y-6 p-4 py-10">
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold">Pay</h1>
+          <h1 className="text-2xl font-semibold">{t("Pay")}</h1>
           <p className="text-sm text-muted">
-            {door.offer.name}, for yourself — your account is ready; your seat starts when the
-            payment is confirmed.
-          </p>
+            {door.offer.name}{t(", for yourself — your account is ready; your seat starts when the payment is confirmed.")}</p>
         </header>
 
         <PaymentElementPanel
@@ -118,8 +117,7 @@ export function Storefront({ onSignIn }: { onSignIn: () => void }) {
             still has an order to come back to (ADR-034). */}
         <p className="text-sm text-muted">
           <a href={statusPage} data-testid="continue-to-order" className="underline underline-offset-2">
-            Continue to your order
-          </a>
+            {t("Continue to your order")}</a>
           {opened.client_secret !== null && opened.client_secret !== undefined && ' — it can be paid from there later.'}
         </p>
       </main>

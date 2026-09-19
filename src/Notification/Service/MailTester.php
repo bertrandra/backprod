@@ -7,6 +7,7 @@ namespace App\Notification\Service;
 use App\Notification\Domain\Notifier;
 use App\Shared\Exceptions\BadRequestException;
 use App\Shared\Exceptions\ConflictException;
+use App\Shared\Validation\Locale;
 use Throwable;
 
 /**
@@ -41,7 +42,7 @@ final class MailTester
     /**
      * @return array{to: string, subject: string, provider_message_id: string}
      */
-    public function send(string $type, string $to): array
+    public function send(string $type, string $to, string $locale = Locale::DEFAULT): array
     {
         if (!isset(MailWording::DEFAULTS[$type])) {
             throw new BadRequestException('VALIDATION_FAILED', 'No such mail template.', ['field' => 'type']);
@@ -59,7 +60,7 @@ final class MailTester
         }
 
         $payload = MailWording::sample($type, $to, $this->appUrl);
-        $rendered = $this->wording->catalogue();
+        $rendered = $this->wording->catalogue(Locale::of($locale));
         $subject = '';
         $body = '';
 

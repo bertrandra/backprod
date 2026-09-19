@@ -6,6 +6,7 @@ import type { Schemas } from '@/api/client';
 import { Button } from '@/ui/Field';
 import { Amount, type Money } from '@/ui/Money';
 import { notice } from '@/ui/tone';
+import { t } from '@/i18n';
 
 /**
  * Paying, where the `client_secret` was born (ADR-048).
@@ -62,15 +63,12 @@ export function PaymentElementPanel(props: PaymentElementPanelProps) {
     <section data-testid="payment-panel" data-provider={provider.name} className="space-y-3">
       {provider.sandbox && (
         <p data-testid="sandbox-band" className={notice('warning')}>
-          <strong>Test payment.</strong> This is a sandbox: use a test card, and no money moves.
-        </p>
+          <strong>{t("Test payment.")}</strong> {t("This is a sandbox: use a test card, and no money moves.")}</p>
       )}
 
       {Panel === undefined ? (
         <p data-testid="payment-no-panel" className="text-sm text-muted">
-          The payment was started with <code>{provider.name}</code>, which has no card form in
-          this page. It will be confirmed when the provider says so.
-        </p>
+          {t("The payment was started with")}{' '}<code>{provider.name}</code>{t(", which has no card form in this page. It will be confirmed when the provider says so.")}</p>
       ) : (
         <Panel {...props} provider={provider} clientSecret={clientSecret} />
       )}
@@ -108,8 +106,7 @@ function StripePanel({ provider, clientSecret, amount, returnUrl, onSettled }: P
   if (provider.publishable_key === null) {
     return (
       <p data-testid="payment-no-key" className={notice('danger')}>
-        This deployment has no publishable key for Stripe, so the card form cannot be shown.
-      </p>
+        {t("This deployment has no publishable key for Stripe, so the card form cannot be shown.")}</p>
     );
   }
 
@@ -167,7 +164,7 @@ function StripeForm({ amount, returnUrl, onSettled }: { amount: Money; returnUrl
       )}
 
       <Button type="submit" pending={pending} disabled={stripe === null || elements === null}>
-        Pay <Amount money={amount} />
+        {t("Pay")}{' '}<Amount money={amount} />
       </Button>
     </form>
   );

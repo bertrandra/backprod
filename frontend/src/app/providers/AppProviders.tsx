@@ -5,6 +5,7 @@ import { useState, type ReactNode } from 'react';
 import { detectRoot } from '@/app/root';
 import { buildRouter, type AppRouter } from '@/app/router';
 import { useSessionStore } from '@/state/session';
+import { useLocale } from '@/i18n/useLocale';
 import { SignInGate } from '@/features/auth/SignInGate';
 import { ApiError } from '@/queries/session';
 
@@ -83,8 +84,18 @@ export function App({ router }: { router?: AppRouter }) {
     return buildRouter(detected.root);
   });
 
+  // The language (ADR-050): decided once from the address and the browser,
+  // applied by keying the whole tree on it — a change is rare, and remounting
+  // is cheaper and surer than a thousand subscriptions. Nothing renders
+  // before the catalogue is in, so no screen paints English and then flips.
+  const { locale, ready } = useLocale();
+
+  if (!ready) {
+    return null;
+  }
+
   return (
-    <AppProviders>
+    <AppProviders key={locale}>
       <SignInGate>
         <RouterProvider router={resolved} />
       </SignInGate>

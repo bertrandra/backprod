@@ -3,6 +3,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `console.admin.audit` — the trail.
@@ -31,16 +32,16 @@ export function AuditScreen() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={'Audit'}
-        description={'What was done, by whom, and to what. An act whose author has since been erased keeps its place here — the act happened, and forgetting the person does not unmake it.'}
+        title={t("Audit")}
+        description={t("What was done, by whom, and to what. An act whose author has since been erased keeps its place here — the act happened, and forgetting the person does not unmake it.")}
       />
 
       {audit.data.entries.length === 0 ? (
-        <EmptyState title="Nothing recorded" description="No audited act has happened yet." />
+        <EmptyState title={t("Nothing recorded")} description={t("No audited act has happened yet.")} />
       ) : (
         <>
           <p data-testid="audit-count" className="text-xs text-subtle">
-            Showing {audit.data.entries.length} of {audit.data.total}.
+            {t("Showing")}{' '}{audit.data.entries.length} {t("of")}{' '}{audit.data.total}.
           </p>
 
           <ul className="space-y-2">
@@ -69,16 +70,14 @@ function Actor({ actor }: { actor: Record<string, unknown> }) {
   if (erased) {
     return (
       <span data-testid="actor" data-actor="erased" className="text-muted">
-        a person since erased
-      </span>
+        {t("a person since erased")}</span>
     );
   }
 
   if (userId === null) {
     return (
       <span data-testid="actor" data-actor="system" className="text-muted">
-        the platform itself
-      </span>
+        {t("the platform itself")}</span>
     );
   }
 
@@ -104,22 +103,22 @@ function Entry({ entry }: { entry: AuditEntry }) {
           {entry.subject_id !== null && ` ${entry.subject_id}`}
         </span>
         <span className="ml-auto text-xs text-subtle">
-          {new Date(entry.occurred_at).toLocaleString()}
+          {new Date(entry.occurred_at).toLocaleString(currentLocale())}
         </span>
       </div>
 
       <p className="mt-1 text-xs text-muted">
-        by <Actor actor={entry.actor} />
+        {t("by")}{' '}<Actor actor={entry.actor} />
         {entry.tenant_id !== null && (
           <>
             {' '}
-            · tenant <code>{entry.tenant_id}</code>
+            {t("· tenant")}{' '}<code>{entry.tenant_id}</code>
           </>
         )}
         {entry.request_id !== null && (
           <>
             {' '}
-            · request <code className="select-all">{entry.request_id}</code>
+            {t("· request")}{' '}<code className="select-all">{entry.request_id}</code>
           </>
         )}
       </p>

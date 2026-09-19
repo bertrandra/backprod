@@ -7,6 +7,7 @@ import type { PublicOffer, PublicTenant } from '@/queries/storefront';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { PageHeader } from '@/ui/Page';
+import { t } from '@/i18n';
 
 /**
  * Asking to join the organisation whose root this is.
@@ -82,13 +83,13 @@ export function SignUpForm({
   return (
     <main className="mx-auto max-w-sm space-y-6 p-4 py-10">
       <PageHeader
-        title={`Join ${tenant.name}`}
+        title={t("Join {name}", { name: tenant.name })}
         description={
           waits
-            ? 'An administrator of the organisation accepts new members; you will be told by email. We will also send you a link to confirm your address.'
+            ? t("An administrator of the organisation accepts new members; you will be told by email. We will also send you a link to confirm your address.")
             : offer === null || !paysHere
-              ? 'You will be a member straight away. We will email you a link to confirm your address — your account works in the meantime.'
-              : 'You will be able to pay straight after. We will email you a link to confirm your address — your account works in the meantime.'
+              ? t("You will be a member straight away. We will email you a link to confirm your address — your account works in the meantime.")
+              : t("You will be able to pay straight after. We will email you a link to confirm your address — your account works in the meantime.")
         }
       />
 
@@ -103,10 +104,10 @@ export function SignUpForm({
           </div>
           <p className="mt-1 text-xs text-muted">
             {waits
-              ? `What you came for. Once an administrator of ${tenant.name} has accepted you, it is one click away in the catalogue.`
+              ? t("What you came for. Once an administrator of {name} has accepted you, it is one click away in the catalogue.", { name: tenant.name })
               : paysHere
-                ? `What you came for, taken out for ${tenant.name}.`
-                : 'What you came for. It is one click away in the catalogue once your account exists.'}
+                ? t("What you came for, taken out for {name}.", { name: tenant.name })
+                : t("What you came for. It is one click away in the catalogue once your account exists.")}
           </p>
           <button
             type="button"
@@ -114,8 +115,7 @@ export function SignUpForm({
             onClick={onBack}
             className="mt-1 text-xs underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
           >
-            Back to the catalogue
-          </button>
+            {t("Back to the catalogue")}</button>
         </div>
       )}
 
@@ -143,7 +143,7 @@ export function SignUpForm({
           })(event);
         }}
       >
-        <Field id="signup-email" label="Email" error={form.formState.errors.email?.message}>
+        <Field id="signup-email" label={t("Email")} error={form.formState.errors.email?.message}>
           <input
             id="signup-email"
             type="email"
@@ -156,8 +156,8 @@ export function SignUpForm({
 
         <Field
           id="signup-password"
-          label="Password"
-          hint="At least 12 characters."
+          label={t("Password")}
+          hint={t("At least 12 characters.")}
           error={form.formState.errors.password?.message}
         >
           <input
@@ -169,7 +169,7 @@ export function SignUpForm({
           />
         </Field>
 
-        <Field id="signup-name" label="Your name" error={form.formState.errors.display_name?.message}>
+        <Field id="signup-name" label={t("Your name")} error={form.formState.errors.display_name?.message}>
           <input
             id="signup-name"
             type="text"
@@ -189,20 +189,19 @@ export function SignUpForm({
         )}
 
         <Button type="submit" pending={signUp.isPending}>
-          {offer !== null && !waits && paysHere ? 'Create account and continue' : 'Create account and join'}
+          {offer !== null && !waits && paysHere ? t("Create account and continue") : t("Create account and join")}
         </Button>
       </form>
 
       <p className="text-sm text-muted">
-        Already have an account?{' '}
+        {t("Already have an account?")}{' '}
         <button
           type="button"
           data-testid="sign-in-link"
           onClick={onSignIn}
           className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
         >
-          Sign in
-        </button>
+          {t("Sign in")}</button>
         {offer === null && (
           <>
             {' · '}
@@ -212,8 +211,7 @@ export function SignUpForm({
               onClick={onBack}
               className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
             >
-              Back to the catalogue
-            </button>
+              {t("Back to the catalogue")}</button>
           </>
         )}
       </p>

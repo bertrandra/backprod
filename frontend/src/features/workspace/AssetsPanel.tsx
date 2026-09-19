@@ -11,6 +11,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { t } from '@/i18n';
 
 /**
  * `workspace.assets` — files on a project.
@@ -49,7 +50,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
   return (
     <section className="space-y-3" data-testid="assets-panel">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-xl font-semibold">Files</h2>
+        <h2 className="text-xl font-semibold">{t("Files")}</h2>
 
         <Button
           type="button"
@@ -58,14 +59,11 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
           onClick={() => requestExport.mutate()}
           className="ml-auto"
         >
-          Export project
-        </Button>
+          {t("Export project")}</Button>
       </div>
 
       <p className="text-sm text-muted">
-        An export is queued rather than produced here — watch it finish in the status strip, then
-        download it from this list.
-      </p>
+        {t("An export is queued rather than produced here — watch it finish in the status strip, then download it from this list.")}</p>
 
       {requestExport.error !== null && <ErrorSurface error={requestExport.error} />}
       {link.error !== null && <ErrorSurface error={link.error} />}
@@ -102,7 +100,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
       ) : assets.error !== null ? (
         <ErrorSurface error={assets.error} onRetry={() => void assets.refetch()} />
       ) : assets.data.length === 0 ? (
-        <EmptyState title="No files" description="Upload one, or export the project." />
+        <EmptyState title={t("No files")} description={t("Upload one, or export the project.")} />
       ) : (
         <ul className="space-y-2">
           {assets.data.map((asset) => (
@@ -117,7 +115,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
                   {/* The sniffed type and the stored size, both the server's
                       answers. The checksum is shown because it is what makes a
                       corrupted download detectable. */}
-                  {asset.content_type} · {asset.byte_size} bytes · {asset.checksum.slice(0, 12)}
+                  {asset.content_type} · {asset.byte_size} {t("bytes ·")}{' '}{asset.checksum.slice(0, 12)}
                 </p>
               </div>
 
@@ -128,8 +126,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
                   pending={link.isPending}
                   onClick={() => download(asset.id)}
                 >
-                  Download
-                </Button>
+                  {t("Download")}</Button>
 
                 {confirming === asset.id ? (
                   <>
@@ -141,11 +138,9 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
                         remove.mutate(asset.id, { onSettled: () => setConfirming(null) })
                       }
                     >
-                      Delete for good
-                    </Button>
+                      {t("Delete for good")}</Button>
                     <Button type="button" variant="secondary" onClick={() => setConfirming(null)}>
-                      Keep
-                    </Button>
+                      {t("Keep")}</Button>
                   </>
                 ) : (
                   <Button
@@ -153,8 +148,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
                     variant="secondary"
                     onClick={() => setConfirming(asset.id)}
                   >
-                    Delete
-                  </Button>
+                    {t("Delete")}</Button>
                 )}
               </div>
             </li>

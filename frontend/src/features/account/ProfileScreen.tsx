@@ -9,6 +9,7 @@ import { useSession } from '@/queries/session';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { currentLocale, isLocale, LOCALE_NAMES, LOCALES, setLocale, t } from '@/i18n';
 
 /**
  * `account.profile` — the person, not the company.
@@ -22,6 +23,8 @@ const schema = z.object({
   displayName: z.string().trim().max(120, 'A display name is at most 120 characters.'),
   // A code among the products this person holds, or none.
   defaultProduct: z.string(),
+  // The language they read in (ADR-050): one the platform speaks.
+  locale: z.enum(LOCALES),
 });
 
 type Values = z.infer<typeof schema>;
@@ -34,7 +37,11 @@ export function ProfileScreen() {
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    values: { displayName: session.data?.displayName ?? '', defaultProduct: mine.data?.default ?? '' },
+    values: {
+      displayName: session.data?.displayName ?? '',
+      defaultProduct: mine.data?.default ?? '',
+      locale: isLocale(session.data?.locale) ? session.data.locale : currentLocale(),
+    },
   });
 
   if (session.isPending) {
@@ -47,10 +54,10 @@ export function ProfileScreen() {
 
   return (
     <div className="max-w-lg space-y-4">
-      <h1 className="text-2xl font-semibold">Your profile</h1>
+      <h1 className="text-2xl font-semibold">{t("Your profile")}</h1>
 
       <p className="text-sm text-muted">
-        {session.data?.email ?? 'No email address on this account.'}
+        {session.data?.email ?? t("No email address on this account.")}
       </p>
 
       <form
@@ -62,17 +69,23 @@ export function ProfileScreen() {
             // Empty means "clear it": the contract distinguishes an absent field,
             // which leaves the name alone, from null, which removes it. Sending
             // an empty string would store a name that is no name.
-            update.mutate({
-              display_name: values.displayName === '' ? null : values.displayName,
-              default_product: values.defaultProduct === '' ? null : values.defaultProduct,
-            });
+            update.mutate(
+              {
+                display_name: values.displayName === '' ? null : values.displayName,
+                default_product: values.defaultProduct === '' ? null : values.defaultProduct,
+                locale: values.locale,
+              },
+              // Applied the moment it is saved: the whole page re-renders in
+              // the language just chosen.
+              { onSuccess: () => void setLocale(values.locale) },
+            );
           })(event);
         }}
       >
         <Field
           id="display-name"
-          label="Display name"
-          hint="Shown to other members of your organisation. Leave empty to remove it."
+          label={t("Display name")}
+          hint={t("Shown to other members of your organisation. Leave empty to remove it.")}
           error={form.formState.errors.displayName?.message}
         >
           <input
@@ -88,8 +101,8 @@ export function ProfileScreen() {
             has a visible answer. */}
         <Field
           id="default-product"
-          label="Default product"
-          hint="The product your screens open in when a link does not say which."
+          label={t("Default product")}
+          hint={t("The product your screens open in when a link does not say which.")}
           error={form.formState.errors.defaultProduct?.message}
         >
           <select
@@ -99,10 +112,25 @@ export function ProfileScreen() {
             disabled={mine.data === undefined}
             {...form.register('defaultProduct')}
           >
-            <option value="">Whichever comes first</option>
+            <option value="">{t("Whichever comes first")}</option>
             {(mine.data?.products ?? []).map((product) => (
               <option key={product.code} value={product.code}>
                 {product.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field
+          id="locale"
+          label={t("Language")}
+          hint={t("The language your screens and the platform's mails use.")}
+          error={form.formState.errors.locale?.message}
+        >
+          <select id="locale" data-testid="locale" className={inputClass(form.formState.errors.locale !== undefined)} {...form.register('locale')}>
+            {LOCALES.map((code) => (
+              <option key={code} value={code}>
+                {LOCALE_NAMES[code]}
               </option>
             ))}
           </select>
@@ -112,13 +140,11 @@ export function ProfileScreen() {
 
         <div className="flex items-center gap-3">
           <Button type="submit" pending={update.isPending}>
-            Save
-          </Button>
+            {t("Save")}</Button>
 
           {update.isSuccess && !form.formState.isDirty && (
             <span role="status" className="text-sm text-muted">
-              Saved
-            </span>
+              {t("Saved")}</span>
           )}
         </div>
       </form>
@@ -137,8 +163,7 @@ export function ProfileScreen() {
           pending={signOut.isPending}
           onClick={() => signOut.mutate()}
         >
-          Sign out
-        </Button>
+          {t("Sign out")}</Button>
       </div>
     </div>
   );

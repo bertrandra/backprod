@@ -3,6 +3,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { t } from '@/i18n';
 
 /**
  * `/demo` — the demonstration page (2026-09-18).
@@ -41,13 +42,12 @@ export function DemoPage() {
     return (
       <main className="mx-auto max-w-4xl space-y-8 p-4 py-10" data-testid="demo-off">
         <EmptyState
-          title="No demonstration page"
-          description="This deployment does not show one. A platform administrator can switch it on from Console → Demo."
+          title={t("No demonstration page")}
+          description={t("This deployment does not show one. A platform administrator can switch it on from Console → Demo.")}
         />
         <p className="text-center text-sm">
           <a href="/" className="underline underline-offset-2">
-            Home page
-          </a>
+            {t("Home page")}</a>
         </p>
       </main>
     );
@@ -60,19 +60,16 @@ function DemoScreen({ contents }: { contents: DemoContents }) {
   return (
     <main className="mx-auto max-w-4xl space-y-10 p-4 py-10" data-testid="demo-page">
       <header className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-subtle">Demonstration</p>
-        <h1 className="text-3xl font-semibold">What this platform hosts</h1>
+        <p className="text-xs font-semibold uppercase tracking-wide text-subtle">{t("Demonstration")}</p>
+        <h1 className="text-3xl font-semibold">{t("What this platform hosts")}</h1>
         <p className="max-w-prose text-sm text-muted">
-          Every product with what is on sale for it, and every organisation with its address, its
-          products, its subscriptions and its people. Open an organisation to see its own window;
-          sign in as one of its people to see the application from inside.
-        </p>
+          {t("Every product with what is on sale for it, and every organisation with its address, its products, its subscriptions and its people. Open an organisation to see its own window; sign in as one of its people to see the application from inside.")}</p>
       </header>
 
       <section className="space-y-4" data-testid="demo-products">
-        <h2 className="text-xl font-semibold">Products and offers</h2>
+        <h2 className="text-xl font-semibold">{t("Products and offers")}</h2>
         {contents.products.length === 0 ? (
-          <EmptyState title="No product yet" description="Nothing is hosted here." />
+          <EmptyState title={t("No product yet")} description={t("Nothing is hosted here.")} />
         ) : (
           <ul className="grid gap-4 sm:grid-cols-2">
             {contents.products.map((product) => (
@@ -86,7 +83,7 @@ function DemoScreen({ contents }: { contents: DemoContents }) {
                   <code className="text-xs text-subtle">{product.code}</code>
                 </div>
                 {product.offers.length === 0 ? (
-                  <p className="text-sm text-subtle">Nothing on sale.</p>
+                  <p className="text-sm text-subtle">{t("Nothing on sale.")}</p>
                 ) : (
                   <ul className="space-y-1.5 text-sm">
                     {product.offers.map((offer) => (
@@ -110,9 +107,9 @@ function DemoScreen({ contents }: { contents: DemoContents }) {
       </section>
 
       <section className="space-y-4" data-testid="demo-tenants">
-        <h2 className="text-xl font-semibold">Organisations</h2>
+        <h2 className="text-xl font-semibold">{t("Organisations")}</h2>
         {contents.tenants.length === 0 ? (
-          <EmptyState title="No organisation yet" description="The platform has made none." />
+          <EmptyState title={t("No organisation yet")} description={t("The platform has made none.")} />
         ) : (
           <ul className="space-y-4">
             {contents.tenants.map((tenant) => {
@@ -130,25 +127,25 @@ function DemoScreen({ contents }: { contents: DemoContents }) {
                         {tenant.name}
                       </a>
                       {tenant.is_default && (
-                        <span className="ml-2 text-xs font-normal text-subtle">default — the bare host</span>
+                        <span className="ml-2 text-xs font-normal text-subtle">{t("default — the bare host")}</span>
                       )}
                     </h3>
                     <span className="text-xs text-subtle">
-                      <code>{home}</code> · joins by {tenant.join_policy.toLowerCase()}
+                      <code>{home}</code> {t("· joins by")}{' '}{tenant.join_policy.toLowerCase()}
                     </span>
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-1 text-sm">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-subtle">Products</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-subtle">{t("Products")}</p>
                       {tenant.products.length === 0 ? (
-                        <p className="text-subtle">None assigned.</p>
+                        <p className="text-subtle">{t("None assigned.")}</p>
                       ) : (
                         <p>{tenant.products.join(', ')}</p>
                       )}
-                      <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-subtle">Subscriptions</p>
+                      <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-subtle">{t("Subscriptions")}</p>
                       {tenant.subscriptions.length === 0 ? (
-                        <p className="text-subtle">None.</p>
+                        <p className="text-subtle">{t("None.")}</p>
                       ) : (
                         <ul className="space-y-0.5">
                           {tenant.subscriptions.map((subscription, index) => (
@@ -162,14 +159,14 @@ function DemoScreen({ contents }: { contents: DemoContents }) {
                     </div>
 
                     <div className="space-y-1 text-sm">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-subtle">People</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-subtle">{t("People")}</p>
                       {tenant.members.length === 0 ? (
-                        <p className="text-subtle">Nobody yet.</p>
+                        <p className="text-subtle">{t("Nobody yet.")}</p>
                       ) : (
                         <ul className="space-y-1">
                           {tenant.members.map((member, index) => (
                             <li key={index} className="flex flex-wrap items-baseline gap-x-2">
-                              <span>{member.display_name ?? member.email ?? 'Unnamed'}</span>
+                              <span>{member.display_name ?? member.email ?? t("Unnamed")}</span>
                               {member.email !== null && member.display_name !== null && (
                                 <span className="text-xs text-subtle">{member.email}</span>
                               )}

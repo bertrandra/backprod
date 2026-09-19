@@ -12,6 +12,7 @@ import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { FieldCell, FieldGroup, FieldRow, FormActions, FormCard } from '@/ui/Form';
 import { Section } from '@/ui/Page';
+import { t } from '@/i18n';
 
 /**
  * `tenant.branding` — the screen U2 exists to build.
@@ -69,21 +70,21 @@ export function BrandingScreen() {
 
   return (
     <div className="max-w-lg space-y-6">
-      <h1 className="text-2xl font-semibold">Branding</h1>
+      <h1 className="text-2xl font-semibold">{t("Branding")}</h1>
 
       {/* The two refusals, told apart. Shown above the form rather than instead
           of it, because the current values are worth seeing either way. */}
       {!entitled && (
         <EmptyState
-          title="Your plan does not include white labelling"
-          description="This one is answered by an upgrade rather than by an administrator of your organisation."
+          title={t("Your plan does not include white labelling")}
+          description={t("This one is answered by an upgrade rather than by an administrator of your organisation.")}
         />
       )}
 
       {entitled && !mayManage && (
         <EmptyState
-          title="You may not change the branding"
-          description="An administrator of your organisation can grant this."
+          title={t("You may not change the branding")}
+          description={t("An administrator of your organisation can grant this.")}
         />
       )}
 
@@ -101,14 +102,14 @@ export function BrandingScreen() {
       >
         <FieldGroup
           legend="Colours"
-          hint="Lower-case hex, like #1a2b3c. Leave either empty to fall back to the product's own — which is not the same as setting it to the product's current value, because the product's may change."
+          hint={t("Lower-case hex, like #1a2b3c. Leave either empty to fall back to the product's own — which is not the same as setting it to the product's current value, because the product's may change.")}
         >
           <FieldRow>
             {(['primary', 'accent'] as const).map((which) => (
               <FieldCell key={which} width="medium">
                 <Field
                   id={`${which}-color`}
-                  label={which === 'primary' ? 'Primary colour' : 'Accent colour'}
+                  label={which === 'primary' ? t("Primary colour") : t("Accent colour")}
                   error={form.formState.errors[which]?.message}
                 >
                   <div className="flex items-center gap-2">
@@ -143,19 +144,18 @@ export function BrandingScreen() {
         {writable && (
           <FormActions>
             <Button type="submit" pending={update.isPending}>
-              Save colours
-            </Button>
+              {t("Save colours")}</Button>
           </FormActions>
         )}
       </FormCard>
 
       <Section
         className="border-t border-line pt-6"
-        title="Logo"
+        title={t("Logo")}
         description={
           skin.data.logo_asset_id === null
-            ? 'No logo, so the product’s own is used.'
-            : 'A logo is set.'
+            ? t("No logo, so the product’s own is used.")
+            : t("A logo is set.")
         }
       >
         {upload.error !== null && <ErrorSurface error={upload.error} />}
@@ -169,7 +169,7 @@ export function BrandingScreen() {
               // The contract's own list. SVG is deliberately absent — ADR-028
               // refuses it for the stored-scripting reason.
               accept={LOGO_TYPES.join(',')}
-              aria-label="Choose a logo image"
+              aria-label={t("Choose a logo image")}
               className="text-sm"
               onChange={(event) => {
                 const file = event.target.files?.[0];
@@ -189,7 +189,7 @@ export function BrandingScreen() {
               }}
             />
 
-            {upload.isPending && <span role="status">Uploading…</span>}
+            {upload.isPending && <span role="status">{t("Uploading…")}</span>}
 
             {skin.data.logo_asset_id !== null && (
               <Button
@@ -198,8 +198,7 @@ export function BrandingScreen() {
                 pending={remove.isPending}
                 onClick={() => remove.mutate()}
               >
-                Remove logo
-              </Button>
+                {t("Remove logo")}</Button>
             )}
           </div>
         )}

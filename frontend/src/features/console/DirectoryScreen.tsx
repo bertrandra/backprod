@@ -14,6 +14,7 @@ import { Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `console.admin.directory` — tenants, users, subscriptions, invoices.
@@ -56,8 +57,8 @@ export function DirectoryScreen() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={'Directory'}
-        description={'Every tenant, person, subscription and invoice on the platform. Counts are counted, not inferred from a short page.'}
+        title={t("Directory")}
+        description={t("Every tenant, person, subscription and invoice on the platform. Counts are counted, not inferred from a short page.")}
       />
 
       <nav className="flex flex-wrap gap-1 border-b border-line">
@@ -82,13 +83,13 @@ export function DirectoryScreen() {
       <div className="max-w-sm">
         <Field
           id="filter"
-          label={current === 'tenants' || current === 'users' ? 'Search' : 'Status'}
+          label={current === 'tenants' || current === 'users' ? t("Search") : t("Status")}
           hint={
             current === 'users'
-              ? 'By email or display name. An erased person has neither, so no search will find them.'
+              ? t("By email or display name. An erased person has neither, so no search will find them.")
               : current === 'tenants'
-                ? 'By name or slug. Your own % and _ are literal here, not wildcards.'
-                : 'Exactly as the API spells it.'
+                ? t("By name or slug. Your own % and _ are literal here, not wildcards.")
+                : t("Exactly as the API spells it.")
           }
         >
           <input
@@ -111,7 +112,7 @@ export function DirectoryScreen() {
 function Count({ shown, total }: { shown: number; total: number }) {
   return (
     <p data-testid="directory-count" className="text-xs text-subtle">
-      Showing {shown} of {total}.
+      {t("Showing")}{' '}{shown} {t("of")}{' '}{total}.
     </p>
   );
 }
@@ -130,7 +131,7 @@ function Tenants({ search }: { search: string }) {
   const rows = list.data.tenants;
 
   if (rows.length === 0) {
-    return <EmptyState title="No tenants" description="Nothing matches that search." />;
+    return <EmptyState title={t("No tenants")} description={t("Nothing matches that search.")} />;
   }
 
   return (
@@ -148,9 +149,7 @@ function Tenants({ search }: { search: string }) {
               <span className="text-xs text-subtle">{tenant.slug}</span>
             </div>
             <p className="mt-1 text-xs text-muted">
-              {tenant.members ?? 0} members · {tenant.active_subscriptions ?? 0} active
-              subscriptions · {tenant.unpaid_invoices ?? 0} unpaid invoices
-            </p>
+              {tenant.members ?? 0} {t("members ·")}{' '}{tenant.active_subscriptions ?? 0} {t("active subscriptions ·")}{' '}{tenant.unpaid_invoices ?? 0} {t("unpaid invoices")}</p>
           </li>
         ))}
       </ul>
@@ -174,8 +173,8 @@ function Users({ search }: { search: string }) {
   if (rows.length === 0) {
     return (
       <EmptyState
-        title="No people"
-        description="Nothing matches. An erased person matches no search, having neither a name nor an email."
+        title={t("No people")}
+        description={t("Nothing matches. An erased person matches no search, having neither a name nor an email.")}
       />
     );
   }
@@ -199,24 +198,23 @@ function Users({ search }: { search: string }) {
                     rather than as a person with missing fields. */}
                 {erased ? (
                   <span data-testid="erased-identity" className="italic text-subtle">
-                    erased — this person asked to be forgotten
-                  </span>
+                    {t("erased — this person asked to be forgotten")}</span>
                 ) : (
                   <>
-                    <span className="font-medium">{user.display_name ?? 'no name'}</span>
-                    <span className="text-xs text-subtle">{user.email ?? 'no email'}</span>
+                    <span className="font-medium">{user.display_name ?? t("no name")}</span>
+                    <span className="text-xs text-subtle">{user.email ?? t("no email")}</span>
                   </>
                 )}
 
                 <span className="ml-auto text-xs text-subtle">
-                  {user.tenants ?? 0} organisation{user.tenants === 1 ? '' : 's'}
+                  {user.tenants ?? 0} {t("organisation")}{user.tenants === 1 ? '' : 's'}
                 </span>
               </div>
 
               <p className="mt-1 text-xs text-muted">
                 <code className="select-all">{user.id}</code>
                 {erased && user.erased_at !== null && user.erased_at !== undefined && (
-                  <> · erased {new Date(user.erased_at).toLocaleDateString()}</>
+                  <> {t("· erased")}{' '}{new Date(user.erased_at).toLocaleDateString(currentLocale())}</>
                 )}
               </p>
             </li>
@@ -241,7 +239,7 @@ function Subscriptions({ status }: { status: string }) {
   const rows = list.data.subscriptions;
 
   if (rows.length === 0) {
-    return <EmptyState title="No subscriptions" description="Nothing matches that status." />;
+    return <EmptyState title={t("No subscriptions")} description={t("Nothing matches that status.")} />;
   }
 
   return (
@@ -275,16 +273,16 @@ function Subscriptions({ status }: { status: string }) {
             {/* Periodicity and commitment, side by side and never added
                 together (non-negotiable #23). */}
             <p className="mt-1 text-xs text-muted">
-              period ends{' '}
+              {t("period ends")}{' '}
               {subscription.current_period_end === null ||
               subscription.current_period_end === undefined
                 ? 'open'
-                : new Date(subscription.current_period_end).toLocaleDateString()}{' '}
-              · commitment{' '}
+                : new Date(subscription.current_period_end).toLocaleDateString(currentLocale())}{' '}
+              {t("· commitment")}{' '}
               {subscription.commitment_ends_at === null ||
               subscription.commitment_ends_at === undefined
-                ? 'none recorded'
-                : `until ${new Date(subscription.commitment_ends_at).toLocaleDateString()}`}
+                ? t("none recorded")
+                : `until ${new Date(subscription.commitment_ends_at).toLocaleDateString(currentLocale())}`}
               {subscription.cancel_at_period_end === true && ' · ends at the period boundary'}
             </p>
           </li>
@@ -308,7 +306,7 @@ function Invoices({ status }: { status: string }) {
   const rows = list.data.invoices;
 
   if (rows.length === 0) {
-    return <EmptyState title="No invoices" description="Nothing matches that status." />;
+    return <EmptyState title={t("No invoices")} description={t("Nothing matches that status.")} />;
   }
 
   return (
@@ -324,7 +322,7 @@ function Invoices({ status }: { status: string }) {
             <div className="flex flex-wrap items-baseline gap-2">
               {/* A draft has no legal number, and no placeholder is invented. */}
               <code data-testid="invoice-number" className="text-xs">
-                {invoice.number ?? 'no number yet'}
+                {invoice.number ?? t("no number yet")}
               </code>
               <span className="rounded bg-well px-1.5 py-0.5 text-xs">
                 {invoice.status}
@@ -341,14 +339,14 @@ function Invoices({ status }: { status: string }) {
             </div>
 
             <p className="mt-1 text-xs text-muted">
-              net{' '}
+              {t("net")}{' '}
               <Amount
                 money={{
                   minor_units: invoice.net_minor_units ?? 0,
                   currency: invoice.currency ?? 'EUR',
                 }}
               />{' '}
-              · VAT{' '}
+              {t("· VAT")}{' '}
               <Amount
                 money={{
                   minor_units: invoice.vat_minor_units ?? 0,
@@ -357,7 +355,7 @@ function Invoices({ status }: { status: string }) {
               />
               {invoice.issued_at !== null &&
                 invoice.issued_at !== undefined &&
-                ` · issued ${new Date(invoice.issued_at).toLocaleDateString()}`}
+                t(" · issued {value}", { value: new Date(invoice.issued_at).toLocaleDateString(currentLocale()) })}
             </p>
           </li>
         ))}

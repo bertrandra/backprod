@@ -4,6 +4,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { t } from '@/i18n';
 
 /**
  * `public.storefront` — the shop window, and the first page anybody sees.
@@ -63,11 +64,11 @@ export function StorefrontScreen({
     return (
       <main className="mx-auto max-w-3xl space-y-8 p-4 py-10">
         <EmptyState
-          title="No such organisation"
-          description="Nothing lives at this address. Check the link you were given, or go to the home page."
+          title={t("No such organisation")}
+          description={t("Nothing lives at this address. Check the link you were given, or go to the home page.")}
         />
         <p className="text-center text-sm">
-          <a href="/" className="underline underline-offset-2">Home page</a>
+          <a href="/" className="underline underline-offset-2">{t("Home page")}</a>
         </p>
       </main>
     );
@@ -82,19 +83,17 @@ export function StorefrontScreen({
           </p>
         )}
         <h1 className="text-3xl font-semibold">
-          {storefront.data?.product?.name ?? 'What we sell'}
+          {storefront.data?.product?.name ?? t("What we sell")}
         </h1>
         <p className="mx-auto max-w-prose text-sm text-muted">
-          Choose a plan to get started. You will create your account as part of the purchase —
-          there is nothing to set up first.
-        </p>
+          {t("Choose a plan to get started. You will create your account as part of the purchase — there is nothing to set up first.")}</p>
       </header>
 
       {several && (
         // Only when there is a choice: a dropdown with one option is a
         // question with one answer, and the container has already given it.
         <div className="mx-auto max-w-xs">
-          <Field id="storefront-product" label="Product">
+          <Field id="storefront-product" label={t("Product")}>
             <select
               id="storefront-product"
               data-testid="storefront-product"
@@ -102,7 +101,7 @@ export function StorefrontScreen({
               value={productCode ?? ''}
               onChange={(event) => onChooseProduct(event.target.value)}
             >
-              {(productCode === null || productCode === '') && <option value="">Select…</option>}
+              {(productCode === null || productCode === '') && <option value="">{t("Select…")}</option>}
               {products.map((product) => (
                 <option key={product.code} value={product.code}>
                   {product.name}
@@ -117,8 +116,8 @@ export function StorefrontScreen({
         // No window anywhere: nothing is advertised on this deployment yet.
         // Not an error, and not something the person reading it can fix.
         <EmptyState
-          title="Nothing on sale yet"
-          description="There is nothing to buy here for now. If you already have an account, sign in below."
+          title={t("Nothing on sale yet")}
+          description={t("There is nothing to buy here for now. If you already have an account, sign in below.")}
         />
       ) : productCode === null || productCode === '' ? (
         // Several windows and none chosen: the question is the dropdown above.
@@ -128,8 +127,8 @@ export function StorefrontScreen({
           <SkeletonRows rows={3} />
         ) : (
           <EmptyState
-            title="Choose a product"
-            description="Pick one above to see what is on sale for it."
+            title={t("Choose a product")}
+            description={t("Pick one above to see what is on sale for it.")}
           />
         )
       ) : storefront.isPending ? (
@@ -141,8 +140,8 @@ export function StorefrontScreen({
         // nothing", because the API deliberately gives one answer for all
         // three — telling them apart here would leak what it withholds.
         <EmptyState
-          title="Nothing on sale here"
-          description="There is nothing to buy for this product yet. If you already have an account, sign in below."
+          title={t("Nothing on sale here")}
+          description={t("There is nothing to buy for this product yet. If you already have an account, sign in below.")}
         />
       ) : (
         // A grid rather than a stack, because the question on this page is
@@ -160,28 +159,27 @@ export function StorefrontScreen({
 
       <footer className="border-t border-line pt-4 text-sm">
         <p className="text-muted">
-          Already have an account?{' '}
+          {t("Already have an account?")}{' '}
           <button
             type="button"
             data-testid="sign-in-link"
             onClick={onSignIn}
             className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
           >
-            Sign in
-          </button>
+            {t("Sign in")}</button>
           {/* The door with nothing in hand (2026-09-17): only once there is
               an organisation to ask, which a bare host with no default and
               an unknown slug both lack. */}
           {onSignUp !== undefined && tenant !== null && (
             <>
-              {' · New here? '}
+              {t(" · New here? ")}
               <button
                 type="button"
                 data-testid="sign-up-link"
                 onClick={onSignUp}
                 className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
               >
-                Ask to join {tenant.name}
+                {t("Ask to join")}{' '}{tenant.name}
               </button>
             </>
           )}
@@ -228,8 +226,7 @@ function OfferCard({ offer, onChoose }: { offer: PublicOffer; onChoose: () => vo
         // Typed nullable in the contract, so said plainly rather than
         // rendered as a zero — and a zero is a legitimate price.
         <p data-testid="no-price" className="text-sm text-subtle">
-          Price on request
-        </p>
+          {t("Price on request")}</p>
       ) : (
         <>
           <p className="flex items-baseline gap-1.5">
@@ -261,8 +258,7 @@ function OfferCard({ offer, onChoose }: { offer: PublicOffer; onChoose: () => vo
           {/* `mt-auto` so every card's button sits on one line across the
               row, however many features each of them lists. */}
           <Button type="button" onClick={onChoose} className="mt-auto w-full">
-            Choose
-          </Button>
+            {t("Choose")}</Button>
         </>
       )}
     </li>

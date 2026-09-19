@@ -1124,21 +1124,29 @@ export function useStorefrontSettings(enabled = true) {
 }
 
 export type MailTemplate = Schemas['MailTemplate'];
-export type MailTemplates = { readonly templates: readonly MailTemplate[]; readonly live: boolean };
+export type MailLocale = 'en' | 'fr' | 'es' | 'de' | 'it';
+export type MailTemplates = {
+  readonly templates: readonly MailTemplate[];
+  readonly live: boolean;
+  readonly locale: MailLocale;
+  readonly locales: readonly string[];
+};
 
 /**
  * The words the platform's mails say (2026-09-19): each editable kind with
  * its default, what stands today and its placeholders — and whether mail
- * leaves this deployment at all.
+ * leaves this deployment at all. Per language (ADR-050): a language with no
+ * words of its own for a type shows English's, which is what a person in
+ * that language receives.
  */
-export function useMailTemplates(enabled = true) {
+export function useMailTemplates(locale: MailLocale, enabled = true) {
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.staff.mailTemplates,
+    queryKey: keys.staff.mailTemplates(locale),
     enabled,
     queryFn: async (): Promise<MailTemplates> => {
-      const { data, error, response } = await client.GET('/api/v1/staff/mail/templates', {});
+      const { data, error, response } = await client.GET('/api/v1/staff/mail/templates', { params: { query: { locale } } });
 
       if (error !== undefined || data === undefined) {
         throw toApiError(response.status, error);
@@ -1155,9 +1163,9 @@ export function useSetMailTemplates() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (templates: Record<string, { subject: string; body: string }>): Promise<MailTemplates> => {
+    mutationFn: async ({ templates, locale }: { templates: Record<string, { subject: string; body: string }>; locale: MailLocale }): Promise<MailTemplates> => {
       const { data, error, response } = await client.PUT('/api/v1/staff/mail/templates', {
-        body: { templates },
+        body: { templates, locale },
       });
 
       if (error !== undefined || data === undefined) {
@@ -1167,19 +1175,19 @@ export function useSetMailTemplates() {
       return data;
     },
     onSuccess: (state) => {
-      queryClient.setQueryData(keys.staff.mailTemplates, state);
+      queryClient.setQueryData(keys.staff.mailTemplates(state.locale), state);
     },
   });
 }
 
-/** A test mail of one kind, to the caller's own address, sent inside the request. */
+/** A test mail of one kind, in one language, to the caller's own address, sent inside the request. */
 export function useSendTestMail() {
   const client = useApiClient();
 
   return useMutation({
-    mutationFn: async (type: string) => {
+    mutationFn: async ({ type, locale }: { type: string; locale: MailLocale }) => {
       const { data, error, response } = await client.POST('/api/v1/staff/mail/test', {
-        body: { type },
+        body: { type, locale },
       });
 
       if (error !== undefined || data === undefined) {

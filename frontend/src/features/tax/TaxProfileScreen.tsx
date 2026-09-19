@@ -11,6 +11,7 @@ import { CountrySelect } from '@/ui/pickers/Select';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `tax.profile` — what the tenant *claims*, and what the platform *checked*.
@@ -95,8 +96,8 @@ export function TaxProfileScreen() {
   return (
     <div className="max-w-2xl space-y-8">
       <PageHeader
-        title={'Tax profile'}
-        description={'What is recorded here decides which VAT regime applies to what you are invoiced. A VAT number is a claim until the registry confirms it; the state below says which it is.'}
+        title={t("Tax profile")}
+        description={t("What is recorded here decides which VAT regime applies to what you are invoiced. A VAT number is a claim until the registry confirms it; the state below says which it is.")}
       />
 
       <Verification profile={current} />
@@ -117,19 +118,19 @@ export function TaxProfileScreen() {
         <fieldset disabled={!mayManage} className="space-y-4">
           <Field
             id="customer_kind"
-            label="Customer kind"
-            hint="B2B and B2C are taxed differently in the same country — this is the question that decides it."
+            label={t("Customer kind")}
+            hint={t("B2B and B2C are taxed differently in the same country — this is the question that decides it.")}
           >
             <select id="customer_kind" className={inputClass()} {...form.register('customer_kind')}>
-              <option value="B2C">B2C — a private individual</option>
-              <option value="B2B">B2B — a business</option>
+              <option value="B2C">{t("B2C — a private individual")}</option>
+              <option value="B2B">{t("B2B — a business")}</option>
             </select>
           </Field>
 
           <Field
             id="country_code"
-            label="Country"
-            hint="Where you are is where the rate is looked up."
+            label={t("Country")}
+            hint={t("Where you are is where the rate is looked up.")}
             error={form.formState.errors.country_code?.message}
           >
             <CountrySelect
@@ -149,19 +150,16 @@ export function TaxProfileScreen() {
                 {...form.register('taxable_person')}
               />
               <span>
-                This organisation is a taxable person
-                <span className="block text-xs text-muted">
-                  A statement about yourself. It is not proof, and on its own it grants nothing —
-                  the verified number below is what does.
-                </span>
+                {t("This organisation is a taxable person")}<span className="block text-xs text-muted">
+                  {t("A statement about yourself. It is not proof, and on its own it grants nothing — the verified number below is what does.")}</span>
               </span>
             </label>
           </div>
 
           <Field
             id="vat_number"
-            label="VAT number"
-            hint="Checked against the registry when saved. Spaces and punctuation are removed first."
+            label={t("VAT number")}
+            hint={t("Checked against the registry when saved. Spaces and punctuation are removed first.")}
           >
             <input id="vat_number" className={inputClass()} {...form.register('vat_number')} />
           </Field>
@@ -169,22 +167,17 @@ export function TaxProfileScreen() {
           {save.error !== null && <ErrorSurface error={save.error} />}
 
           <Button type="submit" pending={save.isPending}>
-            Save
-          </Button>
+            {t("Save")}</Button>
         </fieldset>
 
         {!mayManage && (
           <p data-testid="read-only" className="text-sm text-muted">
-            You can read this profile. Changing it needs <code>tax.manage</code>, which an
-            administrator of your organisation grants.
-          </p>
+            {t("You can read this profile. Changing it needs")}{' '}<code>{'tax.manage'}</code>{t(", which an administrator of your organisation grants.")}</p>
         )}
 
         {save.isSuccess && (
           <p data-testid="saved" className="text-sm text-muted">
-            Saved. The number was normalised and re-checked — the state above is what the check
-            concluded, not what was typed.
-          </p>
+            {t("Saved. The number was normalised and re-checked — the state above is what the check concluded, not what was typed.")}</p>
         )}
       </form>
     </div>
@@ -211,9 +204,9 @@ function Verification({ profile }: { profile: TaxProfile }) {
       className="space-y-3 rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium">VAT number</span>
+        <span className="font-medium">{t("VAT number")}</span>
         {profile.vat_number === null ? (
-          <span className="text-muted">none recorded</span>
+          <span className="text-muted">{t("none recorded")}</span>
         ) : (
           <code data-testid="vat-number">{profile.vat_number}</code>
         )}
@@ -223,14 +216,14 @@ function Verification({ profile }: { profile: TaxProfile }) {
             data-testid="vat-status"
             className={pill(known?.tone ?? 'neutral')}
           >
-            {known?.label ?? status}
+            {known === undefined ? status : t(known.label)}
           </span>
         )}
       </div>
 
       {known !== undefined && (
         <p data-testid="status-explanation" className="text-muted">
-          {known.explanation}
+          {t(known.explanation)}
         </p>
       )}
 
@@ -238,15 +231,15 @@ function Verification({ profile }: { profile: TaxProfile }) {
         // Evidence with a date on it: a number verified last year is re-checked
         // when this gets old, not on every save.
         <p className="text-xs text-subtle">
-          Last checked {new Date(profile.vat_number_verified_at).toLocaleDateString()}
-          {profile.vat_number_country !== null && ` · registry of ${profile.vat_number_country}`}
+          {t("Last checked")}{' '}{new Date(profile.vat_number_verified_at).toLocaleDateString(currentLocale())}
+          {profile.vat_number_country !== null && t(" · registry of {vat_number_country}", { vat_number_country: profile.vat_number_country })}
         </p>
       )}
 
       <p data-testid="reverse-charge" className="border-t border-line pt-3">
         {profile.reverse_charge_available
-          ? 'Reverse charge is available: the invoice carries no VAT and states that you account for it.'
-          : 'Reverse charge is not available. Until the number is verified, VAT is charged — an unproved number is treated as unproved rather than trusted.'}
+          ? t("Reverse charge is available: the invoice carries no VAT and states that you account for it.")
+          : t("Reverse charge is not available. Until the number is verified, VAT is charged — an unproved number is treated as unproved rather than trusted.")}
       </p>
     </section>
   );

@@ -13,6 +13,7 @@ import { cn } from '@/utils/cn';
 
 import { AccessMotiveGate, MotiveInEffect } from './AccessMotiveGate';
 import { ConversationsTab, JobsTab, PaymentsTab, SalesTab, TaxTab, WorkspaceTab } from './tenantTabs';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `console.support.tenant` — one customer, read from the console.
@@ -93,12 +94,12 @@ export function TenantWorkspaceScreen({ tenantId }: { tenantId: string }) {
         description={
           <>
             <code>{tenant.data.slug}</code>
-            {' · holds '}
-            {held.length === 0 ? 'no product' : held.map((product) => product.name).join(', ')}
+            {t(" · holds ")}
+            {held.length === 0 ? t("no product") : held.map((product) => product.name).join(', ')}
             {narrowed !== null && (
               <>
                 {' · '}
-                <span data-testid="narrowed-to">showing {narrowed.name} only</span>
+                <span data-testid="narrowed-to">{t("showing")}{' '}{narrowed.name} {t("only")}</span>
               </>
             )}
           </>
@@ -107,7 +108,7 @@ export function TenantWorkspaceScreen({ tenantId }: { tenantId: string }) {
 
       <MotiveInEffect motive={motive} onChange={() => withdrawMotive(tenantId)} />
 
-      <nav aria-label="Customer sections" className="flex flex-wrap gap-1 border-b border-line">
+      <nav aria-label={t("Customer sections")} className="flex flex-wrap gap-1 border-b border-line">
         {TABS.map((name) => (
           <button
             key={name}
@@ -149,7 +150,7 @@ export function TenantWorkspaceScreen({ tenantId }: { tenantId: string }) {
         (me.data?.permissions.includes('support.read') ?? false ? (
           <ConversationsTab tenantId={tenantId} />
         ) : (
-          <EmptyState title="Not yours to read" description="Support threads need support.read, which your role does not hold." />
+          <EmptyState title={t("Not yours to read")} description={t("Support threads need support.read, which your role does not hold.")} />
         ))}
       {current === 'workspace' && <WorkspaceTab tenantId={tenantId} productCode={narrowed?.code ?? null} motive={motive} />}
       {current === 'jobs' && <JobsTab tenantId={tenantId} productCode={narrowed?.code ?? null} motive={motive} />}
@@ -162,7 +163,7 @@ function NotYours({ what }: { what: string }) {
   return (
     <EmptyState
       title={`Not yours to read`}
-      description={`A customer's ${what} are the platform's finance listings, which your role does not hold (admin.finance.read).`}
+      description={t("A customer's {what} are the platform's finance listings, which your role does not hold (admin.finance.read).", { what: what })}
     />
   );
 }
@@ -171,7 +172,7 @@ function Overview({ tenant }: { tenant: { id: string; name: string; slug: string
   return (
     <section className="space-y-4" data-testid="tab-overview">
       <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[max-content_1fr]">
-        <dt className="text-muted">Products held</dt>
+        <dt className="text-muted">{t("Products held")}</dt>
         <dd>
           {tenant.products.length === 0 ? (
             'None — nothing here can be used until the platform assigns one.'
@@ -186,21 +187,19 @@ function Overview({ tenant }: { tenant: { id: string; name: string; slug: string
             </ul>
           )}
         </dd>
-        <dt className="text-muted">Offer authoring</dt>
-        <dd>{tenant.may_author_offers ? 'Lent the platform\'s catalogue' : 'Not lent'}</dd>
-        <dt className="text-muted">Tenant id</dt>
+        <dt className="text-muted">{t("Offer authoring")}</dt>
+        <dd>{tenant.may_author_offers ? t("Lent the platform's catalogue") : t("Not lent")}</dd>
+        <dt className="text-muted">{t("Tenant id")}</dt>
         <dd>
           <code className="select-all text-xs">{tenant.id}</code>
         </dd>
       </dl>
 
       <p className="text-sm text-muted">
-        Changing what this customer holds or may author is done from the{' '}
+        {t("Changing what this customer holds or may author is done from the")}{' '}
         <Link to="/console/tenants" search={{ selected: tenant.id }} className="underline underline-offset-2">
-          Tenants list
-        </Link>
-        . Everything here is read-only.
-      </p>
+          {t("Tenants list")}</Link>
+        {t(". Everything here is read-only.")}</p>
     </section>
   );
 }
@@ -219,8 +218,8 @@ function Members({ tenantId, productCode, motive }: { tenantId: string; productC
   if (members.data.length === 0) {
     return (
       <EmptyState
-        title="Nobody"
-        description={productCode === null ? 'No member on any product this customer holds.' : `No member on ${productCode}.`}
+        title={t("Nobody")}
+        description={productCode === null ? t("No member on any product this customer holds.") : t("No member on {productCode}.", { productCode: productCode })}
       />
     );
   }
@@ -231,7 +230,7 @@ function Members({ tenantId, productCode, motive }: { tenantId: string; productC
         <li key={member.user_id} data-member={member.user_id} className="rounded-card border border-line bg-surface p-4 text-sm shadow-raise">
           <div className="flex flex-wrap items-baseline gap-2">
             {/* Erased people keep their place with no name (§26). */}
-            <span className="font-medium">{member.display_name ?? member.email ?? 'Erased'}</span>
+            <span className="font-medium">{member.display_name ?? member.email ?? t("Erased")}</span>
             {member.email !== null && member.display_name !== null && (
               <span className="text-xs text-muted">{member.email}</span>
             )}
@@ -243,7 +242,7 @@ function Members({ tenantId, productCode, motive }: { tenantId: string; productC
               ))}
             </span>
           </div>
-          <p className="mt-1 text-xs text-muted">on {member.products.join(', ')}</p>
+          <p className="mt-1 text-xs text-muted">{t("on")}{' '}{member.products.join(', ')}</p>
         </li>
       ))}
     </ul>
@@ -264,7 +263,7 @@ function Subscriptions({ tenantId, productId }: { tenantId: string; productId: s
   const rows = list.data.subscriptions;
 
   if (rows.length === 0) {
-    return <EmptyState title="No subscription" description="This customer has subscribed to nothing here." />;
+    return <EmptyState title={t("No subscription")} description={t("This customer has subscribed to nothing here.")} />;
   }
 
   return (
@@ -282,14 +281,14 @@ function Subscriptions({ tenantId, productId }: { tenantId: string; productId: s
           </div>
           {/* Periodicity and commitment, side by side and never added together (#23). */}
           <p className="mt-1 text-xs text-muted">
-            period ends{' '}
+            {t("period ends")}{' '}
             {subscription.current_period_end === null || subscription.current_period_end === undefined
               ? 'open'
-              : new Date(subscription.current_period_end).toLocaleDateString()}{' '}
-            · commitment{' '}
+              : new Date(subscription.current_period_end).toLocaleDateString(currentLocale())}{' '}
+            {t("· commitment")}{' '}
             {subscription.commitment_ends_at === null || subscription.commitment_ends_at === undefined
-              ? 'none recorded'
-              : `until ${new Date(subscription.commitment_ends_at).toLocaleDateString()}`}
+              ? t("none recorded")
+              : `until ${new Date(subscription.commitment_ends_at).toLocaleDateString(currentLocale())}`}
           </p>
         </li>
       ))}
@@ -311,7 +310,7 @@ function Invoices({ tenantId, productId }: { tenantId: string; productId: string
   const rows = list.data.invoices;
 
   if (rows.length === 0) {
-    return <EmptyState title="No invoice" description="Nothing has been invoiced to this customer here." />;
+    return <EmptyState title={t("No invoice")} description={t("Nothing has been invoiced to this customer here.")} />;
   }
 
   return (
@@ -320,7 +319,7 @@ function Invoices({ tenantId, productId }: { tenantId: string; productId: string
         <li key={invoice.id ?? ''} data-invoice={invoice.id ?? ''} className="rounded-card border border-line bg-surface p-4 text-sm shadow-raise">
           <div className="flex flex-wrap items-baseline gap-2">
             {/* A draft has no legal number, and no placeholder is invented. */}
-            <code className="text-xs">{invoice.number ?? 'no number yet'}</code>
+            <code className="text-xs">{invoice.number ?? t("no number yet")}</code>
             <span className="rounded bg-well px-1.5 py-0.5 text-xs">{invoice.status}</span>
             <span className="ml-auto">
               <Amount money={{ minor_units: invoice.gross_minor_units ?? 0, currency: invoice.currency ?? 'EUR' }} />
@@ -328,9 +327,9 @@ function Invoices({ tenantId, productId }: { tenantId: string; productId: string
           </div>
           <p className="mt-1 text-xs text-muted">
             {invoice.issued_at === null || invoice.issued_at === undefined
-              ? 'not issued'
-              : `issued ${new Date(invoice.issued_at).toLocaleDateString()}`}
-            {invoice.paid_at !== null && invoice.paid_at !== undefined && ` · paid ${new Date(invoice.paid_at).toLocaleDateString()}`}
+              ? t("not issued")
+              : `issued ${new Date(invoice.issued_at).toLocaleDateString(currentLocale())}`}
+            {invoice.paid_at !== null && invoice.paid_at !== undefined && t(" · paid {value}", { value: new Date(invoice.paid_at).toLocaleDateString(currentLocale()) })}
           </p>
         </li>
       ))}

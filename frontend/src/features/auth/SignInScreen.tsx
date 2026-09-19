@@ -8,6 +8,7 @@ import { useForgotPassword, useResetPassword, useSignIn, useVerifyEmail } from '
 import { useSessionStore } from '@/state/session';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { PageHeader } from '@/ui/Page';
+import { t } from '@/i18n';
 
 /**
  * How a person gets a token.
@@ -113,8 +114,8 @@ export function SignInScreen() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-4">
       <PageHeader
-        title={'Sign in'}
-        description={'Use the email address your organisation was invited with.'}
+        title={t("Sign in")}
+        description={t("Use the email address your organisation was invited with.")}
       />
 
       {token !== null && token !== '' && (
@@ -124,10 +125,10 @@ export function SignInScreen() {
           className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
         >
           {verification.isSuccess
-            ? 'Your email address is confirmed. Sign in below.'
+            ? t("Your email address is confirmed. Sign in below.")
             : verification.isError
-              ? 'That confirmation link is no longer valid — it may have been used already or expired. You can still sign in; ask for a new link from your profile.'
-              : 'Confirming your email address…'}
+              ? t("That confirmation link is no longer valid — it may have been used already or expired. You can still sign in; ask for a new link from your profile.")
+              : t("Confirming your email address…")}
         </p>
       )}
 
@@ -147,7 +148,7 @@ export function SignInScreen() {
           })(event);
         }}
       >
-        <Field id="email" label="Email" error={form.formState.errors.email?.message}>
+        <Field id="email" label={t("Email")} error={form.formState.errors.email?.message}>
           {/* No autofocus, on purpose. A focused email field opens the
               browser's saved-credentials picker over the form the moment the
               page lands, and the first tap on "Sign in" then only closes the
@@ -162,7 +163,7 @@ export function SignInScreen() {
           />
         </Field>
 
-        <Field id="password" label="Password" error={form.formState.errors.password?.message}>
+        <Field id="password" label={t("Password")} error={form.formState.errors.password?.message}>
           <input
             id="password"
             type="password"
@@ -184,14 +185,12 @@ export function SignInScreen() {
         )}
 
         <Button type="submit" pending={signIn.isPending}>
-          Sign in
-        </Button>
+          {t("Sign in")}</Button>
       </form>
 
       {resetDone && (
         <p data-testid="reset-done" role="status" className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm">
-          Your password is set. Sign in with it below — every earlier session was signed out.
-        </p>
+          {t("Your password is set. Sign in with it below — every earlier session was signed out.")}</p>
       )}
 
       <p className="text-sm text-muted">
@@ -201,8 +200,7 @@ export function SignInScreen() {
           onClick={() => setForgetting(true)}
           className="underline underline-offset-2"
         >
-          Forgot your password?
-        </button>
+          {t("Forgot your password?")}</button>
       </p>
 
       {/* A plain link rather than a router one: this screen renders instead
@@ -210,8 +208,7 @@ export function SignInScreen() {
           at the landing address. */}
       <p className="text-sm text-muted">
         <a href={withRoot(root, '/')} data-testid="sign-in-home" className="underline underline-offset-2">
-          Back to the home page
-        </a>
+          {t("Back to the home page")}</a>
       </p>
     </main>
   );
@@ -223,14 +220,13 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-4">
-      <PageHeader title={'Forgot your password?'} description={'Enter your address and, if it has an account, a link to set a new one will be sent to it.'} />
+      <PageHeader title={t("Forgot your password?")} description={t("Enter your address and, if it has an account, a link to set a new one will be sent to it.")} />
 
       {forgot.isSuccess ? (
         // The same sentence whether or not the address exists: the server
         // says no more, and neither may this.
         <p data-testid="forgot-sent" role="status" className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm">
-          If that address has an account, a link has been sent to it. It is good for thirty minutes.
-        </p>
+          {t("If that address has an account, a link has been sent to it. It is good for thirty minutes.")}</p>
       ) : (
         <form
           className="space-y-4"
@@ -239,7 +235,7 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
             void form.handleSubmit((values) => forgot.mutate(values.email))(event);
           }}
         >
-          <Field id="forgot-email" label="Email" error={form.formState.errors.email?.message}>
+          <Field id="forgot-email" label={t("Email")} error={form.formState.errors.email?.message}>
             <input
               id="forgot-email"
               type="email"
@@ -256,15 +252,13 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
           )}
 
           <Button type="submit" pending={forgot.isPending}>
-            Send the link
-          </Button>
+            {t("Send the link")}</Button>
         </form>
       )}
 
       <p className="text-sm text-muted">
         <button type="button" onClick={onBack} className="underline underline-offset-2">
-          Back to sign in
-        </button>
+          {t("Back to sign in")}</button>
       </p>
     </main>
   );
@@ -276,7 +270,7 @@ function ResetPasswordForm({ token, onDone }: { token: string; onDone: () => voi
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-4">
-      <PageHeader title={'Choose a password'} description={'The link you followed lets you set a new password for your account. Then sign in with it.'} />
+      <PageHeader title={t("Choose a password")} description={t("The link you followed lets you set a new password for your account. Then sign in with it.")} />
 
       <form
         className="space-y-4"
@@ -285,7 +279,7 @@ function ResetPasswordForm({ token, onDone }: { token: string; onDone: () => voi
           void form.handleSubmit((values) => reset.mutate({ token, password: values.password }, { onSuccess: onDone }))(event);
         }}
       >
-        <Field id="new-password" label="New password" hint="At least 12 characters." error={form.formState.errors.password?.message}>
+        <Field id="new-password" label={t("New password")} hint={t("At least 12 characters.")} error={form.formState.errors.password?.message}>
           <input
             id="new-password"
             type="password"
@@ -302,8 +296,7 @@ function ResetPasswordForm({ token, onDone }: { token: string; onDone: () => voi
         )}
 
         <Button type="submit" pending={reset.isPending}>
-          Set the password
-        </Button>
+          {t("Set the password")}</Button>
       </form>
     </main>
   );

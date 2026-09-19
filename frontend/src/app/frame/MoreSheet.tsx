@@ -3,6 +3,7 @@ import { useSessionStore } from '@/state/session';
 import { cn } from '@/utils/cn';
 
 import type { NavSection } from './navigation';
+import { t } from '@/i18n';
 
 /**
  * The phone's menu: every section, in a drawer from the left.
@@ -37,16 +38,16 @@ export function MoreSheet({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Menu"
+        aria-label={t("Menu")}
         data-testid="menu-sheet"
         className="h-full w-[min(20rem,85vw)] overflow-y-auto border-r border-line bg-raised p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-float"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <p className="text-sm font-semibold">Menu</p>
+          <p className="text-sm font-semibold">{t("Menu")}</p>
           <button
             type="button"
-            aria-label="Close menu"
+            aria-label={t("Close menu")}
             onClick={onClose}
             className="min-h-[44px] min-w-[44px] rounded-control text-lg focus-visible:outline-2 focus-visible:outline-offset-2"
           >
@@ -57,7 +58,7 @@ export function MoreSheet({
         {sections.map((section, index) => (
           <div key={section.id} className={cn('mb-4', index > 0 && 'border-t border-line pt-3')}>
             <p className="pb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-ink">
-              {section.label}
+              {t(section.label)}
             </p>
             <ul>
               {section.entries.map((entry) => (
@@ -67,7 +68,7 @@ export function MoreSheet({
                     data-nav-more={entry.id}
                     className="block min-h-[44px] py-2 text-sm text-ink"
                   >
-                    {entry.label}
+                    {t(entry.label)}
                   </a>
                 </li>
               ))}

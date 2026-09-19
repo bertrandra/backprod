@@ -14,6 +14,7 @@ import { Button } from '@/ui/Field';
 import { PageHeader, Section } from '@/ui/Page';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { cn } from '@/utils/cn';
+import { t } from '@/i18n';
 
 /**
  * `console.admin.menus` — what the shell shows each kind of person.
@@ -99,9 +100,9 @@ export function MenusScreen() {
   return (
     <div className="max-w-4xl space-y-8">
       <PageHeader
-        title={'Menus'}
+        title={t("Menus")}
         description={
-          'What the navigation shows each kind of person, for the whole platform. Untick an entry to leave it out of that audience’s menu; a section with nothing left disappears. Hiding is courtesy — the API refuses on permissions regardless — so this decides what people find, not what they may do.'
+          t("What the navigation shows each kind of person, for the whole platform. Untick an entry to leave it out of that audience’s menu; a section with nothing left disappears. Hiding is courtesy — the API refuses on permissions regardless — so this decides what people find, not what they may do.")
         }
       />
 
@@ -125,12 +126,10 @@ export function MenusScreen() {
 
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" pending={save.isPending} disabled={!dirty}>
-            Save menus
-          </Button>
+            {t("Save menus")}</Button>
           {save.isSuccess && !dirty && (
             <span data-testid="menus-saved" className="text-sm text-muted">
-              Saved — everybody sees it on their next screen.
-            </span>
+              {t("Saved — everybody sees it on their next screen.")}</span>
           )}
         </div>
       </form>
@@ -165,15 +164,15 @@ function AudiencePanel({
 
   return (
     <Section
-      title={label}
-      description={who}
+      title={t(label)}
+      description={t(who)}
       data-testid={`menus-${audience}`}
       className="rounded-card border border-line bg-surface p-4 shadow-raise"
     >
       <div className="grid gap-4 sm:grid-cols-2">
         {sectionsFor(scope).map((section) => (
           <fieldset key={section.id} className="space-y-1.5">
-            <legend className="text-xs font-semibold uppercase tracking-wide text-subtle">{section.label}</legend>
+            <legend className="text-xs font-semibold uppercase tracking-wide text-subtle">{t(section.label)}</legend>
             {section.entries.map((entry) => {
               const shown = !hidden.has(entry.id);
 
@@ -189,7 +188,7 @@ function AudiencePanel({
                     checked={shown}
                     onChange={(event) => toggle(entry.id, event.target.checked)}
                   />
-                  <span>{entry.label}</span>
+                  <span>{t(entry.label)}</span>
                 </label>
               );
             })}
@@ -212,12 +211,8 @@ function AudiencePanel({
           }}
         />
         <span>
-          Hide entries with nothing to show
-          <span className="mt-0.5 block text-xs text-muted">
-            Lists that are empty for the reader — invoices before the first invoice, projects before
-            the first project — are left out until they have something. Settings and profiles always
-            show.
-          </span>
+          {t("Hide entries with nothing to show")}<span className="mt-0.5 block text-xs text-muted">
+            {t("Lists that are empty for the reader — invoices before the first invoice, projects before the first project — are left out until they have something. Settings and profiles always show.")}</span>
         </span>
       </label>
     </Section>

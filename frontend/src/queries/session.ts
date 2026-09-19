@@ -29,6 +29,8 @@ export interface Session {
   readonly userId: string;
   readonly email: string | null;
   readonly displayName: string | null;
+  /** The language they read in (ADR-050). */
+  readonly locale: string;
   readonly productId: string;
   readonly tenantId: string;
   readonly roles: readonly string[];
@@ -106,6 +108,7 @@ export function useSession() {
         userId: data.user_id,
         email: data.email ?? null,
         displayName: data.display_name ?? null,
+        locale: data.locale ?? 'en',
         productId: data.product_id,
         tenantId: data.tenant_id,
         roles: data.roles,

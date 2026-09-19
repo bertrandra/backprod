@@ -11,6 +11,7 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { Sparkline, StatRow, StatTile } from '@/ui/Stat';
 import { Table, TBody, Td, Th, THead, TR } from '@/ui/Table';
 import { pill } from '@/ui/tone';
+import { t } from '@/i18n';
 
 /**
  * `console.admin.metrics` — the three figures §25.2 starts with.
@@ -55,13 +56,13 @@ export function MetricsScreen() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Metrics"
-        description="Turnover, the offers that earned it, and renewal — for one product. There is no combined figure across products: different currencies and different catalogues do not add up."
+        title={t("Metrics")}
+        description={t("Turnover, the offers that earned it, and renewal — for one product. There is no combined figure across products: different currencies and different catalogues do not add up.")}
       />
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-64">
-          <Field id="product" label="Product">
+          <Field id="product" label={t("Product")}>
             <select
               id="product"
               className={inputClass()}
@@ -78,7 +79,7 @@ export function MetricsScreen() {
         </div>
 
         <div className="w-40">
-          <Field id="months" label="Months" hint="1 to 60.">
+          <Field id="months" label={t("Months")} hint={t("1 to 60.")}>
             <input
               id="months"
               type="number"
@@ -101,7 +102,7 @@ export function MetricsScreen() {
       {products.error !== null ? (
         <ErrorSurface error={products.error} onRetry={() => void products.refetch()} />
       ) : chosen === null ? (
-        <EmptyState title="No products" description="Nothing is registered to report on." />
+        <EmptyState title={t("No products")} description={t("Nothing is registered to report on.")} />
       ) : metrics.isPending ? (
         <SkeletonRows rows={8} />
       ) : metrics.error !== null ? (
@@ -167,19 +168,19 @@ function Headline({
 
   const state = (
     <span data-testid="headline-state" className={pill(closed ? 'neutral' : 'warning')}>
-      {closed ? 'settled' : 'still moving'}
+      {closed ? 'settled' : t("still moving")}
     </span>
   );
 
   return (
     <StatRow>
       <StatTile
-        label="Gross invoiced"
+        label={t("Gross invoiced")}
         state={state}
         value={<Money value={integer(latest.gross_minor_units)} currency={currency} />}
         trend={
           <Sparkline
-            label={`Gross invoiced over the last ${String(turnover.length)} months`}
+            label={t("Gross invoiced over the last {value} months", { value: String(turnover.length) })}
             values={turnover.map((row) => integer(row.gross_minor_units))}
           />
         }
@@ -187,11 +188,11 @@ function Headline({
       />
 
       <StatTile
-        label="Credited"
+        label={t("Credited")}
         value={<Money value={integer(latest.credited_minor_units)} currency={currency} />}
         trend={
           <Sparkline
-            label={`Credited over the last ${String(turnover.length)} months`}
+            label={t("Credited over the last {value} months", { value: String(turnover.length) })}
             values={turnover.map((row) => integer(row.credited_minor_units))}
           />
         }
@@ -203,23 +204,23 @@ function Headline({
       />
 
       <StatTile
-        label="Invoices paid"
+        label={t("Invoices paid")}
         value={
           issued === null || paid === null ? '—' : `${String(paid)} / ${String(issued)}`
         }
-        detail={issued === null ? 'Not reported' : `Paid of issued, in ${month}`}
+        detail={issued === null ? t("Not reported") : t("Paid of issued, in {month}", { month: month })}
       />
 
       <StatTile
-        label="Renewal"
+        label={t("Renewal")}
         value={
           lastMeasured === undefined
-            ? 'Nothing due'
+            ? t("Nothing due")
             : `${String(integer(lastMeasured.rate_percent) ?? 0)}%`
         }
         trend={
           <Sparkline
-            label="Renewal rate over the months that had anything due"
+            label={t("Renewal rate over the months that had anything due")}
             values={renewal.map((row) =>
               row.measured === true ? integer(row.rate_percent) : null,
             )}
@@ -227,7 +228,7 @@ function Headline({
         }
         detail={
           lastMeasured === undefined
-            ? 'No month in this window had a subscription come up'
+            ? t("No month in this window had a subscription come up")
             : text(lastMeasured.month, '')
         }
       />
@@ -238,25 +239,25 @@ function Headline({
 function Turnover({ rows }: { rows: readonly Record<string, unknown>[] }) {
   if (rows.length === 0) {
     return (
-      <EmptyState title="No turnover" description="Nothing has been invoiced in this window." />
+      <EmptyState title={t("No turnover")} description={t("Nothing has been invoiced in this window.")} />
     );
   }
 
   return (
     <Section
-      title="Turnover"
-      description="What was invoiced, month by month. Credits are shown beside it and never subtracted from it."
+      title={t("Turnover")}
+      description={t("What was invoiced, month by month. Credits are shown beside it and never subtracted from it.")}
     >
-      <Table caption="Turnover by month: net, VAT, gross, credited, invoice counts and whether the month has settled">
+      <Table caption={t("Turnover by month: net, VAT, gross, credited, invoice counts and whether the month has settled")}>
         <THead>
-          <Th>Month</Th>
-          <Th numeric>Net</Th>
-          <Th numeric>VAT</Th>
-          <Th numeric>Gross</Th>
-          <Th numeric>Credited</Th>
-          <Th numeric>Issued</Th>
-          <Th numeric>Paid</Th>
-          <Th>State</Th>
+          <Th>{t("Month")}</Th>
+          <Th numeric>{t("Net")}</Th>
+          <Th numeric>{t("VAT")}</Th>
+          <Th numeric>{t("Gross")}</Th>
+          <Th numeric>{t("Credited")}</Th>
+          <Th numeric>{t("Issued")}</Th>
+          <Th numeric>{t("Paid")}</Th>
+          <Th>{t("State")}</Th>
         </THead>
 
         <TBody>
@@ -287,7 +288,7 @@ function Turnover({ rows }: { rows: readonly Record<string, unknown>[] }) {
                   {/* Settled, or still moving. The same figure means two
                       different things on the 2nd and the 31st. */}
                   <span data-testid="month-state" className={pill(closed ? 'neutral' : 'warning')}>
-                    {closed ? 'settled' : 'still moving'}
+                    {closed ? 'settled' : t("still moving")}
                   </span>
                 </Td>
               </TR>
@@ -327,17 +328,17 @@ function TopOffers({ offers }: { offers: Record<string, unknown> }) {
 
   return (
     <Section
-      title="Top offers"
+      title={t("Top offers")}
       // Which month, stated: over a year and over last month are different
       // questions, and the contract separates them for that reason.
       description={
         <span data-testid="offers-month">
-          {month === '' ? 'Ranked over the window.' : `Ranked within ${month}.`}
+          {month === '' ? t("Ranked over the window.") : t("Ranked within {month}.", { month: month })}
         </span>
       }
     >
       {rows.length === 0 ? (
-        <EmptyState title="No offers billed" description="Nothing was billed in that month." />
+        <EmptyState title={t("No offers billed")} description={t("Nothing was billed in that month.")} />
       ) : (
         <ul className="space-y-2.5">
           {rows.map((row: unknown, index) => {
@@ -357,8 +358,7 @@ function TopOffers({ offers }: { offers: Record<string, unknown> }) {
                     {text(offer.name, text(offer.code, '—'))}
                   </span>
                   <span className="text-xs text-subtle">
-                    {integer(offer.lines_billed) ?? '—'} lines
-                  </span>
+                    {integer(offer.lines_billed) ?? '—'} {t("lines")}</span>
                   <span className="font-medium tabular-nums">
                     <Money
                       value={integer(offer.net_minor_units)}
@@ -387,19 +387,19 @@ function TopOffers({ offers }: { offers: Record<string, unknown> }) {
 function Renewal({ rows }: { rows: readonly Record<string, unknown>[] }) {
   return (
     <Section
-      title="Renewal"
-      description="A month in which nothing came up for renewal has no rate. That is not 0% — nothing auto-renews yet, and reporting an unbuilt feature as total churn would be worse than reporting nothing."
+      title={t("Renewal")}
+      description={t("A month in which nothing came up for renewal has no rate. That is not 0% — nothing auto-renews yet, and reporting an unbuilt feature as total churn would be worse than reporting nothing.")}
     >
       {rows.length === 0 ? (
-        <EmptyState title="No renewal data" description="No period in this window has any." />
+        <EmptyState title={t("No renewal data")} description={t("No period in this window has any.")} />
       ) : (
-        <Table caption="Renewal by month: how many came up, how many renewed, how many ended, and the resulting rate">
+        <Table caption={t("Renewal by month: how many came up, how many renewed, how many ended, and the resulting rate")}>
           <THead>
-            <Th>Month</Th>
-            <Th numeric>Due</Th>
-            <Th numeric>Renewed</Th>
-            <Th numeric>Ended</Th>
-            <Th numeric>Rate</Th>
+            <Th>{t("Month")}</Th>
+            <Th numeric>{t("Due")}</Th>
+            <Th numeric>{t("Renewed")}</Th>
+            <Th numeric>{t("Ended")}</Th>
+            <Th numeric>{t("Rate")}</Th>
           </THead>
 
           <TBody>
@@ -422,7 +422,7 @@ function Renewal({ rows }: { rows: readonly Record<string, unknown>[] }) {
                   <Td numeric>{integer(row.ended) ?? 0}</Td>
                   <Td numeric={measured} className={measured ? 'font-medium' : 'text-right text-xs'}>
                     <span data-testid="renewal-rate">
-                      {measured && rate !== null ? `${String(rate)}%` : 'nothing came up'}
+                      {measured && rate !== null ? `${String(rate)}%` : t("nothing came up")}
                     </span>
                   </Td>
                 </TR>

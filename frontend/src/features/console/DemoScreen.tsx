@@ -13,6 +13,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { PageHeader } from '@/ui/Page';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { t } from '@/i18n';
 
 /**
  * `console.admin.demo` — the demonstration, on a screen of its own (2026-09-18).
@@ -27,8 +28,8 @@ export function DemoScreen() {
   return (
     <div className="max-w-3xl space-y-6">
       <PageHeader
-        title="Demonstration"
-        description="What this deployment shows to a visitor, and the world it is shown with."
+        title={t("Demonstration")}
+        description={t("What this deployment shows to a visitor, and the world it is shown with.")}
       />
 
       <DemoPagePanel />
@@ -59,17 +60,13 @@ function DemoPagePanel() {
 
   return (
     <section className="space-y-3 border-t border-line pt-4" data-testid="demo-page">
-      <h2 className="text-xl font-semibold">Demonstration page</h2>
+      <h2 className="text-xl font-semibold">{t("Demonstration page")}</h2>
 
       <p className="text-sm text-muted">
         <a href="/demo" className="underline underline-offset-2" target="_blank" rel="noreferrer">
-          <code>/demo</code>
+          <code>{'/demo'}</code>
         </a>{' '}
-        shows anybody, with no sign-in, every product and its offers on sale, and every
-        organisation with its address, its products, its subscriptions and its people with their
-        roles. Everywhere else that is a member&rsquo;s answer; switch it on only on a deployment
-        that exists to be shown.
-      </p>
+        {t("shows anybody, with no sign-in, every product and its offers on sale, and every organisation with its address, its products, its subscriptions and its people with their roles. Everywhere else that is a member’s answer; switch it on only on a deployment that exists to be shown.")}</p>
 
       {page.error !== null && <ErrorSurface error={page.error} onRetry={() => void page.refetch()} />}
       {set.error !== null && <ErrorSurface error={set.error} />}
@@ -126,24 +123,17 @@ function DemoWorldPanel() {
 
   return (
     <section className="space-y-3 border-t border-line pt-4" data-testid="demo-world">
-      <h2 className="text-xl font-semibold">Demonstration world</h2>
+      <h2 className="text-xl font-semibold">{t("Demonstration world")}</h2>
 
       <p className="text-sm text-muted">
-        Put the demonstration back the way it started: four products, two organisations, one
-        person per role, two live subscriptions with their invoices. Everything else is emptied —
-        every order, payment, invoice, conversation and account, <strong>including yours</strong> —
-        and everybody is signed out. Refused while this platform hosts a product that is not the
-        demonstration's.
-      </p>
+        {t("Put the demonstration back the way it started: four products, two organisations, one person per role, two live subscriptions with their invoices. Everything else is emptied — every order, payment, invoice, conversation and account,")}{' '}<strong>{t("including yours")}</strong> {t("— and everybody is signed out. Refused while this platform hosts a product that is not the demonstration's.")}</p>
 
       {reset.error !== null && <ErrorSurface error={reset.error} />}
 
       {armed ? (
         <div className="space-y-3 rounded border border-danger/40 bg-danger/5 p-3" data-testid="demo-world-confirm">
           <p className="text-sm">
-            This cannot be undone. The four products, the two organisations and the six people
-            come back; nothing done since the last reset survives.
-          </p>
+            {t("This cannot be undone. The four products, the two organisations and the six people come back; nothing done since the last reset survives.")}</p>
           <div className="flex flex-wrap gap-2">
             <Button
               variant="danger"
@@ -151,17 +141,14 @@ function DemoWorldPanel() {
               onClick={() => reset.mutate()}
               data-testid="demo-world-reset"
             >
-              Yes, wipe and reseed
-            </Button>
+              {t("Yes, wipe and reseed")}</Button>
             <Button variant="secondary" onClick={() => setArmed(false)} disabled={reset.isPending}>
-              Keep it
-            </Button>
+              {t("Keep it")}</Button>
           </div>
         </div>
       ) : (
         <Button variant="danger" onClick={() => setArmed(true)} data-testid="demo-world-arm">
-          Reset the demonstration world…
-        </Button>
+          {t("Reset the demonstration world…")}</Button>
       )}
     </section>
   );
@@ -170,13 +157,11 @@ function DemoWorldPanel() {
 function DemoWorldReset({ world, onSignOut }: { world: DemoWorld; onSignOut: () => void }) {
   return (
     <section className="space-y-3 border-t border-line pt-4" data-testid="demo-world-done">
-      <h2 className="text-xl font-semibold">The demonstration world is back</h2>
+      <h2 className="text-xl font-semibold">{t("The demonstration world is back")}</h2>
 
       <p className="text-sm text-muted">
-        {world.products.map((product) => product.name).join(', ')} — with invoices{' '}
-        {world.invoices.map((number) => <code key={number} className="mx-0.5">{number}</code>)}.
-        Your account was among the rows emptied, so sign in again as one of these; every one of
-        them has the password <code>{world.password}</code>.
+        {world.products.map((product) => product.name).join(', ')} {t("— with invoices")}{' '}
+        {world.invoices.map((number) => <code key={number} className="mx-0.5">{number}</code>)}{t(". Your account was among the rows emptied, so sign in again as one of these; every one of them has the password")}{' '}<code>{world.password}</code>.
       </p>
 
       <ul className="space-y-1 text-sm" data-testid="demo-world-people">
@@ -185,15 +170,14 @@ function DemoWorldReset({ world, onSignOut }: { world: DemoWorld; onSignOut: () 
             <code className="select-all">{person.email}</code>
             <span className="text-muted">
               {person.role}
-              {person.scope === 'tenant' ? ` · ${person.tenants.join(', ')}` : ' · the console'}
+              {person.scope === 'tenant' ? ` · ${person.tenants.join(', ')}` : t(" · the console")}
             </span>
           </li>
         ))}
       </ul>
 
       <Button onClick={onSignOut} data-testid="demo-world-sign-in">
-        Sign in again
-      </Button>
+        {t("Sign in again")}</Button>
     </section>
   );
 }

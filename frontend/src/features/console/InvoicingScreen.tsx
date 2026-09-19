@@ -17,6 +17,7 @@ import { notice } from '@/ui/tone';
 import { PageHeader, Section } from '@/ui/Page';
 import { useSessionStore } from '@/state/session';
 import { FieldCell, FieldGroup, FieldRow, FormActions, FormCard } from '@/ui/Form';
+import { t } from '@/i18n';
 
 /**
  * `console.admin.invoicing` — what a product needs configured before it can take
@@ -49,15 +50,14 @@ export function InvoicingScreen() {
   if (productCode === null || productCode === '') {
     return (
       <EmptyState
-        title="No product chosen"
-        description="An invoice is issued by the company behind one product. Choose one in the bar above — the switcher there lists every product the platform hosts."
+        title={t("No product chosen")}
+        description={t("An invoice is issued by the company behind one product. Choose one in the bar above — the switcher there lists every product the platform hosts.")}
         action={
           <Link
             to="/console/products"
             className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
           >
-            Go to Products
-          </Link>
+            {t("Go to Products")}</Link>
         }
       />
     );
@@ -76,8 +76,8 @@ export function InvoicingScreen() {
   return (
     <div className="max-w-3xl space-y-8">
       <PageHeader
-        title={'Invoicing'}
-        description={<>Who <strong>{product.name}</strong> invoices as, and under which VAT regime. Both are configuration and neither is guessed: an invoice is a legal document with a permanent number, so a product that cannot name its issuer refuses to raise one rather than issuing a blank.</>}
+        title={t("Invoicing")}
+        description={<>{t("Who")}{' '}<strong>{product.name}</strong> {t("invoices as, and under which VAT regime. Both are configuration and neither is guessed: an invoice is a legal document with a permanent number, so a product that cannot name its issuer refuses to raise one rather than issuing a blank.")}</>}
       />
 
       {canInvoice ? (
@@ -85,17 +85,15 @@ export function InvoicingScreen() {
           data-testid="can-invoice"
           className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
         >
-          This product can invoice. Every document it raises copies the identity below as it stood at
-          that moment, so changing it later never rewrites an invoice already issued.
-        </p>
+          {t("This product can invoice. Every document it raises copies the identity below as it stood at that moment, so changing it later never rewrites an invoice already issued.")}</p>
       ) : (
         <p
           data-testid="cannot-invoice"
           role="alert"
           className={notice('danger')}
         >
-          This product cannot invoice yet, so a checkout against it refuses with{' '}
-          <code>BILLING_NOT_CONFIGURED</code>. Missing: <strong>{missing.join(', ')}</strong>.
+          {t("This product cannot invoice yet, so a checkout against it refuses with")}{' '}
+          <code>{t("BILLING_NOT_CONFIGURED")}</code>{t(". Missing:")}{' '}<strong>{missing.join(', ')}</strong>.
         </p>
       )}
 
@@ -142,14 +140,11 @@ function BillingIdentityForm({
 
   return (
     <Section
-      title="The issuer"
+      title={t("The issuer")}
       description={
         <>
-          What appears on the document as the company issuing it. The legal name and the country
-          are the two an invoice cannot be raised without — the country because it decides which
-          VAT regime the document is issued under. A supplier under the <em>franchise en base</em>{' '}
-          has no VAT number and invoices perfectly legally, so that field may stay empty.
-        </>
+          {t("What appears on the document as the company issuing it. The legal name and the country are the two an invoice cannot be raised without — the country because it decides which VAT regime the document is issued under. A supplier under the")}{' '}<em>{t("franchise en base")}</em>{' '}
+          {t("has no VAT number and invoices perfectly legally, so that field may stay empty.")}</>
       }
     >
       {save.error !== null && <ErrorSurface error={save.error} />}
@@ -172,15 +167,15 @@ function BillingIdentityForm({
       >
         <FieldGroup
           legend="Required"
-          hint="Without both of these a checkout reaches its last step and refuses with BILLING_NOT_CONFIGURED."
+          hint={t("Without both of these a checkout reaches its last step and refuses with BILLING_NOT_CONFIGURED.")}
         >
           <FieldRow>
             <FieldCell>
-              <Field id="supplier-legal-name" label="Legal name">
+              <Field id="supplier-legal-name" label={t("Legal name")}>
                 <input
                   id="supplier-legal-name"
                   className={inputClass()}
-                  placeholder="Atlas SAS"
+                  placeholder={t("Atlas SAS")}
                   value={form.legal_name}
                   onChange={set('legal_name')}
                 />
@@ -188,7 +183,7 @@ function BillingIdentityForm({
             </FieldCell>
 
             <FieldCell width="short">
-              <Field id="supplier-country" label="Country">
+              <Field id="supplier-country" label={t("Country")}>
                 <CountrySelect
                   id="supplier-country"
                   emptyLabel="Choose a country…"
@@ -202,11 +197,11 @@ function BillingIdentityForm({
 
         <FieldGroup
           legend="Registrations"
-          hint="Both optional. A supplier under the franchise en base has neither and invoices legally."
+          hint={t("Both optional. A supplier under the franchise en base has neither and invoices legally.")}
         >
           <FieldRow>
             <FieldCell width="medium">
-              <Field id="supplier-vat" label="VAT number">
+              <Field id="supplier-vat" label={t("VAT number")}>
                 <input
                   id="supplier-vat"
                   className={inputClass()}
@@ -220,8 +215,8 @@ function BillingIdentityForm({
             <FieldCell width="medium">
               <Field
                 id="supplier-registration"
-                label="Registration number"
-                hint="SIREN or SIRET."
+                label={t("Registration number")}
+                hint={t("SIREN or SIRET.")}
               >
                 <input
                   id="supplier-registration"
@@ -238,7 +233,7 @@ function BillingIdentityForm({
         {/* Not "Address": that is the label of the first field inside it, and a
             legend repeating its own first child says nothing twice. */}
         <FieldGroup legend="Where the issuer is">
-          <Field id="supplier-address1" label="Address">
+          <Field id="supplier-address1" label={t("Address")}>
             <input
               id="supplier-address1"
               className={inputClass()}
@@ -247,7 +242,7 @@ function BillingIdentityForm({
             />
           </Field>
 
-          <Field id="supplier-address2" label="Address, continued">
+          <Field id="supplier-address2" label={t("Address, continued")}>
             <input
               id="supplier-address2"
               className={inputClass()}
@@ -258,7 +253,7 @@ function BillingIdentityForm({
 
           <FieldRow>
             <FieldCell width="short">
-              <Field id="supplier-postal-code" label="Postal code">
+              <Field id="supplier-postal-code" label={t("Postal code")}>
                 <input
                   id="supplier-postal-code"
                   className={inputClass()}
@@ -269,7 +264,7 @@ function BillingIdentityForm({
             </FieldCell>
 
             <FieldCell>
-              <Field id="supplier-city" label="City">
+              <Field id="supplier-city" label={t("City")}>
                 <input
                   id="supplier-city"
                   className={inputClass()}
@@ -283,8 +278,7 @@ function BillingIdentityForm({
 
         <FormActions>
           <Button type="submit" pending={save.isPending}>
-            Save the issuer
-          </Button>
+            {t("Save the issuer")}</Button>
         </FormActions>
       </FormCard>
     </Section>
@@ -310,8 +304,8 @@ function TaxForm({ productCode, initial }: { productCode: string; initial: TaxSe
   return (
     <Section
       className="border-t border-line pt-6"
-      title="The tax position"
-      description="Stated, never derived. What is being supplied decides where a sale is taxed, and whether the supplier is registered for the One Stop Shop decides how a sale to a consumer in another member state is treated. Getting one wrong files a VAT return in the wrong country."
+      title={t("The tax position")}
+      description={t("Stated, never derived. What is being supplied decides where a sale is taxed, and whether the supplier is registered for the One Stop Shop decides how a sale to a consumer in another member state is treated. Getting one wrong files a VAT return in the wrong country.")}
     >
       {save.error !== null && <ErrorSurface error={save.error} />}
 
@@ -332,8 +326,8 @@ function TaxForm({ productCode, initial }: { productCode: string; initial: TaxSe
             <FieldCell>
               <Field
                 id="tax-country"
-                label="Jurisdiction"
-                hint="The country a VAT return is filed in — the supplier's, since that is the regime the invoice is issued under."
+                label={t("Jurisdiction")}
+                hint={t("The country a VAT return is filed in — the supplier's, since that is the regime the invoice is issued under.")}
               >
                 <CountrySelect
                   id="tax-country"
@@ -345,7 +339,7 @@ function TaxForm({ productCode, initial }: { productCode: string; initial: TaxSe
             </FieldCell>
 
             <FieldCell width="short">
-              <Field id="tax-currency" label="Currency">
+              <Field id="tax-currency" label={t("Currency")}>
                 <CurrencySelect
                   id="tax-currency"
                   emptyLabel="Choose a currency…"
@@ -359,18 +353,18 @@ function TaxForm({ productCode, initial }: { productCode: string; initial: TaxSe
 
         <FieldGroup
           legend="What is being sold"
-          hint="These two together decide the rule a cross-border consumer sale falls under."
+          hint={t("These two together decide the rule a cross-border consumer sale falls under.")}
         >
-          <Field id="tax-supply" label="What is supplied">
+          <Field id="tax-supply" label={t("What is supplied")}>
             <select
               id="tax-supply"
               className={inputClass()}
               value={supply}
               onChange={(event) => setSupply(event.target.value as TaxSettings['supply_type'])}
             >
-              <option value="DIGITAL_SERVICES">Digital services</option>
-              <option value="SERVICES">Services</option>
-              <option value="GOODS">Goods</option>
+              <option value="DIGITAL_SERVICES">{t("Digital services")}</option>
+              <option value="SERVICES">{t("Services")}</option>
+              <option value="GOODS">{t("Goods")}</option>
             </select>
           </Field>
 
@@ -385,19 +379,15 @@ function TaxForm({ productCode, initial }: { productCode: string; initial: TaxSe
               onChange={(event) => setOss(event.target.checked)}
             />
             <span>
-              Registered for the One Stop Shop
-              <span className="mt-0.5 block text-xs text-muted">
-                Crossing the distance-selling threshold changes the regime of later sales only,
-                so this is a dated decision and never read back from turnover.
-              </span>
+              {t("Registered for the One Stop Shop")}<span className="mt-0.5 block text-xs text-muted">
+                {t("Crossing the distance-selling threshold changes the regime of later sales only, so this is a dated decision and never read back from turnover.")}</span>
             </span>
           </label>
         </FieldGroup>
 
         <FormActions>
           <Button type="submit" pending={save.isPending}>
-            Save the tax position
-          </Button>
+            {t("Save the tax position")}</Button>
         </FormActions>
       </FormCard>
     </Section>

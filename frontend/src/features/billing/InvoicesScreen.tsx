@@ -12,6 +12,7 @@ import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `billing.invoices` — the list, and the one mutation that must never be
@@ -47,16 +48,16 @@ export function InvoicesScreen() {
   return (
     <div className="max-w-3xl space-y-6">
       <PageHeader
-        title={'Invoices'}
-        meta={<>{invoices.data.total} in this product</>}
+        title={t("Invoices")}
+        meta={<>{invoices.data.total} {t("in this product")}</>}
       />
 
       {issue.error !== null && <ErrorSurface error={issue.error} />}
 
       {invoices.data.invoices.length === 0 ? (
         <EmptyState
-          title="No invoices"
-          description="An invoice is raised when an order is fulfilled, or issued here from what is billable now."
+          title={t("No invoices")}
+          description={t("An invoice is raised when an order is fulfilled, or issued here from what is billable now.")}
         />
       ) : (
         <ul className="space-y-2">
@@ -88,11 +89,11 @@ export function InvoicesScreen() {
               )}
 
               <p className="mt-1 text-xs text-muted">
-                net <Amount money={invoice.net} /> · VAT <Amount money={invoice.vat} />
+                {t("net")}{' '}<Amount money={invoice.net} /> {t("· VAT")}{' '}<Amount money={invoice.vat} />
                 {invoice.issued_at !== null &&
-                  ` · issued ${new Date(invoice.issued_at).toLocaleDateString()}`}
+                  t(" · issued {value}", { value: new Date(invoice.issued_at).toLocaleDateString(currentLocale()) })}
                 {invoice.due_at !== null &&
-                  ` · due ${new Date(invoice.due_at).toLocaleDateString()}`}
+                  t(" · due {value}", { value: new Date(invoice.due_at).toLocaleDateString(currentLocale()) })}
               </p>
 
               <p className="mt-2 text-xs">
@@ -101,8 +102,7 @@ export function InvoicesScreen() {
                   params={{ invoiceId: invoice.id }}
                   className="underline decoration-dotted"
                 >
-                  Open it
-                </Link>
+                  {t("Open it")}</Link>
               </p>
             </li>
           ))}
@@ -111,11 +111,9 @@ export function InvoicesScreen() {
 
       {mayManage && (
         <section className="space-y-3 border-t border-line pt-6">
-          <h2 className="text-xl font-semibold">Issue an invoice</h2>
+          <h2 className="text-xl font-semibold">{t("Issue an invoice")}</h2>
           <p className="text-sm text-muted">
-            Issuing allocates a legal number from a sequence that must have no gaps. It cannot be
-            undone — a mistake is corrected by a credit note, not by deletion.
-          </p>
+            {t("Issuing allocates a legal number from a sequence that must have no gaps. It cannot be undone — a mistake is corrected by a credit note, not by deletion.")}</p>
 
           {confirming ? (
             <div className="flex flex-wrap gap-2">
@@ -124,24 +122,20 @@ export function InvoicesScreen() {
                 pending={issue.isPending}
                 onClick={() => issue.mutate(undefined, { onSettled: () => setConfirming(false) })}
               >
-                Issue it
-              </Button>
+                {t("Issue it")}</Button>
               <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>
-                Not yet
-              </Button>
+                {t("Not yet")}</Button>
             </div>
           ) : (
             <Button type="button" variant="secondary" onClick={() => setConfirming(true)}>
-              Issue an invoice…
-            </Button>
+              {t("Issue an invoice…")}</Button>
           )}
 
           {issue.isPending && (
             // A real pending state, said in words. The number does not exist yet
             // and this screen will not pretend otherwise.
             <p data-testid="issuing" className="text-sm text-muted">
-              Allocating the number…
-            </p>
+              {t("Allocating the number…")}</p>
           )}
         </section>
       )}
@@ -160,8 +154,7 @@ export function InvoiceNumber({ invoice }: { invoice: Invoice }) {
   if (invoice.number === null) {
     return (
       <span data-testid="no-number" className="text-xs text-subtle">
-        no number yet — a draft has none
-      </span>
+        {t("no number yet — a draft has none")}</span>
     );
   }
 

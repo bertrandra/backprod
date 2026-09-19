@@ -61,15 +61,35 @@ final class MailTemplatesTest extends DatabaseApiTestCase
         $this->request('POST', '/api/v1/auth/password/forgot', [], $this->json(['email' => 'ola@platform.test']));
         // (ola has no membership, so no notice is raised — the mechanism is
         // proven at the unit level; here the stored words are what matter.)
-        $stored = $this->connection->fetchOne("SELECT value->'account.password_reset'->>'subject' FROM platform_settings WHERE key = 'mail_templates'");
+        $stored = $this->connection->fetchOne("SELECT value->'en'->'account.password_reset'->>'subject' FROM platform_settings WHERE key = 'mail_templates'");
         self::assertSame('Nouveau mot de passe', $stored);
 
+        // French words of their own (ADR-050), beside English's; a language
+        // with none shows English's — what a person in it would receive.
+        $french = $this->request('PUT', '/api/v1/staff/mail/templates', self::ADMIN, $this->json([
+            'locale' => 'fr',
+            'templates' => ['account.invitation' => ['subject' => 'Bienvenue', 'body' => 'Votre lien : {link}']],
+        ]));
+        self::assertSame(200, $french->getStatusCode());
+        self::assertSame('fr', $this->decode($french)['locale'] ?? null);
+        $fr = $this->listIn($this->decode($french), 'templates');
+        self::assertSame('Bienvenue', $fr[1]['subject'] ?? null);
+        self::assertTrue($fr[1]['customised'] ?? null);
+        self::assertSame('Nouveau mot de passe', $fr[0]['subject'] ?? null);
+        self::assertFalse($fr[0]['customised'] ?? null);
+        $italian = $this->listIn($this->decode($this->request('GET', '/api/v1/staff/mail/templates?locale=it', self::ADMIN)), 'templates');
+        self::assertSame('Nouveau mot de passe', $italian[0]['subject'] ?? null);
+        self::assertSame(['en', 'fr', 'es', 'de', 'it'], $this->decode($this->request('GET', '/api/v1/staff/mail/templates?locale=it', self::ADMIN))['locales'] ?? null);
+
         // Left out of the next save, it goes back to the default.
+        // (English's save leaves French as it was.)
         $reset = $this->request('PUT', '/api/v1/staff/mail/templates', self::ADMIN, $this->json(['templates' => new \stdClass()]));
         self::assertSame(200, $reset->getStatusCode());
         $back = $this->listIn($this->decode($reset), 'templates');
         self::assertFalse($back[0]['customised'] ?? null);
         self::assertSame(MailWording::DEFAULTS['account.password_reset']['subject'], $back[0]['subject'] ?? null);
+        $frAfter = $this->listIn($this->decode($this->request('GET', '/api/v1/staff/mail/templates?locale=fr', self::ADMIN)), 'templates');
+        self::assertSame('Bienvenue', $frAfter[1]['subject'] ?? null);
     }
 
     public function testATestIsRefusedPlainlyWhereNoMailCanLeave(): void

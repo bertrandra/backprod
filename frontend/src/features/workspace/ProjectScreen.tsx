@@ -20,6 +20,7 @@ import { SkeletonRows } from '@/ui/Skeleton';
 
 import { AssetsPanel } from './AssetsPanel';
 import { ProjectCanvas } from './ProjectCanvas';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `workspace.project` — one project: rename, duplicate, snapshot, restore,
@@ -87,12 +88,12 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">{current.name}</h1>
         <p className="text-xs text-subtle">
-          schema v{current.schema_version} · updated {new Date(current.updated_at).toLocaleString()}
+          {t("schema v")}{current.schema_version} {t("· updated")}{' '}{new Date(current.updated_at).toLocaleString(currentLocale())}
         </p>
       </header>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold">Details</h2>
+        <h2 className="text-xl font-semibold">{t("Details")}</h2>
 
         <form
           className="max-w-md space-y-4"
@@ -105,7 +106,7 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
             )(event);
           }}
         >
-          <Field id="name" label="Name" error={form.formState.errors.name?.message}>
+          <Field id="name" label={t("Name")} error={form.formState.errors.name?.message}>
             <input
               id="name"
               className={inputClass(form.formState.errors.name !== undefined)}
@@ -113,7 +114,7 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
             />
           </Field>
 
-          <Field id="description" label="Description">
+          <Field id="description" label={t("Description")}>
             <input id="description" className={inputClass()} {...form.register('description')} />
           </Field>
 
@@ -121,8 +122,7 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
 
           <div className="flex flex-wrap gap-2">
             <Button type="submit" pending={update.isPending}>
-              Save
-            </Button>
+              {t("Save")}</Button>
             <Button
               type="button"
               variant="secondary"
@@ -138,8 +138,7 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
                 })
               }
             >
-              Duplicate
-            </Button>
+              {t("Duplicate")}</Button>
           </div>
 
           {duplicate.error !== null && <ErrorSurface error={duplicate.error} />}
@@ -147,10 +146,10 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
       </section>
 
       <section className="space-y-3 border-t border-line pt-6">
-        <h2 className="text-xl font-semibold">History</h2>
+        <h2 className="text-xl font-semibold">{t("History")}</h2>
 
         <div className="flex flex-wrap items-end gap-2">
-          <Field id="version-label" label="Label" hint="Optional — why this snapshot exists.">
+          <Field id="version-label" label={t("Label")} hint={t("Optional — why this snapshot exists.")}>
             <input
               id="version-label"
               className={inputClass()}
@@ -167,8 +166,7 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
               })
             }
           >
-            Take a snapshot
-          </Button>
+            {t("Take a snapshot")}</Button>
         </div>
 
         {snapshot.error !== null && <ErrorSurface error={snapshot.error} />}
@@ -180,8 +178,8 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
           <ErrorSurface error={versions.error} onRetry={() => void versions.refetch()} />
         ) : versions.data.length === 0 ? (
           <EmptyState
-            title="No versions yet"
-            description="A snapshot records the project as it is now, so you can come back to it."
+            title={t("No versions yet")}
+            description={t("A snapshot records the project as it is now, so you can come back to it.")}
           />
         ) : (
           <ul className="space-y-2">
@@ -197,7 +195,7 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
                     {version.label !== null && ` — ${version.label}`}
                   </p>
                   <p className="text-xs text-muted">
-                    {version.name} · {new Date(version.created_at).toLocaleString()}
+                    {version.name} · {new Date(version.created_at).toLocaleString(currentLocale())}
                   </p>
                 </div>
 
@@ -207,16 +205,14 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
                   pending={restore.isPending}
                   onClick={() => restore.mutate(version.id)}
                 >
-                  Restore
-                </Button>
+                  {t("Restore")}</Button>
               </li>
             ))}
           </ul>
         )}
 
         <p className="text-xs text-muted">
-          Restoring snapshots the current state first, so it can never be the step that loses work.
-        </p>
+          {t("Restoring snapshots the current state first, so it can never be the step that loses work.")}</p>
       </section>
 
       <ProjectCanvas projectName={current.name} />
@@ -226,25 +222,24 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
       </div>
 
       <section className="space-y-3 border-t border-line pt-6">
-        <h2 className="text-xl font-semibold">Delete this project</h2>
+        <h2 className="text-xl font-semibold">{t("Delete this project")}</h2>
 
         {/* Recoverable, and said so (R13). It used to be a hard delete with the
             versions cascading behind it, and the wording here said exactly that;
             keeping that wording now would be scaring somebody with a
             consequence that no longer happens. */}
         <p data-testid="delete-explanation" className="text-sm text-muted">
-          The project leaves your list and keeps everything — its{' '}
-          {versions.data?.length ?? 0} snapshot
-          {versions.data?.length === 1 ? '' : 's'}, its files and its jobs. You can put it back from{' '}
-          <strong>Deleted projects</strong>.
+          {t("The project leaves your list and keeps everything — its")}{' '}
+          {t((versions.data?.length ?? 0) === 1 ? "{count} snapshot" : "{count} snapshots", { count: versions.data?.length ?? 0 })}{t(", its files and its jobs. You can put it back from")}{' '}
+          <strong>{t("Deleted projects")}</strong>.
         </p>
 
         {deleting ? (
           <div className="max-w-md space-y-3">
             <Field
               id="confirm-name"
-              label={`Type “${current.name}” to confirm`}
-              hint="Recoverable, but it leaves every list and every link — so more than one click."
+              label={t("Type “{name}” to confirm", { name: current.name })}
+              hint={t("Recoverable, but it leaves every list and every link — so more than one click.")}
             >
               <input
                 id="confirm-name"
@@ -270,8 +265,7 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
                   })
                 }
               >
-                Delete permanently
-              </Button>
+                {t("Delete permanently")}</Button>
               <Button
                 type="button"
                 variant="secondary"
@@ -280,14 +274,12 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
                   setConfirmName('');
                 }}
               >
-                Cancel
-              </Button>
+                {t("Cancel")}</Button>
             </div>
           </div>
         ) : (
           <Button type="button" variant="danger" onClick={() => setDeleting(true)}>
-            Delete project
-          </Button>
+            {t("Delete project")}</Button>
         )}
       </section>
     </div>

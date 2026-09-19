@@ -21,6 +21,7 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { panel, pill } from '@/ui/tone';
 import { Table, TBody, Td, Th, THead, TR } from '@/ui/Table';
 import { PageHeader } from '@/ui/Page';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `tax.reports` — periods, the figures behind them, and the one action in this
@@ -65,8 +66,8 @@ export function VatReportsScreen() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title={'VAT periods'}
-        description={'A period is open while its figures can still move. Closing one files a declaration and freezes it — permanently, and by a rule the database enforces rather than this screen.'}
+        title={t("VAT periods")}
+        description={t("A period is open while its figures can still move. Closing one files a declaration and freezes it — permanently, and by a rule the database enforces rather than this screen.")}
       />
 
       <div className="grid gap-8 lg:grid-cols-[20rem_1fr]">
@@ -77,8 +78,8 @@ export function VatReportsScreen() {
             <ErrorSurface error={periods.error} onRetry={() => void periods.refetch()} />
           ) : periods.data.length === 0 ? (
             <EmptyState
-              title="No periods yet"
-              description="Periods appear once there is something to declare in a jurisdiction."
+              title={t("No periods yet")}
+              description={t("Periods appear once there is something to declare in a jurisdiction.")}
             />
           ) : (
             <ul className="space-y-2">
@@ -100,8 +101,8 @@ export function VatReportsScreen() {
                       <StatusBadge period={period} />
                     </span>
                     <span className="mt-1 block text-xs text-muted">
-                      {period.period_kind} · {new Date(period.starts_on).toLocaleDateString()} —{' '}
-                      {new Date(period.ends_on).toLocaleDateString()}
+                      {period.period_kind} · {new Date(period.starts_on).toLocaleDateString(currentLocale())} —{' '}
+                      {new Date(period.ends_on).toLocaleDateString(currentLocale())}
                     </span>
                   </button>
                 </li>
@@ -113,8 +114,8 @@ export function VatReportsScreen() {
         <section className="min-w-0">
           {selected === undefined ? (
             <EmptyState
-              title="No period selected"
-              description="Choose one to see its figures and, if it is closed, the declaration that was filed."
+              title={t("No period selected")}
+              description={t("Choose one to see its figures and, if it is closed, the declaration that was filed.")}
             />
           ) : (
             <PeriodDetail periodId={selected} mayManage={mayManage} />
@@ -134,7 +135,7 @@ function StatusBadge({ period }: { period: VatPeriod }) {
       data-status={period.status}
       className={pill(isClosed(period) ? 'neutral' : 'success')}
     >
-      {isClosed(period) ? 'Closed' : 'Open'}
+      {isClosed(period) ? t("Closed") : t("Open")}
     </span>
   );
 }
@@ -158,17 +159,15 @@ function PeriodDetail({ periodId, mayManage }: { periodId: string; mayManage: bo
       <header className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-xl font-semibold">
-            {current.jurisdiction} · {new Date(current.starts_on).toLocaleDateString()} —{' '}
-            {new Date(current.ends_on).toLocaleDateString()}
+            {current.jurisdiction} · {new Date(current.starts_on).toLocaleDateString(currentLocale())} —{' '}
+            {new Date(current.ends_on).toLocaleDateString(currentLocale())}
           </h2>
           <StatusBadge period={current} />
         </div>
 
         {closed && current.closed_at !== null && (
           <p data-testid="closed-at" className="text-sm text-muted">
-            Closed on {new Date(current.closed_at).toLocaleDateString()}. The figures below are the
-            ones that were declared, not a recount — a later correction belongs in a later period.
-          </p>
+            {t("Closed on")}{' '}{new Date(current.closed_at).toLocaleDateString(currentLocale())}{t(". The figures below are the ones that were declared, not a recount — a later correction belongs in a later period.")}</p>
         )}
       </header>
 
@@ -187,10 +186,7 @@ function PeriodDetail({ periodId, mayManage }: { periodId: string; mayManage: bo
           data-testid="no-reopen"
           className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm text-muted"
         >
-          This period cannot be reopened. Nothing here can change it, and neither can support —
-          the database refuses the change. A figure that turns out to be wrong is corrected in a
-          later period, which is what leaves an audit trail.
-        </p>
+          {t("This period cannot be reopened. Nothing here can change it, and neither can support — the database refuses the change. A figure that turns out to be wrong is corrected in a later period, which is what leaves an audit trail.")}</p>
       ) : (
         <CloseSection period={current} mayManage={mayManage} />
       )}
@@ -228,7 +224,7 @@ function CloseSection({ period, mayManage }: { period: VatPeriod; mayManage: boo
   if (!mayManage) {
     return (
       <p data-testid="cannot-close" className="text-sm text-muted">
-        Closing a period needs <code>tax.manage</code>.
+        {t("Closing a period needs")}{' '}<code>{'tax.manage'}</code>.
       </p>
     );
   }
@@ -236,15 +232,13 @@ function CloseSection({ period, mayManage }: { period: VatPeriod; mayManage: boo
   if (!ended) {
     return (
       <p data-testid="not-ended" className="text-sm text-muted">
-        This period has not ended yet, so it cannot be closed. Closing freezes figures that are
-        still moving, and it cannot be undone afterwards to fix that.
-      </p>
+        {t("This period has not ended yet, so it cannot be closed. Closing freezes figures that are still moving, and it cannot be undone afterwards to fix that.")}</p>
     );
   }
 
   return (
     <div className={`${panel('warning')} space-y-3`}>
-      <h3 className="text-sm font-semibold">Close this period</h3>
+      <h3 className="text-sm font-semibold">{t("Close this period")}</h3>
 
       {close.error !== null && <ErrorSurface error={close.error} />}
 
@@ -253,14 +247,13 @@ function CloseSection({ period, mayManage }: { period: VatPeriod; mayManage: boo
           {/* What becomes impossible — not "are you sure?". Somebody confirming
               a one-way action needs to learn something at the confirmation
               they did not know at the button. */}
-          <p>Closing this period does the following, and none of it can be undone:</p>
+          <p>{t("Closing this period does the following, and none of it can be undone:")}</p>
           <ul className="list-inside list-disc text-muted">
-            <li>the figures are frozen as a declaration and stop tracking new transactions</li>
-            <li>this period can never be reopened — there is no operation that does it</li>
+            <li>{t("the figures are frozen as a declaration and stop tracking new transactions")}</li>
+            <li>{t("this period can never be reopened — there is no operation that does it")}</li>
             <li>
-              a transaction dated inside it that arrives later will not change the declared totals
-            </li>
-            <li>a mistake is corrected in a later period, visibly, rather than in this one</li>
+              {t("a transaction dated inside it that arrives later will not change the declared totals")}</li>
+            <li>{t("a mistake is corrected in a later period, visibly, rather than in this one")}</li>
           </ul>
 
           <div className="flex flex-wrap gap-2">
@@ -270,21 +263,17 @@ function CloseSection({ period, mayManage }: { period: VatPeriod; mayManage: boo
               pending={close.isPending}
               onClick={() => close.mutate(period.id, { onSettled: () => setConfirming(false) })}
             >
-              Close it permanently
-            </Button>
+              {t("Close it permanently")}</Button>
             <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>
-              Leave it open
-            </Button>
+              {t("Leave it open")}</Button>
           </div>
         </div>
       ) : (
         <>
           <p className="text-sm text-muted">
-            The period has ended. Closing it files the declaration.
-          </p>
+            {t("The period has ended. Closing it files the declaration.")}</p>
           <Button type="button" variant="danger" onClick={() => setConfirming(true)}>
-            Close the period…
-          </Button>
+            {t("Close the period…")}</Button>
         </>
       )}
     </div>
@@ -301,23 +290,23 @@ function Declaration({ declaration }: { declaration: VatDeclaration }) {
       data-testid="declaration"
       className="space-y-3 rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
     >
-      <h3 className="font-semibold">Declared</h3>
+      <h3 className="font-semibold">{t("Declared")}</h3>
 
       <dl className="grid gap-3 sm:grid-cols-3">
         <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">Taxable base</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">{t("Taxable base")}</dt>
           <dd data-testid="declared-base">
             <Amount money={base} />
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">VAT</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">{t("VAT")}</dt>
           <dd data-testid="declared-vat">
             <Amount money={vat} />
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">Transactions</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">{t("Transactions")}</dt>
           <dd>{declaration.transaction_count}</dd>
         </div>
       </dl>
@@ -325,8 +314,8 @@ function Declaration({ declaration }: { declaration: VatDeclaration }) {
       <Breakdown rows={declaration.breakdown} />
 
       <p className="text-xs text-subtle">
-        Declaration <code>{declaration.id}</code> · filed{' '}
-        {new Date(declaration.created_at).toLocaleDateString()}
+        {t("Declaration")}{' '}<code>{declaration.id}</code> {t("· filed")}{' '}
+        {new Date(declaration.created_at).toLocaleDateString(currentLocale())}
       </p>
     </section>
   );
@@ -345,27 +334,25 @@ function Totals({ totals }: { totals: Record<string, unknown> }) {
       data-testid="totals"
       className="space-y-3 rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
     >
-      <h3 className="font-semibold">As it stands today</h3>
+      <h3 className="font-semibold">{t("As it stands today")}</h3>
       <p className="text-xs text-muted">
-        Not a declaration. These figures move while the period is open, and a transaction booked
-        tomorrow changes them.
-      </p>
+        {t("Not a declaration. These figures move while the period is open, and a transaction booked tomorrow changes them.")}</p>
 
       <dl className="grid gap-3 sm:grid-cols-3">
         <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">Taxable base</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">{t("Taxable base")}</dt>
           <dd data-testid="running-base">
             <Amount money={{ minor_units: base, currency }} />
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">VAT</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">{t("VAT")}</dt>
           <dd data-testid="running-vat">
             <Amount money={{ minor_units: vat, currency }} />
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">Transactions</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">{t("Transactions")}</dt>
           <dd>{count}</dd>
         </div>
       </dl>
@@ -374,9 +361,7 @@ function Totals({ totals }: { totals: Record<string, unknown> }) {
           closed. Said here rather than discovered from a 409. */}
       {currencies.length > 1 && (
         <p data-testid="mixed-currencies" className="text-warning">
-          This period holds transactions in {currencies.join(', ')}. A declaration carries one
-          currency, so it cannot be closed while that is true.
-        </p>
+          {t("This period holds transactions in")}{' '}{currencies.join(', ')}{t(". A declaration carries one currency, so it cannot be closed while that is true.")}</p>
       )}
 
       <Breakdown rows={totals.breakdown} />
@@ -411,13 +396,13 @@ function Breakdown({ rows }: { rows: unknown }) {
   }
 
   return (
-    <Table caption="VAT declared, broken down by regime and rate">
+    <Table caption={t("VAT declared, broken down by regime and rate")}>
       <THead>
-        <Th>Regime</Th>
-        <Th numeric>Rate</Th>
-        <Th numeric>Base</Th>
-        <Th numeric>VAT</Th>
-        <Th numeric>Count</Th>
+        <Th>{t("Regime")}</Th>
+        <Th numeric>{t("Rate")}</Th>
+        <Th numeric>{t("Base")}</Th>
+        <Th numeric>{t("VAT")}</Th>
+        <Th numeric>{t("Count")}</Th>
       </THead>
 
       <TBody>
@@ -477,12 +462,9 @@ function Transactions() {
 
   return (
     <section className="space-y-3 border-t border-line pt-6">
-      <h2 className="text-xl font-semibold">VAT transactions</h2>
+      <h2 className="text-xl font-semibold">{t("VAT transactions")}</h2>
       <p className="text-sm text-muted">
-        Every taxable event, newest first — across all periods, not only the one selected above,
-        and across every product this organisation holds. Each carries the rule that decided its
-        regime.
-      </p>
+        {t("Every taxable event, newest first — across all periods, not only the one selected above, and across every product this organisation holds. Each carries the rule that decided its regime.")}</p>
 
       {transactions.isPending ? (
         <SkeletonRows rows={5} />
@@ -490,13 +472,13 @@ function Transactions() {
         <ErrorSurface error={transactions.error} onRetry={() => void transactions.refetch()} />
       ) : transactions.data.transactions.length === 0 ? (
         <EmptyState
-          title="No VAT transactions"
-          description="One is booked whenever an invoice or a credit note is issued."
+          title={t("No VAT transactions")}
+          description={t("One is booked whenever an invoice or a credit note is issued.")}
         />
       ) : (
         <>
           <p data-testid="transaction-count" className="text-xs text-subtle">
-            Showing {transactions.data.transactions.length} of {transactions.data.total}.
+            {t("Showing")}{' '}{transactions.data.transactions.length} {t("of")}{' '}{transactions.data.total}.
           </p>
 
           <ul className="space-y-2">
@@ -542,11 +524,11 @@ function Transactions() {
                 </div>
 
                 <p className="mt-1 text-xs text-subtle">
-                  {new Date(transaction.transaction_date).toLocaleDateString()} ·{' '}
+                  {new Date(transaction.transaction_date).toLocaleDateString(currentLocale())} ·{' '}
                   {transaction.invoice_id === null
-                    ? `credit note ${transaction.credit_note_id ?? '—'}`
+                    ? t("credit note {value}", { value: transaction.credit_note_id ?? '—' })
                     : `invoice ${transaction.invoice_id}`}{' '}
-                  · read as {transaction.customer_tax_status} · rule{' '}
+                  {t("· read as")}{' '}{transaction.customer_tax_status} {t("· rule")}{' '}
                   <code>{transaction.rule_id}</code>
                 </p>
               </li>

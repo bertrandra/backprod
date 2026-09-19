@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Notification\Infrastructure;
 
 use App\Notification\Domain\MailTemplates;
+use App\Shared\Validation\Locale;
 use Doctrine\DBAL\Connection;
 
 /** `platform_settings.mail_templates = {type: {subject, body}}`. */
@@ -30,10 +31,30 @@ final class PostgresMailTemplates implements MailTemplates
         $decoded = json_decode($value, true);
         $overrides = [];
 
-        if (is_array($decoded)) {
-            foreach ($decoded as $type => $template) {
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        foreach ($decoded as $locale => $byType) {
+            if (!is_string($locale) || !is_array($byType)) {
+                continue;
+            }
+
+            // The shape before languages (2026-09-19, same day): a flat
+            // `type => {subject, body}` map, which is English's.
+            if (is_string($byType['subject'] ?? null) && is_string($byType['body'] ?? null)) {
+                $overrides[Locale::DEFAULT][$locale] = ['subject' => $byType['subject'], 'body' => $byType['body']];
+
+                continue;
+            }
+
+            if (!Locale::isKnown($locale)) {
+                continue;
+            }
+
+            foreach ($byType as $type => $template) {
                 if (is_string($type) && is_array($template) && is_string($template['subject'] ?? null) && is_string($template['body'] ?? null)) {
-                    $overrides[$type] = ['subject' => $template['subject'], 'body' => $template['body']];
+                    $overrides[$locale][$type] = ['subject' => $template['subject'], 'body' => $template['body']];
                 }
             }
         }

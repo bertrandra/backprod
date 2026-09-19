@@ -18,6 +18,7 @@ import { SearchPicker } from '@/ui/pickers/SearchPicker';
 import { type Person } from '@/ui/pickers/Select';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `console.admin.staff` — who holds platform authority.
@@ -71,20 +72,20 @@ export function StaffMembersScreen() {
   return (
     <div className="max-w-3xl space-y-6">
       <PageHeader
-        title={'Staff'}
-        description={'Who may act across tenants, and under which role. A platform role never grants membership of anybody&rsquo;s tenant — it grants the console, and every crossing it allows is recorded in the access log.'}
+        title={t("Staff")}
+        description={t("Who may act across tenants, and under which role. A platform role never grants membership of anybody&rsquo;s tenant — it grants the console, and every crossing it allows is recorded in the access log.")}
       />
 
       {grant.error !== null && <ErrorSurface error={grant.error} />}
       {revoke.error !== null && <ErrorSurface error={revoke.error} />}
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Current staff</h2>
+        <h2 className="text-xl font-semibold">{t("Current staff")}</h2>
 
         {members.length === 0 ? (
           <EmptyState
-            title="Nobody holds a platform role"
-            description="That should be impossible — the platform keeps at least one administrator."
+            title={t("Nobody holds a platform role")}
+            description={t("That should be impossible — the platform keeps at least one administrator.")}
           />
         ) : (
           <ul className="space-y-2" data-testid="staff-list">
@@ -105,12 +106,12 @@ export function StaffMembersScreen() {
       </section>
 
       <section className="space-y-3 border-t border-line pt-4">
-        <h2 className="text-xl font-semibold">Appoint somebody</h2>
+        <h2 className="text-xl font-semibold">{t("Appoint somebody")}</h2>
 
         <p className="hint text-sm text-muted">
           {maySearch
-            ? 'Find the person in the directory, then choose the role. What is sent is their user id, shown beside the name.'
-            : 'By user id, which the Directory screen shows. An email address is not accepted here on purpose: resolving one would make this a way to ask whether an account exists for any address somebody tried.'}
+            ? t("Find the person in the directory, then choose the role. What is sent is their user id, shown beside the name.")
+            : t("By user id, which the Directory screen shows. An email address is not accepted here on purpose: resolving one would make this a way to ask whether an account exists for any address somebody tried.")}
         </p>
 
         <form
@@ -134,7 +135,7 @@ export function StaffMembersScreen() {
           }}
         >
           {maySearch ? (
-            <Field id="staff-user-id" label="Who" hint="Search the directory by name or email.">
+            <Field id="staff-user-id" label={t("Who")} hint={t("Search the directory by name or email.")}>
               <SearchPicker
                 id="staff-user-id"
                 query={query}
@@ -148,11 +149,11 @@ export function StaffMembersScreen() {
                   setPicked(person);
                   setUserId(person?.id ?? '');
                 }}
-                placeholder="ada@example.test"
+                placeholder={t("ada@example.test")}
               />
             </Field>
           ) : (
-            <Field id="staff-user-id" label="User id" hint="A uuid, copied from the Directory.">
+            <Field id="staff-user-id" label={t("User id")} hint={t("A uuid, copied from the Directory.")}>
               <input
                 id="staff-user-id"
                 className={inputClass()}
@@ -163,14 +164,14 @@ export function StaffMembersScreen() {
             </Field>
           )}
 
-          <Field id="staff-role" label="Role">
+          <Field id="staff-role" label={t("Role")}>
             <select
               id="staff-role"
               className={inputClass()}
               value={role}
               onChange={(event) => setRole(event.target.value)}
             >
-              <option value="">Choose a role…</option>
+              <option value="">{t("Choose a role…")}</option>
               {roles.map((platformRole: PlatformRole) => (
                 <option key={platformRole.code} value={platformRole.code}>
                   {platformRole.name} ({platformRole.code})
@@ -180,8 +181,7 @@ export function StaffMembersScreen() {
           </Field>
 
           <Button type="submit" pending={grant.isPending} disabled={userId.trim() === '' || role === ''}>
-            Grant role
-          </Button>
+            {t("Grant role")}</Button>
         </form>
       </section>
     </div>
@@ -208,7 +208,7 @@ function Member({
     >
       <div className="flex flex-wrap items-baseline gap-2">
         <span className="font-medium">
-          {member.display_name ?? member.email ?? 'Erased account'}
+          {member.display_name ?? member.email ?? t("Erased account")}
         </span>
 
         {member.email !== null && member.display_name !== null && (
@@ -220,12 +220,11 @@ function Member({
             data-testid="is-self"
             className="rounded bg-well px-1.5 py-0.5 text-xs"
           >
-            you
-          </span>
+            {t("you")}</span>
         )}
 
         <span className="ml-auto text-xs text-subtle">
-          since {new Date(member.granted_at).toLocaleDateString()}
+          {t("since")}{' '}{new Date(member.granted_at).toLocaleDateString(currentLocale())}
         </span>
       </div>
 
@@ -249,8 +248,8 @@ function Member({
               {protectedRole ? (
                 <span data-testid="role-protected" className="text-xs text-subtle">
                   {isOnlyAdmin
-                    ? 'the last administrator — appoint somebody else first'
-                    : 'your own — another administrator can remove it'}
+                    ? t("the last administrator — appoint somebody else first")
+                    : t("your own — another administrator can remove it")}
                 </span>
               ) : (
                 <Button
@@ -259,8 +258,7 @@ function Member({
                   pending={pending}
                   onClick={() => onRevoke(role)}
                 >
-                  Revoke
-                </Button>
+                  {t("Revoke")}</Button>
               )}
             </li>
           );

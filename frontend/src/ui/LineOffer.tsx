@@ -1,4 +1,5 @@
 import type { Schemas } from '@/api/client';
+import { t } from '@/i18n';
 
 export type LineOffer = Schemas['LineOffer'];
 
@@ -21,7 +22,7 @@ export function LineOfferSummary({ line }: { line: { description: string; offer?
       <span className="font-medium">{offer.product.name}</span>
       <span className="text-muted"> · {offer.name}</span>
       <span className="block text-xs text-subtle">
-        {offer.plan} plan · billed {offer.billing_period.toLowerCase()} · version {offer.version}
+        {offer.plan} {t("plan · billed")}{' '}{offer.billing_period.toLowerCase()} {t("· version")}{' '}{offer.version}
       </span>
     </span>
   );

@@ -24,4 +24,7 @@ interface UserRepository
      * clears it; the caller has checked the person holds the product.
      */
     public function updateDefaultProduct(string $userId, ?string $productId): void;
+
+    /** The language they read in; a known code, checked by the caller (ADR-050). */
+    public function updateLocale(string $userId, string $locale): void;
 }

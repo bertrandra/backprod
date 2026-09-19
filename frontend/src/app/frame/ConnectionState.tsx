@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { NETWORK_UNREACHABLE } from '@/api/client';
 import { ApiError } from '@/queries/session';
 import { pill } from '@/ui/tone';
+import { t } from '@/i18n';
 
 /**
  * Whether what is on screen can still be trusted.
@@ -165,12 +166,12 @@ export function ConnectionState() {
       )}
     >
       {state === 'paused'
-        ? 'Offline — this will be sent when you are back'
+        ? t("Offline — this will be sent when you are back")
         : state === 'unreachable'
           ? browserOffline
-            ? 'Offline — showing what was last loaded'
-            : 'Server unreachable — showing what was last loaded'
-          : 'Updating…'}
+            ? t("Offline — showing what was last loaded")
+            : t("Server unreachable — showing what was last loaded")
+          : t("Updating…")}
     </span>
   );
 }

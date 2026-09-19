@@ -26,6 +26,7 @@ import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `commerce.catalogue_authoring` — drafting a version, and publishing it.
@@ -104,15 +105,15 @@ export function OfferAuthoringScreen() {
   return (
     <div className="max-w-3xl space-y-8">
       <PageHeader
-        title={'Offer authoring'}
-        description={'A published version is frozen: its terms can never be edited, only replaced by a newer version. That is what lets a quote pin the version that priced it.'}
+        title={t("Offer authoring")}
+        description={t("A published version is frozen: its terms can never be edited, only replaced by a newer version. That is what lets a quote pin the version that priced it.")}
       />
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Offers</h2>
+        <h2 className="text-xl font-semibold">{t("Offers")}</h2>
 
         {offers.data.length === 0 ? (
-          <EmptyState title="No offers yet" description="Create one below." />
+          <EmptyState title={t("No offers yet")} description={t("Create one below.")} />
         ) : (
           <ul className="space-y-2">
             {offers.data.map((offer) => (
@@ -139,7 +140,7 @@ export function OfferAuthoringScreen() {
       {selected !== undefined && <OfferVersions offerId={selected} />}
 
       <section className="space-y-3 border-t border-line pt-6">
-        <h2 className="text-xl font-semibold">New offer</h2>
+        <h2 className="text-xl font-semibold">{t("New offer")}</h2>
 
         <form
           className="max-w-md space-y-4"
@@ -161,8 +162,8 @@ export function OfferAuthoringScreen() {
         >
           <Field
             id="offer-code"
-            label="Code"
-            hint="Permanent. Documents name the offer by this, so it cannot be changed later."
+            label={t("Code")}
+            hint={t("Permanent. Documents name the offer by this, so it cannot be changed later.")}
             error={form.formState.errors.code?.message}
           >
             <input
@@ -172,7 +173,7 @@ export function OfferAuthoringScreen() {
             />
           </Field>
 
-          <Field id="offer-name" label="Name" error={form.formState.errors.name?.message}>
+          <Field id="offer-name" label={t("Name")} error={form.formState.errors.name?.message}>
             <input
               id="offer-name"
               className={inputClass(form.formState.errors.name !== undefined)}
@@ -180,17 +181,17 @@ export function OfferAuthoringScreen() {
             />
           </Field>
 
-          <Field id="offer-plan" label="Plan" error={form.formState.errors.plan_id?.message}>
+          <Field id="offer-plan" label={t("Plan")} error={form.formState.errors.plan_id?.message}>
             <select
               id="offer-plan"
               className={inputClass(form.formState.errors.plan_id !== undefined)}
               {...form.register('plan_id')}
             >
-              <option value="">Choose a plan</option>
+              <option value="">{t("Choose a plan")}</option>
               {/* Ordered by rank, like everywhere else. */}
               {plans.data.map((plan) => (
                 <option key={plan.id} value={plan.id}>
-                  {plan.name} (rank {plan.rank})
+                  {plan.name} {t("(rank")}{' '}{plan.rank})
                 </option>
               ))}
             </select>
@@ -201,8 +202,7 @@ export function OfferAuthoringScreen() {
           {create.error !== null && <ErrorSurface error={create.error} />}
 
           <Button type="submit" pending={create.isPending}>
-            Create offer
-          </Button>
+            {t("Create offer")}</Button>
         </form>
       </section>
     </div>
@@ -232,7 +232,7 @@ function DraftFields<T extends DraftValues>({ form }: { form: UseFormReturn<T> }
 
   return (
     <>
-      <Field id="offer-period" label="Billing period">
+      <Field id="offer-period" label={t("Billing period")}>
         <select id="offer-period" className={inputClass()} {...register('billing_period')}>
           {PERIODS.map((period) => (
             <option key={period} value={period}>
@@ -244,8 +244,8 @@ function DraftFields<T extends DraftValues>({ form }: { form: UseFormReturn<T> }
 
       <Field
         id="offer-price"
-        label="Price in minor units"
-        hint="Cents, not euros. Zero is legitimate — a free tier is still an offer."
+        label={t("Price in minor units")}
+        hint={t("Cents, not euros. Zero is legitimate — a free tier is still an offer.")}
         error={errors.price_minor_units?.message}
       >
         <input
@@ -258,7 +258,7 @@ function DraftFields<T extends DraftValues>({ form }: { form: UseFormReturn<T> }
 
       <Field
         id="offer-currency"
-        label="Currency"
+        label={t("Currency")}
         error={errors.currency?.message}
       >
         <input
@@ -270,7 +270,7 @@ function DraftFields<T extends DraftValues>({ form }: { form: UseFormReturn<T> }
 
       {showable && (
         <p className="text-sm text-muted">
-          That is <Amount money={{ minor_units: minor, currency }} />.
+          {t("That is")}{' '}<Amount money={{ minor_units: minor, currency }} />.
         </p>
       )}
     </>
@@ -307,15 +307,14 @@ function OfferVersions({ offerId }: { offerId: string }) {
         <h2 className="text-xl font-semibold">{offer.name}</h2>
         {/* Shown, not editable: the code is identity. */}
         <p className="text-xs text-subtle">
-          <code>{offer.code}</code> — permanent
-        </p>
+          <code>{offer.code}</code> {t("— permanent")}</p>
       </div>
 
       <div className="flex max-w-md flex-wrap items-end gap-2">
         {/* "Offer name", not "Name": the create form below has a name field too,
             and two controls with the same label on one screen is an ambiguity for
             anyone reading it with a screen reader. */}
-        <Field id="rename" label="Offer name">
+        <Field id="rename" label={t("Offer name")}>
           <input
             id="rename"
             className={inputClass()}
@@ -334,8 +333,7 @@ function OfferVersions({ offerId }: { offerId: string }) {
             }
           }}
         >
-          Rename
-        </Button>
+          {t("Rename")}</Button>
       </div>
 
       {rename.error !== null && <ErrorSurface error={rename.error} />}
@@ -374,8 +372,7 @@ function OfferVersions({ offerId }: { offerId: string }) {
           }}
         >
           <p className="text-sm text-muted">
-            A new version is born a draft — publishing it is a separate step.
-          </p>
+            {t("A new version is born a draft — publishing it is a separate step.")}</p>
 
           <DraftFields form={versionForm} />
 
@@ -383,17 +380,14 @@ function OfferVersions({ offerId }: { offerId: string }) {
 
           <div className="flex flex-wrap gap-2">
             <Button type="submit" pending={addVersion.isPending}>
-              Add draft version
-            </Button>
+              {t("Add draft version")}</Button>
             <Button type="button" variant="secondary" onClick={() => setAdding(false)}>
-              Cancel
-            </Button>
+              {t("Cancel")}</Button>
           </div>
         </form>
       ) : (
         <Button type="button" variant="secondary" onClick={() => setAdding(true)}>
-          New version
-        </Button>
+          {t("New version")}</Button>
       )}
     </section>
   );
@@ -429,22 +423,20 @@ function VersionRow({
           <span className="text-xs font-normal text-subtle">{version.status}</span>
         </p>
         <p className="text-xs text-muted">
-          {version.billing_period.toLowerCase()} · <Amount money={version.price} /> · sellable from{' '}
-          {new Date(version.valid_from).toLocaleDateString()}
+          {version.billing_period.toLowerCase()} · <Amount money={version.price} /> {t("· sellable from")}{' '}
+          {new Date(version.valid_from).toLocaleDateString(currentLocale())}
           {version.valid_until !== null &&
-            ` to ${new Date(version.valid_until).toLocaleDateString()}`}
+            ` to ${new Date(version.valid_until).toLocaleDateString(currentLocale())}`}
         </p>
       </div>
 
       {draft ? (
         <Button type="button" pending={publishing} onClick={onPublish}>
-          Publish
-        </Button>
+          {t("Publish")}</Button>
       ) : (
         // No control, and a reason. The absence is the design.
         <span data-testid="frozen" className="text-xs text-subtle">
-          Published versions are frozen
-        </span>
+          {t("Published versions are frozen")}</span>
       )}
     </li>
   );

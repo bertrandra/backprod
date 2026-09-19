@@ -11,6 +11,7 @@ import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { useSessionStore } from '@/state/session';
 import { PageHeader } from '@/ui/Page';
+import { t } from '@/i18n';
 
 /**
  * `console.admin.readiness` — the console's landing, and the map of a maze.
@@ -55,15 +56,14 @@ export function ReadinessScreen() {
   if (products.data.length === 0) {
     return (
       <EmptyState
-        title="No product yet"
-        description="Everything starts with a product: it is what tenants belong to and what offers are priced for. Create the first one."
+        title={t("No product yet")}
+        description={t("Everything starts with a product: it is what tenants belong to and what offers are priced for. Create the first one.")}
         action={
           <Link
             to="/console/products"
             className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
           >
-            Go to Products
-          </Link>
+            {t("Go to Products")}</Link>
         }
       />
     );
@@ -72,8 +72,8 @@ export function ReadinessScreen() {
   if (productCode === null) {
     return (
       <EmptyState
-        title="Choose a product"
-        description="Everything on the console is about one product. Choose it in the bar above — the switcher there lists every product the platform hosts."
+        title={t("Choose a product")}
+        description={t("Everything on the console is about one product. Choose it in the bar above — the switcher there lists every product the platform hosts.")}
       />
     );
   }
@@ -91,8 +91,8 @@ export function ReadinessScreen() {
   return (
     <div className="max-w-3xl space-y-6">
       <PageHeader
-        title={<>Setting up {product.name}</>}
-        description={'Every step depends on the one above it, so working down this list never meets a refusal. What is counted here is read the same way a sale reads it — this cannot say ready where a checkout would refuse.'}
+        title={<>{t("Setting up")}{' '}{product.name}</>}
+        description={t("Every step depends on the one above it, so working down this list never meets a refusal. What is counted here is read the same way a sale reads it — this cannot say ready where a checkout would refuse.")}
       />
 
       {/*
@@ -112,9 +112,7 @@ export function ReadinessScreen() {
         >
           <span aria-hidden="true" className="mt-1.5 size-1.5 shrink-0 rounded-full bg-success" />
           <span>
-            <strong>This product can be bought.</strong> Somebody with no account can reach the
-            public page, choose an offer, create an account and pay for it.
-          </span>
+            <strong>{t("This product can be bought.")}</strong> {t("Somebody with no account can reach the public page, choose an offer, create an account and pay for it.")}</span>
         </p>
       ) : (
         <p
@@ -124,9 +122,7 @@ export function ReadinessScreen() {
         >
           <span aria-hidden="true" className="mt-1.5 size-1.5 shrink-0 rounded-full bg-warning" />
           <span>
-            <strong>Not on sale yet.</strong> {blockingCount(steps)} step
-            {blockingCount(steps) === 1 ? '' : 's'} left before a stranger can buy from this product.
-          </span>
+            <strong>{t("Not on sale yet.")}</strong> {t(blockingCount(steps) === 1 ? "{count} step left before a stranger can buy from this product." : "{count} steps left before a stranger can buy from this product.", { count: blockingCount(steps) })}</span>
         </p>
       )}
 
@@ -289,7 +285,7 @@ function Step({
         >
           {index}
         </span>
-        <span className="font-medium">{words.title}</span>
+        <span className="font-medium">{t(words.title)}</span>
 
         <span
           data-testid={`state-${step.key}`}
@@ -312,12 +308,11 @@ function Step({
             data-testid="do-this-next"
             className="rounded-full bg-accent px-2 py-0.5 text-2xs font-semibold uppercase text-on-accent"
           >
-            do this next
-          </span>
+            {t("do this next")}</span>
         )}
       </div>
 
-      <p className="mt-1 text-sm text-muted">{words.why}</p>
+      <p className="mt-1 text-sm text-muted">{t(words.why)}</p>
 
       <Detail step={step} />
 
@@ -328,10 +323,10 @@ function Step({
             variant={isNext ? 'primary' : 'secondary'}
             onClick={() => go(navigate, words.to as StepRoute)}
           >
-            {step.done ? `Review in ${words.action}` : `Go to ${words.action}`}
+            {step.done ? t('Review in {action}', { action: t(words.action) }) : t('Go to {action}', { action: t(words.action) })}
           </Button>
         ) : (
-          <p className="text-xs text-subtle">{words.hint}</p>
+          <p className="text-xs text-subtle">{words.hint === undefined ? null : t(words.hint)}</p>
         )}
       </div>
     </li>
@@ -356,7 +351,7 @@ function Detail({
   if (Array.isArray(missing) && missing.length > 0) {
     return (
       <p data-testid={`missing-${step.key}`} className="mt-1 text-xs text-subtle">
-        Missing: <strong className="font-mono">{missing.join(', ')}</strong>
+        {t("Missing:")}{' '}<strong className="font-mono">{missing.join(', ')}</strong>
       </p>
     );
   }
@@ -364,16 +359,14 @@ function Detail({
   if (typeof count === 'number') {
     return (
       <p data-testid={`count-${step.key}`} className="mt-1 text-xs tabular-nums text-subtle">
-        {count} so far
-      </p>
+        {count} {t("so far")}</p>
     );
   }
 
   if (step.key === 'product' && step.detail['active'] === false) {
     return (
       <p data-testid="missing-product" className="mt-1 text-xs text-subtle">
-        This product is retired. Nobody can sign in to it or buy from it.
-      </p>
+        {t("This product is retired. Nobody can sign in to it or buy from it.")}</p>
     );
   }
 
