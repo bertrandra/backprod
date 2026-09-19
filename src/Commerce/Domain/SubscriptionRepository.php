@@ -85,6 +85,19 @@ interface SubscriptionRepository
     public function liveFor(string $tenantId, string $productId, string $userId): array;
 
     /**
+     * The people a subscription covers beside its owner (2026-09-19).
+     *
+     * @return list<SubscriptionMember>
+     */
+    public function membersOf(string $subscriptionId): array;
+
+    /** Idempotent: adding somebody twice is once. */
+    public function addMember(string $subscriptionId, string $userId, ?string $addedBy): void;
+
+    /** Idempotent: removing somebody absent is nothing. */
+    public function removeMember(string $subscriptionId, string $userId): void;
+
+    /**
      * Records a cancellation decision: the schedule flag, the effective date
      * the customer was told, and the event.
      *

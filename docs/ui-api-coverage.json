@@ -359,7 +359,9 @@
         "refreshSession",
         "signIn",
         "signOut",
-        "verifyEmail"
+        "verifyEmail",
+        "forgotPassword",
+        "resetPassword"
       ]
     },
     "messaging.conversations": {
@@ -511,6 +513,9 @@
         "listEntitlements",
         "resumeSubscription",
         "showSchedule",
+        "listSubscriptionPeople",
+        "addSubscriptionPerson",
+        "removeSubscriptionPerson",
         "showSubscription",
         "subscribe"
       ]

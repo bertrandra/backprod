@@ -89,6 +89,7 @@ export const keys = {
     current: ['subscription', 'current'] as const,
     schedule: ['subscription', 'schedule'] as const,
     entitlements: ['subscription', 'entitlements'] as const,
+    people: (seat: boolean) => ['subscription', 'people', seat ? 'seat' : 'tenant'] as const,
   },
   billing: {
     invoiceLists: ['billing', 'invoices'] as const,

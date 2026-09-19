@@ -63,6 +63,11 @@ final class RouteSurfaceTest extends ApiTestCase
         // never turns a mail into a credential.
         'POST /api/v1/auth/sign-up',
         'POST /api/v1/auth/verify-email',
+        // The forgotten password (2026-09-19): an address, always answered
+        // 202; and the single-use link that sets a new one, which signs
+        // nobody in and revokes every session it finds.
+        'POST /api/v1/auth/password/forgot',
+        'POST /api/v1/auth/password/reset',
         // The shop window (ADR-041). These authenticate nothing either, and
         // they do not need to: what they return is only what somebody
         // explicitly marked `publicly_listed` and that is inside its sale

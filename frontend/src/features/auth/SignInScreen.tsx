@@ -1,10 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { withRoot } from '@/app/root';
-import { useSignIn, useVerifyEmail } from '@/queries/auth';
+import { useForgotPassword, useResetPassword, useSignIn, useVerifyEmail } from '@/queries/auth';
 import { useSessionStore } from '@/state/session';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { PageHeader } from '@/ui/Page';
@@ -52,6 +52,26 @@ const schema = z.object({
 
 type Values = z.infer<typeof schema>;
 
+/**
+ * The two other things this screen does since 2026-09-19, both for a
+ * person who cannot sign in: **forgetting** — an address, always answered
+ * "if there is an account, a link has been sent", because the server says
+ * no more and neither may this — and **the link** (`?reset=`), which sets a
+ * new password for a reset somebody asked for or an invitation somebody
+ * never had a password for, then sends them to the form to sign in as
+ * themselves. Neither signs anybody in.
+ */
+const forgotSchema = z.object({
+  email: z.string().trim().min(1, 'Enter your email address.').email('That is not an email address.'),
+});
+
+const resetSchema = z.object({
+  password: z
+    .string()
+    .min(12, 'A password is at least 12 characters.')
+    .max(72, 'A password is at most 72 characters.'),
+});
+
 export function SignInScreen() {
   const signIn = useSignIn();
   const verification = useVerifyEmail();
@@ -61,6 +81,9 @@ export function SignInScreen() {
   // *instead of* the router when there is no session, so there are no route
   // params to read.
   const token = new URLSearchParams(window.location.search).get('verify');
+  const resetToken = new URLSearchParams(window.location.search).get('reset');
+  const [forgetting, setForgetting] = useState(false);
+  const [resetDone, setResetDone] = useState(false);
 
   // Guarded, because React runs effects twice in development and a
   // confirmation token is single-use — the second call would answer "no longer
@@ -78,6 +101,14 @@ export function SignInScreen() {
     resolver: zodResolver(schema),
     defaultValues: { email: '', password: '' },
   });
+
+  if (resetToken !== null && resetToken !== '' && !resetDone) {
+    return <ResetPasswordForm token={resetToken} onDone={() => setResetDone(true)} />;
+  }
+
+  if (forgetting) {
+    return <ForgotPasswordForm onBack={() => setForgetting(false)} />;
+  }
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-4">
@@ -157,6 +188,23 @@ export function SignInScreen() {
         </Button>
       </form>
 
+      {resetDone && (
+        <p data-testid="reset-done" role="status" className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm">
+          Your password is set. Sign in with it below — every earlier session was signed out.
+        </p>
+      )}
+
+      <p className="text-sm text-muted">
+        <button
+          type="button"
+          data-testid="forgot-password"
+          onClick={() => setForgetting(true)}
+          className="underline underline-offset-2"
+        >
+          Forgot your password?
+        </button>
+      </p>
+
       {/* A plain link rather than a router one: this screen renders instead
           of the router, and the home page is the storefront the gate shows
           at the landing address. */}
@@ -165,6 +213,98 @@ export function SignInScreen() {
           Back to the home page
         </a>
       </p>
+    </main>
+  );
+}
+
+function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
+  const forgot = useForgotPassword();
+  const form = useForm<z.infer<typeof forgotSchema>>({ resolver: zodResolver(forgotSchema), defaultValues: { email: '' } });
+
+  return (
+    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-4">
+      <PageHeader title={'Forgot your password?'} description={'Enter your address and, if it has an account, a link to set a new one will be sent to it.'} />
+
+      {forgot.isSuccess ? (
+        // The same sentence whether or not the address exists: the server
+        // says no more, and neither may this.
+        <p data-testid="forgot-sent" role="status" className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm">
+          If that address has an account, a link has been sent to it. It is good for thirty minutes.
+        </p>
+      ) : (
+        <form
+          className="space-y-4"
+          noValidate
+          onSubmit={(event) => {
+            void form.handleSubmit((values) => forgot.mutate(values.email))(event);
+          }}
+        >
+          <Field id="forgot-email" label="Email" error={form.formState.errors.email?.message}>
+            <input
+              id="forgot-email"
+              type="email"
+              autoComplete="username"
+              className={inputClass(form.formState.errors.email !== undefined)}
+              {...form.register('email')}
+            />
+          </Field>
+
+          {forgot.error !== null && (
+            <p role="alert" className="text-sm text-danger">
+              {forgot.error.message}
+            </p>
+          )}
+
+          <Button type="submit" pending={forgot.isPending}>
+            Send the link
+          </Button>
+        </form>
+      )}
+
+      <p className="text-sm text-muted">
+        <button type="button" onClick={onBack} className="underline underline-offset-2">
+          Back to sign in
+        </button>
+      </p>
+    </main>
+  );
+}
+
+function ResetPasswordForm({ token, onDone }: { token: string; onDone: () => void }) {
+  const reset = useResetPassword();
+  const form = useForm<z.infer<typeof resetSchema>>({ resolver: zodResolver(resetSchema), defaultValues: { password: '' } });
+
+  return (
+    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-4">
+      <PageHeader title={'Choose a password'} description={'The link you followed lets you set a new password for your account. Then sign in with it.'} />
+
+      <form
+        className="space-y-4"
+        noValidate
+        onSubmit={(event) => {
+          void form.handleSubmit((values) => reset.mutate({ token, password: values.password }, { onSuccess: onDone }))(event);
+        }}
+      >
+        <Field id="new-password" label="New password" hint="At least 12 characters." error={form.formState.errors.password?.message}>
+          <input
+            id="new-password"
+            type="password"
+            autoComplete="new-password"
+            className={inputClass(form.formState.errors.password !== undefined)}
+            {...form.register('password')}
+          />
+        </Field>
+
+        {reset.error !== null && (
+          <p role="alert" data-testid="reset-failed" className="text-sm text-danger">
+            {reset.error.message}
+          </p>
+        )}
+
+        <Button type="submit" pending={reset.isPending}>
+          Set the password
+        </Button>
+      </form>
     </main>
   );
 }

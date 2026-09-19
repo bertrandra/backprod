@@ -214,6 +214,51 @@ export function useVerifyEmail() {
 }
 
 /**
+ * A forgotten password (2026-09-19): the address goes, and the answer is
+ * the same whether or not it has an account — the server says so, and the
+ * screen must say no more.
+ */
+export function useForgotPassword() {
+  const client = useApiClient();
+
+  return useMutation({
+    mutationFn: async (email: string) => {
+      const { data, error, response } = await client.POST('/api/v1/auth/password/forgot', {
+        body: { email },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.accepted;
+    },
+  });
+}
+
+/**
+ * The new password, from the link (2026-09-19). Signs nobody in: every
+ * session of the account is revoked, and the person signs in afresh.
+ */
+export function useResetPassword() {
+  const client = useApiClient();
+
+  return useMutation({
+    mutationFn: async (input: { token: string; password: string }) => {
+      const { data, error, response } = await client.POST('/api/v1/auth/password/reset', {
+        body: input,
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.reset;
+    },
+  });
+}
+
+/**
  * Ends the session, and empties the cache before the next person sees it.
  *
  * `clear()` rather than `invalidateQueries`: invalidation refetches, and

@@ -290,6 +290,27 @@ numéro de facture reste, séquence sans trou oblige). Un membre n'abandonne que
 sa propre commande — celle d'un collègue est un 404 pour lui. Refusé dès qu'un
 paiement a abouti.
 
+**Un mot de passe oublié se réinitialise, et une invitation se règle de même**
+(19 septembre 2026). `POST /auth/password/forgot` répond toujours 202 — dire
+« pas de compte » serait l'énumération que le formulaire de connexion refuse —
+et, s'il y a un compte, envoie un lien à usage unique (30 minutes, stocké en
+SHA-256) en notification `SECURITY`, la catégorie que personne ne peut couper.
+`POST /auth/password/reset` pose le nouveau mot de passe, **révoque toutes les
+sessions** du compte et n'en ouvre aucune : la personne se reconnecte. Le même
+lien (7 jours, `purpose = INVITATION`) sert à qui a été ajouté à un abonnement
+par adresse sans avoir jamais eu de mot de passe.
+
+**Un abonnement a un propriétaire et ses personnes** (19 septembre 2026). Qui
+l'active en est propriétaire (`subscriptions.owner_user_id`) — la personne d'un
+siège, l'administrateur pour l'organisation. L'offre peut vendre un nombre
+d'utilisateurs (feature `users`, quota, propriétaire compris ; 1 si elle n'en
+vend pas) et le propriétaire seul ajoute ou retire des personnes dans cette
+limite (`NOT_THE_OWNER` sinon, quelle que soit la permission) : un membre de
+l'organisation par identifiant, ou n'importe qui par adresse — un compte est
+créé au besoin, membre `USER` actif de l'organisation sur tous ses produits,
+avec le lien d'invitation. Les personnes d'un siège sont habilitées par lui
+(`subscription_members`, comptés à la résolution des droits).
+
 **Le profil de facturation est à l'administrateur.** L'entrée de menu est
 derrière `billing.manage` (comme Organisation et Membres) ; l'API le lit encore
 avec `billing.read`, l'écrit avec `billing.manage`. Sur la

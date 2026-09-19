@@ -52,29 +52,37 @@ final class InvoiceThenSubscribe implements OrderFulfilment
     }
 
     /**
-     * Whom the invoice is to (2026-09-19). The organisation's legal identity
-     * always — it is the customer — and, for a seat, the person it is for:
-     * copied in like the rest of the snapshot, so a later change of name or
-     * an erasure (§26) leaves the document as it was sent.
+     * The person a seat is sold to (2026-09-19), as the customer on the
+     * invoice: their name — or their address, for somebody who gave none —
+     * copied in like every snapshot, so a later change of name or an
+     * erasure (§26) leaves the document as it was sent. Falls back to the
+     * organisation's identity when the person cannot be found, which is a
+     * broken invariant rather than a case.
      *
-     * @param array<string, mixed> $snapshot
+     * @param array<string, mixed> $organisation
      *
      * @return array<string, mixed>
      */
-    private function customerOf(Order $order, array $snapshot): array
+    private function customerOf(Order $order, array $organisation): array
     {
-        if (!$order->subscriber->isSeat() || $order->subscriber->userId === null) {
-            return $snapshot;
+        if ($order->subscriber->userId === null) {
+            return $organisation;
         }
 
         $person = $this->users->find($order->subscriber->userId);
 
         if ($person === null) {
-            return $snapshot;
+            return $organisation;
         }
 
-        return $snapshot + [
-            'person' => ['name' => $person->displayName ?? $person->email, 'email' => $person->email],
+        $name = $person->displayName ?? $person->email ?? 'A member';
+
+        return [
+            'legal_name' => $name,
+            'billing_email' => $person->email,
+            'country_code' => $organisation['country_code'] ?? null,
+            'person' => ['name' => $name, 'email' => $person->email],
+            'organisation' => $organisation['legal_name'] ?? null,
         ];
     }
 
@@ -115,14 +123,23 @@ final class InvoiceThenSubscribe implements OrderFulfilment
 
         $supplyType = $this->taxation->defaultSupplyType($order->productId);
 
+        // Who sells and who buys (2026-09-19). The organisation's own
+        // subscription is sold by the product's supplier to the organisation.
+        // A seat is the organisation selling to one of its people: the
+        // organisation's legal identity is the supplier, the person is the
+        // customer, and the VAT jurisdiction is the organisation's country.
+        [$from, $to, $jurisdiction] = $order->subscriber->isSeat()
+            ? [$profile->snapshot(), $this->customerOf($order, $profile->snapshot()), $profile->countryCode ?? SupplierIdentity::jurisdictionOf($supplier)]
+            : [$supplier, $profile->snapshot(), SupplierIdentity::jurisdictionOf($supplier)];
+
         $invoice = $this->invoices->applyIssue(
             $order->tenantId,
             $order->productId,
             null,
             $order->lines,
-            $supplier,
-            $this->customerOf($order, $profile->snapshot()),
-            SupplierIdentity::jurisdictionOf($supplier),
+            $from,
+            $to,
+            $jurisdiction,
             $now,
             $offer->version->periodEndFrom($now),
             'Payable on receipt.',

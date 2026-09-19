@@ -47,6 +47,8 @@ final class Subscription
         public readonly ?DateTimeImmutable $termEndsAt = null,
         public readonly ?DateTimeImmutable $commitmentEndsAt = null,
         public readonly ?DateTimeImmutable $cancelEffectiveAt = null,
+        /** Who activated it (2026-09-19): the person a seat is for, or the administrator who bought the organisation's. */
+        public readonly ?string $ownerUserId = null,
     ) {
     }
 

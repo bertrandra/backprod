@@ -386,10 +386,16 @@ function Person({ party }: { party: Record<string, unknown> }) {
     return null;
   }
 
+  // Since 2026-09-19 the person *is* the customer of a seat's invoice —
+  // their name stands as `legal_name` above — and the organisation they
+  // belong to is named beside them, sold to by that organisation.
+  const organisation = typeof party.organisation === 'string' ? party.organisation : null;
+
   return (
     <p data-testid="customer-person" className="text-xs text-muted">
-      for {name ?? email}
-      {email !== null && name !== email && ` (${email})`}
+      {email !== null && name !== email ? email : null}
+      {email !== null && name !== email && organisation !== null ? ' · ' : null}
+      {organisation !== null ? `a member of ${organisation}` : null}
     </p>
   );
 }

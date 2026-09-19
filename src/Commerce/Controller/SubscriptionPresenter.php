@@ -50,6 +50,8 @@ final class SubscriptionPresenter
                 'kind' => $subscription->subscriber->kind,
                 'user_id' => $subscription->subscriber->userId,
             ],
+            // Who activated it and manages its people (2026-09-19).
+            'owner_user_id' => $subscription->ownerUserId,
             'terms' => [
                 'term_months' => $subscription->terms->termMonths,
                 'term_ends_at' => self::nullableMoment($subscription->termEndsAt),

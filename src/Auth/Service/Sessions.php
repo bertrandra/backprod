@@ -45,6 +45,15 @@ final class Sessions
     /** Two days to click a link in an email. Long enough for a weekend, short enough to matter. */
     public const VERIFICATION_LIFETIME = 172_800;
 
+    /** Thirty minutes for a reset link: long enough to find the mail, short enough that a forgotten inbox is not a way in. */
+    public const RESET_LIFETIME = 1_800;
+
+    /** Seven days for an invitation: the person did not ask for it and may not look for a week. */
+    public const INVITATION_LIFETIME = 604_800;
+
+    public const RESET = 'RESET';
+    public const INVITATION = 'INVITATION';
+
     public function __construct(
         private readonly LocalCredentialRepository $credentials,
         private readonly RefreshTokenRepository $refreshTokens,
@@ -177,6 +186,128 @@ final class Sessions
             // One live token per account, so one notice per account: asking
             // again replaces both rather than adding to them.
             'email-verification:' . $account->userId,
+            false,
+            [Channel::EMAIL],
+        );
+    }
+
+    /**
+     * Somebody forgot their password (2026-09-19).
+     *
+     * **Always the same answer**, whether the address has an account or not:
+     * the request is accepted, and if there is an account a link goes to its
+     * address. Saying "no such account" here would be the enumeration the
+     * sign-in form goes to lengths to prevent. The link is a SECURITY
+     * notice — the one category nobody can switch off, because a reset
+     * somebody did not ask for is exactly what they must hear about.
+     */
+    public function forgotPassword(string $email): void
+    {
+        $credential = $this->credentials->findByEmail($email);
+
+        if ($credential === null) {
+            $this->logger->info('Password reset asked for an unknown address', ['email' => $email]);
+
+            return;
+        }
+
+        $this->sendPasswordLink($credential->userId, $credential->email, self::RESET);
+    }
+
+    /**
+     * A new password from the link, and every session gone (2026-09-19).
+     *
+     * The token is spent first — so a link opened twice sets a password once
+     * — then the hash is replaced, then every refresh token for the account
+     * is revoked: whoever held a session before the reset, including whoever
+     * made the reset necessary, is signed out. The person signs in afresh,
+     * as themselves. Unknown, expired and spent are one answer, and the
+     * caller says so once.
+     *
+     * @return bool false when the link is not live
+     */
+    public function resetPassword(#[SensitiveParameter] string $rawToken, #[SensitiveParameter] string $password): bool
+    {
+        if ($rawToken === '') {
+            return false;
+        }
+
+        $userId = $this->registrar->consumePasswordLink($this->hash($rawToken));
+
+        if ($userId === null) {
+            return false;
+        }
+
+        $email = $this->registrar->emailOf($userId);
+
+        if ($email === null) {
+            return false;
+        }
+
+        $this->credentials->save($userId, $email, password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]));
+        $revoked = $this->refreshTokens->revokeAllFor($userId);
+        $this->logger->info('Password reset; every session revoked', ['user_id' => $userId, 'revoked' => $revoked]);
+
+        $home = $this->registrar->homeOf($userId);
+
+        if ($home !== null) {
+            $this->notifications->raise(
+                $home['tenant_id'],
+                $home['product_id'],
+                $userId,
+                'account.password_changed',
+                Category::SECURITY,
+                ['email' => $email],
+                null,
+                false,
+                [Channel::EMAIL],
+            );
+        }
+
+        return true;
+    }
+
+    /**
+     * The link that sets a password — a reset, or an invitation for somebody
+     * who never had one (2026-09-19). Sent to the account's address, under
+     * the root of the organisation the person belongs to, so that setting
+     * the password lands them where they live. A person with no membership
+     * is sent to the bare host.
+     */
+    public function sendPasswordLink(string $userId, string $email, string $purpose): void
+    {
+        $raw = bin2hex(random_bytes(32));
+        $home = $this->registrar->homeOf($userId);
+
+        $this->registrar->issuePasswordLink(
+            $userId,
+            $this->hash($raw),
+            $purpose === self::INVITATION ? self::INVITATION_LIFETIME : self::RESET_LIFETIME,
+            $purpose,
+        );
+
+        if ($home === null) {
+            // Nowhere to be told: the notification model is per organisation
+            // and product. Logged rather than lost silently.
+            $this->logger->warning('Password link issued for an account with no membership; no notice sent', ['user_id' => $userId]);
+
+            return;
+        }
+
+        $root = $home['is_default'] ? '' : '/' . $home['slug'];
+
+        $this->notifications->raise(
+            $home['tenant_id'],
+            $home['product_id'],
+            $userId,
+            $purpose === self::INVITATION ? 'account.invitation' : 'account.password_reset',
+            Category::SECURITY,
+            [
+                'link' => rtrim($this->appUrl, '/') . $root . '/sign-in?reset=' . $raw,
+                'email' => $email,
+                'purpose' => $purpose,
+            ],
+            'password-link:' . $userId,
             false,
             [Channel::EMAIL],
         );

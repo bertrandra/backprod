@@ -22,6 +22,8 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
 
+import { SubscriptionPeople } from './SubscriptionPeople';
+
 /**
  * `tenant.subscription` — and the distinction §13.1 exists to protect.
  *
@@ -209,6 +211,10 @@ export function SubscriptionScreen() {
         )}
       </section>
 
+      {/* Who the organisation's subscription covers (2026-09-19): read by
+          anybody, managed by whoever activated it. */}
+      <SubscriptionPeople seat={false} />
+
       {mayManageOrganisation && (
         <>
           <section className="space-y-3 border-t border-line pt-6">
@@ -391,6 +397,9 @@ function YourSeat({
           </dd>
         </div>
       </dl>
+
+      {/* The people the seat covers (2026-09-19): its holder owns it. */}
+      <SubscriptionPeople seat />
 
       {mayManage && !seat.cancel_at_period_end && (
         <div className="space-y-2">
