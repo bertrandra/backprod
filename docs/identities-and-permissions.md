@@ -189,7 +189,7 @@ accordée au rôle puis retirée à la résolution.
 | Permission | `TENANT_ADMIN` | `USER` | Objet |
 | --- | --- | --- | --- |
 | `account.read` | oui | oui | son propre compte |
-| `account.manage` | oui | oui | son propre compte |
+| `account.manage` | oui | oui | son propre compte — nom affiché, produit par défaut, langue (ADR-050) |
 | `tenant.read` | oui | oui | le tenant courant |
 | `tenant.manage` | oui | non | le tenant courant |
 | `members.read` | oui | oui | les membres |

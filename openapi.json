@@ -8715,7 +8715,8 @@
                     "roles",
                     "permissions",
                     "capabilities",
-                    "default_product"
+                    "default_product",
+                    "locale"
                   ],
                   "properties": {
                     "user_id": {
@@ -8768,6 +8769,17 @@
                         "type": "string"
                       },
                       "description": "Feature codes the tenant is entitled to here."
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "en",
+                        "fr",
+                        "es",
+                        "de",
+                        "it"
+                      ],
+                      "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages."
                     }
                   }
                 }
@@ -8794,7 +8806,7 @@
         ],
         "operationId": "updateMe",
         "summary": "Change the caller's own profile",
-        "description": "Partial by design: an absent field leaves it untouched, an explicit `null` clears it. Those are different requests and are not collapsed into one. `default_product` is a code of a product the person holds — the one their screens open in when the address names none; `PRODUCT_NOT_HELD` otherwise.",
+        "description": "Partial by design: an absent field leaves it untouched, an explicit `null` clears it. Those are different requests and are not collapsed into one. `default_product` is a code of a product the person holds — the one their screens open in when the address names none; `PRODUCT_NOT_HELD` otherwise. Since 2026-09-19 (ADR-050) `locale` chooses the language the person reads in; `LOCALE_UNKNOWN` (422) for one the platform does not speak.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
@@ -8814,7 +8826,8 @@
                     "user_id",
                     "email",
                     "display_name",
-                    "default_product"
+                    "default_product",
+                    "locale"
                   ],
                   "properties": {
                     "user_id": {
@@ -8840,6 +8853,17 @@
                         "null"
                       ],
                       "description": "The code of the product this person's screens open in when the address names none — the product signed up for, until changed from the profile. Null when unset or when the person no longer holds it."
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "en",
+                        "fr",
+                        "es",
+                        "de",
+                        "it"
+                      ],
+                      "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages."
                     }
                   }
                 }
@@ -8891,6 +8915,17 @@
                     ],
                     "maxLength": 64,
                     "description": "A product code the person holds, or null to clear."
+                  },
+                  "locale": {
+                    "type": "string",
+                    "enum": [
+                      "en",
+                      "fr",
+                      "es",
+                      "de",
+                      "it"
+                    ],
+                    "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages."
                   }
                 }
               }
@@ -17646,7 +17681,9 @@
                   "type": "object",
                   "required": [
                     "templates",
-                    "live"
+                    "live",
+                    "locale",
+                    "locales"
                   ],
                   "properties": {
                     "templates": {
@@ -17658,6 +17695,24 @@
                     "live": {
                       "type": "boolean",
                       "description": "Whether mail actually leaves this deployment (`MAIL_DSN` set). False means the templates are recorded but nothing is sent, and a test is refused."
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "en",
+                        "fr",
+                        "es",
+                        "de",
+                        "it"
+                      ],
+                      "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages."
+                    },
+                    "locales": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Every language the platform speaks, English first."
                     }
                   }
                 }
@@ -17676,7 +17731,26 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "locale",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "en",
+                "fr",
+                "es",
+                "de",
+                "it"
+              ],
+              "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages."
+            },
+            "description": "Which language’s words to read (ADR-050); English when absent. A language with no words of its own for a type shows English’s, which is what a person in that language receives."
+          }
+        ]
       },
       "put": {
         "tags": [
@@ -17714,6 +17788,17 @@
                         }
                       }
                     }
+                  },
+                  "locale": {
+                    "type": "string",
+                    "enum": [
+                      "en",
+                      "fr",
+                      "es",
+                      "de",
+                      "it"
+                    ],
+                    "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages."
                   }
                 }
               }
@@ -17729,7 +17814,9 @@
                   "type": "object",
                   "required": [
                     "templates",
-                    "live"
+                    "live",
+                    "locale",
+                    "locales"
                   ],
                   "properties": {
                     "templates": {
@@ -17741,6 +17828,24 @@
                     "live": {
                       "type": "boolean",
                       "description": "Whether mail actually leaves this deployment (`MAIL_DSN` set). False means the templates are recorded but nothing is sent, and a test is refused."
+                    },
+                    "locale": {
+                      "type": "string",
+                      "enum": [
+                        "en",
+                        "fr",
+                        "es",
+                        "de",
+                        "it"
+                      ],
+                      "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages."
+                    },
+                    "locales": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Every language the platform speaks, English first."
                     }
                   }
                 }
@@ -17793,6 +17898,17 @@
                   "type": {
                     "type": "string",
                     "maxLength": 64
+                  },
+                  "locale": {
+                    "type": "string",
+                    "enum": [
+                      "en",
+                      "fr",
+                      "es",
+                      "de",
+                      "it"
+                    ],
+                    "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages."
                   }
                 }
               }

@@ -10,6 +10,7 @@ import { LineOfferSummary, lineOfferLabel } from '@/ui/LineOffer';
 import { Amount, formatVatRate } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `sales.quotes` — and the first action in this application that cannot be undone.
@@ -47,8 +48,8 @@ export function QuotesScreen() {
   return (
     <div className="max-w-3xl space-y-4">
       <PageHeader
-        title={'Quotes'}
-        meta={<>{quotes.data.total} in this product</>}
+        title={t("Quotes")}
+        meta={<>{quotes.data.total} {t("in this product")}</>}
       />
 
       {accept.error !== null && <ErrorSurface error={accept.error} />}
@@ -56,8 +57,8 @@ export function QuotesScreen() {
 
       {quotes.data.quotes.length === 0 ? (
         <EmptyState
-          title="No quotes"
-          description="A quote is raised from an offer in the catalogue."
+          title={t("No quotes")}
+          description={t("A quote is raised from an offer in the catalogue.")}
         />
       ) : (
         <ul className="space-y-2">
@@ -81,26 +82,25 @@ export function QuotesScreen() {
                     document says, and whether it can still be acted on now. */}
                 {!quote.open && quote.status === 'SENT' && (
                   <span data-testid="expired" className="text-xs text-subtle">
-                    no longer open — the validity date has passed
-                  </span>
+                    {t("no longer open — the validity date has passed")}</span>
                 )}
                 <span className="ml-auto text-xs text-subtle">
-                  valid until {new Date(quote.valid_until).toLocaleDateString()}
+                  {t("valid until")}{' '}{new Date(quote.valid_until).toLocaleDateString(currentLocale())}
                 </span>
               </div>
 
               <div className="mt-2 flex flex-wrap items-baseline gap-3">
                 <Amount money={quote.gross} className="font-medium" />
                 <span className="text-xs text-subtle">
-                  net <Amount money={quote.net} /> · VAT <Amount money={quote.vat} />
+                  {t("net")}{' '}<Amount money={quote.net} /> {t("· VAT")}{' '}<Amount money={quote.vat} />
                 </span>
               </div>
 
-              <p className="mt-1 text-xs text-muted" title={`offer version ${quote.offer_version_id}`}>
+              <p className="mt-1 text-xs text-muted" title={t("offer version {offer_version_id}", { offer_version_id: quote.offer_version_id })}>
                 {/* The pinned version, which is why a catalogue change cannot
                     reprice this quote — said in words (2026-09-19); its id
                     stays on hover, for a support ticket. */}
-                priced as {lineOfferLabel(quote.lines) || 'the offer version it pinned'}
+                {t("priced as")}{' '}{lineOfferLabel(quote.lines) || 'the offer version it pinned'}
               </p>
 
               {quote.open && (
@@ -108,8 +108,7 @@ export function QuotesScreen() {
                   {confirming === quote.id ? (
                     <>
                       <span className="w-full text-xs text-muted">
-                        Rejecting a quote cannot be undone. A new quote would have to be raised.
-                      </span>
+                        {t("Rejecting a quote cannot be undone. A new quote would have to be raised.")}</span>
                       <Button
                         type="button"
                         variant="danger"
@@ -118,15 +117,13 @@ export function QuotesScreen() {
                           reject.mutate(quote.id, { onSettled: () => setConfirming(null) })
                         }
                       >
-                        Reject permanently
-                      </Button>
+                        {t("Reject permanently")}</Button>
                       <Button
                         type="button"
                         variant="secondary"
                         onClick={() => setConfirming(null)}
                       >
-                        Keep it open
-                      </Button>
+                        {t("Keep it open")}</Button>
                     </>
                   ) : (
                     <>
@@ -143,15 +140,13 @@ export function QuotesScreen() {
                           })
                         }
                       >
-                        Accept
-                      </Button>
+                        {t("Accept")}</Button>
                       <Button
                         type="button"
                         variant="secondary"
                         onClick={() => setConfirming(quote.id)}
                       >
-                        Reject
-                      </Button>
+                        {t("Reject")}</Button>
                     </>
                   )}
                 </div>
@@ -181,7 +176,7 @@ function QuoteLines({ quote }: { quote: Quote }) {
             <LineOfferSummary line={line} />
           </span>
           <span className="text-subtle">×{line.quantity}</span>
-          <span className="text-subtle">VAT {formatVatRate(line.vat_rate_basis_points)}</span>
+          <span className="text-subtle">{t("VAT")}{' '}{formatVatRate(line.vat_rate_basis_points)}</span>
           {/* Rendered, never summed: every total is the server's and appears above. */}
           <Amount money={line.net} />
         </li>

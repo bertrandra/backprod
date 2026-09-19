@@ -17,6 +17,7 @@ import { Button } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { notice } from '@/ui/tone';
+import { t } from '@/i18n';
 
 /**
  * `commerce.catalogue` — what is on sale.
@@ -136,11 +137,10 @@ export function CatalogueScreen() {
     return (
       <div className="max-w-lg space-y-6" data-testid="catalogue-pay" data-seat={forSelf}>
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold">Pay</h1>
+          <h1 className="text-2xl font-semibold">{t("Pay")}</h1>
           <p className="text-sm text-muted">
-            {bought.name}, {forSelf ? 'for yourself' : 'for the organisation'} —{' '}
-            {forSelf ? 'your seat' : 'the subscription'} starts when the payment is confirmed.
-          </p>
+            {bought.name}, {forSelf ? t("for yourself") : t("for the organisation")} —{' '}
+            {forSelf ? t("your seat") : t("the subscription")} {t("starts when the payment is confirmed.")}</p>
         </header>
 
         <PaymentElementPanel
@@ -157,8 +157,7 @@ export function CatalogueScreen() {
             still has an order to come back to (ADR-034). */}
         <p className="text-sm text-muted">
           <Link {...statusPage} data-testid="continue-to-order" className="underline underline-offset-2">
-            Continue to your order
-          </Link>
+            {t("Continue to your order")}</Link>
           {order.client_secret !== null && order.client_secret !== undefined && ' — it can be paid from there later.'}
         </p>
       </div>
@@ -168,7 +167,7 @@ export function CatalogueScreen() {
   return (
     <div className="max-w-4xl space-y-6">
       <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-2xl font-semibold">Catalogue</h1>
+        <h1 className="text-2xl font-semibold">{t("Catalogue")}</h1>
         {catalogue.data !== undefined && (
           <span className="text-sm text-muted">
             {catalogue.data.product.name}
@@ -186,14 +185,12 @@ export function CatalogueScreen() {
       {subscribed && live !== null && couldBuyForTenant && (
         <section data-testid="already-subscribed" className={`${notice('info')} space-y-1 text-sm`}>
           <p className="font-medium">
-            {catalogue.data?.product.name ?? 'This product'} is already subscribed to: {live.offer.name}.
+            {catalogue.data?.product.name ?? t("This product")} {t("is already subscribed to:")}{' '}{live.offer.name}.
           </p>
           <p>
-            The organisation holds one subscription per product, so it is not offered for the
-            organisation again.{' '}
+            {t("The organisation holds one subscription per product, so it is not offered for the organisation again.")}{' '}
             <Link to="/subscription" className="underline underline-offset-2">
-              Change or cancel it from the subscription
-            </Link>
+              {t("Change or cancel it from the subscription")}</Link>
             .
           </p>
         </section>
@@ -202,22 +199,20 @@ export function CatalogueScreen() {
       {seated && seat !== null && couldBuySeat && (
         <section data-testid="already-seated" className={`${notice('info')} space-y-1 text-sm`}>
           <p className="font-medium">
-            You already hold a seat on {catalogue.data?.product.name ?? 'this product'}: {seat.offer.name}.
+            {t("You already hold a seat on")}{' '}{catalogue.data?.product.name ?? t("this product")}: {seat.offer.name}.
           </p>
           <p>
-            A person holds one seat per product, so nothing here is offered for yourself again.{' '}
+            {t("A person holds one seat per product, so nothing here is offered for yourself again.")}{' '}
             <Link to="/subscription" className="underline underline-offset-2">
-              Give it up from the subscription
-            </Link>{' '}
-            to take another.
-          </p>
+              {t("Give it up from the subscription")}</Link>{' '}
+            {t("to take another.")}</p>
         </section>
       )}
 
       {offers.data.length === 0 ? (
         <EmptyState
-          title="Nothing is on sale"
-          description="No offer has a published version yet. Publishing one puts it here."
+          title={t("Nothing is on sale")}
+          description={t("No offer has a published version yet. Publishing one puts it here.")}
         />
       ) : (
         <div className="space-y-8">
@@ -230,7 +225,7 @@ export function CatalogueScreen() {
                   {/* The rank is shown because it is the real ordering, and
                       seeing it makes the sequence explicable rather than magic. */}
                   <span className="text-xs text-subtle">
-                    {plan.code} · rank {plan.rank}
+                    {plan.code} {t("· rank")}{' '}{plan.rank}
                   </span>
                 </div>
 
@@ -277,10 +272,9 @@ export function CatalogueScreen() {
 
           {orphaned.length > 0 && (
             <section className="space-y-3">
-              <h2 className="text-xl font-semibold">Other offers</h2>
+              <h2 className="text-xl font-semibold">{t("Other offers")}</h2>
               <p className="text-sm text-muted">
-                On sale, but their plan is not in the plan list — shown rather than hidden.
-              </p>
+                {t("On sale, but their plan is not in the plan list — shown rather than hidden.")}</p>
               <ul className="space-y-2">
                 {orphaned.map((offer) => (
                   <OfferRow
@@ -352,8 +346,7 @@ function OfferRow({
         // be a zero, and a zero is a legitimate price — the two must not look
         // alike.
         <p data-testid="no-sellable-version" className="text-sm text-subtle">
-          No sellable version
-        </p>
+          {t("No sellable version")}</p>
       ) : (
         <>
           <Amount money={version.price} className="text-sm font-medium" />
@@ -361,23 +354,19 @@ function OfferRow({
           <div className="mt-2 flex flex-wrap items-center gap-2 md:mt-0">
             {seatTaken && (
               <span data-testid="seat-taken" className="text-xs text-muted">
-                Your seat is live
-              </span>
+                {t("Your seat is live")}</span>
             )}
             {tenantSubscribed && (
               <span data-testid="tenant-subscribed" className="text-xs text-muted">
-                Already subscribed for the organisation
-              </span>
+                {t("Already subscribed for the organisation")}</span>
             )}
             {maySell && (
               <Button type="button" variant="secondary" pending={quoting} onClick={onQuote}>
-                Quote
-              </Button>
+                {t("Quote")}</Button>
             )}
             {mayBuySeat && (
               <Button type="button" pending={buying} onClick={() => onBuy(true)} data-testid="buy-seat">
-                Buy for yourself
-              </Button>
+                {t("Buy for yourself")}</Button>
             )}
             {mayBuyForTenant && (
               <Button
@@ -387,8 +376,7 @@ function OfferRow({
                 onClick={() => onBuy(false)}
                 data-testid="buy-for-tenant"
               >
-                Buy for the organisation
-              </Button>
+                {t("Buy for the organisation")}</Button>
             )}
           </div>
         </>

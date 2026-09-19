@@ -48,11 +48,16 @@ final class UpdateMeController implements RouteHandler
             );
         }
 
+        if ($body->has('locale')) {
+            $user = $this->profile->chooseLocale($context->userId, $body->requiredString('locale', 8));
+        }
+
         return new JsonResponse([
             'user_id' => $context->userId,
             'email' => $user?->email,
             'display_name' => $user?->displayName,
             'default_product' => $this->profile->defaultProductCode($context->userId),
+            'locale' => $user->locale ?? 'en',
         ], 200);
     }
 }

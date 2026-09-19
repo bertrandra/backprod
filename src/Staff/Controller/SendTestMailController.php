@@ -27,8 +27,10 @@ final class SendTestMailController implements RouteHandler
     {
         $context = StaffRoute::permitted($request, StaffPermission::MAIL_MANAGE);
 
-        $type = JsonBody::of($request)->requiredString('type', 64);
+        $body = JsonBody::of($request);
+        $type = $body->requiredString('type', 64);
+        $locale = $body->has('locale') ? $body->requiredString('locale', 8) : 'en';
 
-        return new JsonResponse($this->tester->send($type, $context->identity->email ?? ''), 200);
+        return new JsonResponse($this->tester->send($type, $context->identity->email ?? '', $locale), 200);
     }
 }

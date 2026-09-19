@@ -26,6 +26,8 @@ final class PlatformUser
         public readonly ?string $email = null,
         public readonly ?string $displayName = null,
         public readonly ?string $defaultProductId = null,
+        /** The language they read in (ADR-050); a known code, English by default. */
+        public readonly string $locale = 'en',
     ) {
     }
 }

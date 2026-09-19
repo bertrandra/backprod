@@ -28,6 +28,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { PersonSelect, personLabel, type Person } from '@/ui/pickers/Select';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { t } from '@/i18n';
 
 /**
  * `messaging.conversations` — threads, and the thread you have open.
@@ -84,10 +85,10 @@ export function ConversationsScreen() {
       {/* Hidden on a phone when a thread is open: the same route, one thing at a
           time, which is what "pushed rather than revealed" means in practice. */}
       <div className={selected === undefined ? 'lg:w-80' : 'hidden lg:block lg:w-80'}>
-        <h1 className="mb-3 text-lg font-semibold">Conversations</h1>
+        <h1 className="mb-3 text-lg font-semibold">{t("Conversations")}</h1>
 
         {list.data.conversations.length === 0 ? (
-          <EmptyState title="No conversations" description="Start one below." />
+          <EmptyState title={t("No conversations")} description={t("Start one below.")} />
         ) : (
           <ul className="space-y-2">
             {list.data.conversations.map((conversation) => (
@@ -107,7 +108,7 @@ export function ConversationsScreen() {
                     {conversation.kind} · {conversation.status}
                     {conversation.unread !== undefined &&
                       conversation.unread > 0 &&
-                      ` · ${String(conversation.unread)} unread`}
+                      t(" · {value} unread", { value: String(conversation.unread) })}
                   </span>
                 </button>
               </li>
@@ -128,7 +129,7 @@ export function ConversationsScreen() {
             )(event);
           }}
         >
-          <Field id="thread-kind" label="Kind">
+          <Field id="thread-kind" label={t("Kind")}>
             <select id="thread-kind" className={inputClass()} {...startForm.register('kind')}>
               {CONVERSATION_KINDS.map((kind) => (
                 <option key={kind} value={kind}>
@@ -140,7 +141,7 @@ export function ConversationsScreen() {
 
           <Field
             id="thread-subject"
-            label="Subject"
+            label={t("Subject")}
             error={startForm.formState.errors.subject?.message}
           >
             <input
@@ -153,15 +154,14 @@ export function ConversationsScreen() {
           {start.error !== null && <ErrorSurface error={start.error} />}
 
           <Button type="submit" pending={start.isPending}>
-            Start
-          </Button>
+            {t("Start")}</Button>
         </form>
       </div>
 
       <div className="min-w-0 flex-1">
         {selected === undefined ? (
           <div className="hidden lg:block">
-            <EmptyState title="No thread selected" description="Choose one to read it." />
+            <EmptyState title={t("No thread selected")} description={t("Choose one to read it.")} />
           </div>
         ) : (
           <Thread conversationId={selected} onBack={() => select(null)} />
@@ -203,8 +203,7 @@ function Thread({ conversationId, onBack }: { conversationId: string; onBack: ()
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <Button type="button" variant="secondary" onClick={onBack} className="lg:hidden">
-          Back
-        </Button>
+          {t("Back")}</Button>
         <h2 className="text-xl font-semibold">{conversation.data.subject}</h2>
         <span className="text-xs text-subtle">{conversation.data.status}</span>
 
@@ -216,8 +215,7 @@ function Thread({ conversationId, onBack }: { conversationId: string; onBack: ()
             onClick={() => close.mutate(conversationId)}
             className="ml-auto"
           >
-            Close thread
-          </Button>
+            {t("Close thread")}</Button>
         )}
       </div>
 
@@ -241,7 +239,7 @@ function Thread({ conversationId, onBack }: { conversationId: string; onBack: ()
             >
               <div className="flex items-baseline gap-2 text-xs text-subtle">
                 <span>{message.author_kind}</span>
-                {message.seq === 0 ? <span>sending…</span> : <span>#{message.seq}</span>}
+                {message.seq === 0 ? <span>{t("sending…")}</span> : <span>#{message.seq}</span>}
 
                 {/* Offered only for a delivered, undeleted message: deleting a
                     placeholder would ask the server to remove something it has
@@ -253,15 +251,14 @@ function Thread({ conversationId, onBack }: { conversationId: string; onBack: ()
                     onClick={() => remove.mutate(message.id)}
                     className="ml-auto rounded px-1 underline decoration-dotted focus-visible:outline-2 focus-visible:outline-offset-2"
                   >
-                    Delete
-                  </button>
+                    {t("Delete")}</button>
                 )}
               </div>
 
               {message.deleted ? (
                 // Kept in place rather than removed: the sequence never develops a
                 // hole where a reply used to be.
-                <p className="italic text-subtle">This message was deleted.</p>
+                <p className="italic text-subtle">{t("This message was deleted.")}</p>
               ) : (
                 <p className="whitespace-pre-wrap">{message.body}</p>
               )}
@@ -281,18 +278,16 @@ function Thread({ conversationId, onBack }: { conversationId: string; onBack: ()
             )(event);
           }}
         >
-          <Field id="reply" label="Reply" error={form.formState.errors.body?.message}>
+          <Field id="reply" label={t("Reply")} error={form.formState.errors.body?.message}>
             <textarea id="reply" rows={3} className={inputClass()} {...form.register('body')} />
           </Field>
 
           <Button type="submit" pending={post.isPending}>
-            Send
-          </Button>
+            {t("Send")}</Button>
         </form>
       ) : (
         <p className="text-sm text-muted">
-          This thread is closed. Start a new one to continue.
-        </p>
+          {t("This thread is closed. Start a new one to continue.")}</p>
       )}
 
       <Participants
@@ -383,7 +378,7 @@ function Participants({
 
   return (
     <section className="space-y-3 border-t border-line pt-4">
-      <h3 className="text-sm font-semibold">Participants</h3>
+      <h3 className="text-sm font-semibold">{t("Participants")}</h3>
 
       <ul className="space-y-1 text-sm">
         {participants.map((participant) => (
@@ -399,13 +394,13 @@ function Participants({
               <code className="text-xs">{participant.user_id.slice(0, 8)}</code>
             )}
             <span className="text-xs text-subtle">
-              {participant.kind} · read to #{participant.last_read_seq}
+              {participant.kind} {t("· read to #")}{participant.last_read_seq}
             </span>
 
             {participant.left_at !== null ? (
               // Left rather than gone: the messages they wrote stay attributed,
               // so removing them from the list would leave those unexplained.
-              <span className="text-xs text-subtle">left</span>
+              <span className="text-xs text-subtle">{t("left")}</span>
             ) : (
               canChange && (
                 <button
@@ -414,8 +409,7 @@ function Participants({
                   onClick={() => drop.mutate(participant.user_id)}
                   className="ml-auto rounded px-1 text-xs underline decoration-dotted focus-visible:outline-2 focus-visible:outline-offset-2"
                 >
-                  Remove
-                </button>
+                  {t("Remove")}</button>
               )
             )}
           </li>
@@ -434,11 +428,11 @@ function Participants({
           }}
         >
           {byName ? (
-            <Field id="participant-user" label="Add a colleague" error={form.formState.errors.user_id?.message}>
+            <Field id="participant-user" label={t("Add a colleague")} error={form.formState.errors.user_id?.message}>
               <PersonSelect
                 id="participant-user"
                 people={candidates}
-                emptyLabel={candidates.length === 0 ? 'Everybody is already here' : 'Choose a colleague…'}
+                emptyLabel={candidates.length === 0 ? t("Everybody is already here") : t("Choose a colleague…")}
                 disabled={candidates.length === 0}
                 invalid={form.formState.errors.user_id !== undefined}
                 {...form.register('user_id')}
@@ -447,7 +441,7 @@ function Participants({
           ) : (
             <Field
               id="participant-user"
-              label="Add by user id"
+              label={t("Add by user id")}
               error={form.formState.errors.user_id?.message}
             >
               <input
@@ -459,8 +453,7 @@ function Participants({
           )}
 
           <Button type="submit" pending={add.isPending}>
-            Add
-          </Button>
+            {t("Add")}</Button>
         </form>
       )}
 

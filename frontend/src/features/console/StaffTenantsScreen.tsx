@@ -30,6 +30,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
+import { t } from '@/i18n';
 
 /**
  * `console.support.tenants` — a customer as support sees them.
@@ -70,8 +71,8 @@ export function StaffTenantsScreen() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={'Tenants'}
-        description={'Opening a tenant records an entry against your name, with the permission you used. That record is the reason this access is allowed at all.'}
+        title={t("Tenants")}
+        description={t("Opening a tenant records an entry against your name, with the permission you used. That record is the reason this access is allowed at all.")}
       />
 
       <div className="grid gap-8 lg:grid-cols-[22rem_1fr]">
@@ -81,12 +82,12 @@ export function StaffTenantsScreen() {
           ) : tenants.error !== null ? (
             <ErrorSurface error={tenants.error} onRetry={() => void tenants.refetch()} />
           ) : tenants.data.tenants.length === 0 ? (
-            <EmptyState title="No tenants" description="Nothing is registered on this platform." />
+            <EmptyState title={t("No tenants")} description={t("Nothing is registered on this platform.")} />
           ) : (
             <>
               <p data-testid="tenant-count" className="text-xs text-subtle">
                 {/* Counted, not inferred from a short page. */}
-                Showing {tenants.data.tenants.length} of {tenants.data.total}.
+                {t("Showing")}{' '}{tenants.data.tenants.length} {t("of")}{' '}{tenants.data.total}.
               </p>
 
               <ul className="space-y-2">
@@ -107,8 +108,7 @@ export function StaffTenantsScreen() {
                         {tenant.name}
                         {tenant.is_default && (
                           <span data-testid="default-tenant" className="ml-2 rounded bg-well px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-subtle">
-                            bare host
-                          </span>
+                            {t("bare host")}</span>
                         )}
                       </span>
                       <span className="block text-xs text-muted">
@@ -123,7 +123,7 @@ export function StaffTenantsScreen() {
                       data-testid="browse-tenant"
                       className="mt-1 inline-block min-h-[44px] px-1 text-xs underline underline-offset-2"
                     >
-                      Browse {tenant.name}
+                      {t("Browse")}{' '}{tenant.name}
                     </Link>
                   </li>
                 ))}
@@ -139,8 +139,8 @@ export function StaffTenantsScreen() {
         <section className="min-w-0">
           {selected === undefined ? (
             <EmptyState
-              title="No tenant open"
-              description="Choosing one performs a recorded read across the tenant boundary."
+              title={t("No tenant open")}
+              description={t("Choosing one performs a recorded read across the tenant boundary.")}
             />
           ) : (
             <TenantDetail key={selected} tenantId={selected} />
@@ -186,14 +186,14 @@ function TenantDetail({ tenantId }: { tenantId: string }) {
 
       <dl className="grid gap-3 sm:grid-cols-2">
         <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">Address</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">{t("Address")}</dt>
           <dd>
             <code className="text-xs">{tenant.data.is_default ? '/' : `/${tenant.data.slug}/`}</code>
-            {tenant.data.is_default && <span className="ml-2 text-xs text-muted">the bare host</span>}
+            {tenant.data.is_default && <span className="ml-2 text-xs text-muted">{t("the bare host")}</span>}
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">Identifier</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">{t("Identifier")}</dt>
           <dd>
             <code className="select-all text-xs">{tenant.data.id}</code>
           </dd>
@@ -209,9 +209,7 @@ function TenantDetail({ tenantId }: { tenantId: string }) {
       <OfferAuthoring tenantId={tenantId} mayAuthor={tenant.data.may_author_offers} />
 
       <p data-testid="read-recorded" className="border-t border-line pt-3 text-xs text-muted">
-        This read has been recorded under <code>staff.tenants.read</code>, with the reason you gave.
-        It appears in the access log with your user id against it.
-      </p>
+        {t("This read has been recorded under")}{' '}<code>{'staff.tenants.read'}</code>{t(", with the reason you gave. It appears in the access log with your user id against it.")}</p>
     </div>
   );
 }
@@ -267,12 +265,12 @@ function TenantProducts({ tenantId, held }: { tenantId: string; held: readonly P
 
   return (
     <section data-testid="tenant-products" className="space-y-2 border-t border-line pt-3">
-      <h3 className="text-sm font-medium">Products</h3>
+      <h3 className="text-sm font-medium">{t("Products")}</h3>
 
       <p className="text-sm text-muted">
         {held.length === 0
-          ? 'This tenant holds no product: nobody in it can reach anything until one is assigned.'
-          : 'Every member of this tenant is a member of each product it holds, with the roles they hold in the organisation.'}
+          ? t("This tenant holds no product: nobody in it can reach anything until one is assigned.")
+          : t("Every member of this tenant is a member of each product it holds, with the roles they hold in the organisation.")}
       </p>
 
       {error !== null && <ErrorSurface error={error} />}
@@ -282,7 +280,7 @@ function TenantProducts({ tenantId, held }: { tenantId: string; held: readonly P
         // boxes to tick or a list to read — so neither is shown yet.
         <SkeletonRows rows={2} />
       ) : rows.length === 0 ? (
-        <p className="text-xs text-subtle">No product to show.</p>
+        <p className="text-xs text-subtle">{t("No product to show.")}</p>
       ) : (
         <ul className="space-y-1">
           {rows.map((product) => (
@@ -299,7 +297,7 @@ function TenantProducts({ tenantId, held }: { tenantId: string; held: readonly P
                 />
                 <span>
                   {product.name}
-                  {!product.active && <span className="ml-1 text-xs text-subtle">(retired)</span>}
+                  {!product.active && <span className="ml-1 text-xs text-subtle">{t("(retired)")}</span>}
                 </span>
                 <code className="text-xs text-subtle">{product.code}</code>
               </label>
@@ -310,8 +308,7 @@ function TenantProducts({ tenantId, held }: { tenantId: string; held: readonly P
 
       {!mayManage && (
         <p data-testid="tenant-products-readonly" className="text-xs text-subtle">
-          Changing this needs <code>staff.tenants.manage</code>, which an administrator holds.
-        </p>
+          {t("Changing this needs")}{' '}<code>{'staff.tenants.manage'}</code>{t(", which an administrator holds.")}</p>
       )}
     </section>
   );
@@ -329,12 +326,12 @@ function OfferAuthoring({ tenantId, mayAuthor }: { tenantId: string; mayAuthor: 
       data-may-author={mayAuthor ? 'true' : 'false'}
       className="space-y-2 border-t border-line pt-3"
     >
-      <h3 className="text-sm font-medium">Offer authoring</h3>
+      <h3 className="text-sm font-medium">{t("Offer authoring")}</h3>
 
       <p className="text-sm text-muted">
         {mayAuthor
-          ? 'This tenant may create and publish offers of their own. Members holding a role with catalog.manage can reach the catalogue.'
-          : 'This tenant uses the platform catalogue and cannot change it. Members see offers; nobody can author one, whatever their tenant role says.'}
+          ? t("This tenant may create and publish offers of their own. Members holding a role with catalog.manage can reach the catalogue.")
+          : t("This tenant uses the platform catalogue and cannot change it. Members see offers; nobody can author one, whatever their tenant role says.")}
       </p>
 
       {set.error !== null && <ErrorSurface error={set.error} />}
@@ -346,12 +343,11 @@ function OfferAuthoring({ tenantId, mayAuthor }: { tenantId: string; mayAuthor: 
           pending={set.isPending}
           onClick={() => set.mutate(!mayAuthor)}
         >
-          {mayAuthor ? 'Withdraw offer authoring' : 'Allow offer authoring'}
+          {mayAuthor ? t("Withdraw offer authoring") : t("Allow offer authoring")}
         </Button>
       ) : (
         <p data-testid="offer-authoring-readonly" className="text-xs text-subtle">
-          Changing this needs <code>staff.tenants.manage</code>, which an administrator holds.
-        </p>
+          {t("Changing this needs")}{' '}<code>{'staff.tenants.manage'}</code>{t(", which an administrator holds.")}</p>
       )}
     </section>
   );
@@ -382,8 +378,7 @@ function NewTenant({ onCreated }: { onCreated: (id: string) => void }) {
   if (!open) {
     return (
       <Button type="button" variant="secondary" onClick={() => setOpen(true)} data-testid="new-tenant">
-        New organisation
-      </Button>
+        {t("New organisation")}</Button>
     );
   }
 
@@ -411,13 +406,13 @@ function NewTenant({ onCreated }: { onCreated: (id: string) => void }) {
         );
       }}
     >
-      <h3 className="text-sm font-semibold">New organisation</h3>
+      <h3 className="text-sm font-semibold">{t("New organisation")}</h3>
 
-      <Field id="tenant-name" label="Name">
+      <Field id="tenant-name" label={t("Name")}>
         <input id="tenant-name" className={inputClass()} value={name} onChange={(event) => setName(event.target.value)} />
       </Field>
 
-      <Field id="tenant-slug" label="Address" hint={`Its root: ${window.location.origin}/${slug === '' ? '…' : slug}/ — lowercase letters, digits and hyphens.`}>
+      <Field id="tenant-slug" label={t("Address")} hint={`Its root: ${window.location.origin}/${slug === '' ? '…' : slug}/ — lowercase letters, digits and hyphens.`}>
         <input
           id="tenant-slug"
           className={inputClass()}
@@ -428,7 +423,7 @@ function NewTenant({ onCreated }: { onCreated: (id: string) => void }) {
       </Field>
 
       <fieldset className="space-y-1">
-        <legend className="text-sm font-medium">Products it holds</legend>
+        <legend className="text-sm font-medium">{t("Products it holds")}</legend>
         {active.map((product) => (
           <label key={product.id} className="flex items-center gap-2 text-sm">
             <input
@@ -446,7 +441,7 @@ function NewTenant({ onCreated }: { onCreated: (id: string) => void }) {
       </fieldset>
 
       {maySearch && (
-        <Field id="tenant-admin" label="First administrator" hint="An existing account, found in the directory; leave empty to appoint one later.">
+        <Field id="tenant-admin" label={t("First administrator")} hint={t("An existing account, found in the directory; leave empty to appoint one later.")}>
           <SearchPicker
             id="tenant-admin"
             query={query}
@@ -457,7 +452,7 @@ function NewTenant({ onCreated }: { onCreated: (id: string) => void }) {
               .map((user) => ({ id: String(user.id), name: user.display_name ?? null, email: user.email ?? null }))}
             value={admin}
             onPick={setAdmin}
-            placeholder="ada@example.test"
+            placeholder={t("ada@example.test")}
           />
         </Field>
       )}
@@ -466,11 +461,9 @@ function NewTenant({ onCreated }: { onCreated: (id: string) => void }) {
 
       <div className="flex gap-2">
         <Button type="submit" pending={create.isPending} disabled={name.trim() === '' || slug.trim() === ''}>
-          Create
-        </Button>
+          {t("Create")}</Button>
         <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-          Cancel
-        </Button>
+          {t("Cancel")}</Button>
       </div>
     </form>
   );
@@ -495,13 +488,13 @@ function TenantAddress({ tenantId, name, slug, isDefault }: { tenantId: string; 
 
   return (
     <section data-testid="tenant-address" className="space-y-3 border-t border-line pt-4">
-      <h3 className="text-sm font-semibold">Name and address</h3>
+      <h3 className="text-sm font-semibold">{t("Name and address")}</h3>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field id="tenant-rename" label="Name">
+        <Field id="tenant-rename" label={t("Name")}>
           <input id="tenant-rename" className={inputClass()} value={draftName} onChange={(event) => setDraftName(event.target.value)} />
         </Field>
-        <Field id="tenant-reslug" label="Address" hint="Kept once an invoice exists: its links are in the world.">
+        <Field id="tenant-reslug" label={t("Address")} hint={t("Kept once an invoice exists: its links are in the world.")}>
           <input id="tenant-reslug" className={inputClass()} value={draftSlug} onChange={(event) => setDraftSlug(event.target.value.toLowerCase())} />
         </Field>
       </div>
@@ -520,14 +513,12 @@ function TenantAddress({ tenantId, name, slug, isDefault }: { tenantId: string; 
             })
           }
         >
-          Save
-        </Button>
+          {t("Save")}</Button>
         {isDefault ? (
-          <span className="self-center text-xs text-muted">This organisation is the bare host.</span>
+          <span className="self-center text-xs text-muted">{t("This organisation is the bare host.")}</span>
         ) : (
           <Button type="button" variant="secondary" pending={update.isPending} data-testid="make-default" onClick={() => update.mutate({ is_default: true })}>
-            Make it the bare host
-          </Button>
+            {t("Make it the bare host")}</Button>
         )}
       </div>
     </section>

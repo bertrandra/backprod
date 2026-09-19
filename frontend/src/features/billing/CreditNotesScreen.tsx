@@ -6,6 +6,7 @@ import { LineOfferSummary } from '@/ui/LineOffer';
 import { Amount, formatVatRate } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `billing.credit_notes` — documents in their own right.
@@ -35,19 +36,17 @@ export function CreditNotesScreen() {
   return (
     <div className="max-w-3xl space-y-4">
       <PageHeader
-        title={'Credit notes'}
-        meta={<>{creditNotes.data.total} issued</>}
+        title={t("Credit notes")}
+        meta={<>{creditNotes.data.total} {t("issued")}</>}
       />
 
       <p className="text-sm text-muted">
-        A credit note corrects an invoice that is already final. Its number comes from its own
-        sequence, and the invoice it corrects keeps its own number and totals.
-      </p>
+        {t("A credit note corrects an invoice that is already final. Its number comes from its own sequence, and the invoice it corrects keeps its own number and totals.")}</p>
 
       {creditNotes.data.credit_notes.length === 0 ? (
         <EmptyState
-          title="No credit notes"
-          description="One is issued from an invoice that needs correcting."
+          title={t("No credit notes")}
+          description={t("One is issued from an invoice that needs correcting.")}
         />
       ) : (
         <ul className="space-y-2">
@@ -74,15 +73,14 @@ export function CreditNotesScreen() {
               </div>
 
               <p className="mt-1 text-xs text-muted">
-                net <Amount money={note.net} /> · VAT <Amount money={note.vat} /> · issued{' '}
-                {new Date(note.issued_at).toLocaleDateString()}
+                {t("net")}{' '}<Amount money={note.net} /> {t("· VAT")}{' '}<Amount money={note.vat} /> {t("· issued")}{' '}
+                {new Date(note.issued_at).toLocaleDateString(currentLocale())}
               </p>
 
               <p className="mt-1 text-xs text-subtle">
-                corrects{' '}
+                {t("corrects")}{' '}
                 <Link to="/invoices/$invoiceId" params={{ invoiceId: note.invoice_id }} className="underline decoration-dotted">
-                  the invoice
-                </Link>
+                  {t("the invoice")}</Link>
                 {note.reason !== null && ` — ${note.reason}`}
               </p>
 
@@ -94,7 +92,7 @@ export function CreditNotesScreen() {
                         <LineOfferSummary line={line} />
                       </span>
                       <span className="text-subtle">
-                        VAT {formatVatRate(line.vat_rate_basis_points)}
+                        {t("VAT")}{' '}{formatVatRate(line.vat_rate_basis_points)}
                       </span>
                       <Amount money={line.net} />
                     </li>

@@ -13,6 +13,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
+import { t } from '@/i18n';
 
 /**
  * `console.admin.products` — the top of the model, and the screen that was
@@ -73,8 +74,8 @@ export function ProductsScreen() {
   return (
     <div className="max-w-3xl space-y-6">
       <PageHeader
-        title={'Products'}
-        description={<>Everything this platform hosts. A product is what tenants belong to and what offers are priced for — its <strong>code</strong> is what clients send as <code>X-Product</code> and what the public storefront reads from <code>?product=</code>.</>}
+        title={t("Products")}
+        description={<>{t("Everything this platform hosts. A product is what tenants belong to and what offers are priced for — its")}{' '}<strong>{t("code")}</strong> {t("is what clients send as")}{' '}<code>{t("X-Product")}</code> {t("and what the public storefront reads from")}{' '}<code>{t("?product=")}</code>.</>}
       />
 
       {create.error !== null && <ErrorSurface error={create.error} />}
@@ -85,8 +86,8 @@ export function ProductsScreen() {
           // Reachable only on a database nothing installed, but said properly
           // rather than left as an empty list somebody reads as a bug.
           <EmptyState
-            title="No products"
-            description="Nothing is registered. Create one below; the installer normally creates the first."
+            title={t("No products")}
+            description={t("Nothing is registered. Create one below; the installer normally creates the first.")}
           />
         ) : (
           <ul className="space-y-2" data-testid="product-list">
@@ -113,12 +114,10 @@ export function ProductsScreen() {
       </section>
 
       <section className="space-y-3 border-t border-line pt-4">
-        <h2 className="text-xl font-semibold">Add a product</h2>
+        <h2 className="text-xl font-semibold">{t("Add a product")}</h2>
 
         <p className="text-sm text-muted">
-          The code cannot be changed afterwards. A new product starts with no plans, no offers and
-          no tenants — nothing is copied from an existing one.
-        </p>
+          {t("The code cannot be changed afterwards. A new product starts with no plans, no offers and no tenants — nothing is copied from an existing one.")}</p>
 
         <form
           className="space-y-4"
@@ -140,8 +139,8 @@ export function ProductsScreen() {
         >
           <Field
             id="product-code"
-            label="Code"
-            hint="Lowercase letters, digits and hyphens. It travels in URLs and headers, so it cannot contain spaces."
+            label={t("Code")}
+            hint={t("Lowercase letters, digits and hyphens. It travels in URLs and headers, so it cannot contain spaces.")}
           >
             <input
               id="product-code"
@@ -152,11 +151,11 @@ export function ProductsScreen() {
             />
           </Field>
 
-          <Field id="product-name" label="Name" hint="What people read. This one can be changed.">
+          <Field id="product-name" label={t("Name")} hint={t("What people read. This one can be changed.")}>
             <input
               id="product-name"
               className={inputClass()}
-              placeholder="Atlas"
+              placeholder={t("Atlas")}
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
@@ -167,8 +166,7 @@ export function ProductsScreen() {
             pending={create.isPending}
             disabled={code.trim() === '' || name.trim() === ''}
           >
-            Create product
-          </Button>
+            {t("Create product")}</Button>
         </form>
       </section>
 
@@ -217,8 +215,7 @@ function ProductRow({
             data-testid="retired"
             className="rounded bg-well px-1.5 py-0.5 text-xs"
           >
-            retired
-          </span>
+            {t("retired")}</span>
         )}
       </div>
 
@@ -237,7 +234,7 @@ function ProductRow({
           {/* "New name" rather than "Name": the create form below has a
               field by that name, and two controls with one label is a screen
               a keyboard or a screen reader cannot tell apart. */}
-          <Field id={`rename-${product.id}`} label="New name">
+          <Field id={`rename-${product.id}`} label={t("New name")}>
             <input
               id={`rename-${product.id}`}
               className={inputClass()}
@@ -246,49 +243,40 @@ function ProductRow({
             />
           </Field>
           <Button type="submit" pending={pending}>
-            Save
-          </Button>
+            {t("Save")}</Button>
           <Button type="button" variant="secondary" onClick={() => setRenaming(false)}>
-            Cancel
-          </Button>
+            {t("Cancel")}</Button>
         </form>
       ) : (
         <div className="mt-2 flex flex-wrap gap-2">
           <Button type="button" variant="secondary" onClick={onCatalogue}>
-            Catalogue
-          </Button>
+            {t("Catalogue")}</Button>
           <Button type="button" variant="secondary" onClick={onStorefront}>
-            Storefront
-          </Button>
+            {t("Storefront")}</Button>
           {/* The step that is easy to forget and refuses last: a product can be
               created, priced and advertised and still not raise an invoice,
               because the issuer its documents must name is configuration. */}
           <Button type="button" variant="secondary" onClick={onInvoicing}>
-            Invoicing
-          </Button>
+            {t("Invoicing")}</Button>
           <Button type="button" variant="secondary" onClick={() => setRenaming(true)}>
-            Rename
-          </Button>
+            {t("Rename")}</Button>
           <Button
             type="button"
             variant={product.active ? 'danger' : 'secondary'}
             pending={pending}
             onClick={() => onSetActive(!product.active)}
           >
-            {product.active ? 'Retire' : 'Reinstate'}
+            {product.active ? t("Retire") : t("Reinstate")}
           </Button>
         </div>
       )}
 
       {product.active ? (
         <p className="mt-2 text-xs text-subtle">
-          Retiring closes every door into this product. Its tenants, subscriptions and invoices
-          stay — an invoice is a legal document and nothing here deletes one.
-        </p>
+          {t("Retiring closes every door into this product. Its tenants, subscriptions and invoices stay — an invoice is a legal document and nothing here deletes one.")}</p>
       ) : (
         <p data-testid="retired-note" className="mt-2 text-xs text-subtle">
-          Nobody can sign in to this product or buy from it. Its records are untouched.
-        </p>
+          {t("Nobody can sign in to this product or buy from it. Its records are untouched.")}</p>
       )}
     </li>
   );

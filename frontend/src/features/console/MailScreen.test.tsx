@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import { recordingClient, renderWith, stubClient, type Stubs } from '@/test-utils';
 
+import { LOCALES } from '@/i18n';
+
 import { MailScreen } from './MailScreen';
 
 /**
@@ -30,7 +32,7 @@ const INVITATION = {
 
 function stubs(live: boolean, extra: Stubs = {}): Stubs {
   return {
-    'GET /api/v1/staff/mail/templates': { data: { live, templates: [RESET, INVITATION] } },
+    'GET /api/v1/staff/mail/templates': { data: { live, templates: [RESET, INVITATION], locale: 'en', locales: LOCALES } },
     ...extra,
   };
 }
@@ -52,7 +54,7 @@ describe('the mail screen', () => {
   it('saves the whole set of words, and puts a default back by emptying', async () => {
     const { client, requests } = recordingClient(
       stubs(true, {
-        'PUT /api/v1/staff/mail/templates': { data: { live: true, templates: [{ ...RESET, subject: 'Nouveau mot de passe', customised: true }, { ...INVITATION, ...INVITATION.default, customised: false }] } },
+        'PUT /api/v1/staff/mail/templates': { data: { live: true, templates: [{ ...RESET, subject: 'Nouveau mot de passe', customised: true }, { ...INVITATION, ...INVITATION.default, customised: false }], locale: 'en', locales: LOCALES } },
       }),
     );
     renderWith(<MailScreen />, client);
@@ -73,6 +75,7 @@ describe('the mail screen', () => {
         'account.password_reset': { subject: 'Nouveau mot de passe', body: 'Open this link: {link}' },
         'account.invitation': { subject: '', body: '' },
       },
+      locale: 'en',
     });
     expect(screen.getByTestId('template-account.invitation').getAttribute('data-customised')).toBe('false');
   });
@@ -90,7 +93,33 @@ describe('the mail screen', () => {
 
     await waitFor(() => expect(screen.getByTestId('tested-account.invitation')).toBeTruthy());
     expect(screen.getByTestId('tested-account.invitation').textContent).toContain('backprod@raillard.org');
-    expect(requests.find((r) => r.path === '/api/v1/staff/mail/test')?.body).toEqual({ type: 'account.invitation' });
+    expect(requests.find((r) => r.path === '/api/v1/staff/mail/test')?.body).toEqual({ type: 'account.invitation', locale: 'en' });
+  });
+
+  it('edits one language at a time: the tab decides what is read, saved and tested', async () => {
+    const { client, requests } = recordingClient(
+      stubs(true, {
+        'PUT /api/v1/staff/mail/templates': { data: { live: true, templates: [{ ...RESET, subject: 'Nouveau mot de passe', customised: true }, INVITATION], locale: 'fr', locales: LOCALES } },
+      }),
+    );
+    renderWith(<MailScreen />, client);
+
+    await waitFor(() => expect(screen.getByTestId('mail-locales')).toBeTruthy());
+    expect(requests.find((r) => r.method === 'GET')?.query).toEqual({ locale: 'en' });
+
+    const french = screen.getByTestId('mail-locales').querySelector('[data-locale="fr"]') as HTMLElement;
+    fireEvent.click(french);
+
+    await waitFor(() => expect(requests.filter((r) => r.method === 'GET').length).toBe(2));
+    expect(requests.filter((r) => r.method === 'GET')[1]?.query).toEqual({ locale: 'fr' });
+    await waitFor(() => expect(screen.getByTestId('mail-locales').querySelector('[data-locale="fr"]')?.getAttribute('aria-selected')).toBe('true'));
+
+    await waitFor(() => expect(screen.getByLabelText('Subject', { selector: '#account-password_reset-subject' })).toBeTruthy());
+    fireEvent.change(screen.getByLabelText('Subject', { selector: '#account-password_reset-subject' }), { target: { value: 'Nouveau mot de passe' } });
+    fireEvent.click(screen.getByTestId('save-templates'));
+
+    await waitFor(() => expect(screen.getByTestId('saved')).toBeTruthy());
+    expect((requests.find((r) => r.method === 'PUT')?.body as { locale: string }).locale).toBe('fr');
   });
 
   it('shows the mail host’s own reason when a test fails', async () => {

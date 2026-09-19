@@ -20,6 +20,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `console.support.conversations` — answering, from the other side.
@@ -55,8 +56,8 @@ export function SupportConversationsScreen() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={'Support conversations'}
-        description={'Threads a customer opened with the platform. Opening one reveals which company is asking, and that read is recorded.'}
+        title={t("Support conversations")}
+        description={t("Threads a customer opened with the platform. Opening one reveals which company is asking, and that read is recorded.")}
       />
 
       <div className="grid gap-8 lg:grid-cols-[22rem_1fr]">
@@ -66,11 +67,11 @@ export function SupportConversationsScreen() {
           ) : list.error !== null ? (
             <ErrorSurface error={list.error} onRetry={() => void list.refetch()} />
           ) : list.data.conversations.length === 0 ? (
-            <EmptyState title="No conversations" description="Nobody has written in." />
+            <EmptyState title={t("No conversations")} description={t("Nobody has written in.")} />
           ) : (
             <>
               <p data-testid="thread-count" className="text-xs text-subtle">
-                Showing {list.data.conversations.length} of {list.data.total}.
+                {t("Showing")}{' '}{list.data.conversations.length} {t("of")}{' '}{list.data.total}.
               </p>
 
               <ul className="space-y-2">
@@ -103,8 +104,8 @@ export function SupportConversationsScreen() {
                           confined to SUPPORT by a foreign key, and seeing it is
                           how somebody knows the confinement is real. */}
                       <span className="mt-1 block text-xs text-subtle">
-                        {conversation.kind} · updated{' '}
-                        {new Date(conversation.updated_at).toLocaleDateString()}
+                        {conversation.kind} {t("· updated")}{' '}
+                        {new Date(conversation.updated_at).toLocaleDateString(currentLocale())}
                       </span>
                     </button>
                   </li>
@@ -117,8 +118,8 @@ export function SupportConversationsScreen() {
         <section className="min-w-0">
           {selected === undefined ? (
             <EmptyState
-              title="No thread open"
-              description="Opening one shows the messages and which tenant they belong to."
+              title={t("No thread open")}
+              description={t("Opening one shows the messages and which tenant they belong to.")}
             />
           ) : (
             <Thread key={selected} conversationId={selected} />
@@ -169,15 +170,15 @@ function Thread({ conversationId }: { conversationId: string }) {
       <header className="space-y-1">
         <h2 className="text-xl font-semibold">{conversation.subject}</h2>
         <p className="text-xs text-muted">
-          tenant <code data-testid="thread-tenant">{conversation.tenant_id}</code> · opened{' '}
-          {new Date(conversation.created_at).toLocaleDateString()}
+          {t("tenant")}{' '}<code data-testid="thread-tenant">{conversation.tenant_id}</code> {t("· opened")}{' '}
+          {new Date(conversation.created_at).toLocaleDateString(currentLocale())}
         </p>
 
         <MotiveInEffect motive={motive} onChange={() => setMotive(null)} />
       </header>
 
       {conversation.messages.length === 0 ? (
-        <EmptyState title="No messages" description="The thread exists but nothing was written." />
+        <EmptyState title={t("No messages")} description={t("The thread exists but nothing was written.")} />
       ) : (
         <ul className="space-y-3">
           {conversation.messages.map((message) => (
@@ -188,13 +189,11 @@ function Thread({ conversationId }: { conversationId: string }) {
 
       {!mayRespond ? (
         <p data-testid="cannot-respond" className="text-sm text-muted">
-          You can read this thread. Answering needs <code>support.respond</code>.
+          {t("You can read this thread. Answering needs")}{' '}<code>{'support.respond'}</code>.
         </p>
       ) : closed ? (
         <p data-testid="thread-closed" className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm text-muted">
-          This thread is closed, so it takes no reply. The customer reopens it by writing again —
-          closing it is not the end of the conversation, only of this turn.
-        </p>
+          {t("This thread is closed, so it takes no reply. The customer reopens it by writing again — closing it is not the end of the conversation, only of this turn.")}</p>
       ) : (
         <form
           className="space-y-3 border-t border-line pt-4"
@@ -208,8 +207,8 @@ function Thread({ conversationId }: { conversationId: string }) {
         >
           <Field
             id="reply"
-            label="Reply"
-            hint="Written as the platform, into a customer's thread, and recorded as such."
+            label={t("Reply")}
+            hint={t("Written as the platform, into a customer's thread, and recorded as such.")}
           >
             <textarea
               id="reply"
@@ -223,8 +222,7 @@ function Thread({ conversationId }: { conversationId: string }) {
           {post.error !== null && <ErrorSurface error={post.error} />}
 
           <Button type="submit" pending={post.isPending} disabled={body.trim() === ''}>
-            Send
-          </Button>
+            {t("Send")}</Button>
         </form>
       )}
 
@@ -235,26 +233,21 @@ function Thread({ conversationId }: { conversationId: string }) {
           {confirmingClose ? (
             <div data-testid="close-confirmation" className="space-y-2 text-sm">
               <p>
-                Closing marks this turn finished. It does not delete anything and it does not stop
-                the customer: writing again reopens the thread.
-              </p>
+                {t("Closing marks this turn finished. It does not delete anything and it does not stop the customer: writing again reopens the thread.")}</p>
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   pending={close.isPending}
                   onClick={() => close.mutate(undefined, { onSettled: () => setConfirmingClose(false) })}
                 >
-                  Close the thread
-                </Button>
+                  {t("Close the thread")}</Button>
                 <Button type="button" variant="secondary" onClick={() => setConfirmingClose(false)}>
-                  Leave it open
-                </Button>
+                  {t("Leave it open")}</Button>
               </div>
             </div>
           ) : (
             <Button type="button" variant="secondary" onClick={() => setConfirmingClose(true)}>
-              Close the thread…
-            </Button>
+              {t("Close the thread…")}</Button>
           )}
         </div>
       )}
@@ -286,18 +279,16 @@ function MessageRow({ message }: { message: Message }) {
         </span>
         <span className="text-xs text-subtle">#{message.seq}</span>
         <span className="ml-auto text-xs text-subtle">
-          {new Date(message.created_at).toLocaleString()}
+          {new Date(message.created_at).toLocaleString(currentLocale())}
         </span>
       </div>
 
       {message.deleted ? (
         <p data-testid="deleted" className="mt-1 italic text-subtle">
-          This message was deleted. Its place in the sequence is kept.
-        </p>
+          {t("This message was deleted. Its place in the sequence is kept.")}</p>
       ) : message.body === '' ? (
         <p data-testid="empty-body" className="mt-1 italic text-subtle">
-          Nothing to show — the author was erased, and the words went with the identity.
-        </p>
+          {t("Nothing to show — the author was erased, and the words went with the identity.")}</p>
       ) : (
         <p className="mt-1 whitespace-pre-wrap">{message.body}</p>
       )}

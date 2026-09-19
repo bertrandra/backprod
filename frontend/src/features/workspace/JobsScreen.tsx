@@ -6,6 +6,7 @@ import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `workspace.jobs` — what is queued, what failed, and cancelling one.
@@ -52,8 +53,8 @@ export function JobsScreen() {
   return (
     <div className="max-w-4xl space-y-4">
       <PageHeader
-        title={'Background work'}
-        meta={<>{jobs.data.total} recorded</>}
+        title={t("Background work")}
+        meta={<>{jobs.data.total} {t("recorded")}</>}
       />
 
       {cancel.error !== null && <ErrorSurface error={cancel.error} />}
@@ -61,8 +62,8 @@ export function JobsScreen() {
 
       {jobs.data.jobs.length === 0 ? (
         <EmptyState
-          title="Nothing has run"
-          description="Exports and other long-running work appear here while they run, and stay afterwards."
+          title={t("Nothing has run")}
+          description={t("Exports and other long-running work appear here while they run, and stay afterwards.")}
         />
       ) : (
         <ul className="space-y-2">
@@ -85,13 +86,13 @@ export function JobsScreen() {
                   <code className="text-xs">{job.type}</code>
 
                   <span className="ml-auto text-xs text-subtle">
-                    {new Date(job.created_at).toLocaleString()}
+                    {new Date(job.created_at).toLocaleString(currentLocale())}
                   </span>
                 </div>
 
                 <p className="mt-1 text-xs text-muted">
-                  attempt {job.attempts} of {job.max_attempts}
-                  {isUnfinished(job) && ` · not before ${new Date(job.run_after).toLocaleString()}`}
+                  {t("attempt")}{' '}{job.attempts} {t("of")}{' '}{job.max_attempts}
+                  {isUnfinished(job) && t(" · not before {value}", { value: new Date(job.run_after).toLocaleString(currentLocale()) })}
                 </p>
 
                 {job.failure_reason !== null && (
@@ -110,8 +111,7 @@ export function JobsScreen() {
                       pending={cancel.isPending}
                       onClick={() => cancel.mutate(job.id)}
                     >
-                      Cancel
-                    </Button>
+                      {t("Cancel")}</Button>
                   )}
 
                   {assetId !== null && (
@@ -125,8 +125,7 @@ export function JobsScreen() {
                         })
                       }
                     >
-                      Download the result
-                    </Button>
+                      {t("Download the result")}</Button>
                   )}
                 </div>
               </li>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
-import { useMailTemplates, useSendTestMail, useSetMailTemplates, type MailTemplate } from '@/queries/staff';
+import { currentLocale, LOCALE_NAMES, LOCALES, t } from '@/i18n';
+import { useMailTemplates, useSendTestMail, useSetMailTemplates, type MailLocale, type MailTemplate } from '@/queries/staff';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { PageHeader } from '@/ui/Page';
@@ -25,7 +26,10 @@ import { notice } from '@/ui/tone';
  * screen says so at the top.
  */
 export function MailScreen() {
-  const templates = useMailTemplates();
+  // The language being edited (ADR-050): one set of words per language the
+  // platform speaks. It starts on the language the administrator reads in.
+  const [locale, setEditing] = useState<MailLocale>(currentLocale());
+  const templates = useMailTemplates(locale);
   const save = useSetMailTemplates();
   const test = useSendTestMail();
 
@@ -64,8 +68,8 @@ export function MailScreen() {
   return (
     <div className="max-w-3xl space-y-8">
       <PageHeader
-        title={'Mail'}
-        description={'What the mails this platform sends say, and whether they leave.'}
+        title={t("Mail")}
+        description={t("What the mails this platform sends say, and whether they leave.")}
       />
 
       <section
@@ -75,20 +79,36 @@ export function MailScreen() {
       >
         {current.live ? (
           <p>
-            <span className="font-medium">Mail is on.</span> A mail host is configured (<code>MAIL_DSN</code>); what is
-            queued leaves with the jobs cron.
-          </p>
+            <span className="font-medium">{t("Mail is on.")}</span> {t("A mail host is configured (")}<code>{t("MAIL_DSN")}</code>{t("); what is queued leaves with the jobs cron.")}</p>
         ) : (
           <>
-            <p className="font-medium">No mail leaves this deployment.</p>
+            <p className="font-medium">{t("No mail leaves this deployment.")}</p>
             <p>
-              <code>MAIL_DSN</code> is empty in <code>.env</code>: resets, invitations and confirmations are recorded
-              but never sent, and a test is refused. Set it — <code>smtp://user:pass@host:port</code> — and{' '}
-              <code>MAIL_FROM</code>, then come back.
-            </p>
+              <code>{t("MAIL_DSN")}</code> {t("is empty in")}{' '}<code>{'.env'}</code>{t(": resets, invitations and confirmations are recorded but never sent, and a test is refused. Set it —")}{' '}<code>{t("smtp://user:pass@host:port")}</code> {t("— and")}{' '}
+              <code>{t("MAIL_FROM")}</code>{t(", then come back.")}</p>
           </>
         )}
       </section>
+
+      <div role="tablist" aria-label={t("Language")} data-testid="mail-locales" className="flex flex-wrap gap-1 border-b border-line">
+        {LOCALES.map((code) => (
+          <button
+            key={code}
+            type="button"
+            role="tab"
+            aria-selected={code === locale}
+            data-locale={code}
+            className={`-mb-px border-b-2 px-3 py-1.5 text-sm ${code === locale ? 'border-accent font-medium text-accent-strong' : 'border-transparent text-muted hover:text-ink'}`}
+            onClick={() => setEditing(code)}
+          >
+            {LOCALE_NAMES[code]}
+          </button>
+        ))}
+      </div>
+      {locale !== 'en' && (
+        <p className="text-xs text-muted">
+          {t("A kind with no words of its own in this language shows English's, which is what a person reading in it receives.")}</p>
+      )}
 
       {save.error !== null && <ErrorSurface error={save.error} />}
 
@@ -101,11 +121,11 @@ export function MailScreen() {
             onChange={(draft) => setDrafts((all) => ({ ...all, [template.type]: draft }))}
             onReset={() => setDrafts((all) => ({ ...all, [template.type]: { subject: '', body: '' } }))}
             live={current.live}
-            testing={test.isPending && test.variables === template.type}
+            testing={test.isPending && test.variables?.type === template.type}
             tested={tested?.type === template.type ? tested.to : null}
-            testError={test.variables === template.type ? test.error : null}
+            testError={test.variables?.type === template.type ? test.error : null}
             onTest={() =>
-              test.mutate(template.type, {
+              test.mutate({ type: template.type, locale }, {
                 onSuccess: (sent) => setTested({ type: template.type, to: sent.to }),
                 onError: () => setTested(null),
               })
@@ -120,18 +140,16 @@ export function MailScreen() {
           pending={save.isPending}
           disabled={!dirty}
           data-testid="save-templates"
-          onClick={() => save.mutate(drafts)}
+          onClick={() => save.mutate({ templates: drafts, locale })}
         >
-          Save the words
-        </Button>
+          {t("Save the words")}</Button>
         <span className="text-xs text-muted">
-          Emptying a subject and body puts its default back. Placeholders: <code>{'{link}'}</code>,{' '}
+          {t("Emptying a subject and body puts its default back. Placeholders:")}{' '}<code>{'{link}'}</code>,{' '}
           <code>{'{email}'}</code>.
         </span>
         {save.isSuccess && !dirty && (
           <span data-testid="saved" role="status" className="text-xs text-success">
-            Saved.
-          </span>
+            {t("Saved.")}</span>
         )}
       </div>
     </div>
@@ -166,17 +184,17 @@ function TemplateEditor({
       <div className="flex flex-wrap items-baseline gap-2">
         <h2 className="text-xl font-semibold">{template.type}</h2>
         {template.customised ? (
-          <span className="text-xs text-accent-strong">customised</span>
+          <span className="text-xs text-accent-strong">{t("customised")}</span>
         ) : (
-          <span className="text-xs text-subtle">default</span>
+          <span className="text-xs text-subtle">{t("default")}</span>
         )}
       </div>
       <p className="text-sm text-muted">{template.about}</p>
       <p className="text-xs text-subtle">
-        Placeholders: {template.placeholders.map((placeholder) => `{${placeholder}}`).join(', ')}
+        {t("Placeholders:")}{' '}{template.placeholders.map((placeholder) => `{${placeholder}}`).join(', ')}
       </p>
 
-      <Field id={`${id}-subject`} label="Subject">
+      <Field id={`${id}-subject`} label={t("Subject")}>
         <input
           id={`${id}-subject`}
           className={inputClass()}
@@ -184,7 +202,7 @@ function TemplateEditor({
           onChange={(event) => onChange({ ...draft, subject: event.target.value })}
         />
       </Field>
-      <Field id={`${id}-body`} label="Body">
+      <Field id={`${id}-body`} label={t("Body")}>
         <textarea
           id={`${id}-body`}
           rows={6}
@@ -196,23 +214,20 @@ function TemplateEditor({
 
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="secondary" onClick={onReset}>
-          Back to the default
-        </Button>
+          {t("Back to the default")}</Button>
         <Button
           type="button"
           variant="secondary"
           pending={testing}
           disabled={!live}
           data-testid={`test-${template.type}`}
-          title={live ? undefined : 'No mail leaves this deployment: set MAIL_DSN first.'}
+          title={live ? undefined : t("No mail leaves this deployment: set MAIL_DSN first.")}
           onClick={onTest}
         >
-          Send me a test
-        </Button>
+          {t("Send me a test")}</Button>
         {tested !== null && (
           <span data-testid={`tested-${template.type}`} role="status" className="text-xs text-success">
-            Sent to {tested} — check the inbox (and the spam folder).
-          </span>
+            {t("Sent to")}{' '}{tested} {t("— check the inbox (and the spam folder).")}</span>
         )}
       </div>
       {testError !== null && testError !== undefined && <ErrorSurface error={testError} />}

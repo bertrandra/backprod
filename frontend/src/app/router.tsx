@@ -54,6 +54,7 @@ import { DemoScreen } from '@/features/console/DemoScreen';
 import { DemoPage } from '@/features/demo/DemoPage';
 import { AppShell } from '@/app/shells/AppShell';
 import { EmptyState } from '@/ui/EmptyState';
+import { t } from '@/i18n';
 
 /**
  * Two route trees, one router.
@@ -208,7 +209,7 @@ const notFoundRoute = createRoute({
   getParentRoute: () => appShellRoute,
   path: '$',
   component: () => (
-    <EmptyState title="No such page" description="The link may be old, or mistyped." />
+    <EmptyState title={t("No such page")} description={t("The link may be old, or mistyped.")} />
   ),
 });
 
@@ -235,7 +236,7 @@ const projectRoute = createRoute({
     // but the parameter is narrowed rather than asserted, so "no id" has an
     // answer instead of a cast that would be wrong exactly once.
     return projectId === null ? (
-      <EmptyState title="No such project" description="The link may be old, or mistyped." />
+      <EmptyState title={t("No such project")} description={t("The link may be old, or mistyped.")} />
     ) : (
       <ProjectScreen projectId={projectId} />
     );
@@ -258,7 +259,7 @@ const checkoutRoute = createRoute({
     const sessionId = useStringParam('sessionId');
 
     return sessionId === null ? (
-      <EmptyState title="No such checkout" description="The link may be old, or mistyped." />
+      <EmptyState title={t("No such checkout")} description={t("The link may be old, or mistyped.")} />
     ) : (
       <CheckoutScreen sessionId={sessionId} />
     );
@@ -277,7 +278,7 @@ const tenantWorkspaceRoute = createRoute({
     const tenantId = useStringParam('tenantId');
 
     return tenantId === null ? (
-      <EmptyState title="No such customer" description="The link may be old, or mistyped." />
+      <EmptyState title={t("No such customer")} description={t("The link may be old, or mistyped.")} />
     ) : (
       <TenantWorkspaceScreen tenantId={tenantId} />
     );
@@ -293,7 +294,7 @@ const invoiceRoute = createRoute({
     const invoiceId = useStringParam('invoiceId');
 
     return invoiceId === null ? (
-      <EmptyState title="No such invoice" description="The link may be old, or mistyped." />
+      <EmptyState title={t("No such invoice")} description={t("The link may be old, or mistyped.")} />
     ) : (
       <InvoiceScreen invoiceId={invoiceId} />
     );
@@ -331,7 +332,7 @@ export function buildRouter(basepath = '') {
     // Reached only if something falls outside every shell, which the catch-all
     // above makes unlikely — kept so such a case is still a page and not blank.
     defaultNotFoundComponent: () => (
-      <EmptyState title="No such page" description="The link may be old, or mistyped." />
+      <EmptyState title={t("No such page")} description={t("The link may be old, or mistyped.")} />
     ),
     scrollRestoration: true,
   });

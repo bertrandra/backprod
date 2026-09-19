@@ -13,12 +13,12 @@ namespace App\Notification\Domain;
 interface MailTemplates
 {
     /**
-     * @return array<string, array{subject: string, body: string}> by notification type
+     * @return array<string, array<string, array{subject: string, body: string}>> by locale, then by notification type
      */
     public function overrides(): array;
 
     /**
-     * @param array<string, array{subject: string, body: string}> $overrides the whole set; what is absent is reset
+     * @param array<string, array<string, array{subject: string, body: string}>> $overrides the whole set; what is absent is reset
      */
     public function save(array $overrides): void;
 }

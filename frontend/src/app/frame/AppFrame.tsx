@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { cn } from '@/utils/cn';
+import { t } from '@/i18n';
 
 /**
  * The frame every screen renders into (ui-spec.md §4).
@@ -62,7 +63,7 @@ export function AppFrame({
       <div className="flex min-h-0 flex-1">
         <nav
           data-region="primary-nav"
-          aria-label="Sections"
+          aria-label={t("Sections")}
           // Hidden below md, where the bottom bar carries the same entries. Not
           // removed from the tree at build time — the same component, one
           // presentation per width.
@@ -104,7 +105,7 @@ export function AppFrame({
             {inspector !== undefined && (
               <aside
                 data-region="inspector"
-                aria-label="Details"
+                aria-label={t("Details")}
                 // Docked panel from lg. Below that it is a bordered block in
                 // flow — a sheet with snap points replaces this in the screens
                 // that need one, which is a per-screen decision rather than the
@@ -134,7 +135,7 @@ export function AppFrame({
       {bottomNav !== undefined && (
         <nav
           data-region="bottom-nav"
-          aria-label="Sections"
+          aria-label={t("Sections")}
           className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
         >
           {bottomNav}

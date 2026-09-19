@@ -15,6 +15,7 @@ import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
+import { t } from '@/i18n';
 
 /**
  * The canvas, and the milestone's architectural test.
@@ -154,7 +155,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
 
   return (
     <section className="space-y-3" data-testid="project-canvas">
-      <h2 className="text-xl font-semibold">Canvas</h2>
+      <h2 className="text-xl font-semibold">{t("Canvas")}</h2>
 
       {/* Full-bleed on a phone: the surface is square and takes the width it is
           given, and the controls sit under it rather than beside it. */}
@@ -163,7 +164,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
         data-testid="canvas-surface"
         viewBox={`0 0 ${String(EXTENT)} ${String(EXTENT)}`}
         role="application"
-        aria-label={`Drawing surface for ${projectName}`}
+        aria-label={t("Drawing surface for {projectName}", { projectName: projectName })}
         onPointerDown={addPoint}
         className="aspect-square w-full max-w-full touch-none rounded-card border border-line bg-well"
       >
@@ -217,45 +218,39 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
       >
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" onClick={finish} disabled={drawing.length < MIN_RING}>
-            Finish shape
-          </Button>
+            {t("Finish shape")}</Button>
           <Button
             type="button"
             variant="secondary"
             onClick={() => setDrawing((points) => points.slice(0, -1))}
             disabled={drawing.length === 0}
           >
-            Undo point
-          </Button>
+            {t("Undo point")}</Button>
           <Button
             type="button"
             variant="secondary"
             onClick={clear}
             disabled={shapes.length === 0 && drawing.length === 0}
           >
-            Clear
-          </Button>
+            {t("Clear")}</Button>
         </div>
 
         <p className="text-xs text-muted">
-          Tap the surface to place a corner, then finish the shape. Shapes are a scratch pad — they
-          are not saved into the project.
-        </p>
+          {t("Tap the surface to place a corner, then finish the shape. Shapes are a scratch pad — they are not saved into the project.")}</p>
 
         {!allowed ? (
           // A capability, not a permission: geometry touches no tenant data, so
           // the refusal is answered by an upgrade rather than by an
           // administrator (ui-spec.md §3.4's two-refusal rule).
           <EmptyState
-            title="Measurement needs GIS"
-            description="Your plan does not include the GIS capability, so measurement and intersection are unavailable. An upgrade adds them."
+            title={t("Measurement needs GIS")}
+            description={t("Your plan does not include the GIS capability, so measurement and intersection are unavailable. An upgrade adds them.")}
           />
         ) : (
           <>
             <fieldset className="space-y-1">
               <legend className="text-xs font-semibold uppercase tracking-wide text-subtle">
-                Coordinate reference
-              </legend>
+                {t("Coordinate reference")}</legend>
               {/* Stated, never inferred. The same ring is a valid answer in
                   both, and guessing from magnitude reports a 1200 m² plot as
                   0.00000015. */}
@@ -275,7 +270,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
                         setRelations(null);
                       }}
                     />
-                    {option === 'PROJECTED' ? 'Projected (linear units)' : 'Geographic (degrees)'}
+                    {option === 'PROJECTED' ? t("Projected (linear units)") : t("Geographic (degrees)")}
                   </label>
                 ))}
               </div>
@@ -288,8 +283,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
                 onClick={askToMeasure}
                 disabled={selectedShape === null || !isMeasurable(crs)}
               >
-                Measure
-              </Button>
+                {t("Measure")}</Button>
               <Button
                 type="button"
                 variant="secondary"
@@ -297,8 +291,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
                 onClick={askToIntersect}
                 disabled={selectedShape === null || others.length === 0}
               >
-                Intersect with the others
-              </Button>
+                {t("Intersect with the others")}</Button>
             </div>
 
             {!isMeasurable(crs) && (
@@ -307,9 +300,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
               // there is no area to report. Topology still works, which is why
               // intersection stays available.
               <p className="text-sm text-muted">
-                Area and perimeter are not defined in degrees, so measurement needs projected
-                coordinates. Intersection still works here.
-              </p>
+                {t("Area and perimeter are not defined in degrees, so measurement needs projected coordinates. Intersection still works here.")}</p>
             )}
 
             {measure.error !== null && <ErrorSurface error={measure.error} />}
@@ -321,15 +312,15 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
                     label because there is no unit to report: the caller chose
                     the projection and knows whether it is metres or feet. */}
                 <div>
-                  <dt className="text-xs text-subtle">Corners</dt>
+                  <dt className="text-xs text-subtle">{t("Corners")}</dt>
                   <dd data-testid="vertices">{measurement.vertices}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-subtle">Area</dt>
+                  <dt className="text-xs text-subtle">{t("Area")}</dt>
                   <dd data-testid="area">{measurement.area}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-subtle">Perimeter</dt>
+                  <dt className="text-xs text-subtle">{t("Perimeter")}</dt>
                   <dd data-testid="perimeter">{measurement.perimeter}</dd>
                 </div>
               </dl>
@@ -347,7 +338,7 @@ export function ProjectCanvas({ projectName }: { projectName: string }) {
                       {relation.intersects ? 'intersects' : 'disjoint'}
                       {relation.contains && ' · contains it'}
                       {relation.within && ' · inside it'}
-                      {relation.distance !== null && ` · distance ${String(relation.distance)}`}
+                      {relation.distance !== null && t(" · distance {value}", { value: String(relation.distance) })}
                     </span>
                   </li>
                 ))}

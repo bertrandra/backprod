@@ -1,5 +1,6 @@
 import { ApiError } from '@/queries/session';
 import { panel } from '@/ui/tone';
+import { t } from '@/i18n';
 
 /**
  * A failure, rendered as something a person can act on.
@@ -86,8 +87,9 @@ export function ErrorSurface({ error, onRetry }: { error: unknown; onRetry?: () 
 
   const code = api?.code ?? 'UNKNOWN';
   const chosen = WORDING[code];
-  const title = chosen?.title ?? 'Something went wrong';
-  const message = api?.message ?? 'The request could not be completed.';
+  // The wording is data (a table by code) and translated where it is said.
+  const title = t(chosen?.title ?? 'Something went wrong');
+  const message = t(api?.message ?? 'The request could not be completed.');
   const details = api === null ? [] : detailLines(api.details);
 
   return (
@@ -99,7 +101,7 @@ export function ErrorSurface({ error, onRetry }: { error: unknown; onRetry?: () 
       <p className="mt-1 text-danger">{message}</p>
 
       {chosen?.hint !== undefined && (
-        <p className="mt-1 text-danger">{chosen.hint}</p>
+        <p className="mt-1 text-danger">{t(chosen.hint)}</p>
       )}
 
       {details.length > 0 && (
@@ -117,14 +119,13 @@ export function ErrorSurface({ error, onRetry }: { error: unknown; onRetry?: () 
             onClick={onRetry}
             className="rounded-control border border-danger/40 px-2.5 py-1 font-medium text-danger transition-colors hover:bg-danger/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
           >
-            Try again
-          </button>
+            {t("Try again")}</button>
         )}
 
         {api !== null && api.requestId !== '' && (
           // Selectable, because the point of it is being pasted into a report.
           <code className="select-all text-xs text-danger">
-            request {api.requestId}
+            {t("request")}{' '}{api.requestId}
           </code>
         )}
       </div>

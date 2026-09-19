@@ -12,6 +12,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `workspace.projects` — the list a person lands on, and creating one.
@@ -73,8 +74,8 @@ export function ProjectsScreen() {
   return (
     <div className="max-w-4xl space-y-6">
       <PageHeader
-        title={showingBin ? 'Deleted projects' : 'Projects'}
-        meta={`${String(projects.data.total)} ${showingBin ? 'deleted' : 'in this product'}`}
+        title={showingBin ? t("Deleted projects") : t("Projects")}
+        meta={`${String(projects.data.total)} ${showingBin ? t("deleted") : t("in this product")}`}
         actions={
           <Button
             type="button"
@@ -82,7 +83,7 @@ export function ProjectsScreen() {
             data-testid="toggle-bin"
             onClick={() => setShowingBin(!showingBin)}
           >
-            {showingBin ? 'Back to projects' : 'Deleted projects'}
+            {showingBin ? t("Back to projects") : t("Deleted projects")}
           </Button>
         }
       />
@@ -92,13 +93,13 @@ export function ProjectsScreen() {
       {projects.data.projects.length === 0 ? (
         showingBin ? (
           <EmptyState
-            title="Nothing deleted"
-            description="A deleted project waits here with its versions, its assets and its jobs intact."
+            title={t("Nothing deleted")}
+            description={t("A deleted project waits here with its versions, its assets and its jobs intact.")}
           />
         ) : (
           <EmptyState
-            title="No projects yet"
-            description="Everything else in the workspace hangs off a project — start with one."
+            title={t("No projects yet")}
+            description={t("Everything else in the workspace hangs off a project — start with one.")}
           />
         )
       ) : showingBin ? (
@@ -116,10 +117,10 @@ export function ProjectsScreen() {
                   {/* Not a link: a deleted project has no screen to open, and a
                       row that looked clickable and was not would be worse than
                       one that plainly is not. */}
-                  deleted{' '}
+                  {t("deleted")}{' '}
                   {project.deleted_at === null
-                    ? 'at some point'
-                    : new Date(project.deleted_at).toLocaleString()}
+                    ? t("at some point")
+                    : new Date(project.deleted_at).toLocaleString(currentLocale())}
                 </span>
               </span>
 
@@ -128,8 +129,7 @@ export function ProjectsScreen() {
                 pending={undelete.isPending && undelete.variables === project.id}
                 onClick={() => undelete.mutate(project.id)}
               >
-                Put it back
-              </Button>
+                {t("Put it back")}</Button>
             </li>
           ))}
         </ul>
@@ -149,8 +149,8 @@ export function ProjectsScreen() {
                   </span>
                 )}
                 <span className="text-xs text-subtle">
-                  schema v{project.schema_version} · updated{' '}
-                  {new Date(project.updated_at).toLocaleString()}
+                  {t("schema v")}{project.schema_version} {t("· updated")}{' '}
+                  {new Date(project.updated_at).toLocaleString(currentLocale())}
                 </span>
               </Link>
             </li>
@@ -160,7 +160,7 @@ export function ProjectsScreen() {
 
       {!showingBin && (
       <section className="space-y-3 border-t border-line pt-6">
-        <h2 className="text-xl font-semibold">New project</h2>
+        <h2 className="text-xl font-semibold">{t("New project")}</h2>
 
         {configuration.isPending ? (
           <SkeletonRows rows={2} />
@@ -169,8 +169,8 @@ export function ProjectsScreen() {
           // failed: this product has not declared which document shapes it
           // accepts, and until it does there is nothing valid to send.
           <EmptyState
-            title="This product accepts no project documents yet"
-            description="No document schema version is configured for it, so a new project could not be stored. An administrator configures this on the product."
+            title={t("This product accepts no project documents yet")}
+            description={t("No document schema version is configured for it, so a new project could not be stored. An administrator configures this on the product.")}
           />
         ) : (
           <form
@@ -193,7 +193,7 @@ export function ProjectsScreen() {
               )(event);
             }}
           >
-            <Field id="project-name" label="Name" error={form.formState.errors.name?.message}>
+            <Field id="project-name" label={t("Name")} error={form.formState.errors.name?.message}>
               <input
                 id="project-name"
                 className={inputClass(form.formState.errors.name !== undefined)}
@@ -201,7 +201,7 @@ export function ProjectsScreen() {
               />
             </Field>
 
-            <Field id="project-description" label="Description" hint="Optional.">
+            <Field id="project-description" label={t("Description")} hint={t("Optional.")}>
               <input
                 id="project-description"
                 className={inputClass()}
@@ -212,8 +212,8 @@ export function ProjectsScreen() {
             {versions.length > 1 ? (
               <Field
                 id="project-schema"
-                label="Document schema"
-                hint="What this product accepts. The newest is chosen by default."
+                label={t("Document schema")}
+                hint={t("What this product accepts. The newest is chosen by default.")}
               >
                 <select
                   id="project-schema"
@@ -232,15 +232,13 @@ export function ProjectsScreen() {
               // on the row and someone reading it later should know where it
               // came from.
               <p className="text-sm text-muted">
-                Document schema v{newest} — the only version this product accepts.
-              </p>
+                {t("Document schema v")}{newest} {t("— the only version this product accepts.")}</p>
             )}
 
             {create.error !== null && <ErrorSurface error={create.error} />}
 
             <Button type="submit" pending={create.isPending}>
-              Create project
-            </Button>
+              {t("Create project")}</Button>
           </form>
         )}
       </section>

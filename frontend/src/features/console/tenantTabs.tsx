@@ -14,6 +14,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * The rest of the customer workspace's tabs, one component each — payments,
@@ -44,7 +45,7 @@ function Status({ children }: { children: ReactNode }) {
 }
 
 function day(value: string | null | undefined): string {
-  return value === null || value === undefined ? '—' : new Date(value).toLocaleDateString();
+  return value === null || value === undefined ? '—' : new Date(value).toLocaleDateString(currentLocale());
 }
 
 export function PaymentsTab({ tenantId, productCode, motive }: TabProps) {
@@ -53,7 +54,7 @@ export function PaymentsTab({ tenantId, productCode, motive }: TabProps) {
   if (payments.isPending) return <SkeletonRows rows={4} />;
   if (payments.error !== null) return <ErrorSurface error={payments.error} onRetry={() => void payments.refetch()} />;
   if (payments.data.length === 0) {
-    return <EmptyState title="No payment" description="Nothing has been collected from this customer here." />;
+    return <EmptyState title={t("No payment")} description={t("Nothing has been collected from this customer here.")} />;
   }
 
   return (
@@ -65,7 +66,7 @@ export function PaymentsTab({ tenantId, productCode, motive }: TabProps) {
           testId="payment-row"
           note={
             <>
-              {payment.provider} · {payment.method ?? 'method not known'}
+              {payment.provider} · {payment.method ?? t("method not known")}
               {payment.failure_code !== null && payment.failure_code !== undefined && ` · ${payment.failure_code}`}
               {' · '}
               {day(payment.succeeded_at ?? payment.failed_at ?? payment.created_at)}
@@ -93,15 +94,15 @@ export function SalesTab({ tenantId, productCode, motive }: TabProps) {
   return (
     <div className="space-y-6" data-testid="tab-sales">
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold">Orders</h3>
+        <h3 className="text-sm font-semibold">{t("Orders")}</h3>
         {orders.data.length === 0 ? (
-          <p className="text-sm text-muted">No order.</p>
+          <p className="text-sm text-muted">{t("No order.")}</p>
         ) : (
           <ul className="space-y-2">
             {orders.data.map((order) => (
-              <Row key={order.id} id={order.id} testId="order-row" note={<>placed {day(order.created_at)}{order.completed_at !== null && order.completed_at !== undefined && ` · completed ${day(order.completed_at)}`}</>}>
+              <Row key={order.id} id={order.id} testId="order-row" note={<>{t("placed")}{' '}{day(order.created_at)}{order.completed_at !== null && order.completed_at !== undefined && t(" · completed {value}", { value: day(order.completed_at) })}</>}>
                 <Status>{order.status}</Status>
-                {order.quote_id !== null && order.quote_id !== undefined && <span className="text-xs text-subtle">from a quote</span>}
+                {order.quote_id !== null && order.quote_id !== undefined && <span className="text-xs text-subtle">{t("from a quote")}</span>}
                 <span className="ml-auto">
                   <Amount money={order.gross} />
                 </span>
@@ -112,13 +113,13 @@ export function SalesTab({ tenantId, productCode, motive }: TabProps) {
       </section>
 
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold">Quotes</h3>
+        <h3 className="text-sm font-semibold">{t("Quotes")}</h3>
         {quotes.data.length === 0 ? (
-          <p className="text-sm text-muted">No quote.</p>
+          <p className="text-sm text-muted">{t("No quote.")}</p>
         ) : (
           <ul className="space-y-2">
             {quotes.data.map((quote) => (
-              <Row key={quote.id} id={quote.id} testId="quote-row" note={<>valid until {day(quote.valid_until)}{quote.open ? ' · open' : ' · no longer open'}</>}>
+              <Row key={quote.id} id={quote.id} testId="quote-row" note={<>{t("valid until")}{' '}{day(quote.valid_until)}{quote.open ? t(" · open") : t(" · no longer open")}</>}>
                 <Status>{quote.status}</Status>
                 <span className="ml-auto">
                   <Amount money={quote.gross} />
@@ -142,13 +143,13 @@ export function TaxTab({ tenantId, motive }: { tenantId: string; motive: AccessM
 
   return (
     <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[max-content_1fr]" data-testid="tab-tax">
-      <dt className="text-muted">Customer kind</dt>
-      <dd>{p.customer_kind === 'B2B' ? 'Business (B2B)' : 'Private person (B2C)'}</dd>
-      <dt className="text-muted">Country</dt>
-      <dd>{p.country_code ?? 'not declared'}</dd>
-      <dt className="text-muted">Taxable person</dt>
-      <dd>{p.taxable_person ? 'Yes' : 'No'}</dd>
-      <dt className="text-muted">VAT number</dt>
+      <dt className="text-muted">{t("Customer kind")}</dt>
+      <dd>{p.customer_kind === 'B2B' ? t("Business (B2B)") : t("Private person (B2C)")}</dd>
+      <dt className="text-muted">{t("Country")}</dt>
+      <dd>{p.country_code ?? t("not declared")}</dd>
+      <dt className="text-muted">{t("Taxable person")}</dt>
+      <dd>{p.taxable_person ? t("Yes") : t("No")}</dd>
+      <dt className="text-muted">{t("VAT number")}</dt>
       <dd>
         {p.vat_number === null || p.vat_number === undefined ? (
           'none'
@@ -157,13 +158,13 @@ export function TaxTab({ tenantId, motive }: { tenantId: string; motive: AccessM
             <code>{p.vat_number}</code>
             {' · '}
             {/* Verification is a fact with a date, never assumed (§25.3). */}
-            {p.vat_number_status ?? 'not checked'}
+            {p.vat_number_status ?? t("not checked")}
             {p.vat_number_verified_at !== null && p.vat_number_verified_at !== undefined && ` on ${day(p.vat_number_verified_at)}`}
           </>
         )}
       </dd>
-      <dt className="text-muted">Reverse charge</dt>
-      <dd>{p.reverse_charge_available ? 'Available — verified intra-EU business' : 'Not available'}</dd>
+      <dt className="text-muted">{t("Reverse charge")}</dt>
+      <dd>{p.reverse_charge_available ? t("Available — verified intra-EU business") : t("Not available")}</dd>
     </dl>
   );
 }
@@ -174,13 +175,13 @@ export function ConversationsTab({ tenantId }: { tenantId: string }) {
   if (threads.isPending) return <SkeletonRows rows={3} />;
   if (threads.error !== null) return <ErrorSurface error={threads.error} onRetry={() => void threads.refetch()} />;
   if (threads.data.length === 0) {
-    return <EmptyState title="No support thread" description="This customer has not opened one. Internal threads are theirs alone and are never listed here." />;
+    return <EmptyState title={t("No support thread")} description={t("This customer has not opened one. Internal threads are theirs alone and are never listed here.")} />;
   }
 
   return (
     <ul className="space-y-2" data-testid="tab-conversations">
       {threads.data.map((thread) => (
-        <Row key={thread.id} id={thread.id} testId="thread-row" note={<>opened {day(thread.created_at)}{thread.closed_at !== null && thread.closed_at !== undefined && ` · closed ${day(thread.closed_at)}`}</>}>
+        <Row key={thread.id} id={thread.id} testId="thread-row" note={<>{t("opened")}{' '}{day(thread.created_at)}{thread.closed_at !== null && thread.closed_at !== undefined && t(" · closed {value}", { value: day(thread.closed_at) })}</>}>
           <span className="font-medium">{thread.subject}</span>
           <Status>{thread.status}</Status>
         </Row>
@@ -195,13 +196,13 @@ export function WorkspaceTab({ tenantId, productCode, motive }: TabProps) {
   if (projects.isPending) return <SkeletonRows rows={4} />;
   if (projects.error !== null) return <ErrorSurface error={projects.error} onRetry={() => void projects.refetch()} />;
   if (projects.data.length === 0) {
-    return <EmptyState title="No project" description="This customer has made nothing here yet." />;
+    return <EmptyState title={t("No project")} description={t("This customer has made nothing here yet.")} />;
   }
 
   return (
     <ul className="space-y-2" data-testid="tab-workspace">
       {projects.data.map((project) => (
-        <Row key={project.id} id={project.id} testId="project-row" note={<>schema v{project.schema_version} · updated {day(project.updated_at)}{project.deleted_at !== null && project.deleted_at !== undefined && ' · in the bin'}</>}>
+        <Row key={project.id} id={project.id} testId="project-row" note={<>{t("schema v")}{project.schema_version} {t("· updated")}{' '}{day(project.updated_at)}{project.deleted_at !== null && project.deleted_at !== undefined && ' · in the bin'}</>}>
           <span className="font-medium">{project.name}</span>
           {project.description !== null && project.description !== undefined && project.description !== '' && (
             <span className="text-xs text-muted">{project.description}</span>
@@ -218,7 +219,7 @@ export function JobsTab({ tenantId, productCode, motive }: TabProps) {
   if (jobs.isPending) return <SkeletonRows rows={4} />;
   if (jobs.error !== null) return <ErrorSurface error={jobs.error} onRetry={() => void jobs.refetch()} />;
   if (jobs.data.length === 0) {
-    return <EmptyState title="No job" description="Nothing has been queued for this customer." />;
+    return <EmptyState title={t("No job")} description={t("Nothing has been queued for this customer.")} />;
   }
 
   return (
@@ -230,8 +231,8 @@ export function JobsTab({ tenantId, productCode, motive }: TabProps) {
           testId="job-row"
           note={
             <>
-              attempt {job.attempts} of {job.max_attempts} · queued {day(job.created_at)}
-              {job.finished_at !== null && job.finished_at !== undefined && ` · finished ${day(job.finished_at)}`}
+              {t("attempt")}{' '}{job.attempts} {t("of")}{' '}{job.max_attempts} {t("· queued")}{' '}{day(job.created_at)}
+              {job.finished_at !== null && job.finished_at !== undefined && t(" · finished {value}", { value: day(job.finished_at) })}
               {job.failure_reason !== null && job.failure_reason !== undefined && ` · ${job.failure_reason}`}
             </>
           }

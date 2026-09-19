@@ -7,6 +7,7 @@ namespace App\Staff\Controller;
 use App\Notification\Service\MailTester;
 use App\Notification\Service\MailWording;
 use App\Shared\Http\RouteHandler;
+use App\Shared\Validation\Locale;
 use App\Staff\Domain\StaffPermission;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
@@ -29,6 +30,15 @@ final class ShowMailTemplatesController implements RouteHandler
     {
         StaffRoute::permitted($request, StaffPermission::MAIL_MANAGE);
 
-        return new JsonResponse(['templates' => $this->wording->catalogue(), 'live' => $this->tester->isLive()], 200);
+        // `?locale=fr` reads one language's words (ADR-050); English is the default.
+        $asked = $request->getQueryParams()['locale'] ?? null;
+        $locale = Locale::of(is_string($asked) ? $asked : null);
+
+        return new JsonResponse([
+            'locale' => $locale,
+            'locales' => Locale::ALL,
+            'templates' => $this->wording->catalogue($locale),
+            'live' => $this->tester->isLive(),
+        ], 200);
     }
 }

@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
+import { currentLocale, installCatalogue, setLocale } from '@/i18n';
 import { recordingClient, renderWith, SESSION, type Stub } from '@/test-utils';
 
 import { ProfileScreen } from './ProfileScreen';
@@ -62,5 +63,34 @@ describe('the default product', () => {
 
     await waitFor(() => expect(requests.some((r) => r.method === 'PATCH')).toBe(true));
     expect((requests.find((r) => r.method === 'PATCH')?.body as { default_product?: unknown }).default_product).toBeNull();
+  });
+});
+
+describe('the language', () => {
+  afterEach(async () => {
+    await setLocale('en');
+  });
+
+  it('is offered among the languages the platform speaks, starting on the one in force', async () => {
+    const { client } = clientFor('atlas');
+    renderWith(<ProfileScreen />, client);
+
+    const select = await waitFor(() => screen.getByTestId<HTMLSelectElement>('locale'));
+    await waitFor(() => expect(select.value).toBe('en'));
+    expect([...select.options].map((o) => o.value)).toEqual(['en', 'fr', 'es', 'de', 'it']);
+  });
+
+  it('is sent in the same patch, and applied the moment it is saved', async () => {
+    installCatalogue('fr', { 'Your profile': 'Votre profil' });
+    const { client, requests } = clientFor('atlas', { locale: 'fr' });
+    renderWith(<ProfileScreen />, client);
+
+    const select = await waitFor(() => screen.getByTestId<HTMLSelectElement>('locale'));
+    fireEvent.change(select, { target: { value: 'fr' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(requests.some((r) => r.method === 'PATCH')).toBe(true));
+    expect((requests.find((r) => r.method === 'PATCH')?.body as { locale?: unknown }).locale).toBe('fr');
+    await waitFor(() => expect(currentLocale()).toBe('fr'));
   });
 });

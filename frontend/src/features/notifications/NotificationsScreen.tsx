@@ -6,6 +6,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill } from '@/ui/tone';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `account.notifications` — the inbox.
@@ -32,9 +33,9 @@ export function NotificationsScreen() {
   return (
     <div className="max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold">Notifications</h1>
+        <h1 className="text-2xl font-semibold">{t("Notifications")}</h1>
         <span className="text-sm text-muted">
-          {inbox.data.unread} unread of {inbox.data.total}
+          {inbox.data.unread} {t("unread of")}{' '}{inbox.data.total}
         </span>
         {inbox.data.unread > 0 && (
           <Button
@@ -43,8 +44,7 @@ export function NotificationsScreen() {
             pending={markAll.isPending}
             onClick={() => markAll.mutate()}
           >
-            Mark all read
-          </Button>
+            {t("Mark all read")}</Button>
         )}
       </div>
 
@@ -53,8 +53,8 @@ export function NotificationsScreen() {
 
       {inbox.data.notifications.length === 0 ? (
         <EmptyState
-          title="Nothing here"
-          description="Notifications about billing, your account and security appear here."
+          title={t("Nothing here")}
+          description={t("Notifications about billing, your account and security appear here.")}
         />
       ) : (
         <ul className="space-y-2">
@@ -78,11 +78,10 @@ export function NotificationsScreen() {
                   // A notice with legal effect is not a nicety. §27 treats it as
                   // part of the obligation, so the screen says so.
                   <span className={pill('warning')}>
-                    legal notice
-                  </span>
+                    {t("legal notice")}</span>
                 )}
                 <time className="ml-auto text-xs text-subtle" dateTime={notification.created_at}>
-                  {new Date(notification.created_at).toLocaleString()}
+                  {new Date(notification.created_at).toLocaleString(currentLocale())}
                 </time>
               </div>
 
@@ -93,15 +92,14 @@ export function NotificationsScreen() {
                     variant="secondary"
                     onClick={() => markRead.mutate(notification.id)}
                   >
-                    Mark read
-                  </Button>
+                    {t("Mark read")}</Button>
                 )}
                 <Button
                   type="button"
                   variant="secondary"
                   onClick={() => setExpanded(expanded === notification.id ? null : notification.id)}
                 >
-                  {expanded === notification.id ? 'Hide delivery' : 'Delivery detail'}
+                  {expanded === notification.id ? t("Hide delivery") : t("Delivery detail")}
                 </Button>
               </div>
 
@@ -114,7 +112,7 @@ export function NotificationsScreen() {
                   ) : deliveries.data.deliveries.length === 0 ? (
                     // Queued but not attempted yet. Distinct from failing, which
                     // matters when someone is asking why an email never arrived.
-                    <p>No delivery attempted yet.</p>
+                    <p>{t("No delivery attempted yet.")}</p>
                   ) : (
                     <ul className="space-y-1">
                       {deliveries.data.deliveries.map((delivery, index) => (

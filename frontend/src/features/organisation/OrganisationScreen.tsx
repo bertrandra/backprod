@@ -15,6 +15,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { t } from '@/i18n';
 
 /** `tenant.organisation` — the company, and its usage against quota. */
 const schema = z.object({
@@ -95,7 +96,7 @@ export function OrganisationScreen() {
   return (
     <div className="max-w-2xl space-y-8">
       <section className="space-y-4">
-        <h1 className="text-2xl font-semibold">Organisation</h1>
+        <h1 className="text-2xl font-semibold">{t("Organisation")}</h1>
 
         <form
           className="space-y-4"
@@ -103,7 +104,7 @@ export function OrganisationScreen() {
             void form.handleSubmit((values) => rename.mutate(values.name))(event);
           }}
         >
-          <Field id="org-name" label="Name" error={form.formState.errors.name?.message}>
+          <Field id="org-name" label={t("Name")} error={form.formState.errors.name?.message}>
             <input
               id="org-name"
               className={inputClass(form.formState.errors.name !== undefined)}
@@ -115,16 +116,13 @@ export function OrganisationScreen() {
           </Field>
 
           <p className="text-xs text-muted">
-            Identifier <code className="select-all">{organisation.data?.slug}</code> — set when the
-            organisation was created and not editable.
-          </p>
+            {t("Identifier")}{' '}<code className="select-all">{organisation.data?.slug}</code> {t("— set when the organisation was created and not editable.")}</p>
 
           {rename.error !== null && <ErrorSurface error={rename.error} />}
 
           {mayManage && (
             <Button type="submit" pending={rename.isPending}>
-              Save
-            </Button>
+              {t("Save")}</Button>
           )}
         </form>
       </section>
@@ -133,17 +131,15 @@ export function OrganisationScreen() {
           up at this organisation's address becomes a USER of it — or asks
           to, or is refused — and this is the administrator's say in which. */}
       <section className="space-y-4" data-testid="join-policy">
-        <h2 className="text-xl font-semibold">Who may join</h2>
+        <h2 className="text-xl font-semibold">{t("Who may join")}</h2>
         <p className="text-sm text-muted">
-          Anybody can create an account at this organisation&rsquo;s address
-          {organisation.data?.slug !== undefined && (
+          {t("Anybody can create an account at this organisation’s address")}{organisation.data?.slug !== undefined && (
             <>
               {' '}
               (<code>/{organisation.data.slug}/</code>)
             </>
           )}
-          . This decides what happens when they do.
-        </p>
+          {t(". This decides what happens when they do.")}</p>
 
         <form
           className="space-y-4"
@@ -157,7 +153,7 @@ export function OrganisationScreen() {
           }}
         >
           <fieldset className="space-y-2" disabled={!mayManage}>
-            <legend className="text-sm font-medium">Join policy</legend>
+            <legend className="text-sm font-medium">{t("Join policy")}</legend>
             {POLICIES.map((option) => (
               <label key={option.value} className="flex items-start gap-2 text-sm">
                 <input
@@ -167,8 +163,8 @@ export function OrganisationScreen() {
                   {...joinForm.register('policy')}
                 />
                 <span>
-                  <span className="font-medium">{option.label}</span>
-                  <span className="block text-xs text-muted">{option.hint}</span>
+                  <span className="font-medium">{t(option.label)}</span>
+                  <span className="block text-xs text-muted">{t(option.hint)}</span>
                 </span>
               </label>
             ))}
@@ -177,8 +173,8 @@ export function OrganisationScreen() {
           {chosenPolicy === 'DOMAIN' && (
             <Field
               id="join-domains"
-              label="Email domains"
-              hint="Comma separated, such as acme.example. An address on one of these is in at once; any other is refused."
+              label={t("Email domains")}
+              hint={t("Comma separated, such as acme.example. An address on one of these is in at once; any other is refused.")}
               error={joinForm.formState.errors.domains?.message}
             >
               <input
@@ -194,14 +190,13 @@ export function OrganisationScreen() {
 
           {mayManage && (
             <Button type="submit" pending={joining.isPending}>
-              Save
-            </Button>
+              {t("Save")}</Button>
           )}
         </form>
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Usage</h2>
+        <h2 className="text-xl font-semibold">{t("Usage")}</h2>
 
         {usage.isPending ? (
           <SkeletonRows rows={3} />
@@ -211,8 +206,8 @@ export function OrganisationScreen() {
           // Distinct from a failure: nothing metered yet is not something going
           // wrong, and an empty table would look identical to a broken one.
           <EmptyState
-            title="Nothing metered yet"
-            description="Usage appears here once this organisation starts consuming a quota."
+            title={t("Nothing metered yet")}
+            description={t("Usage appears here once this organisation starts consuming a quota.")}
           />
         ) : (
           <div className="overflow-x-auto">

@@ -23,6 +23,7 @@ import { pill, type Tone } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
 
 import { SubscriptionPeople } from './SubscriptionPeople';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `tenant.subscription` — and the distinction §13.1 exists to protect.
@@ -98,14 +99,14 @@ export function SubscriptionScreen() {
 
     return (
       <div className="max-w-3xl space-y-6">
-        <h1 className="text-2xl font-semibold">Subscription</h1>
+        <h1 className="text-2xl font-semibold">{t("Subscription")}</h1>
         {ownSeat}
         <EmptyState
-          title={seat === null ? 'No subscription' : 'No subscription for the organisation'}
+          title={seat === null ? t("No subscription") : t("No subscription for the organisation")}
           description={
             seat === null
-              ? 'Nothing is subscribed in this product yet. An offer from the catalogue starts one.'
-              : 'Your seat is yours alone. An offer from the catalogue, bought for the organisation, starts one for everyone.'
+              ? t("Nothing is subscribed in this product yet. An offer from the catalogue starts one.")
+              : t("Your seat is yours alone. An offer from the catalogue, bought for the organisation, starts one for everyone.")
           }
         />
         {provided.length > 0 && <ProvidedByThePlatform entitlements={provided} />}
@@ -118,7 +119,7 @@ export function SubscriptionScreen() {
   return (
     <div className="max-w-3xl space-y-8">
       <PageHeader
-        title={'Subscription'}
+        title={t("Subscription")}
         description={<>{current.offer.name} · {current.offer.plan.name}{seat !== null && ' — the organisation\'s'}</>}
       />
 
@@ -135,33 +136,32 @@ export function SubscriptionScreen() {
           </span>
           {current.cancel_at_period_end && (
             <span data-testid="cancelling" className="text-xs text-subtle">
-              ends at the period boundary
-            </span>
+              {t("ends at the period boundary")}</span>
           )}
         </div>
 
         {/* The two facts, side by side and never merged. */}
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-xs uppercase tracking-wide text-subtle">Billed</dt>
+            <dt className="text-xs uppercase tracking-wide text-subtle">{t("Billed")}</dt>
             <dd data-testid="periodicity">
               {current.offer.version.billing_period.toLowerCase()} ·{' '}
               <Amount money={current.offer.version.price} />
             </dd>
             <dd className="text-xs text-subtle">
-              period {new Date(current.current_period_start).toLocaleDateString()} —{' '}
+              {t("period")}{' '}{new Date(current.current_period_start).toLocaleDateString(currentLocale())} —{' '}
               {current.current_period_end === null
                 ? 'open'
-                : new Date(current.current_period_end).toLocaleDateString()}
+                : new Date(current.current_period_end).toLocaleDateString(currentLocale())}
             </dd>
           </div>
 
           <div>
-            <dt className="text-xs uppercase tracking-wide text-subtle">Commitment</dt>
+            <dt className="text-xs uppercase tracking-wide text-subtle">{t("Commitment")}</dt>
             <dd data-testid="commitment">
               {/* A different question from how often it is billed. */}
               {terms === null || terms === undefined ? (
-                <span className="text-subtle">None recorded</span>
+                <span className="text-subtle">{t("None recorded")}</span>
               ) : (
                 <TermsSummary terms={terms} />
               )}
@@ -171,7 +171,7 @@ export function SubscriptionScreen() {
       </section>
 
       <section className="space-y-3 border-t border-line pt-6">
-        <h2 className="text-xl font-semibold">Entitlements</h2>
+        <h2 className="text-xl font-semibold">{t("Entitlements")}</h2>
 
         {entitlements.isPending ? (
           <SkeletonRows rows={3} />
@@ -179,8 +179,8 @@ export function SubscriptionScreen() {
           <ErrorSurface error={entitlements.error} onRetry={() => void entitlements.refetch()} />
         ) : entitlements.data.length === 0 ? (
           <EmptyState
-            title="No entitlements"
-            description="This offer grants nothing yet, which is a configuration answer rather than an error."
+            title={t("No entitlements")}
+            description={t("This offer grants nothing yet, which is a configuration answer rather than an error.")}
           />
         ) : (
           <ul className="space-y-1 text-sm">
@@ -197,12 +197,12 @@ export function SubscriptionScreen() {
                   {entitlement.kind === 'BOOLEAN'
                     ? 'included'
                     : entitlement.unlimited
-                      ? 'unlimited'
+                      ? t("unlimited")
                       : `${String(entitlement.limit ?? 0)}${entitlement.unit === null ? '' : ` ${entitlement.unit}`}`}
                 </span>
                 <span className="text-xs text-subtle">
                   {entitlement.source === 'GRANT'
-                    ? `provided by the platform${entitlement.valid_until === null ? '' : ` until ${entitlement.valid_until.slice(0, 10)}`}`
+                    ? (entitlement.valid_until === null ? t("provided by the platform") : t("provided by the platform until {until}", { until: entitlement.valid_until.slice(0, 10) }))
                     : `from ${entitlement.source}`}
                 </span>
               </li>
@@ -218,19 +218,19 @@ export function SubscriptionScreen() {
       {mayManageOrganisation && (
         <>
           <section className="space-y-3 border-t border-line pt-6">
-            <h2 className="text-xl font-semibold">Change offer</h2>
+            <h2 className="text-xl font-semibold">{t("Change offer")}</h2>
 
             {changeOffer.error !== null && <ErrorSurface error={changeOffer.error} />}
 
             <div className="flex max-w-md flex-wrap items-end gap-2">
-              <Field id="offer" label="Offer">
+              <Field id="offer" label={t("Offer")}>
                 <select
                   id="offer"
                   className={inputClass()}
                   value={offerId}
                   onChange={(event) => setOfferId(event.target.value)}
                 >
-                  <option value="">Choose an offer</option>
+                  <option value="">{t("Choose an offer")}</option>
                   {(offers.data ?? [])
                     .filter((offer) => offer.id !== current.offer.id)
                     .map((offer) => (
@@ -246,23 +246,21 @@ export function SubscriptionScreen() {
                 disabled={offerId === ''}
                 onClick={() => changeOffer.mutate(offerId, { onSuccess: () => setOfferId('') })}
               >
-                Change
-              </Button>
+                {t("Change")}</Button>
             </div>
           </section>
 
           <section className="space-y-3 border-t border-line pt-6">
             <h2 className="text-xl font-semibold">
-              {current.cancel_at_period_end ? 'Cancellation' : 'Cancel'}
+              {current.cancel_at_period_end ? t("Cancellation") : t("Cancel")}
             </h2>
 
             {current.cancel_at_period_end ? (
               <div className="space-y-3">
                 <p className="text-sm">
-                  This subscription ends
-                  {current.cancel_effective_at === null
-                    ? ' at the end of the current period'
-                    : ` on ${new Date(current.cancel_effective_at).toLocaleDateString()}`}
+                  {t("This subscription ends")}{current.cancel_effective_at === null
+                    ? t(" at the end of the current period")
+                    : ` on ${new Date(current.cancel_effective_at).toLocaleDateString(currentLocale())}`}
                   .
                 </p>
                 {resume.error !== null && <ErrorSurface error={resume.error} />}
@@ -271,15 +269,14 @@ export function SubscriptionScreen() {
                   pending={resume.isPending}
                   onClick={() => resume.mutate()}
                 >
-                  Resume it
-                </Button>
+                  {t("Resume it")}</Button>
               </div>
             ) : (
               <div className="space-y-3">
                 {/* The preview, before the button. The backend computes it, so
                     the number here is the number that will be charged. */}
                 {schedule.data?.if_cancelled_now !== undefined && (
-                  <Decision decision={schedule.data.if_cancelled_now} label="If you cancelled now" />
+                  <Decision decision={schedule.data.if_cancelled_now} label={t("If you cancelled now")} />
                 )}
 
                 <label className="flex items-center gap-2 text-sm">
@@ -289,12 +286,9 @@ export function SubscriptionScreen() {
                     checked={immediately}
                     onChange={(event) => setImmediately(event.target.checked)}
                   />
-                  Ask to end immediately
-                </label>
+                  {t("Ask to end immediately")}</label>
                 <p className="text-xs text-muted">
-                  Asking does not make it so — the cancellation policy decides, and the answer
-                  below is what it decided.
-                </p>
+                  {t("Asking does not make it so — the cancellation policy decides, and the answer below is what it decided.")}</p>
 
                 {cancel.error !== null && <ErrorSurface error={cancel.error} />}
 
@@ -311,22 +305,19 @@ export function SubscriptionScreen() {
                         )
                       }
                     >
-                      Cancel the subscription
-                    </Button>
+                      {t("Cancel the subscription")}</Button>
                     <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>
-                      Keep it
-                    </Button>
+                      {t("Keep it")}</Button>
                   </div>
                 ) : (
                   <Button type="button" variant="danger" onClick={() => setConfirming(true)}>
-                    Cancel…
-                  </Button>
+                    {t("Cancel…")}</Button>
                 )}
               </div>
             )}
 
             {cancel.data?.cancellation !== undefined && cancel.data.cancellation !== null && (
-              <Decision decision={cancel.data.cancellation} label="What the policy decided" />
+              <Decision decision={cancel.data.cancellation} label={t("What the policy decided")} />
             )}
           </section>
         </>
@@ -359,38 +350,36 @@ function YourSeat({
   return (
     <section data-testid="your-seat" data-status={seat.status} className="space-y-3 rounded-card border border-line bg-surface p-4 shadow-raise">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-xl font-semibold">Your seat</h2>
+        <h2 className="text-xl font-semibold">{t("Your seat")}</h2>
         <span className={pill(statusTone(seat.status))}>{seat.status}</span>
         {seat.cancel_at_period_end && (
           <span data-testid="seat-cancelling" className="text-xs text-subtle">
-            ends
-            {seat.cancel_effective_at === null
-              ? ' at the period boundary'
-              : ` on ${new Date(seat.cancel_effective_at).toLocaleDateString()}`}
+            {t("ends")}{seat.cancel_effective_at === null
+              ? t(" at the period boundary")
+              : ` on ${new Date(seat.cancel_effective_at).toLocaleDateString(currentLocale())}`}
           </span>
         )}
       </div>
 
       <p className="text-sm">
-        <span className="font-medium">{seat.offer.name}</span> · {seat.offer.plan.name} — yours alone, paid with your own card.
-      </p>
+        <span className="font-medium">{seat.offer.name}</span> · {seat.offer.plan.name} {t("— yours alone, paid with your own card.")}</p>
 
       <dl className="grid gap-3 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">Billed</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">{t("Billed")}</dt>
           <dd>
             {seat.offer.version.billing_period.toLowerCase()} · <Amount money={seat.offer.version.price} />
           </dd>
           <dd className="text-xs text-subtle">
-            period {new Date(seat.current_period_start).toLocaleDateString()} —{' '}
-            {seat.current_period_end === null ? 'open' : new Date(seat.current_period_end).toLocaleDateString()}
+            {t("period")}{' '}{new Date(seat.current_period_start).toLocaleDateString(currentLocale())} —{' '}
+            {seat.current_period_end === null ? 'open' : new Date(seat.current_period_end).toLocaleDateString(currentLocale())}
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">Commitment</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">{t("Commitment")}</dt>
           <dd>
             {seat.terms === null || seat.terms === undefined ? (
-              <span className="text-subtle">None recorded</span>
+              <span className="text-subtle">{t("None recorded")}</span>
             ) : (
               <TermsSummary terms={seat.terms} />
             )}
@@ -407,20 +396,16 @@ function YourSeat({
           {confirming ? (
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="danger" pending={pending} onClick={onCancel} data-testid="cancel-seat">
-                Give up your seat
-              </Button>
+                {t("Give up your seat")}</Button>
               <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>
-                Keep it
-              </Button>
+                {t("Keep it")}</Button>
             </div>
           ) : (
             <Button type="button" variant="danger" onClick={() => setConfirming(true)}>
-              Give up your seat…
-            </Button>
+              {t("Give up your seat…")}</Button>
           )}
           <p className="text-xs text-muted">
-            The cancellation policy decides when it ends; what it decided is shown once asked.
-          </p>
+            {t("The cancellation policy decides when it ends; what it decided is shown once asked.")}</p>
         </div>
       )}
     </section>
@@ -446,21 +431,19 @@ function Decision({ decision, label }: { decision: CancellationDecision; label: 
 
       <p data-testid="decision-effect">
         {decision.effect === 'REFUSED'
-          ? 'It would be refused.'
+          ? t("It would be refused.")
           : decision.effective_at === null
-            ? `Effect: ${decision.effect.toLowerCase().replace(/_/g, ' ')}`
-            : `Takes effect ${new Date(decision.effective_at).toLocaleDateString()} (${decision.effect
+            ? t("Effect: {value}", { value: decision.effect.toLowerCase().replace(/_/g, ' ') })
+            : t("Takes effect {value} ({value_})", { value: new Date(decision.effective_at).toLocaleDateString(currentLocale()), value_: decision.effect
                 .toLowerCase()
-                .replace(/_/g, ' ')})`}
+                .replace(/_/g, ' ') })}
       </p>
 
       {decision.chargeable_months > 0 && (
         // Counted from the end of the period already paid for, not from today —
         // which is why this is the server's number and not a subtraction here.
         <p data-testid="chargeable-months">
-          {decision.chargeable_months} month{decision.chargeable_months === 1 ? '' : 's'} of
-          commitment would still be owed.
-        </p>
+          {decision.chargeable_months} {t("month")}{decision.chargeable_months === 1 ? '' : 's'} {t("of commitment would still be owed.")}</p>
       )}
 
       {decision.reasons.length > 0 && (
@@ -472,7 +455,7 @@ function Decision({ decision, label }: { decision: CancellationDecision; label: 
       )}
 
       <p className="text-xs text-subtle">
-        Rule <code>{decision.rule_id}</code>
+        {t("Rule")}{' '}<code>{decision.rule_id}</code>
       </p>
     </div>
   );
@@ -493,13 +476,13 @@ function TermsSummary({ terms }: { terms: Record<string, unknown> }) {
     <span>
       {typeof months === 'number' ? (
         <>
-          {months} month{months === 1 ? '' : 's'}
+          {months} {t("month")}{months === 1 ? '' : 's'}
         </>
       ) : (
-        <span className="text-subtle">not recorded</span>
+        <span className="text-subtle">{t("not recorded")}</span>
       )}
       {typeof notice === 'number' && (
-        <span className="text-xs text-subtle"> · {notice} days notice</span>
+        <span className="text-xs text-subtle"> · {notice} {t("days notice")}</span>
       )}
     </span>
   );
@@ -527,11 +510,11 @@ function ProvidedByThePlatform({ entitlements }: { entitlements: readonly Entitl
 
   return (
     <section data-testid="provided-by-platform" className="space-y-3 border-t border-line pt-6">
-      <h2 className="text-xl font-semibold">Provided by the platform</h2>
+      <h2 className="text-xl font-semibold">{t("Provided by the platform")}</h2>
       <p className="text-sm text-muted">
         {until === null
-          ? 'These are yours to use without a subscription, with no end date.'
-          : `These are yours to use without a subscription, until ${until.slice(0, 10)}.`}
+          ? t("These are yours to use without a subscription, with no end date.")
+          : t("These are yours to use without a subscription, until {value}.", { value: until.slice(0, 10) })}
       </p>
       <ul className="space-y-1 text-sm">
         {entitlements.map((entitlement) => (
@@ -541,7 +524,7 @@ function ProvidedByThePlatform({ entitlements }: { entitlements: readonly Entitl
               {entitlement.kind === 'BOOLEAN'
                 ? 'included'
                 : entitlement.unlimited
-                  ? 'unlimited'
+                  ? t("unlimited")
                   : `${String(entitlement.limit ?? 0)}${entitlement.unit === null ? '' : ` ${entitlement.unit}`}`}
             </span>
           </li>

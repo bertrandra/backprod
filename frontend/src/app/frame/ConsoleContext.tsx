@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from '@tanstack/react-router';
 import { useStaffTenant, useStaffTenants } from '@/queries/staff';
 import { useConsoleStore } from '@/state/console';
 import { cn } from '@/utils/cn';
+import { t } from '@/i18n';
 
 /**
  * Region A on the console: which level the screen answers to, and the two
@@ -54,7 +55,7 @@ export function ConsoleContext() {
     <>
       <span
         data-testid="console-level"
-        data-level={tenantId === null ? 'platform' : 'tenant'}
+        data-level={tenantId === null ? 'platform' : t("tenant")}
         className={cn(
           // Hidden on a phone: the picker beside it already reads "Platform —
           // no customer" or the customer's name, and the bar has 390px.
@@ -62,21 +63,21 @@ export function ConsoleContext() {
           tenantId === null ? 'bg-well text-muted' : 'bg-warning-wash text-warning',
         )}
       >
-        {tenantId === null ? 'Platform' : 'Tenant'}
+        {tenantId === null ? t("Platform") : t("Tenant")}
       </span>
 
       {/* Flexible, basis zero: on a phone the pickers give way rather than
           push the bar sideways; on a desktop they stop at a readable width. */}
       <label className="flex min-w-0 max-w-[12rem] flex-1 basis-[6rem] items-center gap-1 text-xs text-muted">
-        <span className="sr-only">Customer</span>
+        <span className="sr-only">{t("Customer")}</span>
         <select
           data-testid="console-tenant"
-          aria-label="Customer"
+          aria-label={t("Customer")}
           value={tenantId ?? ''}
           onChange={(event) => chooseTenant(event.target.value)}
           className="w-full min-w-0 truncate rounded-control border border-line bg-surface px-2 py-1 text-xs"
         >
-          <option value="">Platform — no customer</option>
+          <option value="">{t("Platform — no customer")}</option>
           {tenants.data?.tenants.map((tenant) => (
             <option key={tenant.id} value={tenant.id}>
               {tenant.name}
@@ -90,15 +91,15 @@ export function ConsoleContext() {
 
       {tenantId !== null && (
         <label className="flex min-w-0 max-w-[11rem] flex-1 basis-[5rem] items-center gap-1 text-xs text-muted">
-          <span className="sr-only">Product</span>
+          <span className="sr-only">{t("Product")}</span>
           <select
             data-testid="console-product"
-            aria-label="Product"
+            aria-label={t("Product")}
             value={productCode !== null && held.some((product) => product.code === productCode) ? productCode : ''}
             onChange={(event) => narrowTo(event.target.value === '' ? null : event.target.value)}
             className="w-full min-w-0 truncate rounded-control border border-line bg-surface px-2 py-1 text-xs"
           >
-            <option value="">Every product it holds</option>
+            <option value="">{t("Every product it holds")}</option>
             {held.map((product) => (
               <option key={product.id} value={product.code}>
                 {product.name}

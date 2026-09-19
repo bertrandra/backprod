@@ -6,6 +6,7 @@ namespace App\Identity\Service;
 
 use App\Product\Service\ProductCatalogue;
 use App\Shared\Exceptions\UnprocessableEntityException;
+use App\Shared\Validation\Locale;
 use App\User\Domain\PlatformUser;
 use App\User\Domain\UserRepository;
 
@@ -45,6 +46,22 @@ final class Profile
      *
      * @throws UnprocessableEntityException PRODUCT_NOT_HELD
      */
+    /** The language they read in (ADR-050). Refused unless the platform speaks it. */
+    public function chooseLocale(string $userId, string $locale): ?PlatformUser
+    {
+        if (!Locale::isKnown($locale)) {
+            throw new UnprocessableEntityException(
+                'LOCALE_UNKNOWN',
+                'The platform does not speak that language.',
+                ['locale' => $locale, 'known' => Locale::ALL],
+            );
+        }
+
+        $this->users->updateLocale($userId, $locale);
+
+        return $this->users->find($userId);
+    }
+
     public function chooseDefaultProduct(string $userId, ?string $productCode): ?PlatformUser
     {
         $productId = null;

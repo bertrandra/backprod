@@ -20,6 +20,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `account.notification_settings` — where notifications go, and the consent that
@@ -67,7 +68,7 @@ export function NotificationSettingsScreen() {
   return (
     <div className="max-w-3xl space-y-8">
       <section className="space-y-3">
-        <h1 className="text-2xl font-semibold">Notification settings</h1>
+        <h1 className="text-2xl font-semibold">{t("Notification settings")}</h1>
 
         {save.error !== null && <ErrorSurface error={save.error} />}
 
@@ -76,8 +77,7 @@ export function NotificationSettingsScreen() {
             <thead>
               <tr>
                 <th className="py-2 pr-4 text-left text-xs uppercase tracking-wide text-subtle">
-                  Category
-                </th>
+                  {t("Category")}</th>
                 {CHANNELS.map((channel) => (
                   <th
                     key={channel}
@@ -94,7 +94,7 @@ export function NotificationSettingsScreen() {
                   <th scope="row" className="py-2 pr-4 text-left font-medium">
                     {category}
                     {isUndisableable(category) && (
-                      <span className="ml-2 text-xs font-normal text-subtle">always on</span>
+                      <span className="ml-2 text-xs font-normal text-subtle">{t("always on")}</span>
                     )}
                   </th>
                   {CHANNELS.map((channel) => {
@@ -127,19 +127,16 @@ export function NotificationSettingsScreen() {
       </section>
 
       <section className="space-y-3 border-t border-line pt-6">
-        <h2 className="text-xl font-semibold">Consents</h2>
+        <h2 className="text-xl font-semibold">{t("Consents")}</h2>
         <p className="text-sm text-muted">
-          SMS and WhatsApp need consent that can be proved and revoked. Revoking records a
-          date — the row stays, because deleting it would destroy the proof that permission once
-          existed.
-        </p>
+          {t("SMS and WhatsApp need consent that can be proved and revoked. Revoking records a date — the row stays, because deleting it would destroy the proof that permission once existed.")}</p>
 
         {consents.isPending ? (
           <SkeletonRows rows={3} />
         ) : consents.error !== null ? (
           <ErrorSurface error={consents.error} onRetry={() => void consents.refetch()} />
         ) : consents.data.length === 0 ? (
-          <EmptyState title="No consents recorded" description="Grant one below." />
+          <EmptyState title={t("No consents recorded")} description={t("Grant one below.")} />
         ) : (
           <ul className="space-y-2">
             {consents.data.map((consent) => (
@@ -154,9 +151,9 @@ export function NotificationSettingsScreen() {
                     {consent.channel} — {consent.purpose}
                   </p>
                   <p className="text-xs text-muted">
-                    granted {new Date(consent.granted_at).toLocaleDateString()} via {consent.source}
+                    {t("granted")}{' '}{new Date(consent.granted_at).toLocaleDateString(currentLocale())} {t("via")}{' '}{consent.source}
                     {consent.revoked_at !== null &&
-                      ` · revoked ${new Date(consent.revoked_at).toLocaleDateString()}`}
+                      t(" · revoked {value}", { value: new Date(consent.revoked_at).toLocaleDateString(currentLocale()) })}
                   </p>
                 </div>
 
@@ -167,10 +164,9 @@ export function NotificationSettingsScreen() {
                     pending={revoke.isPending}
                     onClick={() => revoke.mutate(consent.id)}
                   >
-                    Revoke
-                  </Button>
+                    {t("Revoke")}</Button>
                 ) : (
-                  <span className="text-xs text-subtle">Revoked</span>
+                  <span className="text-xs text-subtle">{t("Revoked")}</span>
                 )}
               </li>
             ))}
@@ -187,7 +183,7 @@ export function NotificationSettingsScreen() {
             )(event);
           }}
         >
-          <Field id="consent-channel" label="Channel">
+          <Field id="consent-channel" label={t("Channel")}>
             <select id="consent-channel" className={inputClass()} {...form.register('channel')}>
               {CONSENT_CHANNELS.map((channel) => (
                 <option key={channel} value={channel}>
@@ -202,8 +198,8 @@ export function NotificationSettingsScreen() {
               screen saying what would have been accepted. */}
           <Field
             id="consent-purpose"
-            label="Purpose"
-            hint="Transactional: messages about your account and its money — a failed payment, an invoice, a renewal notice. Marketing: offers and news, off until you choose it."
+            label={t("Purpose")}
+            hint={t("Transactional: messages about your account and its money — a failed payment, an invoice, a renewal notice. Marketing: offers and news, off until you choose it.")}
             error={form.formState.errors.purpose?.message}
           >
             <select
@@ -211,15 +207,15 @@ export function NotificationSettingsScreen() {
               className={inputClass(form.formState.errors.purpose !== undefined)}
               {...form.register('purpose')}
             >
-              <option value="TRANSACTIONAL">Transactional — account and money</option>
-              <option value="MARKETING">Marketing — offers and news</option>
+              <option value="TRANSACTIONAL">{t("Transactional — account and money")}</option>
+              <option value="MARKETING">{t("Marketing — offers and news")}</option>
             </select>
           </Field>
 
           <Field
             id="consent-source"
-            label="Source"
-            hint="Where the opt-in came from — the evidence, not just the claim."
+            label={t("Source")}
+            hint={t("Where the opt-in came from — the evidence, not just the claim.")}
             error={form.formState.errors.source?.message}
           >
             <input
@@ -232,8 +228,7 @@ export function NotificationSettingsScreen() {
           {grant.error !== null && <ErrorSurface error={grant.error} />}
 
           <Button type="submit" pending={grant.isPending}>
-            Grant consent
-          </Button>
+            {t("Grant consent")}</Button>
         </form>
       </section>
     </div>

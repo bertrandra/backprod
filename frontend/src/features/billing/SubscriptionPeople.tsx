@@ -7,6 +7,7 @@ import { useAddPerson, usePeople, useRemovePerson } from '@/queries/subscription
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { t } from '@/i18n';
 
 /**
  * The people a subscription covers (2026-09-19), managed by its owner.
@@ -58,24 +59,24 @@ export function SubscriptionPeople({ seat }: { seat: boolean }) {
   );
 
   return (
-    <section data-testid="subscription-people" data-quota={quota ?? 'unlimited'} className="space-y-3 border-t border-line pt-6">
+    <section data-testid="subscription-people" data-quota={quota ?? t("unlimited")} className="space-y-3 border-t border-line pt-6">
       <div className="flex flex-wrap items-baseline gap-2">
-        <h2 className="text-xl font-semibold">People</h2>
+        <h2 className="text-xl font-semibold">{t("People")}</h2>
         <span className="text-sm text-muted" data-testid="people-count">
-          {quota === null ? `${String(taken)} covered, no limit` : `${String(taken)} of ${String(quota)} covered`}
+          {quota === null ? t("{value} covered, no limit", { value: String(taken) }) : t("{value} of {value_} covered", { value: String(taken), value_: String(quota) })}
         </span>
       </div>
 
       <p className="text-xs text-muted">
         {current.owner
-          ? 'You activated this subscription, so you decide who it covers — the offer says how many.'
-          : 'Whoever activated this subscription decides who it covers.'}
+          ? t("You activated this subscription, so you decide who it covers — the offer says how many.")
+          : t("Whoever activated this subscription decides who it covers.")}
       </p>
 
       <ul className="space-y-1 text-sm" data-testid="people-list">
         <li className="flex flex-wrap items-center gap-2">
-          <span className="min-w-0 flex-1">{current.owner ? 'You' : 'The owner'}</span>
-          <span className="text-xs text-subtle">owner</span>
+          <span className="min-w-0 flex-1">{current.owner ? t("You") : t("The owner")}</span>
+          <span className="text-xs text-subtle">{t("owner")}</span>
         </li>
         {current.members.map((member) => (
           <li key={member.user_id} data-person={member.user_id} className="flex flex-wrap items-center gap-2">
@@ -92,8 +93,7 @@ export function SubscriptionPeople({ seat }: { seat: boolean }) {
                 pending={remove.isPending}
                 onClick={() => remove.mutate(member.user_id)}
               >
-                Remove
-              </Button>
+                {t("Remove")}</Button>
             )}
           </li>
         ))}
@@ -101,9 +101,7 @@ export function SubscriptionPeople({ seat }: { seat: boolean }) {
 
       {lastInvited !== null && (
         <p data-testid="person-invited" role="status" className="text-xs text-muted">
-          {lastInvited} had no account: one was made, and a link to choose a password has been sent to
-          that address. It is good for seven days.
-        </p>
+          {lastInvited} {t("had no account: one was made, and a link to choose a password has been sent to that address. It is good for seven days.")}</p>
       )}
 
       {remove.error !== null && <ErrorSurface error={remove.error} />}
@@ -114,9 +112,9 @@ export function SubscriptionPeople({ seat }: { seat: boolean }) {
 
           {candidates.length > 0 && (
             <div className="flex flex-wrap items-end gap-2">
-              <Field id="person-member" label="A member of the organisation">
+              <Field id="person-member" label={t("A member of the organisation")}>
                 <select id="person-member" className={inputClass()} value={choice} onChange={(event) => setChoice(event.target.value)}>
-                  <option value="">Choose a member</option>
+                  <option value="">{t("Choose a member")}</option>
                   {candidates.map((member) => (
                     <option key={member.user_id} value={member.user_id}>
                       {member.display_name ?? member.email}
@@ -141,13 +139,12 @@ export function SubscriptionPeople({ seat }: { seat: boolean }) {
                   )
                 }
               >
-                Add
-              </Button>
+                {t("Add")}</Button>
             </div>
           )}
 
           <div className="flex flex-wrap items-end gap-2">
-            <Field id="person-email" label="Or anybody, by email" hint="Somebody with no account gets one, and a link to choose a password.">
+            <Field id="person-email" label={t("Or anybody, by email")} hint={t("Somebody with no account gets one, and a link to choose a password.")}>
               <input
                 id="person-email"
                 type="email"
@@ -173,16 +170,14 @@ export function SubscriptionPeople({ seat }: { seat: boolean }) {
                 )
               }
             >
-              Add by email
-            </Button>
+              {t("Add by email")}</Button>
           </div>
         </div>
       )}
 
       {mayManage && full && (
         <p data-testid="people-full" className="text-xs text-muted">
-          Every place this offer sold is taken. Remove somebody to add another, or change the offer.
-        </p>
+          {t("Every place this offer sold is taken. Remove somebody to add another, or change the offer.")}</p>
       )}
     </section>
   );

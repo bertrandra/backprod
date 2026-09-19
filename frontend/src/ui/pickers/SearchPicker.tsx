@@ -3,6 +3,7 @@ import { useId, useState, type KeyboardEvent } from 'react';
 import { inputClass } from '@/ui/Field';
 import { personLabel, type Person } from '@/ui/pickers/Select';
 import { cn } from '@/utils/cn';
+import { t } from '@/i18n';
 
 /**
  * A person found by searching, for lists too long to open in a `<select>`
@@ -79,8 +80,7 @@ export function SearchPicker({
           }}
           className="rounded px-1 text-xs underline decoration-dotted focus-visible:outline-2 focus-visible:outline-offset-2"
         >
-          Change
-        </button>
+          {t("Change")}</button>
       </div>
     );
   }
@@ -114,13 +114,11 @@ export function SearchPicker({
         >
           {pending && results.length === 0 && (
             <li className="px-2 py-1 text-xs text-muted" aria-live="polite">
-              Searching…
-            </li>
+              {t("Searching…")}</li>
           )}
           {!pending && results.length === 0 && (
             <li className="px-2 py-1 text-xs text-muted" aria-live="polite">
-              Nobody matches.
-            </li>
+              {t("Nobody matches.")}</li>
           )}
           {results.map((person, index) => (
             <li

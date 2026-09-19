@@ -5,6 +5,7 @@ import { useSession } from '@/queries/session';
 import { useStaffIdentity } from '@/queries/staff';
 import { touchTargetClass } from '@/ui/Field';
 import { cn } from '@/utils/cn';
+import { t } from '@/i18n';
 
 /**
  * Region A's last item: who is signed in, and the way out.
@@ -76,7 +77,7 @@ export function AccountMenu() {
         type="button"
         data-testid="account-menu"
         title={name}
-        aria-label={`Account: ${name}`}
+        aria-label={t("Account: {name}", { name: name })}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}
@@ -97,7 +98,7 @@ export function AccountMenu() {
         <div
           id={menuId}
           role="menu"
-          aria-label="Account"
+          aria-label={t("Account")}
           data-testid="account-menu-panel"
           className="absolute right-0 top-full z-20 mt-1 w-64 rounded-card border border-line bg-surface p-1 shadow-raise"
         >
@@ -122,7 +123,7 @@ export function AccountMenu() {
               'w-full rounded-control px-3 py-2 text-left text-sm hover:bg-well focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60',
             )}
           >
-            {signOut.isPending ? 'Signing out…' : 'Sign out'}
+            {signOut.isPending ? t("Signing out…") : t("Sign out")}
           </button>
         </div>
       )}

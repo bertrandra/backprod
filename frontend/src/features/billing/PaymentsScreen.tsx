@@ -22,6 +22,7 @@ import { When } from '@/ui/When';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
+import { t } from '@/i18n';
 
 /**
  * `billing.payments` — and the retry that is a **new attempt**.
@@ -70,8 +71,8 @@ export function PaymentsScreen() {
   return (
     <div className="max-w-3xl space-y-4">
       <PageHeader
-        title={'Payments'}
-        meta={<>{payments.data.total} recorded</>}
+        title={t("Payments")}
+        meta={<>{payments.data.total} {t("recorded")}</>}
       />
 
       {retry.error !== null && <ErrorSurface error={retry.error} />}
@@ -79,8 +80,8 @@ export function PaymentsScreen() {
 
       {payments.data.payments.length === 0 ? (
         <EmptyState
-          title="No payments"
-          description="A payment is taken against an invoice, or by a checkout."
+          title={t("No payments")}
+          description={t("A payment is taken against an invoice, or by a checkout.")}
         />
       ) : (
         <ul className="space-y-2">
@@ -111,45 +112,43 @@ export function PaymentsScreen() {
                   the invoice it collects. */}
               <dl className="mt-2 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2" data-testid="payment-details">
                 <div className="flex gap-2">
-                  <dt className="text-subtle">Started</dt>
+                  <dt className="text-subtle">{t("Started")}</dt>
                   <dd><When at={payment.created_at} testId="payment-started" /></dd>
                 </div>
                 {payment.succeeded_at !== null && (
                   <div className="flex gap-2">
-                    <dt className="text-subtle">Succeeded</dt>
+                    <dt className="text-subtle">{t("Succeeded")}</dt>
                     <dd><When at={payment.succeeded_at} testId="payment-succeeded" /></dd>
                   </div>
                 )}
                 {payment.failed_at !== null && (
                   <div className="flex gap-2">
-                    <dt className="text-subtle">Failed</dt>
+                    <dt className="text-subtle">{t("Failed")}</dt>
                     <dd><When at={payment.failed_at} testId="payment-failed-at" /></dd>
                   </div>
                 )}
                 <div className="flex gap-2">
-                  <dt className="text-subtle">By</dt>
+                  <dt className="text-subtle">{t("By")}</dt>
                   <dd>
-                    {payment.method ?? 'not recorded'} via {payment.provider}
+                    {payment.method ?? t("not recorded")} {t("via")}{' '}{payment.provider}
                   </dd>
                 </div>
                 <div className="flex gap-2">
-                  <dt className="text-subtle">For</dt>
+                  <dt className="text-subtle">{t("For")}</dt>
                   <dd>
                     <Link to="/invoices/$invoiceId" params={{ invoiceId: payment.invoice_id }} className="underline decoration-dotted">
-                      the invoice
-                    </Link>
+                      {t("the invoice")}</Link>
                     {payment.subscription_id !== null && (
                       <>
                         {' · '}
                         <Link to="/subscription" className="underline decoration-dotted">
-                          the subscription
-                        </Link>
+                          {t("the subscription")}</Link>
                       </>
                     )}
                   </dd>
                 </div>
                 <div className="flex gap-2 sm:col-span-2">
-                  <dt className="text-subtle">Reference</dt>
+                  <dt className="text-subtle">{t("Reference")}</dt>
                   {/* The provider's own handle: what support quotes to them. */}
                   <dd className="select-all font-mono text-[11px]">{payment.provider_payment_id}</dd>
                 </div>
@@ -172,8 +171,7 @@ export function PaymentsScreen() {
                         })
                       }
                     >
-                      Try again
-                    </Button>
+                      {t("Try again")}</Button>
                   )}
 
                   {isRefundable(payment) && mayManage && refunding !== payment.id && (
@@ -182,8 +180,7 @@ export function PaymentsScreen() {
                       variant="secondary"
                       onClick={() => setRefunding(payment.id)}
                     >
-                      Refund…
-                    </Button>
+                      {t("Refund…")}</Button>
                   )}
                 </div>
               )}
@@ -193,10 +190,7 @@ export function PaymentsScreen() {
                 // has begun, and its card form is right here.
                 <div className="mt-2 space-y-2">
                   <p data-testid="new-attempt" className="text-xs text-muted">
-                    A <strong>new</strong> attempt has started. This one stays failed — it is the
-                    record of what happened — and the card details are asked for again because the
-                    previous attempt cannot be resumed.
-                  </p>
+                    A <strong>{t("new")}</strong> {t("attempt has started. This one stays failed — it is the record of what happened — and the card details are asked for again because the previous attempt cannot be resumed.")}</p>
                   <PaymentElementPanel
                     provider={retried.started.payment_provider}
                     clientSecret={retried.started.client_secret}
@@ -214,8 +208,8 @@ export function PaymentsScreen() {
                 <div className="mt-3 max-w-md space-y-3">
                   <Field
                     id={`reason-${payment.id}`}
-                    label="Reason"
-                    hint="Stored as a category, so it is chosen rather than typed."
+                    label={t("Reason")}
+                    hint={t("Stored as a category, so it is chosen rather than typed.")}
                   >
                     <select
                       id={`reason-${payment.id}`}
@@ -232,9 +226,7 @@ export function PaymentsScreen() {
                   </Field>
 
                   <p className="text-xs text-muted">
-                    The whole refundable amount is returned. The money leaves asynchronously, so
-                    this is accepted rather than done.
-                  </p>
+                    {t("The whole refundable amount is returned. The money leaves asynchronously, so this is accepted rather than done.")}</p>
 
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -248,11 +240,9 @@ export function PaymentsScreen() {
                         )
                       }
                     >
-                      Refund it
-                    </Button>
+                      {t("Refund it")}</Button>
                     <Button type="button" variant="secondary" onClick={() => setRefunding(null)}>
-                      Cancel
-                    </Button>
+                      {t("Cancel")}</Button>
                   </div>
                 </div>
               )}
@@ -277,7 +267,7 @@ function Failure({ payment }: { payment: Payment }) {
 
   return (
     <p data-testid="failure" className="mt-1 text-xs text-danger">
-      {payment.failure_reason ?? 'The attempt failed.'}
+      {payment.failure_reason ?? t("The attempt failed.")}
       {payment.failure_code !== null && (
         <span className="text-subtle"> ({payment.failure_code})</span>
       )}

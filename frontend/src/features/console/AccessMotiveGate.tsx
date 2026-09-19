@@ -10,6 +10,7 @@ import {
 } from '@/queries/staff';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { panel } from '@/ui/tone';
+import { t } from '@/i18n';
 
 /**
  * The reason, collected **as part of the read** (R14).
@@ -66,26 +67,23 @@ export function AccessMotiveGate({
       }}
     >
       <div className="space-y-1">
-        <h2 className="text-xl font-semibold">Why are you opening {what}?</h2>
+        <h2 className="text-xl font-semibold">{t("Why are you opening")}{' '}{what}?</h2>
         <p className="text-sm text-muted">
           {/* Said before the fields, not after. */}
-          Nothing is read until you answer. Your name, this reason and the
-          permission you used are recorded together, and appear in the access log
-          your colleagues can read.
-        </p>
+          {t("Nothing is read until you answer. Your name, this reason and the permission you used are recorded together, and appear in the access log your colleagues can read.")}</p>
       </div>
 
-      <Field id="access-purpose" label="Purpose">
+      <Field id="access-purpose" label={t("Purpose")}>
         <select
           id="access-purpose"
           className={inputClass()}
           value={purpose}
           onChange={(event) => setPurpose(event.target.value as AccessPurpose | '')}
         >
-          <option value="">Choose one</option>
+          <option value="">{t("Choose one")}</option>
           {ACCESS_PURPOSES.map((value) => (
             <option key={value} value={value}>
-              {PURPOSE_LABELS[value]}
+              {t(PURPOSE_LABELS[value])}
             </option>
           ))}
         </select>
@@ -93,8 +91,8 @@ export function AccessMotiveGate({
 
       <Field
         id="access-reference"
-        label="Reference"
-        hint={`A ticket number, or what you are looking into. At least ${String(MINIMUM_REFERENCE)} characters — “x” is not a reason.`}
+        label={t("Reference")}
+        hint={t("A ticket number, or what you are looking into. At least {value} characters — “x” is not a reason.", { value: String(MINIMUM_REFERENCE) })}
       >
         <input
           id="access-reference"
@@ -107,7 +105,7 @@ export function AccessMotiveGate({
       {/* Disabled rather than hidden: somebody should be able to see what is
           missing without guessing why nothing happens. */}
       <Button type="submit" disabled={!ready}>
-        Open {what}
+        {t("Open")}{' '}{what}
       </Button>
     </form>
   );
@@ -133,15 +131,14 @@ export function MotiveInEffect({
       className="flex flex-wrap items-center gap-2 text-xs text-muted"
     >
       <span>
-        Reading under <strong>{PURPOSE_LABELS[motive.purpose]}</strong> — {motive.reference}
+        {t("Reading under")}{' '}<strong>{t(PURPOSE_LABELS[motive.purpose])}</strong> — {motive.reference}
       </span>
       <button
         type="button"
         onClick={onChange}
         className="min-h-[44px] rounded px-2 underline focus-visible:outline-2 focus-visible:outline-offset-2"
       >
-        Change
-      </button>
+        {t("Change")}</button>
     </p>
   );
 }

@@ -13,6 +13,7 @@ import { touchTargetClass } from '@/ui/Field';
 import { cn } from '@/utils/cn';
 
 import type { NavEntry, NavSection } from './navigation';
+import { t } from '@/i18n';
 
 /**
  * Region A. The organisation first, then the product (2026-09-18): the
@@ -60,7 +61,7 @@ export function ContextBar({
         <button
           type="button"
           data-testid="menu-button"
-          aria-label="Menu"
+          aria-label={t("Menu")}
           onClick={openMenu}
           className={cn(
             touchTargetClass,
@@ -87,7 +88,7 @@ export function ContextBar({
           title={data?.tenantId}
           className="truncate text-sm font-semibold text-ink"
         >
-          {organisation.data?.name ?? data?.tenantId.slice(0, 8) ?? 'No organisation'}
+          {organisation.data?.name ?? data?.tenantId.slice(0, 8) ?? t("No organisation")}
         </span>
       )}
 
@@ -98,7 +99,7 @@ export function ContextBar({
       {!insideTenant && (
         <span className="flex min-w-0 items-center gap-2">
           <span aria-hidden="true" className="h-5 w-px shrink-0 bg-line" />
-          <span className="text-2xs font-semibold uppercase tracking-wide text-subtle">Product</span>
+          <span className="text-2xs font-semibold uppercase tracking-wide text-subtle">{t("Product")}</span>
           <ProductSwitcher platform={platform} />
         </span>
       )}
@@ -120,8 +121,7 @@ export function ContextBar({
           'ml-auto rounded-control border border-line bg-surface px-3 py-1 text-xs text-muted shadow-raise focus-visible:outline-2 focus-visible:outline-offset-2',
         )}
       >
-        Search
-        <kbd className="ml-2 hidden text-[10px] text-subtle sm:inline">⌘K</kbd>
+        {t("Search")}<kbd className="ml-2 hidden text-[10px] text-subtle sm:inline">{t("⌘K")}</kbd>
       </button>
 
       <UnreadBadge />
@@ -159,7 +159,7 @@ function UnreadBadge() {
     <Link
       to="/notifications"
       data-testid="unread-badge"
-      aria-label={`${String(unread)} unread notifications`}
+      aria-label={t("{value} unread notifications", { value: String(unread) })}
       className="rounded-full bg-inverse px-2 py-0.5 text-xs font-semibold text-on-inverse focus-visible:outline-2 focus-visible:outline-offset-2"
     >
       {unread > 99 ? '99+' : unread}
@@ -186,7 +186,7 @@ export function PrimaryNav({ sections }: { sections: readonly NavSection[] }) {
             data-nav-section={section.id}
             className="px-2.5 pb-1.5 text-2xs font-bold uppercase tracking-[0.12em] text-ink"
           >
-            {section.label}
+            {t(section.label)}
           </p>
           <ul className="space-y-0.5">
             {section.entries.map((entry) => (
@@ -220,7 +220,7 @@ function NavLink({ entry, className }: { entry: NavEntry; className?: string }) 
         className: 'border-l-accent bg-accent-wash font-medium text-accent-strong',
       }}
     >
-      {entry.label}
+      {t(entry.label)}
     </Link>
   );
 }
@@ -238,7 +238,7 @@ export function BottomNav({ entries }: { entries: readonly NavEntry[] }) {
             className="flex min-h-[44px] flex-col items-center justify-center px-1 py-2 text-[11px] text-muted"
             activeProps={{ className: 'font-semibold text-accent-strong' }}
           >
-            {entry.label}
+            {t(entry.label)}
           </Link>
         </li>
       ))}

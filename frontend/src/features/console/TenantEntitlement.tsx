@@ -11,6 +11,7 @@ import {
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { t } from '@/i18n';
 
 /**
  * What the platform gave a tenant on one product it holds, without a sale
@@ -36,11 +37,9 @@ export function TenantEntitlements({ tenantId, held }: { tenantId: string; held:
 
   return (
     <section data-testid="tenant-entitlements" className="space-y-3 border-t border-line pt-3">
-      <h3 className="text-sm font-medium">Entitlements given by the platform</h3>
+      <h3 className="text-sm font-medium">{t("Entitlements given by the platform")}</h3>
       <p className="text-sm text-muted">
-        What this tenant may use on each product without having bought it. A subscription on the
-        same product still counts; where both grant a feature, the more generous wins.
-      </p>
+        {t("What this tenant may use on each product without having bought it. A subscription on the same product still counts; where both grant a feature, the more generous wins.")}</p>
       {held.map((product) => (
         <ProductEntitlement key={product.id} tenantId={tenantId} product={product} />
       ))}
@@ -92,7 +91,7 @@ function ProductEntitlement({ tenantId, product }: { tenantId: string; product: 
         {mayManage && draft === null && (
           <div className="flex gap-2">
             <Button type="button" variant="secondary" onClick={open}>
-              {current === null ? 'Grant' : 'Change'}
+              {current === null ? t("Grant") : t("Change")}
             </Button>
             {current !== null && (
               <Button
@@ -101,8 +100,7 @@ function ProductEntitlement({ tenantId, product }: { tenantId: string; product: 
                 pending={withdraw.isPending}
                 onClick={() => withdraw.mutate(product.id)}
               >
-                Withdraw
-              </Button>
+                {t("Withdraw")}</Button>
             )}
           </div>
         )}
@@ -111,7 +109,7 @@ function ProductEntitlement({ tenantId, product }: { tenantId: string; product: 
       {granted.isPending ? (
         <SkeletonRows rows={1} />
       ) : current === null ? (
-        <p className="text-xs text-subtle">Nothing given; what this tenant may use here comes from what it bought.</p>
+        <p className="text-xs text-subtle">{t("Nothing given; what this tenant may use here comes from what it bought.")}</p>
       ) : (
         <div className="text-sm">
           <ul className="flex flex-wrap gap-x-3 gap-y-1" data-testid={`granted-${product.code}`}>
@@ -119,18 +117,18 @@ function ProductEntitlement({ tenantId, product }: { tenantId: string; product: 
               <li key={feature.code}>
                 {feature.name}
                 {feature.kind === 'QUOTA' && (
-                  <span className="text-muted"> · {feature.limit === null ? 'unlimited' : feature.limit}</span>
+                  <span className="text-muted"> · {feature.limit === null ? t("unlimited") : feature.limit}</span>
                 )}
               </li>
             ))}
           </ul>
           <p className="mt-1 text-xs text-muted">
-            {current.valid_until === null ? 'No end date' : `Until ${current.valid_until.slice(0, 10)}`}
-            {' · given '}
+            {current.valid_until === null ? t("No end date") : t("Until {value}", { value: current.valid_until.slice(0, 10) })}
+            {t(" · given ")}
             {current.granted_at.slice(0, 10)}
             {current.granted_by !== null && (
               <>
-                {' by '}
+                {t(" by ")}
                 <code className="select-all">{current.granted_by}</code>
               </>
             )}
@@ -174,8 +172,8 @@ function ProductEntitlement({ tenantId, product }: { tenantId: string; product: 
             <>
               <Field
                 id={`grant-plan-${product.code}`}
-                label="Start from a plan"
-                hint="Fills the features below from the plan's latest published offer; what is ticked afterwards is what is granted."
+                label={t("Start from a plan")}
+                hint={t("Fills the features below from the plan's latest published offer; what is ticked afterwards is what is granted.")}
               >
                 <select
                   id={`grant-plan-${product.code}`}
@@ -183,7 +181,7 @@ function ProductEntitlement({ tenantId, product }: { tenantId: string; product: 
                   value={draft.plan}
                   onChange={(event) => setDraft({ ...draft, plan: event.target.value })}
                 >
-                  <option value="">No plan — pick features</option>
+                  <option value="">{t("No plan — pick features")}</option>
                   {catalogue.data.plans.map((plan) => (
                     <option key={plan.id} value={plan.code}>
                       {plan.name}
@@ -193,7 +191,7 @@ function ProductEntitlement({ tenantId, product }: { tenantId: string; product: 
               </Field>
 
               <fieldset className="space-y-1">
-                <legend className="text-sm font-medium">Features</legend>
+                <legend className="text-sm font-medium">{t("Features")}</legend>
                 {catalogue.data.features.map((feature) => (
                   <div key={feature.id} className="flex flex-wrap items-center gap-2 text-sm">
                     <label className="flex items-center gap-2">
@@ -224,7 +222,7 @@ function ProductEntitlement({ tenantId, product }: { tenantId: string; product: 
                 ))}
               </fieldset>
 
-              <Field id={`grant-until-${product.code}`} label="Until" hint="Leave empty for no end date.">
+              <Field id={`grant-until-${product.code}`} label={t("Until")} hint={t("Leave empty for no end date.")}>
                 <input
                   id={`grant-until-${product.code}`}
                   type="date"
@@ -236,11 +234,9 @@ function ProductEntitlement({ tenantId, product }: { tenantId: string; product: 
 
               <div className="flex gap-2">
                 <Button type="submit" pending={grant.isPending}>
-                  Save grant
-                </Button>
+                  {t("Save grant")}</Button>
                 <Button type="button" variant="secondary" onClick={() => setDraft(null)}>
-                  Cancel
-                </Button>
+                  {t("Cancel")}</Button>
               </div>
             </>
           )}

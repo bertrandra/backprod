@@ -1,4 +1,5 @@
 import { cn } from '@/utils/cn';
+import { t } from '@/i18n';
 
 /**
  * A shape where content will be, not a spinner.
@@ -23,7 +24,7 @@ export function Skeleton({ className }: { className?: string }) {
 export function SkeletonRows({ rows = 5 }: { rows?: number }) {
   return (
     <div role="status" aria-busy="true" aria-live="polite" className="space-y-2">
-      <span className="sr-only">Loading…</span>
+      <span className="sr-only">{t("Loading…")}</span>
       {Array.from({ length: rows }, (_, i) => (
         <Skeleton key={i} className="h-10 w-full" />
       ))}

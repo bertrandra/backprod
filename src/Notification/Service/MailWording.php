@@ -6,6 +6,7 @@ namespace App\Notification\Service;
 
 use App\Notification\Domain\MailTemplates;
 use App\Notification\Domain\Notification;
+use App\Shared\Validation\Locale;
 
 /**
  * What the notices that leave the platform say (2026-09-19).
@@ -71,9 +72,9 @@ final class MailWording
     /**
      * @return array{string, string}|null subject and body, or null for a type with no words of its own
      */
-    public function for(Notification $notification): ?array
+    public function for(Notification $notification, string $locale = Locale::DEFAULT): ?array
     {
-        $template = $this->templateFor($notification->type);
+        $template = $this->templateFor($notification->type, $locale);
 
         if ($template === null) {
             return null;
@@ -86,17 +87,24 @@ final class MailWording
     }
 
     /**
-     * Every editable type: its default, what stands today, and its placeholders.
+     * Every editable type in one language: its default, what stands today,
+     * and its placeholders. A language other than English falls back to
+     * English's words where it has none of its own, which is what the
+     * person would receive.
      *
      * @return list<array{type: string, about: string, placeholders: list<string>, default: array{subject: string, body: string}, subject: string, body: string, customised: bool}>
      */
-    public function catalogue(): array
+    public function catalogue(string $locale = Locale::DEFAULT): array
     {
-        $overrides = $this->templates->overrides();
+        $all = $this->templates->overrides();
+        $own = $all[$locale] ?? [];
+        $english = $all[Locale::DEFAULT] ?? [];
         $rows = [];
 
         foreach (self::DEFAULTS as $type => $default) {
-            $override = $overrides[$type] ?? null;
+            // What the person receives: the language's own words, else
+            // English's own, else the default. Customised means its own.
+            $override = $own[$type] ?? $english[$type] ?? null;
 
             $rows[] = [
                 'type' => $type,
@@ -105,7 +113,7 @@ final class MailWording
                 'default' => ['subject' => $default['subject'], 'body' => $default['body']],
                 'subject' => $override['subject'] ?? $default['subject'],
                 'body' => $override['body'] ?? $default['body'],
-                'customised' => $override !== null,
+                'customised' => isset($own[$type]),
             ];
         }
 
@@ -113,12 +121,13 @@ final class MailWording
     }
 
     /**
-     * Saves the words for the types given; a type left out, or given empty,
-     * goes back to its default. Unknown types are refused by omission.
+     * Saves the words for one language; a type left out, or given empty,
+     * goes back to its default. Unknown types are refused by omission, and
+     * the other languages are left as they were.
      *
      * @param array<string, array{subject: string, body: string}> $templates
      */
-    public function save(array $templates): void
+    public function save(array $templates, string $locale = Locale::DEFAULT): void
     {
         $overrides = [];
 
@@ -140,7 +149,10 @@ final class MailWording
             ];
         }
 
-        $this->templates->save($overrides);
+        $all = $this->templates->overrides();
+        $all[$locale] = $overrides;
+
+        $this->templates->save(array_filter($all, static fn (array $byType): bool => $byType !== []));
     }
 
     /**
@@ -158,9 +170,12 @@ final class MailWording
     }
 
     /**
+     * The words for a type in a language: that language's own, else
+     * English's own, else the default.
+     *
      * @return array{subject: string, body: string}|null
      */
-    private function templateFor(string $type): ?array
+    private function templateFor(string $type, string $locale): ?array
     {
         $default = self::DEFAULTS[$type] ?? null;
 
@@ -168,7 +183,8 @@ final class MailWording
             return null;
         }
 
-        $override = $this->templates->overrides()[$type] ?? null;
+        $overrides = $this->templates->overrides();
+        $override = $overrides[$locale][$type] ?? $overrides[Locale::DEFAULT][$type] ?? null;
 
         return [
             'subject' => $override['subject'] ?? $default['subject'],

@@ -4,6 +4,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `console.support.access_log` — what staff looked at.
@@ -31,19 +32,19 @@ export function AccessLogScreen() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={'Access log'}
-        description={'Every crossing of a tenant boundary by platform staff: who looked, at what, and under which permission. Your own reads appear here too.'}
+        title={t("Access log")}
+        description={t("Every crossing of a tenant boundary by platform staff: who looked, at what, and under which permission. Your own reads appear here too.")}
       />
 
       {log.data.entries.length === 0 ? (
         <EmptyState
-          title="Nothing recorded"
-          description="No staff member has crossed a tenant boundary yet."
+          title={t("Nothing recorded")}
+          description={t("No staff member has crossed a tenant boundary yet.")}
         />
       ) : (
         <>
           <p data-testid="entry-count" className="text-xs text-subtle">
-            Showing {log.data.entries.length} of {log.data.total}.
+            {t("Showing")}{' '}{log.data.entries.length} {t("of")}{' '}{log.data.total}.
           </p>
 
           <ul className="space-y-2">
@@ -74,20 +75,20 @@ function Entry({ entry }: { entry: StaffAccessEntry }) {
           data-permission={entry.permission ?? ''}
           className={pill(entry.permission === null ? 'warning' : 'neutral')}
         >
-          {entry.permission ?? 'no permission recorded'}
+          {entry.permission ?? t("no permission recorded")}
         </span>
 
         <span className="ml-auto text-xs text-subtle">
-          {new Date(entry.occurred_at).toLocaleString()}
+          {new Date(entry.occurred_at).toLocaleString(currentLocale())}
         </span>
       </div>
 
       <p className="mt-1 text-xs text-muted">
-        staff <code>{entry.staff_user_id}</code>
+        {t("staff")}{' '}<code>{entry.staff_user_id}</code>
         {entry.tenant_id !== null && (
           <>
             {' '}
-            · tenant <code>{entry.tenant_id}</code>
+            {t("· tenant")}{' '}<code>{entry.tenant_id}</code>
           </>
         )}
         {entry.resource_type !== null && (

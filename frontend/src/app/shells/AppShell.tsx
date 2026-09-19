@@ -1,5 +1,5 @@
 import { Outlet, useLocation } from '@tanstack/react-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { AppFrame } from '@/app/frame/AppFrame';
 import { CommandPalette, usePaletteShortcut } from '@/app/frame/CommandPalette';
@@ -21,6 +21,9 @@ import { staffAccess, useStaffIdentity } from '@/queries/staff';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { SkeletonRows } from '@/ui/Skeleton';
+
+import { currentLocale, isLocale, setLocale, t } from '@/i18n';
+import { localeNamedInAddress } from '@/i18n/useLocale';
 
 import { useLanding } from './landing';
 
@@ -97,6 +100,15 @@ export function AppShell() {
   // the first screen in their menu (`landing.ts`, 2026-09-18).
   useLanding(pathname === '/' && !onPlatformScreen, sections);
 
+  // Their language (ADR-050), once `/me` says it — unless the address named
+  // one, which is somebody saying which they mean now.
+  const chosen = session.data?.locale;
+  useEffect(() => {
+    if (isLocale(chosen) && chosen !== currentLocale() && !localeNamedInAddress()) {
+      void setLocale(chosen);
+    }
+  }, [chosen]);
+
   return (
     <AppFrame
       contextBar={
@@ -148,9 +160,7 @@ export function AppShell() {
           >
             <span aria-hidden="true" className="mt-1 size-1.5 shrink-0 rounded-full bg-warning" />
             <span>
-              You are administering the platform. Every read that crosses into a tenant&rsquo;s own
-              data is recorded — who looked, at what, and under which permission.
-            </span>
+              {t("You are administering the platform. Every read that crosses into a tenant’s own data is recorded — who looked, at what, and under which permission.")}</span>
           </div>
 
           <Outlet />
@@ -192,8 +202,8 @@ function WithoutAProduct() {
     return (
       <div data-testid="waiting-for-approval">
         <EmptyState
-          title={`Waiting for ${names}`}
-          description="An administrator has been asked to let you in. You will get an email when they have; until then there is nothing here to open. You can sign out from the account menu."
+          title={t("Waiting for {names}", { names: names })}
+          description={t("An administrator has been asked to let you in. You will get an email when they have; until then there is nothing here to open. You can sign out from the account menu.")}
         />
       </div>
     );
@@ -203,8 +213,8 @@ function WithoutAProduct() {
   // context, and the client refuses to build a request that lacks it.
   return (
     <EmptyState
-      title="No product selected"
-      description="Everything in the application is scoped to a product. Choose one in the bar above to continue."
+      title={t("No product selected")}
+      description={t("Everything in the application is scoped to a product. Choose one in the bar above to continue.")}
     />
   );
 }

@@ -14,6 +14,7 @@ import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { useSessionStore } from '@/state/session';
 import { PageHeader } from '@/ui/Page';
+import { t } from '@/i18n';
 
 /**
  * `console.admin.storefront` — what the public page advertises.
@@ -53,15 +54,14 @@ export function StorefrontScreen() {
     return (
       <div className="max-w-3xl space-y-6">
         <EmptyState
-          title="No product chosen"
-          description="The storefront is per product. Choose one in the bar above — the switcher there lists every product the platform hosts."
+          title={t("No product chosen")}
+          description={t("The storefront is per product. Choose one in the bar above — the switcher there lists every product the platform hosts.")}
           action={
             <Link
               to="/console/products"
               className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
             >
-              Go to Products
-            </Link>
+              {t("Go to Products")}</Link>
           }
         />
         <AfterSignUpPanel />
@@ -82,21 +82,17 @@ export function StorefrontScreen() {
   return (
     <div className="max-w-3xl space-y-6">
       <PageHeader
-        title="Storefront"
+        title={t("Storefront")}
         // The count sits on the title's baseline rather than under the
         // paragraph: it is a fact about what is on screen, not part of the
         // explanation, and reading the explanation to find it was backwards.
         meta={
           <span data-testid="advertised-count">
-            {listed} of {offers.data.offers.length} advertised publicly
-          </span>
+            {listed} {t("of")}{' '}{offers.data.offers.length} {t("advertised publicly")}</span>
         }
         description={
           <>
-            What somebody with no account sees for <strong>{offers.data.product.name}</strong>.
-            Being on sale and being advertised are different decisions: an offer withdrawn from
-            here stays sellable, and everybody already subscribed to it keeps their terms.
-          </>
+            {t("What somebody with no account sees for")}{' '}<strong>{offers.data.product.name}</strong>{t(". Being on sale and being advertised are different decisions: an offer withdrawn from here stays sellable, and everybody already subscribed to it keeps their terms.")}</>
         }
       />
 
@@ -106,8 +102,8 @@ export function StorefrontScreen() {
 
       {offers.data.offers.length === 0 ? (
         <EmptyState
-          title="Nothing to advertise"
-          description="This product has no offers yet. Authoring one makes it available here."
+          title={t("Nothing to advertise")}
+          description={t("This product has no offers yet. Authoring one makes it available here.")}
         />
       ) : (
         <ul className="space-y-2" data-testid="storefront-offers">
@@ -121,8 +117,7 @@ export function StorefrontScreen() {
               <div className="min-w-0 sm:flex-1">
                 <p className="font-medium">{offer.name}</p>
                 <p className="text-xs text-muted">
-                  <code>{offer.code}</code> · {offer.plan.name} · {offer.versions.length} version
-                  {offer.versions.length === 1 ? '' : 's'}
+                  <code>{offer.code}</code> · {offer.plan.name} · {t(offer.versions.length === 1 ? "{count} version" : "{count} versions", { count: offer.versions.length })}
                 </p>
               </div>
 
@@ -131,7 +126,7 @@ export function StorefrontScreen() {
                   data-testid="listing-state"
                   className="text-xs text-muted"
                 >
-                  {offer.publicly_listed ? 'On the public page' : 'Not advertised'}
+                  {offer.publicly_listed ? t("On the public page") : t("Not advertised")}
                 </span>
 
                 <Button
@@ -142,7 +137,7 @@ export function StorefrontScreen() {
                     decide.mutate({ offerId: offer.id, listed: !offer.publicly_listed })
                   }
                 >
-                  {offer.publicly_listed ? 'Withdraw' : 'Advertise'}
+                  {offer.publicly_listed ? t("Withdraw") : t("Advertise")}
                 </Button>
               </div>
             </li>
@@ -187,12 +182,9 @@ function AfterSignUpPanel() {
 
   return (
     <section className="space-y-3 border-t border-line pt-4" data-testid="after-sign-up">
-      <h2 className="text-xl font-semibold">After a sign-up</h2>
+      <h2 className="text-xl font-semibold">{t("After a sign-up")}</h2>
       <p className="text-sm text-muted">
-        Somebody who chooses an offer on a storefront and creates an account is a member who may
-        buy. Whether they pay there and then, or go through the application first, is decided
-        here for every storefront.
-      </p>
+        {t("Somebody who chooses an offer on a storefront and creates an account is a member who may buy. Whether they pay there and then, or go through the application first, is decided here for every storefront.")}</p>
 
       {setting.error !== null && <ErrorSurface error={setting.error} onRetry={() => void setting.refetch()} />}
       {set.error !== null && <ErrorSurface error={set.error} />}
@@ -201,7 +193,7 @@ function AfterSignUpPanel() {
         <SkeletonRows rows={2} />
       ) : (
         <fieldset className="space-y-2" disabled={set.isPending}>
-          <legend className="sr-only">After a sign-up</legend>
+          <legend className="sr-only">{t("After a sign-up")}</legend>
           {AFTER_SIGN_UP.map((option) => (
             <label key={option.value} className="flex items-start gap-2 text-sm">
               <input
@@ -214,8 +206,8 @@ function AfterSignUpPanel() {
                 onChange={() => set.mutate(option.value)}
               />
               <span>
-                <span className="font-medium">{option.label}</span>
-                <span className="block text-xs text-muted">{option.hint}</span>
+                <span className="font-medium">{t(option.label)}</span>
+                <span className="block text-xs text-muted">{t(option.hint)}</span>
               </span>
             </label>
           ))}

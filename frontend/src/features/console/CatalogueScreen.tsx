@@ -23,6 +23,7 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader, Section } from '@/ui/Page';
 import { useSessionStore } from '@/state/session';
 import { FieldCell, FieldGroup, FieldRow, FormActions, FormCard } from '@/ui/Form';
+import { t } from '@/i18n';
 
 /**
  * `console.admin.catalogue` — the platform pricing its own product.
@@ -53,15 +54,14 @@ export function CatalogueScreen() {
   if (productCode === null || productCode === '') {
     return (
       <EmptyState
-        title="No product chosen"
-        description="A catalogue belongs to a product. Choose one in the bar above — the switcher there lists every product the platform hosts."
+        title={t("No product chosen")}
+        description={t("A catalogue belongs to a product. Choose one in the bar above — the switcher there lists every product the platform hosts.")}
         action={
           <Link
             to="/console/products"
             className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
           >
-            Go to Products
-          </Link>
+            {t("Go to Products")}</Link>
         }
       />
     );
@@ -78,8 +78,8 @@ export function CatalogueScreen() {
   return (
     <div className="max-w-3xl space-y-8">
       <PageHeader
-        title={'Catalogue'}
-        description={<>What <strong>{catalogue.data.product.name}</strong> sells. A plan groups offers and orders them; a feature is a capability a plan grants; an offer is a plan with a price. You need a plan before you can write an offer.</>}
+        title={t("Catalogue")}
+        description={<>{t("What")}{' '}<strong>{catalogue.data.product.name}</strong> {t("sells. A plan groups offers and orders them; a feature is a capability a plan grants; an offer is a plan with a price. You need a plan before you can write an offer.")}</>}
       />
 
       <Plans productCode={productCode} plans={catalogue.data.plans} />
@@ -107,13 +107,10 @@ function Plans({ productCode, plans }: { productCode: string; plans: readonly St
 
   return (
     <Section
-      title="Plans"
+      title={t("Plans")}
       description={
         <>
-          Ordered by <strong>rank</strong>, which is the only ordering this platform has — an
-          upgrade is a comparison of two numbers, never of two names. A plan cannot be deleted:
-          offers point at it, and those offers price live subscriptions.
-        </>
+          {t("Ordered by")}{' '}<strong>{t("rank")}</strong>{t(", which is the only ordering this platform has — an upgrade is a comparison of two numbers, never of two names. A plan cannot be deleted: offers point at it, and those offers price live subscriptions.")}</>
       }
     >
 
@@ -122,8 +119,8 @@ function Plans({ productCode, plans }: { productCode: string; plans: readonly St
 
       {plans.length === 0 ? (
         <EmptyState
-          title="No plans yet"
-          description="Nothing can be priced until there is one. Add the first below."
+          title={t("No plans yet")}
+          description={t("Nothing can be priced until there is one. Add the first below.")}
         />
       ) : (
         <ul className="space-y-2" data-testid="plan-list">
@@ -138,9 +135,9 @@ function Plans({ productCode, plans }: { productCode: string; plans: readonly St
                 {plan.code}
               </code>
               <label className="mt-2 flex items-center gap-2 sm:mt-0">
-                <span className="text-xs text-subtle">rank</span>
+                <span className="text-xs text-subtle">{t("rank")}</span>
                 <input
-                  aria-label={`Rank of ${plan.name}`}
+                  aria-label={t("Rank of {name}", { name: plan.name })}
                   type="number"
                   defaultValue={plan.rank}
                   className={`${inputClass()} w-20`}
@@ -183,7 +180,7 @@ function Plans({ productCode, plans }: { productCode: string; plans: readonly St
           }
         }}
       >
-        <Field id="plan-code" label="Plan code">
+        <Field id="plan-code" label={t("Plan code")}>
           <input
             id="plan-code"
             className={inputClass()}
@@ -192,16 +189,16 @@ function Plans({ productCode, plans }: { productCode: string; plans: readonly St
             onChange={(event) => setCode(event.target.value)}
           />
         </Field>
-        <Field id="plan-name" label="Plan name">
+        <Field id="plan-name" label={t("Plan name")}>
           <input
             id="plan-name"
             className={inputClass()}
-            placeholder="Pro"
+            placeholder={t("Pro")}
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
         </Field>
-        <Field id="plan-rank" label="Rank">
+        <Field id="plan-rank" label={t("Rank")}>
           <input
             id="plan-rank"
             type="number"
@@ -217,8 +214,7 @@ function Plans({ productCode, plans }: { productCode: string; plans: readonly St
           pending={create.isPending}
           disabled={code.trim() === '' || name.trim() === '' || rank.trim() === ''}
         >
-          Add plan
-        </Button>
+          {t("Add plan")}</Button>
       </FormCard>
     </Section>
   );
@@ -241,14 +237,11 @@ function Features({
   return (
     <Section
       className="border-t border-line pt-6"
-      title="Features"
+      title={t("Features")}
       description={
         <>
-          What a plan grants. A <strong>quota</strong> is counted in a unit; a{' '}
-          <strong>switch</strong> is on or off. The kind cannot be changed afterwards — every grant
-          written against a feature meant one or the other, and flipping it would reinterpret
-          prices somebody is already paying.
-        </>
+          {t("What a plan grants. A")}{' '}<strong>{t("quota")}</strong> {t("is counted in a unit; a")}{' '}
+          <strong>{t("switch")}</strong> {t("is on or off. The kind cannot be changed afterwards — every grant written against a feature meant one or the other, and flipping it would reinterpret prices somebody is already paying.")}</>
       }
     >
 
@@ -256,8 +249,8 @@ function Features({
 
       {features.length === 0 ? (
         <EmptyState
-          title="No features yet"
-          description="An offer can be sold without them — they are what a plan grants beyond access."
+          title={t("No features yet")}
+          description={t("An offer can be sold without them — they are what a plan grants beyond access.")}
         />
       ) : (
         <ul className="space-y-2" data-testid="feature-list">
@@ -272,7 +265,7 @@ function Features({
                 {feature.code}
               </code>
               <span className="ml-2 text-xs text-subtle">
-                {feature.kind === 'QUOTA' ? `quota in ${feature.unit ?? '—'}` : 'switch'}
+                {feature.kind === 'QUOTA' ? t("quota in {value}", { value: feature.unit ?? '—' }) : t("switch")}
               </span>
             </li>
           ))}
@@ -305,7 +298,7 @@ function Features({
           }
         }}
       >
-        <Field id="feature-code" label="Feature code">
+        <Field id="feature-code" label={t("Feature code")}>
           <input
             id="feature-code"
             className={inputClass()}
@@ -314,27 +307,27 @@ function Features({
             onChange={(event) => setCode(event.target.value)}
           />
         </Field>
-        <Field id="feature-name" label="Feature name">
+        <Field id="feature-name" label={t("Feature name")}>
           <input
             id="feature-name"
             className={inputClass()}
-            placeholder="Projects"
+            placeholder={t("Projects")}
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
         </Field>
-        <Field id="feature-kind" label="Kind">
+        <Field id="feature-kind" label={t("Kind")}>
           <select
             id="feature-kind"
             className={inputClass()}
             value={kind}
             onChange={(event) => setKind(event.target.value === 'BOOLEAN' ? 'BOOLEAN' : 'QUOTA')}
           >
-            <option value="QUOTA">Quota</option>
-            <option value="BOOLEAN">Switch</option>
+            <option value="QUOTA">{t("Quota")}</option>
+            <option value="BOOLEAN">{t("Switch")}</option>
           </select>
         </Field>
-        <Field id="feature-unit" label="Unit">
+        <Field id="feature-unit" label={t("Unit")}>
           <input
             id="feature-unit"
             className={inputClass()}
@@ -351,8 +344,7 @@ function Features({
           pending={create.isPending}
           disabled={code.trim() === '' || name.trim() === ''}
         >
-          Add feature
-        </Button>
+          {t("Add feature")}</Button>
       </FormCard>
     </Section>
   );
@@ -390,13 +382,10 @@ function Offers({
   return (
     <Section
       className="border-t border-line pt-6"
-      title="Offers"
+      title={t("Offers")}
       description={
         <>
-          A plan with a price. An offer is born a <strong>draft</strong> and is not on sale until
-          it is published — and a published version is frozen, so a new price is always a new
-          version rather than an edit.
-        </>
+          {t("A plan with a price. An offer is born a")}{' '}<strong>{t("draft")}</strong> {t("and is not on sale until it is published — and a published version is frozen, so a new price is always a new version rather than an edit.")}</>
       }
     >
 
@@ -408,7 +397,7 @@ function Offers({
       {loading ? (
         <SkeletonRows rows={3} />
       ) : offers.length === 0 ? (
-        <EmptyState title="Nothing priced yet" description="Write the first offer below." />
+        <EmptyState title={t("Nothing priced yet")} description={t("Write the first offer below.")} />
       ) : (
         <ul className="space-y-2" data-testid="offer-list">
           {offers.map((offer) => (
@@ -438,8 +427,7 @@ function Offers({
 
       {plans.length === 0 ? (
         <p data-testid="needs-a-plan" className="text-sm text-muted">
-          Add a plan first — an offer is a plan with a price, and it cannot be written without one.
-        </p>
+          {t("Add a plan first — an offer is a plan with a price, and it cannot be written without one.")}</p>
       ) : (
         <FormCard
           onSubmit={(event) => {
@@ -473,7 +461,7 @@ function Offers({
           <FieldGroup legend="What it is">
             <FieldRow>
               <FieldCell>
-                <Field id="offer-code" label="Offer code">
+                <Field id="offer-code" label={t("Offer code")}>
                   <input
                     id="offer-code"
                     className={inputClass()}
@@ -485,11 +473,11 @@ function Offers({
               </FieldCell>
 
               <FieldCell>
-                <Field id="offer-name" label="Offer name">
+                <Field id="offer-name" label={t("Offer name")}>
                   <input
                     id="offer-name"
                     className={inputClass()}
-                    placeholder="Pro, monthly"
+                    placeholder={t("Pro, monthly")}
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                   />
@@ -501,17 +489,17 @@ function Offers({
           <FieldGroup legend="What it costs">
             <FieldRow>
               <FieldCell>
-                <Field id="offer-plan" label="Plan">
+                <Field id="offer-plan" label={t("Plan")}>
                   <select
                     id="offer-plan"
                     className={inputClass()}
                     value={planId}
                     onChange={(event) => setPlanId(event.target.value)}
                   >
-                    <option value="">Choose a plan…</option>
+                    <option value="">{t("Choose a plan…")}</option>
                     {plans.map((plan) => (
                       <option key={plan.id} value={plan.id}>
-                        {plan.name} (rank {plan.rank})
+                        {plan.name} {t("(rank")}{' '}{plan.rank})
                       </option>
                     ))}
                   </select>
@@ -519,7 +507,7 @@ function Offers({
               </FieldCell>
 
               <FieldCell width="medium">
-                <Field id="offer-period" label="Billed">
+                <Field id="offer-period" label={t("Billed")}>
                   <select
                     id="offer-period"
                     className={inputClass()}
@@ -528,8 +516,8 @@ function Offers({
                       setPeriod(event.target.value === 'YEARLY' ? 'YEARLY' : 'MONTHLY')
                     }
                   >
-                    <option value="MONTHLY">Monthly</option>
-                    <option value="YEARLY">Yearly</option>
+                    <option value="MONTHLY">{t("Monthly")}</option>
+                    <option value="YEARLY">{t("Yearly")}</option>
                   </select>
                 </Field>
               </FieldCell>
@@ -539,13 +527,11 @@ function Offers({
                 field: on the field it was four lines tall and pushed the price
                 input a line below the currency beside it. */}
             <p className="max-w-prose text-xs text-muted">
-              2900 is €29.00. Integer minor units, never a decimal — a cent lost to rounding is a
-              cent an auditor asks about. 0 is a legitimate price.
-            </p>
+              {t("2900 is €29.00. Integer minor units, never a decimal — a cent lost to rounding is a cent an auditor asks about. 0 is a legitimate price.")}</p>
 
             <FieldRow>
               <FieldCell width="medium">
-                <Field id="offer-price" label="Price in minor units">
+                <Field id="offer-price" label={t("Price in minor units")}>
                   <input
                     id="offer-price"
                     type="number"
@@ -559,7 +545,7 @@ function Offers({
               </FieldCell>
 
               <FieldCell width="short">
-                <Field id="offer-currency" label="Currency">
+                <Field id="offer-currency" label={t("Currency")}>
                   <CurrencySelect
                     id="offer-currency"
                     value={currency}
@@ -580,8 +566,7 @@ function Offers({
                 code.trim() === '' || name.trim() === '' || planId === '' || price.trim() === ''
               }
             >
-              Add offer as a draft
-            </Button>
+              {t("Add offer as a draft")}</Button>
           </FormActions>
         </FormCard>
       )}
@@ -621,8 +606,7 @@ function OfferRow({
             data-testid="advertised"
             className="rounded bg-well px-1.5 py-0.5 text-xs"
           >
-            on the public page
-          </span>
+            {t("on the public page")}</span>
         )}
       </div>
 
@@ -653,8 +637,7 @@ function OfferRow({
                 pending={pending}
                 onClick={() => onPublish(version.version)}
               >
-                Publish
-              </Button>
+                {t("Publish")}</Button>
             )}
 
             {version.grants.length > 0 && (
@@ -662,7 +645,7 @@ function OfferRow({
                 {version.grants
                   .map((grant) =>
                     grant.kind === 'QUOTA'
-                      ? `${grant.name} ${grant.unlimited ? 'unlimited' : String(grant.limit ?? 0)}`
+                      ? `${grant.name} ${grant.unlimited ? t("unlimited") : String(grant.limit ?? 0)}`
                       : grant.name,
                   )
                   .join(' · ')}
@@ -686,17 +669,14 @@ function OfferRow({
                   )
                 }
               >
-                New version from this
-              </Button>
+                {t("New version from this")}</Button>
             )}
           </li>
         ))}
       </ul>
 
       <p className="mt-2 text-xs text-subtle">
-        Publishing puts this price on sale: every quote, order and subscription written afterwards
-        prices from it, and it can never be edited — only superseded.
-      </p>
+        {t("Publishing puts this price on sale: every quote, order and subscription written afterwards prices from it, and it can never be edited — only superseded.")}</p>
     </li>
   );
 }
@@ -763,9 +743,7 @@ function GrantsEditor({
   if (features.length === 0) {
     return (
       <p data-testid="no-features-to-grant" className="text-sm text-muted">
-        No features yet, so this offer grants access to the product and nothing more. That is a
-        legitimate offer — add features above if it should grant more than that.
-      </p>
+        {t("No features yet, so this offer grants access to the product and nothing more. That is a legitimate offer — add features above if it should grant more than that.")}</p>
     );
   }
 
@@ -777,12 +755,9 @@ function GrantsEditor({
 
   return (
     <fieldset className="space-y-2">
-      <legend className="text-sm font-medium">What it grants</legend>
+      <legend className="text-sm font-medium">{t("What it grants")}</legend>
       <p className="text-xs text-muted">
-        A quota left empty is <strong>unlimited</strong>, which is not the same as a limit of zero.
-        Grants belong to the version, so changing them later means publishing a new one — ADR-033
-        freezes what somebody bought.
-      </p>
+        {t("A quota left empty is")}{' '}<strong>{t("unlimited")}</strong>{t(", which is not the same as a limit of zero. Grants belong to the version, so changing them later means publishing a new one — ADR-033 freezes what somebody bought.")}</p>
 
       <ul className="space-y-1" data-testid="grant-editor">
         {features.map((feature) => {
@@ -792,7 +767,7 @@ function GrantsEditor({
             <li key={feature.id} data-grant={feature.code} className="flex flex-wrap items-center gap-2 text-sm">
               <input
                 type="checkbox"
-                aria-label={`Grant ${feature.name}`}
+                aria-label={t("Grant {name}", { name: feature.name })}
                 checked={entry.on}
                 onChange={(event) => update(feature.id, { on: event.target.checked })}
               />
@@ -803,7 +778,7 @@ function GrantsEditor({
                   <input
                     type="number"
                     min={0}
-                    aria-label={`Limit for ${feature.name}`}
+                    aria-label={t("Limit for {name}", { name: feature.name })}
                     placeholder="unlimited"
                     className={`${inputClass()} w-28`}
                     // Disabled rather than hidden while the feature is not
@@ -816,7 +791,7 @@ function GrantsEditor({
                   <span className="text-xs text-subtle">{feature.unit ?? ''}</span>
                 </>
               ) : (
-                <span className="text-xs text-subtle">switch</span>
+                <span className="text-xs text-subtle">{t("switch")}</span>
               )}
             </li>
           );

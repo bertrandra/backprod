@@ -6,6 +6,7 @@ import { usePlatformProducts } from '@/queries/staff';
 import { useSessionStore } from '@/state/session';
 import { touchTargetClass } from '@/ui/Field';
 import { cn } from '@/utils/cn';
+import { t } from '@/i18n';
 
 /**
  * Which product this browser is acting in — region A's first duty.
@@ -55,7 +56,7 @@ export function ProductSwitcher({ platform = false }: { platform?: boolean }) {
   const known: readonly ProductOption[] = platform
     ? (platformProducts.data ?? []).map((product) => ({
         code: product.code,
-        name: product.active ? product.name : `${product.name} (retired)`,
+        name: product.active ? product.name : t("{name} (retired)", { name: product.name }),
         retired: !product.active,
       }))
     : (mine.data?.products ?? []).map((product) => ({ code: product.code, name: product.name, retired: false }));
@@ -108,7 +109,7 @@ export function ProductSwitcher({ platform = false }: { platform?: boolean }) {
 
   return (
     <label className="flex items-center gap-1">
-      <span className="sr-only">Product</span>
+      <span className="sr-only">{t("Product")}</span>
       <select
         data-testid="product-switcher"
         data-product={productCode ?? ''}

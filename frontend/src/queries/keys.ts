@@ -138,7 +138,7 @@ export const keys = {
     identity: ['staff', 'me'] as const,
     demoPage: ['staff', 'demo', 'page'] as const,
     storefrontSettings: ['staff', 'storefront', 'settings'] as const,
-    mailTemplates: ['staff', 'mail', 'templates'] as const,
+    mailTemplates: (locale: string) => ['staff', 'mail', 'templates', locale] as const,
     tenantLists: ['staff', 'tenants'] as const,
     tenants: (limit: number, offset: number) => ['staff', 'tenants', limit, offset] as const,
     // The motive is part of a read's key, so a read made for one reason is never

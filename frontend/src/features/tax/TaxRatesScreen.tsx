@@ -12,6 +12,7 @@ import { Amount, formatVatRate, minorUnitDigits } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { Table, TBody, Td, Th, THead, TR } from '@/ui/Table';
 import { PageHeader } from '@/ui/Page';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * `tax.rates` — the rates in force on a date, and the calculator that explains
@@ -75,13 +76,13 @@ export function TaxRatesScreen() {
   return (
     <div className="max-w-3xl space-y-8">
       <PageHeader
-        title={'Rates and regimes'}
-        description={'Rates are valid for a window rather than forever. A change closes one window and opens another, so an invoice issued in the past is still explained by the rate that was in force then.'}
+        title={t("Rates and regimes")}
+        description={t("Rates are valid for a window rather than forever. A change closes one window and opens another, so an invoice issued in the past is still explained by the rate that was in force then.")}
       />
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-end gap-3">
-          <Field id="on" label="In force on" hint="Leave empty for today.">
+          <Field id="on" label={t("In force on")} hint={t("Leave empty for today.")}>
             <input
               id="on"
               type="date"
@@ -92,8 +93,7 @@ export function TaxRatesScreen() {
           </Field>
           {on !== '' && (
             <Button type="button" variant="secondary" onClick={() => setOn('')}>
-              Today
-            </Button>
+              {t("Today")}</Button>
           )}
         </div>
 
@@ -103,22 +103,22 @@ export function TaxRatesScreen() {
           <ErrorSurface error={rates.error} onRetry={() => void rates.refetch()} />
         ) : rates.data.rates.length === 0 ? (
           <EmptyState
-            title="No rates in force on that date"
-            description="Either the date is before the rates were recorded, or nothing was in force then."
+            title={t("No rates in force on that date")}
+            description={t("Either the date is before the rates were recorded, or nothing was in force then.")}
           />
         ) : (
           <>
             <p data-testid="rates-as-of" className="text-sm text-muted">
-              As they stood on {new Date(rates.data.on).toLocaleDateString()}.
+              {t("As they stood on")}{' '}{new Date(rates.data.on).toLocaleDateString(currentLocale())}.
             </p>
 
-            <Table caption="VAT rates by country and kind, with the period each was in force and where the figure came from">
+            <Table caption={t("VAT rates by country and kind, with the period each was in force and where the figure came from")}>
               <THead>
-                <Th>Country</Th>
-                <Th>Kind</Th>
-                <Th numeric>Rate</Th>
-                <Th>In force</Th>
-                <Th>Source</Th>
+                <Th>{t("Country")}</Th>
+                <Th>{t("Kind")}</Th>
+                <Th numeric>{t("Rate")}</Th>
+                <Th>{t("In force")}</Th>
+                <Th>{t("Source")}</Th>
               </THead>
 
               <TBody>
@@ -133,10 +133,10 @@ export function TaxRatesScreen() {
                       {formatVatRate(rate.basis_points)}
                     </Td>
                     <Td className="text-xs text-muted">
-                      {new Date(rate.valid_from).toLocaleDateString()} —{' '}
+                      {new Date(rate.valid_from).toLocaleDateString(currentLocale())} —{' '}
                       {rate.valid_until === null
                         ? 'still'
-                        : new Date(rate.valid_until).toLocaleDateString()}
+                        : new Date(rate.valid_until).toLocaleDateString(currentLocale())}
                     </Td>
                     {/* Where the figure came from — a seed, not a fiscal
                         authority, and the contract is explicit about that. */}
@@ -151,11 +151,9 @@ export function TaxRatesScreen() {
 
       <section className="space-y-4 border-t border-line pt-6">
         <div className="space-y-1">
-          <h2 className="text-xl font-semibold">What would be applied, and why</h2>
+          <h2 className="text-xl font-semibold">{t("What would be applied, and why")}</h2>
           <p className="text-sm text-muted">
-            A diagnostic. It charges nothing and creates nothing — it answers which rule your tax
-            profile puts a supply under, and shows the reasoning it used to get there.
-          </p>
+            {t("A diagnostic. It charges nothing and creates nothing — it answers which rule your tax profile puts a supply under, and shows the reasoning it used to get there.")}</p>
         </div>
 
         <form
@@ -170,7 +168,7 @@ export function TaxRatesScreen() {
             )(event);
           }}
         >
-          <Field id="amount" label="Amount" error={form.formState.errors.amount?.message}>
+          <Field id="amount" label={t("Amount")} error={form.formState.errors.amount?.message}>
             <input
               id="amount"
               inputMode="decimal"
@@ -179,7 +177,7 @@ export function TaxRatesScreen() {
             />
           </Field>
 
-          <Field id="currency" label="Currency" error={form.formState.errors.currency?.message}>
+          <Field id="currency" label={t("Currency")} error={form.formState.errors.currency?.message}>
             <CurrencySelect
               id="currency"
               invalid={form.formState.errors.currency !== undefined}
@@ -189,24 +187,23 @@ export function TaxRatesScreen() {
 
           <Field
             id="supply_type"
-            label="Supply type"
-            hint="What is supplied changes where it is taxed."
+            label={t("Supply type")}
+            hint={t("What is supplied changes where it is taxed.")}
           >
             {/* The three the platform knows (§25.3), and the product's own as
                 the default — the API refuses anything else, so nothing else
                 is offered. */}
             <select id="supply_type" className={inputClass()} {...form.register('supply_type')}>
-              <option value="">The product's default</option>
-              <option value="GOODS">Goods</option>
-              <option value="SERVICES">Services</option>
-              <option value="DIGITAL_SERVICES">Digital services</option>
+              <option value="">{t("The product's default")}</option>
+              <option value="GOODS">{t("Goods")}</option>
+              <option value="SERVICES">{t("Services")}</option>
+              <option value="DIGITAL_SERVICES">{t("Digital services")}</option>
             </select>
           </Field>
 
           <div className="sm:col-span-3">
             <Button type="submit" pending={calculate.isPending}>
-              Explain it
-            </Button>
+              {t("Explain it")}</Button>
           </div>
         </form>
 
@@ -247,19 +244,19 @@ function Explanation({ calculation }: { calculation: TaxCalculation }) {
           {formatVatRate(calculation.rate_basis_points)}
         </span>
         <span className="text-muted">
-          taxed in {calculation.country_of_taxation}
+          {t("taxed in")}{' '}{calculation.country_of_taxation}
         </span>
       </div>
 
       <dl className="grid gap-2 sm:grid-cols-2">
         <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">Taxable base</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">{t("Taxable base")}</dt>
           <dd>
             <Amount money={base} />
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">VAT</dt>
+          <dt className="text-xs uppercase tracking-wide text-subtle">{t("VAT")}</dt>
           <dd>
             <Amount money={vat} />
           </dd>
@@ -267,20 +264,20 @@ function Explanation({ calculation }: { calculation: TaxCalculation }) {
       </dl>
 
       <p data-testid="customer-status" className="text-muted">
-        Read as <strong>{calculation.customer_tax_status}</strong>
+        {t("Read as")}{' '}<strong>{calculation.customer_tax_status}</strong>
         {calculation.reverse_charge && ' — you account for the VAT, not the supplier'}.
       </p>
 
       {/* Not decoration: this is the sentence the invoice is obliged to carry. */}
       {calculation.legal_mention !== null && (
         <p data-testid="legal-mention" className="rounded bg-well p-2 text-xs">
-          The invoice must state: “{calculation.legal_mention}”
+          {t("The invoice must state: “")}{calculation.legal_mention}”
         </p>
       )}
 
       {calculation.reasons.length > 0 && (
         <div className="space-y-1">
-          <p className="text-xs uppercase tracking-wide text-subtle">Why</p>
+          <p className="text-xs uppercase tracking-wide text-subtle">{t("Why")}</p>
           <ul data-testid="reasons" className="list-inside list-disc text-muted">
             {calculation.reasons.map((reason) => (
               <li key={reason}>{reason}</li>
@@ -290,9 +287,7 @@ function Explanation({ calculation }: { calculation: TaxCalculation }) {
       )}
 
       <p className="text-xs text-subtle">
-        Rule <code data-testid="rule-id">{calculation.rule_id}</code> — quote it if you disagree
-        with this answer.
-      </p>
+        {t("Rule")}{' '}<code data-testid="rule-id">{calculation.rule_id}</code> {t("— quote it if you disagree with this answer.")}</p>
     </div>
   );
 }

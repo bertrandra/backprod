@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\User\Infrastructure;
 
+use App\Shared\Validation\Locale;
 use App\User\Domain\PlatformUser;
 use App\User\Domain\UserRepository;
 use Doctrine\DBAL\Connection;
@@ -17,7 +18,7 @@ final class PostgresUserRepository implements UserRepository
     public function find(string $userId): ?PlatformUser
     {
         $row = $this->connection->fetchAssociative(
-            'SELECT id, auth_subject, email, display_name, default_product_id FROM users WHERE id = :id',
+            'SELECT id, auth_subject, email, display_name, default_product_id, locale FROM users WHERE id = :id',
             ['id' => $userId],
         );
 
@@ -30,7 +31,7 @@ final class PostgresUserRepository implements UserRepository
         // capitalisation they please, and providers treat it as equivalent.
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
-                SELECT id, auth_subject, email, display_name, default_product_id
+                SELECT id, auth_subject, email, display_name, default_product_id, locale
                 FROM users
                 WHERE lower(email) = lower(:email)
                 ORDER BY id
@@ -67,6 +68,14 @@ final class PostgresUserRepository implements UserRepository
         );
     }
 
+    public function updateLocale(string $userId, string $locale): void
+    {
+        $this->connection->executeStatement(
+            'UPDATE users SET locale = :locale, updated_at = now() WHERE id = :id',
+            ['locale' => $locale, 'id' => $userId],
+        );
+    }
+
     /**
      * @param array<string, mixed> $row
      */
@@ -82,6 +91,7 @@ final class PostgresUserRepository implements UserRepository
         $email = $row['email'] ?? null;
         $displayName = $row['display_name'] ?? null;
         $defaultProduct = $row['default_product_id'] ?? null;
+        $locale = $row['locale'] ?? null;
 
         return new PlatformUser(
             $id,
@@ -89,6 +99,7 @@ final class PostgresUserRepository implements UserRepository
             is_string($email) ? $email : null,
             is_string($displayName) ? $displayName : null,
             is_string($defaultProduct) ? $defaultProduct : null,
+            Locale::of(is_string($locale) ? $locale : null),
         );
     }
 }

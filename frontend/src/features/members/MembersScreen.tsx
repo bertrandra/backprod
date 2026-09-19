@@ -17,6 +17,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { t } from '@/i18n';
 
 /**
  * `tenant.members` — who is in the organisation, and with which role.
@@ -70,10 +71,10 @@ export function MembersScreen() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <h1 className="text-2xl font-semibold">Members</h1>
+      <h1 className="text-2xl font-semibold">{t("Members")}</h1>
 
       {members.data.length === 0 ? (
-        <EmptyState title="No members yet" description="Add someone by email address below." />
+        <EmptyState title={t("No members yet")} description={t("Add someone by email address below.")} />
       ) : (
         // Cards on a phone, a table from md. Not horizontal scroll, which is what
         // ui-spec.md §4.2 forbids and what a naive table gives you.
@@ -88,11 +89,11 @@ export function MembersScreen() {
               >
                 <div className="min-w-0 md:flex-1">
                   <p className="truncate text-sm font-medium">
-                    {member.display_name ?? member.email ?? 'Unnamed member'}
-                    {isSelf && <span className="ml-2 text-xs text-subtle">(you)</span>}
+                    {member.display_name ?? member.email ?? t("Unnamed member")}
+                    {isSelf && <span className="ml-2 text-xs text-subtle">{t("(you)")}</span>}
                   </p>
                   <p className="truncate text-xs text-muted">
-                    {member.email ?? 'No email address'}
+                    {member.email ?? t("No email address")}
                   </p>
                 </div>
 
@@ -117,8 +118,7 @@ export function MembersScreen() {
                         }
                       }}
                     >
-                      Change roles
-                    </Button>
+                      {t("Change roles")}</Button>
 
                     {confirming === member.user_id ? (
                       <>
@@ -126,8 +126,7 @@ export function MembersScreen() {
                             the pattern U7 and U8 will need for actions that
                             cannot be undone. */}
                         <span role="alert" className="text-xs text-danger">
-                          Remove from this organisation? They keep their account.
-                        </span>
+                          {t("Remove from this organisation? They keep their account.")}</span>
                         <Button
                           type="button"
                           variant="danger"
@@ -138,15 +137,13 @@ export function MembersScreen() {
                             });
                           }}
                         >
-                          Remove
-                        </Button>
+                          {t("Remove")}</Button>
                         <Button
                           type="button"
                           variant="secondary"
                           onClick={() => setConfirming(null)}
                         >
-                          Keep
-                        </Button>
+                          {t("Keep")}</Button>
                       </>
                     ) : (
                       <Button
@@ -154,8 +151,7 @@ export function MembersScreen() {
                         variant="danger"
                         onClick={() => setConfirming(member.user_id)}
                       >
-                        Remove
-                      </Button>
+                        {t("Remove")}</Button>
                     )}
                   </div>
                 )}
@@ -175,11 +171,9 @@ export function MembersScreen() {
           waits, rather than an empty section announcing a feature. */}
       {requests.data !== undefined && requests.data.length > 0 && (
         <section data-testid="join-requests" className="space-y-3 border-t border-line pt-4">
-          <h2 className="text-xl font-semibold">Waiting to join</h2>
+          <h2 className="text-xl font-semibold">{t("Waiting to join")}</h2>
           <p className="text-sm text-muted">
-            They created an account at this organisation&rsquo;s address. Accepting makes them a
-            member on every product; declining keeps their account and drops the request.
-          </p>
+            {t("They created an account at this organisation’s address. Accepting makes them a member on every product; declining keeps their account and drops the request.")}</p>
           <ul className="space-y-2">
             {requests.data.map((request) => (
               <li
@@ -189,9 +183,9 @@ export function MembersScreen() {
               >
                 <div className="min-w-0 md:flex-1">
                   <p className="truncate text-sm font-medium">
-                    {request.display_name ?? request.email ?? 'Unnamed'}
+                    {request.display_name ?? request.email ?? t("Unnamed")}
                   </p>
-                  <p className="truncate text-xs text-muted">{request.email ?? 'No email address'}</p>
+                  <p className="truncate text-xs text-muted">{request.email ?? t("No email address")}</p>
                 </div>
                 {mayManage && (
                   <div className="mt-3 flex flex-wrap gap-2 md:mt-0">
@@ -200,15 +194,13 @@ export function MembersScreen() {
                       pending={decide.isPending && decide.variables?.userId === request.user_id}
                       onClick={() => decide.mutate({ userId: request.user_id, decision: 'accept' })}
                     >
-                      Accept
-                    </Button>
+                      {t("Accept")}</Button>
                     <Button
                       type="button"
                       variant="secondary"
                       onClick={() => decide.mutate({ userId: request.user_id, decision: 'decline' })}
                     >
-                      Decline
-                    </Button>
+                      {t("Decline")}</Button>
                   </div>
                 )}
               </li>
@@ -230,9 +222,9 @@ export function MembersScreen() {
             )(event);
           }}
         >
-          <h2 className="text-xl font-semibold">Add a member</h2>
+          <h2 className="text-xl font-semibold">{t("Add a member")}</h2>
 
-          <Field id="invite-email" label="Email" error={form.formState.errors.email?.message}>
+          <Field id="invite-email" label={t("Email")} error={form.formState.errors.email?.message}>
             <input
               id="invite-email"
               type="email"
@@ -243,8 +235,8 @@ export function MembersScreen() {
 
           <Field
             id="invite-roles"
-            label="Roles"
-            hint="Comma separated. The platform decides what each role grants."
+            label={t("Roles")}
+            hint={t("Comma separated. The platform decides what each role grants.")}
             error={form.formState.errors.roles?.message}
           >
             <input
@@ -257,8 +249,7 @@ export function MembersScreen() {
           {add.error !== null && <ErrorSurface error={add.error} />}
 
           <Button type="submit" pending={add.isPending}>
-            Add member
-          </Button>
+            {t("Add member")}</Button>
         </form>
       )}
     </div>
