@@ -83,6 +83,7 @@ final class ContextResolutionTest extends ApiTestCase
             'email' => 'alice@example.test',
             'display_name' => null,
             'default_product' => null,
+            'locale' => 'en',
             'product_id' => 'prod-atlas',
             'tenant_id' => 'tenant-acme',
             'roles' => ['TENANT_ADMIN'],
