@@ -7,14 +7,15 @@ namespace App\Demo\Domain;
 /**
  * What the demonstration world contains — the definition, not the rows.
  *
- * **Four products, two organisations, six people, one per role.** The platform
- * is multi-product, and a demo with one product cannot show the part that
+ * **Four products, two organisations, seven people.** The platform is
+ * multi-product, and a demo with one product cannot show the part that
  * matters: a tenant holding several (ADR-047), the console switching between
  * them, the storefront asking which one a stranger wants. Acme holds all four,
- * Globex two. Every role the platform defines — two tenant roles, four
- * platform roles — is held by exactly one person, so whoever demonstrates it
- * can sign in as each authority in turn, and nobody holds two authorities at
- * once (non-negotiable #22 is easier to show when nobody is both).
+ * Globex two. Each organisation has its administrator and two members, and
+ * the platform has its one administrator; nobody holds two authorities at
+ * once (non-negotiable #22 is easier to show when nobody is both). The
+ * addresses are the operator's own since 2026-09-19, so the mails the
+ * platform sends — a reset link, an invitation — land somewhere real.
  *
  * `docs/demo-world.html` is the human-readable copy of this file; when one
  * changes, so does the other. The rows are written by {@see DemoFixtures}
@@ -33,7 +34,7 @@ final class DemoWorld
      */
     public const PASSWORD = 'demo-password-1234';
 
-    public const EMAIL_DOMAIN = 'demo.test';
+    public const EMAIL_DOMAIN = 'raillard.org';
 
     /**
      * The four products, in the order the console lists them. `base` is the
@@ -66,23 +67,27 @@ final class DemoWorld
     public const DEFAULT_TENANT = 'acme';
 
     /**
-     * One person per role. `tenants` names the organisations a tenant-role
-     * holder is a member of — mirrored onto every product each holds;
-     * platform staff are members of nothing.
+     * The people, keyed by the local part of their address. `tenants` names
+     * the organisations a tenant-role holder is a member of — mirrored onto
+     * every product each holds; platform staff are members of nothing.
      *
      * @var array<string, array{name: string, scope: 'tenant'|'platform', role: string, tenants: list<string>}>
      */
     public const PEOPLE = [
-        'ada' => ['name' => 'Ada Lovelace', 'scope' => 'tenant', 'role' => 'TENANT_ADMIN', 'tenants' => ['acme', 'globex']],
-        'grace' => ['name' => 'Grace Hopper', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['acme']],
-        'sam' => ['name' => 'Sam Staff', 'scope' => 'platform', 'role' => 'PLATFORM_ADMIN', 'tenants' => []],
-        'hedy' => ['name' => 'Hedy Lamarr', 'scope' => 'platform', 'role' => 'SUPPORT_ADMIN', 'tenants' => []],
-        'fran' => ['name' => 'Frances Allen', 'scope' => 'platform', 'role' => 'FINANCE_ADMIN', 'tenants' => []],
-        'sal' => ['name' => 'Sally Ride', 'scope' => 'platform', 'role' => 'SALES_ADMIN', 'tenants' => []],
+        'backprod' => ['name' => 'Platform admin', 'scope' => 'platform', 'role' => 'PLATFORM_ADMIN', 'tenants' => []],
+        'acme-admin' => ['name' => 'ACME tenant admin', 'scope' => 'tenant', 'role' => 'TENANT_ADMIN', 'tenants' => ['acme']],
+        'acme-user1' => ['name' => 'ACME user1', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['acme']],
+        'acme-user2' => ['name' => 'ACME user2', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['acme']],
+        'globex-admin' => ['name' => 'Globex tenant admin', 'scope' => 'tenant', 'role' => 'TENANT_ADMIN', 'tenants' => ['globex']],
+        'globex-user1' => ['name' => 'Globex user1', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['globex']],
+        'globex-user2' => ['name' => 'Globex user2', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['globex']],
     ];
 
     /** The one platform administrator, who assigns and grants on the seeder's behalf. */
-    public const STAFF_ADMIN = 'sam';
+    public const STAFF_ADMIN = 'backprod';
+
+    /** Who activates each organisation's subscription, and so owns it: its administrator. */
+    public const TENANT_ADMINS = ['acme' => 'acme-admin', 'globex' => 'globex-admin'];
 
     /**
      * The two subscriptions that run, each with the invoice it raised, so the

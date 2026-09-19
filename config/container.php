@@ -87,6 +87,7 @@ use App\Notification\Domain\NotificationRepository;
 use App\Notification\Infrastructure\LogNotifier;
 use App\Notification\Infrastructure\PostgresNotificationRepository;
 use App\Notification\Infrastructure\ScreenChannel;
+use App\Notification\Infrastructure\SmtpNotifier;
 use App\Notification\Service\DispatchNotifications;
 use App\Notification\Service\Notifications;
 use App\Payment\Domain\PaymentRepository;
@@ -179,6 +180,8 @@ use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
 use Stripe\StripeClient;
 use Stripe\Util\ApiVersion as StripeApiVersion;
+use Symfony\Component\Mailer\Transport;
+use Symfony\Component\Mime\Address;
 
 use function DI\autowire;
 use function DI\create;
@@ -498,23 +501,36 @@ return static function (array $overrides = []): ContainerInterface {
         // are one honest stand-in configured per channel until a provider is
         // wired, because what differs between real SMTP and real SMS is
         // everything and what differs between three fakes is nothing.
+        // Email is real where MAIL_DSN is set (2026-09-19) — the same rule
+        // as Stripe: a configured provider is wired, an absent one leaves
+        // the honest stand-in, and no code path guesses. The DSN carries the
+        // host and the credentials and lives in .env only (§31).
         DispatchNotifications::class => factory(
-            static fn (
+            static function (
                 NotificationRepository $repository,
                 Notifications $notifications,
                 UserRepository $users,
                 LoggerInterface $logger,
-            ): DispatchNotifications => new DispatchNotifications(
-                $repository,
-                $notifications,
-                $users,
-                [
-                    new ScreenChannel(),
-                    new LogNotifier(Channel::EMAIL, $logger),
-                    new LogNotifier(Channel::SMS, $logger),
-                    new LogNotifier(Channel::WHATSAPP, $logger),
-                ],
-            ),
+            ) use ($env): DispatchNotifications {
+                $dsn = $env('MAIL_DSN');
+
+                return new DispatchNotifications(
+                    $repository,
+                    $notifications,
+                    $users,
+                    [
+                        new ScreenChannel(),
+                        $dsn === ''
+                            ? new LogNotifier(Channel::EMAIL, $logger)
+                            : new SmtpNotifier(
+                                Transport::fromDsn($dsn),
+                                Address::create($env('MAIL_FROM', 'no-reply@localhost')),
+                            ),
+                        new LogNotifier(Channel::SMS, $logger),
+                        new LogNotifier(Channel::WHATSAPP, $logger),
+                    ],
+                );
+            },
         ),
 
         JobRepository::class => autowire(PostgresJobRepository::class),

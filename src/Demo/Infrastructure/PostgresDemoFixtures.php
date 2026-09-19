@@ -143,11 +143,18 @@ final class PostgresDemoFixtures implements DemoFixtures
             ),
             'a member is mirrored onto every product the tenant holds' => count(DemoWorld::TENANTS['acme']['holds']) === $this->count(
                 'SELECT count(*) FROM tenant_members WHERE tenant_id = :tenant AND user_id = :user',
-                ['tenant' => $acme, 'user' => $structure->user('grace')],
+                ['tenant' => $acme, 'user' => $structure->user('acme-user1')],
             ),
-            'every role is held by exactly one person' => 2 === $this->count(
+            'both tenant roles are held, and the platform has its one administrator' => 2 === $this->count(
                 'SELECT count(DISTINCT r.code) FROM tenant_member_roles m JOIN roles r ON r.id = m.role_id',
-            ) && 4 === $this->count('SELECT count(*) FROM platform_staff'),
+            ) && 1 === $this->count('SELECT count(*) FROM platform_staff'),
+            'every offer says how many people it covers' => 3 * $productCount === $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM offer_version_features g
+                JOIN features f ON f.id = g.feature_id
+                WHERE f.code = 'users'
+                SQL,
+            ),
             'platform staff hold no tenant membership' => 0 === $this->count(
                 'SELECT count(*) FROM tenant_members m JOIN platform_staff s ON s.user_id = m.user_id',
             ),
@@ -308,7 +315,7 @@ final class PostgresDemoFixtures implements DemoFixtures
     }
 
     /**
-     * Three plans, three features, three offers — published and advertised.
+     * Three plans, four features, three offers — published and advertised.
      *
      * @return array<string, string> offer code => id
      */
@@ -325,7 +332,9 @@ final class PostgresDemoFixtures implements DemoFixtures
 
         $features = [];
 
-        foreach ([['projects', 'Projects', 'QUOTA', 'projects'], ['exports', 'Exports', 'QUOTA', 'exports'], ['white_label', 'White label', 'BOOLEAN', null]] as [$code, $name, $kind, $unit]) {
+        // `users` (2026-09-19) is what bounds a subscription's people: Starter
+        // covers its buyer, Pro three, Scale everybody.
+        foreach ([['projects', 'Projects', 'QUOTA', 'projects'], ['exports', 'Exports', 'QUOTA', 'exports'], ['users', 'Users', 'QUOTA', 'users'], ['white_label', 'White label', 'BOOLEAN', null]] as [$code, $name, $kind, $unit]) {
             $features[$code] = $this->id(
                 'INSERT INTO features (product_id, code, name, kind, unit) VALUES (:product, :code, :name, :kind, :unit) RETURNING id',
                 ['product' => $product, 'code' => $code, 'name' => $name, 'kind' => $kind, 'unit' => $unit],
@@ -335,9 +344,9 @@ final class PostgresDemoFixtures implements DemoFixtures
         $offers = [];
 
         foreach ([
-            ['starter-monthly', 'Starter, monthly', 'starter', $base, 'MONTHLY', ['projects' => 3, 'exports' => 10]],
-            ['pro-monthly', 'Pro, monthly', 'pro', intdiv($base * 26, 10), 'MONTHLY', ['projects' => 25, 'exports' => 200, 'white_label' => null]],
-            ['scale-yearly', 'Scale, yearly', 'scale', $base * 26, 'YEARLY', ['projects' => null, 'exports' => null, 'white_label' => null]],
+            ['starter-monthly', 'Starter, monthly', 'starter', $base, 'MONTHLY', ['projects' => 3, 'exports' => 10, 'users' => 1]],
+            ['pro-monthly', 'Pro, monthly', 'pro', intdiv($base * 26, 10), 'MONTHLY', ['projects' => 25, 'exports' => 200, 'users' => 3, 'white_label' => null]],
+            ['scale-yearly', 'Scale, yearly', 'scale', $base * 26, 'YEARLY', ['projects' => null, 'exports' => null, 'users' => null, 'white_label' => null]],
         ] as [$code, $name, $plan, $price, $period, $grants]) {
             $offer = $this->id(
                 <<<'SQL'

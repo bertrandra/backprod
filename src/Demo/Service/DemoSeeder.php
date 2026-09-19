@@ -105,13 +105,15 @@ final class DemoSeeder
         // the plaintext.
         $structure = $this->fixtures->write(password_hash(DemoWorld::PASSWORD, PASSWORD_BCRYPT));
 
-        $actor = $structure->user('ada');
         $subscriptions = [];
         $invoices = [];
 
         foreach (DemoWorld::SUBSCRIPTIONS as $live) {
             $tenant = $structure->tenant($live['tenant']);
             $product = $structure->product($live['product']);
+            // Activated by the organisation's own administrator, who then
+            // owns it and manages its people (2026-09-19).
+            $actor = $structure->user(DemoWorld::TENANT_ADMINS[$live['tenant']]);
 
             $subscriptions[] = $this->subscriptions->subscribe(
                 $tenant,

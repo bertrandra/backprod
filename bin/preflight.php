@@ -113,6 +113,13 @@ $capabilities = [
         . 'and STRIPE_PUBLISHABLE_KEY, all three.',
     ),
     new Capability(
+        'Sending mail',
+        configured('MAIL_DSN'),
+        'MAIL_DSN is empty, so no mail leaves this deployment: a password reset, an '
+        . 'invitation and an address confirmation are recorded but never sent. Set a Symfony '
+        . 'Mailer DSN (smtp://user:pass@host:port) and MAIL_FROM.',
+    ),
+    new Capability(
         'Transmitting e-invoices',
         configured('STUB_EINVOICE_SIGNING_SECRET'),
         'No approved platform is configured, so nothing can be transmitted. Note that the '
