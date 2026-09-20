@@ -11,6 +11,7 @@ use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Validation\Locale;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use SensitiveParameter;
@@ -59,6 +60,7 @@ final class PostgresAccountRegistrar implements AccountRegistrar
         ?string $displayName,
         string $tenantSlug,
         ?string $productCode,
+        ?string $locale = null,
     ): RegisteredAccount {
         $tenant = $this->connection->fetchAssociative(
             'SELECT id, slug, join_policy FROM tenants WHERE slug = :slug',
@@ -120,11 +122,11 @@ final class PostgresAccountRegistrar implements AccountRegistrar
         try {
             $userId = $this->connection->fetchOne(
                 <<<'SQL'
-                    INSERT INTO users (auth_subject, email, display_name, default_product_id)
-                    VALUES ('pending', :email, :name, :product)
+                    INSERT INTO users (auth_subject, email, display_name, default_product_id, locale)
+                    VALUES ('pending', :email, :name, :product, :locale)
                     RETURNING id
                     SQL,
-                ['email' => $email, 'name' => $displayName, 'product' => $firstProduct],
+                ['email' => $email, 'name' => $displayName, 'product' => $firstProduct, 'locale' => Locale::of($locale)],
             );
 
             if (!is_string($userId)) {

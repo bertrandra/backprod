@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { useSessionStore } from '@/state/session';
-import { recordingClient, renderWith, SESSION, stubClient } from '@/test-utils';
+import { recordingClient, renderAtRoute, SESSION, stubClient } from '@/test-utils';
 
 import { AccountMenu } from './AccountMenu';
 
@@ -34,9 +34,10 @@ beforeEach(() => {
 
 describe('a tenant member', () => {
   it('is shown by initial, named on hover, and in full once opened', async () => {
-    renderWith(
+    renderAtRoute(
       <AccountMenu />,
       stubClient({ 'GET /api/v1/me': { data: SESSION }, 'GET /api/v1/staff/me': REFUSED }),
+      { path: '/' },
     );
 
     await waitFor(() => expect(screen.getByTestId('account-menu').textContent).toBe('A'));
@@ -49,6 +50,8 @@ describe('a tenant member', () => {
     expect(screen.getByTestId('account-name').textContent).toBe('Ada');
     expect(screen.getByTestId('account-email').textContent).toBe('ada@acme.test');
     expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeTruthy();
+    // And the way to their profile — name, default product, language.
+    expect(screen.getByRole('menuitem', { name: 'Your profile' }).getAttribute('href')).toMatch(/^\/profile/);
   });
 
   it('signs out from the menu', async () => {
@@ -58,7 +61,7 @@ describe('a tenant member', () => {
       'POST /api/v1/auth/sign-out': { status: 204 },
     });
 
-    renderWith(<AccountMenu />, client);
+    renderAtRoute(<AccountMenu />, client, { path: '/' });
 
     await waitFor(() => expect(screen.getByTestId('account-menu').textContent).toBe('A'));
     fireEvent.click(screen.getByTestId('account-menu'));
@@ -72,9 +75,10 @@ describe('a tenant member', () => {
   });
 
   it('closes on Escape and gives focus back to the circle', async () => {
-    renderWith(
+    renderAtRoute(
       <AccountMenu />,
       stubClient({ 'GET /api/v1/me': { data: SESSION }, 'GET /api/v1/staff/me': REFUSED }),
+      { path: '/' },
     );
 
     await waitFor(() => expect(screen.getByTestId('account-menu').textContent).toBe('A'));
@@ -90,9 +94,10 @@ describe('a tenant member', () => {
 
 describe('a platform staff member', () => {
   it('is named from the staff identity, since /me refuses them', async () => {
-    renderWith(
+    renderAtRoute(
       <AccountMenu />,
       stubClient({ 'GET /api/v1/me': REFUSED, 'GET /api/v1/staff/me': { data: STAFF } }),
+      { path: '/' },
     );
 
     await waitFor(() => expect(screen.getByTestId('account-menu').textContent).toBe('S'));
@@ -101,15 +106,18 @@ describe('a platform staff member', () => {
     fireEvent.click(screen.getByTestId('account-menu'));
     expect(screen.getByTestId('account-name').textContent).toBe('Sam Staff');
     expect(screen.getByTestId('account-email').textContent).toBe('sam@demo.test');
+    // No membership, no profile screen to open.
+    expect(screen.queryByTestId('account-profile')).toBeNull();
   });
 
   it('is still somebody who can sign out when erased', async () => {
-    renderWith(
+    renderAtRoute(
       <AccountMenu />,
       stubClient({
         'GET /api/v1/me': REFUSED,
         'GET /api/v1/staff/me': { data: { staff: { ...STAFF.staff, email: null, display_name: null } } },
       }),
+      { path: '/' },
     );
 
     await waitFor(() => expect(screen.getByTestId('account-menu')).toBeTruthy());

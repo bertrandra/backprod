@@ -12600,6 +12600,11 @@ export interface operations {
                     /** @description The product code the person arrived through, if any. It becomes their default product when the organisation holds it; otherwise the first product the organisation holds does. The membership itself is written on every product the organisation holds. */
                     product?: string | null;
                     display_name?: string | null;
+                    /**
+                     * @description The language the person was reading the page in (ADR-050) — the browser’s, or one they picked on the storefront — recorded on the account so it is the one they read in afterwards. English when absent.
+                     * @enum {string|null}
+                     */
+                    locale?: "en" | "fr" | "es" | "de" | "it" | null;
                     /** @description The slug of the organisation to join — the root the form was reached from, or the default organisation’s slug on the bare host (`showPublicTenant` says which). `404 TENANT_NOT_FOUND` when no organisation has it. */
                     tenant: string;
                 };

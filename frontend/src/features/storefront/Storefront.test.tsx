@@ -343,6 +343,8 @@ describe('creating the account', () => {
       tenant: 'acme',
       product: 'atlas',
       display_name: 'Ada',
+      // The language the page was read in (ADR-050) — English in a test.
+      locale: 'en',
     });
     expect(screen.queryByLabelText(/Company/i)).toBeNull();
     expect(screen.queryByLabelText(/Country/i)).toBeNull();

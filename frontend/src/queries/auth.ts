@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { paths } from '@/api/client';
 import { useApiClient } from '@/app/providers/ApiProvider';
 import { withRoot } from '@/app/root';
+import { type LocaleCode } from '@/i18n';
 import { useSessionStore } from '@/state/session';
 
 import { ApiError, toApiError } from './session';
@@ -142,6 +143,8 @@ export interface NewAccount {
   /** The product the page was showing, if any: their default from then on. */
   readonly product?: string | null;
   readonly display_name?: string | null;
+  /** The language the page was read in (ADR-050): recorded on the account. */
+  readonly locale?: LocaleCode;
 }
 
 /** What a sign-up made: a session, and a membership that is live or waiting. */

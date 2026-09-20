@@ -106,6 +106,7 @@ final class Sessions
         ?string $displayName,
         string $tenantSlug,
         ?string $productCode,
+        ?string $locale = null,
     ): array {
         if ($this->registrar->emailIsTaken($email)) {
             throw new ConflictException('EMAIL_TAKEN', 'That address already has an account. Sign in, and ask an administrator to add you.');
@@ -117,6 +118,7 @@ final class Sessions
             $displayName,
             $tenantSlug,
             $productCode,
+            $locale,
         );
 
         $this->askForConfirmation($account);
