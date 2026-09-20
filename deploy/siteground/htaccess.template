@@ -74,6 +74,18 @@ DirectoryIndex index.html
   # inside somebody else's iframe is how clickjacking gets its clicks.
   Header always set X-Frame-Options "DENY"
 
+  # Once a browser has seen this over HTTPS it stops asking over HTTP for a
+  # year. Sent only on an HTTPS response, as the standard requires — a plain
+  # HTTP one, should the host ever answer one, sends nothing. No
+  # `includeSubDomains`: this platform does not own the sibling hosts of the
+  # domain it is deployed under, and no `preload`: that is a registry the
+  # operator opts into, not a header.
+  Header always set Strict-Transport-Security "max-age=31536000" env=HTTPS
+
+  # No sensor this application uses, so no page — nor Stripe's iframe — may
+  # ask the browser for one.
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+
   # The policy, and the one concession in it.
   #
   # `style-src 'unsafe-inline'` is there because the application sets style

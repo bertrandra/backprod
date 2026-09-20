@@ -60,10 +60,10 @@ export function t(english: string, vars?: Readonly<Record<string, string | numbe
     return text;
   }
 
+  // Own properties only: `{constructor}` in a catalogue must not reach the
+  // prototype and print a function.
   return text.replace(/\{([a-zA-Z_]+)\}/g, (match, name: string) => {
-    const value = vars[name];
-
-    return value === undefined ? match : String(value);
+    return Object.hasOwn(vars, name) ? String(vars[name]) : match;
   });
 }
 

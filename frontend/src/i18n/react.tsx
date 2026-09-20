@@ -24,7 +24,7 @@ export function tx(english: string, vars: Readonly<Record<string, ReactNode>>): 
     const name = placeholder?.[1];
 
     // Keyed by position: the parts of one sentence never reorder among themselves.
-    if (name !== undefined && name in vars) {
+    if (name !== undefined && Object.hasOwn(vars, name)) {
       return <Fragment key={index}>{vars[name]}</Fragment>;
     }
 
