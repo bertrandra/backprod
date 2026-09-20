@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Staff\Controller;
 
 use App\Notification\Service\MailTester;
+use App\Shared\Exceptions\BadRequestException;
 use App\Shared\Http\JsonBody;
 use App\Shared\Http\RouteHandler;
+use App\Shared\Validation\Locale;
 use App\Staff\Domain\StaffPermission;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
@@ -29,7 +31,13 @@ final class SendTestMailController implements RouteHandler
 
         $body = JsonBody::of($request);
         $type = $body->requiredString('type', 64);
-        $locale = $body->has('locale') ? $body->requiredString('locale', 8) : 'en';
+        $locale = $body->has('locale') ? $body->requiredString('locale', 8) : Locale::DEFAULT;
+
+        // One of the languages the platform speaks, refused otherwise — the
+        // same answer the save endpoint gives, so the two cannot drift.
+        if (!Locale::isKnown($locale)) {
+            throw new BadRequestException('VALIDATION_FAILED', 'The request body is not valid.', ['field' => 'locale', 'requirement' => 'one of ' . implode(', ', Locale::ALL)]);
+        }
 
         return new JsonResponse($this->tester->send($type, $context->identity->email ?? '', $locale), 200);
     }

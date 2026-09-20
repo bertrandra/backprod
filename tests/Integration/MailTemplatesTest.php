@@ -103,6 +103,14 @@ final class MailTemplatesTest extends DatabaseApiTestCase
         self::assertSame(400, $unknown->getStatusCode());
     }
 
+    public function testATestInALanguageThePlatformDoesNotSpeakIsRefused(): void
+    {
+        $response = $this->request('POST', '/api/v1/staff/mail/test', self::ADMIN, $this->json(['type' => 'account.password_reset', 'locale' => 'xx']));
+
+        self::assertSame(400, $response->getStatusCode());
+        self::assertSame('VALIDATION_FAILED', $this->errorOf($response)['code'] ?? null);
+    }
+
     public function testATestGoesToTheCallerRenderedFromTheTemplateWhenTheHostIsLive(): void
     {
         $sent = [];
