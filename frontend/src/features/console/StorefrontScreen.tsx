@@ -15,6 +15,7 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { useSessionStore } from '@/state/session';
 import { PageHeader } from '@/ui/Page';
 import { t } from '@/i18n';
+import { tx } from '@/i18n/react';
 
 /**
  * `console.admin.storefront` — what the public page advertises.
@@ -91,8 +92,9 @@ export function StorefrontScreen() {
             {listed} {t("of")}{' '}{offers.data.offers.length} {t("advertised publicly")}</span>
         }
         description={
-          <>
-            {t("What somebody with no account sees for")}{' '}<strong>{offers.data.product.name}</strong>{t(". Being on sale and being advertised are different decisions: an offer withdrawn from here stays sellable, and everybody already subscribed to it keeps their terms.")}</>
+          tx("What somebody with no account sees for {product}. Being on sale and being advertised are different decisions: an offer withdrawn from here stays sellable, and everybody already subscribed to it keeps their terms.", {
+            product: <strong>{offers.data.product.name}</strong>,
+          })
         }
       />
 

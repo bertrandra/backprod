@@ -21,6 +21,7 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { AssetsPanel } from './AssetsPanel';
 import { ProjectCanvas } from './ProjectCanvas';
 import { currentLocale, t } from '@/i18n';
+import { tx } from '@/i18n/react';
 
 /**
  * `workspace.project` — one project: rename, duplicate, snapshot, restore,
@@ -229,9 +230,12 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
             keeping that wording now would be scaring somebody with a
             consequence that no longer happens. */}
         <p data-testid="delete-explanation" className="text-sm text-muted">
-          {t("The project leaves your list and keeps everything — its")}{' '}
-          {t((versions.data?.length ?? 0) === 1 ? "{count} snapshot" : "{count} snapshots", { count: versions.data?.length ?? 0 })}{t(", its files and its jobs. You can put it back from")}{' '}
-          <strong>{t("Deleted projects")}</strong>.
+          {tx(
+            (versions.data?.length ?? 0) === 1
+              ? "The project leaves your list and keeps everything — its {count} snapshot, its files and its jobs. You can put it back from {where}."
+              : "The project leaves your list and keeps everything — its {count} snapshots, its files and its jobs. You can put it back from {where}.",
+            { count: versions.data?.length ?? 0, where: <strong>{t("Deleted projects")}</strong> },
+          )}
         </p>
 
         {deleting ? (

@@ -13,6 +13,7 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { Table, TBody, Td, Th, THead, TR } from '@/ui/Table';
 import { PageHeader } from '@/ui/Page';
 import { currentLocale, t } from '@/i18n';
+import { tx } from '@/i18n/react';
 
 /**
  * `tax.rates` — the rates in force on a date, and the calculator that explains
@@ -287,7 +288,8 @@ function Explanation({ calculation }: { calculation: TaxCalculation }) {
       )}
 
       <p className="text-xs text-subtle">
-        {t("Rule")}{' '}<code data-testid="rule-id">{calculation.rule_id}</code> {t("— quote it if you disagree with this answer.")}</p>
+        {tx("Rule {rule} — quote it if you disagree with this answer.", { rule: <code data-testid="rule-id">{calculation.rule_id}</code> })}
+      </p>
     </div>
   );
 }

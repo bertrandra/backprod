@@ -259,6 +259,11 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
         // The organisation subscribes first; that is the case self-service
         // met at the operator's default tenant, where the only order an
         // order could be was the organisation's and so was refused.
+        // Alice reads French; both documents say so (ADR-050) — the seat's
+        // because it is addressed to her, the organisation's because she is
+        // the one who raised it.
+        $this->connection->executeStatement("UPDATE users SET locale = 'fr' WHERE auth_subject = 'sub-alice'");
+
         $company = $this->sessionOf($this->open());
         $this->pay($company, 'evt_company');
 
@@ -315,6 +320,9 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
         self::assertArrayNotHasKey('person', $companyCustomer);
         // And the order says for whom.
         self::assertTrue($this->decode($this->request('GET', '/api/v1/sales/orders/' . $seat['id'], $this->headers()))['seat'] ?? null);
+        // Each document remembers the language it was issued in (ADR-050).
+        self::assertSame('fr', $this->connection->fetchOne('SELECT locale FROM invoices WHERE id = ?', [$seat['invoice_id']]));
+        self::assertSame('fr', $this->connection->fetchOne('SELECT locale FROM invoices WHERE id = ?', [$company['invoice_id']]));
 
         // The subscription the seat started binds the person (§13.1).
         $bound = $this->connection->fetchAssociative(

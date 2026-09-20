@@ -303,7 +303,7 @@ final class PostgresSalesRepository implements SalesRepository
     public function fulfilOrder(Order $order, OrderFulfilment $fulfilment, ?string $actorUserId): Order
     {
         return $this->connection->transactional(function () use ($order, $fulfilment, $actorUserId): Order {
-            $raised = $fulfilment->invoice($order);
+            $raised = $fulfilment->invoice($order, $actorUserId);
 
             $this->connection->executeStatement(
                 <<<'SQL'

@@ -101,7 +101,8 @@ export function SubscriptionPeople({ seat }: { seat: boolean }) {
 
       {lastInvited !== null && (
         <p data-testid="person-invited" role="status" className="text-xs text-muted">
-          {lastInvited} {t("had no account: one was made, and a link to choose a password has been sent to that address. It is good for seven days.")}</p>
+          {t("{email} had no account: one was made, and a link to choose a password has been sent to that address. It is good for seven days.", { email: lastInvited })}
+        </p>
       )}
 
       {remove.error !== null && <ErrorSurface error={remove.error} />}

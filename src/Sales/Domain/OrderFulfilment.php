@@ -35,7 +35,7 @@ interface OrderFulfilment
      *
      * @return array{invoice_id: string, awaiting_payment: bool}
      */
-    public function invoice(Order $order): array;
+    public function invoice(Order $order, ?string $actorUserId = null): array;
 
     /**
      * Starts what the order bought, now it is paid for.

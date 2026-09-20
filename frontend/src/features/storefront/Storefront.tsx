@@ -100,7 +100,8 @@ export function Storefront({ onSignIn }: { onSignIn: () => void }) {
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold">{t("Pay")}</h1>
           <p className="text-sm text-muted">
-            {door.offer.name}{t(", for yourself — your account is ready; your seat starts when the payment is confirmed.")}</p>
+            {t("{offer}, for yourself — your account is ready; your seat starts when the payment is confirmed.", { offer: door.offer.name })}
+          </p>
         </header>
 
         <PaymentElementPanel

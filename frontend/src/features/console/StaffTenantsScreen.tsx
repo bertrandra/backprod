@@ -31,6 +31,7 @@ import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
 import { t } from '@/i18n';
+import { tx } from '@/i18n/react';
 
 /**
  * `console.support.tenants` — a customer as support sees them.
@@ -209,7 +210,8 @@ function TenantDetail({ tenantId }: { tenantId: string }) {
       <OfferAuthoring tenantId={tenantId} mayAuthor={tenant.data.may_author_offers} />
 
       <p data-testid="read-recorded" className="border-t border-line pt-3 text-xs text-muted">
-        {t("This read has been recorded under")}{' '}<code>{'staff.tenants.read'}</code>{t(", with the reason you gave. It appears in the access log with your user id against it.")}</p>
+        {tx("This read has been recorded under {permission}, with the reason you gave. It appears in the access log with your user id against it.", { permission: <code>staff.tenants.read</code> })}
+      </p>
     </div>
   );
 }
@@ -308,7 +310,8 @@ function TenantProducts({ tenantId, held }: { tenantId: string; held: readonly P
 
       {!mayManage && (
         <p data-testid="tenant-products-readonly" className="text-xs text-subtle">
-          {t("Changing this needs")}{' '}<code>{'staff.tenants.manage'}</code>{t(", which an administrator holds.")}</p>
+          {tx("Changing this needs {permission}, which an administrator holds.", { permission: <code>staff.tenants.manage</code> })}
+        </p>
       )}
     </section>
   );
@@ -347,7 +350,8 @@ function OfferAuthoring({ tenantId, mayAuthor }: { tenantId: string; mayAuthor: 
         </Button>
       ) : (
         <p data-testid="offer-authoring-readonly" className="text-xs text-subtle">
-          {t("Changing this needs")}{' '}<code>{'staff.tenants.manage'}</code>{t(", which an administrator holds.")}</p>
+          {tx("Changing this needs {permission}, which an administrator holds.", { permission: <code>staff.tenants.manage</code> })}
+        </p>
       )}
     </section>
   );
@@ -452,7 +456,7 @@ function NewTenant({ onCreated }: { onCreated: (id: string) => void }) {
               .map((user) => ({ id: String(user.id), name: user.display_name ?? null, email: user.email ?? null }))}
             value={admin}
             onPick={setAdmin}
-            placeholder={t("ada@example.test")}
+            placeholder="ada@example.test"
           />
         </Field>
       )}
