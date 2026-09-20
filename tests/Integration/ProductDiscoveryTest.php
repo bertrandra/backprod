@@ -85,8 +85,8 @@ final class ProductDiscoveryTest extends ApiTestCase
         self::assertSame(200, $response->getStatusCode());
         self::assertSame([
             'products' => [
-                ['id' => 'prod-atlas', 'code' => 'atlas', 'name' => 'Atlas'],
-                ['id' => 'prod-beacon', 'code' => 'beacon', 'name' => 'Beacon'],
+                ['id' => 'prod-atlas', 'code' => 'atlas', 'name' => 'Atlas', 'app_url' => null],
+                ['id' => 'prod-beacon', 'code' => 'beacon', 'name' => 'Beacon', 'app_url' => null],
             ],
             'default' => null,
             'memberships' => [],
@@ -147,7 +147,7 @@ final class ProductDiscoveryTest extends ApiTestCase
 
         self::assertSame(200, $response->getStatusCode());
         self::assertSame([
-            'product' => ['id' => 'prod-atlas', 'code' => 'atlas', 'name' => 'Atlas'],
+            'product' => ['id' => 'prod-atlas', 'code' => 'atlas', 'name' => 'Atlas', 'app_url' => null],
             'features' => [['code' => 'projects', 'name' => 'Projects', 'enabled' => true]],
             'configuration' => ['limits' => ['max_projects' => 10]],
         ], $this->decode($response));
