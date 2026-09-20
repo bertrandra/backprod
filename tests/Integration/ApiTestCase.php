@@ -26,6 +26,22 @@ abstract class ApiTestCase extends TestCase
     private array $overrides = [];
 
     /**
+     * The application this test sends its requests through, built once per
+     * test (2026-09-20) and dropped when the test ends.
+     *
+     * It used to be built per *request*: a fresh container, and with it a
+     * fresh database connection — which on Windows is a `postgres.exe`
+     * spawned per request, a hundred milliseconds and more each, so a test
+     * with ten requests spent three seconds connecting and the suite took
+     * twenty minutes against three in CI. One application per test keeps
+     * every isolation that mattered — the database is emptied between
+     * tests, not between requests, and the overrides are fixed before the
+     * first request — and rebuilds only when a test changes its overrides
+     * after it has already sent something.
+     */
+    private ?RequestHandlerInterface $app = null;
+
+    /**
      * Replace container definitions for this test.
      *
      * @param array<string, mixed> $definitions
@@ -33,6 +49,7 @@ abstract class ApiTestCase extends TestCase
     protected function override(array $definitions): void
     {
         $this->overrides = $definitions + $this->overrides;
+        $this->app = null;
     }
 
     /**
@@ -185,12 +202,25 @@ abstract class ApiTestCase extends TestCase
 
     private function app(): RequestHandlerInterface
     {
+        if ($this->app !== null) {
+            return $this->app;
+        }
+
         $app = $this->container()->get(RequestHandlerInterface::class);
 
         if (!$app instanceof RequestHandlerInterface) {
             throw new RuntimeException('Container must provide a PSR-15 request handler.');
         }
 
-        return $app;
+        return $this->app = $app;
+    }
+
+    protected function tearDown(): void
+    {
+        // Released explicitly, so the connection it holds closes with the
+        // test rather than whenever the collector gets to it.
+        $this->app = null;
+
+        parent::tearDown();
     }
 }

@@ -37,5 +37,10 @@ abstract class DatabaseApiTestCase extends ApiTestCase
 
         $this->connection = TestDatabase::connect($dsn);
         TestDatabase::reset($this->connection);
+
+        // The application answers over the same connection the test holds
+        // (2026-09-20): the same rows, the same sequence, and one connection
+        // per process rather than one per test — see `TestDatabase::connect`.
+        $this->override([Connection::class => $this->connection]);
     }
 }
