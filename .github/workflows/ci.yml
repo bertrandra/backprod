@@ -5,6 +5,15 @@ on:
     branches: [main]
   pull_request:
 
+# One run per branch at a time (2026-09-20). A push that lands while the
+# previous one is still running makes that run's answer about a commit nobody
+# will merge, so it is cancelled — on `main` too, where the newer push carries
+# the older one anyway. This is where most of a month's minutes went: a fix
+# pushed ten minutes after the PR opened cost two full runs, not one.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 # Architecture V2 §37.13 lists the full gate chain for the platform. Both halves
 # are here now: `quality-gates` runs the PHP chain, `frontend` runs ESLint,
 # TypeScript, Vitest, the generated-client check and Playwright.
@@ -16,11 +25,50 @@ on:
 #
 # §37.13 is explicit that a failing step means "PR = NOT READY", so nothing
 # below is allowed to continue-on-error.
+#
+# What is allowed is not running a job that could not fail (2026-09-20). A
+# pull request that touches only the PHP side cannot break ESLint or a
+# Playwright spec; one that touches only prose cannot break anything a gate
+# measures. `changes` says which halves moved and the jobs below read it —
+# on a pull request only: a push to `main` runs everything, because that is
+# the run a deployment is built from. Skipping is not the same as passing:
+# a skipped job reports nothing, so `gh pr checks` is empty rather than green,
+# and a PR that changed nothing measurable merges on that emptiness knowingly.
 
 jobs:
+  changes:
+    name: What moved
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            # Anything a PHP gate can see. Prose is out; the coverage map is
+            # not prose, gate:ui reads it, and it lives under docs/ — so it
+            # is named back in through `frontend` below.
+            code:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+            # Anything the frontend job can see, including the contract it
+            # regenerates from and the map gate:screens checks it against.
+            frontend:
+              - 'frontend/**'
+              - 'openapi.json'
+              - 'docs/ui-api-coverage.json'
+
   quality-gates:
     name: Quality gates
     runs-on: ubuntu-latest
+    needs: changes
+    # The PHP chain also reads the frontend (gate:screens, gate:permissions),
+    # so it runs for either half.
+    if: github.event_name == 'push' || needs.changes.outputs.code == 'true' || needs.changes.outputs.frontend == 'true'
 
     # A real PostgreSQL, not a substitute. The repository adapters exist to
     # run SQL, and the tenant isolation they enforce is only meaningfully
@@ -183,6 +231,8 @@ jobs:
   frontend:
     name: Frontend gates
     runs-on: ubuntu-latest
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.frontend == 'true'
 
     defaults:
       run:
@@ -229,6 +279,15 @@ jobs:
       - name: Build
         run: npx vite build
 
+      # The browser itself is the same bytes run after run; only the system
+      # packages the next step installs are not cached. Keyed on the lock
+      # file, because that is where the Playwright version lives.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
@@ -252,6 +311,9 @@ jobs:
   dist:
     name: Deployable bundle
     runs-on: ubuntu-latest
+    needs: changes
+    # Builds both halves, so it runs when either moved.
+    if: github.event_name == 'push' || needs.changes.outputs.code == 'true' || needs.changes.outputs.frontend == 'true'
 
     services:
       postgres:
