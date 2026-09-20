@@ -7,7 +7,7 @@ import type { PublicOffer, PublicTenant } from '@/queries/storefront';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { PageHeader } from '@/ui/Page';
-import { t } from '@/i18n';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * Asking to join the organisation whose root this is.
@@ -134,6 +134,9 @@ export function SignUpForm({
                 // string as "not given" too, but sending one would be the
                 // screen asserting something it does not mean.
                 display_name: values.display_name === '' ? null : values.display_name,
+                // The language they read this page in — the browser's, or one
+                // they picked on it — is the one their account starts in.
+                locale: currentLocale(),
               },
               {
                 onSuccess: onCreated,

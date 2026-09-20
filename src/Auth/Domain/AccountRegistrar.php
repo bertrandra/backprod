@@ -45,6 +45,7 @@ interface AccountRegistrar
      *
      * @param string      $passwordHash from `password_hash()`; the database refuses anything else
      * @param string|null $productCode  the product the person arrived through; their default when the organisation holds it, else the first it holds
+     * @param string|null $locale       the language they were reading in (ADR-050); English when null
      *
      * @throws \App\Shared\Exceptions\ConflictException  if the address was taken between the check and here
      * @throws \App\Shared\Exceptions\NotFoundException  if no organisation has the slug, or it holds no product
@@ -56,6 +57,7 @@ interface AccountRegistrar
         ?string $displayName,
         string $tenantSlug,
         ?string $productCode,
+        ?string $locale = null,
     ): RegisteredAccount;
 
     /**

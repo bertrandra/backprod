@@ -9,6 +9,7 @@ import { useSessionStore } from '@/state/session';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { PageHeader } from '@/ui/Page';
 import { t } from '@/i18n';
+import { LanguageSelect } from '@/i18n/LanguageSelect';
 
 /**
  * How a person gets a token.
@@ -113,6 +114,9 @@ export function SignInScreen() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-4">
+      <div className="flex justify-end">
+        <LanguageSelect />
+      </div>
       <PageHeader
         title={t("Sign in")}
         description={t("Use the email address your organisation was invited with.")}

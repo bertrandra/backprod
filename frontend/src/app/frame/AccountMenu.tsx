@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { useSignOut } from '@/queries/auth';
@@ -11,8 +12,10 @@ import { t } from '@/i18n';
  * Region A's last item: who is signed in, and the way out.
  *
  * A circle with the person's initial. Hovering it says their name; opening
- * it shows the name and address in full and offers *Sign out* — the one
- * account action there is (ADR-038: no profile, no password change yet).
+ * it shows the name and address in full and offers *Your profile* — name,
+ * default product, language (2026-09-20) — and *Sign out*. The profile is
+ * a tenant screen, so it is offered to somebody `/me` knows; platform staff
+ * with no membership have no profile to open, and get the way out alone.
  * Until this existed the circle was decoration and signing out lived only
  * in the phone's More sheet and the console's menu, so on a desktop tenant
  * screen there was no way out at all.
@@ -112,6 +115,22 @@ export function AccountMenu() {
               </p>
             )}
           </div>
+
+          {session !== undefined && (
+            <Link
+              to="/profile"
+              search={(previous: Record<string, unknown>) => previous}
+              role="menuitem"
+              data-testid="account-profile"
+              onClick={() => setOpen(false)}
+              className={cn(
+                touchTargetClass,
+                'block w-full rounded-control px-3 py-2 text-left text-sm hover:bg-well focus-visible:outline-2 focus-visible:outline-offset-2',
+              )}
+            >
+              {t("Your profile")}
+            </Link>
+          )}
 
           <button
             type="button"

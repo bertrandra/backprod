@@ -516,6 +516,30 @@ final class StorefrontTest extends DatabaseApiTestCase
         ]))['default'] ?? null);
     }
 
+    public function testASignUpRecordsTheLanguageThePageWasReadIn(): void
+    {
+        $response = $this->signUp([
+            'email' => 'ada@acme.test',
+            'password' => 'a-long-enough-password',
+            'tenant' => 'acme',
+            'locale' => 'de',
+        ]);
+
+        self::assertSame(201, $response->getStatusCode());
+        self::assertSame('de', $this->connection->fetchOne("SELECT locale FROM users WHERE email = 'ada@acme.test'"));
+
+        // One of the five, or nothing — never a free string on the account.
+        $refused = $this->signUp([
+            'email' => 'bob@acme.test',
+            'password' => 'a-long-enough-password',
+            'tenant' => 'acme',
+            'locale' => 'xx',
+        ]);
+
+        self::assertSame(400, $refused->getStatusCode());
+        self::assertSame('VALIDATION_FAILED', $this->errorOf($refused)['code'] ?? null);
+    }
+
     public function testTheAddressIsUnverifiedAndTheAccountWorksAnyway(): void
     {
         $response = $this->signUp([

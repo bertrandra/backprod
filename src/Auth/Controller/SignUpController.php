@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Auth\Controller;
 
 use App\Auth\Service\Sessions;
+use App\Shared\Exceptions\BadRequestException;
 use App\Shared\Http\JsonBody;
 use App\Shared\Http\RouteHandler;
+use App\Shared\Validation\Locale;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -38,6 +40,14 @@ final class SignUpController implements RouteHandler
     {
         $body = JsonBody::of($request);
 
+        // The language they were reading in (ADR-050): one the platform
+        // speaks, or nothing — never a free string on the account.
+        $locale = $body->optionalNullableString('locale', 8);
+
+        if ($locale !== null && !Locale::isKnown($locale)) {
+            throw new BadRequestException('VALIDATION_FAILED', 'The request body is not valid.', ['field' => 'locale', 'requirement' => 'one of ' . implode(', ', Locale::ALL)]);
+        }
+
         [$session, $account] = $this->sessions->signUp(
             $body->requiredString('email', 320),
             $body->requiredSecret('password'),
@@ -48,6 +58,7 @@ final class SignUpController implements RouteHandler
             // The product the page was showing, if any: their default from
             // then on, provided the organisation holds it.
             $body->optionalNullableString('product', 64),
+            $locale,
         );
 
         // What was made: a session, and a membership that is either live or

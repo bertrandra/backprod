@@ -5,6 +5,7 @@ import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { t } from '@/i18n';
+import { LanguageSelect } from '@/i18n/LanguageSelect';
 
 /**
  * `public.storefront` — the shop window, and the first page anybody sees.
@@ -76,6 +77,9 @@ export function StorefrontScreen({
 
   return (
     <main className="mx-auto max-w-3xl space-y-8 p-4 py-10">
+      <div className="flex justify-end">
+        <LanguageSelect />
+      </div>
       <header className="space-y-2 text-center">
         {tenant !== null && (
           <p data-testid="storefront-tenant" className="text-xs font-semibold uppercase tracking-wide text-subtle">

@@ -66,6 +66,14 @@ person — `users.locale`, `PATCH /me {locale}`, refused `422 LOCALE_UNKNOWN`
 for a language the platform does not speak — and it is applied the moment it
 is saved.
 
+**Before there is an account** (2026-09-20), the storefront and the sign-in
+form carry a small language select: applied at once, remembered by the
+browser, and — this is the point — sent with the sign-up (`locale` on
+`signUp`, one of the five, else `400`), so the account starts in the
+language the person was reading in: the browser's, or the one they picked.
+Signed in, the language is on the profile, which the account menu (top
+right) opens.
+
 **Mails follow the recipient.** `DispatchNotifications` renders a mail in the
 recipient's `users.locale`; `MailWording` holds defaults per language and the
 platform administrator's overrides per language and type
