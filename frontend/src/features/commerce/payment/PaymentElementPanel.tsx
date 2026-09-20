@@ -7,6 +7,7 @@ import { Button } from '@/ui/Field';
 import { Amount, type Money } from '@/ui/Money';
 import { notice } from '@/ui/tone';
 import { t } from '@/i18n';
+import { tx } from '@/i18n/react';
 
 /**
  * Paying, where the `client_secret` was born (ADR-048).
@@ -68,7 +69,8 @@ export function PaymentElementPanel(props: PaymentElementPanelProps) {
 
       {Panel === undefined ? (
         <p data-testid="payment-no-panel" className="text-sm text-muted">
-          {t("The payment was started with")}{' '}<code>{provider.name}</code>{t(", which has no card form in this page. It will be confirmed when the provider says so.")}</p>
+          {tx("The payment was started with {provider}, which has no card form in this page. It will be confirmed when the provider says so.", { provider: <code>{provider.name}</code> })}
+        </p>
       ) : (
         <Panel {...props} provider={provider} clientSecret={clientSecret} />
       )}

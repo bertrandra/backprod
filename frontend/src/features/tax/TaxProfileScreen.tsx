@@ -12,6 +12,7 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
 import { currentLocale, t } from '@/i18n';
+import { tx } from '@/i18n/react';
 
 /**
  * `tax.profile` — what the tenant *claims*, and what the platform *checked*.
@@ -172,7 +173,8 @@ export function TaxProfileScreen() {
 
         {!mayManage && (
           <p data-testid="read-only" className="text-sm text-muted">
-            {t("You can read this profile. Changing it needs")}{' '}<code>{'tax.manage'}</code>{t(", which an administrator of your organisation grants.")}</p>
+            {tx("You can read this profile. Changing it needs {permission}, which an administrator of your organisation grants.", { permission: <code>tax.manage</code> })}
+          </p>
         )}
 
         {save.isSuccess && (

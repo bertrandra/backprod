@@ -72,22 +72,30 @@ export function t(english: string, vars?: Readonly<Record<string, string | numbe
  * one `import()` each, which Vite splits into its own chunk.
  */
 export async function setLocale(locale: LocaleCode): Promise<void> {
+  let applied = locale;
+
   if (locale !== DEFAULT_LOCALE && !loaded.has(locale)) {
-    const module: unknown = await import(`./catalogues/${locale}.json`);
-    loaded.set(locale, (module as { default: Catalogue }).default);
+    try {
+      const module: unknown = await import(`./catalogues/${locale}.json`);
+      loaded.set(locale, (module as { default: Catalogue }).default);
+    } catch {
+      // The chunk did not arrive — a flaky connection, a deployment mid-way.
+      // English on the screen is a page; a page that never renders is not.
+      applied = DEFAULT_LOCALE;
+    }
   }
 
-  current = locale;
-  catalogue = locale === DEFAULT_LOCALE ? {} : (loaded.get(locale) ?? {});
+  current = applied;
+  catalogue = applied === DEFAULT_LOCALE ? {} : (loaded.get(applied) ?? {});
 
   try {
-    window.localStorage.setItem(STORAGE_KEY, locale);
+    window.localStorage.setItem(STORAGE_KEY, applied);
   } catch {
     // Storage may be blocked; the choice then lasts the page.
   }
 
   for (const listener of listeners) {
-    listener(locale);
+    listener(applied);
   }
 }
 

@@ -10,6 +10,7 @@ import { type Person } from '@/ui/pickers/Select';
 import { panel } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
 import { t } from '@/i18n';
+import { tx } from '@/i18n/react';
 
 /**
  * `console.admin.erasure` — the right to be forgotten, against the duty to keep.
@@ -75,7 +76,8 @@ export function ErasureScreen() {
         </ul>
 
         <p className="text-xs text-muted">
-          {t("What is removed is the identity: the name, the email, the credentials. The person keeps a row in the directory carrying")}{' '}<code>{'erased_at'}</code> {t("and nothing else — the row surviving is what keeps every invoice and audit entry pointing at it meaningful.")}</p>
+          {tx("What is removed is the identity: the name, the email, the credentials. The person keeps a row in the directory carrying {column} and nothing else — the row surviving is what keeps every invoice and audit entry pointing at it meaningful.", { column: <code>erased_at</code> })}
+        </p>
       </section>
 
       <section className="space-y-4 border-t border-line pt-6">
@@ -99,7 +101,7 @@ export function ErasureScreen() {
                 setUserId(person?.id ?? '');
                 setConfirming(false);
               }}
-              placeholder={t("ada@example.test")}
+              placeholder="ada@example.test"
             />
           </Field>
         ) : (

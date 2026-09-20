@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { currentLocale, LOCALE_NAMES, LOCALES, t } from '@/i18n';
+import { tx } from '@/i18n/react';
 import { useMailTemplates, useSendTestMail, useSetMailTemplates, type MailLocale, type MailTemplate } from '@/queries/staff';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
@@ -79,13 +80,20 @@ export function MailScreen() {
       >
         {current.live ? (
           <p>
-            <span className="font-medium">{t("Mail is on.")}</span> {t("A mail host is configured (")}<code>{t("MAIL_DSN")}</code>{t("); what is queued leaves with the jobs cron.")}</p>
+            <span className="font-medium">{t("Mail is on.")}</span>{' '}
+            {tx("A mail host is configured ({variable}); what is queued leaves with the jobs cron.", { variable: <code>MAIL_DSN</code> })}
+          </p>
         ) : (
           <>
             <p className="font-medium">{t("No mail leaves this deployment.")}</p>
             <p>
-              <code>{t("MAIL_DSN")}</code> {t("is empty in")}{' '}<code>{'.env'}</code>{t(": resets, invitations and confirmations are recorded but never sent, and a test is refused. Set it —")}{' '}<code>{t("smtp://user:pass@host:port")}</code> {t("— and")}{' '}
-              <code>{t("MAIL_FROM")}</code>{t(", then come back.")}</p>
+              {tx("{variable} is empty in {file}: resets, invitations and confirmations are recorded but never sent, and a test is refused. Set it — {example} — and {sender}, then come back.", {
+                variable: <code>MAIL_DSN</code>,
+                file: <code>.env</code>,
+                example: <code>smtp://user:pass@host:port</code>,
+                sender: <code>MAIL_FROM</code>,
+              })}
+            </p>
           </>
         )}
       </section>
@@ -227,7 +235,8 @@ function TemplateEditor({
           {t("Send me a test")}</Button>
         {tested !== null && (
           <span data-testid={`tested-${template.type}`} role="status" className="text-xs text-success">
-            {t("Sent to")}{' '}{tested} {t("— check the inbox (and the spam folder).")}</span>
+            {t("Sent to {address} — check the inbox (and the spam folder).", { address: tested })}
+          </span>
         )}
       </div>
       {testError !== null && testError !== undefined && <ErrorSurface error={testError} />}

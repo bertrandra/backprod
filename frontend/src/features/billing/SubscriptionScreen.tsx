@@ -24,6 +24,7 @@ import { PageHeader } from '@/ui/Page';
 
 import { SubscriptionPeople } from './SubscriptionPeople';
 import { currentLocale, t } from '@/i18n';
+import { tx } from '@/i18n/react';
 
 /**
  * `tenant.subscription` — and the distinction §13.1 exists to protect.
@@ -195,7 +196,7 @@ export function SubscriptionScreen() {
                   {/* `limit` null means two different things and `unlimited`
                       says which — so both are read rather than one guessed. */}
                   {entitlement.kind === 'BOOLEAN'
-                    ? 'included'
+                    ? t("included")
                     : entitlement.unlimited
                       ? t("unlimited")
                       : `${String(entitlement.limit ?? 0)}${entitlement.unit === null ? '' : ` ${entitlement.unit}`}`}
@@ -203,7 +204,7 @@ export function SubscriptionScreen() {
                 <span className="text-xs text-subtle">
                   {entitlement.source === 'GRANT'
                     ? (entitlement.valid_until === null ? t("provided by the platform") : t("provided by the platform until {until}", { until: entitlement.valid_until.slice(0, 10) }))
-                    : `from ${entitlement.source}`}
+                    : t("from {source}", { source: entitlement.source })}
                 </span>
               </li>
             ))}
@@ -362,7 +363,8 @@ function YourSeat({
       </div>
 
       <p className="text-sm">
-        <span className="font-medium">{seat.offer.name}</span> · {seat.offer.plan.name} {t("— yours alone, paid with your own card.")}</p>
+        {tx("{offer} · {plan} — yours alone, paid with your own card.", { offer: <span className="font-medium">{seat.offer.name}</span>, plan: seat.offer.plan.name })}
+      </p>
 
       <dl className="grid gap-3 text-sm sm:grid-cols-2">
         <div>
@@ -443,7 +445,13 @@ function Decision({ decision, label }: { decision: CancellationDecision; label: 
         // Counted from the end of the period already paid for, not from today —
         // which is why this is the server's number and not a subtraction here.
         <p data-testid="chargeable-months">
-          {decision.chargeable_months} {t("month")}{decision.chargeable_months === 1 ? '' : 's'} {t("of commitment would still be owed.")}</p>
+          {t(
+            decision.chargeable_months === 1
+              ? "{count} month of commitment would still be owed."
+              : "{count} months of commitment would still be owed.",
+            { count: decision.chargeable_months },
+          )}
+        </p>
       )}
 
       {decision.reasons.length > 0 && (
@@ -476,7 +484,7 @@ function TermsSummary({ terms }: { terms: Record<string, unknown> }) {
     <span>
       {typeof months === 'number' ? (
         <>
-          {months} {t("month")}{months === 1 ? '' : 's'}
+          {t(months === 1 ? "{count} month" : "{count} months", { count: months })}
         </>
       ) : (
         <span className="text-subtle">{t("not recorded")}</span>
@@ -522,7 +530,7 @@ function ProvidedByThePlatform({ entitlements }: { entitlements: readonly Entitl
             <span className="min-w-0 flex-1">{entitlement.name}</span>
             <span className="text-muted">
               {entitlement.kind === 'BOOLEAN'
-                ? 'included'
+                ? t("included")
                 : entitlement.unlimited
                   ? t("unlimited")
                   : `${String(entitlement.limit ?? 0)}${entitlement.unit === null ? '' : ` ${entitlement.unit}`}`}

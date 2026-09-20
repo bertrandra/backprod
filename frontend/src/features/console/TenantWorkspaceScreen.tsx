@@ -14,6 +14,7 @@ import { cn } from '@/utils/cn';
 import { AccessMotiveGate, MotiveInEffect } from './AccessMotiveGate';
 import { ConversationsTab, JobsTab, PaymentsTab, SalesTab, TaxTab, WorkspaceTab } from './tenantTabs';
 import { currentLocale, t } from '@/i18n';
+import { tx } from '@/i18n/react';
 
 /**
  * `console.support.tenant` — one customer, read from the console.
@@ -196,10 +197,14 @@ function Overview({ tenant }: { tenant: { id: string; name: string; slug: string
       </dl>
 
       <p className="text-sm text-muted">
-        {t("Changing what this customer holds or may author is done from the")}{' '}
-        <Link to="/console/tenants" search={{ selected: tenant.id }} className="underline underline-offset-2">
-          {t("Tenants list")}</Link>
-        {t(". Everything here is read-only.")}</p>
+        {tx("Changing what this customer holds or may author is done from the {list}. Everything here is read-only.", {
+          list: (
+            <Link to="/console/tenants" search={{ selected: tenant.id }} className="underline underline-offset-2">
+              {t("Tenants list")}
+            </Link>
+          ),
+        })}
+      </p>
     </section>
   );
 }

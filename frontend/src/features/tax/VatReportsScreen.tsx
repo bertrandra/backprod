@@ -167,7 +167,8 @@ function PeriodDetail({ periodId, mayManage }: { periodId: string; mayManage: bo
 
         {closed && current.closed_at !== null && (
           <p data-testid="closed-at" className="text-sm text-muted">
-            {t("Closed on")}{' '}{new Date(current.closed_at).toLocaleDateString(currentLocale())}{t(". The figures below are the ones that were declared, not a recount — a later correction belongs in a later period.")}</p>
+            {t("Closed on {date}. The figures below are the ones that were declared, not a recount — a later correction belongs in a later period.", { date: new Date(current.closed_at).toLocaleDateString(currentLocale()) })}
+          </p>
         )}
       </header>
 
@@ -361,7 +362,8 @@ function Totals({ totals }: { totals: Record<string, unknown> }) {
           closed. Said here rather than discovered from a 409. */}
       {currencies.length > 1 && (
         <p data-testid="mixed-currencies" className="text-warning">
-          {t("This period holds transactions in")}{' '}{currencies.join(', ')}{t(". A declaration carries one currency, so it cannot be closed while that is true.")}</p>
+          {t("This period holds transactions in {currencies}. A declaration carries one currency, so it cannot be closed while that is true.", { currencies: currencies.join(', ') })}
+        </p>
       )}
 
       <Breakdown rows={totals.breakdown} />

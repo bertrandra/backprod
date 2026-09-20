@@ -192,8 +192,10 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
               started twice; the money is recorded and is the operator's to
               return. */}
           <p>
-            {t("The payment was collected, but")}{' '}{forSelf ? t("you already held a live seat on") : t("this organisation already had a live subscription to")}{' '}
-            {t("this product by the time it arrived, so nothing was started against it. Nothing has been provisioned twice — the payment will be refunded.")}</p>
+            {forSelf
+              ? t("The payment was collected, but you already held a live seat on this product by the time it arrived, so nothing was started against it. Nothing has been provisioned twice — the payment will be refunded.")
+              : t("The payment was collected, but this organisation already had a live subscription to this product by the time it arrived, so nothing was started against it. Nothing has been provisioned twice — the payment will be refunded.")}
+          </p>
         </section>
       )}
 

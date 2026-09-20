@@ -18,6 +18,7 @@ import { PageHeader, Section } from '@/ui/Page';
 import { useSessionStore } from '@/state/session';
 import { FieldCell, FieldGroup, FieldRow, FormActions, FormCard } from '@/ui/Form';
 import { t } from '@/i18n';
+import { tx } from '@/i18n/react';
 
 /**
  * `console.admin.invoicing` — what a product needs configured before it can take
@@ -77,7 +78,7 @@ export function InvoicingScreen() {
     <div className="max-w-3xl space-y-8">
       <PageHeader
         title={t("Invoicing")}
-        description={<>{t("Who")}{' '}<strong>{product.name}</strong> {t("invoices as, and under which VAT regime. Both are configuration and neither is guessed: an invoice is a legal document with a permanent number, so a product that cannot name its issuer refuses to raise one rather than issuing a blank.")}</>}
+        description={tx("Who {product} invoices as, and under which VAT regime. Both are configuration and neither is guessed: an invoice is a legal document with a permanent number, so a product that cannot name its issuer refuses to raise one rather than issuing a blank.", { product: <strong>{product.name}</strong> })}
       />
 
       {canInvoice ? (
@@ -92,8 +93,10 @@ export function InvoicingScreen() {
           role="alert"
           className={notice('danger')}
         >
-          {t("This product cannot invoice yet, so a checkout against it refuses with")}{' '}
-          <code>{t("BILLING_NOT_CONFIGURED")}</code>{t(". Missing:")}{' '}<strong>{missing.join(', ')}</strong>.
+          {tx("This product cannot invoice yet, so a checkout against it refuses with {code}. Missing: {missing}.", {
+            code: <code>BILLING_NOT_CONFIGURED</code>,
+            missing: <strong>{missing.join(', ')}</strong>,
+          })}
         </p>
       )}
 
@@ -142,9 +145,9 @@ function BillingIdentityForm({
     <Section
       title={t("The issuer")}
       description={
-        <>
-          {t("What appears on the document as the company issuing it. The legal name and the country are the two an invoice cannot be raised without — the country because it decides which VAT regime the document is issued under. A supplier under the")}{' '}<em>{t("franchise en base")}</em>{' '}
-          {t("has no VAT number and invoices perfectly legally, so that field may stay empty.")}</>
+        tx("What appears on the document as the company issuing it. The legal name and the country are the two an invoice cannot be raised without — the country because it decides which VAT regime the document is issued under. A supplier under the {regime} has no VAT number and invoices perfectly legally, so that field may stay empty.", {
+          regime: <em>{t("franchise en base")}</em>,
+        })
       }
     >
       {save.error !== null && <ErrorSurface error={save.error} />}
@@ -175,7 +178,7 @@ function BillingIdentityForm({
                 <input
                   id="supplier-legal-name"
                   className={inputClass()}
-                  placeholder={t("Atlas SAS")}
+                  placeholder="Atlas SAS"
                   value={form.legal_name}
                   onChange={set('legal_name')}
                 />

@@ -14,6 +14,7 @@ use App\Billing\Domain\TaxRecord;
 use App\Commerce\Domain\OfferLineDetails;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
+use App\Shared\Validation\Locale;
 use DateTimeImmutable;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
@@ -42,7 +43,8 @@ final class PostgresInvoiceRepository implements InvoiceRepository
         net_minor_units, vat_minor_units, gross_minor_units,
         issued_at, due_at, paid_at, period_start, period_end, payment_terms,
         supplier_snapshot::text AS supplier_snapshot,
-        customer_snapshot::text AS customer_snapshot
+        customer_snapshot::text AS customer_snapshot,
+        locale
         SQL;
 
     public function __construct(
@@ -177,15 +179,22 @@ final class PostgresInvoiceRepository implements InvoiceRepository
                     (tenant_id, product_id, subscription_id, number, status, currency,
                      net_minor_units, vat_minor_units, gross_minor_units,
                      issued_at, period_start, period_end, payment_terms,
-                     supplier_snapshot, customer_snapshot)
+                     supplier_snapshot, customer_snapshot, locale)
                 VALUES
                     (:tenantId, :productId, :subscriptionId, :number, 'ISSUED', :currency,
                      :net, :vat, :gross,
                      now(), :periodStart, :periodEnd, :paymentTerms,
-                     CAST(:supplier AS jsonb), CAST(:customer AS jsonb))
+                     CAST(:supplier AS jsonb), CAST(:customer AS jsonb),
+                     COALESCE(:locale, (SELECT u.locale FROM users u WHERE u.id = :actor), 'en'))
                 RETURNING id
                 SQL,
             [
+                // The language of the document (ADR-050): the person it is
+                // addressed to when it names one (a seat), else the person who
+                // raised it, else English. Read now, because the person's choice
+                // may change and the document must not.
+                'locale' => is_string($customer['locale'] ?? null) && Locale::isKnown($customer['locale']) ? $customer['locale'] : null,
+                'actor' => $actorUserId !== null && Uuid::isValid($actorUserId) ? $actorUserId : null,
                 'tenantId' => $tenantId,
                 'productId' => $productId,
                 'subscriptionId' => $subscriptionId,
@@ -450,6 +459,7 @@ final class PostgresInvoiceRepository implements InvoiceRepository
                     self::decode($row, 'customer_snapshot'),
                     $lines[$id] ?? [],
                     $taxes[$id] ?? [],
+                    Locale::of(Row::nullableString($row, 'locale')),
                 );
             },
             $rows,

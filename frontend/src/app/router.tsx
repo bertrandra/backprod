@@ -2,6 +2,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  Navigate,
   Outlet,
   type AnyRoute,
 } from '@tanstack/react-router';
@@ -49,7 +50,6 @@ import { StaffTenantsScreen } from '@/features/console/StaffTenantsScreen';
 import { TenantWorkspaceScreen } from '@/features/console/TenantWorkspaceScreen';
 import { StorefrontScreen } from '@/features/console/StorefrontScreen';
 import { SupportConversationsScreen } from '@/features/console/SupportConversationsScreen';
-import { SignInScreen } from '@/features/auth/SignInScreen';
 import { DemoScreen } from '@/features/console/DemoScreen';
 import { DemoPage } from '@/features/demo/DemoPage';
 import { AppShell } from '@/app/shells/AppShell';
@@ -148,11 +148,23 @@ const PLATFORM_SCREEN_ROUTES: readonly { path: string; component: () => React.JS
  * signing in. This route exists so the screen has an address of its own, and so
  * `identity.sign_in` can declare a route the way `gate:screens` requires of every
  * area.
+ *
+ * Which means the route itself only ever renders *signed in* — the gate has
+ * shown the form and taken the password before the router mounts. Somebody
+ * who typed `/sign-in` (the address the seed script points at) and signed in
+ * there used to be shown the form a second time, signed in, with nowhere to
+ * go (2026-09-20). The route now has nothing to show but the way out: the
+ * landing, which settles their root, product and first screen, with the
+ * search kept so `?product=` and `?lang=` survive.
  */
+function SignedInAlready() {
+  return <Navigate to="/" replace search={(previous: Record<string, unknown>) => previous} />;
+}
+
 const signInRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/sign-in',
-  component: SignInScreen,
+  component: SignedInAlready,
 });
 
 /**

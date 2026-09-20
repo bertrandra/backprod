@@ -149,7 +149,7 @@ export function StaffMembersScreen() {
                   setPicked(person);
                   setUserId(person?.id ?? '');
                 }}
-                placeholder={t("ada@example.test")}
+                placeholder="ada@example.test"
               />
             </Field>
           ) : (

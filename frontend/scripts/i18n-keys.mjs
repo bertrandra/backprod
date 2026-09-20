@@ -41,7 +41,7 @@ export function collectKeys() {
     const source = readFileSync(file, 'utf8');
     const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
     const visit = (node) => {
-      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 't') {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && ['t', 'tx'].includes(node.expression.text)) {
         const [first] = node.arguments;
 
         // `t('…')`, or `t(one ? '{count} step' : '{count} steps')` — a plural

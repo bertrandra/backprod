@@ -14,6 +14,7 @@ import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
 import { t } from '@/i18n';
+import { tx } from '@/i18n/react';
 
 /**
  * `console.admin.products` — the top of the model, and the screen that was
@@ -75,7 +76,11 @@ export function ProductsScreen() {
     <div className="max-w-3xl space-y-6">
       <PageHeader
         title={t("Products")}
-        description={<>{t("Everything this platform hosts. A product is what tenants belong to and what offers are priced for — its")}{' '}<strong>{t("code")}</strong> {t("is what clients send as")}{' '}<code>{t("X-Product")}</code> {t("and what the public storefront reads from")}{' '}<code>{t("?product=")}</code>.</>}
+        description={tx("Everything this platform hosts. A product is what tenants belong to and what offers are priced for — its {code} is what clients send as {header} and what the public storefront reads from {query}.", {
+          code: <strong>{t("code")}</strong>,
+          header: <code>X-Product</code>,
+          query: <code>?product=</code>,
+        })}
       />
 
       {create.error !== null && <ErrorSurface error={create.error} />}
@@ -155,7 +160,7 @@ export function ProductsScreen() {
             <input
               id="product-name"
               className={inputClass()}
-              placeholder={t("Atlas")}
+              placeholder="Atlas"
               value={name}
               onChange={(event) => setName(event.target.value)}
             />

@@ -42,6 +42,12 @@ final class Invoice
         public readonly array $customer,
         public readonly array $lines,
         public readonly array $taxes,
+        /**
+         * The language the document was issued in (ADR-050): snapshotted like
+         * its parties, because a document is rendered in one language and
+         * stays in it. What the PDF will be rendered in.
+         */
+        public readonly string $locale = 'en',
     ) {
     }
 

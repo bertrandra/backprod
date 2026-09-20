@@ -121,7 +121,7 @@ export function ContextBar({
           'ml-auto rounded-control border border-line bg-surface px-3 py-1 text-xs text-muted shadow-raise focus-visible:outline-2 focus-visible:outline-offset-2',
         )}
       >
-        {t("Search")}<kbd className="ml-2 hidden text-[10px] text-subtle sm:inline">{t("⌘K")}</kbd>
+        {t("Search")}<kbd className="ml-2 hidden text-[10px] text-subtle sm:inline">⌘K</kbd>
       </button>
 
       <UnreadBadge />

@@ -83,10 +83,12 @@ final class InvoiceThenSubscribe implements OrderFulfilment
             'country_code' => $organisation['country_code'] ?? null,
             'person' => ['name' => $name, 'email' => $person->email],
             'organisation' => $organisation['legal_name'] ?? null,
+            // The language the document is issued in (ADR-050): theirs.
+            'locale' => $person->locale,
         ];
     }
 
-    public function invoice(Order $order): array
+    public function invoice(Order $order, ?string $actorUserId = null): array
     {
         $profile = $this->profiles->find($order->tenantId);
 
@@ -143,7 +145,9 @@ final class InvoiceThenSubscribe implements OrderFulfilment
             $now,
             $offer->version->periodEndFrom($now),
             'Payable on receipt.',
-            null,
+            // Who raised it — and, for the organisation's own invoice, whose
+            // language the document is issued in (ADR-050).
+            $actorUserId,
             // Still inside the transaction this method was called in, so the
             // invoice, the fiscal fact, the subscription and the completed
             // order all commit together or none of them do.

@@ -14,6 +14,7 @@ import { Button } from '@/ui/Field';
 import { PageHeader } from '@/ui/Page';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { t } from '@/i18n';
+import { tx } from '@/i18n/react';
 
 /**
  * `console.admin.demo` — the demonstration, on a screen of its own (2026-09-18).
@@ -63,10 +64,14 @@ function DemoPagePanel() {
       <h2 className="text-xl font-semibold">{t("Demonstration page")}</h2>
 
       <p className="text-sm text-muted">
-        <a href="/demo" className="underline underline-offset-2" target="_blank" rel="noreferrer">
-          <code>{'/demo'}</code>
-        </a>{' '}
-        {t("shows anybody, with no sign-in, every product and its offers on sale, and every organisation with its address, its products, its subscriptions and its people with their roles. Everywhere else that is a member’s answer; switch it on only on a deployment that exists to be shown.")}</p>
+        {tx("{page} shows anybody, with no sign-in, every product and its offers on sale, and every organisation with its address, its products, its subscriptions and its people with their roles. Everywhere else that is a member’s answer; switch it on only on a deployment that exists to be shown.", {
+          page: (
+            <a href="/demo" className="underline underline-offset-2" target="_blank" rel="noreferrer">
+              <code>/demo</code>
+            </a>
+          ),
+        })}
+      </p>
 
       {page.error !== null && <ErrorSurface error={page.error} onRetry={() => void page.refetch()} />}
       {set.error !== null && <ErrorSurface error={set.error} />}
@@ -160,8 +165,11 @@ function DemoWorldReset({ world, onSignOut }: { world: DemoWorld; onSignOut: () 
       <h2 className="text-xl font-semibold">{t("The demonstration world is back")}</h2>
 
       <p className="text-sm text-muted">
-        {world.products.map((product) => product.name).join(', ')} {t("— with invoices")}{' '}
-        {world.invoices.map((number) => <code key={number} className="mx-0.5">{number}</code>)}{t(". Your account was among the rows emptied, so sign in again as one of these; every one of them has the password")}{' '}<code>{world.password}</code>.
+        {tx("{products} — with invoices {invoices}. Your account was among the rows emptied, so sign in again as one of these; every one of them has the password {password}.", {
+          products: world.products.map((product) => product.name).join(', '),
+          invoices: world.invoices.map((number) => <code key={number} className="mx-0.5">{number}</code>),
+          password: <code>{world.password}</code>,
+        })}
       </p>
 
       <ul className="space-y-1 text-sm" data-testid="demo-world-people">

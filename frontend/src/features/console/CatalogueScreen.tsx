@@ -24,6 +24,7 @@ import { PageHeader, Section } from '@/ui/Page';
 import { useSessionStore } from '@/state/session';
 import { FieldCell, FieldGroup, FieldRow, FormActions, FormCard } from '@/ui/Form';
 import { t } from '@/i18n';
+import { tx } from '@/i18n/react';
 
 /**
  * `console.admin.catalogue` — the platform pricing its own product.
@@ -79,7 +80,7 @@ export function CatalogueScreen() {
     <div className="max-w-3xl space-y-8">
       <PageHeader
         title={t("Catalogue")}
-        description={<>{t("What")}{' '}<strong>{catalogue.data.product.name}</strong> {t("sells. A plan groups offers and orders them; a feature is a capability a plan grants; an offer is a plan with a price. You need a plan before you can write an offer.")}</>}
+        description={tx("What {product} sells. A plan groups offers and orders them; a feature is a capability a plan grants; an offer is a plan with a price. You need a plan before you can write an offer.", { product: <strong>{catalogue.data.product.name}</strong> })}
       />
 
       <Plans productCode={productCode} plans={catalogue.data.plans} />
@@ -193,7 +194,7 @@ function Plans({ productCode, plans }: { productCode: string; plans: readonly St
           <input
             id="plan-name"
             className={inputClass()}
-            placeholder={t("Pro")}
+            placeholder="Pro"
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
@@ -477,7 +478,7 @@ function Offers({
                   <input
                     id="offer-name"
                     className={inputClass()}
-                    placeholder={t("Pro, monthly")}
+                    placeholder="Pro, monthly"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                   />

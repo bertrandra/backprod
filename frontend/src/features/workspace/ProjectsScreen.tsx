@@ -232,7 +232,8 @@ export function ProjectsScreen() {
               // on the row and someone reading it later should know where it
               // came from.
               <p className="text-sm text-muted">
-                {t("Document schema v")}{newest} {t("— the only version this product accepts.")}</p>
+                {t("Document schema v{version} — the only version this product accepts.", { version: newest ?? '' })}
+              </p>
             )}
 
             {create.error !== null && <ErrorSurface error={create.error} />}

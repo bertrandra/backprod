@@ -528,8 +528,7 @@ function Transmissions({
                 <p data-testid="rejection" className="text-xs text-danger">
                   {t("Rejected")}{transmission.rejection_code !== null && ` (${transmission.rejection_code})`}
                   {transmission.rejection_reason !== null && `: ${transmission.rejection_reason}`}
-                  {t(" — the platform read the document and refused it. Sending the same document ")}
-                  {t("again would be refused the same way.")}
+                  {t(" — the platform read the document and refused it. Sending the same document again would be refused the same way.")}
                 </p>
               ) : (
                 <ol className="flex flex-wrap gap-2 text-xs" data-testid="progression">

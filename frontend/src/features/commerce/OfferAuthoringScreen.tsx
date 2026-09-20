@@ -27,6 +27,7 @@ import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
 import { currentLocale, t } from '@/i18n';
+import { tx } from '@/i18n/react';
 
 /**
  * `commerce.catalogue_authoring` — drafting a version, and publishing it.
@@ -307,7 +308,8 @@ function OfferVersions({ offerId }: { offerId: string }) {
         <h2 className="text-xl font-semibold">{offer.name}</h2>
         {/* Shown, not editable: the code is identity. */}
         <p className="text-xs text-subtle">
-          <code>{offer.code}</code> {t("— permanent")}</p>
+          {tx("{code} — permanent", { code: <code>{offer.code}</code> })}
+        </p>
       </div>
 
       <div className="flex max-w-md flex-wrap items-end gap-2">

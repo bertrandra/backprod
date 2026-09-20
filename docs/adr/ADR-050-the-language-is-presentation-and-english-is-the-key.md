@@ -75,9 +75,12 @@ own for a type uses English's, which is what a person reading in that
 language receives — and the console's Mail screen says so, one tab per
 language, with *Send me a test* in the language being edited.
 
-**Invoices remember their language.** `invoices.locale` is snapshotted when
-the invoice is issued, the same rule as its numbers: a document is rendered
-in one language and stays in it. Rendering the PDF in that language is a
+**Invoices remember their language.** `invoices.locale` is written when the
+invoice is issued, the same rule as its numbers: a document is rendered in
+one language and stays in it. It is the language of the person the document
+is addressed to when it names one (a seat), else of the person who raised it,
+else English — read at that moment, because the person's choice may change
+and the document must not. Rendering the PDF in that language is a
 follow-up; the column exists so that the fact is never lost.
 
 **The gate.** `npm run gate:i18n` collects every `t('…')` in the source, every
@@ -103,10 +106,15 @@ Adding a sixth is one catalogue, one entry in each list and one migration.
   was never wrapped, so a review still reads for bare English.
 - `Money` and `When` format with the chosen locale rather than the browser's;
   `toLocaleDateString(currentLocale())` everywhere else.
-- Fragments are translated as fragments. A sentence built from three JSX
-  pieces around a `<code>` becomes three keys, and a translator sees them in
-  isolation. Where that reads badly, the fix is to rewrite the screen so the
-  sentence is one `t()` with placeholders, not to translate around it.
+- A sentence with markup inside it is one key, not three. `tx()`
+  (`src/i18n/react.tsx`) translates the whole sentence and splices React
+  nodes into its `{placeholders}` afterwards — `tx('Changing this needs
+  {permission}, which an administrator holds.', { permission: <code>…</code> })`
+  — so a language can put the pieces in its own order. Three `t()` fragments
+  around a `<code>` were three keys a translator saw in isolation, and a
+  sentence cut where English cuts it does not survive German. Data is never
+  wrapped: a variable name, an example address, a keyboard shortcut stay as
+  written.
 - Tests assert English. `t` returns its key in the test locale, so no test
   changed for the wrapping; a test of the language itself installs a
   catalogue with `installCatalogue()` and applies `setLocale()`.

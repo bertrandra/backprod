@@ -207,7 +207,7 @@ function Users({ search }: { search: string }) {
                 )}
 
                 <span className="ml-auto text-xs text-subtle">
-                  {user.tenants ?? 0} {t("organisation")}{user.tenants === 1 ? '' : 's'}
+                  {t((user.tenants ?? 0) === 1 ? "{count} organisation" : "{count} organisations", { count: user.tenants ?? 0 })}
                 </span>
               </div>
 

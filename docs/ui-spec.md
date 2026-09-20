@@ -381,7 +381,8 @@ Consequences that bind this document:
   frontend that decides is wrong.
 
 **The language is presentation** (ADR-050). Every sentence a screen says is
-`t('English sentence')`; French, Spanish, German and Italian are catalogues
+`t('English sentence')` — `tx()` when markup sits inside the sentence, which is
+still one key; French, Spanish, German and Italian are catalogues
 keyed by the English, one lazily loaded chunk each, and English needs none.
 Codes, enumerations, offer names and the API's messages are not translated —
 the contract is English. Sentences a table carries (a navigation label, an

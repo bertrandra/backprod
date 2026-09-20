@@ -16,6 +16,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { t } from '@/i18n';
+import { tx } from '@/i18n/react';
 
 /** `tenant.organisation` — the company, and its usage against quota. */
 const schema = z.object({
@@ -116,7 +117,8 @@ export function OrganisationScreen() {
           </Field>
 
           <p className="text-xs text-muted">
-            {t("Identifier")}{' '}<code className="select-all">{organisation.data?.slug}</code> {t("— set when the organisation was created and not editable.")}</p>
+            {tx("Identifier {slug} — set when the organisation was created and not editable.", { slug: <code className="select-all">{organisation.data?.slug}</code> })}
+          </p>
 
           {rename.error !== null && <ErrorSurface error={rename.error} />}
 
@@ -133,13 +135,12 @@ export function OrganisationScreen() {
       <section className="space-y-4" data-testid="join-policy">
         <h2 className="text-xl font-semibold">{t("Who may join")}</h2>
         <p className="text-sm text-muted">
-          {t("Anybody can create an account at this organisation’s address")}{organisation.data?.slug !== undefined && (
-            <>
-              {' '}
-              (<code>/{organisation.data.slug}/</code>)
-            </>
-          )}
-          {t(". This decides what happens when they do.")}</p>
+          {organisation.data?.slug === undefined
+            ? t("Anybody can create an account at this organisation’s address. This decides what happens when they do.")
+            : tx("Anybody can create an account at this organisation’s address ({address}). This decides what happens when they do.", {
+                address: <code>/{organisation.data.slug}/</code>,
+              })}
+        </p>
 
         <form
           className="space-y-4"

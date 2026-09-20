@@ -22,7 +22,7 @@ export function LineOfferSummary({ line }: { line: { description: string; offer?
       <span className="font-medium">{offer.product.name}</span>
       <span className="text-muted"> · {offer.name}</span>
       <span className="block text-xs text-subtle">
-        {offer.plan} {t("plan · billed")}{' '}{offer.billing_period.toLowerCase()} {t("· version")}{' '}{offer.version}
+        {t("{plan} plan · billed {period} · version {version}", { plan: offer.plan, period: offer.billing_period.toLowerCase(), version: offer.version })}
       </span>
     </span>
   );

@@ -233,6 +233,22 @@ test.describe('arriving with no session', () => {
     await expect(page.getByRole('heading', { name: 'Your profile' })).toBeVisible();
   });
 
+  test('signing in at the sign-in address itself lands in the application, not on the form again', async ({ page }) => {
+    await stubApi(page);
+    await stubAuth(page, { token: { status: 200, json: SESSION } });
+
+    // The address the seed script and the deployment notes point at. The
+    // route only ever renders signed in — the gate shows the form before
+    // that — so it has nothing to show but the way out.
+    await page.goto('/sign-in?product=atlas');
+    await page.getByLabel('Email').fill('ada@acme.test');
+    await page.getByLabel('Password').fill('correct horse');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+
+    await expect(page).not.toHaveURL(/\/sign-in/);
+    await expect(page.getByRole('button', { name: 'Sign in' })).toBeHidden();
+  });
+
   test('exchanges the password at this platform’s own token endpoint', async ({ page }) => {
     await stubApi(page);
     const asked = await stubAuth(page, { token: { status: 200, json: SESSION } });

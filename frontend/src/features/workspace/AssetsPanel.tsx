@@ -115,7 +115,7 @@ export function AssetsPanel({ projectId }: { projectId: string }) {
                   {/* The sniffed type and the stored size, both the server's
                       answers. The checksum is shown because it is what makes a
                       corrupted download detectable. */}
-                  {asset.content_type} · {asset.byte_size} {t("bytes ·")}{' '}{asset.checksum.slice(0, 12)}
+                  {t("{type} · {size} bytes · {checksum}", { type: asset.content_type, size: asset.byte_size, checksum: asset.checksum.slice(0, 12) })}
                 </p>
               </div>
 
