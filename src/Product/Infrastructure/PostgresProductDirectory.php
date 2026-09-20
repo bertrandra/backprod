@@ -23,7 +23,7 @@ final class PostgresProductDirectory implements ProductDirectory
     {
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
-                SELECT id, code, name, active
+                SELECT id, code, name, active, app_url
                   FROM products
                  ORDER BY created_at DESC, code
                 SQL,
@@ -39,7 +39,7 @@ final class PostgresProductDirectory implements ProductDirectory
                 <<<'SQL'
                     INSERT INTO products (code, name, active)
                     VALUES (:code, :name, true)
-                    RETURNING id, code, name, active
+                    RETURNING id, code, name, active, app_url
                     SQL,
                 ['code' => $code, 'name' => $name],
             );
@@ -62,7 +62,7 @@ final class PostgresProductDirectory implements ProductDirectory
         return self::toProduct($row);
     }
 
-    public function update(string $productId, ?string $name, ?bool $active): ?Product
+    public function update(string $productId, ?string $name, ?bool $active, bool $setAppUrl = false, ?string $appUrl = null): ?Product
     {
         if (!Uuid::isValid($productId)) {
             return null;
@@ -77,12 +77,13 @@ final class PostgresProductDirectory implements ProductDirectory
                 UPDATE products
                    SET name = COALESCE(:name, name),
                        active = COALESCE(:active, active),
+                       app_url = CASE WHEN :setAppUrl THEN :appUrl ELSE app_url END,
                        updated_at = now()
                  WHERE id = :id
-                RETURNING id, code, name, active
+                RETURNING id, code, name, active, app_url
                 SQL,
-            ['id' => $productId, 'name' => $name, 'active' => $active],
-            ['active' => ParameterType::BOOLEAN],
+            ['id' => $productId, 'name' => $name, 'active' => $active, 'setAppUrl' => $setAppUrl, 'appUrl' => $appUrl],
+            ['active' => ParameterType::BOOLEAN, 'setAppUrl' => ParameterType::BOOLEAN],
         );
 
         return $row === false ? null : self::toProduct($row);
@@ -98,6 +99,7 @@ final class PostgresProductDirectory implements ProductDirectory
             Row::string($row, 'code'),
             Row::string($row, 'name'),
             Row::boolean($row, 'active'),
+            Row::nullableString($row, 'app_url'),
         );
     }
 }

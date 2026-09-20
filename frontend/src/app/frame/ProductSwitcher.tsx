@@ -6,7 +6,7 @@ import { usePlatformProducts } from '@/queries/staff';
 import { useSessionStore } from '@/state/session';
 import { touchTargetClass } from '@/ui/Field';
 import { cn } from '@/utils/cn';
-import { t } from '@/i18n';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * Which product this browser is acting in — region A's first duty.
@@ -58,8 +58,10 @@ export function ProductSwitcher({ platform = false }: { platform?: boolean }) {
         code: product.code,
         name: product.active ? product.name : t("{name} (retired)", { name: product.name }),
         retired: !product.active,
+        // The console administers a product where it is, never leaves for it.
+        appUrl: null,
       }))
-    : (mine.data?.products ?? []).map((product) => ({ code: product.code, name: product.name, retired: false }));
+    : (mine.data?.products ?? []).map((product) => ({ code: product.code, name: product.name, retired: false, appUrl: product.app_url ?? null }));
 
   // The person's own default, where the server named one they still hold;
   // the shell opens there rather than on whichever product sorts first.
@@ -114,7 +116,20 @@ export function ProductSwitcher({ platform = false }: { platform?: boolean }) {
         data-testid="product-switcher"
         data-product={productCode ?? ''}
         value={productCode ?? ''}
-        onChange={(event) => chooseProduct(event.target.value)}
+        onChange={(event) => {
+          const chosen = known.find((product) => product.code === event.target.value);
+
+          // A product deployed beside the platform (ADR-051 §3) is left
+          // for, not switched to: its own page resumes the session from
+          // the cookie. `?product=` and nothing else travels.
+          if (chosen?.appUrl != null) {
+            leaveFor(chosen.appUrl, chosen.code);
+
+            return;
+          }
+
+          chooseProduct(event.target.value);
+        }}
         className={cn(
           touchTargetClass,
           // No inverse fill (2026-09-18): a black block in the bar read as a
@@ -136,6 +151,21 @@ interface ProductOption {
   readonly code: string;
   readonly name: string;
   readonly retired: boolean;
+  /** Where the product lives when it is not this shell (ADR-051). */
+  readonly appUrl: string | null;
+}
+
+/**
+ * The way to a product deployed beside the platform: a full navigation to
+ * its address, with the product code and — so the page opens in the same
+ * language — the language, and nothing else. No token: the product's page
+ * asks `/auth/refresh` and the cookie answers, because the two are one site.
+ */
+export function leaveFor(appUrl: string, code: string): void {
+  const address = new URL(appUrl);
+  address.searchParams.set('product', code);
+  address.searchParams.set('lang', currentLocale());
+  window.location.assign(address.toString());
 }
 
 /**

@@ -34,6 +34,8 @@ final class RequestContext
         public readonly array $roles,
         public readonly array $permissions,
         public readonly array $capabilities,
+        /** When the bearer this context was resolved for expires (ADR-051 §3); null when it says nothing. */
+        public readonly ?int $tokenExpiresAt = null,
     ) {
     }
 

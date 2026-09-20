@@ -1078,6 +1078,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who is asking and what they hold, in one answer
+         * @description Written for a product deployed beside the platform (ADR-051 §3): its server receives the person’s bearer from its own page and asks here rather than verifying the token itself — the signing key is symmetric, and holding it would be holding the mint. `/me`, `/me/permissions` and `/me/entitlements` composed, plus the tenant’s slug, the product with its address, the quotas with their usage, and when the token dies — the horizon of any cache the product keeps of this answer. Nothing is decided again: the roles, permissions and capabilities are the ones the context chain resolved for this request. No permission is required; this is the caller asking about themselves.
+         */
+        get: operations["showMyContext"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/permissions": {
         parameters: {
             query?: never;
@@ -3578,6 +3598,11 @@ export interface components {
         };
         /** @description `active` is deliberately absent: every product a caller can see is active, so the field would always be true and would only invite clients to branch on it. */
         Product: {
+            /**
+             * Format: uri
+             * @description Where this product’s screens live when they are deployed beside the platform (ADR-051): the switcher and the landing send the person there with `?product=` appended. Null for a product inside the shell.
+             */
+            app_url?: string | null;
             /** Format: uuid */
             id: string;
             /** @example atlas */
@@ -4700,6 +4725,11 @@ export interface components {
             name: string;
             /** @description A retired product keeps its tenants, subscriptions and invoices; what changes is that every door into it is closed. */
             active: boolean;
+            /**
+             * Format: uri
+             * @description Where the product’s screens live when they are not the platform’s own shell (ADR-051 §3): an https address the shell sends a person to with `?product=` appended and nothing else. Null for a product inside the shell. Set from the console; refused unless https and free of query and fragment.
+             */
+            app_url?: string | null;
         };
         /** @description What the page needs to *use* a `client_secret` (ADR-048): which provider, the key that loads its own component, and whether any of this moves real money. Null when there is no payment to make (a free offer) or when the provider has no page-side part (the stub). `publishable_key` is designed by the provider to sit in a page and is not a secret — it belongs in the contract rather than in a build variable, which would freeze one deployment’s key into a bundle another deployment reuses. */
         PaymentProviderClient: {
@@ -7386,6 +7416,80 @@ export interface operations {
                 content: {
                     "application/json": {
                         capabilities: string[];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showMyContext: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The context in force for this request. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        user: {
+                            /** Format: uuid */
+                            id: string;
+                            email: string | null;
+                            display_name: string | null;
+                            /** @enum {string} */
+                            locale: "en" | "fr" | "es" | "de" | "it";
+                        };
+                        tenant: {
+                            /** Format: uuid */
+                            id: string;
+                            slug: string | null;
+                            name: string | null;
+                        };
+                        product: {
+                            /** Format: uuid */
+                            id: string;
+                            code: string | null;
+                            name: string | null;
+                            /** Format: uri */
+                            app_url: string | null;
+                        };
+                        roles: string[];
+                        permissions: string[];
+                        /** @description Resolved for this person: a seat they hold counts, a colleague’s does not (§13.1). */
+                        capabilities: string[];
+                        /** @description What the tenant holds on this product, with limits — the same rows `listEntitlements` shows. */
+                        entitlements: components["schemas"]["Entitlement"][];
+                        /** @description One row per quota, with what has been counted against it — the same rows `showTenantUsage` shows. */
+                        usage: {
+                            feature: string;
+                            name: string;
+                            unit: string | null;
+                            limit: number | null;
+                            unlimited: boolean;
+                            metered: boolean;
+                            used: number | null;
+                            remaining: number | null;
+                        }[];
+                        /**
+                         * Format: date-time
+                         * @description When the bearer this was answered for stops being accepted — cache no longer than this. Null when the token carries no expiry, which a product treats as “do not cache”.
+                         */
+                        token_expires_at: string | null;
                     };
                 };
             };
@@ -12886,6 +12990,11 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /**
+                     * Format: uri
+                     * @description Where the product lives when deployed beside the platform (ADR-051 §3); null clears it. https only, no query, no fragment — the shell appends `?product=` itself. Recorded in the trail as SET_APP_URL.
+                     */
+                    app_url?: string | null;
                     name?: string;
                     active?: boolean;
                 };

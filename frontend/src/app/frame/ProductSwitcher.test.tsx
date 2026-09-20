@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { useOffers } from '@/queries/catalogue';
 import { useSessionStore } from '@/state/session';
@@ -134,6 +134,23 @@ describe('with more than one', () => {
     fireEvent.change(screen.getByTestId('product-switcher'), { target: { value: 'boreas' } });
 
     await waitFor(() => expect(offerReads).toBe(2));
+  });
+
+  it('leaves for a product that lives beside the platform, with the code alone', async () => {
+    // ADR-051 §3: a full navigation to its address, `?product=` and the
+    // language appended, no token — the cookie signs them in there.
+    const assign = vi.fn();
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign });
+    const PLAN = { id: 'prod-plan', code: 'plan', name: 'Plan', app_url: 'https://plan.example.test' };
+
+    renderWith(<ProductSwitcher />, clientFor([ATLAS, PLAN]));
+
+    await waitFor(() => expect(screen.getByTestId('product-switcher')).toBeTruthy());
+    fireEvent.change(screen.getByTestId('product-switcher'), { target: { value: 'plan' } });
+
+    expect(assign).toHaveBeenCalledWith('https://plan.example.test/?product=plan&lang=en');
+    // The store did not move: this shell is still on its own product.
+    expect(useSessionStore.getState().productCode).toBe('atlas');
   });
 
   it('does nothing when the same product is chosen again', async () => {

@@ -63,6 +63,7 @@ use App\EInvoice\Controller\SubmitInvoiceController;
 use App\Geometry\Controller\IntersectGeometriesController;
 use App\Geometry\Controller\MeasureGeometryController;
 use App\Health\Controller\HealthController;
+use App\Identity\Controller\MeContextController;
 use App\Identity\Controller\MeController;
 use App\Identity\Controller\MePermissionsController;
 use App\Identity\Controller\MyEntitlementsController;
@@ -277,6 +278,7 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/me/permissions', MePermissionsController::class);
     $routes->addRoute('GET', '/api/v1/me/navigation', MyNavigationController::class);
     $routes->addRoute('GET', '/api/v1/me/entitlements', MyEntitlementsController::class);
+    $routes->addRoute('GET', '/api/v1/me/context', MeContextController::class);
 
     // Identity-only: discovery cannot require the product context it supplies.
     $routes->addRoute('GET', '/api/v1/products', ListProductsController::class);

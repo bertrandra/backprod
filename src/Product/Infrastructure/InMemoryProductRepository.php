@@ -37,6 +37,17 @@ final class InMemoryProductRepository implements ProductRepository
         return $this->byCode[$code] ?? null;
     }
 
+    public function find(string $productId): ?Product
+    {
+        foreach ($this->byCode as $product) {
+            if ($product->id === $productId) {
+                return $product;
+            }
+        }
+
+        return null;
+    }
+
     public function activeProducts(): array
     {
         $active = array_values(array_filter($this->byCode, static fn (Product $product): bool => $product->active));

@@ -159,6 +159,30 @@ describe('changing one', () => {
     expect(requests.find((r) => r.method === 'PATCH')?.body).toEqual({ name: 'Atlas Pro' });
   });
 
+  it('sets where a product beside the platform lives, and clears it with null', async () => {
+    // The list is asked again after the change, and answers with it.
+    let patched = false;
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/products': () => ({ data: { products: [patched ? { ...ATLAS, app_url: 'https://plan.example.test' } : ATLAS, ORBIT] } }),
+      'PATCH /api/v1/staff/products/{productId}': () => {
+        patched = true;
+
+        return { data: { product: { ...ATLAS, app_url: 'https://plan.example.test' } } };
+      },
+    });
+    renderAtRoute(<ProductsScreen />, client, { path: '/console/products' });
+
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Application address' })[0]).toBeTruthy());
+    fireEvent.click(screen.getAllByRole('button', { name: 'Application address' })[0] as HTMLElement);
+    fireEvent.change(screen.getByLabelText('Application address'), { target: { value: 'https://plan.example.test' } });
+    fireEvent.submit(screen.getByTestId('app-url-form'));
+
+    await waitFor(() => expect(requests.some((r) => r.method === 'PATCH')).toBe(true));
+    // Only the address: a PATCH says nothing about the name or the flag.
+    expect(requests.find((r) => r.method === 'PATCH')?.body).toEqual({ app_url: 'https://plan.example.test' });
+    await waitFor(() => expect(screen.getByTestId('app-url').textContent).toContain('https://plan.example.test'));
+  });
+
   it('retires with the flag and nothing else', async () => {
     const { client, requests } = recordingClient({
       'GET /api/v1/staff/products': { data: { products: [ATLAS] } },

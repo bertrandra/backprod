@@ -66,9 +66,9 @@ final class ProductDesk
      * switched off, and a row saying only that it was edited cannot answer
      * that. A call that does both records both.
      */
-    public function update(StaffIdentity $staff, string $productId, ?string $name, ?bool $active): Product
+    public function update(StaffIdentity $staff, string $productId, ?string $name, ?bool $active, bool $setAppUrl = false, ?string $appUrl = null): Product
     {
-        $product = $this->products->update($productId, $name, $active);
+        $product = $this->products->update($productId, $name, $active, $setAppUrl, $appUrl);
 
         if ($product === null) {
             // Recorded even though nothing changed: a run of these against
@@ -89,6 +89,12 @@ final class ProductDesk
 
         if ($name !== null) {
             $this->record($staff, $product->id, $product->id, 'RENAME', ['name' => $product->name]);
+        }
+
+        if ($setAppUrl) {
+            // Where the platform will send people (ADR-051): worth a row of
+            // its own, because a wrong address is a phishing page.
+            $this->record($staff, $product->id, $product->id, 'SET_APP_URL', ['app_url' => $product->appUrl]);
         }
 
         if ($active !== null) {

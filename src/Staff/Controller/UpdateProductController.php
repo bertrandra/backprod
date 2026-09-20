@@ -43,13 +43,22 @@ final class UpdateProductController implements RouteHandler
 
         $body = JsonBody::of($request);
 
-        if (!$body->has('name') && !$body->has('active')) {
+        // Where the product lives when it is deployed beside the platform
+        // (ADR-051 §3). An https origin or path, nothing the shell appends
+        // itself: it adds `?product=`, so a query here would be two.
+        $appUrl = $body->has('app_url') ? $body->optionalNullableString('app_url', 2048) : null;
+
+        if ($appUrl !== null && (!str_starts_with($appUrl, 'https://') || filter_var($appUrl, FILTER_VALIDATE_URL) === false || str_contains($appUrl, '?') || str_contains($appUrl, '#'))) {
+            throw new BadRequestException('VALIDATION_FAILED', 'The request body is not valid.', ['field' => 'app_url', 'requirement' => 'an https:// address with no query or fragment']);
+        }
+
+        if (!$body->has('name') && !$body->has('active') && !$body->has('app_url')) {
             // An empty PATCH is a client bug, not a no-op to be absorbed:
             // silently answering 200 to a request that changed nothing is how
             // a broken form looks like a working one.
             throw new BadRequestException(
                 'NOTHING_TO_UPDATE',
-                'Send a name, an active flag, or both.',
+                'Send a name, an active flag, an application address, or several.',
             );
         }
 
@@ -58,6 +67,8 @@ final class UpdateProductController implements RouteHandler
             StaffRoute::id($request, 'productId'),
             $body->has('name') ? $body->requiredString('name', 200) : null,
             $body->has('active') ? $body->requiredBool('active') : null,
+            $body->has('app_url'),
+            $appUrl,
         );
 
         return new JsonResponse(['product' => StaffPresenter::product($product)], 200);

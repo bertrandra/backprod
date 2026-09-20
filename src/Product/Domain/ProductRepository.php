@@ -8,6 +8,9 @@ interface ProductRepository
 {
     public function findByCode(string $code): ?Product;
 
+    /** By id — the one the context chain resolved — active or not; null for an unknown id. */
+    public function find(string $productId): ?Product;
+
     /**
      * Every active product, in code order.
      *

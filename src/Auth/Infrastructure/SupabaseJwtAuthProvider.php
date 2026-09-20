@@ -61,9 +61,12 @@ final class SupabaseJwtAuthProvider implements AuthProvider
 
         $email = $claims['email'] ?? null;
 
+        $expiresAt = $claims['exp'] ?? null;
+
         return new AuthenticatedIdentity(
             $subject,
             is_string($email) && $email !== '' ? $email : null,
+            is_int($expiresAt) ? $expiresAt : null,
         );
     }
 

@@ -89,6 +89,7 @@ final class StaffPresenter
             'code' => $product->code,
             'name' => $product->name,
             'active' => $product->active,
+            'app_url' => $product->appUrl,
         ];
     }
 

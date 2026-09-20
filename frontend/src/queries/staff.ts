@@ -1006,12 +1006,13 @@ export function useUpdateProduct() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (change: { productId: string; name?: string; active?: boolean }) => {
+    mutationFn: async (change: { productId: string; name?: string; active?: boolean; app_url?: string | null }) => {
       const { data, error, response } = await client.PATCH('/api/v1/staff/products/{productId}', {
         params: { path: { productId: change.productId } },
         body: {
           ...(change.name !== undefined && { name: change.name }),
           ...(change.active !== undefined && { active: change.active }),
+          ...(change.app_url !== undefined && { app_url: change.app_url }),
         },
       });
 

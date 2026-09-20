@@ -200,6 +200,38 @@ final class ProductAdministrationTest extends DatabaseApiTestCase
         self::assertSame('atlas', $this->productIn($response)['code'] ?? null);
     }
 
+    public function testAnApplicationAddressIsSetShownAndCleared(): void
+    {
+        // Where a product deployed beside the platform lives (ADR-051 §3).
+        $response = $this->patch($this->atlas, ['app_url' => 'https://plan.example.test'], 'ola-token');
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('https://plan.example.test', $this->productIn($response)['app_url'] ?? null);
+        // Listed with it, because the switcher reads the list.
+        $listed = $this->decode($this->request('GET', '/api/v1/staff/products', ['Authorization' => 'Bearer ola-token']))['products'] ?? null;
+        self::assertIsArray($listed);
+        $first = $listed[0] ?? null;
+        self::assertIsArray($first);
+        self::assertSame('https://plan.example.test', $first['app_url'] ?? null);
+
+        // Null is a value: the product is back inside the shell.
+        $cleared = $this->patch($this->atlas, ['app_url' => null], 'ola-token');
+        self::assertSame(200, $cleared->getStatusCode());
+        $back = $this->productIn($cleared);
+        self::assertArrayHasKey('app_url', $back);
+        self::assertNull($back['app_url']);
+
+        // https only, and nothing the shell appends itself.
+        foreach (['http://plan.example.test', 'https://plan.example.test/?x=1', 'https://plan.example.test/#top', 'not a url'] as $bad) {
+            $refused = $this->patch($this->atlas, ['app_url' => $bad], 'ola-token');
+            self::assertSame(400, $refused->getStatusCode(), $bad);
+            self::assertSame('VALIDATION_FAILED', $this->errorOf($refused)['code'] ?? null, $bad);
+        }
+
+        // And the trail says where people will be sent.
+        self::assertSame(1, $this->connection->fetchOne("SELECT count(*) FROM staff_access_log WHERE action = 'SET_APP_URL' AND detail->>'app_url' = 'https://plan.example.test'"));
+    }
+
     public function testRenamingDoesNotSwitchAProductOffByOmission(): void
     {
         $this->patch($this->atlas, ['name' => 'Atlas Pro'], 'ola-token');

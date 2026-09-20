@@ -17,6 +17,8 @@ final class AuthenticatedIdentity
     public function __construct(
         public readonly string $userId,
         public readonly ?string $email = null,
+        /** When the credential stops being accepted, as a unix timestamp; null when it says nothing. */
+        public readonly ?int $expiresAt = null,
     ) {
     }
 }

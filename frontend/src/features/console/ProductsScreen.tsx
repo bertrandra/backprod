@@ -103,6 +103,7 @@ export function ProductsScreen() {
                 pending={update.isPending}
                 onRename={(newName) => update.mutate({ productId: product.id, name: newName })}
                 onSetActive={(active) => update.mutate({ productId: product.id, active })}
+                onSetAppUrl={(appUrl) => update.mutate({ productId: product.id, app_url: appUrl })}
                 onStorefront={() =>
                   void handTo('/console/storefront', product.code)
                 }
@@ -184,6 +185,7 @@ function ProductRow({
   pending,
   onRename,
   onSetActive,
+  onSetAppUrl,
   onStorefront,
   onCatalogue,
   onInvoicing,
@@ -192,12 +194,15 @@ function ProductRow({
   pending: boolean;
   onRename: (name: string) => void;
   onSetActive: (active: boolean) => void;
+  onSetAppUrl: (appUrl: string | null) => void;
   onStorefront: () => void;
   onCatalogue: () => void;
   onInvoicing: () => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(product.name);
+  const [addressing, setAddressing] = useState(false);
+  const [address, setAddress] = useState(product.app_url ?? '');
 
   return (
     <li
@@ -223,6 +228,49 @@ function ProductRow({
             {t("retired")}</span>
         )}
       </div>
+
+      {/* Where the product lives when it is deployed beside the platform
+          (ADR-051 §3): the switcher and the landing send people there. Said
+          on the row, because a wrong address here is a phishing page. */}
+      {product.app_url != null && !addressing && (
+        <p className="mt-1 text-xs text-muted" data-testid="app-url">
+          {t("Lives at")}{' '}
+          <a href={product.app_url} className="underline underline-offset-2" target="_blank" rel="noreferrer">
+            {product.app_url}
+          </a>
+        </p>
+      )}
+
+      {addressing && (
+        <form
+          className="mt-3 flex flex-wrap items-end gap-2"
+          data-testid="app-url-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSetAppUrl(address.trim() === '' ? null : address.trim());
+            setAddressing(false);
+          }}
+        >
+          <Field
+            id={`app-url-${product.id}`}
+            label={t("Application address")}
+            hint={t("Where this product's screens live when they are deployed beside the platform: an https address, no query. Empty puts the product back inside this shell.")}
+          >
+            <input
+              id={`app-url-${product.id}`}
+              type="url"
+              placeholder="https://plan.example.test"
+              className={inputClass()}
+              value={address}
+              onChange={(event) => setAddress(event.target.value)}
+            />
+          </Field>
+          <Button type="submit" pending={pending}>
+            {t("Save")}</Button>
+          <Button type="button" variant="secondary" onClick={() => setAddressing(false)}>
+            {t("Cancel")}</Button>
+        </form>
+      )}
 
       {renaming ? (
         <form
@@ -265,6 +313,8 @@ function ProductRow({
             {t("Invoicing")}</Button>
           <Button type="button" variant="secondary" onClick={() => setRenaming(true)}>
             {t("Rename")}</Button>
+          <Button type="button" variant="secondary" onClick={() => setAddressing(true)}>
+            {t("Application address")}</Button>
           <Button
             type="button"
             variant={product.active ? 'danger' : 'secondary'}
