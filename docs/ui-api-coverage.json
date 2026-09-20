@@ -611,6 +611,7 @@
     "downloadAsset": "Reached by browser navigation on a signed link that createAssetLink produced; the generated client never fetches these bytes itself.",
     "einvoiceWebhook": "Server-to-server callback from the e-invoicing platform. No human origin, so no screen.",
     "health": "Monitoring probe consumed by infrastructure, not by a person.",
-    "paymentWebhook": "Server-to-server callback from the payment provider. No human origin, so no screen."
+    "paymentWebhook": "Server-to-server callback from the payment provider. No human origin, so no screen.",
+    "showMyContext": "Read by a product deployed beside the platform (ADR-051 §3) — its server asks who is asking and what they hold, in one call, instead of verifying the token itself. The shell reads the same facts through showMe, showMyPermissions and showMyEntitlements and needs no fourth screen for them."
   }
 }

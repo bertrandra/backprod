@@ -13,20 +13,20 @@ use App\Product\Domain\ProductFeature;
 final class ProductPresenter
 {
     /**
-     * @return array{id: string, code: string, name: string}
+     * @return array{id: string, code: string, name: string, app_url: ?string}
      */
     public static function one(Product $product): array
     {
         // `active` is not exposed: every product a caller can see is active,
         // so the field would always be true and would only invite clients to
         // branch on it.
-        return ['id' => $product->id, 'code' => $product->code, 'name' => $product->name];
+        return ['id' => $product->id, 'code' => $product->code, 'name' => $product->name, 'app_url' => $product->appUrl];
     }
 
     /**
      * @param list<Product> $products
      *
-     * @return list<array{id: string, code: string, name: string}>
+     * @return list<array{id: string, code: string, name: string, app_url: ?string}>
      */
     public static function many(array $products): array
     {

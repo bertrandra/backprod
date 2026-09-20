@@ -1,7 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
-import { useChooseProduct } from '@/app/frame/ProductSwitcher';
+import { leaveFor, useChooseProduct } from '@/app/frame/ProductSwitcher';
 import { firstEntry, type NavSection } from '@/app/frame/navigation';
 import { useMyProducts } from '@/queries/catalogue';
 import { usePublicTenant } from '@/queries/storefront';
@@ -83,6 +83,17 @@ export function useLanding(atLanding: boolean, sections: readonly NavSection[]):
       products.some((product) => product.code === preferred)
     ) {
       chooseProduct(preferred);
+
+      return;
+    }
+
+    // 2b. A product that lives beside the platform (ADR-051 §3): the
+    // landing is its address, reached by a full navigation with the
+    // product code alone. The cookie signs them in there.
+    const external = products.find((product) => product.code === productCode)?.app_url;
+
+    if (external != null && productCode !== null) {
+      leaveFor(external, productCode);
 
       return;
     }

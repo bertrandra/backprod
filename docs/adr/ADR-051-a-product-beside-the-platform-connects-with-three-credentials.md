@@ -1,8 +1,8 @@
 # ADR-051 — A product beside the platform connects with three credentials, none of them shared
 
-**Status:** proposed, 2026-09-20 — for the operator's decision. Nothing in
-this document is built yet; §7 says what can be switched on today without
-code, and what each further step costs.
+**Status:** accepted 2026-09-20 (merged by the operator). Milestone B is
+built — `GET /me/context`, `products.app_url`, the switcher and the landing
+follow it; the console sets it. C, D and E are not; §7 says what each costs.
 
 **Relates to:** ADR-013 (product context is a header), ADR-015 (tenant
 resolution), ADR-037 (the shell gates on `/me`), ADR-038 (this platform

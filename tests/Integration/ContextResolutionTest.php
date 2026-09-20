@@ -70,6 +70,38 @@ final class ContextResolutionTest extends ApiTestCase
         ]);
     }
 
+    public function testTheWholeContextIsReportedInOneAnswerForAProductBesideThePlatform(): void
+    {
+        $response = $this->request('GET', '/api/v1/me/context', [
+            'Authorization' => 'Bearer alice-token',
+            'X-Product' => 'atlas',
+        ]);
+
+        self::assertSame(200, $response->getStatusCode());
+        $body = $this->decode($response);
+
+        // The same decisions /me reports, composed (ADR-051 §3).
+        $user = $body['user'] ?? null;
+        $tenant = $body['tenant'] ?? null;
+        $product = $body['product'] ?? null;
+        self::assertIsArray($user);
+        self::assertIsArray($tenant);
+        self::assertIsArray($product);
+        self::assertSame(self::ALICE, $user['id'] ?? null);
+        self::assertSame('en', $user['locale'] ?? null);
+        self::assertSame('tenant-acme', $tenant['id'] ?? null);
+        self::assertSame('prod-atlas', $product['id'] ?? null);
+        self::assertSame('atlas', $product['code'] ?? null);
+        self::assertSame(['TENANT_ADMIN'], $body['roles'] ?? null);
+        self::assertSame(['members.manage'], $body['permissions'] ?? null);
+        self::assertSame(['projects.read', 'projects.write'], $body['capabilities'] ?? null);
+        self::assertIsArray($body['entitlements'] ?? null);
+        self::assertIsArray($body['usage'] ?? null);
+        // The fake provider's tokens carry no expiry; the key is still there,
+        // null, so a product knows not to cache rather than guessing.
+        self::assertArrayHasKey('token_expires_at', $body);
+    }
+
     public function testResolvedContextIsReportedByMe(): void
     {
         $response = $this->request('GET', '/api/v1/me', [

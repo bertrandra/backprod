@@ -68,6 +68,7 @@ final class RequestContextMiddleware implements MiddlewareInterface
         // The provider says who they are; the directory says who that is
         // here, provisioning on first sight (ADR-017). Everything downstream
         // uses the internal id, never the provider subject.
+        $tokenExpiresAt = $identity->expiresAt;
         $user = $this->users->resolve($identity);
 
         $request = $request->withAttribute(
@@ -116,6 +117,7 @@ final class RequestContextMiddleware implements MiddlewareInterface
             // colleague does not (§13.1). Resolving capabilities without the
             // person would make every seat tenant-wide.
             $this->entitlements->capabilitiesFor($membership->tenantId, $product->id, $user->id),
+            $tokenExpiresAt,
         );
 
         return $handler->handle($request->withAttribute(RequestContext::ATTRIBUTE, $context));

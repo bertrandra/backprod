@@ -261,6 +261,12 @@
         ],
         "description": "`active` is deliberately absent: every product a caller can see is active, so the field would always be true and would only invite clients to branch on it.",
         "properties": {
+          "app_url": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "description": "Where this product’s screens live when they are deployed beside the platform (ADR-051): the switcher and the landing send the person there with `?product=` appended. Null for a product inside the shell."
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -3754,6 +3760,13 @@
           "active": {
             "type": "boolean",
             "description": "A retired product keeps its tenants, subscriptions and invoices; what changes is that every door into it is closed."
+          },
+          "app_url": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "maxLength": 2048,
+            "description": "Where the product’s screens live when they are not the platform’s own shell (ADR-051 §3): an https address the shell sends a person to with `?product=` appended and nothing else. Null for a product inside the shell. Set from the console; refused unless https and free of query and fragment."
           }
         }
       },
@@ -8966,6 +8979,217 @@
                       "items": {
                         "type": "string"
                       }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/me/context": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "operationId": "showMyContext",
+        "summary": "Who is asking and what they hold, in one answer",
+        "description": "Written for a product deployed beside the platform (ADR-051 §3): its server receives the person’s bearer from its own page and asks here rather than verifying the token itself — the signing key is symmetric, and holding it would be holding the mint. `/me`, `/me/permissions` and `/me/entitlements` composed, plus the tenant’s slug, the product with its address, the quotas with their usage, and when the token dies — the horizon of any cache the product keeps of this answer. Nothing is decided again: the roles, permissions and capabilities are the ones the context chain resolved for this request. No permission is required; this is the caller asking about themselves.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The context in force for this request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "user",
+                    "tenant",
+                    "product",
+                    "roles",
+                    "permissions",
+                    "capabilities",
+                    "entitlements",
+                    "usage",
+                    "token_expires_at"
+                  ],
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "email",
+                        "display_name",
+                        "locale"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "email": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "display_name": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "locale": {
+                          "type": "string",
+                          "enum": ["en", "fr", "es", "de", "it"]
+                        }
+                      }
+                    },
+                    "tenant": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "slug",
+                        "name"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "slug": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "name": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "product": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "code",
+                        "name",
+                        "app_url"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "code": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "name": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "app_url": {
+                          "type": "string",
+                          "format": "uri",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "permissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "capabilities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Resolved for this person: a seat they hold counts, a colleague’s does not (§13.1)."
+                    },
+                    "entitlements": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Entitlement"
+                      },
+                      "description": "What the tenant holds on this product, with limits — the same rows `listEntitlements` shows."
+                    },
+                    "usage": {
+                      "type": "array",
+                      "description": "One row per quota, with what has been counted against it — the same rows `showTenantUsage` shows.",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "feature",
+                          "name",
+                          "unit",
+                          "limit",
+                          "unlimited",
+                          "metered",
+                          "used",
+                          "remaining"
+                        ],
+                        "properties": {
+                          "feature": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "unit": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "limit": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "unlimited": {
+                            "type": "boolean"
+                          },
+                          "metered": {
+                            "type": "boolean"
+                          },
+                          "used": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "remaining": {
+                            "type": "integer",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    },
+                    "token_expires_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true,
+                      "description": "When the bearer this was answered for stops being accepted — cache no longer than this. Null when the token carries no expiry, which a product treats as “do not cache”."
                     }
                   }
                 }
@@ -18490,8 +18714,15 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "description": "At least one of the two. The code is absent by omission rather than by refusal: there is nothing to send, because there is nothing that may change.",
+                "description": "At least one of the three. The code is absent by omission rather than by refusal: there is nothing to send, because there is nothing that may change.",
                 "properties": {
+                  "app_url": {
+                    "type": "string",
+                    "format": "uri",
+                    "nullable": true,
+                    "maxLength": 2048,
+                    "description": "Where the product lives when deployed beside the platform (ADR-051 §3); null clears it. https only, no query, no fragment — the shell appends `?product=` itself. Recorded in the trail as SET_APP_URL."
+                  },
                   "name": {
                     "type": "string",
                     "maxLength": 200

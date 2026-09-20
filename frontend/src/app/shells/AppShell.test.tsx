@@ -134,6 +134,21 @@ describe('the landing address, signed in', () => {
     await waitFor(() => expect(assign).toHaveBeenCalledWith('/'));
   });
 
+  it('sends a person whose product lives beside the platform to its address', async () => {
+    // ADR-051 §3: the landing for an external product is the product.
+    const assign = vi.fn();
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign });
+    const PLAN = { id: 'prod-plan', code: 'plan', name: 'Plan', app_url: 'https://plan.example.test' };
+
+    renderAtRoute(
+      <AppShell />,
+      stubs({ products: [ATLAS, PLAN], default: 'plan', memberships: [{ tenant: 'acme', name: 'Acme Ltd' }] }),
+      { path: '/', product: 'plan' },
+    );
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('https://plan.example.test/?product=plan&lang=en'));
+  });
+
   it('stays where the root is already theirs', async () => {
     const assign = vi.fn();
     vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign });

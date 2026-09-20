@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tenant\Infrastructure;
 
+use App\Shared\Database\Uuid;
 use App\Tenant\Domain\Tenant;
 use App\Tenant\Domain\TenantRepository;
 use Doctrine\DBAL\Connection;
@@ -16,6 +17,12 @@ final class PostgresTenantRepository implements TenantRepository
 
     public function find(string $tenantId): ?Tenant
     {
+        // A tenant id that is not a uuid names nothing; asked of PostgreSQL
+        // it would be a type error, not an absence.
+        if (!Uuid::isValid($tenantId)) {
+            return null;
+        }
+
         return $this->one('SELECT id, name, slug, may_author_offers FROM tenants WHERE id = :key', $tenantId);
     }
 

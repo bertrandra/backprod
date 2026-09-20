@@ -60,5 +60,9 @@ interface ProductDirectory
      * Null for either field means "leave it", so a rename does not have to
      * restate the active flag and risk flipping it by omission.
      */
-    public function update(string $productId, ?string $name, ?bool $active): ?Product;
+    /**
+     * @param bool        $setAppUrl whether `$appUrl` is to be written — null is a value (clear it), so absence needs its own flag
+     * @param string|null $appUrl    the address, or null to clear it
+     */
+    public function update(string $productId, ?string $name, ?bool $active, bool $setAppUrl = false, ?string $appUrl = null): ?Product;
 }
