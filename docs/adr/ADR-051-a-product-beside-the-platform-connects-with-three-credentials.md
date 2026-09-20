@@ -9,6 +9,8 @@ resolution), ADR-037 (the shell gates on `/me`), ADR-038 (this platform
 issues its own sessions), ADR-047 (a tenant has products), ADR-048 (webhook
 signature scheme), §10.6, §12.1, §26, §27.1, §31, §38.3.
 
+**Companion:** `docs/plan-service.md` — the product's side: what the Plan service is, owns, borrows and must never do.
+
 ## 1. Context
 
 Backprod is the shared platform: people, organisations, offers,
