@@ -15,6 +15,9 @@ use App\Staff\Domain\StaffAccess;
 use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffIdentity;
 use App\Staff\Domain\StaffPermission;
+use App\Webhook\Domain\WebhookDeliveries;
+use App\Webhook\Domain\WebhookDelivery;
+use App\Webhook\Domain\WebhookEndpoints;
 use DateTimeImmutable;
 
 /**
@@ -39,7 +42,64 @@ final class ProductDesk
         private readonly StaffAccessLog $trail,
         private readonly ProductKeys $keys,
         private readonly ProductRepository $registry,
+        private readonly WebhookEndpoints $endpoints,
+        private readonly WebhookDeliveries $deliveries,
     ) {
+    }
+
+    /**
+     * A new webhook secret for the product (ADR-051 §5), in the clear, once.
+     * The previous one keeps signing for a day, so the product swaps its
+     * copy at its own pace.
+     */
+    public function issueWebhookSecret(StaffIdentity $staff, string $productId): string
+    {
+        $secret = $this->endpoints->issueSecret($productId);
+
+        if ($secret === null) {
+            $this->record($staff, null, $productId, 'UPDATE_MISS', []);
+
+            throw new NotFoundException('Unknown product.', [], 'PRODUCT_NOT_FOUND');
+        }
+
+        // That it was issued, by whom, and never what it is.
+        $this->record($staff, $productId, $productId, 'ISSUE_WEBHOOK_SECRET', []);
+
+        return $secret;
+    }
+
+    /**
+     * What was sent to the product lately, delivered or not (ADR-051 §5).
+     * Not recorded: nothing of a customer's is in it beyond ids.
+     *
+     * @return list<WebhookDelivery>
+     */
+    public function webhookDeliveries(string $productId): array
+    {
+        if ($this->registry->find($productId) === null) {
+            throw new NotFoundException('Unknown product.', [], 'PRODUCT_NOT_FOUND');
+        }
+
+        return $this->deliveries->recent($productId, 50);
+    }
+
+    /**
+     * Puts a parked delivery back on the queue. Recorded, because it is the
+     * one act here that makes the platform send something again.
+     */
+    public function retryWebhookDelivery(StaffIdentity $staff, string $productId, string $deliveryId): WebhookDelivery
+    {
+        $delivery = $this->deliveries->retry($productId, $deliveryId);
+
+        if ($delivery === null) {
+            $this->record($staff, null, $deliveryId, 'UPDATE_MISS', []);
+
+            throw new NotFoundException('No such delivery on this product.', [], 'WEBHOOK_DELIVERY_NOT_FOUND');
+        }
+
+        $this->record($staff, $productId, $delivery->id, 'RETRY_WEBHOOK', ['event_id' => $delivery->eventId, 'event_type' => $delivery->eventType]);
+
+        return $delivery;
     }
 
     /**
@@ -129,9 +189,17 @@ final class ProductDesk
      * switched off, and a row saying only that it was edited cannot answer
      * that. A call that does both records both.
      */
-    public function update(StaffIdentity $staff, string $productId, ?string $name, ?bool $active, bool $setAppUrl = false, ?string $appUrl = null): Product
-    {
-        $product = $this->products->update($productId, $name, $active, $setAppUrl, $appUrl);
+    public function update(
+        StaffIdentity $staff,
+        string $productId,
+        ?string $name,
+        ?bool $active,
+        bool $setAppUrl = false,
+        ?string $appUrl = null,
+        bool $setWebhookUrl = false,
+        ?string $webhookUrl = null,
+    ): Product {
+        $product = $this->products->update($productId, $name, $active, $setAppUrl, $appUrl, $setWebhookUrl, $webhookUrl);
 
         if ($product === null) {
             // Recorded even though nothing changed: a run of these against
@@ -158,6 +226,12 @@ final class ProductDesk
             // Where the platform will send people (ADR-051): worth a row of
             // its own, because a wrong address is a phishing page.
             $this->record($staff, $product->id, $product->id, 'SET_APP_URL', ['app_url' => $product->appUrl]);
+        }
+
+        if ($setWebhookUrl) {
+            // Where signed events go (ADR-051 §5): a wrong address here
+            // sends a customer's subscription state to a stranger.
+            $this->record($staff, $product->id, $product->id, 'SET_WEBHOOK_URL', ['webhook_url' => $product->webhookUrl]);
         }
 
         if ($active !== null) {

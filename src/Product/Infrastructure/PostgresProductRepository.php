@@ -6,6 +6,7 @@ namespace App\Product\Infrastructure;
 
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
+use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
 use Doctrine\DBAL\Connection;
 
@@ -18,7 +19,7 @@ final class PostgresProductRepository implements ProductRepository
     public function findByCode(string $code): ?Product
     {
         $row = $this->connection->fetchAssociative(
-            'SELECT id, code, name, active, app_url FROM products WHERE code = :code',
+            'SELECT id, code, name, active, app_url, webhook_url, webhook_secret_issued_at FROM products WHERE code = :code',
             ['code' => $code],
         );
 
@@ -35,7 +36,7 @@ final class PostgresProductRepository implements ProductRepository
         }
 
         $row = $this->connection->fetchAssociative(
-            'SELECT id, code, name, active, app_url FROM products WHERE id = :id',
+            'SELECT id, code, name, active, app_url, webhook_url, webhook_secret_issued_at FROM products WHERE id = :id',
             ['id' => $productId],
         );
 
@@ -45,7 +46,7 @@ final class PostgresProductRepository implements ProductRepository
     public function activeProducts(): array
     {
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT id, code, name, active, app_url FROM products WHERE active ORDER BY code',
+            'SELECT id, code, name, active, app_url, webhook_url, webhook_secret_issued_at FROM products WHERE active ORDER BY code',
         );
 
         $products = [];
@@ -75,7 +76,16 @@ final class PostgresProductRepository implements ProductRepository
         }
 
         $appUrl = $row['app_url'] ?? null;
+        $webhookUrl = $row['webhook_url'] ?? null;
 
-        return new Product($id, $code, $name, (bool) ($row['active'] ?? false), is_string($appUrl) ? $appUrl : null);
+        return new Product(
+            $id,
+            $code,
+            $name,
+            (bool) ($row['active'] ?? false),
+            is_string($appUrl) ? $appUrl : null,
+            is_string($webhookUrl) ? $webhookUrl : null,
+            Row::nullableTimestamp($row, 'webhook_secret_issued_at'),
+        );
     }
 }

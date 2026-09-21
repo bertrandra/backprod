@@ -7,6 +7,8 @@ namespace App\Privacy\Service;
 use App\Privacy\Domain\ErasureOutcome;
 use App\Privacy\Domain\ErasureRepository;
 use App\Shared\Exceptions\ConflictException;
+use App\Webhook\Domain\ProductEvents;
+use App\Webhook\Domain\ProductEventType;
 
 /**
  * Forgetting a person, without forgetting what the law requires kept
@@ -28,8 +30,10 @@ use App\Shared\Exceptions\ConflictException;
  */
 final class Erasure
 {
-    public function __construct(private readonly ErasureRepository $erasures)
-    {
+    public function __construct(
+        private readonly ErasureRepository $erasures,
+        private readonly ProductEvents $events,
+    ) {
     }
 
     /**
@@ -51,6 +55,15 @@ final class Erasure
         // that does the erasing. Written here it would commit separately, and
         // a process that died in between would leave a person erased with no
         // record of who did it.
-        return $this->erasures->erase($subjectUserId, $requestedByUserId, $requestId);
+        $outcome = $this->erasures->erase($subjectUserId, $requestedByUserId, $requestId);
+
+        // Every product beside the platform holds the person's name too, and
+        // the erasure is not done until it has propagated (ADR-051 §5): the
+        // id only, to every product that can be told — a product cannot
+        // erase what it never kept, and a name in this payload would be the
+        // platform sending what it just promised to forget.
+        $this->events->publishToAll(ProductEventType::USER_ERASED, ['user' => ['id' => $subjectUserId]]);
+
+        return $outcome;
     }
 }

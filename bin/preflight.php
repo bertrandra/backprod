@@ -102,6 +102,13 @@ $capabilities = [
         required: true,
     ),
     new Capability(
+        'Webhooks to a product beside the platform',
+        strlen(env('WEBHOOK_SECRET_KEY')) >= 32,
+        'WEBHOOK_SECRET_KEY is empty or shorter than 32 characters, so no product can be issued a '
+        . 'webhook secret and no event is delivered (ADR-051 §5). A product inside this shell needs '
+        . 'none. Generate one with: ' . "php -r 'echo bin2hex(random_bytes(32)), PHP_EOL;'",
+    ),
+    new Capability(
         'Taking money',
         // Stripe needs all three of its keys (config/container.php says why);
         // the stub is a provider too, for a demo or the test suite.

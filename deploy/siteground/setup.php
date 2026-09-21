@@ -417,6 +417,10 @@ function handleSetup(): void
         . '/' . rawurlencode(field($_POST, 'db_name')) . "\n"
         . "AUTH_SIGNING_SECRET={$authSecret}\n"
         . "ASSET_LINK_SIGNING_SECRET={$assetSecret}\n"
+        // Seals the webhook secrets a product beside the platform is issued
+        // (ADR-051 §5). Generated here like the two above, because a key an
+        // operator has to add later is a feature that answers 503 until then.
+        . 'WEBHOOK_SECRET_KEY=' . bin2hex(random_bytes(32)) . "\n"
         . "ASSET_STORAGE_ROOT={$assetsDir}\n"
         . "PDF_TEMPORARY_ROOT={$pdfDir}\n"
         // Where this deployment answers, taken from the address this very

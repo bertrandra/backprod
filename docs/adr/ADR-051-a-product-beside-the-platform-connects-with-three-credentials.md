@@ -1,13 +1,21 @@
 # ADR-051 — A product beside the platform connects with three credentials, none of them shared
 
-**Status:** accepted 2026-09-20 (merged by the operator). Milestones B and C
-are built (2026-09-21): `GET /me/context` and `products.app_url`; product
-keys, the `product` authority with its three routes, the product access log
-and reported usage, issued and revoked from the console. D and E are not; §7
-says what each costs. Two details settled in building C: a refused key
-answers `401 UNAUTHENTICATED` when unknown and `403 PRODUCT_KEY_REVOKED` /
-`PRODUCT_KEY_EXPIRED` / `PRODUCT_KEY_SCOPE` when recognised; and a quota
-refusal is `403 QUOTA_EXCEEDED`, the platform's own code, not a 409.
+**Status:** accepted 2026-09-20 (merged by the operator). Milestones B, C
+and D are built (2026-09-21): `GET /me/context` and `products.app_url`;
+product keys, the `product` authority with its three routes, the product
+access log and reported usage, issued and revoked from the console; the
+webhook address and secret per product, the `webhook_deliveries` outbox,
+the `webhook.deliver` job and the console's view of deliveries. E is not;
+§7 says what it costs. Details settled in building: a refused key answers
+`401 UNAUTHENTICATED` when unknown and `403 PRODUCT_KEY_REVOKED` /
+`PRODUCT_KEY_EXPIRED` / `PRODUCT_KEY_SCOPE` when recognised; a quota
+refusal is `403 QUOTA_EXCEEDED`, the platform's own code, not a 409. For
+D: subscription events are *collected* from the append-only
+`subscription_events` history by a cursor rather than published by every
+commerce path (§5 says why); the secret is sealed under a dedicated
+`WEBHOOK_SECRET_KEY` rather than "the app key", because no such key
+existed; a `400` from the product parks the delivery at once; and a
+product with no address is told nothing rather than told later.
 
 **Relates to:** ADR-013 (product context is a header), ADR-015 (tenant
 resolution), ADR-037 (the shell gates on `/me`), ADR-038 (this platform
@@ -272,6 +280,20 @@ webhook_deliveries
   `tenant.product.unassigned`, `user.erased`. The last one is not optional
   for a product that stores a person's name: §26's erasure is a platform
   promise, and a product that keeps the name breaks it.
+- **Where the rows come from** (as built). Members, assignments and
+  erasures are published by the service that does the act, through a
+  `ProductEvents` port whose adapter writes the outbox row — for every
+  product the tenant holds, since a membership is mirrored onto each
+  (ADR-047). Subscription events are not published anywhere: the
+  `webhook.deliver` job *collects* them from `subscription_events`, the
+  append-only history that non-negotiable #18 already requires to be
+  complete, reading forward from a cursor that trails the clock by a
+  minute so a late commit is not passed over. Hooking every commerce path
+  instead would have taught the commerce module that products exist
+  beside the platform, and missed the next path somebody adds.
+  `ACTIVATED` → `subscription.started`; `OFFER_CHANGED`, `RESUMED`,
+  `RENEWED` → `subscription.changed`; `CANCELLED`, `EXPIRED` →
+  `subscription.ended`.
 
 ## 6. What the product has to do (the checklist its developer gets)
 

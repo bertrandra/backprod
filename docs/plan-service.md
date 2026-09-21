@@ -1,6 +1,6 @@
 # The Plan service — specification of a product beside the platform
 
-**Status:** accepted 2026-09-20, with ADR-051. Milestones B and C are built on the platform (`/me/context`, `app_url`, product keys and the three `product/*` routes — §7 is live); §8 (events, milestone D) is not yet. Where this document said `409 QUOTA_EXCEEDED`, the platform answers `403 QUOTA_EXCEEDED`. This is the product's side of
+**Status:** accepted 2026-09-20, with ADR-051. Milestones B, C and D are built on the platform (`/me/context`, `app_url`, product keys and the three `product/*` routes — §7 is live; the webhook address and secret, signed deliveries on the schedule §8 describes, and the console's view of them — §8 is live). Where this document said `409 QUOTA_EXCEEDED`, the platform answers `403 QUOTA_EXCEEDED`. The webhook secret is `bwh_…`, put in Plan's environment as `BACKPROD_WEBHOOK_SECRET`; a rotation keeps the old one signing for a day. This is the product's side of
 that decision: what `plan.raillard.org` is, what it owns, what it borrows from
 the platform and how, and what it must never do. It is written for the
 people who build Plan — in its own repository, on its own host — so that the

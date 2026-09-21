@@ -17,6 +17,14 @@ final class Product
          * to with `?product=` appended. Null for a product inside the shell.
          */
         public readonly ?string $appUrl = null,
+        /**
+         * Where the platform tells the product what happened (ADR-051 §5):
+         * an https address that receives signed events. Null for a product
+         * that has given none, which hears nothing.
+         */
+        public readonly ?string $webhookUrl = null,
+        /** When the current webhook secret was issued; null while none is. */
+        public readonly ?\DateTimeImmutable $webhookSecretIssuedAt = null,
     ) {
     }
 }

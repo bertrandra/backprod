@@ -61,8 +61,18 @@ interface ProductDirectory
      * restate the active flag and risk flipping it by omission.
      */
     /**
-     * @param bool        $setAppUrl whether `$appUrl` is to be written — null is a value (clear it), so absence needs its own flag
-     * @param string|null $appUrl    the address, or null to clear it
+     * @param bool        $setAppUrl     whether `$appUrl` is to be written — null is a value (clear it), so absence needs its own flag
+     * @param string|null $appUrl        the address, or null to clear it
+     * @param bool        $setWebhookUrl the same flag for the webhook address (ADR-051 §5)
+     * @param string|null $webhookUrl    where events are delivered, or null to stop delivering
      */
-    public function update(string $productId, ?string $name, ?bool $active, bool $setAppUrl = false, ?string $appUrl = null): ?Product;
+    public function update(
+        string $productId,
+        ?string $name,
+        ?bool $active,
+        bool $setAppUrl = false,
+        ?string $appUrl = null,
+        bool $setWebhookUrl = false,
+        ?string $webhookUrl = null,
+    ): ?Product;
 }

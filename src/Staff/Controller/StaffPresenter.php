@@ -13,6 +13,7 @@ use App\Staff\Domain\StaffIdentity;
 use App\Staff\Domain\StaffMember;
 use App\Staff\Domain\TenantAccount;
 use App\Staff\Domain\TenantMemberAcrossProducts;
+use App\Webhook\Domain\WebhookDelivery;
 use DateTimeInterface;
 use DateTimeZone;
 
@@ -110,6 +111,32 @@ final class StaffPresenter
             'name' => $product->name,
             'active' => $product->active,
             'app_url' => $product->appUrl,
+            'webhook_url' => $product->webhookUrl,
+            'webhook_secret_issued_at' => $product->webhookSecretIssuedAt?->format(DATE_ATOM),
+        ];
+    }
+
+    /**
+     * One event on its way to a product (ADR-051 §5): the envelope and what
+     * became of it, never the payload — a tenant's subscription state is
+     * the product's to read on its own route, not this screen's.
+     *
+     * @return array<string, mixed>
+     */
+    public static function webhookDelivery(WebhookDelivery $delivery): array
+    {
+        return [
+            'id' => $delivery->id,
+            'event_id' => $delivery->eventId,
+            'event_type' => $delivery->eventType,
+            'tenant_id' => $delivery->tenantId,
+            'occurred_at' => $delivery->occurredAt->format(DATE_ATOM),
+            'attempt' => $delivery->attempt,
+            'next_attempt_at' => $delivery->nextAttemptAt->format(DATE_ATOM),
+            'delivered_at' => $delivery->deliveredAt?->format(DATE_ATOM),
+            'parked_at' => $delivery->parkedAt?->format(DATE_ATOM),
+            'last_status' => $delivery->lastStatus,
+            'last_error' => $delivery->lastError,
         ];
     }
 

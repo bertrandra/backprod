@@ -16,6 +16,8 @@ use App\Notification\Domain\NotificationRepository;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\UnauthenticatedException;
 use App\Tenant\Domain\JoinRequests;
+use App\Webhook\Domain\ProductEvents;
+use App\Webhook\Domain\ProductEventType;
 use Psr\Log\LoggerInterface;
 use SensitiveParameter;
 
@@ -62,6 +64,7 @@ final class Sessions
         private readonly AccountRegistrar $registrar,
         private readonly NotificationRepository $notifications,
         private readonly JoinRequests $requests,
+        private readonly ProductEvents $events,
         /**
          * Where this deployment is reachable, for the link in a confirmation
          * email. Empty when nobody configured it, and the link is then
@@ -122,6 +125,13 @@ final class Sessions
         );
 
         $this->askForConfirmation($account);
+
+        // The organisation's products hear of the arrival (ADR-051 §5) —
+        // with the status, because a membership waiting on an administrator
+        // is not yet a person the product will see.
+        $this->events->publishForTenant(ProductEventType::MEMBER_ADDED, $account->tenantId, [
+            'member' => ['user_id' => $account->userId, 'status' => $account->membershipStatus],
+        ]);
 
         if ($account->membershipStatus === JoinDecision::PENDING) {
             // Every administrator of the organisation, once: a request nobody

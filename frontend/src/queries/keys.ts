@@ -141,6 +141,8 @@ export const keys = {
     mailTemplates: (locale: string) => ['staff', 'mail', 'templates', locale] as const,
     tenantLists: ['staff', 'tenants'] as const,
     productCredentials: (productId: string) => ['staff', 'products', productId, 'credentials'] as const,
+    /** What the platform sent a product beside it, and what became of it (ADR-051 §5). */
+    webhookDeliveries: (productId: string) => ['staff', 'products', productId, 'webhook-deliveries'] as const,
     tenants: (limit: number, offset: number) => ['staff', 'tenants', limit, offset] as const,
     // The motive is part of a read's key, so a read made for one reason is never
     // served from the cache to a read made for another: an access this platform

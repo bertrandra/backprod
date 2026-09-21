@@ -143,6 +143,7 @@ use App\Staff\Controller\CreateTenantController;
 use App\Staff\Controller\GrantStaffRoleController;
 use App\Staff\Controller\GrantTenantEntitlementController;
 use App\Staff\Controller\IssueProductCredentialController;
+use App\Staff\Controller\IssueWebhookSecretController;
 use App\Staff\Controller\ListAccessLogController;
 use App\Staff\Controller\ListPlatformProductsController;
 use App\Staff\Controller\ListProductCredentialsController;
@@ -156,11 +157,13 @@ use App\Staff\Controller\ListTenantPaymentsController;
 use App\Staff\Controller\ListTenantProjectsController;
 use App\Staff\Controller\ListTenantQuotesController;
 use App\Staff\Controller\ListTenantsController;
+use App\Staff\Controller\ListWebhookDeliveriesController;
 use App\Staff\Controller\PostSupportMessageController;
 use App\Staff\Controller\PublishStaffOfferVersionController;
 use App\Staff\Controller\RenameFeatureController;
 use App\Staff\Controller\RenameStaffOfferController;
 use App\Staff\Controller\ResetDemoWorldController;
+use App\Staff\Controller\RetryWebhookDeliveryController;
 use App\Staff\Controller\RevokeProductCredentialController;
 use App\Staff\Controller\RevokeStaffRoleController;
 use App\Staff\Controller\SendTestMailController;
@@ -610,6 +613,11 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/staff/products/{productId}/credentials', ListProductCredentialsController::class);
     $routes->addRoute('POST', '/api/v1/staff/products/{productId}/credentials', IssueProductCredentialController::class);
     $routes->addRoute('DELETE', '/api/v1/staff/products/{productId}/credentials/{credentialId}', RevokeProductCredentialController::class);
+    // What the platform tells the product (ADR-051 §5): the secret that
+    // signs it, and what was sent.
+    $routes->addRoute('POST', '/api/v1/staff/products/{productId}/webhook-secret', IssueWebhookSecretController::class);
+    $routes->addRoute('GET', '/api/v1/staff/products/{productId}/webhook-deliveries', ListWebhookDeliveriesController::class);
+    $routes->addRoute('POST', '/api/v1/staff/products/{productId}/webhook-deliveries/{deliveryId}/retry', RetryWebhookDeliveryController::class);
 
     // The demonstration world, rebuilt from the console. Behind a permission
     // of its own, and refused while a product that is not the demo's exists.

@@ -218,6 +218,42 @@ describe('changing one', () => {
     await waitFor(() => expect(requests.some((r) => r.method === 'DELETE')).toBe(true));
   });
 
+  it('sets the webhook address, issues the secret once, lists deliveries and retries a parked one', async () => {
+    // ADR-051 §5. The secret is in the answer to issuing and nowhere else;
+    // a parked delivery is the one with a button.
+    const PARKED = { id: 'd-1', event_id: 'e-1', event_type: 'member.added', tenant_id: 't-1', occurred_at: '2026-09-21T08:00:00Z', attempt: 6, next_attempt_at: '2026-09-22T08:00:00Z', delivered_at: null, parked_at: '2026-09-22T08:00:00Z', last_status: 503, last_error: 'HTTP_503' };
+    const DELIVERED = { ...PARKED, id: 'd-2', event_id: 'e-2', event_type: 'subscription.started', attempt: 1, delivered_at: '2026-09-21T08:00:05Z', parked_at: null, last_status: 200, last_error: null };
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/products': { data: { products: [{ ...ATLAS, webhook_url: null, webhook_secret_issued_at: null }] } },
+      'PATCH /api/v1/staff/products/{productId}': { data: { product: { ...ATLAS, webhook_url: 'https://plan.example.test/hook', webhook_secret_issued_at: null } } },
+      'POST /api/v1/staff/products/{productId}/webhook-secret': { status: 201, data: { secret: 'bwh_secret-secret-secret-secret-secret-secret-s', product: { ...ATLAS, webhook_url: 'https://plan.example.test/hook', webhook_secret_issued_at: '2026-09-21T09:00:00Z' } } },
+      'GET /api/v1/staff/products/{productId}/webhook-deliveries': { data: { deliveries: [PARKED, DELIVERED] } },
+      'POST /api/v1/staff/products/{productId}/webhook-deliveries/{deliveryId}/retry': { data: { delivery: { ...PARKED, parked_at: null } } },
+    });
+    renderAtRoute(<ProductsScreen />, client, { path: '/console/products' });
+
+    await waitFor(() => expect(screen.getByTestId('webhook-atlas')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('webhook-atlas'));
+    await waitFor(() => expect(screen.getByTestId('webhook-p-1')).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText('Webhook address'), { target: { value: 'https://plan.example.test/hook' } });
+    fireEvent.submit(screen.getByTestId('webhook-url-form'));
+    await waitFor(() => expect(requests.some((r) => r.method === 'PATCH')).toBe(true));
+    expect(requests.find((r) => r.method === 'PATCH')?.body).toEqual({ webhook_url: 'https://plan.example.test/hook' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Issue a secret' }));
+    await waitFor(() => expect(screen.getByTestId('issued-secret')).toBeTruthy());
+    expect(screen.getByTestId('issued-secret').textContent).toContain('bwh_secret');
+
+    const list = await screen.findByTestId('delivery-list');
+    expect(list.querySelectorAll('[data-state="parked"]')).toHaveLength(1);
+    expect(list.querySelectorAll('[data-state="delivered"]')).toHaveLength(1);
+    expect(list.textContent).not.toContain('bwh_');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(requests.some((r) => r.path.endsWith('/retry'))).toBe(true));
+  });
+
   it('retires with the flag and nothing else', async () => {
     const { client, requests } = recordingClient({
       'GET /api/v1/staff/products': { data: { products: [ATLAS] } },
