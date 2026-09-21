@@ -16,6 +16,8 @@ import { PageHeader } from '@/ui/Page';
 import { t } from '@/i18n';
 import { tx } from '@/i18n/react';
 
+import { ProductCredentials } from './ProductCredentials';
+
 /**
  * `console.admin.products` — the top of the model, and the screen that was
  * missing from it.
@@ -203,6 +205,9 @@ function ProductRow({
   const [draft, setDraft] = useState(product.name);
   const [addressing, setAddressing] = useState(false);
   const [address, setAddress] = useState(product.app_url ?? '');
+  // The product's keys (ADR-051 §4), opened on demand: a list nobody asked
+  // for is a list of secrets' names on a screen about something else.
+  const [keysOpen, setKeysOpen] = useState(false);
 
   return (
     <li
@@ -315,6 +320,8 @@ function ProductRow({
             {t("Rename")}</Button>
           <Button type="button" variant="secondary" onClick={() => setAddressing(true)}>
             {t("Application address")}</Button>
+          <Button type="button" variant="secondary" aria-expanded={keysOpen} data-testid={`keys-${product.code}`} onClick={() => setKeysOpen((was) => !was)}>
+            {t("Keys")}</Button>
           <Button
             type="button"
             variant={product.active ? 'danger' : 'secondary'}
@@ -325,6 +332,8 @@ function ProductRow({
           </Button>
         </div>
       )}
+
+      {keysOpen && <ProductCredentials productId={product.id} />}
 
       {product.active ? (
         <p className="mt-2 text-xs text-subtle">

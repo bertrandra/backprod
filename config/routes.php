@@ -102,6 +102,9 @@ use App\Product\Controller\ListProductsController;
 use App\Product\Controller\ProductCatalogueController;
 use App\Product\Controller\ProductConfigurationController;
 use App\Product\Controller\ProductFeaturesController;
+use App\Product\Controller\ProductTenantEntitlementsController;
+use App\Product\Controller\ProductTenantMembersController;
+use App\Product\Controller\ProductTenantUsageController;
 use App\Product\Controller\ShowProductController;
 use App\Project\Controller\CreateProjectController;
 use App\Project\Controller\CreateProjectVersionController;
@@ -139,8 +142,10 @@ use App\Staff\Controller\CreateStaffOfferVersionController;
 use App\Staff\Controller\CreateTenantController;
 use App\Staff\Controller\GrantStaffRoleController;
 use App\Staff\Controller\GrantTenantEntitlementController;
+use App\Staff\Controller\IssueProductCredentialController;
 use App\Staff\Controller\ListAccessLogController;
 use App\Staff\Controller\ListPlatformProductsController;
+use App\Staff\Controller\ListProductCredentialsController;
 use App\Staff\Controller\ListStaffController;
 use App\Staff\Controller\ListStorefrontOffersController;
 use App\Staff\Controller\ListSupportConversationsController;
@@ -156,6 +161,7 @@ use App\Staff\Controller\PublishStaffOfferVersionController;
 use App\Staff\Controller\RenameFeatureController;
 use App\Staff\Controller\RenameStaffOfferController;
 use App\Staff\Controller\ResetDemoWorldController;
+use App\Staff\Controller\RevokeProductCredentialController;
 use App\Staff\Controller\RevokeStaffRoleController;
 use App\Staff\Controller\SendTestMailController;
 use App\Staff\Controller\SetBillingIdentityController;
@@ -279,6 +285,13 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/me/navigation', MyNavigationController::class);
     $routes->addRoute('GET', '/api/v1/me/entitlements', MyEntitlementsController::class);
     $routes->addRoute('GET', '/api/v1/me/context', MeContextController::class);
+
+    // A product's own server, with a key and no person (ADR-051 §4). The
+    // product is the key's; the tenant is a parameter the gate checks and
+    // records.
+    $routes->addRoute('GET', '/api/v1/product/tenants/{tenantId}/entitlements', ProductTenantEntitlementsController::class);
+    $routes->addRoute('POST', '/api/v1/product/tenants/{tenantId}/usage', ProductTenantUsageController::class);
+    $routes->addRoute('GET', '/api/v1/product/tenants/{tenantId}/members', ProductTenantMembersController::class);
 
     // Identity-only: discovery cannot require the product context it supplies.
     $routes->addRoute('GET', '/api/v1/products', ListProductsController::class);
@@ -594,6 +607,9 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/staff/products', ListPlatformProductsController::class);
     $routes->addRoute('POST', '/api/v1/staff/products', CreateProductController::class);
     $routes->addRoute('PATCH', '/api/v1/staff/products/{productId}', UpdateProductController::class);
+    $routes->addRoute('GET', '/api/v1/staff/products/{productId}/credentials', ListProductCredentialsController::class);
+    $routes->addRoute('POST', '/api/v1/staff/products/{productId}/credentials', IssueProductCredentialController::class);
+    $routes->addRoute('DELETE', '/api/v1/staff/products/{productId}/credentials/{credentialId}', RevokeProductCredentialController::class);
 
     // The demonstration world, rebuilt from the console. Behind a permission
     // of its own, and refused while a product that is not the demo's exists.

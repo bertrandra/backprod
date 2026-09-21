@@ -97,6 +97,22 @@ final class RouteSurfaceTest extends ApiTestCase
         'GET /api/v1/products/{productId}/configuration',
     ];
 
+    /** A product key's routes (ADR-051 §4): no session, the product from the key. */
+    private const PRODUCT_PATHS = [
+        'GET /api/v1/product/tenants/{tenantId}/entitlements',
+        'POST /api/v1/product/tenants/{tenantId}/usage',
+        'GET /api/v1/product/tenants/{tenantId}/members',
+    ];
+
+    public function testEveryProductKeyRouteIsOneWeMeantToOpenToAKey(): void
+    {
+        self::assertSame(
+            self::PRODUCT_PATHS,
+            $this->routesClassified(RoutePolicy::PRODUCT),
+            'A route answers to a product key rather than a person. If that is intended, name it above.',
+        );
+    }
+
     public function testEveryPublicRouteIsOneWeMeantToPublish(): void
     {
         self::assertSame(
@@ -122,7 +138,7 @@ final class RouteSurfaceTest extends ApiTestCase
      */
     public function testEveryOtherRouteIsStaffOrFullyProtected(): void
     {
-        $relaxed = array_merge(self::PUBLIC_PATHS, self::IDENTITY_ONLY_PATHS);
+        $relaxed = array_merge(self::PUBLIC_PATHS, self::IDENTITY_ONLY_PATHS, self::PRODUCT_PATHS);
         $unclassified = [];
 
         foreach ($this->registeredRoutes() as $route) {

@@ -1028,6 +1028,80 @@ export function useUpdateProduct() {
   });
 }
 
+export type ProductCredential = Schemas['ProductCredential'];
+export type ProductScope = Schemas['ProductScope'];
+/** What a product key may do (ADR-051 §4), in the order the console offers them. */
+export const PRODUCT_SCOPES: readonly ProductScope[] = ['product.entitlements.read', 'product.members.read', 'product.usage.write'];
+
+/** Every key a product was issued, live or not — never a secret. */
+export function useProductCredentials(productId: string) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.productCredentials(productId),
+    queryFn: async (): Promise<readonly ProductCredential[]> => {
+      const { data, error, response } = await client.GET('/api/v1/staff/products/{productId}/credentials', {
+        params: { path: { productId } },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.credentials;
+    },
+  });
+}
+
+/**
+ * Issues a key. The answer carries the bearer once; the screen shows it once
+ * and the cache never holds it — only the list is refetched.
+ */
+export function useIssueProductCredential(productId: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (request: { label: string; scopes: ProductScope[]; expires_in_days?: number }) => {
+      const { data, error, response } = await client.POST('/api/v1/staff/products/{productId}/credentials', {
+        params: { path: { productId } },
+        body: request,
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: keys.staff.productCredentials(productId) });
+    },
+  });
+}
+
+export function useRevokeProductCredential(productId: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (credentialId: string) => {
+      const { data, error, response } = await client.DELETE('/api/v1/staff/products/{productId}/credentials/{credentialId}', {
+        params: { path: { productId, credentialId } },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.credential;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: keys.staff.productCredentials(productId) });
+    },
+  });
+}
+
 export type DemoWorld = Schemas['DemoWorld'];
 
 /**

@@ -88,6 +88,12 @@
   ],
   "components": {
     "securitySchemes": {
+      "productKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "bpk_<key id>_<secret>",
+        "description": "A product’s own key (ADR-051 §4), issued from the console for the product’s server and shown once. Recognised by its prefix before any session verifier: a session on a product route is nobody, and a key on a person’s route is nobody. The product is derived from the key — these routes read no X-Product."
+      },
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
@@ -3736,6 +3742,37 @@
           }
         }
       },
+    "ProductScope": {
+      "type": "string",
+      "enum": ["product.usage.write", "product.entitlements.read", "product.members.read"],
+      "description": "What a product key may do (ADR-051 §4): a catalogue of its own beside the tenant’s permissions and the platform’s. A key holds what it was issued and nothing else."
+    },
+    "ProductCredential": {
+      "type": "object",
+      "description": "A product key as the console sees it: never the secret, which was shown once at issue. A revoked key stays listed, because the access log points at it.",
+      "required": ["id", "key_id", "label", "scopes", "created_at", "expires_at", "revoked_at", "last_used_at"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "key_id": { "type": "string", "description": "The public half, in every bearer: `bpk_<key_id>_…`." },
+        "label": { "type": "string", "description": "Which deployment holds it." },
+        "scopes": { "type": "array", "items": { "$ref": "#/components/schemas/ProductScope" } },
+        "created_at": { "type": "string", "format": "date-time" },
+        "expires_at": { "type": "string", "format": "date-time", "nullable": true },
+        "revoked_at": { "type": "string", "format": "date-time", "nullable": true },
+        "last_used_at": { "type": "string", "format": "date-time", "nullable": true }
+      }
+    },
+    "ProductUsageAnswer": {
+      "type": "object",
+      "required": ["recorded", "feature", "used", "limit", "unlimited"],
+      "properties": {
+        "recorded": { "type": "boolean", "description": "False when this idempotency key was already recorded." },
+        "feature": { "type": "string" },
+        "used": { "type": "integer", "nullable": true, "description": "The level after this report." },
+        "limit": { "type": "integer", "nullable": true },
+        "unlimited": { "type": "boolean" }
+      }
+    },
       "PlatformProduct": {
         "type": "object",
         "description": "A product as the platform’s own administrator sees it. `active` appears here and nowhere else, because every other product shape has already filtered on it — the context chain treats an inactive product as absent, and so does the storefront.",
@@ -18779,6 +18816,117 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
+        }
+      }
+    },
+    "/api/v1/staff/products/{productId}/credentials": {
+      "get": {
+        "tags": ["Platform"],
+        "operationId": "listProductCredentials",
+        "summary": "Every key a product was issued",
+        "description": "Live or not (ADR-051 §4): a revoked key stays, because the product access log points at it. Never a secret. `staff.products.manage`.",
+        "parameters": [{ "name": "productId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "The keys, newest first.", "content": { "application/json": { "schema": { "type": "object", "required": ["credentials"], "properties": { "credentials": { "type": "array", "items": { "$ref": "#/components/schemas/ProductCredential" } } } } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/PermissionDenied" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "post": {
+        "tags": ["Platform"],
+        "operationId": "issueProductCredential",
+        "summary": "Issue a key for the product’s server",
+        "description": "The answer carries the bearer in the clear, once: the platform keeps its hash and can never say it again. Expires in a year unless `expires_in_days` says otherwise. Trailed as ISSUE_PRODUCT_KEY. `staff.products.manage`.",
+        "parameters": [{ "name": "productId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["label", "scopes"], "properties": { "label": { "type": "string", "maxLength": 100, "description": "Which deployment will hold it." }, "scopes": { "type": "array", "minItems": 1, "items": { "$ref": "#/components/schemas/ProductScope" } }, "expires_in_days": { "type": "integer", "minimum": 1, "maximum": 3650, "default": 365 } } } } } },
+        "responses": {
+          "201": { "description": "The key, and the one time its secret is in the clear.", "content": { "application/json": { "schema": { "type": "object", "required": ["credential", "bearer"], "properties": { "credential": { "$ref": "#/components/schemas/ProductCredential" }, "bearer": { "type": "string", "description": "`bpk_<key id>_<secret>` — what the product’s server sends. Shown once." } } } } } },
+          "400": { "description": "`VALIDATION_FAILED`: an unknown scope, none at all, or a lifetime out of range.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/PermissionDenied" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/staff/products/{productId}/credentials/{credentialId}": {
+      "delete": {
+        "tags": ["Platform"],
+        "operationId": "revokeProductCredential",
+        "summary": "Revoke a key",
+        "description": "The row stays, revoked: “which key read this” keeps an answer. Idempotent. A key of another product answers 404 here. Trailed as REVOKE_PRODUCT_KEY. `staff.products.manage`.",
+        "parameters": [
+          { "name": "productId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "credentialId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "The key, revoked.", "content": { "application/json": { "schema": { "type": "object", "required": ["credential"], "properties": { "credential": { "$ref": "#/components/schemas/ProductCredential" } } } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/PermissionDenied" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/product/tenants/{tenantId}/entitlements": {
+      "get": {
+        "tags": ["Product"],
+        "operationId": "showProductTenantEntitlements",
+        "summary": "What a tenant holds on this product, asked by the product",
+        "description": "For a product’s server, with its key and no person present (ADR-051 §4): the same rows `listEntitlements` shows a member, with the quotas’ usage beside them. The product is the key’s; a tenant that does not hold it is absent (404), so nothing is enumerated by key. Recorded in the product access log. Scope `product.entitlements.read`.",
+        "security": [{ "productKey": [] }],
+        "parameters": [{ "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "The entitlements and their usage.", "content": { "application/json": { "schema": { "type": "object", "required": ["tenant_id", "entitlements", "usage"], "properties": { "tenant_id": { "type": "string", "format": "uuid" }, "entitlements": { "type": "array", "items": { "$ref": "#/components/schemas/Entitlement" } }, "usage": { "type": "array", "items": { "type": "object" } } } } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "description": "`PRODUCT_KEY_SCOPE`, `PRODUCT_KEY_REVOKED` or `PRODUCT_KEY_EXPIRED`.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/product/tenants/{tenantId}/usage": {
+      "post": {
+        "tags": ["Product"],
+        "operationId": "reportProductUsage",
+        "summary": "Report what the product metered against a quota",
+        "description": "Before the work, so the platform can refuse it (ADR-051 §4, §38.3): `quantity` is a signed delta and the sum of the deltas is the level; `idempotency_key` is the product’s own name for the fact, so a retried report counts once (200, `recorded: false`). Refused `403 QUOTA_EXCEEDED` when the tenant’s entitlement does not cover the delta — or holds no quota on the feature at all. Scope `product.usage.write`.",
+        "security": [{ "productKey": [] }],
+        "parameters": [{ "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["feature", "quantity", "idempotency_key"], "properties": { "feature": { "type": "string", "maxLength": 100 }, "quantity": { "type": "integer", "minimum": -1000000, "maximum": 1000000, "description": "A non-zero delta." }, "idempotency_key": { "type": "string", "maxLength": 200 }, "period_start": { "type": "string", "format": "date", "nullable": true }, "period_end": { "type": "string", "format": "date", "nullable": true } } } } } },
+        "responses": {
+          "201": { "description": "Recorded.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProductUsageAnswer" } } } },
+          "200": { "description": "Already recorded under this key; nothing written.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProductUsageAnswer" } } } },
+          "400": { "description": "`VALIDATION_FAILED`.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "description": "`QUOTA_EXCEEDED`, `PRODUCT_KEY_SCOPE`, `PRODUCT_KEY_REVOKED` or `PRODUCT_KEY_EXPIRED`.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/product/tenants/{tenantId}/members": {
+      "get": {
+        "tags": ["Product"],
+        "operationId": "listProductTenantMembers",
+        "summary": "Who may use this product at a tenant, asked by the product",
+        "description": "User id, address, name, roles and status — never a credential, never another product’s membership (ADR-051 §4). Recorded in the product access log. Scope `product.members.read`.",
+        "security": [{ "productKey": [] }],
+        "parameters": [{ "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "The members.", "content": { "application/json": { "schema": { "type": "object", "required": ["tenant_id", "members"], "properties": { "tenant_id": { "type": "string", "format": "uuid" }, "members": { "type": "array", "items": { "type": "object", "required": ["user_id", "email", "display_name", "roles", "status"], "properties": { "user_id": { "type": "string", "format": "uuid" }, "email": { "type": "string", "nullable": true }, "display_name": { "type": "string", "nullable": true }, "roles": { "type": "array", "items": { "type": "string" } }, "status": { "type": "string" } } } } } } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "description": "`PRODUCT_KEY_SCOPE`, `PRODUCT_KEY_REVOKED` or `PRODUCT_KEY_EXPIRED`.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
     },

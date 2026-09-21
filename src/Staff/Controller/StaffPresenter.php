@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Staff\Controller;
 
 use App\Product\Domain\Product;
+use App\Product\Domain\ProductKey;
 use App\Staff\Domain\GrantedEntitlement;
 use App\Staff\Domain\GrantedFeature;
 use App\Staff\Domain\StaffAccessEntry;
@@ -68,6 +69,25 @@ final class StaffPresenter
             'granted_at' => $member->grantedAt
                 ->setTimezone(new DateTimeZone('UTC'))
                 ->format(DateTimeInterface::RFC3339),
+        ];
+    }
+
+    /**
+     * A product key as the console shows it (ADR-051 §4): never the secret.
+     *
+     * @return array{id: string, key_id: string, label: string, scopes: list<string>, created_at: string, expires_at: ?string, revoked_at: ?string, last_used_at: ?string}
+     */
+    public static function credential(ProductKey $key): array
+    {
+        return [
+            'id' => $key->id,
+            'key_id' => $key->keyId,
+            'label' => $key->label,
+            'scopes' => $key->scopes,
+            'created_at' => $key->createdAt->format(DATE_ATOM),
+            'expires_at' => $key->expiresAt?->format(DATE_ATOM),
+            'revoked_at' => $key->revokedAt?->format(DATE_ATOM),
+            'last_used_at' => $key->lastUsedAt?->format(DATE_ATOM),
         ];
     }
 

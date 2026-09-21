@@ -13,6 +13,7 @@ namespace App\Shared\Context;
  *   PUBLIC          nothing — the liveness probe
  *   IDENTITY_ONLY   authenticated, but no product or tenant yet
  *   STAFF           authenticated, with a platform role (§12.2)
+ *   PRODUCT         a product key, no person (ADR-051 §4)
  *   FULL            the whole §10.6 chain
  *
  * IDENTITY_ONLY exists for a real reason. A client cannot send X-Product
@@ -48,6 +49,7 @@ final class RoutePolicy
     public const PUBLIC = 'public';
     public const IDENTITY_ONLY = 'identity';
     public const STAFF = 'staff';
+    public const PRODUCT = 'product';
     public const FULL = 'full';
 
     /**
@@ -57,17 +59,21 @@ final class RoutePolicy
      *                                       credential at all
      * @param list<string> $staffPrefixes    path prefixes requiring a platform
      *                                       role instead of a membership
+     * @param list<string> $productPrefixes  path prefixes a product key calls
+     *                                       (ADR-051 §4): no person, no
+     *                                       session, the product from the key
      */
     public function __construct(
         private readonly array $publicPaths,
         private readonly array $identityOnlyPaths,
         private readonly array $publicPrefixes = [],
         private readonly array $staffPrefixes = [],
+        private readonly array $productPrefixes = [],
     ) {
     }
 
     /**
-     * @return self::PUBLIC|self::IDENTITY_ONLY|self::STAFF|self::FULL
+     * @return self::PUBLIC|self::IDENTITY_ONLY|self::STAFF|self::PRODUCT|self::FULL
      */
     public function for(string $path): string
     {
@@ -78,6 +84,15 @@ final class RoutePolicy
         foreach ($this->publicPrefixes as $prefix) {
             if ($path === $prefix || str_starts_with($path, rtrim($prefix, '/') . '/')) {
                 return self::PUBLIC;
+            }
+        }
+
+        // A product key's routes: a fifth level, not a relaxation of any
+        // other — the caller is authenticated by a credential no person
+        // holds, and the product is derived from it (ADR-051 §4).
+        foreach ($this->productPrefixes as $prefix) {
+            if ($path === $prefix || str_starts_with($path, rtrim($prefix, '/') . '/')) {
+                return self::PRODUCT;
             }
         }
 

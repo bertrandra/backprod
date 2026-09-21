@@ -63,6 +63,7 @@ use App\EInvoice\Infrastructure\StubEInvoiceProvider;
 use App\EInvoice\Service\EInvoiceProviders;
 use App\EInvoice\Service\InvoiceTransmissionEffect;
 use App\Entitlement\Domain\EntitlementRepository;
+use App\Entitlement\Domain\ReportedUsage;
 use App\Entitlement\Domain\UsageMeter;
 use App\Finance\Domain\FinancialPeriods;
 use App\Finance\Infrastructure\PostgresFinancialPeriods;
@@ -104,14 +105,22 @@ use App\Payment\Service\InvoiceSettlement;
 use App\Payment\Service\PaymentProviders;
 use App\Privacy\Domain\ErasureRepository;
 use App\Privacy\Infrastructure\PostgresErasureRepository;
+use App\Product\Domain\ProductAccessLog;
 use App\Product\Domain\ProductDirectory;
+use App\Product\Domain\ProductKeys;
 use App\Product\Domain\ProductRegistry;
 use App\Product\Domain\ProductRepository;
 use App\Product\Domain\ProductSettings;
+use App\Product\Domain\ProductUsageLedger;
+use App\Product\Domain\TenantHoldings;
+use App\Product\Infrastructure\PostgresProductAccessLog;
 use App\Product\Infrastructure\PostgresProductDirectory;
+use App\Product\Infrastructure\PostgresProductKeys;
 use App\Product\Infrastructure\PostgresProductRegistry;
 use App\Product\Infrastructure\PostgresProductRepository;
 use App\Product\Infrastructure\PostgresProductSettings;
+use App\Product\Infrastructure\PostgresProductUsage;
+use App\Product\Infrastructure\PostgresTenantHoldings;
 use App\Project\Domain\ProjectRepository;
 use App\Project\Infrastructure\PostgresProjectRepository;
 use App\Project\Infrastructure\ProjectUsageSource;
@@ -305,6 +314,13 @@ return static function (array $overrides = []): ContainerInterface {
         UserDirectory::class => autowire(PostgresUserDirectory::class),
         UserRepository::class => autowire(PostgresUserRepository::class),
         ProductRepository::class => autowire(PostgresProductRepository::class),
+        // The product authority (ADR-051 §4): keys, the log of what they read,
+        // what they reported, and whether a tenant holds the product at all.
+        ProductKeys::class => autowire(PostgresProductKeys::class),
+        ProductAccessLog::class => autowire(PostgresProductAccessLog::class),
+        ProductUsageLedger::class => autowire(PostgresProductUsage::class),
+        ReportedUsage::class => autowire(PostgresProductUsage::class),
+        TenantHoldings::class => autowire(PostgresTenantHoldings::class),
         ProductRegistry::class => autowire(PostgresProductRegistry::class),
         CatalogueRepository::class => autowire(PostgresCatalogueRepository::class),
         StorefrontListing::class => autowire(PostgresStorefrontListing::class),
@@ -450,7 +466,7 @@ return static function (array $overrides = []): ContainerInterface {
         UsageMeter::class => create(UsageMeter::class)->constructor([
             ProjectWorkspace::QUOTA => get(ProjectUsageSource::class),
             MemberUsageSource::QUOTA => get(MemberUsageSource::class),
-        ]),
+        ], get(ReportedUsage::class)),
 
         // --- Storage (§15, non-negotiable #9) --------------------------------
         // The bytes live outside PostgreSQL. Which store is an adapter: the
@@ -630,6 +646,10 @@ return static function (array $overrides = []): ContainerInterface {
                 // separates them is which permission each endpoint demands,
                 // which is a per-route decision and not a routing one.
                 staffPrefixes: ['/api/v1/staff', '/api/v1/admin'],
+                // A product's own server, with a key and no person (ADR-051
+                // §4). Not `/api/v1/products` — the boundary check keeps the
+                // two apart — and the product is derived from the key.
+                productPrefixes: ['/api/v1/product'],
             ),
         ),
 
