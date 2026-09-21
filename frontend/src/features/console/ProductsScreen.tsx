@@ -17,6 +17,7 @@ import { t } from '@/i18n';
 import { tx } from '@/i18n/react';
 
 import { ProductCredentials } from './ProductCredentials';
+import { ProductWebhook } from './ProductWebhook';
 
 /**
  * `console.admin.products` — the top of the model, and the screen that was
@@ -106,6 +107,7 @@ export function ProductsScreen() {
                 onRename={(newName) => update.mutate({ productId: product.id, name: newName })}
                 onSetActive={(active) => update.mutate({ productId: product.id, active })}
                 onSetAppUrl={(appUrl) => update.mutate({ productId: product.id, app_url: appUrl })}
+                onSetWebhookUrl={(webhookUrl) => update.mutate({ productId: product.id, webhook_url: webhookUrl })}
                 onStorefront={() =>
                   void handTo('/console/storefront', product.code)
                 }
@@ -188,6 +190,7 @@ function ProductRow({
   onRename,
   onSetActive,
   onSetAppUrl,
+  onSetWebhookUrl,
   onStorefront,
   onCatalogue,
   onInvoicing,
@@ -197,6 +200,7 @@ function ProductRow({
   onRename: (name: string) => void;
   onSetActive: (active: boolean) => void;
   onSetAppUrl: (appUrl: string | null) => void;
+  onSetWebhookUrl: (webhookUrl: string | null) => void;
   onStorefront: () => void;
   onCatalogue: () => void;
   onInvoicing: () => void;
@@ -208,6 +212,8 @@ function ProductRow({
   // The product's keys (ADR-051 §4), opened on demand: a list nobody asked
   // for is a list of secrets' names on a screen about something else.
   const [keysOpen, setKeysOpen] = useState(false);
+  // And what the platform tells it (ADR-051 §5), likewise on demand.
+  const [webhookOpen, setWebhookOpen] = useState(false);
 
   return (
     <li
@@ -322,6 +328,8 @@ function ProductRow({
             {t("Application address")}</Button>
           <Button type="button" variant="secondary" aria-expanded={keysOpen} data-testid={`keys-${product.code}`} onClick={() => setKeysOpen((was) => !was)}>
             {t("Keys")}</Button>
+          <Button type="button" variant="secondary" aria-expanded={webhookOpen} data-testid={`webhook-${product.code}`} onClick={() => setWebhookOpen((was) => !was)}>
+            {t("Webhook")}</Button>
           <Button
             type="button"
             variant={product.active ? 'danger' : 'secondary'}
@@ -334,6 +342,7 @@ function ProductRow({
       )}
 
       {keysOpen && <ProductCredentials productId={product.id} />}
+      {webhookOpen && <ProductWebhook product={product} pending={pending} onSetWebhookUrl={onSetWebhookUrl} />}
 
       {product.active ? (
         <p className="mt-2 text-xs text-subtle">

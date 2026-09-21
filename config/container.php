@@ -185,6 +185,15 @@ use App\User\Domain\UserDirectory;
 use App\User\Domain\UserRepository;
 use App\User\Infrastructure\PostgresUserDirectory;
 use App\User\Infrastructure\PostgresUserRepository;
+use App\Webhook\Domain\ProductEvents;
+use App\Webhook\Domain\WebhookDeliveries;
+use App\Webhook\Domain\WebhookEndpoints;
+use App\Webhook\Domain\WebhookTransport;
+use App\Webhook\Infrastructure\CurlWebhookTransport;
+use App\Webhook\Infrastructure\PostgresProductEvents;
+use App\Webhook\Infrastructure\PostgresWebhookDeliveries;
+use App\Webhook\Infrastructure\PostgresWebhookEndpoints;
+use App\Webhook\Service\DeliverWebhooks;
 use DI\ContainerBuilder;
 use Doctrine\DBAL\Connection;
 use FastRoute\Dispatcher;
@@ -318,6 +327,18 @@ return static function (array $overrides = []): ContainerInterface {
         // what they reported, and whether a tenant holds the product at all.
         ProductKeys::class => autowire(PostgresProductKeys::class),
         ProductAccessLog::class => autowire(PostgresProductAccessLog::class),
+
+        // --- Webhooks to a product (ADR-051 §5) --------------------------------
+        // The outbox is written by the act; the wire is the queue's. The
+        // secret that signs a delivery is sealed under WEBHOOK_SECRET_KEY,
+        // which lives in .env with the other secrets and nowhere in the
+        // database — so a copy of the database is not a copy of every
+        // product's secret.
+        ProductEvents::class => autowire(PostgresProductEvents::class),
+        WebhookDeliveries::class => autowire(PostgresWebhookDeliveries::class),
+        WebhookEndpoints::class => autowire(PostgresWebhookEndpoints::class)
+            ->constructorParameter('key', $env('WEBHOOK_SECRET_KEY')),
+        WebhookTransport::class => autowire(CurlWebhookTransport::class),
         ProductUsageLedger::class => autowire(PostgresProductUsage::class),
         ReportedUsage::class => autowire(PostgresProductUsage::class),
         TenantHoldings::class => autowire(PostgresTenantHoldings::class),
@@ -511,8 +532,9 @@ return static function (array $overrides = []): ContainerInterface {
                 RollUpFinancials $rollup,
                 SendRenewalNotices $renewalNotices,
                 SweepRateLimits $rateLimits,
+                DeliverWebhooks $webhooks,
             ): JobHandlers => new JobHandlers(
-                [$quotes, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $rateLimits],
+                [$quotes, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $rateLimits, $webhooks],
             ),
         ),
 

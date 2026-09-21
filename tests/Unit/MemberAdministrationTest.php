@@ -11,6 +11,7 @@ use App\Tenant\Domain\TenantMember;
 use App\Tenant\Domain\TenantMemberRepository;
 use App\Tenant\Service\MemberAdministration;
 use App\Tests\Support\InMemoryTenantMemberRepository;
+use App\Tests\Support\RecordingProductEvents;
 use App\User\Domain\PlatformUser;
 use App\User\Infrastructure\InMemoryUserRepository;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -179,6 +180,7 @@ final class MemberAdministrationTest extends TestCase
         return new MemberAdministration(
             $members ?? $this->members(),
             new InMemoryUserRepository($users),
+            new RecordingProductEvents(),
         );
     }
 }

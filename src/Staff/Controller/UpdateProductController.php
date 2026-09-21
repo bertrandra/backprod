@@ -52,13 +52,23 @@ final class UpdateProductController implements RouteHandler
             throw new BadRequestException('VALIDATION_FAILED', 'The request body is not valid.', ['field' => 'app_url', 'requirement' => 'an https:// address with no query or fragment']);
         }
 
-        if (!$body->has('name') && !$body->has('active') && !$body->has('app_url')) {
+        // Where the platform delivers events (ADR-051 §5). https, because
+        // the body carries a customer's subscription state; no fragment,
+        // because one never leaves the browser and its presence means the
+        // address was pasted from somewhere it should not have been.
+        $webhookUrl = $body->has('webhook_url') ? $body->optionalNullableString('webhook_url', 2048) : null;
+
+        if ($webhookUrl !== null && (!str_starts_with($webhookUrl, 'https://') || filter_var($webhookUrl, FILTER_VALIDATE_URL) === false || str_contains($webhookUrl, '#') || str_contains($webhookUrl, '@'))) {
+            throw new BadRequestException('VALIDATION_FAILED', 'The request body is not valid.', ['field' => 'webhook_url', 'requirement' => 'an https:// address with no fragment and no credentials']);
+        }
+
+        if (!$body->has('name') && !$body->has('active') && !$body->has('app_url') && !$body->has('webhook_url')) {
             // An empty PATCH is a client bug, not a no-op to be absorbed:
             // silently answering 200 to a request that changed nothing is how
             // a broken form looks like a working one.
             throw new BadRequestException(
                 'NOTHING_TO_UPDATE',
-                'Send a name, an active flag, an application address, or several.',
+                'Send a name, an active flag, an application address, a webhook address, or several.',
             );
         }
 
@@ -69,6 +79,8 @@ final class UpdateProductController implements RouteHandler
             $body->has('active') ? $body->requiredBool('active') : null,
             $body->has('app_url'),
             $appUrl,
+            $body->has('webhook_url'),
+            $webhookUrl,
         );
 
         return new JsonResponse(['product' => StaffPresenter::product($product)], 200);

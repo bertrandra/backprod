@@ -10,12 +10,19 @@ use App\Shared\Exceptions\NotFoundException;
 use App\Tenant\Domain\TenantMember;
 use App\Tenant\Domain\TenantMemberRepository;
 use App\User\Domain\UserRepository;
+use App\Webhook\Domain\ProductEvents;
+use App\Webhook\Domain\ProductEventType;
 
 /**
  * Member administration for one tenant and product.
  *
  * The invariants live here rather than in the controllers, so they hold
  * however a member is changed.
+ *
+ * A member joining or leaving is told to every product the tenant holds
+ * (ADR-051 §5), because the membership is mirrored onto each of them
+ * (ADR-047). A role change is not: the product reads roles live, and the
+ * first set of events names arrivals and departures only.
  */
 final class MemberAdministration
 {
@@ -24,6 +31,7 @@ final class MemberAdministration
     public function __construct(
         private readonly TenantMemberRepository $members,
         private readonly UserRepository $users,
+        private readonly ProductEvents $events,
     ) {
     }
 
@@ -79,6 +87,7 @@ final class MemberAdministration
         }
 
         $this->members->addMember($tenantId, $productId, $user->id, $roleCodes);
+        $this->events->publishForTenant(ProductEventType::MEMBER_ADDED, $tenantId, ['member' => ['user_id' => $user->id]]);
 
         return $this->requireMember($tenantId, $productId, $user->id);
     }
@@ -113,6 +122,7 @@ final class MemberAdministration
         }
 
         $this->members->removeMember($tenantId, $productId, $userId);
+        $this->events->publishForTenant(ProductEventType::MEMBER_REMOVED, $tenantId, ['member' => ['user_id' => $userId]]);
     }
 
     /**

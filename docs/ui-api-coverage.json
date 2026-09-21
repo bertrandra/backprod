@@ -236,7 +236,10 @@
         "updateProduct",
         "listProductCredentials",
         "issueProductCredential",
-        "revokeProductCredential"
+        "revokeProductCredential",
+        "issueWebhookSecret",
+        "listWebhookDeliveries",
+        "retryWebhookDelivery"
       ]
     },
     "console.admin.queue": {

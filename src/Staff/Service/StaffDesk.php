@@ -23,6 +23,8 @@ use App\Staff\Domain\TenantProducts;
 use App\Tenant\Domain\DefaultTenant;
 use App\Tenant\Domain\Tenant;
 use App\Tenant\Domain\TenantMemberRepository;
+use App\Webhook\Domain\ProductEvents;
+use App\Webhook\Domain\ProductEventType;
 
 /**
  * What platform staff may do across tenants, and the trail it leaves.
@@ -47,6 +49,7 @@ final class StaffDesk
         private readonly DefaultTenant $default,
         private readonly TenantMemberRepository $memberships,
         private readonly TenantGrants $grants,
+        private readonly ProductEvents $events,
     ) {
     }
 
@@ -81,7 +84,9 @@ final class StaffDesk
         }
 
         foreach ($productIds as $productId) {
-            $this->products->assign($tenant->id, $productId, $staff->userId);
+            if ($this->products->assign($tenant->id, $productId, $staff->userId) !== null) {
+                $this->events->publish(ProductEventType::TENANT_PRODUCT_ASSIGNED, $productId, $tenant->id, []);
+            }
         }
 
         if ($adminUserId !== null && $productIds !== []) {
@@ -89,6 +94,7 @@ final class StaffDesk
             // the organisation holds (ADR-047); the product named is the one
             // the act is made in, and any it holds will do.
             $this->memberships->addMember($tenant->id, $productIds[0], $adminUserId, ['TENANT_ADMIN']);
+            $this->events->publishForTenant(ProductEventType::MEMBER_ADDED, $tenant->id, ['member' => ['user_id' => $adminUserId]]);
         }
 
         $this->trail->record(new StaffAccess(
@@ -408,6 +414,16 @@ final class StaffDesk
 
             throw new NotFoundException('Tenant or product not found.', [], 'TENANT_OR_PRODUCT_NOT_FOUND');
         }
+
+        // The product hears it (ADR-051 §5). Unassigning is published too:
+        // the row that made the product addressable for this tenant is gone,
+        // but the product itself still has its address.
+        $this->events->publish(
+            $action === 'ASSIGN_PRODUCT' ? ProductEventType::TENANT_PRODUCT_ASSIGNED : ProductEventType::TENANT_PRODUCT_UNASSIGNED,
+            $product->id,
+            $tenant->id,
+            [],
+        );
 
         $this->trail->record(new StaffAccess(
             $staff->userId,

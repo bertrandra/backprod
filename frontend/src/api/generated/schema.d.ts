@@ -3273,6 +3273,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/products/{productId}/webhook-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue, or rotate, the secret that signs the product’s webhooks
+         * @description The answer carries the secret in the clear, once (ADR-051 §5): the platform keeps it sealed under its own key and never shows it again. Issuing is rotating — the secret it replaces keeps signing for a day, so the product swaps its copy at its own pace and nothing is refused in between. No body. Trailed as ISSUE_WEBHOOK_SECRET. `staff.products.manage`.
+         */
+        post: operations["issueWebhookSecret"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/products/{productId}/webhook-deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What was sent to the product lately
+         * @description The newest fifty events, delivered or not, each with its last answer (ADR-051 §5). `staff.products.manage`.
+         */
+        get: operations["listWebhookDeliveries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/products/{productId}/webhook-deliveries/{deliveryId}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Put a parked delivery back on the queue
+         * @description Due now; the next cron pass sends it (ADR-051 §5). A delivery that was not parked is answered as it stands; one already delivered is unchanged. Trailed as RETRY_WEBHOOK. `staff.products.manage`.
+         */
+        post: operations["retryWebhookDelivery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product/tenants/{tenantId}/entitlements": {
         parameters: {
             query?: never;
@@ -4866,6 +4926,47 @@ export interface components {
              * @description Where the product’s screens live when they are not the platform’s own shell (ADR-051 §3): an https address the shell sends a person to with `?product=` appended and nothing else. Null for a product inside the shell. Set from the console; refused unless https and free of query and fragment.
              */
             app_url?: string | null;
+            /**
+             * Format: uri
+             * @description Where the platform delivers signed events to the product (ADR-051 §5). Null for a product that has given none, which hears nothing. https only, no fragment, no credentials.
+             */
+            webhook_url?: string | null;
+            /**
+             * Format: date-time
+             * @description When the current webhook secret was issued; null while none is. The secret itself was shown once, at issue, and is never in this shape.
+             */
+            webhook_secret_issued_at?: string | null;
+        };
+        /** @description One event on its way to a product (ADR-051 §5), and what became of it: delivered, due again, or parked with its last answer. Never the payload — a tenant’s subscription state is the product’s to read on its own route. */
+        WebhookDelivery: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: uuid
+             * @description What the product deduplicates by.
+             */
+            event_id: string;
+            /** @description `subscription.started`, `subscription.changed`, `subscription.cancellation_scheduled`, `subscription.ended`, `member.added`, `member.removed`, `tenant.product.assigned`, `tenant.product.unassigned`, `user.erased`. */
+            event_type: string;
+            /** Format: uuid */
+            tenant_id: string | null;
+            /** Format: date-time */
+            occurred_at: string;
+            /** @description How many times it has been sent, counted at claim. */
+            attempt: number;
+            /** Format: date-time */
+            next_attempt_at: string;
+            /** Format: date-time */
+            delivered_at: string | null;
+            /**
+             * Format: date-time
+             * @description Set when the platform gave up: the schedule is spent, the product answered 400, or its address or secret went away. Retry puts it back.
+             */
+            parked_at: string | null;
+            /** @description The product’s last HTTP answer, when it answered at all. */
+            last_status: number | null;
+            /** @description The class of the last failure — `TIMEOUT`, `UNREACHABLE`, `HTTP_500`, `NO_ENDPOINT` — never a message. */
+            last_error: string | null;
         };
         /** @description What the page needs to *use* a `client_secret` (ADR-048): which provider, the key that loads its own component, and whether any of this moves real money. Null when there is no payment to make (a free offer) or when the provider has no page-side part (the stub). `publishable_key` is designed by the provider to sit in a page and is not a secret — it belongs in the contract rather than in a build variable, which would freeze one deployment’s key into a bundle another deployment reuses. */
         PaymentProviderClient: {
@@ -13131,6 +13232,11 @@ export interface operations {
                      * @description Where the product lives when deployed beside the platform (ADR-051 §3); null clears it. https only, no query, no fragment — the shell appends `?product=` itself. Recorded in the trail as SET_APP_URL.
                      */
                     app_url?: string | null;
+                    /**
+                     * Format: uri
+                     * @description Where the platform delivers signed events (ADR-051 §5); null stops delivering. https only, no fragment, no credentials. Recorded in the trail as SET_WEBHOOK_URL.
+                     */
+                    webhook_url?: string | null;
                     name?: string;
                     active?: boolean;
                 };
@@ -13263,6 +13369,105 @@ export interface operations {
                 content: {
                     "application/json": {
                         credential: components["schemas"]["ProductCredential"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    issueWebhookSecret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The secret, and the product as it now stands. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description `bwh_…` — what the product’s server verifies `X-Backprod-Signature` with, as BACKPROD_WEBHOOK_SECRET. Shown once. */
+                        secret: string;
+                        product: components["schemas"]["PlatformProduct"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+            /** @description `WEBHOOKS_NOT_CONFIGURED` — the deployment has no WEBHOOK_SECRET_KEY to seal the secret under. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listWebhookDeliveries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The deliveries, newest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        deliveries: components["schemas"]["WebhookDelivery"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    retryWebhookDelivery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+                deliveryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The delivery, due again. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        delivery: components["schemas"]["WebhookDelivery"];
                     };
                 };
             };

@@ -15,6 +15,8 @@ use Doctrine\DBAL\ParameterType;
 
 final class PostgresProductDirectory implements ProductDirectory
 {
+    private const COLUMNS = 'id, code, name, active, app_url, webhook_url, webhook_secret_issued_at';
+
     public function __construct(private readonly Connection $connection)
     {
     }
@@ -22,11 +24,7 @@ final class PostgresProductDirectory implements ProductDirectory
     public function all(): array
     {
         $rows = $this->connection->fetchAllAssociative(
-            <<<'SQL'
-                SELECT id, code, name, active, app_url
-                  FROM products
-                 ORDER BY created_at DESC, code
-                SQL,
+            'SELECT ' . self::COLUMNS . ' FROM products ORDER BY created_at DESC, code',
         );
 
         return array_map(self::toProduct(...), $rows);
@@ -39,7 +37,7 @@ final class PostgresProductDirectory implements ProductDirectory
                 <<<'SQL'
                     INSERT INTO products (code, name, active)
                     VALUES (:code, :name, true)
-                    RETURNING id, code, name, active, app_url
+                    RETURNING id, code, name, active, app_url, webhook_url, webhook_secret_issued_at
                     SQL,
                 ['code' => $code, 'name' => $name],
             );
@@ -62,8 +60,15 @@ final class PostgresProductDirectory implements ProductDirectory
         return self::toProduct($row);
     }
 
-    public function update(string $productId, ?string $name, ?bool $active, bool $setAppUrl = false, ?string $appUrl = null): ?Product
-    {
+    public function update(
+        string $productId,
+        ?string $name,
+        ?bool $active,
+        bool $setAppUrl = false,
+        ?string $appUrl = null,
+        bool $setWebhookUrl = false,
+        ?string $webhookUrl = null,
+    ): ?Product {
         if (!Uuid::isValid($productId)) {
             return null;
         }
@@ -78,12 +83,21 @@ final class PostgresProductDirectory implements ProductDirectory
                    SET name = COALESCE(:name, name),
                        active = COALESCE(:active, active),
                        app_url = CASE WHEN :setAppUrl THEN :appUrl ELSE app_url END,
+                       webhook_url = CASE WHEN :setWebhookUrl THEN :webhookUrl ELSE webhook_url END,
                        updated_at = now()
                  WHERE id = :id
-                RETURNING id, code, name, active, app_url
+                RETURNING id, code, name, active, app_url, webhook_url, webhook_secret_issued_at
                 SQL,
-            ['id' => $productId, 'name' => $name, 'active' => $active, 'setAppUrl' => $setAppUrl, 'appUrl' => $appUrl],
-            ['active' => ParameterType::BOOLEAN, 'setAppUrl' => ParameterType::BOOLEAN],
+            [
+                'id' => $productId,
+                'name' => $name,
+                'active' => $active,
+                'setAppUrl' => $setAppUrl,
+                'appUrl' => $appUrl,
+                'setWebhookUrl' => $setWebhookUrl,
+                'webhookUrl' => $webhookUrl,
+            ],
+            ['active' => ParameterType::BOOLEAN, 'setAppUrl' => ParameterType::BOOLEAN, 'setWebhookUrl' => ParameterType::BOOLEAN],
         );
 
         return $row === false ? null : self::toProduct($row);
@@ -100,6 +114,8 @@ final class PostgresProductDirectory implements ProductDirectory
             Row::string($row, 'name'),
             Row::boolean($row, 'active'),
             Row::nullableString($row, 'app_url'),
+            Row::nullableString($row, 'webhook_url'),
+            Row::nullableTimestamp($row, 'webhook_secret_issued_at'),
         );
     }
 }

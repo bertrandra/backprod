@@ -1006,13 +1006,20 @@ export function useUpdateProduct() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (change: { productId: string; name?: string; active?: boolean; app_url?: string | null }) => {
+    mutationFn: async (change: {
+      productId: string;
+      name?: string;
+      active?: boolean;
+      app_url?: string | null;
+      webhook_url?: string | null;
+    }) => {
       const { data, error, response } = await client.PATCH('/api/v1/staff/products/{productId}', {
         params: { path: { productId: change.productId } },
         body: {
           ...(change.name !== undefined && { name: change.name }),
           ...(change.active !== undefined && { active: change.active }),
           ...(change.app_url !== undefined && { app_url: change.app_url }),
+          ...(change.webhook_url !== undefined && { webhook_url: change.webhook_url }),
         },
       });
 
@@ -1098,6 +1105,78 @@ export function useRevokeProductCredential(productId: string) {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: keys.staff.productCredentials(productId) });
+    },
+  });
+}
+
+export type WebhookDelivery = Schemas['WebhookDelivery'];
+
+/** The newest fifty events sent to a product, delivered or not (ADR-051 §5). */
+export function useWebhookDeliveries(productId: string) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.webhookDeliveries(productId),
+    queryFn: async (): Promise<readonly WebhookDelivery[]> => {
+      const { data, error, response } = await client.GET('/api/v1/staff/products/{productId}/webhook-deliveries', {
+        params: { path: { productId } },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.deliveries;
+    },
+  });
+}
+
+/**
+ * Issues — or rotates — the secret that signs the product's webhooks. The
+ * answer carries it once; the screen shows it once and the cache never holds
+ * it. The product list is refetched for `webhook_secret_issued_at`.
+ */
+export function useIssueWebhookSecret(productId: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error, response } = await client.POST('/api/v1/staff/products/{productId}/webhook-secret', {
+        params: { path: { productId } },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: keys.staff.products });
+    },
+  });
+}
+
+/** A parked delivery, back on the queue. The answer is the row as it now stands. */
+export function useRetryWebhookDelivery(productId: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (deliveryId: string) => {
+      const { data, error, response } = await client.POST('/api/v1/staff/products/{productId}/webhook-deliveries/{deliveryId}/retry', {
+        params: { path: { productId, deliveryId } },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.delivery;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: keys.staff.webhookDeliveries(productId) });
     },
   });
 }
