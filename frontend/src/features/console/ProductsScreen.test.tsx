@@ -183,6 +183,41 @@ describe('changing one', () => {
     await waitFor(() => expect(screen.getByTestId('app-url').textContent).toContain('https://plan.example.test'));
   });
 
+  it('issues a key for the product’s server, shows the bearer once, and revokes', async () => {
+    // ADR-051 §4. The list never carries the secret; the answer to issuing does.
+    let issued = false;
+    const KEY = { id: 'k-1', key_id: 'abc123abc123', label: 'plan production', scopes: ['product.entitlements.read'], created_at: '2026-09-21T08:00:00Z', expires_at: '2027-09-21T08:00:00Z', revoked_at: null, last_used_at: null };
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/products': { data: { products: [ATLAS, ORBIT] } },
+      'GET /api/v1/staff/products/{productId}/credentials': () => ({ data: { credentials: issued ? [KEY] : [] } }),
+      'POST /api/v1/staff/products/{productId}/credentials': () => {
+        issued = true;
+
+        return { status: 201, data: { credential: KEY, bearer: 'bpk_abc123abc123_secret-secret-secret-secret-secret-s' } };
+      },
+      'DELETE /api/v1/staff/products/{productId}/credentials/{credentialId}': { data: { credential: { ...KEY, revoked_at: '2026-09-21T09:00:00Z' } } },
+    });
+    renderAtRoute(<ProductsScreen />, client, { path: '/console/products' });
+
+    await waitFor(() => expect(screen.getByTestId('keys-atlas')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('keys-atlas'));
+    await waitFor(() => expect(screen.getByTestId('credentials-p-1')).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText('Key label'), { target: { value: 'plan production' } });
+    fireEvent.submit(screen.getByTestId('issue-key-form'));
+
+    await waitFor(() => expect(screen.getByTestId('issued-key')).toBeTruthy());
+    expect(screen.getByTestId('issued-key').textContent).toContain('bpk_abc123abc123_');
+    expect(requests.find((r) => r.method === 'POST' && r.path.endsWith('/credentials'))?.body).toEqual({ label: 'plan production', scopes: ['product.entitlements.read'] });
+
+    // Listed by its public half only.
+    await waitFor(() => expect(screen.getByTestId('credential-list').textContent).toContain('abc123abc123'));
+    expect(screen.getByTestId('credential-list').textContent).not.toContain('secret-secret');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    await waitFor(() => expect(requests.some((r) => r.method === 'DELETE')).toBe(true));
+  });
+
   it('retires with the flag and nothing else', async () => {
     const { client, requests } = recordingClient({
       'GET /api/v1/staff/products': { data: { products: [ATLAS] } },

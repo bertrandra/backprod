@@ -3229,6 +3229,110 @@ export interface paths {
         patch: operations["updateProduct"];
         trace?: never;
     };
+    "/api/v1/staff/products/{productId}/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every key a product was issued
+         * @description Live or not (ADR-051 §4): a revoked key stays, because the product access log points at it. Never a secret. `staff.products.manage`.
+         */
+        get: operations["listProductCredentials"];
+        put?: never;
+        /**
+         * Issue a key for the product’s server
+         * @description The answer carries the bearer in the clear, once: the platform keeps its hash and can never say it again. Expires in a year unless `expires_in_days` says otherwise. Trailed as ISSUE_PRODUCT_KEY. `staff.products.manage`.
+         */
+        post: operations["issueProductCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/products/{productId}/credentials/{credentialId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke a key
+         * @description The row stays, revoked: “which key read this” keeps an answer. Idempotent. A key of another product answers 404 here. Trailed as REVOKE_PRODUCT_KEY. `staff.products.manage`.
+         */
+        delete: operations["revokeProductCredential"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product/tenants/{tenantId}/entitlements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What a tenant holds on this product, asked by the product
+         * @description For a product’s server, with its key and no person present (ADR-051 §4): the same rows `listEntitlements` shows a member, with the quotas’ usage beside them. The product is the key’s; a tenant that does not hold it is absent (404), so nothing is enumerated by key. Recorded in the product access log. Scope `product.entitlements.read`.
+         */
+        get: operations["showProductTenantEntitlements"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product/tenants/{tenantId}/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report what the product metered against a quota
+         * @description Before the work, so the platform can refuse it (ADR-051 §4, §38.3): `quantity` is a signed delta and the sum of the deltas is the level; `idempotency_key` is the product’s own name for the fact, so a retried report counts once (200, `recorded: false`). Refused `403 QUOTA_EXCEEDED` when the tenant’s entitlement does not cover the delta — or holds no quota on the feature at all. Scope `product.usage.write`.
+         */
+        post: operations["reportProductUsage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product/tenants/{tenantId}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who may use this product at a tenant, asked by the product
+         * @description User id, address, name, roles and status — never a credential, never another product’s membership (ADR-051 §4). Recorded in the product access log. Scope `product.members.read`.
+         */
+        get: operations["listProductTenantMembers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/demo/reset": {
         parameters: {
             query?: never;
@@ -4715,6 +4819,38 @@ export interface components {
         StaffRoster: {
             members: components["schemas"]["StaffMember"][];
             roles: components["schemas"]["PlatformRole"][];
+        };
+        /**
+         * @description What a product key may do (ADR-051 §4): a catalogue of its own beside the tenant’s permissions and the platform’s. A key holds what it was issued and nothing else.
+         * @enum {string}
+         */
+        ProductScope: "product.usage.write" | "product.entitlements.read" | "product.members.read";
+        /** @description A product key as the console sees it: never the secret, which was shown once at issue. A revoked key stays listed, because the access log points at it. */
+        ProductCredential: {
+            /** Format: uuid */
+            id: string;
+            /** @description The public half, in every bearer: `bpk_<key_id>_…`. */
+            key_id: string;
+            /** @description Which deployment holds it. */
+            label: string;
+            scopes: components["schemas"]["ProductScope"][];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string | null;
+            /** Format: date-time */
+            revoked_at: string | null;
+            /** Format: date-time */
+            last_used_at: string | null;
+        };
+        ProductUsageAnswer: {
+            /** @description False when this idempotency key was already recorded. */
+            recorded: boolean;
+            feature: string;
+            /** @description The level after this report. */
+            used: number | null;
+            limit: number | null;
+            unlimited: boolean;
         };
         /** @description A product as the platform’s own administrator sees it. `active` appears here and nowhere else, because every other product shape has already filtered on it — the context chain treats an inactive product as absent, and so does the storefront. */
         PlatformProduct: {
@@ -13023,6 +13159,267 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listProductCredentials: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The keys, newest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        credentials: components["schemas"]["ProductCredential"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    issueProductCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Which deployment will hold it. */
+                    label: string;
+                    scopes: components["schemas"]["ProductScope"][];
+                    /** @default 365 */
+                    expires_in_days?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The key, and the one time its secret is in the clear. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        credential: components["schemas"]["ProductCredential"];
+                        /** @description `bpk_<key id>_<secret>` — what the product’s server sends. Shown once. */
+                        bearer: string;
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED`: an unknown scope, none at all, or a lifetime out of range. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    revokeProductCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+                credentialId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The key, revoked. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        credential: components["schemas"]["ProductCredential"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showProductTenantEntitlements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The entitlements and their usage. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        tenant_id: string;
+                        entitlements: components["schemas"]["Entitlement"][];
+                        usage: Record<string, unknown>[];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `PRODUCT_KEY_SCOPE`, `PRODUCT_KEY_REVOKED` or `PRODUCT_KEY_EXPIRED`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    reportProductUsage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    feature: string;
+                    /** @description A non-zero delta. */
+                    quantity: number;
+                    idempotency_key: string;
+                    /** Format: date */
+                    period_start?: string | null;
+                    /** Format: date */
+                    period_end?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Already recorded under this key; nothing written. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductUsageAnswer"];
+                };
+            };
+            /** @description Recorded. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductUsageAnswer"];
+                };
+            };
+            /** @description `VALIDATION_FAILED`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `QUOTA_EXCEEDED`, `PRODUCT_KEY_SCOPE`, `PRODUCT_KEY_REVOKED` or `PRODUCT_KEY_EXPIRED`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listProductTenantMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The members. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        tenant_id: string;
+                        members: {
+                            /** Format: uuid */
+                            user_id: string;
+                            email: string | null;
+                            display_name: string | null;
+                            roles: string[];
+                            status: string;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `PRODUCT_KEY_SCOPE`, `PRODUCT_KEY_REVOKED` or `PRODUCT_KEY_EXPIRED`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             404: components["responses"]["NotFound"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];

@@ -1,8 +1,13 @@
 # ADR-051 — A product beside the platform connects with three credentials, none of them shared
 
-**Status:** accepted 2026-09-20 (merged by the operator). Milestone B is
-built — `GET /me/context`, `products.app_url`, the switcher and the landing
-follow it; the console sets it. C, D and E are not; §7 says what each costs.
+**Status:** accepted 2026-09-20 (merged by the operator). Milestones B and C
+are built (2026-09-21): `GET /me/context` and `products.app_url`; product
+keys, the `product` authority with its three routes, the product access log
+and reported usage, issued and revoked from the console. D and E are not; §7
+says what each costs. Two details settled in building C: a refused key
+answers `401 UNAUTHENTICATED` when unknown and `403 PRODUCT_KEY_REVOKED` /
+`PRODUCT_KEY_EXPIRED` / `PRODUCT_KEY_SCOPE` when recognised; and a quota
+refusal is `403 QUOTA_EXCEEDED`, the platform's own code, not a 409.
 
 **Relates to:** ADR-013 (product context is a header), ADR-015 (tenant
 resolution), ADR-037 (the shell gates on `/me`), ADR-038 (this platform

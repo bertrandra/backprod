@@ -6,6 +6,7 @@ namespace App\Shared\Context;
 
 use App\Auth\Domain\AuthProvider;
 use App\Entitlement\Domain\EntitlementRepository;
+use App\Product\Domain\ProductKeys;
 use App\Product\Service\ProductResolver;
 use App\Shared\Exceptions\ForbiddenException;
 use App\Shared\Exceptions\UnauthenticatedException;
@@ -52,6 +53,7 @@ final class RequestContextMiddleware implements MiddlewareInterface
         private readonly EntitlementRepository $entitlements,
         private readonly StaffRepository $staff,
         private readonly RoutePolicy $policy,
+        private readonly ProductKeys $productKeys,
     ) {
     }
 
@@ -61,6 +63,17 @@ final class RequestContextMiddleware implements MiddlewareInterface
 
         if ($policy === RoutePolicy::PUBLIC) {
             return $handler->handle($request);
+        }
+
+        if ($policy === RoutePolicy::PRODUCT) {
+            // A product key, never a session: the bearer is recognised by
+            // its prefix before any token verifier sees it, so a session on
+            // a product route is nobody, and a key on a person's route is
+            // nobody to the verifier. The product comes from the key —
+            // no header is read (ADR-051 §4).
+            return $handler->handle(
+                $request->withAttribute(ProductContext::ATTRIBUTE, $this->productContext($this->bearerToken($request))),
+            );
         }
 
         $identity = $this->auth->authenticate($this->bearerToken($request));
@@ -121,6 +134,34 @@ final class RequestContextMiddleware implements MiddlewareInterface
         );
 
         return $handler->handle($request->withAttribute(RequestContext::ATTRIBUTE, $context));
+    }
+
+    private function productContext(string $bearer): ProductContext
+    {
+        $parts = explode('_', $bearer, 3);
+
+        if (count($parts) !== 3 || $parts[0] !== 'bpk') {
+            throw new UnauthenticatedException();
+        }
+
+        $key = $this->productKeys->authenticate($parts[1], $parts[2]);
+
+        if ($key === null) {
+            // An unknown id and a wrong secret are the same answer.
+            throw new UnauthenticatedException();
+        }
+
+        // Recognised but not live: told which, because a rotated key and a
+        // stolen one are diagnosed differently by whoever holds it.
+        if ($key->isRevoked()) {
+            throw new ForbiddenException('PRODUCT_KEY_REVOKED', 'This key was revoked.');
+        }
+
+        if ($key->isExpired(new \DateTimeImmutable())) {
+            throw new ForbiddenException('PRODUCT_KEY_EXPIRED', 'This key has expired; issue a new one from the console.');
+        }
+
+        return new ProductContext($key);
     }
 
     private function bearerToken(ServerRequestInterface $request): string

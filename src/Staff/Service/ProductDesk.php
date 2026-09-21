@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace App\Staff\Service;
 
+use App\Product\Domain\IssuedProductKey;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductDirectory;
+use App\Product\Domain\ProductKey;
+use App\Product\Domain\ProductKeys;
+use App\Product\Domain\ProductRepository;
 use App\Shared\Exceptions\NotFoundException;
 use App\Staff\Domain\StaffAccess;
 use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffIdentity;
 use App\Staff\Domain\StaffPermission;
+use DateTimeImmutable;
 
 /**
  * The platform's own products, and who changed them.
@@ -32,7 +37,65 @@ final class ProductDesk
     public function __construct(
         private readonly ProductDirectory $products,
         private readonly StaffAccessLog $trail,
+        private readonly ProductKeys $keys,
+        private readonly ProductRepository $registry,
     ) {
+    }
+
+    /**
+     * Every key a product was issued, live or not (ADR-051 §4). Listing is
+     * not recorded: nothing crosses a boundary, and no secret is in it.
+     *
+     * @return list<ProductKey>
+     */
+    public function credentials(string $productId): array
+    {
+        if ($this->registry->find($productId) === null) {
+            throw new NotFoundException('Unknown product.', [], 'PRODUCT_NOT_FOUND');
+        }
+
+        return $this->keys->listFor($productId);
+    }
+
+    /**
+     * @param list<string> $scopes
+     */
+    public function issueCredential(StaffIdentity $staff, string $productId, string $label, array $scopes, int $lifetimeDays): IssuedProductKey
+    {
+        $issued = $this->keys->issue(
+            $productId,
+            $label,
+            $scopes,
+            $staff->userId,
+            (new DateTimeImmutable())->modify(sprintf('+%d days', $lifetimeDays)),
+        );
+
+        if ($issued === null) {
+            $this->record($staff, null, $productId, 'UPDATE_MISS', []);
+
+            throw new NotFoundException('Unknown product.', [], 'PRODUCT_NOT_FOUND');
+        }
+
+        // The key id and the scopes, never the secret: the trail is read by
+        // people, and the secret was for one server's environment.
+        $this->record($staff, $productId, $issued->key->id, 'ISSUE_PRODUCT_KEY', ['key_id' => $issued->key->keyId, 'label' => $label, 'scopes' => $scopes]);
+
+        return $issued;
+    }
+
+    public function revokeCredential(StaffIdentity $staff, string $productId, string $credentialId): ProductKey
+    {
+        $key = $this->keys->revoke($productId, $credentialId);
+
+        if ($key === null) {
+            $this->record($staff, null, $credentialId, 'UPDATE_MISS', []);
+
+            throw new NotFoundException('No such key on this product.', [], 'PRODUCT_KEY_NOT_FOUND');
+        }
+
+        $this->record($staff, $productId, $key->id, 'REVOKE_PRODUCT_KEY', ['key_id' => $key->keyId]);
+
+        return $key;
     }
 
     /**

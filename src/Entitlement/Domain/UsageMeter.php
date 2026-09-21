@@ -16,15 +16,18 @@ namespace App\Entitlement\Domain;
 final class UsageMeter
 {
     /**
-     * @param array<string, UsageSource> $sources keyed by feature code
+     * @param array<string, UsageSource> $sources  keyed by feature code
+     * @param ReportedUsage|null         $reported what products beside the platform metered themselves (ADR-051 §4), asked for any feature nothing here counts
      */
-    public function __construct(private readonly array $sources = [])
-    {
+    public function __construct(
+        private readonly array $sources = [],
+        private readonly ?ReportedUsage $reported = null,
+    ) {
     }
 
     public function measures(string $featureCode): bool
     {
-        return isset($this->sources[$featureCode]);
+        return isset($this->sources[$featureCode]) || ($this->reported?->measures($featureCode) ?? false);
     }
 
     /**
@@ -38,6 +41,10 @@ final class UsageMeter
         // than the null this promises.
         $source = $this->sources[$featureCode] ?? null;
 
-        return $source?->usage($tenantId, $productId);
+        if ($source !== null) {
+            return $source->usage($tenantId, $productId);
+        }
+
+        return $this->reported?->usage($featureCode, $tenantId, $productId);
     }
 }
