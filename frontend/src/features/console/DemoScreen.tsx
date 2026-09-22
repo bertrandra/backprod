@@ -131,14 +131,14 @@ function DemoWorldPanel() {
       <h2 className="text-xl font-semibold">{t("Demonstration world")}</h2>
 
       <p className="text-sm text-muted">
-        {t("Put the demonstration back the way it started: four products, two organisations, one person per role, two live subscriptions with their invoices. Everything else is emptied — every order, payment, invoice, conversation and account,")}{' '}<strong>{t("including yours")}</strong> {t("— and everybody is signed out. Refused while this platform hosts a product that is not the demonstration's.")}</p>
+        {t("Put the demonstration back the way it started: five products, three organisations, one person per role, four live subscriptions with their invoices and five projects. Everything else is emptied — every order, payment, invoice, conversation and account,")}{' '}<strong>{t("including yours")}</strong> {t("— and everybody is signed out. Refused while this platform hosts a product that is not the demonstration's.")}</p>
 
       {reset.error !== null && <ErrorSurface error={reset.error} />}
 
       {armed ? (
         <div className="space-y-3 rounded border border-danger/40 bg-danger/5 p-3" data-testid="demo-world-confirm">
           <p className="text-sm">
-            {t("This cannot be undone. The four products, the two organisations and the six people come back; nothing done since the last reset survives.")}</p>
+            {t("This cannot be undone. The five products, the three organisations and the nine people come back; nothing done since the last reset survives.")}</p>
           <div className="flex flex-wrap gap-2">
             <Button
               variant="danger"

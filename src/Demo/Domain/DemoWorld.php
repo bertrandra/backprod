@@ -7,15 +7,21 @@ namespace App\Demo\Domain;
 /**
  * What the demonstration world contains — the definition, not the rows.
  *
- * **Four products, two organisations, seven people.** The platform is
- * multi-product, and a demo with one product cannot show the part that
- * matters: a tenant holding several (ADR-047), the console switching between
- * them, the storefront asking which one a stranger wants. Acme holds all four,
- * Globex two. Each organisation has its administrator and two members, and
- * the platform has its one administrator; nobody holds two authorities at
- * once (non-negotiable #22 is easier to show when nobody is both). The
- * addresses are the operator's own since 2026-09-19, so the mails the
- * platform sends — a reset link, an invitation — land somewhere real.
+ * **Five products, three organisations, nine people, four subscriptions,
+ * five projects.** The platform is multi-product, and a demo with one
+ * product cannot show the part that matters: a tenant holding several
+ * (ADR-047), the console switching between them, the storefront asking
+ * which one a stranger wants. Since 2026-09-22 one of the five is **Plan**,
+ * a product deployed beside the platform (ADR-051): it has an application
+ * address, so the switcher leaves for it, and its catalogue meters what a
+ * product's own server reports. Acme holds all five, Globex three, and
+ * Initech — new the same day — holds Plan alone, so a tenant with one
+ * product and a product with three tenants both exist. Each organisation
+ * has its administrator and at least one member, and the platform has its
+ * one administrator; nobody holds two authorities at once (non-negotiable
+ * #22 is easier to show when nobody is both). The addresses are the
+ * operator's own since 2026-09-19, so the mails the platform sends — a
+ * reset link, an invitation — land somewhere real.
  *
  * `docs/demo-world.html` is the human-readable copy of this file; when one
  * changes, so does the other. The rows are written by {@see DemoFixtures}
@@ -37,18 +43,68 @@ final class DemoWorld
     public const EMAIL_DOMAIN = 'raillard.org';
 
     /**
-     * The four products, in the order the console lists them. `base` is the
+     * The five products, in the order the console lists them. `base` is the
      * monthly Starter price in cents; Pro and Scale are derived from it, so
-     * the four catalogues have the same shape and visibly different prices.
+     * the catalogues have the same shape and visibly different prices.
+     * `app_url` is where a product deployed beside the platform lives
+     * (ADR-051 §3) — null for one inside this shell. `meters` are the
+     * features a product's own server reports usage on (ADR-051 §4),
+     * beside the four every catalogue has: Starter's and Pro's limits, Scale
+     * unlimited.
      *
-     * @var array<string, array{name: string, base: int}>
+     * @var array<string, array{name: string, base: int, app_url: ?string, meters: array<string, array{name: string, unit: string, starter: int, pro: int}>}>
      */
     public const PRODUCTS = [
-        'atlas' => ['name' => 'Atlas', 'base' => 1_900],
-        'boreas' => ['name' => 'Boreas', 'base' => 2_900],
-        'ceres' => ['name' => 'Ceres', 'base' => 900],
-        'delos' => ['name' => 'Delos', 'base' => 4_900],
+        'atlas' => ['name' => 'Atlas', 'base' => 1_900, 'app_url' => null, 'meters' => []],
+        'boreas' => ['name' => 'Boreas', 'base' => 2_900, 'app_url' => null, 'meters' => []],
+        'ceres' => ['name' => 'Ceres', 'base' => 900, 'app_url' => null, 'meters' => []],
+        'delos' => ['name' => 'Delos', 'base' => 4_900, 'app_url' => null, 'meters' => []],
+        'plan' => [
+            'name' => 'Plan',
+            'base' => 1_500,
+            'app_url' => 'https://plan.raillard.org',
+            // What `docs/plan-service.md` §11 says Plan meters: its documents.
+            'meters' => ['plan.documents' => ['name' => 'Plan documents', 'unit' => 'documents', 'starter' => 20, 'pro' => 200]],
+        ],
     ];
+
+    /**
+     * The four features every catalogue grants, by the codes the platform
+     * enforces: `max_projects` is what the workspace asks before it stores a
+     * project ({@see \App\Project\Service\ProjectWorkspace::QUOTA}), `users`
+     * what bounds a subscription's people. Until 2026-09-22 the first was
+     * seeded as `projects`, which nothing reads — so the demo's subscribers
+     * held a quota of projects and could create none.
+     *
+     * @var array<string, array{name: string, kind: 'QUOTA'|'BOOLEAN', unit: ?string, starter: ?int, pro: ?int}>
+     */
+    public const FEATURES = [
+        'max_projects' => ['name' => 'Projects', 'kind' => 'QUOTA', 'unit' => 'projects', 'starter' => 3, 'pro' => 25],
+        'exports' => ['name' => 'Exports', 'kind' => 'QUOTA', 'unit' => 'exports', 'starter' => 10, 'pro' => 200],
+        // `users` (2026-09-19) is what bounds a subscription's people: Starter
+        // covers its buyer, Pro three, Scale everybody.
+        'users' => ['name' => 'Users', 'kind' => 'QUOTA', 'unit' => 'users', 'starter' => 1, 'pro' => 3],
+        'white_label' => ['name' => 'White label', 'kind' => 'BOOLEAN', 'unit' => null, 'starter' => null, 'pro' => null],
+    ];
+
+    /**
+     * The feature code the workspace counts projects against — the same
+     * string as `ProjectWorkspace::QUOTA`, named here because the fixtures
+     * are infrastructure and may not read an application service;
+     * `DemoWorldTest` fails the day the two disagree.
+     */
+    public const PROJECTS_QUOTA = 'max_projects';
+
+    /**
+     * Which project document schema versions every product accepts
+     * (non-negotiable #10): a product that declares none accepts no
+     * project at all, which is what the demo did until 2026-09-22. The key
+     * is `SchemaVersionPolicy::CONFIGURATION_KEY`, pinned the same way.
+     *
+     * @var list<int>
+     */
+    public const SCHEMA_VERSIONS = [1];
+    public const SCHEMA_VERSIONS_KEY = 'project_schema_versions';
 
     /**
      * The organisations, and which products each holds (ADR-047).
@@ -56,13 +112,14 @@ final class DemoWorld
      * @var array<string, array{name: string, holds: list<string>}>
      */
     public const TENANTS = [
-        'acme' => ['name' => 'Acme Ltd', 'holds' => ['atlas', 'boreas', 'ceres', 'delos']],
-        'globex' => ['name' => 'Globex SA', 'holds' => ['atlas', 'boreas']],
+        'acme' => ['name' => 'Acme Ltd', 'holds' => ['atlas', 'boreas', 'ceres', 'delos', 'plan']],
+        'globex' => ['name' => 'Globex SA', 'holds' => ['atlas', 'boreas', 'plan']],
+        'initech' => ['name' => 'Initech SARL', 'holds' => ['plan']],
     ];
 
     /**
      * The organisation the bare host addresses (2026-09-17): Acme, as the
-     * operator's own. Globex lives at `/globex/`.
+     * operator's own. Globex lives at `/globex/`, Initech at `/initech/`.
      */
     public const DEFAULT_TENANT = 'acme';
 
@@ -81,24 +138,70 @@ final class DemoWorld
         'globex-admin' => ['name' => 'Globex tenant admin', 'scope' => 'tenant', 'role' => 'TENANT_ADMIN', 'tenants' => ['globex']],
         'globex-user1' => ['name' => 'Globex user1', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['globex']],
         'globex-user2' => ['name' => 'Globex user2', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['globex']],
+        'initech-admin' => ['name' => 'Initech tenant admin', 'scope' => 'tenant', 'role' => 'TENANT_ADMIN', 'tenants' => ['initech']],
+        'initech-user1' => ['name' => 'Initech user1', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['initech']],
     ];
 
     /** The one platform administrator, who assigns and grants on the seeder's behalf. */
     public const STAFF_ADMIN = 'backprod';
 
     /** Who activates each organisation's subscription, and so owns it: its administrator. */
-    public const TENANT_ADMINS = ['acme' => 'acme-admin', 'globex' => 'globex-admin'];
+    public const TENANT_ADMINS = ['acme' => 'acme-admin', 'globex' => 'globex-admin', 'initech' => 'initech-admin'];
 
     /**
-     * The two subscriptions that run, each with the invoice it raised, so the
+     * The subscriptions that run, each with the invoice it raised, so the
      * console's invoicing and the tenants' billing screens have something on
-     * them for more than one product.
+     * them for more than one product — and so Plan has subscribers on two
+     * organisations, while Globex holds it and has not bought it.
      *
      * @var list<array{tenant: string, product: string, offer: string}>
      */
     public const SUBSCRIPTIONS = [
         ['tenant' => 'acme', 'product' => 'atlas', 'offer' => 'pro-monthly'],
         ['tenant' => 'globex', 'product' => 'boreas', 'offer' => 'starter-monthly'],
+        ['tenant' => 'acme', 'product' => 'plan', 'offer' => 'pro-monthly'],
+        ['tenant' => 'initech', 'product' => 'plan', 'offer' => 'starter-monthly'],
+    ];
+
+    /**
+     * The projects, made by the people who would make them, through the
+     * workspace — so each one counted against its quota, in a product that
+     * had declared its schema version. Plan's carry what Plan keeps for a
+     * parcel; Atlas's is the platform's own workspace with something in it.
+     *
+     * @var list<array{tenant: string, product: string, by: string, name: string, description: string, document: array<string, mixed>}>
+     */
+    public const PROJECTS = [
+        [
+            'tenant' => 'acme', 'product' => 'plan', 'by' => 'acme-user1',
+            'name' => 'Terrasse sud — parcelle AE 101',
+            'description' => 'Terrasse bois sur plots, 24 m², exposition sud, Le Vésinet.',
+            'document' => ['parcelle' => 'AE 101', 'commune' => 'Le Vésinet', 'surface_m2' => 24, 'lames' => 'pin classe 4', 'source' => 'demo'],
+        ],
+        [
+            'tenant' => 'acme', 'product' => 'plan', 'by' => 'acme-admin',
+            'name' => 'Abri de jardin — parcelle AE 101',
+            'description' => 'Dalle et abri 12 m² au fond de la parcelle, à vérifier contre le PLU.',
+            'document' => ['parcelle' => 'AE 101', 'commune' => 'Le Vésinet', 'surface_m2' => 12, 'source' => 'demo'],
+        ],
+        [
+            'tenant' => 'initech', 'product' => 'plan', 'by' => 'initech-admin',
+            'name' => 'Terrasse du restaurant',
+            'description' => 'Terrasse de 60 m² sur lambourdes, accès PMR, Lyon 2e.',
+            'document' => ['parcelle' => 'BC 42', 'commune' => 'Lyon', 'surface_m2' => 60, 'source' => 'demo'],
+        ],
+        [
+            'tenant' => 'acme', 'product' => 'atlas', 'by' => 'acme-user1',
+            'name' => 'North wall',
+            'description' => 'The scaffolding job.',
+            'document' => ['source' => 'demo'],
+        ],
+        [
+            'tenant' => 'globex', 'product' => 'boreas', 'by' => 'globex-user1',
+            'name' => 'Site survey',
+            'description' => 'First pass at the Globex yard.',
+            'document' => ['source' => 'demo'],
+        ],
     ];
 
     /** @return list<string> */

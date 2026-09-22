@@ -9,7 +9,7 @@ declare(strict_types=1);
  * Upload this file into public_html/ alongside index.php. Visit it, fill in the
  * database Site Tools just created, and it writes backprod-app/.env, runs the
  * migrations, and seeds the demonstration world — `App\Demo\Service\DemoSeeder`,
- * the same one `composer run demo:seed` builds: four products, two organisations,
+ * the same one `composer run demo:seed` builds: five products, three organisations,
  * one person per role. It asks for no product and no account of your own:
  * the platform is demonstrated from that world, and the accounts it creates
  * are the ones you sign in with. Their password is in this platform's source,
@@ -289,10 +289,10 @@ function setupForm(): string
         . inputRow('Password', 'db_pass', 'password')
         . '</fieldset>'
         . '<fieldset><legend>What this creates</legend>'
-        . '<p class="hint" style="margin:0">The demonstration world: four products (<code>atlas</code>, '
-        . '<code>boreas</code>, <code>ceres</code>, <code>delos</code>), each with a catalogue, two '
-        . 'organisations holding them, one person per role — two tenant roles, four platform roles — and '
-        . 'two live subscriptions with the invoices they raised. No product or account of your own is asked '
+        . '<p class="hint" style="margin:0">The demonstration world: five products (<code>atlas</code>, '
+        . '<code>boreas</code>, <code>ceres</code>, <code>delos</code>, <code>plan</code> — the last deployed beside the platform), each with a catalogue, three '
+        . 'organisations holding them, one person per role — two tenant roles, four platform roles — '
+        . 'four live subscriptions with the invoices they raised, and five projects. No product or account of your own is asked '
         . 'for: you sign in as those people. Their password is in this platform\'s source, and the next '
         . 'page is where you change it. See <code>docs/demo-world.html</code> in the bundle.</p>'
         . '</fieldset>'
@@ -523,7 +523,7 @@ function handleSetup(): void
     $host = htmlspecialchars(is_string($rawHost) ? $rawHost : 'your-domain');
 
     render('Set up', STYLE_BLOCK . '<p class="ok">Done. Migrations ran and the demonstration world is seeded: '
-        . 'four products, two organisations, six people, two live subscriptions with their invoices.</p>'
+        . 'five products, three organisations, nine people, four live subscriptions with their invoices, five projects.</p>'
         . accountsTable($world, $host)
         . '<p class="error"><strong>Change the platform administrator\'s password now.</strong> Every account '
         . 'above has the password printed there, and it is in this platform\'s public source — anybody who '

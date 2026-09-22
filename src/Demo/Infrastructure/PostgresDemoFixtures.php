@@ -45,6 +45,9 @@ final class PostgresDemoFixtures implements DemoFixtures
         'notification_deliveries', 'notifications', 'notification_consents', 'notification_preferences',
         'project_versions', 'assets', 'projects',
         'job_runs', 'jobs',
+        // A product beside the platform (ADR-051): its keys, what they read,
+        // what they reported, what it was told.
+        'product_usage', 'product_access_log', 'product_credentials', 'webhook_deliveries',
         'staff_access_log', 'platform_staff',
         'erasure_requests', 'audit_log', 'financial_events',
         'revenue_periods', 'offer_revenue_periods', 'renewal_periods',
@@ -105,8 +108,9 @@ final class PostgresDemoFixtures implements DemoFixtures
             $offers = [];
 
             foreach (DemoWorld::PRODUCTS as $code => $definition) {
-                $offers[$code] = $this->catalogue($products[$code], $definition['base']);
+                $offers[$code] = $this->catalogue($products[$code], $definition['base'], $definition['meters']);
                 $this->supplier($products[$code], $definition['name']);
+                $this->schemaVersions($products[$code]);
             }
 
             $this->customers($tenants);
@@ -145,6 +149,24 @@ final class PostgresDemoFixtures implements DemoFixtures
                 'SELECT count(*) FROM tenant_members WHERE tenant_id = :tenant AND user_id = :user',
                 ['tenant' => $acme, 'user' => $structure->user('acme-user1')],
             ),
+            // The quota the workspace actually asks for (2026-09-22), and a
+            // schema version to accept a document under: without both, the
+            // Projects screen offers nothing and refuses what it offers.
+            'every offer grants the projects quota the workspace reads' => 3 * $productCount === $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM offer_version_features g
+                JOIN features f ON f.id = g.feature_id
+                WHERE f.code = :code
+                SQL,
+                ['code' => DemoWorld::PROJECTS_QUOTA],
+            ),
+            'every product accepts a project schema version' => $productCount === $this->count(
+                'SELECT count(*) FROM product_configuration WHERE key = :key',
+                ['key' => DemoWorld::SCHEMA_VERSIONS_KEY],
+            ),
+            'the product beside the platform has its address' => 1 === $this->count(
+                'SELECT count(*) FROM products WHERE app_url IS NOT NULL',
+            ),
             'both tenant roles are held, and the platform has its one administrator' => 2 === $this->count(
                 'SELECT count(DISTINCT r.code) FROM tenant_member_roles m JOIN roles r ON r.id = m.role_id',
             ) && 1 === $this->count('SELECT count(*) FROM platform_staff'),
@@ -169,9 +191,11 @@ final class PostgresDemoFixtures implements DemoFixtures
         $products = [];
 
         foreach (DemoWorld::PRODUCTS as $code => $product) {
+            // The address is where the switcher and the landing send a
+            // person for a product deployed beside the platform (ADR-051 §3).
             $products[$code] = $this->id(
-                'INSERT INTO products (code, name, active) VALUES (:code, :name, true) RETURNING id',
-                ['code' => $code, 'name' => $product['name']],
+                'INSERT INTO products (code, name, active, app_url) VALUES (:code, :name, true, :appUrl) RETURNING id',
+                ['code' => $code, 'name' => $product['name'], 'appUrl' => $product['app_url']],
             );
         }
 
@@ -190,8 +214,8 @@ final class PostgresDemoFixtures implements DemoFixtures
             );
         }
 
-        // Acme is the operator's own: the bare host addresses it (2026-09-17),
-        // and Globex lives at /globex/.
+        // Acme is the operator's own: the bare host addresses it (2026-09-17);
+        // the others live at /<slug>/.
         $this->connection->executeStatement(
             <<<'SQL'
                 INSERT INTO platform_settings (key, value)
@@ -211,8 +235,8 @@ final class PostgresDemoFixtures implements DemoFixtures
 
         foreach (DemoWorld::PEOPLE as $key => $person) {
             // A distinct placeholder per person: `auth_subject` is unique, so
-            // six rows sharing one literal is a constraint violation rather
-            // than six people. Rewritten to `local:<id>` below.
+            // nine rows sharing one literal is a constraint violation rather
+            // than nine people. Rewritten to `local:<id>` below.
             $users[$key] = $this->id(
                 'INSERT INTO users (auth_subject, email, display_name) VALUES (:subject, :email, :name) RETURNING id',
                 ['subject' => 'seeding:' . $key, 'email' => DemoWorld::email($key), 'name' => $person['name']],
@@ -315,11 +339,19 @@ final class PostgresDemoFixtures implements DemoFixtures
     }
 
     /**
-     * Three plans, four features, three offers — published and advertised.
+     * Three plans, the four features every catalogue has plus what this
+     * product meters, three offers — published and advertised.
+     *
+     * The feature codes are the platform's, not the demo's: `max_projects`
+     * is what the workspace asks before storing a project, `users` what
+     * bounds a subscription's people. A catalogue that named them
+     * differently would price quotas nothing enforces.
+     *
+     * @param array<string, array{name: string, unit: string, starter: int, pro: int}> $meters
      *
      * @return array<string, string> offer code => id
      */
-    private function catalogue(string $product, int $base): array
+    private function catalogue(string $product, int $base, array $meters): array
     {
         $plans = [];
 
@@ -331,22 +363,44 @@ final class PostgresDemoFixtures implements DemoFixtures
         }
 
         $features = [];
+        $starter = [];
+        $pro = [];
+        $scale = [];
 
-        // `users` (2026-09-19) is what bounds a subscription's people: Starter
-        // covers its buyer, Pro three, Scale everybody.
-        foreach ([['projects', 'Projects', 'QUOTA', 'projects'], ['exports', 'Exports', 'QUOTA', 'exports'], ['users', 'Users', 'QUOTA', 'users'], ['white_label', 'White label', 'BOOLEAN', null]] as [$code, $name, $kind, $unit]) {
+        foreach (DemoWorld::FEATURES as $code => $feature) {
             $features[$code] = $this->id(
                 'INSERT INTO features (product_id, code, name, kind, unit) VALUES (:product, :code, :name, :kind, :unit) RETURNING id',
-                ['product' => $product, 'code' => $code, 'name' => $name, 'kind' => $kind, 'unit' => $unit],
+                ['product' => $product, 'code' => $code, 'name' => $feature['name'], 'kind' => $feature['kind'], 'unit' => $feature['unit']],
             );
+
+            // A BOOLEAN feature is Pro's and Scale's; a quota is everybody's
+            // with its limit, and Scale's without one.
+            if ($feature['kind'] === 'QUOTA') {
+                $starter[$code] = $feature['starter'];
+                $pro[$code] = $feature['pro'];
+            } else {
+                $pro[$code] = null;
+            }
+
+            $scale[$code] = null;
+        }
+
+        foreach ($meters as $code => $meter) {
+            $features[$code] = $this->id(
+                "INSERT INTO features (product_id, code, name, kind, unit) VALUES (:product, :code, :name, 'QUOTA', :unit) RETURNING id",
+                ['product' => $product, 'code' => $code, 'name' => $meter['name'], 'unit' => $meter['unit']],
+            );
+            $starter[$code] = $meter['starter'];
+            $pro[$code] = $meter['pro'];
+            $scale[$code] = null;
         }
 
         $offers = [];
 
         foreach ([
-            ['starter-monthly', 'Starter, monthly', 'starter', $base, 'MONTHLY', ['projects' => 3, 'exports' => 10, 'users' => 1]],
-            ['pro-monthly', 'Pro, monthly', 'pro', intdiv($base * 26, 10), 'MONTHLY', ['projects' => 25, 'exports' => 200, 'users' => 3, 'white_label' => null]],
-            ['scale-yearly', 'Scale, yearly', 'scale', $base * 26, 'YEARLY', ['projects' => null, 'exports' => null, 'users' => null, 'white_label' => null]],
+            ['starter-monthly', 'Starter, monthly', 'starter', $base, 'MONTHLY', $starter],
+            ['pro-monthly', 'Pro, monthly', 'pro', intdiv($base * 26, 10), 'MONTHLY', $pro],
+            ['scale-yearly', 'Scale, yearly', 'scale', $base * 26, 'YEARLY', $scale],
         ] as [$code, $name, $plan, $price, $period, $grants]) {
             $offer = $this->id(
                 <<<'SQL'
@@ -437,6 +491,24 @@ final class PostgresDemoFixtures implements DemoFixtures
     }
 
     /**
+     * Which project document schema versions the product accepts
+     * (non-negotiable #10) — the same row the console's configuration
+     * writes, under the key the workspace reads. Without it every product
+     * accepted no project, and the demo's Projects screen said so.
+     */
+    private function schemaVersions(string $product): void
+    {
+        $this->connection->executeStatement(
+            'INSERT INTO product_configuration (product_id, key, value) VALUES (:product, :key, CAST(:value AS jsonb))',
+            [
+                'product' => $product,
+                'key' => DemoWorld::SCHEMA_VERSIONS_KEY,
+                'value' => json_encode(['supported' => DemoWorld::SCHEMA_VERSIONS], JSON_THROW_ON_ERROR),
+            ],
+        );
+    }
+
+    /**
      * The legal identities invoices are issued against, and the fiscal
      * profile that decides their VAT.
      *
@@ -447,14 +519,23 @@ final class PostgresDemoFixtures implements DemoFixtures
         foreach ([
             ['acme', 'FR12345678901', '12 rue de la Paix'],
             ['globex', 'FR98765432109', '1 rue de la Paix'],
+            ['initech', 'FR45678912301', '8 quai Saint-Antoine'],
         ] as [$key, $vat, $address]) {
             $this->connection->executeStatement(
                 <<<'SQL'
                 INSERT INTO billing_profiles
                     (tenant_id, legal_name, vat_number, address_line1, postal_code, city, country_code, billing_email)
-                VALUES (:tenant, :name, :vat, :address, '75002', 'Paris', 'FR', :email)
+                VALUES (:tenant, :name, :vat, :address, :postalCode, :city, 'FR', :email)
                 SQL,
-                ['tenant' => $tenants[$key], 'name' => DemoWorld::TENANTS[$key]['name'], 'vat' => $vat, 'address' => $address, 'email' => DemoWorld::email('billing')],
+                [
+                    'tenant' => $tenants[$key],
+                    'name' => DemoWorld::TENANTS[$key]['name'],
+                    'vat' => $vat,
+                    'address' => $address,
+                    'postalCode' => $key === 'initech' ? '69002' : '75002',
+                    'city' => $key === 'initech' ? 'Lyon' : 'Paris',
+                    'email' => DemoWorld::email('billing'),
+                ],
             );
 
             $this->connection->executeStatement(

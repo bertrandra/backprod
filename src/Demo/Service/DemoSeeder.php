@@ -9,6 +9,7 @@ use App\Commerce\Service\Subscriptions;
 use App\Demo\Domain\DemoFixtures;
 use App\Demo\Domain\DemoWorld;
 use App\Demo\Domain\SeededWorld;
+use App\Project\Service\ProjectWorkspace;
 use App\Shared\Exceptions\ConflictException;
 
 /**
@@ -24,7 +25,11 @@ use App\Shared\Exceptions\ConflictException;
  * and `Invoicing::issueForSubscription`, never INSERT: an invoice number comes
  * from a gapless sequence and an activation writes a subscription event, and a
  * fixture that wrote those rows itself would demonstrate a world the
- * application cannot produce.
+ * application cannot produce. A project (2026-09-22) is
+ * `ProjectWorkspace::create` for the same reason: it is counted against the
+ * subscription's quota and accepted under a schema version the product
+ * declared, and a seeded row that skipped both would be a project no member
+ * could have made.
  *
  * **Seeding and verifying in one pass.** The result carries every check, and
  * a caller that finds one failed has a world worse than none: somebody would
@@ -39,6 +44,7 @@ final class DemoSeeder
         private readonly DemoFixtures $fixtures,
         private readonly Subscriptions $subscriptions,
         private readonly Invoicing $invoicing,
+        private readonly ProjectWorkspace $workspace,
     ) {
     }
 
@@ -124,7 +130,28 @@ final class DemoSeeder
             $invoices[] = $this->invoicing->issueForSubscription($tenant, $product, $actor);
         }
 
+        // After the subscriptions: each project is counted against its
+        // organisation's quota on the product, which the subscription grants.
+        $projects = [];
+
+        foreach (DemoWorld::PROJECTS as $draft) {
+            $projects[] = $this->workspace->create(
+                $structure->tenant($draft['tenant']),
+                $structure->product($draft['product']),
+                $structure->user($draft['by']),
+                $draft['name'],
+                $draft['description'],
+                DemoWorld::SCHEMA_VERSIONS[0],
+                (object) $draft['document'],
+            );
+        }
+
         $checks = [
+            'every project was stored where it was made' => array_filter(
+                array_keys($projects),
+                static fn (int $i): bool => $projects[$i]->tenantId !== $structure->tenant(DemoWorld::PROJECTS[$i]['tenant'])
+                    || $projects[$i]->productId !== $structure->product(DemoWorld::PROJECTS[$i]['product']),
+            ) === [],
             'every subscription is active' => array_filter(
                 DemoWorld::SUBSCRIPTIONS,
                 fn (array $live): bool => $this->subscriptions->current(
