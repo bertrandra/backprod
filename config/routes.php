@@ -12,6 +12,7 @@ use App\Admin\Controller\ListAuditController;
 use App\Admin\Controller\ShowMetricsController;
 use App\Admin\Controller\ShowQueueController;
 use App\Auth\Controller\ForgotPasswordController;
+use App\Auth\Controller\JwksController;
 use App\Auth\Controller\RefreshSessionController;
 use App\Auth\Controller\ResetPasswordController;
 use App\Auth\Controller\SignInController;
@@ -261,6 +262,9 @@ return static function (RouteCollector $routes): void {
     // is only ever answered 202, and a single-use token from a mail.
     $routes->addRoute('POST', '/api/v1/auth/password/forgot', ForgotPasswordController::class);
     $routes->addRoute('POST', '/api/v1/auth/password/reset', ResetPasswordController::class);
+    // The public keys sessions are signed with (ADR-051 milestone E), for a
+    // product beside the platform that verifies bearers itself.
+    $routes->addRoute('GET', '/api/v1/auth/jwks', JwksController::class);
 
     // --- The shop window --------------------------------------------------
     // The only reads on this platform that answer somebody with no account.

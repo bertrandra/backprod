@@ -1,12 +1,16 @@
 # ADR-051 — A product beside the platform connects with three credentials, none of them shared
 
-**Status:** accepted 2026-09-20 (merged by the operator). Milestones B, C
-and D are built (2026-09-21): `GET /me/context` and `products.app_url`;
-product keys, the `product` authority with its three routes, the product
-access log and reported usage, issued and revoked from the console; the
-webhook address and secret per product, the `webhook_deliveries` outbox,
-the `webhook.deliver` job and the console's view of deliveries. E is not;
-§7 says what it costs. Details settled in building: a refused key answers
+**Status:** accepted 2026-09-20 (merged by the operator). Every milestone
+is built (2026-09-21): `GET /me/context` and `products.app_url`; product
+keys, the `product` authority with its three routes, the product access
+log and reported usage, issued and revoked from the console; the webhook
+address and secret per product, the `webhook_deliveries` outbox, the
+`webhook.deliver` job and the console's view of deliveries; and E —
+sessions signed EdDSA under a key pair *derived* from `AUTH_SIGNING_SECRET`
+(no key generated, stored or sealed), `GET /auth/jwks` serving the public
+half, the product the session was opened on as a second `aud`, and rotation
+by `AUTH_SIGNING_SECRET_PREVIOUS` for one token lifetime. Details settled
+in building: a refused key answers
 `401 UNAUTHENTICATED` when unknown and `403 PRODUCT_KEY_REVOKED` /
 `PRODUCT_KEY_EXPIRED` / `PRODUCT_KEY_SCOPE` when recognised; a quota
 refusal is `403 QUOTA_EXCEEDED`, the platform's own code, not a 409. For
@@ -47,7 +51,7 @@ or a token in a URL, or a product that decides its own entitlements.
 
 Facts this proposal builds on, as they stand in the code today:
 
-- A session is a **JWT signed HS256** with `AUTH_SIGNING_SECRET`
+- A session is a **JWT signed EdDSA** under a key derived from `AUTH_SIGNING_SECRET` (HS256 until milestone E)
   (`LocalJwtTokenIssuer`), `iss: backprod`, `aud: backprod-api`, `sub` the
   auth subject, ~15 minutes; the refresh token is an `HttpOnly`,
   `SameSite=Strict` cookie on `Path=/api/v1/auth` of the platform's host,
@@ -146,10 +150,15 @@ one.
   relays. The authority stays in one place, no key travels, and the product
   gets exactly the answer the shell gets.
 
-  Asymmetric tokens (EdDSA, with `GET /api/v1/auth/jwks`) would let a
-  product verify locally with no round trip. They are the upgrade when
-  latency proves to matter — §8 — not the starting point, because they add
-  key rotation, an `aud` per product and a second verifier to keep honest.
+  Asymmetric tokens (EdDSA, with `GET /api/v1/auth/jwks`) let a product
+  verify locally with no round trip — milestone E, built. The token then
+  answers *who this is* (`sub`, `email`) and *which product it was opened
+  on* (`aud` holds the platform's name and the product's code); it never
+  answers what the person holds, which stays `/me/context`, because a
+  membership revoked after the token was minted is a fact the token cannot
+  carry. The product verifies the signature against the published set,
+  `iss`, `exp`, and its own code in `aud`; a token opened on another
+  product does not name it and is refused.
 
 **The person moves between the two by ordinary links.** The shell's product
 switcher, for a product that has an `app_url`, navigates there with

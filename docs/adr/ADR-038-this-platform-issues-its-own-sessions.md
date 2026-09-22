@@ -1,6 +1,15 @@
 # ADR-038 — This platform issues its own sessions
 
-**Status:** accepted
+**Status:** accepted; the algorithm amended by ADR-051 milestone E (2026-09-21):
+the access token is signed **EdDSA** with an Ed25519 pair derived from
+`AUTH_SIGNING_SECRET`, and the public half is served at `GET /api/v1/auth/jwks`.
+"HS256, not RS256" below was right while the issuer and the verifier were one
+process; a product beside the platform is a second verifier, and under HS256
+the only way to let it verify is to hand it the mint. Everything else here —
+the routes, the cookie, rotation of the refresh token, the 32-character floor,
+the 503 — is unchanged, and so is the secret: nothing new is generated or stored,
+so a rotation is still an edit to `.env` (`AUTH_SIGNING_SECRET_PREVIOUS` keeps
+the old key verifying for an hour).
 **Supersedes:** the issuance half of
 [ADR-014](ADR-014-jwt-verification.md) — verification is
 unchanged, and an external provider remains supported

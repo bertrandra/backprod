@@ -7,8 +7,10 @@ namespace App\Tests\Unit;
 use App\Auth\Domain\LocalTokens;
 use App\Auth\Infrastructure\LocalJwtAuthProvider;
 use App\Auth\Infrastructure\LocalJwtTokenIssuer;
+use App\Auth\Infrastructure\LocalSigningKeys;
 use App\Shared\Exceptions\UnauthenticatedException;
 use App\Shared\Logging\ErrorLogLogger;
+use Firebase\JWT\JWK;
 use Firebase\JWT\JWT;
 use PHPUnit\Framework\TestCase;
 
@@ -48,6 +50,38 @@ final class LocalJwtAuthProviderTest extends TestCase
         self::assertSame('ada@acme.test', $identity->email);
     }
 
+    public function testItSignsEdDsaUnderAKeyIdThePublishedSetNames(): void
+    {
+        // ADR-051 milestone E: a verifier with the public set and no secret.
+        $token = $this->issuer()->issue('local:abc', null, 'plan');
+        $keys = new LocalSigningKeys(self::SECRET);
+
+        [$header] = explode('.', $token->token);
+        $decodedHeader = json_decode((string) base64_decode(strtr($header, '-_', '+/'), true), true);
+        self::assertIsArray($decodedHeader);
+        self::assertSame('EdDSA', $decodedHeader['alg'] ?? null);
+        self::assertSame($keys->currentKeyId(), $decodedHeader['kid'] ?? null);
+
+        $claims = get_object_vars(JWT::decode($token->token, JWK::parseKeySet($keys->jwks())));
+        self::assertSame([LocalTokens::DEFAULT_AUDIENCE, 'plan'], $claims['aud'] ?? null);
+
+        // The platform takes a token that also names a product as its own.
+        self::assertSame('local:abc', $this->provider()->authenticate($token->token)->userId);
+    }
+
+    public function testThePreviousSecretVerifiesButDoesNotSign(): void
+    {
+        $old = $this->issuer()->issue('local:abc', null);
+        $rotated = new LocalJwtAuthProvider('a-different-deployments-signing-secret', LocalTokens::DEFAULT_ISSUER, LocalTokens::DEFAULT_AUDIENCE, new ErrorLogLogger(), self::SECRET);
+
+        self::assertSame('local:abc', $rotated->authenticate($old->token)->userId);
+
+        $set = (new LocalSigningKeys('a-different-deployments-signing-secret', self::SECRET))->jwks();
+        self::assertCount(2, $set['keys']);
+        self::assertSame((new LocalSigningKeys('a-different-deployments-signing-secret'))->currentKeyId(), $set['keys'][0]['kid']);
+        self::assertSame((new LocalSigningKeys(self::SECRET))->currentKeyId(), $set['keys'][1]['kid']);
+    }
+
     public function testItRefusesATokenSignedWithAnotherSecret(): void
     {
         // The situation two deployments sharing nothing should be in — and the
@@ -67,8 +101,10 @@ final class LocalJwtAuthProviderTest extends TestCase
     public function testItRefusesTheNoneAlgorithm(): void
     {
         // The oldest JWT attack: strip the signature and say there is no algorithm.
-        // `JWT::decode` is given exactly one key, whose algorithm must match the
-        // header, so there is nothing for `none` to match.
+        // `JWT::decode` is given keys by `kid`, every one EdDSA, and the header
+        // must name one whose algorithm matches, so there is nothing for `none`
+        // to match. The HS256 forgeries below are refused the same way: they
+        // carry no `kid`, and the secret is not a key any more.
         $header = rtrim(strtr(base64_encode('{"alg":"none","typ":"JWT"}'), '+/', '-_'), '=');
         $claims = rtrim(strtr(base64_encode(json_encode([
             'iss' => LocalTokens::DEFAULT_ISSUER,

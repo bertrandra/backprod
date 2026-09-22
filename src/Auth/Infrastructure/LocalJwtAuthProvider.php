@@ -8,46 +8,56 @@ use App\Auth\Domain\AuthenticatedIdentity;
 use App\Auth\Domain\AuthProvider;
 use App\Shared\Exceptions\UnauthenticatedException;
 use Firebase\JWT\JWT;
-use Firebase\JWT\Key;
 use Psr\Log\LoggerInterface;
 use SensitiveParameter;
 use Throwable;
 
 /**
- * Verifies the tokens `LocalJwtTokenIssuer` minted (U12).
+ * Verifies the tokens `LocalJwtTokenIssuer` minted (U12, ADR-051 milestone E).
  *
  * The same shape as `SupabaseJwtAuthProvider` and for the same reasons: the
  * failure reason is logged rather than returned, because "expired" and "bad
  * signature" and "wrong issuer" are three different answers and telling them
  * apart is an oracle for probing tokens.
  *
- * **The algorithm is pinned to HS256 by passing exactly one key.** `JWT::decode`
- * requires the header's `alg` to match the key it is given, so a token arriving
- * with `alg: none` — or with `alg: RS256` and the HMAC secret as a forged public
- * key, which is the classic confusion attack — has no key to match and is
- * refused before any claim is read.
+ * **The algorithm is pinned by the keys.** `JWT::decode` is given the key set
+ * keyed by `kid`, every key of which is EdDSA, and requires the header's
+ * `alg` to match the key the `kid` names. A token arriving with `alg: none`,
+ * with `alg: HS256` and a guessed secret, or with no `kid` at all has no key
+ * to match and is refused before any claim is read — which also means the
+ * HS256 tokens issued before this milestone die at the deploy, and every
+ * client renews from its refresh cookie without noticing.
+ *
+ * During a rotation the previous secret's key verifies too; it signs nothing.
  */
 final class LocalJwtAuthProvider implements AuthProvider
 {
+    private readonly LocalSigningKeys $keys;
+
     public function __construct(
         #[SensitiveParameter]
-        private readonly string $secret,
+        string $secret,
         private readonly string $expectedIssuer,
         private readonly string $expectedAudience,
         private readonly LoggerInterface $logger,
+        #[SensitiveParameter]
+        string $previousSecret = '',
     ) {
+        $this->keys = new LocalSigningKeys($secret, $previousSecret);
     }
 
     public function authenticate(string $credential): AuthenticatedIdentity
     {
-        if ($credential === '' || $this->secret === '') {
+        $keys = $this->keys->keys();
+
+        if ($credential === '' || $keys === []) {
             // No secret means this deployment cannot have issued anything, so
             // there is nothing that could legitimately verify.
             throw new UnauthenticatedException();
         }
 
         try {
-            $decoded = JWT::decode($credential, new Key($this->secret, 'HS256'));
+            $decoded = JWT::decode($credential, $keys);
         } catch (Throwable $e) {
             $this->logger->info('Token verification failed', ['reason' => $e::class]);
 
@@ -57,12 +67,24 @@ final class LocalJwtAuthProvider implements AuthProvider
         /** @var array<string, mixed> $claims object properties are always string-keyed */
         $claims = get_object_vars($decoded);
 
-        foreach (['iss' => $this->expectedIssuer, 'aud' => $this->expectedAudience] as $name => $expected) {
-            if (($claims[$name] ?? null) !== $expected) {
-                $this->logger->info('Token verification failed', ['reason' => "unexpected {$name}"]);
+        if (($claims['iss'] ?? null) !== $this->expectedIssuer) {
+            $this->logger->info('Token verification failed', ['reason' => 'unexpected iss']);
 
-                throw new UnauthenticatedException();
-            }
+            throw new UnauthenticatedException();
+        }
+
+        // `aud` is the platform's name, or a list that holds it beside the
+        // product the session was opened on (RFC 7519 allows either). A
+        // token naming a product and not the platform is somebody else's.
+        $audience = $claims['aud'] ?? null;
+        $accepted = is_array($audience)
+            ? in_array($this->expectedAudience, $audience, true)
+            : $audience === $this->expectedAudience;
+
+        if (!$accepted) {
+            $this->logger->info('Token verification failed', ['reason' => 'unexpected aud']);
+
+            throw new UnauthenticatedException();
         }
 
         $subject = $claims['sub'] ?? null;

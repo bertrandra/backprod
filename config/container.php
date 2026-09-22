@@ -13,10 +13,12 @@ use App\Auth\Domain\AccountRegistrar;
 use App\Auth\Domain\AuthProvider;
 use App\Auth\Domain\LocalCredentialRepository;
 use App\Auth\Domain\LocalTokens;
+use App\Auth\Domain\PublicKeys;
 use App\Auth\Domain\RefreshTokenRepository;
 use App\Auth\Domain\TokenIssuer;
 use App\Auth\Infrastructure\LocalJwtAuthProvider;
 use App\Auth\Infrastructure\LocalJwtTokenIssuer;
+use App\Auth\Infrastructure\LocalSigningKeys;
 use App\Auth\Infrastructure\NullSigningKeySource;
 use App\Auth\Infrastructure\PostgresAccountRegistrar;
 use App\Auth\Infrastructure\PostgresLocalCredentialRepository;
@@ -281,6 +283,9 @@ return static function (array $overrides = []): ContainerInterface {
                     $env('AUTH_ISSUER', LocalTokens::DEFAULT_ISSUER),
                     $env('AUTH_AUDIENCE', LocalTokens::DEFAULT_AUDIENCE),
                     $logger,
+                    // The secret before a rotation (ADR-051 milestone E): its
+                    // key still verifies for the hour its tokens live.
+                    $env('AUTH_SIGNING_SECRET_PREVIOUS'),
                 );
             }
 
@@ -306,6 +311,14 @@ return static function (array $overrides = []): ContainerInterface {
                 $env('AUTH_AUDIENCE', LocalTokens::DEFAULT_AUDIENCE),
                 (int) ($env('AUTH_TOKEN_LIFETIME', (string) LocalJwtTokenIssuer::DEFAULT_LIFETIME)),
             ),
+        ),
+
+        // The public half of the session keys, for `GET /auth/jwks` (ADR-051
+        // milestone E): derived from the same secret the issuer signs with,
+        // so the two can never disagree, and the previous one beside it
+        // during a rotation.
+        PublicKeys::class => factory(
+            static fn (): PublicKeys => new LocalSigningKeys($env('AUTH_SIGNING_SECRET'), $env('AUTH_SIGNING_SECRET_PREVIOUS')),
         ),
 
         LocalCredentialRepository::class => autowire(PostgresLocalCredentialRepository::class),
@@ -642,6 +655,8 @@ return static function (array $overrides = []): ContainerInterface {
                     '/api/v1/auth/verify-email',
                     '/api/v1/auth/password/forgot',
                     '/api/v1/auth/password/reset',
+                    // A public key is public (ADR-051 milestone E).
+                    '/api/v1/auth/jwks',
                 ],
                 identityOnlyPaths: ['/api/v1/products'],
                 // Unauthenticated, because the sender is a payment provider

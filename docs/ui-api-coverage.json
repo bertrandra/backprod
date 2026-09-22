@@ -621,6 +621,7 @@
     "listProductTenantMembers": "Called by a product’s server with its key and no person present (ADR-051 §4); the console issues the key, the product access log records the read. No human origin, so no screen.",
     "reportProductUsage": "Called by a product’s server with its key, before it does the metered work (ADR-051 §4). No human origin, so no screen.",
     "showProductTenantEntitlements": "Called by a product’s server with its key and no person present (ADR-051 §4). No human origin, so no screen.",
+    "getJwks": "The public keys sessions are signed with (ADR-051 milestone E), read by a product’s server that verifies bearers locally. The shell never verifies a token — it presents one — so there is no screen.",
     "showMyContext": "Read by a product deployed beside the platform (ADR-051 §3) — its server asks who is asking and what they hold, in one call, instead of verifying the token itself. The shell reads the same facts through showMe, showMyPermissions and showMyEntitlements and needs no fourth screen for them."
   }
 }
