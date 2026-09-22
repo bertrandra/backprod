@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { renderAtRoute, SESSION, stubClient, type Stub } from '@/test-utils';
 
@@ -51,9 +51,13 @@ function version(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const PLAN = { id: 'p-plan', code: 'plan', name: 'Plan', app_url: 'https://plan.example.test' };
+const ATLAS = { id: 'p-1', code: 'atlas', name: 'Atlas', app_url: null };
+
 function clientFor(extra: Record<string, Stub | (() => Stub)> = {}) {
   return stubClient({
     'GET /api/v1/me': { data: SESSION_WITH_PROJECTS },
+    'GET /api/v1/products': { data: { products: [ATLAS, PLAN], default: null, memberships: [], pending: [] } },
     'GET /api/v1/projects/{projectId}': { data: project() },
     'GET /api/v1/projects/{projectId}/versions': { data: { versions: [version()] } },
     'GET /api/v1/projects/{projectId}/assets': { data: { assets: [] } },
@@ -61,8 +65,11 @@ function clientFor(extra: Record<string, Stub | (() => Stub)> = {}) {
   });
 }
 
-const render = (client: ReturnType<typeof stubClient>) =>
-  renderAtRoute(<ProjectScreen projectId="p-1" />, client, { path: '/projects/p-1' });
+// `atlas` unless a test says otherwise, which is what `renderAtRoute` would
+// have chosen anyway — a product every request carries, with no address of
+// its own.
+const render = (client: ReturnType<typeof stubClient>, product = 'atlas') =>
+  renderAtRoute(<ProjectScreen projectId="p-1" />, client, { path: '/projects/p-1', product });
 
 describe('deleting', () => {
   it('says the project keeps its history, and still needs the name typed', async () => {
@@ -216,5 +223,40 @@ describe('the details form', () => {
     fireEvent.click(screen.getByRole('button', { name: /duplicate/i }));
 
     await waitFor(() => expect(location()).toContain('/projects/p-2'));
+  });
+});
+
+describe('the way into the product', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('carries the project over, and nothing that could be a credential', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { ...window.location, assign, search: '', href: 'http://localhost/projects/p-1' });
+
+    render(clientFor(), 'plan');
+
+    fireEvent.click(await screen.findByTestId('open-project-in-product'));
+
+    await waitFor(() => expect(assign).toHaveBeenCalledTimes(1));
+    const target = new URL(String(assign.mock.calls[0]?.[0]));
+    expect(target.origin).toBe('https://plan.example.test');
+    // The project that was on screen, named by the id both sides use — the
+    // product reads it back from the platform, which refuses it to anybody
+    // else. Three parameters, and none of them is a token.
+    expect(target.searchParams.get('project')).toBe('p-1');
+    expect(target.searchParams.get('product')).toBe('plan');
+    expect([...target.searchParams.keys()].sort()).toEqual(['lang', 'product', 'project']);
+  });
+
+  it('has no door when the product’s screens are this workspace', async () => {
+    render(clientFor(), 'atlas');
+
+    // Waited for, rather than asserted on an empty first render: the products
+    // arrive a tick later, and a `queryBy` before that would pass whatever
+    // the component did.
+    await waitFor(() => expect(screen.getByRole('button', { name: /duplicate/i })).toBeTruthy());
+    expect(screen.queryByTestId('open-project-in-product')).toBeNull();
   });
 });

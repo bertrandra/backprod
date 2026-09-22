@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { ambientParams, type Schemas } from '@/api/client';
 import { useApiClient } from '@/app/providers/ApiProvider';
-import { sessionSnapshot } from '@/state/session';
+import { sessionSnapshot, useSessionStore } from '@/state/session';
 
 import { keys } from './keys';
 import { toApiError } from './session';
@@ -161,6 +161,22 @@ export function useMyProducts(enabled = true) {
       };
     },
   });
+}
+
+/**
+ * The product this browser is acting in, as the server described it — or
+ * `null` until the list arrives, and for a code naming none of them.
+ *
+ * Two screens ask the same question: the card above the project list, and
+ * the way out of a project into the product it belongs to. A product's
+ * address is exactly the kind of fact that must not be read two ways, so
+ * it is read here once.
+ */
+export function useCurrentProduct(): Product | null {
+  const productCode = useSessionStore((state) => state.productCode);
+  const mine = useMyProducts();
+
+  return mine.data?.products.find((candidate) => candidate.code === productCode) ?? null;
 }
 
 export function useProduct(productId: string | null) {

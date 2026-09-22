@@ -722,6 +722,7 @@
   "only": "solo",
   "Open": "Apri",
   "Open {product}": "Apri {product}",
+  "Open in {product}": "Apri in {product}",
   "Open it": "Aprilo",
   "Open the checkout for this order": "Apri il checkout di questo ordine",
   "open the invoice": "apri la fattura",

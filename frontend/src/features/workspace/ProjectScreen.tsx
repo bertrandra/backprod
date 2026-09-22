@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { leaveFor } from '@/app/frame/ProductSwitcher';
+import { useCurrentProduct } from '@/queries/catalogue';
 import {
   useCreateProjectVersion,
   useDeleteProject,
@@ -44,6 +46,17 @@ import { tx } from '@/i18n/react';
  * Restoring is safe in a way worth showing: the backend snapshots the current
  * state first, in the same transaction, so restoring can never be the operation
  * that loses work.
+ *
+ * **And, since 2026-09-22, the way into the product.** When the product is
+ * deployed beside the platform (ADR-051 §3), this screen holds a project's
+ * record — name, history, files — while the thing you *work* on it with is
+ * elsewhere. The card above the list said where the product lives; from a
+ * project there was nothing, so the way over was to leave, choose the
+ * product in the switcher, and find the same project again by hand. The
+ * button carries its id, so the product opens the project that was on
+ * screen. A product whose screens are this workspace shows no button:
+ * there is nowhere else to go, and a door onto the room you are in is
+ * worse than a wall.
  */
 const renameSchema = z.object({
   name: z.string().trim().min(1, 'A project needs a name.'),
@@ -52,6 +65,7 @@ const renameSchema = z.object({
 
 export function ProjectScreen({ projectId }: { projectId: string }) {
   const navigate = useNavigate();
+  const product = useCurrentProduct();
   const project = useProject(projectId);
   const versions = useProjectVersions(projectId);
   const update = useUpdateProject(projectId);
@@ -86,11 +100,23 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
 
   return (
     <div className="max-w-4xl space-y-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">{current.name}</h1>
-        <p className="text-xs text-subtle">
-          {t("schema v")}{current.schema_version} {t("· updated")}{' '}{new Date(current.updated_at).toLocaleString(currentLocale())}
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <h1 className="text-2xl font-semibold">{current.name}</h1>
+          <p className="text-xs text-subtle">
+            {t("schema v")}{current.schema_version} {t("· updated")}{' '}{new Date(current.updated_at).toLocaleString(currentLocale())}
+          </p>
+        </div>
+
+        {product !== null && product.app_url != null && (
+          <Button
+            type="button"
+            data-testid="open-project-in-product"
+            onClick={() => leaveFor(product.app_url ?? '', product.code, projectId)}
+          >
+            {tx("Open in {product}", { product: product.name })}
+          </Button>
+        )}
       </header>
 
       <section className="space-y-4">

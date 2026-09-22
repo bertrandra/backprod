@@ -167,11 +167,28 @@ itself.
 ### 5.5 Coming and going
 
 The platform's shell sends a person to Plan at `app_url?product=plan` (ADR-051
-§3). Plan's landing reads nothing from the address but `product` and `lang`;
-anything else in the query is ignored. Plan links back to the platform's
-shell for everything that is the platform's: the subscription, the invoices,
-the members, the profile — by ordinary links to the platform's host, never by
-re-implementing the screen.
+§3). Plan's landing reads three things from the address and ignores the rest:
+
+```text
+product   the product code, always
+lang      the language the person was reading in
+project   the project they had open, when they came from one (2026-09-22)
+```
+
+`project` is the platform's project id — the same id Plan stores its
+documents under, since its projects *are* the platform's — so Plan opens
+that project rather than whichever one it last remembered. Plan's own
+address bar has always spelled this `?projet=`; it reads both, and the
+platform sends the English one, because the handover is the platform's
+contract and it is the same word on every product.
+
+A `project` Plan cannot read is not an error to shout about: the platform
+answers 404 or 403 the way it would for any other project, and Plan opens
+as it would have without it.
+
+Plan links back to the platform's shell for everything that is the
+platform's: the subscription, the invoices, the members, the profile — by
+ordinary links to the platform's host, never by re-implementing the screen.
 
 ## 6. Plan's backend, if it has one (`plan-api`)
 
