@@ -64,8 +64,10 @@ final class MailTemplatesTest extends DatabaseApiTestCase
         $stored = $this->connection->fetchOne("SELECT value->'en'->'account.password_reset'->>'subject' FROM platform_settings WHERE key = 'mail_templates'");
         self::assertSame('Nouveau mot de passe', $stored);
 
-        // French words of their own (ADR-050), beside English's; a language
-        // with none shows English's — what a person in it would receive.
+        // French words of their own (ADR-050), beside English's. A type the
+        // administrator left alone shows the platform's own French — never
+        // the English override, which is English's (2026-09-22): what a
+        // person reading in French receives is French.
         $french = $this->request('PUT', '/api/v1/staff/mail/templates', self::ADMIN, $this->json([
             'locale' => 'fr',
             'templates' => ['account.invitation' => ['subject' => 'Bienvenue', 'body' => 'Votre lien : {link}']],
@@ -75,10 +77,13 @@ final class MailTemplatesTest extends DatabaseApiTestCase
         $fr = $this->listIn($this->decode($french), 'templates');
         self::assertSame('Bienvenue', $fr[1]['subject'] ?? null);
         self::assertTrue($fr[1]['customised'] ?? null);
-        self::assertSame('Nouveau mot de passe', $fr[0]['subject'] ?? null);
+        self::assertSame(MailWording::WORDS['fr']['account.password_reset']['subject'], $fr[0]['subject'] ?? null);
+        $frenchDefault = $fr[0]['default'] ?? null;
+        self::assertIsArray($frenchDefault);
+        self::assertSame(MailWording::WORDS['fr']['account.password_reset']['subject'], $frenchDefault['subject'] ?? null);
         self::assertFalse($fr[0]['customised'] ?? null);
         $italian = $this->listIn($this->decode($this->request('GET', '/api/v1/staff/mail/templates?locale=it', self::ADMIN)), 'templates');
-        self::assertSame('Nouveau mot de passe', $italian[0]['subject'] ?? null);
+        self::assertSame(MailWording::WORDS['it']['account.password_reset']['subject'], $italian[0]['subject'] ?? null);
         self::assertSame(['en', 'fr', 'es', 'de', 'it'], $this->decode($this->request('GET', '/api/v1/staff/mail/templates?locale=it', self::ADMIN))['locales'] ?? null);
 
         // Left out of the next save, it goes back to the default.

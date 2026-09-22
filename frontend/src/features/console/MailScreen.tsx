@@ -115,7 +115,7 @@ export function MailScreen() {
       </div>
       {locale !== 'en' && (
         <p className="text-xs text-muted">
-          {t("A kind with no words of its own in this language shows English's, which is what a person reading in it receives.")}</p>
+          {t("A kind you leave alone says the platform's own words in this language — never the English you may have changed. That is what a person reading in it receives.")}</p>
       )}
 
       {save.error !== null && <ErrorSurface error={save.error} />}
