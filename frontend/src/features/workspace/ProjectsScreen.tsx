@@ -14,8 +14,14 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
 import { currentLocale, t } from '@/i18n';
 
+import { ProductCard } from './ProductCard';
+
 /**
  * `workspace.projects` — the list a person lands on, and creating one.
+ *
+ * Above the list, the product this workspace belongs to: where it lives
+ * when it is deployed beside the platform, and the organisation's
+ * subscription to it ({@see ProductCard}).
  *
  * **The schema version is not this screen's to choose.** A new project must
  * declare one, the backend accepts only what the *product* has configured, and
@@ -87,6 +93,8 @@ export function ProjectsScreen() {
           </Button>
         }
       />
+
+      {!showingBin && <ProductCard />}
 
       {undelete.error !== null && <ErrorSurface error={undelete.error} />}
 
