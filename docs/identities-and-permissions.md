@@ -222,7 +222,10 @@ accordée au rôle puis retirée à la résolution.
 
 ## La matrice, côté plateforme
 
-Les 17 permissions de plateforme.
+Les 18 permissions de plateforme. (`staff.jobs.read` et `staff.jobs.manage`
+ont existé du 3 au 22 septembre 2026 sans qu'aucune route ne les exige — la
+file est lue derrière `admin.health.read`, pour que le support la voie ; elles
+ont été retirées.)
 
 | Permission | `PLATFORM` | `SUPPORT` | `FINANCE` | `SALES` |
 | --- | --- | --- | --- | --- |
@@ -237,8 +240,8 @@ Les 17 permissions de plateforme.
 | `staff.catalog.manage` | oui | non | non | non |
 | `staff.grant` | oui | non | non | non |
 | `staff.access_log.read` | oui | non | non | non |
-| `staff.jobs.read` | oui | non | non | non |
-| `staff.jobs.manage` | oui | non | non | non |
+| `staff.navigation.manage` (choisir les entrées de menu par public) | oui | non | non | non |
+| `staff.mail.manage` (modifier les gabarits de mail, envoyer un test) | oui | non | non | non |
 | `staff.demo.reset` (vider et réensemencer le monde de démonstration) | oui | non | non | non |
 | `staff.demo.publish` (afficher ou masquer la page publique `/demo`) | oui | non | non | non |
 | `admin.directory.read` | oui | non | non | non |

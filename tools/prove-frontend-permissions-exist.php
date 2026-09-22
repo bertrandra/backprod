@@ -87,7 +87,54 @@ $filesIn = static function (string $directory, string $extension): array {
 // --- What the platform grants ------------------------------------------------
 //
 // Read from the INSERT statements that create them, which is the only place a
-// permission comes into existence.
+// permission comes into existence — and from the DELETE statements that
+// remove one, in migration order, so a permission a later migration took
+// away (2026-09-22: `staff.jobs.*`, which no route ever required) is not
+// reported as existing for ever on the strength of the text that once
+// created it.
+//
+// Only the `up()` side of a migration counts. Every `down()` deletes what its
+// `up()` inserted, and reading those would either cancel every permission or
+// — as the first version of this did — count a DELETE's code list as a
+// definition, which is how a removed permission would stay "defined".
+
+/**
+ * The part of a migration that runs forward: the class docblock and `up()`.
+ */
+$upSideOf = static function (string $source): string {
+    $down = strpos($source, 'function down(');
+
+    return $down === false ? $source : substr($source, 0, $down);
+};
+
+/**
+ * The codes a DELETE on a permission table names, in an `up()`.
+ *
+ * @return list<string>
+ */
+$removedIn = static function (string $upSide): array {
+    $removed = [];
+
+    if (preg_match_all("/DELETE\\s+FROM\\s+(?:platform_permissions|permissions)\\s+WHERE\\s+code\\s+(?:IN\\s*\\(([^)]*)\\)|=\\s*'([a-z][a-z_]*(?:\\.[a-z][a-z_]*)+)')/i", $upSide, $deletes, PREG_SET_ORDER) === false) {
+        return [];
+    }
+
+    foreach ($deletes as $delete) {
+        if (($delete[2] ?? '') !== '') {
+            $removed[] = $delete[2];
+
+            continue;
+        }
+
+        if (preg_match_all("/'([a-z][a-z_]*(?:\\.[a-z][a-z_]*)+)'/", $delete[1] ?? '', $codes) !== false) {
+            foreach ($codes[1] as $code) {
+                $removed[] = $code;
+            }
+        }
+    }
+
+    return $removed;
+};
 
 $defined = [];
 
@@ -98,12 +145,16 @@ foreach ($filesIn($migrations, '.php') as $path) {
         continue;
     }
 
-    if (preg_match_all("/\\('([a-z][a-z_]*(?:\\.[a-z][a-z_]*)+)',\\s*'/", $source, $matches) === false) {
-        continue;
+    $upSide = $upSideOf($source);
+
+    if (preg_match_all("/\\('([a-z][a-z_]*(?:\\.[a-z][a-z_]*)+)',\\s*'/", $upSide, $matches) !== false) {
+        foreach ($matches[1] as $code) {
+            $defined[$code] = true;
+        }
     }
 
-    foreach ($matches[1] as $code) {
-        $defined[$code] = true;
+    foreach ($removedIn($upSide) as $code) {
+        unset($defined[$code]);
     }
 }
 
@@ -230,14 +281,22 @@ foreach ($filesIn($root . '/migrations', '.php') as $path) {
         continue;
     }
 
+    $upSide = $upSideOf($source);
+
     // Split on the two INSERTs so each code is attributed to the table it was
     // actually inserted into, rather than guessed from its prefix. `admin.*` is
     // a platform code and looks like neither `staff.` nor a tenant one, which is
     // exactly why guessing would be wrong.
-    $segments = preg_split('/INSERT\s+INTO\s+(platform_permissions|permissions)\b/i', $source, -1, PREG_SPLIT_DELIM_CAPTURE);
+    $segments = preg_split('/INSERT\s+INTO\s+(platform_permissions|permissions)\b/i', $upSide, -1, PREG_SPLIT_DELIM_CAPTURE);
 
     if ($segments === false) {
         continue;
+    }
+
+    // A removal takes the code out of both catalogues: a code lives in one
+    // table, and the table the DELETE names is the one it was in.
+    foreach ($removedIn($upSide) as $code) {
+        unset($catalogue['tenant'][$code], $catalogue['platform'][$code]);
     }
 
     for ($i = 1; $i < count($segments); $i += 2) {
