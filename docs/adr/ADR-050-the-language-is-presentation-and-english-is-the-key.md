@@ -78,10 +78,15 @@ right) opens.
 recipient's `users.locale`; `MailWording` holds defaults per language and the
 platform administrator's overrides per language and type
 (`platform_settings.mail_templates` is `{locale: {type: {subject, body}}}`;
-the older flat shape is read as English). A language with no words of its
-own for a type uses English's, which is what a person reading in that
-language receives — and the console's Mail screen says so, one tab per
-language, with *Send me a test* in the language being edited.
+the older flat shape is read as English). The platform's own words exist in
+every language it speaks (`MailWording::WORDS`, 2026-09-22 — until then only
+English had defaults, and a French account received the English reset mail
+unless an administrator had typed French), so a language the administrator
+left alone reads as the platform's own in that language, never as the
+administrator's English: an English override is English's. `MailWordingTest`
+fails when a language is missing a mail or lost its `{link}`. The console's
+Mail screen has one tab per language, with *Send me a test* in the language
+being edited.
 
 **Invoices remember their language.** `invoices.locale` is written when the
 invoice is issued, the same rule as its numbers: a document is rendered in

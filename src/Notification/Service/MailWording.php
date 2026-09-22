@@ -20,8 +20,14 @@ use App\Shared\Validation\Locale;
  * override per type on top of the defaults here, with `{link}`, `{email}`
  * and any other scalar of the payload as placeholders.
  *
- * English by default, because the platform's screens are; the editor is
- * where another language goes.
+ * **In the reader's language** (ADR-050, 2026-09-22). The defaults exist in
+ * every language the platform speaks, so a person who chose French is
+ * addressed in French with nobody having typed a word: until then a French
+ * account received the English default — the one mail a person reads with
+ * no screen in front of them, in a language they had not chosen. The
+ * administrator's words for a language replace that language's default and
+ * no other's: an English override is English's, and does not reach a
+ * French inbox where the platform has French of its own.
  */
 final class MailWording
 {
@@ -65,8 +71,138 @@ final class MailWording
         ],
     ];
 
+    /**
+     * The same words in the other languages the platform speaks. English
+     * is `DEFAULTS`, which also carries what the editor needs to say about
+     * each type; a language missing a type here falls back to English's
+     * default, which `gate:mail-wording` in `MailWordingTest` forbids.
+     *
+     * @var array<string, array<string, array{subject: string, body: string}>> by locale, then by type
+     */
+    public const WORDS = [
+        'fr' => [
+            'account.password_reset' => [
+                'subject' => 'Choisir un nouveau mot de passe',
+                'body' => "Quelqu'un — vous, espérons-le — a demandé un nouveau mot de passe pour ce compte.\n\n"
+                    . "Ouvrez ce lien pour en choisir un ; il ne fonctionne qu'une fois, pendant trente minutes :\n{link}\n\n"
+                    . "Si vous n'avez rien demandé, ignorez ce message : rien ne change tant que le lien n'est pas utilisé.",
+            ],
+            'account.invitation' => [
+                'subject' => 'Vous avez été ajouté — choisissez votre mot de passe',
+                'body' => "Un accès vous a été donné, et un compte a été créé pour cette adresse.\n\n"
+                    . "Ouvrez ce lien pour choisir votre mot de passe et vous connecter ; il ne fonctionne qu'une fois, pendant sept jours :\n{link}\n\n"
+                    . "Si vous n'attendiez pas ce message, vous pouvez l'ignorer.",
+            ],
+            'account.password_changed' => [
+                'subject' => 'Votre mot de passe a été modifié',
+                'body' => 'Le mot de passe de ce compte vient d\'être défini depuis un lien envoyé à cette adresse, et toutes les '
+                    . "sessions précédentes ont été fermées.\n\n"
+                    . "Si ce n'était pas vous, demandez tout de suite un nouveau lien depuis la page de connexion.",
+            ],
+            'account.email_verification' => [
+                'subject' => 'Confirmez votre adresse e-mail',
+                'body' => "Merci de votre inscription. Ouvrez ce lien pour confirmer que cette adresse est bien la vôtre :\n{link}\n\n"
+                    . 'Si vous ne vous êtes pas inscrit, ignorez ce message.',
+            ],
+        ],
+        'es' => [
+            'account.password_reset' => [
+                'subject' => 'Elegir una nueva contraseña',
+                'body' => "Alguien —esperamos que usted— pidió una nueva contraseña para esta cuenta.\n\n"
+                    . "Abra este enlace para elegirla; funciona una sola vez y durante treinta minutos:\n{link}\n\n"
+                    . 'Si no lo pidió, ignore este mensaje: nada cambia hasta que se use el enlace.',
+            ],
+            'account.invitation' => [
+                'subject' => 'Le han añadido: elija su contraseña',
+                'body' => "Le han dado acceso y se ha creado una cuenta para esta dirección.\n\n"
+                    . "Abra este enlace para elegir su contraseña e iniciar sesión; funciona una sola vez y durante siete días:\n{link}\n\n"
+                    . 'Si no esperaba este mensaje, puede ignorarlo.',
+            ],
+            'account.password_changed' => [
+                'subject' => 'Su contraseña ha cambiado',
+                'body' => 'La contraseña de esta cuenta se acaba de establecer desde un enlace enviado a esta dirección, y todas las '
+                    . "sesiones anteriores se han cerrado.\n\n"
+                    . 'Si no fue usted, pida un nuevo enlace ahora mismo desde la página de inicio de sesión.',
+            ],
+            'account.email_verification' => [
+                'subject' => 'Confirme su dirección de correo',
+                'body' => "Gracias por registrarse. Abra este enlace para confirmar que esta dirección es suya:\n{link}\n\n"
+                    . 'Si no se registró, ignore este mensaje.',
+            ],
+        ],
+        'de' => [
+            'account.password_reset' => [
+                'subject' => 'Neues Passwort wählen',
+                'body' => "Jemand – hoffentlich Sie – hat ein neues Passwort für dieses Konto angefordert.\n\n"
+                    . "Öffnen Sie diesen Link, um eines zu wählen; er gilt einmal und dreißig Minuten lang:\n{link}\n\n"
+                    . 'Falls Sie nichts angefordert haben, ignorieren Sie diese Mail: Nichts ändert sich, bis der Link verwendet wird.',
+            ],
+            'account.invitation' => [
+                'subject' => 'Sie wurden hinzugefügt – wählen Sie Ihr Passwort',
+                'body' => "Ihnen wurde Zugang gewährt, und für diese Adresse wurde ein Konto angelegt.\n\n"
+                    . "Öffnen Sie diesen Link, um Ihr Passwort zu wählen und sich anzumelden; er gilt einmal und sieben Tage lang:\n{link}\n\n"
+                    . 'Falls Sie das nicht erwartet haben, können Sie diese Mail ignorieren.',
+            ],
+            'account.password_changed' => [
+                'subject' => 'Ihr Passwort wurde geändert',
+                'body' => 'Das Passwort dieses Kontos wurde soeben über einen an diese Adresse gesendeten Link gesetzt, und alle '
+                    . "früheren Sitzungen wurden abgemeldet.\n\n"
+                    . 'Falls das nicht Sie waren, fordern Sie sofort einen neuen Link über die Anmeldeseite an.',
+            ],
+            'account.email_verification' => [
+                'subject' => 'Bestätigen Sie Ihre E-Mail-Adresse',
+                'body' => "Danke für Ihre Registrierung. Öffnen Sie diesen Link, um zu bestätigen, dass diese Adresse Ihnen gehört:\n{link}\n\n"
+                    . 'Falls Sie sich nicht registriert haben, ignorieren Sie diese Mail.',
+            ],
+        ],
+        'it' => [
+            'account.password_reset' => [
+                'subject' => 'Scegli una nuova password',
+                'body' => "Qualcuno — speriamo tu — ha chiesto una nuova password per questo account.\n\n"
+                    . "Apri questo link per sceglierla; funziona una sola volta, per trenta minuti:\n{link}\n\n"
+                    . 'Se non l\'hai chiesta, ignora questo messaggio: nulla cambia finché il link non viene usato.',
+            ],
+            'account.invitation' => [
+                'subject' => 'Sei stato aggiunto: scegli la tua password',
+                'body' => "Ti è stato dato accesso, e per questo indirizzo è stato creato un account.\n\n"
+                    . "Apri questo link per scegliere la tua password e accedere; funziona una sola volta, per sette giorni:\n{link}\n\n"
+                    . 'Se non te lo aspettavi, puoi ignorarlo.',
+            ],
+            'account.password_changed' => [
+                'subject' => 'La tua password è stata cambiata',
+                'body' => 'La password di questo account è appena stata impostata da un link inviato a questo indirizzo, e tutte le '
+                    . "sessioni precedenti sono state chiuse.\n\n"
+                    . 'Se non sei stato tu, chiedi subito un nuovo link dalla pagina di accesso.',
+            ],
+            'account.email_verification' => [
+                'subject' => 'Conferma il tuo indirizzo e-mail',
+                'body' => "Grazie per esserti registrato. Apri questo link per confermare che questo indirizzo è tuo:\n{link}\n\n"
+                    . 'Se non ti sei registrato, ignora questo messaggio.',
+            ],
+        ],
+    ];
+
     public function __construct(private readonly MailTemplates $templates)
     {
+    }
+
+    /**
+     * The platform's own words for a type in a language: the language's,
+     * else English's.
+     *
+     * @return array{subject: string, body: string}|null
+     */
+    public static function defaultFor(string $type, string $locale): ?array
+    {
+        $english = self::DEFAULTS[$type] ?? null;
+
+        if ($english === null) {
+            return null;
+        }
+
+        $own = self::WORDS[$locale][$type] ?? null;
+
+        return $own ?? ['subject' => $english['subject'], 'body' => $english['body']];
     }
 
     /**
@@ -87,33 +223,30 @@ final class MailWording
     }
 
     /**
-     * Every editable type in one language: its default, what stands today,
-     * and its placeholders. A language other than English falls back to
-     * English's words where it has none of its own, which is what the
-     * person would receive.
+     * Every editable type in one language: its default in that language,
+     * what stands today, and its placeholders. What stands is the
+     * administrator's words for this language, else the platform's own in
+     * it — never another language's, which is what the person receives.
      *
      * @return list<array{type: string, about: string, placeholders: list<string>, default: array{subject: string, body: string}, subject: string, body: string, customised: bool}>
      */
     public function catalogue(string $locale = Locale::DEFAULT): array
     {
-        $all = $this->templates->overrides();
-        $own = $all[$locale] ?? [];
-        $english = $all[Locale::DEFAULT] ?? [];
+        $own = $this->templates->overrides()[$locale] ?? [];
         $rows = [];
 
-        foreach (self::DEFAULTS as $type => $default) {
-            // What the person receives: the language's own words, else
-            // English's own, else the default. Customised means its own.
-            $override = $own[$type] ?? $english[$type] ?? null;
+        foreach (self::DEFAULTS as $type => $english) {
+            $default = self::defaultFor($type, $locale) ?? ['subject' => $english['subject'], 'body' => $english['body']];
+            $override = $own[$type] ?? null;
 
             $rows[] = [
                 'type' => $type,
-                'about' => $default['about'],
-                'placeholders' => $default['placeholders'],
-                'default' => ['subject' => $default['subject'], 'body' => $default['body']],
+                'about' => $english['about'],
+                'placeholders' => $english['placeholders'],
+                'default' => $default,
                 'subject' => $override['subject'] ?? $default['subject'],
                 'body' => $override['body'] ?? $default['body'],
-                'customised' => isset($own[$type]),
+                'customised' => $override !== null,
             ];
         }
 
@@ -132,7 +265,9 @@ final class MailWording
         $overrides = [];
 
         foreach ($templates as $type => $template) {
-            if (!isset(self::DEFAULTS[$type])) {
+            $default = self::defaultFor($type, $locale);
+
+            if ($default === null) {
                 continue;
             }
 
@@ -143,9 +278,11 @@ final class MailWording
                 continue;
             }
 
+            // Half given: the other half is this language's default, not
+            // English's.
             $overrides[$type] = [
-                'subject' => $subject === '' ? self::DEFAULTS[$type]['subject'] : $subject,
-                'body' => $body === '' ? self::DEFAULTS[$type]['body'] : $body,
+                'subject' => $subject === '' ? $default['subject'] : $subject,
+                'body' => $body === '' ? $default['body'] : $body,
             ];
         }
 
@@ -170,21 +307,24 @@ final class MailWording
     }
 
     /**
-     * The words for a type in a language: that language's own, else
-     * English's own, else the default.
+     * The words for a type in a language: the administrator's for that
+     * language, else the platform's own in it.
+     *
+     * Not English's override. A person who chose French is addressed in
+     * French; the administrator who rewrote the English mail rewrote the
+     * English mail, and the French one is theirs to rewrite separately.
      *
      * @return array{subject: string, body: string}|null
      */
     private function templateFor(string $type, string $locale): ?array
     {
-        $default = self::DEFAULTS[$type] ?? null;
+        $default = self::defaultFor($type, Locale::of($locale));
 
         if ($default === null) {
             return null;
         }
 
-        $overrides = $this->templates->overrides();
-        $override = $overrides[$locale][$type] ?? $overrides[Locale::DEFAULT][$type] ?? null;
+        $override = $this->templates->overrides()[Locale::of($locale)][$type] ?? null;
 
         return [
             'subject' => $override['subject'] ?? $default['subject'],
