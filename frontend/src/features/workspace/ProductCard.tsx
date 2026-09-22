@@ -2,10 +2,9 @@ import { Link } from '@tanstack/react-router';
 
 import { can } from '@/app/access/access';
 import { leaveFor } from '@/app/frame/ProductSwitcher';
-import { useMyProducts } from '@/queries/catalogue';
+import { useCurrentProduct } from '@/queries/catalogue';
 import { useSession } from '@/queries/session';
 import { useSubscription } from '@/queries/subscription';
-import { useSessionStore } from '@/state/session';
 import { Button } from '@/ui/Field';
 import { pill, type Tone } from '@/ui/tone';
 import { When } from '@/ui/When';
@@ -36,12 +35,9 @@ import { tx } from '@/i18n/react';
  */
 export function ProductCard() {
   const { data: session } = useSession();
-  const productCode = useSessionStore((state) => state.productCode);
-  const mine = useMyProducts();
+  const product = useCurrentProduct();
   const mayRead = can(session, 'subscription.read');
   const subscription = useSubscription(mayRead);
-
-  const product = mine.data?.products.find((candidate) => candidate.code === productCode) ?? null;
 
   if (!mayRead || product === null) {
     return null;

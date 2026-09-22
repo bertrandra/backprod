@@ -162,11 +162,27 @@ one.
 
 **The person moves between the two by ordinary links.** The shell's product
 switcher, for a product that has an `app_url`, navigates there with
-`?product=plan` and nothing else — no token, no session id, nothing a
-history or a proxy log could replay. The product's page resumes from the
-cookie. `landing.ts` treats an external default product the same way. Sign
-out from either side clears the one cookie and revokes the family
-(ADR-038), so there is no second session to forget.
+`?product=plan` and the language, and nothing else — no token, no session
+id, nothing a history or a proxy log could replay. The product's page
+resumes from the cookie. `landing.ts` treats an external default product
+the same way. Sign out from either side clears the one cookie and revokes
+the family (ADR-038), so there is no second session to forget.
+
+**Three doors, not one** (amended 2026-09-22). The switcher is the way to
+the product; the card above the project list is the way to the product
+*from the screen a person lands on*; and a project carries `?project=<id>`
+so the product opens the one that was on screen. The third exists because
+the second was not enough: a product beside the platform keeps its
+documents **in** the platform, so its projects are listed here, and from
+one of them the only way over was to leave, pick the product in the
+switcher, and find the same project again by hand.
+
+The id is safe to put in an address for the reason the product code is:
+it names a thing, it does not authorise anything. The product reads the
+project back through `GET /api/v1/projects/{id}` on the person's own
+session, and the platform refuses it to anybody the project is not for —
+an id in someone else's history buys them nothing. What may never travel
+this way is unchanged: no token, no tenant id the server did not derive.
 
 ## 4. Relationship 2 — the product's server to the platform
 

@@ -158,13 +158,26 @@ interface ProductOption {
 /**
  * The way to a product deployed beside the platform: a full navigation to
  * its address, with the product code and — so the page opens in the same
- * language — the language, and nothing else. No token: the product's page
- * asks `/auth/refresh` and the cookie answers, because the two are one site.
+ * language — the language. No token: the product's page asks
+ * `/auth/refresh` and the cookie answers, because the two are one site.
+ *
+ * `project` is added when the person was on one (2026-09-22). A product
+ * beside the platform stores its documents *in* the platform, so the id
+ * means the same thing on both sides, and a door that dropped it would
+ * land somebody in whichever project the product last remembered — a
+ * worse answer than none, because it looks like an answer. It is an
+ * identifier, not a credential: the product still asks the platform for
+ * the project, and the platform still refuses it to anyone else.
  */
-export function leaveFor(appUrl: string, code: string): void {
+export function leaveFor(appUrl: string, code: string, projectId: string | null = null): void {
   const address = new URL(appUrl);
   address.searchParams.set('product', code);
   address.searchParams.set('lang', currentLocale());
+
+  if (projectId !== null) {
+    address.searchParams.set('project', projectId);
+  }
+
   window.location.assign(address.toString());
 }
 
