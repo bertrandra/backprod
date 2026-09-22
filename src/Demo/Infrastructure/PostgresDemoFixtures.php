@@ -108,7 +108,7 @@ final class PostgresDemoFixtures implements DemoFixtures
             $offers = [];
 
             foreach (DemoWorld::PRODUCTS as $code => $definition) {
-                $offers[$code] = $this->catalogue($products[$code], $definition['base'], $definition['meters']);
+                $offers[$code] = $this->catalogue($products[$code], $definition['base'], $definition['meters'], $definition['capabilities'] ?? []);
                 $this->supplier($products[$code], $definition['name']);
                 $this->schemaVersions($products[$code]);
             }
@@ -348,10 +348,11 @@ final class PostgresDemoFixtures implements DemoFixtures
      * differently would price quotas nothing enforces.
      *
      * @param array<string, array{name: string, unit: string, starter: int, pro: int}> $meters
+     * @param array<string, array{name: string, from: 'starter'|'pro'|'scale'}> $capabilities
      *
      * @return array<string, string> offer code => id
      */
-    private function catalogue(string $product, int $base, array $meters): array
+    private function catalogue(string $product, int $base, array $meters, array $capabilities = []): array
     {
         $plans = [];
 
@@ -384,6 +385,28 @@ final class PostgresDemoFixtures implements DemoFixtures
 
             $scale[$code] = null;
         }
+
+        // A product's own BOOLEAN capabilities, each included from its plan
+        // upward. Unlike the four every catalogue has, these are not "Pro and
+        // above" by default: a product must still work on its lowest plan, so
+        // where each one starts is said explicitly, product by product.
+        $rangs = ['starter' => 0, 'pro' => 1, 'scale' => 2];
+        $paliers = [&$starter, &$pro, &$scale];
+
+        foreach ($capabilities as $code => $capability) {
+            $features[$code] = $this->id(
+                "INSERT INTO features (product_id, code, name, kind, unit) VALUES (:product, :code, :name, 'BOOLEAN', NULL) RETURNING id",
+                ['product' => $product, 'code' => $code, 'name' => $capability['name']],
+            );
+
+            $depuis = $rangs[$capability['from']] ?? throw new RuntimeException("unknown plan {$capability['from']} for {$code}");
+
+            for ($rang = $depuis; $rang <= 2; $rang++) {
+                $paliers[$rang][$code] = null;
+            }
+        }
+
+        unset($paliers);
 
         foreach ($meters as $code => $meter) {
             $features[$code] = $this->id(

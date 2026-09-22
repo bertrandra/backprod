@@ -52,7 +52,19 @@ final class DemoWorld
      * beside the four every catalogue has: Starter's and Pro's limits, Scale
      * unlimited.
      *
-     * @var array<string, array{name: string, base: int, app_url: ?string, meters: array<string, array{name: string, unit: string, starter: int, pro: int}>}>
+     * A product may also declare `capabilities`: BOOLEAN features of its own,
+     * each included from one plan upward. They are what a separately deployed
+     * product gates its screens on — Plan reads them from `/me/context` and
+     * removes the command rather than greying it, because an unbought function
+     * should not advertise itself inside a working tool.
+     *
+     * **The tier is the operator's decision, one word per line.** What is fixed
+     * is that a product must still be a product on its lowest plan: Plan's
+     * Starter keeps the terrace engine and the cadastral import, because a Plan
+     * that can neither draw a parcel nor design a terrace is not a cheaper
+     * Plan, it is nothing.
+     *
+     * @var array<string, array{name: string, base: int, app_url: ?string, meters: array<string, array{name: string, unit: string, starter: int, pro: int}>, capabilities?: array<string, array{name: string, from: 'starter'|'pro'|'scale'}>}>
      */
     public const PRODUCTS = [
         'atlas' => ['name' => 'Atlas', 'base' => 1_900, 'app_url' => null, 'meters' => []],
@@ -65,6 +77,18 @@ final class DemoWorld
             'app_url' => 'https://plan.raillard.org',
             // What `docs/plan-service.md` §11 says Plan meters: its documents.
             'meters' => ['plan.documents' => ['name' => 'Plan documents', 'unit' => 'documents', 'starter' => 20, 'pro' => 200]],
+            // The seven Plan proposes (its `src/plateforme/capacites.ts`). The
+            // codes are the product's and the platform only carries them; what
+            // the platform decides is which plan includes each.
+            'capabilities' => [
+                'plan.terrasse' => ['name' => 'Terrace engine', 'from' => 'starter'],
+                'plan.cadastre' => ['name' => 'Cadastral import (IGN)', 'from' => 'starter'],
+                'plan.ortho' => ['name' => 'Aerial imagery (IGN)', 'from' => 'pro'],
+                'plan.plu' => ['name' => 'Planning rules (PLU)', 'from' => 'pro'],
+                'plan.3d' => ['name' => '3D view and GLB viewer', 'from' => 'pro'],
+                'plan.export.dxf' => ['name' => 'DXF export', 'from' => 'pro'],
+                'plan.export.dossier' => ['name' => 'Client PDF dossier', 'from' => 'scale'],
+            ],
         ],
     ];
 
