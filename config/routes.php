@@ -192,6 +192,7 @@ use App\Staff\Controller\StaffIdentityController;
 use App\Staff\Controller\UnassignTenantProductController;
 use App\Staff\Controller\UpdatePlanController;
 use App\Staff\Controller\UpdateProductController;
+use App\Staff\Controller\UpdateStaffProfileController;
 use App\Staff\Controller\UpdateTenantController;
 use App\Staff\Controller\WithdrawTenantEntitlementController;
 use App\Storage\Controller\CreateAssetLinkController;
@@ -540,6 +541,9 @@ return static function (RouteCollector $routes): void {
     // membership to derive one from; the role authorises, and the read is
     // recorded.
     $routes->addRoute('GET', '/api/v1/staff/me', StaffIdentityController::class);
+    // A staff member's own name and language (2026-09-22): the profile a
+    // person with no membership has nowhere else.
+    $routes->addRoute('PATCH', '/api/v1/staff/me', UpdateStaffProfileController::class);
     $routes->addRoute('GET', '/api/v1/staff/me/navigation', ShowStaffNavigationController::class);
 
     // Who holds platform authority, and the two writes that change it. Behind

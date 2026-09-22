@@ -28,6 +28,9 @@ final class StaffIdentity
      *                                  access log keeps naming a user id
      * @param ?string      $displayName what the shell shows next to the
      *                                  initial in the account menu
+     * @param string       $locale      the language they read in (ADR-050),
+     *                                  which their own profile lets them
+     *                                  change even with no membership
      */
     public function __construct(
         public readonly string $userId,
@@ -35,6 +38,7 @@ final class StaffIdentity
         public readonly array $permissions,
         public readonly ?string $email = null,
         public readonly ?string $displayName = null,
+        public readonly string $locale = 'en',
     ) {
     }
 

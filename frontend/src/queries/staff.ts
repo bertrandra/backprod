@@ -115,6 +115,8 @@ export interface StaffIdentity {
   /** Null once erased (§26): the identity outlives the details. */
   readonly email: string | null;
   readonly displayName: string | null;
+  /** The language they read in (ADR-050); `en` when they chose none. */
+  readonly locale: string;
   readonly roles: readonly string[];
   readonly permissions: readonly string[];
 }
@@ -148,6 +150,7 @@ export function useStaffIdentity() {
         userId: data.staff.user_id,
         email: data.staff.email,
         displayName: data.staff.display_name,
+        locale: data.staff.locale,
         roles: data.staff.roles,
         permissions: data.staff.permissions,
       };
@@ -158,6 +161,39 @@ export function useStaffIdentity() {
       // staff by asking twice.
       !(error instanceof Error && 'status' in error && (error.status === 401 || error.status === 403)) &&
       attempt < 2,
+  });
+}
+
+/**
+ * A staff member's own name and language (2026-09-22): the profile a person
+ * with no membership has nowhere else. The answer is the identity as
+ * `/staff/me` now says it, so it is written straight into that cache — the
+ * name in region A changes at once, and no refetch is owed.
+ */
+export function useUpdateStaffProfile() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (patch: { display_name?: string | null; locale?: string }): Promise<StaffIdentity> => {
+      const { data, error, response } = await client.PATCH('/api/v1/staff/me', { body: patch });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return {
+        userId: data.staff.user_id,
+        email: data.staff.email,
+        displayName: data.staff.display_name,
+        locale: data.staff.locale,
+        roles: data.staff.roles,
+        permissions: data.staff.permissions,
+      };
+    },
+    onSuccess: (identity) => {
+      queryClient.setQueryData<StaffIdentity>(keys.staff.identity, identity);
+    },
   });
 }
 

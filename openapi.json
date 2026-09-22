@@ -13360,6 +13360,7 @@
                         "user_id",
                         "email",
                         "display_name",
+                        "locale",
                         "roles",
                         "permissions"
                       ],
@@ -13382,6 +13383,10 @@
                             "null"
                           ],
                           "description": "What the shell shows in the account menu."
+                        },
+                        "locale": {
+                          "type": "string",
+                          "description": "The language they read in (ADR-050); `en` when they chose none. Changed with `updateStaffProfile`."
                         },
                         "roles": {
                           "type": "array",
@@ -13414,6 +13419,62 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
+        }
+      },
+      "patch": {
+        "tags": ["Staff"],
+        "operationId": "updateStaffProfile",
+        "summary": "A staff member's own name and language",
+        "description": "The profile a platform staff member with no membership has nowhere else (2026-09-22): `updateMe` is a tenant route and refuses them. Two fields, the person's own — an absent field is untouched, `display_name: null` clears the name. Not the default product: that is a choice among memberships. Requires only `staff.self.read`, which every platform role holds — a person's own name needs no more than being that person.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "display_name": { "type": ["string", "null"], "maxLength": 120 },
+                  "locale": { "type": "string", "maxLength": 8, "description": "One the platform speaks: en, fr, es, de, it." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The staff identity, as `showStaffIdentity` now answers it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["staff"],
+                  "properties": {
+                    "staff": {
+                      "type": "object",
+                      "required": ["user_id", "email", "display_name", "locale", "roles", "permissions"],
+                      "properties": {
+                        "user_id": { "type": "string", "format": "uuid" },
+                        "email": { "type": ["string", "null"], "format": "email" },
+                        "display_name": { "type": ["string", "null"] },
+                        "locale": { "type": "string" },
+                        "roles": { "type": "array", "items": { "type": "string" } },
+                        "permissions": { "type": "array", "items": { "type": "string" } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/PermissionDenied" },
+          "422": {
+            "description": "`LOCALE_UNKNOWN` — a language the platform does not speak.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
     },

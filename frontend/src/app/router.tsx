@@ -40,6 +40,7 @@ import { DirectoryScreen } from '@/features/console/DirectoryScreen';
 import { ErasureScreen } from '@/features/console/ErasureScreen';
 import { InvoicingScreen } from '@/features/console/InvoicingScreen';
 import { MailScreen } from '@/features/console/MailScreen';
+import { StaffProfileScreen } from '@/features/console/StaffProfileScreen';
 import { MenusScreen } from '@/features/console/MenusScreen';
 import { MetricsScreen } from '@/features/console/MetricsScreen';
 import { ProductsScreen } from '@/features/console/ProductsScreen';
@@ -128,6 +129,7 @@ const PLATFORM_SCREEN_ROUTES: readonly { path: string; component: () => React.JS
   { path: '/console/invoicing', component: InvoicingScreen },
   { path: '/console/menus', component: MenusScreen },
   { path: '/console/mail', component: MailScreen },
+  { path: '/console/profile', component: StaffProfileScreen },
   { path: '/console/demo', component: DemoScreen },
   { path: '/console/staff', component: StaffMembersScreen },
   { path: '/console/storefront', component: StorefrontScreen },

@@ -23,6 +23,7 @@ const STAFF = {
     user_id: 'u-sam',
     email: 'sam@demo.test',
     display_name: 'Sam Staff',
+    locale: 'en',
     roles: ['PLATFORM_ADMIN'],
     permissions: ['staff.self.read'],
   },
@@ -106,8 +107,8 @@ describe('a platform staff member', () => {
     fireEvent.click(screen.getByTestId('account-menu'));
     expect(screen.getByTestId('account-name').textContent).toBe('Sam Staff');
     expect(screen.getByTestId('account-email').textContent).toBe('sam@demo.test');
-    // No membership, no profile screen to open.
-    expect(screen.queryByTestId('account-profile')).toBeNull();
+    // No membership, so the console's own profile: name and language.
+    expect(screen.getByRole('menuitem', { name: 'Your profile' }).getAttribute('href')).toMatch(/^\/console\/profile/);
   });
 
   it('is still somebody who can sign out when erased', async () => {
