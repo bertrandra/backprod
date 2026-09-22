@@ -17,6 +17,14 @@ import { defineConfig, devices } from '@playwright/test';
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH;
 const launchOptions = executablePath === undefined ? {} : { launchOptions: { executablePath } };
 
+/**
+ * Not Vite's preview default (4173): that is the port every Vite project on
+ * the machine reaches for, so a product developed beside this one is likely
+ * to be sitting on it. `PLAYWRIGHT_PORT` overrides it when even this one is
+ * taken.
+ */
+const PORT = process.env.PLAYWRIGHT_PORT ?? '4713';
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
@@ -24,7 +32,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'list' : 'html',
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: `http://127.0.0.1:${PORT}`,
     trace: 'on-first-retry',
   },
   projects: [
@@ -37,9 +45,14 @@ export default defineConfig({
     // to IPv6 while this waits on IPv4 and the whole thing times out after two
     // minutes saying nothing useful. That is exactly how this first failed in
     // CI, having worked locally.
-    command: 'npm run preview -- --host 127.0.0.1 --port 4173 --strictPort',
-    url: 'http://127.0.0.1:4173',
-    reuseExistingServer: !process.env.CI,
+    command: `npm run preview -- --host 127.0.0.1 --port ${PORT} --strictPort`,
+    url: `http://127.0.0.1:${PORT}`,
+    // Never reuse. With `reuseExistingServer` on, whatever is already listening
+    // on the port is taken for this build — and on 2026-09-21 that was another
+    // application's dev server, which made 262 specs fail against a page that
+    // was not this one. `--strictPort` then makes a taken port a one-line
+    // refusal instead of a fifteen-minute mystery.
+    reuseExistingServer: false,
     timeout: 60_000,
     // Piped, not swallowed. A webServer that fails to start is the least
     // self-explanatory failure in this toolchain, and silence turns a one-line
