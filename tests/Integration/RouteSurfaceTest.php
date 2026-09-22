@@ -68,6 +68,9 @@ final class RouteSurfaceTest extends ApiTestCase
         // nobody in and revokes every session it finds.
         'POST /api/v1/auth/password/forgot',
         'POST /api/v1/auth/password/reset',
+        // The public keys sessions are signed with (ADR-051 milestone E): a
+        // public key is public, and a product verifying bearers reads it.
+        'GET /api/v1/auth/jwks',
         // The shop window (ADR-041). These authenticate nothing either, and
         // they do not need to: what they return is only what somebody
         // explicitly marked `publicly_listed` and that is inside its sale

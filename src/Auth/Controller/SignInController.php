@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Auth\Controller;
 
 use App\Auth\Service\Sessions;
+use App\Product\Service\ProductResolver;
 use App\Shared\Http\JsonBody;
 use App\Shared\Http\RouteHandler;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -31,9 +32,13 @@ final class SignInController implements RouteHandler
 
         // The address is trimmed, because a leading space in a typed email is a
         // typing artefact. The password is not — see JsonBody::requiredSecret.
+        // The product the page is on, when it says (ADR-051 milestone E): the
+        // token then names it too, so that product's own server can verify it
+        // locally. A claim, not a decision — an unknown code names nothing.
         $session = $this->sessions->signIn(
             $body->requiredString('email'),
             $body->requiredSecret('password'),
+            $request->getHeaderLine(ProductResolver::HEADER),
         );
 
         return RefreshCookie::set(

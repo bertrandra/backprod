@@ -14,14 +14,21 @@ namespace App\Auth\Domain;
  *
  * What ADR-014 got right is unchanged and is why this is a port: the domain
  * knows a caller presents a credential and this platform can mint one. That it
- * is a JWT, signed with HS256, lives in Infrastructure — so a deployment that
- * moves back to an external provider changes an adapter and a container line.
+ * is a JWT, and how it is signed, lives in Infrastructure — so a deployment
+ * that moves back to an external provider changes an adapter and a container
+ * line.
  */
 interface TokenIssuer
 {
     /**
-     * @param string $authSubject the value the token's `sub` carries, which is
-     *                            what `users.auth_subject` matches on
+     * @param string      $authSubject the value the token's `sub` carries, which is
+     *                                 what `users.auth_subject` matches on
+     * @param string|null $forProduct  the code of the product the session was
+     *                                 opened on, when the request named one (ADR-051
+     *                                 milestone E): the token then also names it as
+     *                                 an audience, so that product's own server can
+     *                                 verify the token is meant for it and another
+     *                                 product's cannot. Null names the platform alone.
      */
-    public function issue(string $authSubject, ?string $email): AccessToken;
+    public function issue(string $authSubject, ?string $email, ?string $forProduct = null): AccessToken;
 }

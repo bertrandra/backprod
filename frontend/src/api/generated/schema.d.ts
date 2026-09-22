@@ -272,7 +272,7 @@ export interface paths {
         put?: never;
         /**
          * Exchange the refresh cookie for a new session
-         * @description Takes no body: the credential is the `HttpOnly` cookie, which the browser attaches by itself. A body field would mean a script had read the token, which is what the cookie exists to prevent. The refresh token is rotated on every call, so presenting a spent one is evidence of a copy and revokes every session for the account.
+         * @description Takes no body: the credential is the `HttpOnly` cookie, which the browser attaches by itself. A body field would mean a script had read the token, which is what the cookie exists to prevent. The refresh token is rotated on every call, so presenting a spent one is evidence of a copy and revokes every session for the account. Sent with `X-Product` naming a live product, the new access token names that product in `aud` too (ADR-051 milestone E) — which is how single sign-on from the cookie yields a token the product’s server can verify as its own.
          */
         post: operations["refreshSession"];
         delete?: never;
@@ -301,6 +301,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/jwks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The public keys sessions are signed with
+         * @description A JWK set (RFC 7517) for a product beside the platform that verifies bearers locally (ADR-051 milestone E): Ed25519, `alg: EdDSA`, keyed by `kid`, which every token carries in its header. Two keys during a rotation. Verify the signature, `iss`, `exp`, and that `aud` names the product’s own code — and remember the token says who this is, not what they hold: that is `/me/context`, up to an hour fresher. Public, and the one answer of this API a shared cache may keep, for five minutes.
+         */
+        get: operations["getJwks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/token": {
         parameters: {
             query?: never;
@@ -312,7 +332,7 @@ export interface paths {
         put?: never;
         /**
          * Exchange an email and password for a session
-         * @description Public, and the most attacked endpoint any application has — which is why the rate limiter sits in front of authentication (§31) and the tighter public allowance applies here. A wrong address and a wrong password are answered identically, and the attempt is logged with the address so brute force is visible in the log rather than in the response.
+         * @description Public, and the most attacked endpoint any application has — which is why the rate limiter sits in front of authentication (§31) and the tighter public allowance applies here. A wrong address and a wrong password are answered identically, and the attempt is logged with the address so brute force is visible in the log rather than in the response. Sent with `X-Product` naming a live product, the token also names that product in `aud` (ADR-051 milestone E), so the product’s own server can verify it locally against `getJwks`; an unknown or retired code names nothing rather than refusing.
          */
         post: operations["signIn"];
         delete?: never;
@@ -5809,6 +5829,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getJwks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The key set. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        keys: {
+                            /** @enum {string} */
+                            kty: "OKP";
+                            /** @enum {string} */
+                            crv: "Ed25519";
+                            /** @description A fingerprint of the public key; what a token’s header names. */
+                            kid: string;
+                            /** @description The public key, base64url. */
+                            x: string;
+                            /** @enum {string} */
+                            use: "sig";
+                            /** @enum {string} */
+                            alg: "EdDSA";
+                        }[];
+                    };
+                };
             };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];

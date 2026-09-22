@@ -223,7 +223,7 @@ explains every value and what its absence costs. The four that are required:
 | Value | Without it |
 |---|---|
 | `DATABASE_DSN` | nothing can be read or written; the API answers 503. The host is whatever §0 settled on for your account — check before assuming |
-| `AUTH_SIGNING_SECRET` | nobody can sign in: `/auth/token` answers 503 and says so. **At least 32 characters** — HS256 refuses less |
+| `AUTH_SIGNING_SECRET` | nobody can sign in: `/auth/token` answers 503 and says so. **At least 32 characters** — the session signing key is derived from it (ADR-051 milestone E); to rotate it, see `AUTH_SIGNING_SECRET_PREVIOUS` in `.env.example` |
 | `ASSET_LINK_SIGNING_SECRET` | no download link can be signed, so exports and uploads cannot be handed out |
 | `WEBHOOK_SECRET_KEY` | only if a product is deployed beside the platform (ADR-051): without it no webhook secret can be issued and no event is delivered. Not required for a product inside the shell |
 

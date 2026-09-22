@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Auth\Controller;
 
 use App\Auth\Service\Sessions;
+use App\Product\Service\ProductResolver;
 use App\Shared\Exceptions\UnauthenticatedException;
 use App\Shared\Http\RouteHandler;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -38,7 +39,10 @@ final class RefreshSessionController implements RouteHandler
             throw new UnauthenticatedException();
         }
 
-        $session = $this->sessions->refresh($presented);
+        // Renewed on a product's page, the token names that product too
+        // (ADR-051 milestone E) — which is how single sign-on from the cookie
+        // yields a token the product's server can verify as its own.
+        $session = $this->sessions->refresh($presented, $request->getHeaderLine(ProductResolver::HEADER));
 
         return RefreshCookie::set(
             new JsonResponse(SessionPresenter::one($session), 200),

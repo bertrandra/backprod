@@ -5705,7 +5705,7 @@
         ],
         "operationId": "refreshSession",
         "summary": "Exchange the refresh cookie for a new session",
-        "description": "Takes no body: the credential is the `HttpOnly` cookie, which the browser attaches by itself. A body field would mean a script had read the token, which is what the cookie exists to prevent. The refresh token is rotated on every call, so presenting a spent one is evidence of a copy and revokes every session for the account.",
+        "description": "Takes no body: the credential is the `HttpOnly` cookie, which the browser attaches by itself. A body field would mean a script had read the token, which is what the cookie exists to prevent. The refresh token is rotated on every call, so presenting a spent one is evidence of a copy and revokes every session for the account. Sent with `X-Product` naming a live product, the new access token names that product in `aud` too (ADR-051 milestone E) — which is how single sign-on from the cookie yields a token the product’s server can verify as its own.",
         "responses": {
           "200": {
             "description": "A session.",
@@ -5781,6 +5781,46 @@
         "security": []
       }
     },
+    "/api/v1/auth/jwks": {
+      "get": {
+        "tags": ["Authentication"],
+        "operationId": "getJwks",
+        "summary": "The public keys sessions are signed with",
+        "description": "A JWK set (RFC 7517) for a product beside the platform that verifies bearers locally (ADR-051 milestone E): Ed25519, `alg: EdDSA`, keyed by `kid`, which every token carries in its header. Two keys during a rotation. Verify the signature, `iss`, `exp`, and that `aud` names the product’s own code — and remember the token says who this is, not what they hold: that is `/me/context`, up to an hour fresher. Public, and the one answer of this API a shared cache may keep, for five minutes.",
+        "responses": {
+          "200": {
+            "description": "The key set.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["keys"],
+                  "properties": {
+                    "keys": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["kty", "crv", "kid", "x", "use", "alg"],
+                        "properties": {
+                          "kty": { "type": "string", "enum": ["OKP"] },
+                          "crv": { "type": "string", "enum": ["Ed25519"] },
+                          "kid": { "type": "string", "description": "A fingerprint of the public key; what a token’s header names." },
+                          "x": { "type": "string", "description": "The public key, base64url." },
+                          "use": { "type": "string", "enum": ["sig"] },
+                          "alg": { "type": "string", "enum": ["EdDSA"] }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
     "/api/v1/auth/token": {
       "post": {
         "tags": [
@@ -5788,7 +5828,7 @@
         ],
         "operationId": "signIn",
         "summary": "Exchange an email and password for a session",
-        "description": "Public, and the most attacked endpoint any application has — which is why the rate limiter sits in front of authentication (§31) and the tighter public allowance applies here. A wrong address and a wrong password are answered identically, and the attempt is logged with the address so brute force is visible in the log rather than in the response.",
+        "description": "Public, and the most attacked endpoint any application has — which is why the rate limiter sits in front of authentication (§31) and the tighter public allowance applies here. A wrong address and a wrong password are answered identically, and the attempt is logged with the address so brute force is visible in the log rather than in the response. Sent with `X-Product` naming a live product, the token also names that product in `aud` (ADR-051 milestone E), so the product’s own server can verify it locally against `getJwks`; an unknown or retired code names nothing rather than refusing.",
         "requestBody": {
           "required": true,
           "content": {

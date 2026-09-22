@@ -13,6 +13,7 @@ use App\Auth\Domain\TokenIssuer;
 use App\Notification\Domain\Category;
 use App\Notification\Domain\Channel;
 use App\Notification\Domain\NotificationRepository;
+use App\Product\Domain\ProductRepository;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\UnauthenticatedException;
 use App\Tenant\Domain\JoinRequests;
@@ -65,6 +66,7 @@ final class Sessions
         private readonly NotificationRepository $notifications,
         private readonly JoinRequests $requests,
         private readonly ProductEvents $events,
+        private readonly ProductRepository $products,
         /**
          * Where this deployment is reachable, for the link in a confirmation
          * email. Empty when nobody configured it, and the link is then
@@ -151,7 +153,7 @@ final class Sessions
             }
         }
 
-        return [$this->start($account->userId, $account->authSubject, $account->email)[0], $account];
+        return [$this->start($account->userId, $account->authSubject, $account->email, $productCode)[0], $account];
     }
 
     /**
@@ -328,7 +330,7 @@ final class Sessions
     /**
      * @throws UnauthenticatedException when the address or the password is wrong
      */
-    public function signIn(string $email, #[SensitiveParameter] string $password): Session
+    public function signIn(string $email, #[SensitiveParameter] string $password, ?string $productCode = null): Session
     {
         $credential = $this->credentials->findByEmail($email);
 
@@ -347,7 +349,7 @@ final class Sessions
             throw new UnauthenticatedException();
         }
 
-        return $this->start($credential->userId, $credential->authSubject, $credential->email)[0];
+        return $this->start($credential->userId, $credential->authSubject, $credential->email, $productCode)[0];
     }
 
     /**
@@ -355,7 +357,7 @@ final class Sessions
      *
      * @throws UnauthenticatedException when the token is unknown, spent or expired
      */
-    public function refresh(#[SensitiveParameter] string $rawToken): Session
+    public function refresh(#[SensitiveParameter] string $rawToken, ?string $productCode = null): Session
     {
         $stored = $this->refreshTokens->find($this->hash($rawToken));
 
@@ -387,7 +389,7 @@ final class Sessions
             throw new UnauthenticatedException();
         }
 
-        [$session, $issuedId] = $this->start($stored->userId, $stored->authSubject, $stored->email);
+        [$session, $issuedId] = $this->start($stored->userId, $stored->authSubject, $stored->email, $productCode);
 
         // Revoked *after* the replacement exists, and pointing at it. The chain is
         // then reconstructable from any link, which is what makes the reuse above
@@ -428,7 +430,7 @@ final class Sessions
      *
      * @return array{Session, string}
      */
-    private function start(string $userId, string $authSubject, ?string $email): array
+    private function start(string $userId, string $authSubject, ?string $email, ?string $productCode = null): array
     {
         // 32 bytes from the CSPRNG. The token is the secret; the row holds only
         // its SHA-256, and the database refuses anything that is not one.
@@ -437,9 +439,30 @@ final class Sessions
         $issuedId = $this->refreshTokens->issue($userId, $this->hash($raw), self::REFRESH_LIFETIME);
 
         return [
-            new Session($this->issuer->issue($authSubject, $email), $raw, self::REFRESH_LIFETIME),
+            new Session($this->issuer->issue($authSubject, $email, $this->audienceFor($productCode)), $raw, self::REFRESH_LIFETIME),
             $issuedId,
         ];
+    }
+
+    /**
+     * The product a token is also addressed to (ADR-051 milestone E): the
+     * one the request named in `X-Product`, when it is a product this
+     * platform hosts and has not retired. An unknown or retired code names
+     * nothing — the token is then the platform's alone, which is what every
+     * token was before — rather than a refusal, because signing in is not
+     * where a wrong product header should fail.
+     */
+    private function audienceFor(?string $productCode): ?string
+    {
+        $named = trim((string) $productCode);
+
+        if ($named === '') {
+            return null;
+        }
+
+        $product = $this->products->findByCode($named);
+
+        return $product?->active === true ? $product->code : null;
     }
 
     /**

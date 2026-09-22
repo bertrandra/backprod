@@ -1,6 +1,6 @@
 # The Plan service — specification of a product beside the platform
 
-**Status:** accepted 2026-09-20, with ADR-051. Milestones B, C and D are built on the platform (`/me/context`, `app_url`, product keys and the three `product/*` routes — §7 is live; the webhook address and secret, signed deliveries on the schedule §8 describes, and the console's view of them — §8 is live). Where this document said `409 QUOTA_EXCEEDED`, the platform answers `403 QUOTA_EXCEEDED`. The webhook secret is `bwh_…`, put in Plan's environment as `BACKPROD_WEBHOOK_SECRET`; a rotation keeps the old one signing for a day. This is the product's side of
+**Status:** accepted 2026-09-20, with ADR-051. Every milestone, E included (`GET /auth/jwks`, §6.1a), is built on the platform (`/me/context`, `app_url`, product keys and the three `product/*` routes — §7 is live; the webhook address and secret, signed deliveries on the schedule §8 describes, and the console's view of them — §8 is live). Where this document said `409 QUOTA_EXCEEDED`, the platform answers `403 QUOTA_EXCEEDED`. The webhook secret is `bwh_…`, put in Plan's environment as `BACKPROD_WEBHOOK_SECRET`; a rotation keeps the old one signing for a day. This is the product's side of
 that decision: what `plan.raillard.org` is, what it owns, what it borrows from
 the platform and how, and what it must never do. It is written for the
 people who build Plan — in its own repository, on its own host — so that the
@@ -182,8 +182,8 @@ own data does, and then:
 ### 6.1 Deciding who is asking
 
 Every request to `plan-api` carries the person's platform bearer in
-`Authorization`. `plan-api` does **not** verify the JWT — the platform's
-signing key is symmetric, and holding it would be holding the mint. It
+`Authorization`. `plan-api` never holds the platform's signing secret —
+holding it would be holding the mint. To learn what the person may do, it
 forwards the bearer:
 
 ```text
@@ -203,6 +203,25 @@ A body that names a tenant is ignored; a path that names one is compared to
 the context's and refused with `404` when they differ — the platform's own
 rule that a resource belonging to somebody else is indistinguishable from
 one that does not exist.
+
+### 6.1a Verifying the bearer locally (milestone E, optional)
+
+Since ADR-051 milestone E the platform signs sessions EdDSA and publishes
+the public keys at `GET /api/v1/auth/jwks` (Ed25519, `alg: EdDSA`, keyed
+by `kid`). `plan-api` may verify a bearer itself before spending a round
+trip: fetch the set once, cache it by `kid`, refetch on a `kid` it does not
+know; verify the signature, `iss` (`backprod` unless the platform's
+`AUTH_ISSUER` says otherwise), `exp`, and that `aud` contains **`plan`** —
+a token opened on another product does not name Plan and is refused, and a
+token naming only the platform (`backprod-api`) was opened on the shell, so
+Plan asks `/me/context` for that one or refuses it.
+
+What a verified token answers is *who this is* (`sub`, `email`) and that
+the session was opened on Plan. It does **not** answer what the person
+holds: roles, permissions and entitlements are `/me/context`, up to an hour
+fresher than the token, and a membership revoked after the token was minted
+is a fact the token cannot carry. Verify locally to refuse strangers
+cheaply; decide from the context.
 
 ### 6.2 Its own contract
 
@@ -301,7 +320,9 @@ setting of its own — that is on the platform's profile, one click away.
 
 - Hold, log, or put in a URL a platform token, a product key or a webhook
   secret; ship any of them in a bundle.
-- Verify the platform's session token itself, or ask for the signing secret.
+- Ask for the platform's signing secret; verify a session token with
+  anything but the published key set (§6.1a), or decide what a person
+  holds from the token rather than from `/me/context`.
 - Keep its own users, passwords, roles or memberships; keep a copy of an
   entitlement as authority.
 - Decide by product, plan or offer *name*; decide by capability and
