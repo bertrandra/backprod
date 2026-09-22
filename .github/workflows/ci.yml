@@ -14,6 +14,25 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Every action is pinned to its current major (2026-09-22). The ones on v4 were
+# still built for Node 20, which the runners now refuse to honour — they force
+# them onto Node 24 and warn on every job — so staying put was a deprecation
+# that would eventually stop being a warning. Two notes on what the majors
+# changed, because neither is visible in the diff:
+#
+#   setup-node v5 began caching on its own when package.json names a package
+#   manager, v6 narrowed that to npm. This file has always said `cache: npm`
+#   with the lock file's path, and an explicit input beats the detection, so
+#   the Playwright cache below is still the only other cache in the run.
+#
+#   checkout v7 refuses to check out a fork's pull request under
+#   `pull_request_target` and `workflow_run`. Neither event appears above:
+#   this workflow runs on `push` and `pull_request`, which check out the
+#   merge commit with no secrets in reach.
+#
+# shivammathur/setup-php stays on v2 — that is its current line, not an old
+# one; it releases as 2.x and has no v3.
+#
 # Architecture V2 §37.13 lists the full gate chain for the platform. Both halves
 # are here now: `quality-gates` runs the PHP chain, `frontend` runs ESLint,
 # TypeScript, Vitest, the generated-client check and Playwright.
@@ -43,8 +62,8 @@ jobs:
       code: ${{ steps.filter.outputs.code }}
       frontend: ${{ steps.filter.outputs.frontend }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -94,7 +113,7 @@ jobs:
       DATABASE_DSN: postgresql://backprod:backprod@127.0.0.1:5432/backprod_test
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -239,10 +258,10 @@ jobs:
         working-directory: frontend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -283,7 +302,7 @@ jobs:
       # packages the next step installs are not cached. Keyed on the lock
       # file, because that is where the Playwright version lives.
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
@@ -334,7 +353,7 @@ jobs:
       DATABASE_DSN: postgresql://backprod:backprod@127.0.0.1:5432/backprod_test
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -344,7 +363,7 @@ jobs:
           coverage: none
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
