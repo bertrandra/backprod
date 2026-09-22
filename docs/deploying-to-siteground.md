@@ -20,8 +20,8 @@ Upload it into `public_html/` alongside `index.php`, visit it, and fill in the
 database Site Tools just created — no whitelisting your own machine's IP,
 because nothing runs from anywhere but the account that already has the run of
 its own PostgreSQL. It writes `.env`, runs the migrations, and seeds the
-demonstration world ([docs/demo-world.html](demo-world.html): four products,
-two organisations, one person per role) — it asks for no product and no
+demonstration world ([docs/demo-world.html](demo-world.html): five products,
+three organisations, one person per role) — it asks for no product and no
 account of your own. Then it makes itself inert: a completion marker refuses a
 second run even if you forget to delete the file. **The seeded accounts'
 password is in this repository**, so the success page offers the one thing the
@@ -188,10 +188,10 @@ Then the world to sign in to:
 composer run demo:seed
 ```
 
-Four products with a three-plan catalogue each, two organisations holding
-them, one person per role, and two live subscriptions with the invoices they
-raised — [docs/demo-world.html](demo-world.html) lists who is in it and what
-each one sees. It refuses a database where one of the four product codes
+Five products with a three-plan catalogue each — one of them, Plan, deployed beside the platform — three organisations holding
+them, one person per role, four live subscriptions with the invoices they
+raised, and five projects — [docs/demo-world.html](demo-world.html) lists who is in it and what
+each one sees. It refuses a database where one of the five product codes
 already exists unless you pass `--reset`, and it never touches reference data —
 permissions, roles, EU VAT rates are migration data. Once deployed, the same
 reset is a button on Console → Products for the platform administrator; it is

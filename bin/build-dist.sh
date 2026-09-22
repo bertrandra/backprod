@@ -225,7 +225,7 @@ DEPLOY.md. Nothing in here contains a secret: the server's own configuration is
 .env, which you create on the host from .env.example.
 
 Visiting /setup.php does the rest from a browser — writes .env, migrates, and
-seeds the demonstration world (docs/demo-world.html: four products, one
+seeds the demonstration world (docs/demo-world.html: five products, one
 person per role) — then locks itself: a completion marker refuses to do any
 of that again. Change the platform administrator's password on its success
 page, confirm you can sign in, then delete the file (ADR-038, ADR-039).

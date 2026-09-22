@@ -59,21 +59,28 @@ final class DemoResetTest extends DatabaseApiTestCase
 
         // What the answer says: who to sign in as, and with what.
         self::assertSame(DemoWorld::PASSWORD, $world['password'] ?? null);
-        self::assertSame(['atlas', 'boreas', 'ceres', 'delos'], array_column($this->listIn($world, 'products'), 'code'));
+        self::assertSame(['atlas', 'boreas', 'ceres', 'delos', 'plan'], array_column($this->listIn($world, 'products'), 'code'));
         self::assertSame(
             [
                 'backprod@raillard.org',
                 'acme-admin@raillard.org', 'acme-user1@raillard.org', 'acme-user2@raillard.org',
                 'globex-admin@raillard.org', 'globex-user1@raillard.org', 'globex-user2@raillard.org',
+                'initech-admin@raillard.org', 'initech-user1@raillard.org',
             ],
             array_column($this->listIn($world, 'people'), 'email'),
         );
-        self::assertSame(['2026-000001', '2026-000002'], $world['invoices'] ?? null);
+        self::assertSame(['2026-000001', '2026-000002', '2026-000003', '2026-000004'], $world['invoices'] ?? null);
 
         // What the database holds: the world and nothing else.
-        self::assertSame(4, $this->rowCount('SELECT count(*) FROM products'));
-        self::assertSame(7, $this->rowCount('SELECT count(*) FROM users'));
-        self::assertSame(2, $this->rowCount("SELECT count(*) FROM subscriptions WHERE status = 'ACTIVE'"));
+        self::assertSame(5, $this->rowCount('SELECT count(*) FROM products'));
+        self::assertSame(9, $this->rowCount('SELECT count(*) FROM users'));
+        self::assertSame(4, $this->rowCount("SELECT count(*) FROM subscriptions WHERE status = 'ACTIVE'"));
+        // Down to the project (2026-09-22): made through the workspace, so
+        // each was counted against a quota the offer actually grants and
+        // stored under a schema version the product declared.
+        self::assertSame(count(DemoWorld::PROJECTS), $this->rowCount('SELECT count(*) FROM projects'));
+        self::assertSame(3, $this->rowCount("SELECT count(*) FROM projects p JOIN products pr ON pr.id = p.product_id WHERE pr.code = 'plan'"));
+        self::assertSame('https://plan.raillard.org', $this->connection->fetchOne("SELECT app_url FROM products WHERE code = 'plan'"));
         self::assertSame(0, $this->rowCount("SELECT count(*) FROM tenants WHERE slug = 'leftover'"));
         self::assertSame(0, $this->rowCount('SELECT count(*) FROM users WHERE id = :id', ['id' => $this->admin]));
         // Reference data is not business data.
@@ -119,7 +126,7 @@ final class DemoResetTest extends DatabaseApiTestCase
         $response = $this->reset('ola-token');
 
         self::assertSame(200, $response->getStatusCode());
-        self::assertSame(4, $this->rowCount('SELECT count(*) FROM products'));
+        self::assertSame(5, $this->rowCount('SELECT count(*) FROM products'));
     }
 
     public function testOnlyThePlatformAdministratorMayReset(): void
