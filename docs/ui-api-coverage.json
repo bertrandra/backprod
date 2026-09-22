@@ -212,6 +212,16 @@
         "showMetrics"
       ]
     },
+    "console.self": {
+      "authority": "platform",
+      "$comment": "A platform staff member's own profile (2026-09-22): name and language. `account.profile` is a tenant screen and staff with no membership were refused it, which left the platform administrator with no way to their own name or language. The identity itself is bootstrap (showStaffIdentity).",
+      "routes": [
+        "/console/profile"
+      ],
+      "operations": [
+        "updateStaffProfile"
+      ]
+    },
     "console.admin.demo": {
       "authority": "platform",
       "routes": [

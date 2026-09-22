@@ -42,6 +42,7 @@ final class PostgresStaffRepository implements StaffRepository
                 SELECT ps.user_id,
                        u.email,
                        u.display_name,
+                       u.locale,
                        array_to_json(array_agg(DISTINCT r.code)) AS roles,
                        array_to_json(
                            array_agg(DISTINCT p.code) FILTER (WHERE p.code IS NOT NULL)
@@ -52,7 +53,7 @@ final class PostgresStaffRepository implements StaffRepository
                   LEFT JOIN platform_role_permissions rp ON rp.platform_role_id = r.id
                   LEFT JOIN platform_permissions p ON p.id = rp.platform_permission_id
                  WHERE ps.user_id = :userId
-                 GROUP BY ps.user_id, u.email, u.display_name
+                 GROUP BY ps.user_id, u.email, u.display_name, u.locale
                 SQL,
             ['userId' => $userId],
         );
@@ -67,6 +68,7 @@ final class PostgresStaffRepository implements StaffRepository
             JsonArray::ofStrings($row['permissions'] ?? null),
             is_string($row['email'] ?? null) ? $row['email'] : null,
             is_string($row['display_name'] ?? null) ? $row['display_name'] : null,
+            is_string($row['locale'] ?? null) ? $row['locale'] : 'en',
         );
     }
 }

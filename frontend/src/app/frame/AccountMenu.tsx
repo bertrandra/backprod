@@ -14,9 +14,11 @@ import { t } from '@/i18n';
  * A circle with the person's initial. Hovering it says their name; opening
  * it shows the name and address in full and offers *Your profile* — name,
  * default product, language (2026-09-20) — and *Sign out*. The profile is
- * a tenant screen, so it is offered to somebody `/me` knows; platform staff
- * with no membership have no profile to open, and get the way out alone.
- * Until this existed the circle was decoration and signing out lived only
+ * a tenant screen for somebody `/me` knows; platform staff with no
+ * membership have one of their own on the console (2026-09-22), with the
+ * name and the language and no default product, because until then the
+ * platform administrator was the one person with no way to either. Until
+ * this menu existed the circle was decoration and signing out lived only
  * in the phone's More sheet and the console's menu, so on a desktop tenant
  * screen there was no way out at all.
  *
@@ -116,9 +118,12 @@ export function AccountMenu() {
             )}
           </div>
 
-          {session !== undefined && (
+          {/* The tenant profile for a member; the console's for staff whom
+              `/me` refuses. Whichever answered first is not the question —
+              a member who is also staff has the fuller screen. */}
+          {(session !== undefined || staff !== undefined) && (
             <Link
-              to="/profile"
+              to={session !== undefined ? '/profile' : '/console/profile'}
               search={(previous: Record<string, unknown>) => previous}
               role="menuitem"
               data-testid="account-profile"

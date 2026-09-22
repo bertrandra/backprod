@@ -28,6 +28,7 @@ final class StaffPresenter
             'user_id' => $staff->userId,
             'email' => $staff->email,
             'display_name' => $staff->displayName,
+            'locale' => $staff->locale,
             'roles' => $staff->roles,
             'permissions' => $staff->permissions,
         ];

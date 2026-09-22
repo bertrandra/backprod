@@ -2092,7 +2092,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * A staff member's own name and language
+         * @description The profile a platform staff member with no membership has nowhere else (2026-09-22): `updateMe` is a tenant route and refuses them. Two fields, the person's own — an absent field is untouched, `display_name: null` clears the name. Not the default product: that is a choice among memberships. Requires only `staff.self.read`, which every platform role holds — a person's own name needs no more than being that person.
+         */
+        patch: operations["updateStaffProfile"];
         trace?: never;
     };
     "/api/v1/staff/me/navigation": {
@@ -10145,6 +10149,8 @@ export interface operations {
                             email: string | null;
                             /** @description What the shell shows in the account menu. */
                             display_name: string | null;
+                            /** @description The language they read in (ADR-050); `en` when they chose none. Changed with `updateStaffProfile`. */
+                            locale: string;
                             roles: string[];
                             permissions: string[];
                         };
@@ -10153,6 +10159,58 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateStaffProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    display_name?: string | null;
+                    /** @description One the platform speaks: en, fr, es, de, it. */
+                    locale?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The staff identity, as `showStaffIdentity` now answers it. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        staff: {
+                            /** Format: uuid */
+                            user_id: string;
+                            /** Format: email */
+                            email: string | null;
+                            display_name: string | null;
+                            locale: string;
+                            roles: string[];
+                            permissions: string[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `LOCALE_UNKNOWN` — a language the platform does not speak. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
