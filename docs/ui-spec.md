@@ -147,7 +147,7 @@ added (§8).
 
 | area | for |
 |---|---|
-| `workspace.projects` | the list a person lands on, and creating one |
+| `workspace.projects` | the list a person lands on, and creating one. Above the list, the **product card** (2026-09-22): the product this workspace belongs to, where it lives when it is deployed beside the platform (ADR-051 §3 — the door is the switcher's `leaveFor`, `?product=` and the language, no token) and the organisation's subscription to it as the server answers it — status, offer, plan, when the period ends or renews. Reads what the shell and the Subscription screen already read (`listProducts`, `showSubscription`); shown with `subscription.read` |
 | `workspace.project` | one project: edit, duplicate, delete, restore, and its version history |
 | `workspace.assets` | files on a project — upload, inspect, share by signed link, request an export |
 | `workspace.geometry` | measurement and intersection, called from the canvas rather than a page of its own |
