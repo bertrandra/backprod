@@ -17,6 +17,36 @@ import { ProductsScreen } from './ProductsScreen';
 const ATLAS = { id: 'p-1', code: 'atlas', name: 'Atlas', active: true };
 const ORBIT = { id: 'p-2', code: 'orbit', name: 'Orbit', active: false };
 
+/**
+ * Opens a row's "if this product has a server of its own" disclosure.
+ *
+ * The keys and the webhook live behind it, mounted only once it is open —
+ * a `<details>` keeps its children in the document, so drawing them for
+ * every row would ask the platform for every product's keys and
+ * deliveries. jsdom implements a summary's activation behaviour unevenly,
+ * and the disclosure itself is the browser's business; what these tests
+ * are about is what is behind it, so the element is opened outright when
+ * the click did not.
+ */
+function openServerPanel(code: string): HTMLDetailsElement {
+  const panel = screen.getByTestId<HTMLDetailsElement>(`server-${code}`);
+
+  const summary = panel.querySelector('summary');
+
+  if (summary === null) {
+    throw new Error(`the disclosure for ${code} has no summary to click`);
+  }
+
+  fireEvent.click(summary);
+
+  if (!panel.open) {
+    panel.open = true;
+    fireEvent(panel, new Event('toggle', { bubbles: true }));
+  }
+
+  return panel;
+}
+
 function clientFor(extra: Stubs = {}) {
   return stubClient({
     'GET /api/v1/staff/products': { data: { products: [ATLAS, ORBIT] } },
@@ -199,8 +229,8 @@ describe('changing one', () => {
     });
     renderAtRoute(<ProductsScreen />, client, { path: '/console/products' });
 
-    await waitFor(() => expect(screen.getByTestId('keys-atlas')).toBeTruthy());
-    fireEvent.click(screen.getByTestId('keys-atlas'));
+    await waitFor(() => expect(screen.getByTestId('server-atlas')).toBeTruthy());
+    openServerPanel('atlas');
     await waitFor(() => expect(screen.getByTestId('credentials-p-1')).toBeTruthy());
 
     fireEvent.change(screen.getByLabelText('Key label'), { target: { value: 'plan production' } });
@@ -232,8 +262,8 @@ describe('changing one', () => {
     });
     renderAtRoute(<ProductsScreen />, client, { path: '/console/products' });
 
-    await waitFor(() => expect(screen.getByTestId('webhook-atlas')).toBeTruthy());
-    fireEvent.click(screen.getByTestId('webhook-atlas'));
+    await waitFor(() => expect(screen.getByTestId('server-atlas')).toBeTruthy());
+    openServerPanel('atlas');
     await waitFor(() => expect(screen.getByTestId('webhook-p-1')).toBeTruthy());
 
     fireEvent.change(screen.getByLabelText('Webhook address'), { target: { value: 'https://plan.example.test/hook' } });
