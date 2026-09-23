@@ -209,11 +209,20 @@ function ProductRow({
   const [draft, setDraft] = useState(product.name);
   const [addressing, setAddressing] = useState(false);
   const [address, setAddress] = useState(product.app_url ?? '');
-  // The product's keys (ADR-051 §4), opened on demand: a list nobody asked
-  // for is a list of secrets' names on a screen about something else.
-  const [keysOpen, setKeysOpen] = useState(false);
-  // And what the platform tells it (ADR-051 §5), likewise on demand.
-  const [webhookOpen, setWebhookOpen] = useState(false);
+  // The keys (ADR-051 §4) and the webhook (§5) together, behind one
+  // disclosure closed by default (2026-09-22). They were two buttons in the
+  // row of everyday actions, which put the rarest thing on the screen next
+  // to the most common and made a product look like it needed both. They
+  // belong to one question — *does this product have a server of its own?*
+  // — and most do not: a product whose screens are a page talking to the
+  // platform on the person's session needs neither, which is now said
+  // rather than left to be inferred from two empty panels.
+  //
+  // Mounted only once open, not merely hidden: `<details>` keeps its
+  // children in the document, and rendering them for every row would ask
+  // the platform for every product's keys and deliveries to draw a closed
+  // triangle.
+  const [serverOpen, setServerOpen] = useState(false);
 
   return (
     <li
@@ -326,10 +335,6 @@ function ProductRow({
             {t("Rename")}</Button>
           <Button type="button" variant="secondary" onClick={() => setAddressing(true)}>
             {t("Application address")}</Button>
-          <Button type="button" variant="secondary" aria-expanded={keysOpen} data-testid={`keys-${product.code}`} onClick={() => setKeysOpen((was) => !was)}>
-            {t("Keys")}</Button>
-          <Button type="button" variant="secondary" aria-expanded={webhookOpen} data-testid={`webhook-${product.code}`} onClick={() => setWebhookOpen((was) => !was)}>
-            {t("Webhook")}</Button>
           <Button
             type="button"
             variant={product.active ? 'danger' : 'secondary'}
@@ -341,8 +346,26 @@ function ProductRow({
         </div>
       )}
 
-      {keysOpen && <ProductCredentials productId={product.id} />}
-      {webhookOpen && <ProductWebhook product={product} pending={pending} onSetWebhookUrl={onSetWebhookUrl} />}
+      <details
+        className="mt-3 rounded-control border border-line px-3 py-2"
+        data-testid={`server-${product.code}`}
+        onToggle={(event) => setServerOpen(event.currentTarget.open)}
+      >
+        <summary className="cursor-pointer text-xs font-semibold">
+          {t("If this product has a server of its own")}
+        </summary>
+
+        <p className="mt-2 max-w-prose text-xs text-muted">
+          {t("A key is what that server sends to call the platform with nobody signed in — a tenant's entitlements, its members, the usage it reports — and the webhook is where the platform tells it what happened. A product whose screens talk to the platform on the person's own session needs neither, and leaves this closed.")}
+        </p>
+
+        {serverOpen && (
+          <>
+            <ProductCredentials productId={product.id} />
+            <ProductWebhook product={product} pending={pending} onSetWebhookUrl={onSetWebhookUrl} />
+          </>
+        )}
+      </details>
 
       {product.active ? (
         <p className="mt-2 text-xs text-subtle">
