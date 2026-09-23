@@ -193,6 +193,8 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
   <h2>The nine people</h2>
   <p>Each organisation has its administrator and at least one member — Acme and Globex two, Initech one — and the platform has its one administrator. Nobody holds two authorities at once: a platform role never grants a tenant membership, and the reverse (non-negotiable #22). <span class="chip tenant">tenant</span> roles sign in to an organisation's screens; <span class="chip platform">platform</span> roles land in the console. The addresses are the operator's own (2026-09-19), so a reset link or an invitation the platform sends lands somewhere real.</p>
 
+  <p><strong>Everybody with a membership opens on Plan.</strong> Their profile's <em>default product</em> names it, so signing in at an address that mentions no product lands on the one deployed beside the platform — the only one whose screens are elsewhere, and so the only one whose card, link and subscription have anything to show. Change it on your own profile and the next sign-in obeys. The platform administrator has none: a default product is a choice among memberships, and staff hold none.</p>
+
   <div class="people">
     <div class="person">
       <span class="who">Platform admin</span><span class="chip platform">PLATFORM_ADMIN</span>

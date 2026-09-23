@@ -172,6 +172,25 @@ final class DemoWorld
     public const DEFAULT_TENANT = 'acme';
 
     /**
+     * Where a demonstration person's screens open when the address names no
+     * product (2026-09-23): Plan, for everybody who holds it — which here is
+     * everybody with a membership, since all three organisations hold it.
+     *
+     * The field exists per person (`users.default_product_id`, chosen on the
+     * profile) and the demo left it empty, so the switcher fell back to the
+     * first active product by code and Acme's five opened on Atlas. That is
+     * a defensible fallback and a poor demonstration: the product worth
+     * landing on is the one deployed beside the platform, because it is the
+     * only one whose screens are somewhere else and whose card, link and
+     * subscription have anything to show.
+     *
+     * Platform staff get none. A default product is a choice among
+     * memberships, and somebody with no membership has nothing to choose
+     * from — the console reads the platform's own list instead (ADR-047).
+     */
+    public const PEOPLE_DEFAULT_PRODUCT = 'plan';
+
+    /**
      * The people, keyed by the local part of their address. `tenants` names
      * the organisations a tenant-role holder is a member of — mirrored onto
      * every product each holds; platform staff are members of nothing.
