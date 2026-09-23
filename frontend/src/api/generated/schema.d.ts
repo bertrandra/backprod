@@ -7614,7 +7614,7 @@ export interface operations {
                         /** @description Feature codes the tenant is entitled to here. */
                         capabilities: string[];
                         /**
-                         * @description The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages.
+                         * @description The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and over nothing else — since 2026-09-23 no address parameter overrides it. English by default. The API itself stays in English — codes, enumerations, error messages.
                          * @enum {string}
                          */
                         locale: "en" | "fr" | "es" | "de" | "it";
@@ -7647,7 +7647,7 @@ export interface operations {
                     /** @description A product code the person holds, or null to clear. */
                     default_product?: string | null;
                     /**
-                     * @description The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages.
+                     * @description The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and over nothing else — since 2026-09-23 no address parameter overrides it. English by default. The API itself stays in English — codes, enumerations, error messages.
                      * @enum {string}
                      */
                     locale?: "en" | "fr" | "es" | "de" | "it";
@@ -7670,7 +7670,7 @@ export interface operations {
                         /** @description The code of the product this person's screens open in when the address names none — the product signed up for, until changed from the profile. Null when unset or when the person no longer holds it. */
                         default_product: string | null;
                         /**
-                         * @description The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages.
+                         * @description The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and over nothing else — since 2026-09-23 no address parameter overrides it. English by default. The API itself stays in English — codes, enumerations, error messages.
                          * @enum {string}
                          */
                         locale: "en" | "fr" | "es" | "de" | "it";
@@ -12907,7 +12907,7 @@ export interface operations {
                         /** @description Whether mail actually leaves this deployment (`MAIL_DSN` set). False means the templates are recorded but nothing is sent, and a test is refused. */
                         live: boolean;
                         /**
-                         * @description The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages.
+                         * @description The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and over nothing else — since 2026-09-23 no address parameter overrides it. English by default. The API itself stays in English — codes, enumerations, error messages.
                          * @enum {string}
                          */
                         locale: "en" | "fr" | "es" | "de" | "it";
@@ -12939,7 +12939,7 @@ export interface operations {
                         };
                     };
                     /**
-                     * @description The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages.
+                     * @description The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and over nothing else — since 2026-09-23 no address parameter overrides it. English by default. The API itself stays in English — codes, enumerations, error messages.
                      * @enum {string}
                      */
                     locale?: "en" | "fr" | "es" | "de" | "it";
@@ -12958,7 +12958,7 @@ export interface operations {
                         /** @description Whether mail actually leaves this deployment (`MAIL_DSN` set). False means the templates are recorded but nothing is sent, and a test is refused. */
                         live: boolean;
                         /**
-                         * @description The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages.
+                         * @description The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and over nothing else — since 2026-09-23 no address parameter overrides it. English by default. The API itself stays in English — codes, enumerations, error messages.
                          * @enum {string}
                          */
                         locale: "en" | "fr" | "es" | "de" | "it";
@@ -12994,7 +12994,7 @@ export interface operations {
                 "application/json": {
                     type: string;
                     /**
-                     * @description The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages.
+                     * @description The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and over nothing else — since 2026-09-23 no address parameter overrides it. English by default. The API itself stays in English — codes, enumerations, error messages.
                      * @enum {string}
                      */
                     locale?: "en" | "fr" | "es" | "de" | "it";

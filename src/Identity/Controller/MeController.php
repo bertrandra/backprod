@@ -35,7 +35,8 @@ final class MeController implements RouteHandler
             'display_name' => $user?->displayName,
             'default_product' => $this->profile->defaultProductCode($context->userId),
             // The language they read in (ADR-050): the page applies it once
-            // signed in, over the browser's guess and under `?lang=`.
+            // signed in, over the browser's guess and over nothing else:
+            // since 2026-09-23 no address parameter overrides it.
             'locale' => $user->locale ?? 'en',
             'product_id' => $context->productId,
             'tenant_id' => $context->tenantId,

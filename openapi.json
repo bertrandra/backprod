@@ -8900,7 +8900,7 @@
                         "de",
                         "it"
                       ],
-                      "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages."
+                      "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and over nothing else — since 2026-09-23 no address parameter overrides it. English by default. The API itself stays in English — codes, enumerations, error messages."
                     }
                   }
                 }
@@ -8984,7 +8984,7 @@
                         "de",
                         "it"
                       ],
-                      "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages."
+                      "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and over nothing else — since 2026-09-23 no address parameter overrides it. English by default. The API itself stays in English — codes, enumerations, error messages."
                     }
                   }
                 }
@@ -9046,7 +9046,7 @@
                       "de",
                       "it"
                     ],
-                    "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages."
+                    "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and over nothing else — since 2026-09-23 no address parameter overrides it. English by default. The API itself stays in English — codes, enumerations, error messages."
                   }
                 }
               }
@@ -18098,7 +18098,7 @@
                         "de",
                         "it"
                       ],
-                      "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages."
+                      "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and over nothing else — since 2026-09-23 no address parameter overrides it. English by default. The API itself stays in English — codes, enumerations, error messages."
                     },
                     "locales": {
                       "type": "array",
@@ -18139,7 +18139,7 @@
                 "de",
                 "it"
               ],
-              "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages."
+              "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and over nothing else — since 2026-09-23 no address parameter overrides it. English by default. The API itself stays in English — codes, enumerations, error messages."
             },
             "description": "Which language’s words to read (ADR-050); English when absent. A language with no words of its own for a type shows English’s, which is what a person in that language receives."
           }
@@ -18191,7 +18191,7 @@
                       "de",
                       "it"
                     ],
-                    "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages."
+                    "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and over nothing else — since 2026-09-23 no address parameter overrides it. English by default. The API itself stays in English — codes, enumerations, error messages."
                   }
                 }
               }
@@ -18231,7 +18231,7 @@
                         "de",
                         "it"
                       ],
-                      "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages."
+                      "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and over nothing else — since 2026-09-23 no address parameter overrides it. English by default. The API itself stays in English — codes, enumerations, error messages."
                     },
                     "locales": {
                       "type": "array",
@@ -18301,7 +18301,7 @@
                       "de",
                       "it"
                     ],
-                    "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and under `?lang=`. English by default. The API itself stays in English — codes, enumerations, error messages."
+                    "description": "The language this person reads in (ADR-050): a presentation fact the page applies once signed in, over the browser’s guess and over nothing else — since 2026-09-23 no address parameter overrides it. English by default. The API itself stays in English — codes, enumerations, error messages."
                   }
                 }
               }

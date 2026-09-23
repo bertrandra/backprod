@@ -146,7 +146,7 @@ describe('a row', () => {
     expect(target.origin).toBe('https://plan.example.test');
     expect(target.searchParams.get('project')).toBe('p-1');
     expect(target.searchParams.get('product')).toBe('plan');
-    expect([...target.searchParams.keys()].sort()).toEqual(['lang', 'product', 'project']);
+    expect([...target.searchParams.keys()].sort()).toEqual(['product', 'project']);
   });
 
   it('keeps the record one click away, whatever the name opens', async () => {

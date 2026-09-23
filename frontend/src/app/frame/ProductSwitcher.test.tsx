@@ -137,8 +137,9 @@ describe('with more than one', () => {
   });
 
   it('leaves for a product that lives beside the platform, with the code alone', async () => {
-    // ADR-051 §3: a full navigation to its address, `?product=` and the
-    // language appended, no token — the cookie signs them in there.
+    // ADR-051 §3: a full navigation to its address with `?product=` and
+    // nothing else — no token, and no language since 2026-09-23. The cookie
+    // signs them in there, and the product asks the platform what they read.
     const assign = vi.fn();
     vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign });
     const PLAN = { id: 'prod-plan', code: 'plan', name: 'Plan', app_url: 'https://plan.example.test' };
@@ -148,7 +149,7 @@ describe('with more than one', () => {
     await waitFor(() => expect(screen.getByTestId('product-switcher')).toBeTruthy());
     fireEvent.change(screen.getByTestId('product-switcher'), { target: { value: 'plan' } });
 
-    expect(assign).toHaveBeenCalledWith('https://plan.example.test/?product=plan&lang=en');
+    expect(assign).toHaveBeenCalledWith('https://plan.example.test/?product=plan');
     // The store did not move: this shell is still on its own product.
     expect(useSessionStore.getState().productCode).toBe('atlas');
   });

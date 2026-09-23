@@ -58,19 +58,22 @@ describe('two languages asked for at once', () => {
 });
 
 describe('detectLocale', () => {
-  it('is the address first, and says so', () => {
-    expect(detectLocale('?lang=de', 'fr', ['es-ES'])).toEqual({ locale: 'de', explicit: true });
-  });
-
-  it('then what the browser remembered', () => {
-    expect(detectLocale('', 'it', ['es-ES'])).toEqual({ locale: 'it', explicit: false });
+  it('is what the browser remembered, first', () => {
+    expect(detectLocale('it', ['es-ES'])).toBe('it');
   });
 
   it('then the browser’s own languages, by their two-letter code, skipping ones the platform does not speak', () => {
-    expect(detectLocale('', null, ['pt-BR', 'es-419'])).toEqual({ locale: 'es', explicit: false });
+    expect(detectLocale(null, ['pt-BR', 'es-419'])).toBe('es');
   });
 
-  it('and English when nothing applies, ignoring a language the platform does not speak in the address', () => {
-    expect(detectLocale('?lang=pt', null, ['ja'])).toEqual({ locale: 'en', explicit: false });
+  it('and English when nothing applies', () => {
+    expect(detectLocale(null, ['ja'])).toBe('en');
+  });
+
+  it('ignores a remembered value the platform does not speak', () => {
+    // Whatever wrote it — an older version, a hand-edited storage, a
+    // language since dropped — it is not one of ours, so it decides
+    // nothing and the browser's own answer applies.
+    expect(detectLocale('pt', ['fr-FR'])).toBe('fr');
   });
 });

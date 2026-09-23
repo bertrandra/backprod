@@ -170,13 +170,21 @@ itself.
 ### 5.5 Coming and going
 
 The platform's shell sends a person to Plan at `app_url?product=plan` (ADR-051
-§3). Plan's landing reads three things from the address and ignores the rest:
+§3). Plan's landing reads two things from the address and ignores the rest:
 
 ```text
 product   the product code, always
-lang      the language the person was reading in
 project   the project they had open, when they came from one (2026-09-22)
 ```
+
+**`lang` is not one of them, since 2026-09-23.** It used to be, so that the
+product's page opened in the language the shell was reading in. That was the
+same parameter the shell let override a person's own setting, and it is gone
+for the same reason: the language is a fact about the person, not about the
+link (ADR-050, amended). Plan reads `user.locale` from `/me/context`, which
+is right even when somebody types Plan's address directly and no link is
+involved. A `lang` in the address is now ignored like anything else the
+platform does not send.
 
 `project` is the platform's project id — the same id Plan stores its
 documents under, since its projects *are* the platform's — so Plan opens
@@ -330,10 +338,10 @@ authorised and logged.
 
 Plan speaks the five languages the platform speaks, with the same
 mechanism: `t('English sentence')`, catalogues keyed by the English, one
-chunk per language, a `gate:i18n` of its own. The language comes from
-`?lang=`, else the browser's memory, else the browser, else English; once
-`/me/context` answers, `user.locale` applies unless the address named one.
-Dates and amounts use the chosen locale. Plan does not offer a language
+chunk per language, a `gate:i18n` of its own. Before anybody is known, the
+language comes from the browser's memory, else the browser, else English;
+once `/me/context` answers, `user.locale` applies and nothing overrides it
+(2026-09-23). Dates and amounts use the chosen locale. Plan does not offer a language
 setting of its own — that is on the platform's profile, one click away.
 
 ## 10. What Plan must never do

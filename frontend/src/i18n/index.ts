@@ -128,31 +128,36 @@ export async function setLocale(locale: LocaleCode): Promise<void> {
 }
 
 /**
- * The language to start in: `?lang=` in the address, else what the browser
- * remembered, else the browser's own, else English. Signing in may then
- * apply the person's own choice (`/me.locale`), which the address still
- * outranks — a link is somebody saying which language they mean now.
+ * The language to start in, for somebody the platform does not know yet:
+ * what this browser remembered, else the browser's own, else English.
+ *
+ * **It decides nothing once `/me` has answered** (2026-09-23). The person's
+ * own choice then applies, unconditionally, and this function's answer is
+ * what they read on the way there — the storefront, the sign-in form, the
+ * sign-up that records the language they were reading in as their first
+ * one.
+ *
+ * `?lang=` used to come first and to outrank even the profile, on the
+ * reasoning that a link is somebody saying which language they mean now.
+ * It is gone: an address is a place, not a preference, and a parameter
+ * that could quietly beat a person's own setting is a setting they cannot
+ * trust. A link shared, bookmarked or copied out of a demonstration
+ * carried a language with it and imposed it on whoever opened it next.
  */
-export function detectLocale(search: string, remembered: string | null, navigatorLanguages: readonly string[]): { locale: LocaleCode; explicit: boolean } {
-  const asked = new URLSearchParams(search).get('lang');
-
-  if (isLocale(asked)) {
-    return { locale: asked, explicit: true };
-  }
-
+export function detectLocale(remembered: string | null, navigatorLanguages: readonly string[]): LocaleCode {
   if (isLocale(remembered)) {
-    return { locale: remembered, explicit: false };
+    return remembered;
   }
 
   for (const language of navigatorLanguages) {
     const short = language.slice(0, 2).toLowerCase();
 
     if (isLocale(short)) {
-      return { locale: short, explicit: false };
+      return short;
     }
   }
 
-  return { locale: DEFAULT_LOCALE, explicit: false };
+  return DEFAULT_LOCALE;
 }
 
 export function rememberedLocale(): string | null {
