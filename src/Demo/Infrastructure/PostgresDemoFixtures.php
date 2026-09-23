@@ -170,6 +170,14 @@ final class PostgresDemoFixtures implements DemoFixtures
                 SQL,
                 ['code' => DemoWorld::PEOPLE_DEFAULT_PRODUCT],
             ),
+            // And the order they are listed in (2026-09-23): Plan first,
+            // which is what the switcher offers and what somebody with no
+            // default lands on. Read back as codes rather than counted, so a
+            // number typed into the wrong row fails here and not in a
+            // screenshot.
+            'the products are listed in the order the world gives them' => array_keys(DemoWorld::PRODUCTS) === $this->connection->fetchFirstColumn(
+                'SELECT code FROM products ORDER BY display_order, code',
+            ),
             'platform staff default to no product at all' => 0 < $this->count(
                 <<<'SQL'
                 SELECT count(*) FROM users
@@ -221,9 +229,12 @@ final class PostgresDemoFixtures implements DemoFixtures
         foreach (DemoWorld::PRODUCTS as $code => $product) {
             // The address is where the switcher and the landing send a
             // person for a product deployed beside the platform (ADR-051 §3).
+            // The order is where the product sits in every list (2026-09-23):
+            // written down rather than left to the alphabet, which put Atlas
+            // first for no reason anybody chose.
             $products[$code] = $this->id(
-                'INSERT INTO products (code, name, active, app_url) VALUES (:code, :name, true, :appUrl) RETURNING id',
-                ['code' => $code, 'name' => $product['name'], 'appUrl' => $product['app_url']],
+                'INSERT INTO products (code, name, active, app_url, display_order) VALUES (:code, :name, true, :appUrl, :order) RETURNING id',
+                ['code' => $code, 'name' => $product['name'], 'appUrl' => $product['app_url'], 'order' => $product['order']],
             );
         }
 

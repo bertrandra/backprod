@@ -19,7 +19,7 @@ final class PostgresProductRepository implements ProductRepository
     public function findByCode(string $code): ?Product
     {
         $row = $this->connection->fetchAssociative(
-            'SELECT id, code, name, active, app_url, webhook_url, webhook_secret_issued_at FROM products WHERE code = :code',
+            'SELECT id, code, name, active, app_url, webhook_url, webhook_secret_issued_at, display_order FROM products WHERE code = :code',
             ['code' => $code],
         );
 
@@ -36,7 +36,7 @@ final class PostgresProductRepository implements ProductRepository
         }
 
         $row = $this->connection->fetchAssociative(
-            'SELECT id, code, name, active, app_url, webhook_url, webhook_secret_issued_at FROM products WHERE id = :id',
+            'SELECT id, code, name, active, app_url, webhook_url, webhook_secret_issued_at, display_order FROM products WHERE id = :id',
             ['id' => $productId],
         );
 
@@ -46,7 +46,7 @@ final class PostgresProductRepository implements ProductRepository
     public function activeProducts(): array
     {
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT id, code, name, active, app_url, webhook_url, webhook_secret_issued_at FROM products WHERE active ORDER BY code',
+            'SELECT id, code, name, active, app_url, webhook_url, webhook_secret_issued_at, display_order FROM products WHERE active ORDER BY display_order, code',
         );
 
         $products = [];
@@ -86,6 +86,7 @@ final class PostgresProductRepository implements ProductRepository
             is_string($appUrl) ? $appUrl : null,
             is_string($webhookUrl) ? $webhookUrl : null,
             Row::nullableTimestamp($row, 'webhook_secret_issued_at'),
+            is_numeric($row['display_order'] ?? null) ? (int) $row['display_order'] : 0,
         );
     }
 }

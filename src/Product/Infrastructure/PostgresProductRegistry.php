@@ -22,13 +22,13 @@ final class PostgresProductRegistry implements ProductRegistry
         // may belong to several tenants within the same product.
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
-                SELECT DISTINCT p.id, p.code, p.name, p.active, p.app_url
+                SELECT DISTINCT p.id, p.code, p.name, p.active, p.app_url, p.display_order
                 FROM products p
                 JOIN tenant_members tm ON tm.product_id = p.id
                 WHERE tm.user_id = :userId
                   AND tm.status = 'ACTIVE'
                   AND p.active
-                ORDER BY p.code
+                ORDER BY p.display_order, p.code
                 SQL,
             ['userId' => $userId],
         );
@@ -57,7 +57,7 @@ final class PostgresProductRegistry implements ProductRegistry
 
         $row = $this->connection->fetchAssociative(
             <<<'SQL'
-                SELECT p.id, p.code, p.name, p.active, p.app_url
+                SELECT p.id, p.code, p.name, p.active, p.app_url, p.display_order
                 FROM products p
                 JOIN tenant_members tm ON tm.product_id = p.id
                 WHERE tm.user_id = :userId
@@ -128,7 +128,17 @@ final class PostgresProductRegistry implements ProductRegistry
         // API, and the one integration test that reads this list had no
         // product with an address in it.
         $appUrl = $row['app_url'] ?? null;
+        $order = $row['display_order'] ?? null;
 
-        return new Product($id, $code, $name, (bool) ($row['active'] ?? false), is_string($appUrl) ? $appUrl : null);
+        return new Product(
+            $id,
+            $code,
+            $name,
+            (bool) ($row['active'] ?? false),
+            is_string($appUrl) ? $appUrl : null,
+            null,
+            null,
+            is_numeric($order) ? (int) $order : 0,
+        );
     }
 }

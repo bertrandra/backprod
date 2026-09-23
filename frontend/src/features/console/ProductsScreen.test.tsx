@@ -14,8 +14,8 @@ import { ProductsScreen } from './ProductsScreen';
  * still carry tenants and invoices; and never offer a deletion the platform
  * would have to refuse.
  */
-const ATLAS = { id: 'p-1', code: 'atlas', name: 'Atlas', active: true };
-const ORBIT = { id: 'p-2', code: 'orbit', name: 'Orbit', active: false };
+const ATLAS = { id: 'p-1', code: 'atlas', name: 'Atlas', active: true, display_order: 10 };
+const ORBIT = { id: 'p-2', code: 'orbit', name: 'Orbit', active: false, display_order: 20 };
 
 /**
  * Opens a row's "if this product has a server of its own" disclosure.
@@ -100,6 +100,56 @@ describe('the product list', () => {
     // those. A button that had to refuse would teach people the console is
     // unreliable.
     expect(screen.queryByRole('button', { name: /delete/i })).toBeNull();
+  });
+});
+
+describe('where a product sits in the lists', () => {
+  it('is shown on the row, because a number means nothing without its neighbours', async () => {
+    renderAtRoute(<ProductsScreen />, clientFor(), { path: '/console/products' });
+
+    await waitFor(() => expect(screen.getByTestId('product-list')).toBeTruthy());
+
+    expect(screen.getAllByTestId('display-order').map((el) => el.textContent)).toEqual(['#10', '#20']);
+  });
+
+  it('is sent as a whole number, alone in the patch', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/products': { data: { products: [ATLAS, ORBIT] } },
+      'PATCH /api/v1/staff/products/{productId}': { data: { product: { ...ATLAS, display_order: 30 } } },
+    });
+
+    renderAtRoute(<ProductsScreen />, client, { path: '/console/products' });
+
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Position' })[0]).toBeTruthy());
+    fireEvent.click(screen.getAllByRole('button', { name: 'Position' })[0] as HTMLElement);
+
+    fireEvent.change(screen.getByLabelText('Position'), { target: { value: '30' } });
+    fireEvent.submit(screen.getByTestId('display-order-form'));
+
+    await waitFor(() => expect(requests.some((r) => r.method === 'PATCH')).toBe(true));
+    // Only the field that moved: a body restating `active` could switch a
+    // product off while somebody was reordering the list.
+    expect(requests.find((r) => r.method === 'PATCH')?.body).toEqual({ display_order: 30 });
+  });
+
+  it('sends nothing when the field is left empty', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/products': { data: { products: [ATLAS] } },
+      'PATCH /api/v1/staff/products/{productId}': { data: { product: ATLAS } },
+    });
+
+    renderAtRoute(<ProductsScreen />, client, { path: '/console/products' });
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Position' })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Position' }));
+
+    fireEvent.change(screen.getByLabelText('Position'), { target: { value: '' } });
+    fireEvent.submit(screen.getByTestId('display-order-form'));
+
+    // Nothing to correct: somebody mid-edit has not said a position yet, and
+    // a refusal from the server would be this screen's fault, not theirs.
+    expect(requests.some((r) => r.method === 'PATCH')).toBe(false);
+    expect(screen.getByTestId('display-order-form')).toBeTruthy();
   });
 });
 
