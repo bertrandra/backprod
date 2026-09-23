@@ -60,11 +60,14 @@ https://<platform host>            backprod: the shell and /api/v1
   request from `plan.raillard.org` carries it (ADR-051 §3). A product on
   another registrable domain would not, and this specification does not
   cover that case.
-- The nginx basic authentication in front of `plan.raillard.org` today must
-  be removed before Plan is offered to anybody the platform signs in:
-  a browser challenged with `401 Basic` on the page never reaches the
-  application, and the platform's shell cannot send a person to a page that
-  asks a second password.
+- **Nothing may ask for a second password in front of the page.** A browser
+  challenged with `401 Basic` never reaches the application, and the
+  platform's shell cannot hand somebody to a page that asks again what they
+  have already answered. Earlier drafts of this document asserted that such
+  a challenge existed on `plan.raillard.org` and listed removing it as a
+  prerequisite; the operator says it does not, and the host answers no
+  `WWW-Authenticate` (2026-09-23). The rule is kept as a rule, because it
+  is one; it is no longer written as a fact about this deployment.
 - Plan's HTTP headers mirror the platform's (ADR-048, deploy template):
   `Content-Security-Policy` with `default-src 'self'`, **`connect-src 'self'
   https://<platform host>`**, `frame-ancestors 'none'`, `object-src 'none'`,
@@ -360,10 +363,13 @@ setting of its own — that is on the platform's profile, one click away.
    least one plan, one offer, one published version, advertised
    (ADR-045's readiness path).
 3. Platform `.env`: `CORS_ALLOWED_ORIGINS` gains `https://plan.raillard.org`.
-4. Console → Products → Plan → Integration (milestones C/D): issue a product
-   key for `plan-api`, set the webhook URL, issue the webhook secret; both
-   shown once and put in `plan-api`'s environment by the operator.
-5. Remove the basic authentication in front of `plan.raillard.org`.
+4. **Only if Plan grows a server.** Console → Products → Plan, under *if
+   this product has a server of its own*: issue a product key, set the
+   webhook URL, issue the webhook secret; both are shown once and go into
+   that server's environment (milestones C/D). Plan as it stands has no
+   server — it is a page that talks to the platform on the person's own
+   session, and its build refuses a bundle containing a `bpk_` or a `bwh_`
+   — so this step is skipped, and the panel stays closed.
 
 ## 12. Verification before Plan is offered
 
