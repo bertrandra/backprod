@@ -1,8 +1,19 @@
 # ADR-032 — Geometry over core PostgreSQL, and the operation it refuses to fake
 
-**Status:** accepted
+**Status:** accepted; amended 2026-09-23 — the caller changed, the decision did not
 **Decides:** how spatial questions are answered before a spatial backend exists
-**Relates to:** Architecture V2 §19, §7, §10.2, §13; the last M7 deliverable
+**Relates to:** Architecture V2 §19, §7, §10.2, §13; the last M7 deliverable;
+ADR-051 (a product beside the platform)
+
+**Amendment (2026-09-23).** The platform's own drawing surface was removed
+from a project's screen. It drew scratch shapes no project document kept,
+and the platform now carries the projects of a product whose entire
+business is drawing — two surfaces for one project, one of which forgets,
+is worse than one. `/geometry/measure` and `/geometry/intersections` are
+unchanged, still behind `gis.access`, still answered by core PostgreSQL;
+their caller is now that product, on the person's own session, rather than
+a component in this shell. Nothing below is revisited: what the port may
+promise does not depend on who asks.
 
 ## Context
 

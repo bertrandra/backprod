@@ -150,7 +150,6 @@ added (§8).
 | `workspace.projects` | the list a person lands on, and creating one. Above the list, the **product card** (2026-09-22): the product this workspace belongs to, where it lives when it is deployed beside the platform (ADR-051 §3 — the door is the switcher's `leaveFor`, `?product=` and the language, no token) and the organisation's subscription to it as the server answers it — status, offer, plan, when the period ends or renews. Reads what the shell and the Subscription screen already read (`listProducts`, `showSubscription`); shown with `subscription.read` |
 | `workspace.project` | one project: edit, duplicate, delete, restore, and its version history |
 | `workspace.assets` | files on a project — upload, inspect, share by signed link, request an export |
-| `workspace.geometry` | measurement and intersection, called from the canvas rather than a page of its own |
 | `workspace.jobs` | long-running work: what is queued, what failed, cancelling one |
 
 ### 3.2 Tenant application — commerce and sales
@@ -321,9 +320,13 @@ Rules that keep this honest:
   it.
 - **Touch targets ≥ 44 px, and the primary action is reachable one-handed** —
   bottom of the viewport, not the top-right corner.
-- **The canvas is full-bleed with a floating tool sheet.** 2D/3D editing is the
-  one place where mobile is a genuinely different interaction, and pretending
-  otherwise produces a desktop tool nobody can use on a phone.
+- **A drawing surface is full-bleed with a floating tool sheet.** 2D/3D editing
+  is the one place where mobile is a genuinely different interaction, and
+  pretending otherwise produces a desktop tool nobody can use on a phone. The
+  platform had one on a project until 2026-09-23 and no longer does: it drew
+  scratch shapes no document kept, beside a product whose business is drawing
+  (`workspace.project`). The rule stands for whoever draws next — it is about
+  how a surface behaves on a phone, not about who owns this one.
 
 ### 4.3 What "modern" is taken to mean here
 

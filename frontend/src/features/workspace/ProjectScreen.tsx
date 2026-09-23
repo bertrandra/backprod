@@ -21,7 +21,6 @@ import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 
 import { AssetsPanel } from './AssetsPanel';
-import { ProjectCanvas } from './ProjectCanvas';
 import { currentLocale, t } from '@/i18n';
 import { tx } from '@/i18n/react';
 
@@ -57,6 +56,22 @@ import { tx } from '@/i18n/react';
  * screen. A product whose screens are this workspace shows no button:
  * there is nowhere else to go, and a door onto the room you are in is
  * worse than a wall.
+ *
+ * **The canvas is gone, and the files stay** (2026-09-23). The drawing
+ * surface was U4's architectural test — that a screen can render a shape
+ * without computing anything about it — and it proved its point: every
+ * area, perimeter and relation came back from `/geometry/*`. What it never
+ * became is a tool. It drew scratch shapes that no project document kept,
+ * beside a real product whose whole business is drawing and which stores
+ * its documents here; two drawing surfaces for one project, one of which
+ * forgets, is worse than one.
+ *
+ * The files are the opposite case and stay: a project's files are
+ * something the platform holds for whoever works on it, product or none.
+ * `measureGeometry` and `intersectGeometries` keep their routes and their
+ * tests — a product beside the platform is exactly who they are for now —
+ * and `docs/ui-api-coverage.json` says so under `not_in_ui` rather than
+ * letting them look forgotten.
  */
 const renameSchema = z.object({
   name: z.string().trim().min(1, 'A project needs a name.'),
@@ -241,8 +256,6 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
         <p className="text-xs text-muted">
           {t("Restoring snapshots the current state first, so it can never be the step that loses work.")}</p>
       </section>
-
-      <ProjectCanvas projectName={current.name} />
 
       <div className="border-t border-line pt-6">
         <AssetsPanel projectId={projectId} />
