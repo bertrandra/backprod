@@ -6,7 +6,7 @@ import { usePlatformProducts } from '@/queries/staff';
 import { useSessionStore } from '@/state/session';
 import { touchTargetClass } from '@/ui/Field';
 import { cn } from '@/utils/cn';
-import { currentLocale, t } from '@/i18n';
+import { t } from '@/i18n';
 
 /**
  * Which product this browser is acting in — region A's first duty.
@@ -157,9 +157,17 @@ interface ProductOption {
 
 /**
  * The way to a product deployed beside the platform: a full navigation to
- * its address, with the product code and — so the page opens in the same
- * language — the language. No token: the product's page asks
+ * its address, with the product code. No token: the product's page asks
  * `/auth/refresh` and the cookie answers, because the two are one site.
+ *
+ * **The language does not travel** (2026-09-23). It used to, as `?lang=`,
+ * so the product's page opened in the language the shell was reading in.
+ * That was the same parameter the shell let override a person's own
+ * setting, and it is gone for the same reason: the language is a fact
+ * about the person, not about the link. The product asks the platform who
+ * is arriving — `/me/context` carries `user.locale` — and reads it there,
+ * which is right even when somebody types the product's address directly
+ * and no link is involved.
  *
  * `project` is added when the person was on one (2026-09-22). A product
  * beside the platform stores its documents *in* the platform, so the id
@@ -184,7 +192,6 @@ export function leaveFor(appUrl: string, code: string, projectId: string | null 
 export function addressFor(appUrl: string, code: string, projectId: string | null = null): string {
   const address = new URL(appUrl);
   address.searchParams.set('product', code);
-  address.searchParams.set('lang', currentLocale());
 
   if (projectId !== null) {
     address.searchParams.set('project', projectId);

@@ -23,7 +23,6 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { SkeletonRows } from '@/ui/Skeleton';
 
 import { currentLocale, isLocale, setLocale, t } from '@/i18n';
-import { localeNamedInAddress } from '@/i18n/useLocale';
 
 import { useLanding } from './landing';
 
@@ -100,11 +99,15 @@ export function AppShell() {
   // the first screen in their menu (`landing.ts`, 2026-09-18).
   useLanding(pathname === '/' && !onPlatformScreen, sections);
 
-  // Their language (ADR-050), once `/me` says it — unless the address named
-  // one, which is somebody saying which they mean now.
+  // Their language (ADR-050), once `/me` says it — and nothing overrides it
+  // (2026-09-23). It used to lose to `?lang=` in the address, which meant a
+  // link shared or bookmarked could impose a language on the person who
+  // opened it next, over the setting they had chosen themselves. The
+  // parameter is gone; what a browser guessed before signing in is what
+  // this replaces.
   const chosen = session.data?.locale;
   useEffect(() => {
-    if (isLocale(chosen) && chosen !== currentLocale() && !localeNamedInAddress()) {
+    if (isLocale(chosen) && chosen !== currentLocale()) {
       void setLocale(chosen);
     }
   }, [chosen]);

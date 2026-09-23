@@ -57,14 +57,24 @@ a retention ground — are translated where they are rendered, never where they
 are declared, because a table evaluated at import time would be evaluated
 before any catalogue was loaded.
 
-**Which language, decided once, in this order:** `?lang=` in the address
-(somebody saying which they mean now), then what the browser remembered
+**Which language, decided once, in this order:** what the browser remembered
 (`localStorage`, `backprod.locale`), then the browser's own languages by their
 two-letter code, then English. Signing in applies the person's own choice
-(`/me.locale`) unless the address named one. The choice is a field of the
+(`/me.locale`), and nothing overrides it. The choice is a field of the
 person — `users.locale`, `PATCH /me {locale}`, refused `422 LOCALE_UNKNOWN`
 for a language the platform does not speak — and it is applied the moment it
 is saved.
+
+**`?lang=` is gone** (amended 2026-09-23). It came first in that order and
+outranked even the profile, on the reasoning that a link is somebody saying
+which language they mean now. The reasoning does not survive the link: an
+address gets shared, bookmarked, and copied out of a demonstration, and it
+then imposed a language on whoever opened it next — over the setting they
+had chosen for themselves, which is the one thing a preference may never
+lose to. A place is not a preference. The switcher's handover to a product
+deployed beside the platform (ADR-051 §3) no longer carries it either: the
+product asks `/me/context`, which names the person's own language, and that
+is right even when nobody followed a link at all.
 
 **Before there is an account** (2026-09-20), the storefront and the sign-in
 form carry a small language select: applied at once, remembered by the

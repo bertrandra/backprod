@@ -247,7 +247,7 @@ describe('the way into the product', () => {
     // else. Three parameters, and none of them is a token.
     expect(target.searchParams.get('project')).toBe('p-1');
     expect(target.searchParams.get('product')).toBe('plan');
-    expect([...target.searchParams.keys()].sort()).toEqual(['lang', 'product', 'project']);
+    expect([...target.searchParams.keys()].sort()).toEqual(['product', 'project']);
   });
 
   it('has no door when the product’s screens are this workspace', async () => {

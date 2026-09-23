@@ -146,7 +146,9 @@ describe('the landing address, signed in', () => {
       { path: '/', product: 'plan' },
     );
 
-    await waitFor(() => expect(assign).toHaveBeenCalledWith('https://plan.example.test/?product=plan&lang=en'));
+    // The product code and nothing else: no token, and since 2026-09-23 no
+    // language either — the product asks the platform whose language it is.
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('https://plan.example.test/?product=plan'));
   });
 
   it('stays where the root is already theirs', async () => {

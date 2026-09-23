@@ -77,15 +77,15 @@ describe('the product card', () => {
     expect(summary.textContent).toContain('Pro monthly');
     expect(summary.textContent).toContain('renews');
 
-    // The door: a full navigation with the product code and the language,
-    // and nothing that could be a credential.
+    // The door: a full navigation with the product code and nothing else —
+    // no credential, and no language, which is the person's and which the
+    // product reads from the platform.
     fireEvent.click(screen.getByTestId('open-product'));
     await waitFor(() => expect(assign).toHaveBeenCalledTimes(1));
     const target = new URL(String(assign.mock.calls[0]?.[0]));
     expect(target.origin).toBe('https://plan.example.test');
     expect(target.searchParams.get('product')).toBe('plan');
-    expect(target.searchParams.has('lang')).toBe(true);
-    expect([...target.searchParams.keys()].sort()).toEqual(['lang', 'product']);
+    expect([...target.searchParams.keys()]).toEqual(['product']);
   });
 
   it('has no door for a product whose screens are this workspace, and says when nothing is subscribed', async () => {
