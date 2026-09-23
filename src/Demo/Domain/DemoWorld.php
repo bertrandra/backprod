@@ -64,7 +64,15 @@ final class DemoWorld
      * that can neither draw a parcel nor design a terrace is not a cheaper
      * Plan, it is nothing.
      *
-     * @var array<string, array{name: string, base: int, app_url: ?string, meters: array<string, array{name: string, unit: string, starter: int, pro: int}>, capabilities?: array<string, array{name: string, from: 'starter'|'pro'|'scale'}>}>
+     * A product may also declare `plans` of its own, beside the
+     * Starter/Pro/Scale ladder — Plan's Lecture seat is one: not a rung, a
+     * different thing sold to somebody who reads. A capability's `from` may
+     * therefore name one of those as readily as a rung, which is why it is
+     * typed `string` here rather than the three words the ladder has. The
+     * sentence below is the rule instead: `from` names a plan this product
+     * sells, and `catalogue()` is where that is resolved.
+     *
+     * @var array<string, array{name: string, base: int, app_url: ?string, meters: array<string, array{name: string, unit: string, starter: int, pro: int}>, capabilities?: array<string, array{name: string, from: string}>, plans?: array<string, array{name: string, rank: int, price: int, period: string, grants: list<string>}>}>
      */
     public const PRODUCTS = [
         'atlas' => ['name' => 'Atlas', 'base' => 1_900, 'app_url' => null, 'meters' => []],
