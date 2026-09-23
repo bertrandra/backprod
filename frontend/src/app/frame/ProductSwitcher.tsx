@@ -170,6 +170,18 @@ interface ProductOption {
  * the project, and the platform still refuses it to anyone else.
  */
 export function leaveFor(appUrl: string, code: string, projectId: string | null = null): void {
+  window.location.assign(addressFor(appUrl, code, projectId));
+}
+
+/**
+ * The same address, as a string, for a real `<a href>`.
+ *
+ * A list of projects wants links, not buttons that navigate: a link can be
+ * opened in a new tab, copied, and read in the status bar before it is
+ * followed. `leaveFor` is what a control uses when there is no anchor to
+ * hang the address on — the switcher's `<select>`, a button on a screen.
+ */
+export function addressFor(appUrl: string, code: string, projectId: string | null = null): string {
   const address = new URL(appUrl);
   address.searchParams.set('product', code);
   address.searchParams.set('lang', currentLocale());
@@ -178,7 +190,7 @@ export function leaveFor(appUrl: string, code: string, projectId: string | null 
     address.searchParams.set('project', projectId);
   }
 
-  window.location.assign(address.toString());
+  return address.toString();
 }
 
 /**

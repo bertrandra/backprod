@@ -39,17 +39,22 @@ const listing = (projects: unknown[]): Stub => ({
   data: { projects, total: projects.length, limit: 25, offset: 0 },
 });
 
+/** A product whose screens are this workspace, and one deployed beside it. */
+const ATLAS = { id: 'p-1', code: 'atlas', name: 'Atlas', app_url: null };
+const PLAN = { id: 'p-plan', code: 'plan', name: 'Plan', app_url: 'https://plan.example.test' };
+
 function clientFor(extra: Record<string, Stub | (() => Stub)> = {}) {
   return stubClient({
     'GET /api/v1/me': { data: SESSION_WITH_PROJECTS },
     'GET /api/v1/projects': listing([project()]),
+    'GET /api/v1/products': { data: { products: [ATLAS, PLAN], default: null, memberships: [], pending: [] } },
     'GET /api/v1/products/{productId}/configuration': configuration([7, 9]),
     ...extra,
   });
 }
 
-const render = (client: ReturnType<typeof stubClient>) =>
-  renderAtRoute(<ProjectsScreen />, client, { path: '/projects' });
+const render = (client: ReturnType<typeof stubClient>, product = 'atlas') =>
+  renderAtRoute(<ProjectsScreen />, client, { path: '/projects', product });
 
 describe('the schema version', () => {
   it('comes from the product, not from this screen', async () => {
@@ -116,16 +121,88 @@ describe('the schema version', () => {
   });
 });
 
-describe('the list', () => {
-  it('links each project to its own page', async () => {
+describe('a row', () => {
+  it('opens the project where it is worked on — here, its own page', async () => {
+    // Atlas has no address of its own, so "open" is the project's screen:
+    // there is nowhere else to be.
     const { location } = render(clientFor());
 
     await waitFor(() => expect(screen.getByText('North wall')).toBeTruthy());
 
-    fireEvent.click(screen.getByText('North wall'));
+    fireEvent.click(screen.getByTestId('open-project'));
 
     await waitFor(() => expect(location()).toContain('/projects/p-1'));
   });
+
+  it('opens it at the product when the product lives beside the platform', async () => {
+    render(clientFor(), 'plan');
+
+    const open = await screen.findByTestId('open-project');
+
+    // A real link, not a button that navigates: it can be opened in a new
+    // tab and read before it is followed. And it names the project, so the
+    // product opens that one rather than whichever it last remembered.
+    const target = new URL(open.getAttribute('href') ?? '');
+    expect(target.origin).toBe('https://plan.example.test');
+    expect(target.searchParams.get('project')).toBe('p-1');
+    expect(target.searchParams.get('product')).toBe('plan');
+    expect([...target.searchParams.keys()].sort()).toEqual(['lang', 'product', 'project']);
+  });
+
+  it('keeps the record one click away, whatever the name opens', async () => {
+    const { location } = render(clientFor(), 'plan');
+
+    fireEvent.click(await screen.findByTestId('edit-project'));
+
+    await waitFor(() => expect(location()).toContain('/projects/p-1'));
+  });
+
+  it('asks before deleting, and deletes only on the second click', async () => {
+    let deleted = 0;
+
+    render(
+      clientFor({
+        'DELETE /api/v1/projects/{projectId}': (): Stub => {
+          deleted += 1;
+
+          return { data: {}, status: 204 };
+        },
+      }),
+    );
+
+    fireEvent.click(await screen.findByTestId('delete-project'));
+
+    // Nothing has happened yet, and the row says what it is about to do.
+    expect(deleted).toBe(0);
+    expect(screen.queryByTestId('delete-project')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('confirm-delete'));
+
+    await waitFor(() => expect(deleted).toBe(1));
+  });
+
+  it('backs out of the deletion without touching anything', async () => {
+    let deleted = 0;
+
+    render(
+      clientFor({
+        'DELETE /api/v1/projects/{projectId}': (): Stub => {
+          deleted += 1;
+
+          return { data: {}, status: 204 };
+        },
+      }),
+    );
+
+    fireEvent.click(await screen.findByTestId('delete-project'));
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+
+    expect(deleted).toBe(0);
+    expect(screen.getByTestId('delete-project')).toBeTruthy();
+  });
+});
+
+describe('the list', () => {
 
   it('says the workspace is empty without making it look broken', async () => {
     render(clientFor({ 'GET /api/v1/projects': listing([]) }));

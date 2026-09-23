@@ -4,8 +4,11 @@ import { useForm } from 'react-hook-form';
 import { useState } from 'react';
 import { z } from 'zod';
 
-import { useCreateProject, useProjects, useUndeleteProject } from '@/queries/projects';
-import { supportedSchemaVersions, useProductConfiguration } from '@/queries/catalogue';
+import { addressFor } from '@/app/frame/ProductSwitcher';
+import { useCreateProject, useDeleteProject, useProjects, useUndeleteProject } from '@/queries/projects';
+import { supportedSchemaVersions, useCurrentProduct, useProductConfiguration } from '@/queries/catalogue';
+import type { Product } from '@/queries/catalogue';
+import type { ProjectSummary } from '@/queries/projects';
 import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
@@ -34,6 +37,13 @@ import { ProductCard } from './ProductCard';
  * shown — a create button that always produced a 422 would be worse than the
  * sentence explaining why there is none.
  *
+ * **A row offers three things, and the name is not "edit"** (2026-09-23).
+ * The whole row used to be one link to the project's screen, so clicking a
+ * project's name meant *edit it* — the rarer intention. The name now opens
+ * the project where it is worked on, and *Edit* goes to its record;
+ * {@see ProjectRow} says what each one does and why deleting asks twice
+ * here and asks differently on the project's own screen.
+ *
  * **The bin is a place you go** (R13). Deleting a project used to destroy its
  * versions through a database cascade, and U4 shipped a confirmation that said
  * so honestly because it was true. It is no longer true: a deleted project keeps
@@ -56,6 +66,12 @@ export function ProjectsScreen() {
   const undelete = useUndeleteProject();
   const configuration = useProductConfiguration(session?.productId ?? null);
   const create = useCreateProject();
+  const product = useCurrentProduct();
+  const remove = useDeleteProject();
+  // Which row is asking to be sure. One at a time, by id rather than a flag
+  // on the row, so opening a second closes the first — two rows offering
+  // "Delete" in red at once is how the wrong one gets clicked.
+  const [confirming, setConfirming] = useState<string | null>(null);
 
   const versions = supportedSchemaVersions(configuration.data);
   const newest = versions[versions.length - 1];
@@ -97,6 +113,7 @@ export function ProjectsScreen() {
       {!showingBin && <ProductCard />}
 
       {undelete.error !== null && <ErrorSurface error={undelete.error} />}
+      {remove.error !== null && <ErrorSurface error={remove.error} />}
 
       {projects.data.projects.length === 0 ? (
         showingBin ? (
@@ -144,24 +161,16 @@ export function ProjectsScreen() {
       ) : (
         <ul className="space-y-2">
           {projects.data.projects.map((project) => (
-            <li key={project.id} data-project={project.id}>
-              <Link
-                to="/projects/$projectId"
-                params={{ projectId: project.id }}
-                className="block rounded-card border border-line bg-surface p-4 shadow-raise hover:bg-canvas focus-visible:outline-2 focus-visible:outline-offset-2 dark:hover:bg-inverse"
-              >
-                <span className="block font-medium">{project.name}</span>
-                {project.description !== null && (
-                  <span className="block truncate text-sm text-muted">
-                    {project.description}
-                  </span>
-                )}
-                <span className="text-xs text-subtle">
-                  {t("schema v")}{project.schema_version} {t("· updated")}{' '}
-                  {new Date(project.updated_at).toLocaleString(currentLocale())}
-                </span>
-              </Link>
-            </li>
+            <ProjectRow
+              key={project.id}
+              project={project}
+              product={product}
+              confirming={confirming === project.id}
+              pending={remove.isPending && remove.variables === project.id}
+              onConfirm={() => setConfirming(project.id)}
+              onCancel={() => setConfirming(null)}
+              onDelete={() => remove.mutate(project.id, { onSuccess: () => setConfirming(null) })}
+            />
           ))}
         </ul>
       )}
@@ -253,5 +262,111 @@ export function ProjectsScreen() {
       </section>
       )}
     </div>
+  );
+}
+
+/**
+ * One project, and the three things somebody does with it (2026-09-23).
+ *
+ * The name is a link and it **opens** the project. Where that leads is the
+ * product's business: at a product deployed beside the platform it is that
+ * product's own address carrying `?project=`, and at a product whose
+ * screens are this workspace there is nowhere else to be, so it is the
+ * project's own screen. A real `<a>` in the first case rather than a button
+ * that navigates — a link can be opened in a new tab, copied, and read
+ * before it is followed.
+ *
+ * Until now the whole row was one link to the project's screen, which made
+ * *edit* the meaning of clicking a project's name. That is the rarer
+ * intention: people open a project to work in it, and go to its record to
+ * rename it or read its history.
+ *
+ * Deleting is offered here, and asks twice. The project's own screen asks
+ * for the name to be typed, because there the project is all there is and a
+ * misclick costs a page; a list is where the wrong row gets hit, so the
+ * button turns into *Confirm* beside a *Cancel* rather than acting at once.
+ * It is recoverable either way — deletion is a date, and the bin gives it
+ * back — which is what the confirmation says instead of threatening.
+ */
+function ProjectRow({
+  project,
+  product,
+  confirming,
+  pending,
+  onConfirm,
+  onCancel,
+  onDelete,
+}: {
+  project: ProjectSummary;
+  product: Product | null;
+  confirming: boolean;
+  pending: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  const appUrl = product?.app_url ?? null;
+
+  const name =
+    appUrl !== null && product !== null ? (
+      <a
+        href={addressFor(appUrl, product.code, project.id)}
+        data-testid="open-project"
+        className="font-medium underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
+        {project.name}
+      </a>
+    ) : (
+      <Link
+        to="/projects/$projectId"
+        params={{ projectId: project.id }}
+        data-testid="open-project"
+        className="font-medium underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
+        {project.name}
+      </Link>
+    );
+
+  return (
+    <li
+      data-project={project.id}
+      className="flex flex-wrap items-start justify-between gap-3 rounded-card border border-line bg-surface p-4 shadow-raise"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block">{name}</span>
+
+        {project.description !== null && (
+          <span className="block truncate text-sm text-muted">{project.description}</span>
+        )}
+
+        <span className="text-xs text-subtle">
+          {t("schema v")}{project.schema_version} {t("· updated")}{' '}
+          {new Date(project.updated_at).toLocaleString(currentLocale())}
+        </span>
+      </span>
+
+      <span className="flex flex-wrap items-center gap-2">
+        <Link
+          to="/projects/$projectId"
+          params={{ projectId: project.id }}
+          data-testid="edit-project"
+          className="inline-flex items-center rounded-control border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:bg-canvas focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
+          {t("Edit")}
+        </Link>
+
+        {confirming ? (
+          <>
+            <Button type="button" variant="danger" pending={pending} data-testid="confirm-delete" onClick={onDelete}>
+              {t("Confirm")}</Button>
+            <Button type="button" variant="secondary" onClick={onCancel}>
+              {t("Cancel")}</Button>
+          </>
+        ) : (
+          <Button type="button" variant="danger" data-testid="delete-project" onClick={onConfirm}>
+            {t("Delete")}</Button>
+        )}
+      </span>
+    </li>
   );
 }
