@@ -68,10 +68,30 @@ export function t(english: string, vars?: Readonly<Record<string, string | numbe
 }
 
 /**
+ * How many times a language has been asked for. The counter is what settles
+ * a race between two answers (2026-09-23): see below.
+ */
+let asked = 0;
+
+/**
  * Loads and applies a language. English needs no catalogue; the others are
  * one `import()` each, which Vite splits into its own chunk.
+ *
+ * **The last choice wins, not the last chunk to arrive.** Applying the
+ * language when its catalogue lands means two overlapping calls settle in
+ * network order: ask for German, change your mind and ask for English —
+ * which needs no chunk and is instant — and German still lands on top a
+ * moment later. The screen then shows a language nobody asked for last,
+ * and `localStorage` remembers it.
+ *
+ * Found through a test that had been failing for days and been called
+ * flaky: one test saved a profile in German, the next rendered before that
+ * chunk resolved, and the assertion looked at `Anzeigename`. The fix is
+ * the same either way, because it is the same defect — a stale answer
+ * overwriting a newer question.
  */
 export async function setLocale(locale: LocaleCode): Promise<void> {
+  const mine = ++asked;
   let applied = locale;
 
   if (locale !== DEFAULT_LOCALE && !loaded.has(locale)) {
@@ -83,6 +103,14 @@ export async function setLocale(locale: LocaleCode): Promise<void> {
       // English on the screen is a page; a page that never renders is not.
       applied = DEFAULT_LOCALE;
     }
+  }
+
+  // Somebody asked for another language while this one was loading. Its
+  // catalogue is kept — it is loaded now, and the next ask for it costs
+  // nothing — but nothing else here happens: not the switch, not the
+  // remembering, not the listeners.
+  if (mine !== asked) {
+    return;
   }
 
   current = applied;
