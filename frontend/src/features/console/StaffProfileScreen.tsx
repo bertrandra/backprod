@@ -9,6 +9,8 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
 import { currentLocale, isLocale, LOCALE_NAMES, LOCALES, setLocale, t } from '@/i18n';
 
+import { NewPasswordByMail } from '../account/NewPasswordByMail';
+
 /**
  * `console.self` — a platform staff member's own profile (2026-09-22).
  *
@@ -120,6 +122,12 @@ export function StaffProfileScreen() {
           )}
         </div>
       </form>
+
+      {/* The same section as the tenant profile, and deliberately the same
+          mechanism: staff sign in with an address and a password like
+          anybody else, and the link that replaces one is the account's, not
+          the authority's. */}
+      <NewPasswordByMail email={identity.data.email ?? null} />
 
       <p className="text-xs text-subtle">
         {t("Your platform roles:")}{' '}{identity.data.roles.join(', ')}

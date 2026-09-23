@@ -94,3 +94,42 @@ describe('the language', () => {
     await waitFor(() => expect(currentLocale()).toBe('fr'));
   });
 });
+
+describe('a new password', () => {
+  it('is asked for by mail, at the address this person is signed in with', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/me': { data: ME },
+      'GET /api/v1/products': { data: { products: [ATLAS], default: 'atlas' } },
+      'POST /api/v1/auth/password/forgot': { data: { accepted: true }, status: 202 },
+    });
+
+    renderWith(<ProfileScreen />, client);
+
+    // The consequence is on screen before the button is pressed, not after.
+    const section = await screen.findByTestId('new-password');
+    expect(section.textContent).toMatch(/thirty minutes/i);
+    expect(section.textContent).toMatch(/ends every session/i);
+
+    fireEvent.click(screen.getByTestId('ask-for-password-link'));
+
+    await waitFor(() => expect(screen.getByTestId('password-link-sent')).toBeTruthy());
+    // Their own address, taken from the session — never typed, so there is
+    // nothing to mistype and nobody else's account to ask about.
+    expect(requests.find((r) => r.path === '/api/v1/auth/password/forgot')?.body).toEqual({
+      email: ME.email,
+    });
+  });
+
+  it('offers nothing to an account with no address', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/me': { data: { ...ME, email: null } },
+      'GET /api/v1/products': { data: { products: [ATLAS], default: 'atlas' } },
+    });
+
+    renderWith(<ProfileScreen />, client);
+
+    await screen.findByTestId('new-password');
+    expect(screen.queryByTestId('ask-for-password-link')).toBeNull();
+    expect(requests.some((r) => r.path.includes('password'))).toBe(false);
+  });
+});
