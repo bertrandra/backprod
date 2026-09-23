@@ -42,6 +42,46 @@ final class ProductRegistryTest extends DatabaseTestCase
     }
 
     /**
+     * The address of a product deployed beside the platform reaches the
+     * shell (2026-09-23).
+     *
+     * It did not, from the day the column existed until this test. The
+     * adapter selected four columns and `app_url` was not one of them, so
+     * `GET /products` — the only list the shell reads — answered `null` for
+     * every product. The switcher therefore never left for Plan, the card
+     * named no address, and "Open in Plan" never appeared. Every screen
+     * test stubbed the API and saw the address it had invented itself;
+     * this one asks the database.
+     */
+    public function testAProductsOwnAddressIsCarriedToTheShell(): void
+    {
+        $plan = $this->seedProduct('plan');
+        $this->connection->executeStatement(
+            'UPDATE products SET app_url = :url WHERE id = :id',
+            ['url' => 'https://plan.example.test', 'id' => $plan],
+        );
+
+        $atlas = $this->seedProduct('atlas');
+
+        $user = $this->seedUser('sub-ada');
+        $this->join($user, $plan, 'acme');
+        $this->join($user, $atlas, 'acme-atlas');
+
+        $registry = new PostgresProductRegistry($this->connection);
+
+        $addresses = [];
+
+        foreach ($registry->reachableBy($user) as $product) {
+            $addresses[$product->code] = $product->appUrl;
+        }
+
+        self::assertSame(['atlas' => null, 'plan' => 'https://plan.example.test'], $addresses);
+        // And the same answer when one product is asked for by id, which is
+        // the other way the shell reaches this adapter.
+        self::assertSame('https://plan.example.test', $registry->reachableProduct($user, $plan)?->appUrl);
+    }
+
+    /**
      * A product exists, but this user has no membership in it — so as far as
      * they are concerned it does not exist at all.
      */

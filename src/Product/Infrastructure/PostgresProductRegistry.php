@@ -22,7 +22,7 @@ final class PostgresProductRegistry implements ProductRegistry
         // may belong to several tenants within the same product.
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
-                SELECT DISTINCT p.id, p.code, p.name, p.active
+                SELECT DISTINCT p.id, p.code, p.name, p.active, p.app_url
                 FROM products p
                 JOIN tenant_members tm ON tm.product_id = p.id
                 WHERE tm.user_id = :userId
@@ -57,7 +57,7 @@ final class PostgresProductRegistry implements ProductRegistry
 
         $row = $this->connection->fetchAssociative(
             <<<'SQL'
-                SELECT p.id, p.code, p.name, p.active
+                SELECT p.id, p.code, p.name, p.active, p.app_url
                 FROM products p
                 JOIN tenant_members tm ON tm.product_id = p.id
                 WHERE tm.user_id = :userId
@@ -117,6 +117,18 @@ final class PostgresProductRegistry implements ProductRegistry
             return null;
         }
 
-        return new Product($id, $code, $name, (bool) ($row['active'] ?? false));
+        // `app_url` since 2026-09-23, and it was missing from the moment the
+        // column existed (ADR-051 milestone B). The contract declares it on
+        // `Product`, the presenter publishes it, and this adapter — the one
+        // behind `GET /products`, which is the only list the shell reads —
+        // never selected it. Every answer therefore said `null`, so the
+        // switcher never left for a product deployed beside the platform,
+        // the card never named an address, and "Open in Plan" never
+        // appeared. Nothing caught it because every screen test stubs the
+        // API, and the one integration test that reads this list had no
+        // product with an address in it.
+        $appUrl = $row['app_url'] ?? null;
+
+        return new Product($id, $code, $name, (bool) ($row['active'] ?? false), is_string($appUrl) ? $appUrl : null);
     }
 }
