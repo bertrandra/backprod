@@ -149,17 +149,17 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
   <p><strong>Plan is deployed beside the platform</strong> (ADR-051): it has an application address, <code>https://plan.raillard.org</code>, so the switcher and the landing send a person there rather than to a screen in this shell, and its catalogue also meters <code>plan.documents</code> — the quota Plan's own server reports usage against with its product key (20 on Starter, 200 on Pro, unlimited on Scale). Its key and its webhook are issued from Console → Products → Plan, not seeded: both are shown once and belong in Plan's environment.</p>
   <div class="table-wrap">
   <table>
-    <thead><tr><th>Code</th><th>Name</th><th class="num">Starter / month</th><th class="num">Pro / month</th><th class="num">Scale / year</th><th>Held by</th></tr></thead>
+    <thead><tr><th class="num">#</th><th>Code</th><th>Name</th><th class="num">Starter / month</th><th class="num">Pro / month</th><th class="num">Scale / year</th><th>Held by</th></tr></thead>
     <tbody>
-      <tr><td><code>atlas</code></td><td>Atlas</td><td class="num">€19.00</td><td class="num">€49.40</td><td class="num">€494.00</td><td>Acme, Globex</td></tr>
-      <tr><td><code>boreas</code></td><td>Boreas</td><td class="num">€29.00</td><td class="num">€75.40</td><td class="num">€754.00</td><td>Acme, Globex</td></tr>
-      <tr><td><code>ceres</code></td><td>Ceres</td><td class="num">€9.00</td><td class="num">€23.40</td><td class="num">€234.00</td><td>Acme</td></tr>
-      <tr><td><code>delos</code></td><td>Delos</td><td class="num">€49.00</td><td class="num">€127.40</td><td class="num">€1,274.00</td><td>Acme</td></tr>
-      <tr><td><code>plan</code></td><td>Plan</td><td class="num">€15.00</td><td class="num">€39.00</td><td class="num">€390.00</td><td>Acme, Globex, Initech</td></tr>
+      <tr><td class="num">10</td><td><code>plan</code></td><td>Plan</td><td class="num">€15.00</td><td class="num">€39.00</td><td class="num">€390.00</td><td>Acme, Globex, Initech</td></tr>
+      <tr><td class="num">20</td><td><code>atlas</code></td><td>Atlas</td><td class="num">€19.00</td><td class="num">€49.40</td><td class="num">€494.00</td><td>Acme, Globex</td></tr>
+      <tr><td class="num">30</td><td><code>boreas</code></td><td>Boreas</td><td class="num">€29.00</td><td class="num">€75.40</td><td class="num">€754.00</td><td>Acme, Globex</td></tr>
+      <tr><td class="num">40</td><td><code>ceres</code></td><td>Ceres</td><td class="num">€9.00</td><td class="num">€23.40</td><td class="num">€234.00</td><td>Acme</td></tr>
+      <tr><td class="num">50</td><td><code>delos</code></td><td>Delos</td><td class="num">€49.00</td><td class="num">€127.40</td><td class="num">€1,274.00</td><td>Acme</td></tr>
     </tbody>
   </table>
   </div>
-  <p class="note">Starter grants 3 projects and 10 exports; Pro 25 projects, 200 exports and white label; Scale is unlimited. All prices are net of VAT, in cents in the database and formatted here.</p>
+  <p class="note">The <strong>#</strong> is the position a product holds in every list — the switcher, the public storefront, the console — with the code breaking a tie. Plan is first because it is the one deployed beside the platform, and the first option is what somebody with no default lands on. The numbers go in tens so a sixth product can be slipped between two others without renumbering anybody; change one from Console → Products → Position. Starter grants 3 projects and 10 exports; Pro 25 projects, 200 exports and white label; Scale is unlimited. All prices are net of VAT, in cents in the database and formatted here.</p>
 
   <h2>The three organisations</h2>
   <p>A tenant holds the products the platform assigned it, and a member of the tenant is mirrored onto every one of them (ADR-047). All three have a billing profile and a B2B French tax profile, so any can be invoiced. Each lives at its own URL root (ADR-049): Acme is the <strong>default tenant</strong>, so it answers at <code>/</code>; Globex answers at <code>/globex/</code>, Initech at <code>/initech/</code>. All admit newcomers at once (join policy <em>OPEN</em>, the default): a sign-up at either root is a member — a USER, who may buy — there and then. Switch a policy on the Organisation screen to see the other three.</p>

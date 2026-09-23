@@ -62,13 +62,23 @@ final class UpdateProductController implements RouteHandler
             throw new BadRequestException('VALIDATION_FAILED', 'The request body is not valid.', ['field' => 'webhook_url', 'requirement' => 'an https:// address with no fragment and no credentials']);
         }
 
-        if (!$body->has('name') && !$body->has('active') && !$body->has('app_url') && !$body->has('webhook_url')) {
+        // Where it sits in every list of products (2026-09-23). Bounded and
+        // non-negative: the number is an order, not a score, and one big
+        // enough to overflow an integer column says the form sent something
+        // that is not a position.
+        $displayOrder = $body->has('display_order') ? $body->requiredInt('display_order', 0) : null;
+
+        if ($displayOrder !== null && $displayOrder > 100_000) {
+            throw new BadRequestException('VALIDATION_FAILED', 'The request body is not valid.', ['field' => 'display_order', 'requirement' => 'a whole number between 0 and 100000']);
+        }
+
+        if (!$body->has('name') && !$body->has('active') && !$body->has('app_url') && !$body->has('webhook_url') && !$body->has('display_order')) {
             // An empty PATCH is a client bug, not a no-op to be absorbed:
             // silently answering 200 to a request that changed nothing is how
             // a broken form looks like a working one.
             throw new BadRequestException(
                 'NOTHING_TO_UPDATE',
-                'Send a name, an active flag, an application address, a webhook address, or several.',
+                'Send a name, an active flag, an application address, a webhook address, a display order, or several.',
             );
         }
 
@@ -81,6 +91,7 @@ final class UpdateProductController implements RouteHandler
             $appUrl,
             $body->has('webhook_url'),
             $webhookUrl,
+            $displayOrder,
         );
 
         return new JsonResponse(['product' => StaffPresenter::product($product)], 200);

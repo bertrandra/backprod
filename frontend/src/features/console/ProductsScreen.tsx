@@ -108,6 +108,7 @@ export function ProductsScreen() {
                 onSetActive={(active) => update.mutate({ productId: product.id, active })}
                 onSetAppUrl={(appUrl) => update.mutate({ productId: product.id, app_url: appUrl })}
                 onSetWebhookUrl={(webhookUrl) => update.mutate({ productId: product.id, webhook_url: webhookUrl })}
+                onSetDisplayOrder={(position) => update.mutate({ productId: product.id, display_order: position })}
                 onStorefront={() =>
                   void handTo('/console/storefront', product.code)
                 }
@@ -191,6 +192,7 @@ function ProductRow({
   onSetActive,
   onSetAppUrl,
   onSetWebhookUrl,
+  onSetDisplayOrder,
   onStorefront,
   onCatalogue,
   onInvoicing,
@@ -201,6 +203,7 @@ function ProductRow({
   onSetActive: (active: boolean) => void;
   onSetAppUrl: (appUrl: string | null) => void;
   onSetWebhookUrl: (webhookUrl: string | null) => void;
+  onSetDisplayOrder: (position: number) => void;
   onStorefront: () => void;
   onCatalogue: () => void;
   onInvoicing: () => void;
@@ -209,6 +212,11 @@ function ProductRow({
   const [draft, setDraft] = useState(product.name);
   const [addressing, setAddressing] = useState(false);
   const [address, setAddress] = useState(product.app_url ?? '');
+  const [ordering, setOrdering] = useState(false);
+  // A string while it is being typed: an empty field is a state a number
+  // input has, and `NaN` on the way to `20` would be a validation error
+  // shown to somebody in the middle of typing.
+  const [position, setPosition] = useState(String(product.display_order));
   // The keys (ADR-051 §4) and the webhook (§5) together, behind one
   // disclosure closed by default (2026-09-22). They were two buttons in the
   // row of everyday actions, which put the rarest thing on the screen next
@@ -239,6 +247,14 @@ function ProductRow({
         <code data-testid="product-code" className="select-all rounded bg-well px-1.5 py-0.5 text-xs">
           {product.code}
         </code>
+
+        {/* Where it sits in the lists (2026-09-23). On the row rather than
+            behind the button that changes it: the number only means
+            anything next to its neighbours', and a list whose order looks
+            arbitrary is one somebody renames a product to fix. */}
+        <span data-testid="display-order" className="text-xs text-subtle" title={t("Position in every list of products")}>
+          #{product.display_order}
+        </span>
 
         {!product.active && (
           <span
@@ -292,6 +308,47 @@ function ProductRow({
         </form>
       )}
 
+      {ordering && (
+        <form
+          className="mt-3 flex flex-wrap items-end gap-2"
+          data-testid="display-order-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+
+            const wanted = Number.parseInt(position, 10);
+
+            // A blank or unreadable field leaves the product where it is,
+            // rather than sending a number the server would refuse: there
+            // is nothing to correct here, only something not yet said.
+            if (Number.isInteger(wanted) && wanted >= 0) {
+              onSetDisplayOrder(wanted);
+              setOrdering(false);
+            }
+          }}
+        >
+          <Field
+            id={`display-order-${product.id}`}
+            label={t("Position")}
+            hint={t("Where this product sits in every list — the switcher, the public storefront, this screen. Lowest first, and the products are numbered in tens so one can be slipped between two others.")}
+          >
+            <input
+              id={`display-order-${product.id}`}
+              type="number"
+              min={0}
+              max={100000}
+              step={10}
+              className={inputClass()}
+              value={position}
+              onChange={(event) => setPosition(event.target.value)}
+            />
+          </Field>
+          <Button type="submit" pending={pending}>
+            {t("Save")}</Button>
+          <Button type="button" variant="secondary" onClick={() => setOrdering(false)}>
+            {t("Cancel")}</Button>
+        </form>
+      )}
+
       {renaming ? (
         <form
           className="mt-3 flex flex-wrap items-end gap-2"
@@ -335,6 +392,8 @@ function ProductRow({
             {t("Rename")}</Button>
           <Button type="button" variant="secondary" onClick={() => setAddressing(true)}>
             {t("Application address")}</Button>
+          <Button type="button" variant="secondary" data-testid="reorder" onClick={() => setOrdering(true)}>
+            {t("Position")}</Button>
           <Button
             type="button"
             variant={product.active ? 'danger' : 'secondary'}

@@ -25,6 +25,13 @@ final class Product
         public readonly ?string $webhookUrl = null,
         /** When the current webhook secret was issued; null while none is. */
         public readonly ?\DateTimeImmutable $webhookSecretIssuedAt = null,
+        /**
+         * Where this product sits in every list of products (2026-09-23):
+         * the switcher, the public list, the console. Ties are broken by
+         * `code`, and the seeded values are decades so a product can be
+         * inserted between two others without renumbering anybody.
+         */
+        public readonly int $displayOrder = 0,
     ) {
     }
 }

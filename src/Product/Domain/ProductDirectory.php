@@ -30,7 +30,7 @@ namespace App\Product\Domain;
 interface ProductDirectory
 {
     /**
-     * Every product, newest first, active or not.
+     * Every product, in the order somebody chose, active or not.
      *
      * Unpaged, like the staff roster: a platform hosts a handful of products,
      * and a cursor over five rows is machinery nobody needs.
@@ -65,6 +65,9 @@ interface ProductDirectory
      * @param string|null $appUrl        the address, or null to clear it
      * @param bool        $setWebhookUrl the same flag for the webhook address (ADR-051 §5)
      * @param string|null $webhookUrl    where events are delivered, or null to stop delivering
+     * @param int|null    $displayOrder  where it sits in every list of products; null leaves it. No flag, because
+     *                                   there is nothing to clear: a product always sits somewhere, and "no place"
+     *                                   is not one of the answers
      */
     public function update(
         string $productId,
@@ -74,5 +77,6 @@ interface ProductDirectory
         ?string $appUrl = null,
         bool $setWebhookUrl = false,
         ?string $webhookUrl = null,
+        ?int $displayOrder = null,
     ): ?Product;
 }

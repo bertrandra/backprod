@@ -59,7 +59,11 @@ final class DemoResetTest extends DatabaseApiTestCase
 
         // What the answer says: who to sign in as, and with what.
         self::assertSame(DemoWorld::PASSWORD, $world['password'] ?? null);
-        self::assertSame(['atlas', 'boreas', 'ceres', 'delos', 'plan'], array_column($this->listIn($world, 'products'), 'code'));
+        // In the order the world gives them, not the alphabet's (2026-09-23):
+        // Plan first, because it is the product deployed beside the platform
+        // and the first option is what somebody with no default lands on.
+        self::assertSame(['plan', 'atlas', 'boreas', 'ceres', 'delos'], array_column($this->listIn($world, 'products'), 'code'));
+        self::assertSame(array_keys(DemoWorld::PRODUCTS), array_column($this->listIn($world, 'products'), 'code'));
         self::assertSame(
             [
                 'backprod@raillard.org',

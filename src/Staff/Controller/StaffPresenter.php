@@ -114,6 +114,10 @@ final class StaffPresenter
             'app_url' => $product->appUrl,
             'webhook_url' => $product->webhookUrl,
             'webhook_secret_issued_at' => $product->webhookSecretIssuedAt?->format(DATE_ATOM),
+            // Where this product sits in every list (2026-09-23). Shown here
+            // and nowhere else: the tenant-facing shapes need the order, not
+            // the number, and they get it because the server sorts.
+            'display_order' => $product->displayOrder,
         ];
     }
 

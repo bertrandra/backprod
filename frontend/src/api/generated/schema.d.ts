@@ -4942,6 +4942,8 @@ export interface components {
             id: string;
             /** @description What clients send as `X-Product` and the storefront takes as `?product=`. Chosen once, at creation, and never editable: an identifier that can change is not an identifier. */
             code: string;
+            /** @description Where this product sits in every list of products — the switcher, the public list, this console — with `code` breaking a tie. Seeded in tens (10, 20, 30) so one can be inserted between two others without renumbering anybody, which is why it is neither unique nor a rank. Only this shape carries the number: everywhere else the server sorts and the client renders what it was given. */
+            display_order: number;
             name: string;
             /** @description A retired product keeps its tenants, subscriptions and invoices; what changes is that every door into it is closed. */
             active: boolean;
@@ -13354,6 +13356,8 @@ export interface operations {
                     webhook_url?: string | null;
                     name?: string;
                     active?: boolean;
+                    /** @description Moves the product in every list of products. Absent leaves it where it is, and there is no way to clear it: a product always sits somewhere, and « nowhere » is not an answer. Recorded in the trail as SET_DISPLAY_ORDER, because it changes what other people see first. */
+                    display_order?: number;
                 };
             };
         };

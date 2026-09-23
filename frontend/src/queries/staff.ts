@@ -1048,6 +1048,7 @@ export function useUpdateProduct() {
       active?: boolean;
       app_url?: string | null;
       webhook_url?: string | null;
+      display_order?: number;
     }) => {
       const { data, error, response } = await client.PATCH('/api/v1/staff/products/{productId}', {
         params: { path: { productId: change.productId } },
@@ -1056,6 +1057,7 @@ export function useUpdateProduct() {
           ...(change.active !== undefined && { active: change.active }),
           ...(change.app_url !== undefined && { app_url: change.app_url }),
           ...(change.webhook_url !== undefined && { webhook_url: change.webhook_url }),
+          ...(change.display_order !== undefined && { display_order: change.display_order }),
         },
       });
 

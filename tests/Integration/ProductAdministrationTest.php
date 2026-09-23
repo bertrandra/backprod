@@ -232,6 +232,56 @@ final class ProductAdministrationTest extends DatabaseApiTestCase
         self::assertSame(1, $this->connection->fetchOne("SELECT count(*) FROM staff_access_log WHERE action = 'SET_APP_URL' AND detail->>'app_url' = 'https://plan.example.test'"));
     }
 
+    public function testAProductIsMovedInEveryListAndTheMoveIsRecorded(): void
+    {
+        // The console lists by the number, ties broken by code, so moving one
+        // product moves it for the switcher and the public list too — they
+        // read the same column through their own adapters.
+        $beacon = $this->id("INSERT INTO products (code, name, active, display_order) VALUES ('beacon', 'Beacon', true, 20) RETURNING id");
+        $this->connection->executeStatement('UPDATE products SET display_order = 10 WHERE id = :id', ['id' => $this->atlas]);
+
+        self::assertSame(['atlas', 'beacon'], $this->listedCodes());
+
+        $response = $this->patch($beacon, ['display_order' => 5], 'ola-token');
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame(5, $this->productIn($response)['display_order'] ?? null);
+        self::assertSame(['beacon', 'atlas'], $this->listedCodes());
+
+        // Zero is a position — the top — and not an empty value.
+        self::assertSame(200, $this->patch($beacon, ['display_order' => 0], 'ola-token')->getStatusCode());
+
+        // A position is a whole number within reach, and a string is a
+        // serialisation bug rather than something to coerce.
+        foreach ([-1, 100_001, '20', 2.5] as $bad) {
+            $refused = $this->patch($beacon, ['display_order' => $bad], 'ola-token');
+            self::assertSame(400, $refused->getStatusCode(), var_export($bad, true));
+            self::assertSame('VALIDATION_FAILED', $this->errorOf($refused)['code'] ?? null, var_export($bad, true));
+        }
+
+        // Who moved it to the top, and where to.
+        self::assertSame(1, $this->connection->fetchOne("SELECT count(*) FROM staff_access_log WHERE action = 'SET_DISPLAY_ORDER' AND detail->>'display_order' = '5'"));
+    }
+
+    /** @return list<string> */
+    private function listedCodes(): array
+    {
+        $listed = $this->decode($this->request('GET', '/api/v1/staff/products', ['Authorization' => 'Bearer ola-token']))['products'] ?? null;
+
+        self::assertIsArray($listed);
+
+        $codes = [];
+
+        foreach ($listed as $product) {
+            self::assertIsArray($product);
+            $code = $product['code'] ?? null;
+            self::assertIsString($code);
+            $codes[] = $code;
+        }
+
+        return $codes;
+    }
+
     public function testRenamingDoesNotSwitchAProductOffByOmission(): void
     {
         $this->patch($this->atlas, ['name' => 'Atlas Pro'], 'ola-token');

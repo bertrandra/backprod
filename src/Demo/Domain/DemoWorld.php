@@ -72,15 +72,19 @@ final class DemoWorld
      * sentence below is the rule instead: `from` names a plan this product
      * sells, and `catalogue()` is where that is resolved.
      *
-     * @var array<string, array{name: string, base: int, app_url: ?string, meters: array<string, array{name: string, unit: string, starter: int, pro: int}>, capabilities?: array<string, array{name: string, from: string}>, plans?: array<string, array{name: string, rank: int, price: int, period: string, grants: list<string>}>}>
+     * `order` is where the product sits in every list (2026-09-23), in tens
+     * so one can be slipped between two others. Plan is first here, and
+     * deliberately: it is the product deployed beside the platform, the one
+     * whose card, link and subscription have something to show, and the
+     * switcher's first option is what somebody lands on. The array is
+     * written in that order too, so the file reads as the screen does.
+     *
+     * @var array<string, array{name: string, base: int, order: int, app_url: ?string, meters: array<string, array{name: string, unit: string, starter: int, pro: int}>, capabilities?: array<string, array{name: string, from: string}>, plans?: array<string, array{name: string, rank: int, price: int, period: string, grants: list<string>}>}>
      */
     public const PRODUCTS = [
-        'atlas' => ['name' => 'Atlas', 'base' => 1_900, 'app_url' => null, 'meters' => []],
-        'boreas' => ['name' => 'Boreas', 'base' => 2_900, 'app_url' => null, 'meters' => []],
-        'ceres' => ['name' => 'Ceres', 'base' => 900, 'app_url' => null, 'meters' => []],
-        'delos' => ['name' => 'Delos', 'base' => 4_900, 'app_url' => null, 'meters' => []],
         'plan' => [
             'name' => 'Plan',
+            'order' => 10,
             'base' => 1_500,
             'app_url' => 'https://plan.raillard.org',
             // What `docs/plan-service.md` §11 says Plan meters: its documents.
@@ -114,6 +118,10 @@ final class DemoWorld
                 ],
             ],
         ],
+        'atlas' => ['name' => 'Atlas', 'order' => 20, 'base' => 1_900, 'app_url' => null, 'meters' => []],
+        'boreas' => ['name' => 'Boreas', 'order' => 30, 'base' => 2_900, 'app_url' => null, 'meters' => []],
+        'ceres' => ['name' => 'Ceres', 'order' => 40, 'base' => 900, 'app_url' => null, 'meters' => []],
+        'delos' => ['name' => 'Delos', 'order' => 50, 'base' => 4_900, 'app_url' => null, 'meters' => []],
     ];
 
     /**

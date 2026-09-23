@@ -198,8 +198,9 @@ final class ProductDesk
         ?string $appUrl = null,
         bool $setWebhookUrl = false,
         ?string $webhookUrl = null,
+        ?int $displayOrder = null,
     ): Product {
-        $product = $this->products->update($productId, $name, $active, $setAppUrl, $appUrl, $setWebhookUrl, $webhookUrl);
+        $product = $this->products->update($productId, $name, $active, $setAppUrl, $appUrl, $setWebhookUrl, $webhookUrl, $displayOrder);
 
         if ($product === null) {
             // Recorded even though nothing changed: a run of these against
@@ -232,6 +233,13 @@ final class ProductDesk
             // Where signed events go (ADR-051 §5): a wrong address here
             // sends a customer's subscription state to a stranger.
             $this->record($staff, $product->id, $product->id, 'SET_WEBHOOK_URL', ['webhook_url' => $product->webhookUrl]);
+        }
+
+        if ($displayOrder !== null) {
+            // Where it sits in every list of products (2026-09-23). A row of
+            // its own because it changes what other people see first, and
+            // "who moved this to the top?" deserves an answer.
+            $this->record($staff, $product->id, $product->id, 'SET_DISPLAY_ORDER', ['display_order' => $product->displayOrder]);
         }
 
         if ($active !== null) {
