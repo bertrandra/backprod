@@ -43,6 +43,27 @@ describe('a staff member’s own profile', () => {
     expect(requests.some((r) => r.path === '/api/v1/me')).toBe(false);
   });
 
+  it('asks for a new password at the staff address, by the one mechanism there is', async () => {
+    // Staff sign in with an address and a password like anybody else, so the
+    // link that replaces one belongs to the account, not to the authority:
+    // the same operation the sign-in screen offers, sent to `/staff/me`'s
+    // address rather than to `/me`'s, which this person may not have.
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/me': { data: { staff: SAM } },
+      'POST /api/v1/auth/password/forgot': { data: { accepted: true }, status: 202 },
+    });
+
+    renderAtRoute(<StaffProfileScreen />, client, { path: '/console/profile' });
+
+    fireEvent.click(await screen.findByTestId('ask-for-password-link'));
+
+    await waitFor(() => expect(screen.getByTestId('password-link-sent')).toBeTruthy());
+    expect(requests.find((r) => r.path === '/api/v1/auth/password/forgot')?.body).toEqual({
+      email: SAM.email,
+    });
+    expect(requests.some((r) => r.path === '/api/v1/me')).toBe(false);
+  });
+
   it('clears the name with null rather than an empty string', async () => {
     const { client, requests } = recordingClient({
       'GET /api/v1/staff/me': { data: { staff: SAM } },

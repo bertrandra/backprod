@@ -11,6 +11,8 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { currentLocale, isLocale, LOCALE_NAMES, LOCALES, setLocale, t } from '@/i18n';
 
+import { NewPasswordByMail } from './NewPasswordByMail';
+
 /**
  * `account.profile` — the person, not the company.
  *
@@ -148,6 +150,8 @@ export function ProfileScreen() {
           )}
         </div>
       </form>
+
+      <NewPasswordByMail email={session.data?.email ?? null} />
 
       {/* Sign out lives on the account screen, which is the one place a person
           looks for it, and is a `<form>`-free button rather than a nav entry:
