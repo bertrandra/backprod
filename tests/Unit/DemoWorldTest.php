@@ -32,6 +32,27 @@ final class DemoWorldTest extends TestCase
         self::assertSame(SchemaVersionPolicy::CONFIGURATION_KEY, DemoWorld::SCHEMA_VERSIONS_KEY);
     }
 
+    public function testEverybodyWithAMembershipCanOpenOnTheDefaultProduct(): void
+    {
+        // A default product is refused unless the person holds it
+        // (`PRODUCT_NOT_HELD`), and a membership is mirrored onto every
+        // product its tenant holds — so the rule is that every tenant of
+        // every member holds this product. Asserted rather than assumed,
+        // because the seeder writes the id straight into the row and the
+        // database would take a default nobody can reach.
+        self::assertArrayHasKey(DemoWorld::PEOPLE_DEFAULT_PRODUCT, DemoWorld::PRODUCTS);
+
+        foreach (DemoWorld::PEOPLE as $key => $person) {
+            foreach ($person['tenants'] as $slug) {
+                self::assertContains(
+                    DemoWorld::PEOPLE_DEFAULT_PRODUCT,
+                    DemoWorld::TENANTS[$slug]['holds'],
+                    "{$key} would open on a product {$slug} does not hold",
+                );
+            }
+        }
+    }
+
     public function testEveryReferenceInTheWorldNamesSomethingInIt(): void
     {
         foreach (DemoWorld::TENANTS as $slug => $tenant) {

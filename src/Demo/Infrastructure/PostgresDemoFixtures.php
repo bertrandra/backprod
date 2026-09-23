@@ -100,7 +100,7 @@ final class PostgresDemoFixtures implements DemoFixtures
         return $this->connection->transactional(function () use ($passwordHash): DemoStructure {
             $products = $this->products();
             $tenants = $this->tenants();
-            $users = $this->people($passwordHash);
+            $users = $this->people($passwordHash, $products);
 
             $this->holdings($tenants, $products, $users[DemoWorld::STAFF_ADMIN]);
             $this->roles($tenants, $products, $users);
@@ -156,6 +156,26 @@ final class PostgresDemoFixtures implements DemoFixtures
             'a member is mirrored onto every product the tenant holds' => count(DemoWorld::TENANTS['acme']['holds']) === $this->count(
                 'SELECT count(*) FROM tenant_members WHERE tenant_id = :tenant AND user_id = :user',
                 ['tenant' => $acme, 'user' => $structure->user('acme-user1')],
+            ),
+            // And where those screens open (2026-09-23): everybody with a
+            // membership lands on the product deployed beside the platform,
+            // which is the only one with anywhere else to be. Counted by
+            // joining the code rather than trusting an id, because a default
+            // pointing at the wrong product looks exactly like this one.
+            'every member opens on the product beside the platform' => $this->peopleWithAMembership() === $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM users u
+                JOIN products p ON p.id = u.default_product_id
+                WHERE p.code = :code
+                SQL,
+                ['code' => DemoWorld::PEOPLE_DEFAULT_PRODUCT],
+            ),
+            'platform staff default to no product at all' => 0 < $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM users
+                WHERE email = :email AND default_product_id IS NULL
+                SQL,
+                ['email' => DemoWorld::email(DemoWorld::STAFF_ADMIN)],
             ),
             // The quota the workspace actually asks for (2026-09-22), and a
             // schema version to accept a document under: without both, the
@@ -236,18 +256,35 @@ final class PostgresDemoFixtures implements DemoFixtures
         return $tenants;
     }
 
-    /** @return array<string, string> key => id */
-    private function people(string $passwordHash): array
+    /**
+     * @param array<string, string> $products code => id
+     *
+     * @return array<string, string> key => id
+     */
+    private function people(string $passwordHash, array $products): array
     {
         $users = [];
+
+        // Where each person's screens open when an address names no product
+        // (2026-09-23). Everybody with a membership holds Plan here, and
+        // `default_product_id` has a foreign key to a product, not a
+        // promise: the database would refuse a code that is not one.
+        $default = $products[DemoWorld::PEOPLE_DEFAULT_PRODUCT];
 
         foreach (DemoWorld::PEOPLE as $key => $person) {
             // A distinct placeholder per person: `auth_subject` is unique, so
             // nine rows sharing one literal is a constraint violation rather
             // than nine people. Rewritten to `local:<id>` below.
             $users[$key] = $this->id(
-                'INSERT INTO users (auth_subject, email, display_name) VALUES (:subject, :email, :name) RETURNING id',
-                ['subject' => 'seeding:' . $key, 'email' => DemoWorld::email($key), 'name' => $person['name']],
+                'INSERT INTO users (auth_subject, email, display_name, default_product_id) VALUES (:subject, :email, :name, :product) RETURNING id',
+                [
+                    'subject' => 'seeding:' . $key,
+                    'email' => DemoWorld::email($key),
+                    'name' => $person['name'],
+                    // Staff hold no membership, so they have no product to
+                    // default to — the console reads the platform's list.
+                    'product' => $person['tenants'] === [] ? null : $default,
+                ],
             );
         }
 
@@ -630,6 +667,18 @@ final class PostgresDemoFixtures implements DemoFixtures
         $value = $this->connection->fetchOne($sql, $parameters);
 
         return is_numeric($value) ? (int) $value : 0;
+    }
+
+    /**
+     * How many of the world's people hold a membership — everybody but the
+     * platform's own staff, who are members of nothing (§12.2).
+     */
+    private static function peopleWithAMembership(): int
+    {
+        return count(array_filter(
+            DemoWorld::PEOPLE,
+            static fn (array $person): bool => $person['tenants'] !== [],
+        ));
     }
 
     /** @param list<string> $values */

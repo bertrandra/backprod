@@ -94,6 +94,17 @@ final class DemoResetTest extends DatabaseApiTestCase
         self::assertSame(count(DemoWorld::PROJECTS), $this->rowCount('SELECT count(*) FROM projects'));
         self::assertSame(3, $this->rowCount("SELECT count(*) FROM projects p JOIN products pr ON pr.id = p.product_id WHERE pr.code = 'plan'"));
         self::assertSame('https://plan.raillard.org', $this->connection->fetchOne("SELECT app_url FROM products WHERE code = 'plan'"));
+        // Where a member's screens open when no address says (2026-09-23):
+        // the product beside the platform, for everybody who holds it — and
+        // nothing at all for staff, who hold no membership to choose from.
+        self::assertSame(
+            count(DemoWorld::PEOPLE) - 1,
+            $this->rowCount("SELECT count(*) FROM users u JOIN products p ON p.id = u.default_product_id WHERE p.code = 'plan'"),
+        );
+        self::assertSame(
+            1,
+            $this->rowCount('SELECT count(*) FROM users WHERE default_product_id IS NULL'),
+        );
         self::assertSame(0, $this->rowCount("SELECT count(*) FROM tenants WHERE slug = 'leftover'"));
         self::assertSame(0, $this->rowCount('SELECT count(*) FROM users WHERE id = :id', ['id' => $this->admin]));
         // Reference data is not business data.
