@@ -108,7 +108,7 @@ final class PostgresDemoFixtures implements DemoFixtures
             $offers = [];
 
             foreach (DemoWorld::PRODUCTS as $code => $definition) {
-                $offers[$code] = $this->catalogue($products[$code], $definition['base'], $definition['meters'], $definition['capabilities'] ?? []);
+                $offers[$code] = $this->catalogue($products[$code], $definition['base'], $definition['meters'], $definition['capabilities'] ?? [], $definition['plans'] ?? []);
                 $this->supplier($products[$code], $definition['name']);
                 $this->schemaVersions($products[$code]);
             }
@@ -124,8 +124,16 @@ final class PostgresDemoFixtures implements DemoFixtures
         $productCount = count(DemoWorld::PRODUCTS);
         $acme = $structure->tenant('acme');
 
+        // Trois offres par produit, plus celles des plans hors echelle — le siege Lecture de Plan
+        // en est un. Compter « trois fois le nombre de produits » ne tient plus des qu'un produit
+        // vend autre chose qu'un rang de son echelle, et c'etait la le seul obstacle a le faire.
+        $offresAttendues = 3 * $productCount + array_sum(array_map(
+            static fn (array $p): int => count($p['plans'] ?? []),
+            DemoWorld::PRODUCTS,
+        ));
+
         return [
-            'three offer versions are published per product' => 3 * $productCount === $this->count(
+            'every offer version is published' => $offresAttendues === $this->count(
                 <<<'SQL'
                 SELECT count(*) FROM offer_versions v
                 JOIN offers o ON o.id = v.offer_id
@@ -134,7 +142,7 @@ final class PostgresDemoFixtures implements DemoFixtures
             ),
             // The two the readiness screen adds to "it has a catalogue": a
             // product can be entirely priced and still sell to nobody.
-            'every offer is advertised' => 3 * $productCount === $this->count(
+            'every offer is advertised' => $offresAttendues === $this->count(
                 'SELECT count(*) FROM offers WHERE publicly_listed',
             ),
             'every product has its tax position' => $productCount === $this->count(
@@ -348,15 +356,22 @@ final class PostgresDemoFixtures implements DemoFixtures
      * differently would price quotas nothing enforces.
      *
      * @param array<string, array{name: string, unit: string, starter: int, pro: int}> $meters
-     * @param array<string, array{name: string, from: 'starter'|'pro'|'scale'}> $capabilities
+     * @param array<string, array{name: string, from: string}> $capabilities
+     * @param array<string, array{name: string, rank: int, price: int, period: string, grants: list<string>}> $plansEnPlus
      *
      * @return array<string, string> offer code => id
      */
-    private function catalogue(string $product, int $base, array $meters, array $capabilities = []): array
+    private function catalogue(string $product, int $base, array $meters, array $capabilities = [], array $plansEnPlus = []): array
     {
         $plans = [];
 
-        foreach ([['starter', 'Starter', 10], ['pro', 'Pro', 20], ['scale', 'Scale', 30]] as [$code, $name, $rank]) {
+        $echelle = [['starter', 'Starter', 10], ['pro', 'Pro', 20], ['scale', 'Scale', 30]];
+
+        foreach ($plansEnPlus as $code => $plan) {
+            $echelle[] = [$code, $plan['name'], $plan['rank']];
+        }
+
+        foreach ($echelle as [$code, $name, $rank]) {
             $plans[$code] = $this->id(
                 'INSERT INTO plans (product_id, code, name, rank) VALUES (:product, :code, :name, :rank) RETURNING id',
                 ['product' => $product, 'code' => $code, 'name' => $name, 'rank' => $rank],
@@ -399,7 +414,17 @@ final class PostgresDemoFixtures implements DemoFixtures
                 ['product' => $product, 'code' => $code, 'name' => $capability['name']],
             );
 
-            $depuis = $rangs[$capability['from']] ?? throw new RuntimeException("unknown plan {$capability['from']} for {$code}");
+            // Un `from` hors de l'echelle nomme un plan a part : la capacite ne remonte nulle
+            // part, elle appartient a ce plan-la et a lui seul.
+            if (!isset($rangs[$capability['from']])) {
+                if (!isset($plansEnPlus[$capability['from']])) {
+                    throw new RuntimeException("unknown plan {$capability['from']} for {$code}");
+                }
+
+                continue;
+            }
+
+            $depuis = $rangs[$capability['from']];
 
             for ($rang = $depuis; $rang <= 2; $rang++) {
                 $paliers[$rang][$code] = null;
@@ -420,11 +445,24 @@ final class PostgresDemoFixtures implements DemoFixtures
 
         $offers = [];
 
-        foreach ([
+        $aVendre = [
             ['starter-monthly', 'Starter, monthly', 'starter', $base, 'MONTHLY', $starter],
             ['pro-monthly', 'Pro, monthly', 'pro', intdiv($base * 26, 10), 'MONTHLY', $pro],
             ['scale-yearly', 'Scale, yearly', 'scale', $base * 26, 'YEARLY', $scale],
-        ] as [$code, $name, $plan, $price, $period, $grants]) {
+        ];
+
+        foreach ($plansEnPlus as $code => $plan) {
+            $aVendre[] = [
+                $code . '-' . strtolower($plan['period']),
+                $plan['name'] . ', ' . strtolower($plan['period']),
+                $code,
+                $plan['price'],
+                $plan['period'],
+                array_fill_keys($plan['grants'], null),
+            ];
+        }
+
+        foreach ($aVendre as [$code, $name, $plan, $price, $period, $grants]) {
             $offer = $this->id(
                 <<<'SQL'
                 INSERT INTO offers (product_id, plan_id, code, name, publicly_listed)

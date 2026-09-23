@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Demo\Service;
 
 use App\Billing\Service\Invoicing;
+use App\Commerce\Domain\Subscriber;
 use App\Commerce\Service\Subscriptions;
 use App\Demo\Domain\DemoFixtures;
 use App\Demo\Domain\DemoWorld;
@@ -128,6 +129,20 @@ final class DemoSeeder
                 $actor,
             );
             $invoices[] = $this->invoicing->issueForSubscription($tenant, $product, $actor);
+        }
+
+        // Les sieges, apres les abonnements de l'organisation : un siege coexiste avec celui du
+        // locataire, et ses droits ne touchent que son porteur. Aucune facture ici — le siege de
+        // demonstration existe pour montrer le droit, pas la vente, et une facture de plus
+        // decalerait les jeux d'essai qui comptent celles des abonnements.
+        foreach (DemoWorld::SEATS as $siege) {
+            $this->subscriptions->subscribe(
+                $structure->tenant($siege['tenant']),
+                $structure->product($siege['product']),
+                $structure->offer($siege['product'], $siege['offer']),
+                $structure->user(DemoWorld::TENANT_ADMINS[$siege['tenant']]),
+                Subscriber::user($structure->user($siege['holder'])),
+            );
         }
 
         // After the subscriptions: each project is counted against its

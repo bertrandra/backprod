@@ -88,6 +88,22 @@ final class DemoWorld
                 'plan.3d' => ['name' => '3D view and GLB viewer', 'from' => 'pro'],
                 'plan.export.dxf' => ['name' => 'DXF export', 'from' => 'pro'],
                 'plan.export.dossier' => ['name' => 'Client PDF dossier', 'from' => 'scale'],
+                // The one that takes away rather than gives (2026-09-23). Every other capability
+                // unlocks a function; this one tells the product that whoever holds it may look
+                // and not change. It belongs to no tier, because it is not a smaller Plan — it is
+                // a different seat, sold on its own plan below.
+                'plan.readonly' => ['name' => 'Read-only seat', 'from' => 'lecture'],
+            ],
+            // A plan of its own, outside the Starter/Pro/Scale ladder, because it is not a rung on
+            // it: somebody who consults a plan and never draws one. Sold per seat, so a colleague
+            // who reads costs a fraction of one who works.
+            'plans' => [
+                'lecture' => [
+                    'name' => 'Lecture', 'rank' => 5, 'price' => 500, 'period' => 'MONTHLY',
+                    // Everything one needs to look at a plan, and `plan.readonly` to say that
+                    // looking is all. No quota: a reader stores nothing to count.
+                    'grants' => ['plan.readonly', 'plan.terrasse', 'plan.cadastre', 'plan.ortho', 'plan.plu', 'plan.3d'],
+                ],
             ],
         ],
     ];
@@ -159,6 +175,9 @@ final class DemoWorld
         'acme-admin' => ['name' => 'ACME tenant admin', 'scope' => 'tenant', 'role' => 'TENANT_ADMIN', 'tenants' => ['acme']],
         'acme-user1' => ['name' => 'ACME user1', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['acme']],
         'acme-user2' => ['name' => 'ACME user2', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['acme']],
+        // The reader (2026-09-23): an ordinary member of acme, with an ordinary role — what makes
+        // them a reader is the seat they hold, not who they are. See SEATS below.
+        'acme-user4' => ['name' => 'ACME user4 (lecture)', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['acme']],
         'globex-admin' => ['name' => 'Globex tenant admin', 'scope' => 'tenant', 'role' => 'TENANT_ADMIN', 'tenants' => ['globex']],
         'globex-user1' => ['name' => 'Globex user1', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['globex']],
         'globex-user2' => ['name' => 'Globex user2', 'scope' => 'tenant', 'role' => 'USER', 'tenants' => ['globex']],
@@ -185,6 +204,27 @@ final class DemoWorld
         ['tenant' => 'globex', 'product' => 'boreas', 'offer' => 'starter-monthly'],
         ['tenant' => 'acme', 'product' => 'plan', 'offer' => 'pro-monthly'],
         ['tenant' => 'initech', 'product' => 'plan', 'offer' => 'starter-monthly'],
+    ];
+
+    /**
+     * The seats: a subscription that belongs to ONE person rather than to the
+     * organisation (§13.1, `Subscriber::user`).
+     *
+     * A seat's entitlements reach its holder and nobody else — the repository
+     * excludes "a seat belonging to somebody else" from every other person's
+     * answer. That is what makes a read-only seat possible at all: acme keeps
+     * its Pro subscription for everybody, and one person additionally holds
+     * Lecture, which tells Plan that this person looks and does not change.
+     *
+     * Note the direction: the seat ADDS `plan.readonly` on top of what the
+     * tenant already grants. Capabilities are a union, so a restricting one has
+     * to be read as a restriction by the product — which Plan does, and says so
+     * where it reads it.
+     *
+     * @var list<array{tenant: string, product: string, offer: string, holder: string}>
+     */
+    public const SEATS = [
+        ['tenant' => 'acme', 'product' => 'plan', 'offer' => 'lecture-monthly', 'holder' => 'acme-user4'],
     ];
 
     /**
