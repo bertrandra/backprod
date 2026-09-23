@@ -63,7 +63,10 @@ final class DemoResetTest extends DatabaseApiTestCase
         self::assertSame(
             [
                 'backprod@raillard.org',
-                'acme-admin@raillard.org', 'acme-user1@raillard.org', 'acme-user2@raillard.org',
+                // acme-user4 holds the Lecture seat (2026-09-23). An ordinary
+                // member with an ordinary role: what makes them a reader is the
+                // seat, not who they are.
+                'acme-admin@raillard.org', 'acme-user1@raillard.org', 'acme-user2@raillard.org', 'acme-user4@raillard.org',
                 'globex-admin@raillard.org', 'globex-user1@raillard.org', 'globex-user2@raillard.org',
                 'initech-admin@raillard.org', 'initech-user1@raillard.org',
             ],
@@ -73,8 +76,18 @@ final class DemoResetTest extends DatabaseApiTestCase
 
         // What the database holds: the world and nothing else.
         self::assertSame(5, $this->rowCount('SELECT count(*) FROM products'));
-        self::assertSame(9, $this->rowCount('SELECT count(*) FROM users'));
-        self::assertSame(4, $this->rowCount("SELECT count(*) FROM subscriptions WHERE status = 'ACTIVE'"));
+        self::assertSame(count(DemoWorld::PEOPLE), $this->rowCount('SELECT count(*) FROM users'));
+        // The organisations' subscriptions, plus the seats: a seat is a
+        // subscription of its own, belonging to one person (§13.1), and it
+        // coexists with the tenant's rather than replacing it.
+        self::assertSame(
+            count(DemoWorld::SUBSCRIPTIONS) + count(DemoWorld::SEATS),
+            $this->rowCount("SELECT count(*) FROM subscriptions WHERE status = 'ACTIVE'"),
+        );
+        self::assertSame(
+            count(DemoWorld::SEATS),
+            $this->rowCount("SELECT count(*) FROM subscriptions WHERE subscriber_kind = 'USER' AND status = 'ACTIVE'"),
+        );
         // Down to the project (2026-09-22): made through the workspace, so
         // each was counted against a quota the offer actually grants and
         // stored under a schema version the product declared.
