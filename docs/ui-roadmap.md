@@ -244,15 +244,15 @@ test, 126 reads instead of one.
 interaction.
 
 **Areas:** `workspace.projects`, `workspace.project`, `workspace.assets`,
-`workspace.jobs`, `workspace.geometry`
+`workspace.jobs`, ~~`workspace.geometry`~~ (removed 2026-09-23, see below)
 
 **Deliverables**
 - Project list and detail; create, rename, duplicate, delete, restore
 - Version history, and reading one version
 - Assets: upload, inspect, share by signed link (`createAssetLink` → the browser fetches the bytes, the client never does), request export
 - Jobs: queued, running, failed, cancel — **region E becomes real here**
-- Canvas: full-bleed on mobile with a floating tool sheet; measurement and intersection called from it
-- Geometry through the Core (§4, §5): the canvas triggers, the Core computes, TanStack Query only transports
+- ~~Canvas: full-bleed on mobile with a floating tool sheet; measurement and intersection called from it~~ — **removed 2026-09-23**, see below
+- ~~Geometry through the Core (§4, §5): the canvas triggers, the Core computes, TanStack Query only transports~~ — the rule stands everywhere; the surface that proved it does not
 
 **Exit criteria** — three met, one wrong when it was written
 - An export is requested, tracked in region E, and downloadable when done, without the page being reloaded — asserted in a browser (`e2e/workspace.spec.ts`) with a stub that advances the job between polls, so a strip that rendered once fails it
@@ -260,6 +260,23 @@ interaction.
 - ~~Restoring a deleted project works, and the deleted state is visible rather than the row simply vanishing~~ — **this criterion describes an API that does not exist.** See below
 - No business calculation in a component — the canvas test asserts the *Core's* numbers (4242 and 1337 over a hand-drawn triangle), so adding a shoelace formula fails it. Proven by adding one
 - 22 operations covered
+
+**The canvas was removed on 2026-09-23**, and with it two of the criteria
+above — one-handed at 375 px, and no business calculation in a component.
+Both were met, and both were about a surface that is gone: it drew scratch
+shapes no project document kept, and the platform now carries the projects
+of a product whose entire business is drawing (ADR-051). Two drawing
+surfaces for one project, one of which forgets, is worse than one.
+
+What the milestone actually proved outlives it and is not re-litigated
+here: a screen can render a shape and compute nothing about it, and
+`gate:money`'s sibling rule — the Core answers, the component transports —
+is enforced everywhere else the same way. `measureGeometry` and
+`intersectGeometries` keep their routes, their tests and their entry in
+`docs/ui-api-coverage.json` under `not_in_ui`; their caller is now a
+product beside the platform, on the person's own session. The area
+`workspace.geometry` no longer exists, so U4 covers 20 operations rather
+than 22.
 
 **The criterion that was wrong.** `DELETE /projects/{projectId}` is a hard
 delete, and `project_versions` goes with it through `ON DELETE CASCADE`. There is

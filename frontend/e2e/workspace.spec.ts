@@ -8,9 +8,10 @@ import { expect, test } from './support/app';
  *   - **an export is requested, tracked in region E, and downloadable when
  *     done, without the page being reloaded** — the stub advances the job
  *     between polls, so a strip that rendered once and stopped fails here;
- *   - **the canvas is usable one-handed at 375 px** — which is a claim about
- *     layout and reach, not about state, and cannot be asserted in jsdom
- *     because jsdom has no layout at all.
+ *   - **the page does not scroll sideways at 375 px** — a claim about
+ *     layout, not about state, which jsdom cannot judge because it has no
+ *     layout at all. It used to be a claim about the canvas, and the canvas
+ *     was removed on 2026-09-23; the width of a phone did not move.
  */
 const SESSION = {
   user_id: '11111111-1111-4111-8111-111111111111',
@@ -27,7 +28,7 @@ const SESSION = {
     'jobs.read',
     'jobs.manage',
   ],
-  capabilities: ['gis.access'],
+  capabilities: [],
 };
 
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
@@ -133,19 +134,6 @@ async function workspace(page: Page, session: Record<string, unknown> = SESSION)
     route.fulfill({ body: '{"exported":true}', contentType: 'application/json' }),
   );
 
-  await page.route(/\/api\/v1\/geometry\/measure$/, (route) =>
-    route.fulfill({
-      json: {
-        measurement: {
-          vertices: 4,
-          area: 4242,
-          perimeter: 1337,
-          bounding_box: { min_x: 0, min_y: 0, max_x: 10, max_y: 10 },
-        },
-      },
-    }),
-  );
-
   return state;
 }
 
@@ -188,69 +176,29 @@ test.describe('an export', () => {
   });
 });
 
-test.describe('the canvas', () => {
-  test('is usable one-handed at 375 px', async ({ page }) => {
+/**
+ * The canvas's three specs were here until 2026-09-23 — full-bleed at
+ * 375 px, no horizontal scroll, and the Core's 4242 over a triangle drawn
+ * by hand. They went with the surface they described. What they proved is
+ * not lost: that a screen renders a shape without computing anything about
+ * it is now the business of the product that draws, and `measureGeometry`
+ * keeps its own tests on the platform's side.
+ *
+ * The page must still not scroll sideways on a phone, and that claim is
+ * not about a canvas, so it stays.
+ */
+test.describe('a project on a phone', () => {
+  test('never scrolls horizontally at 375 px', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 720 });
     await workspace(page);
 
     await page.goto(`/projects/${PROJECT_ID}?product=atlas`);
-
-    const surface = page.getByTestId('canvas-surface');
-    await expect(surface).toBeVisible();
-
-    const box = await surface.boundingBox();
-    expect(box).not.toBeNull();
-
-    // Full-bleed: the surface takes the width it is given, give or take the
-    // page's own gutter.
-    expect(box?.width ?? 0).toBeGreaterThan(320);
-
-    // Every control is a 44 px touch target (ui-spec.md §4.2), and within reach:
-    // the sheet sits in the lower half of the screen rather than at the top of a
-    // long page.
-    const measure = page.getByRole('button', { name: 'Measure' });
-    const measureBox = await measure.boundingBox();
-
-    expect(measureBox?.height ?? 0).toBeGreaterThanOrEqual(44);
-
-    await expect(page.getByTestId('tool-sheet')).toBeVisible();
-  });
-
-  test('never scrolls horizontally at phone width', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 720 });
-    await workspace(page);
-
-    await page.goto(`/projects/${PROJECT_ID}?product=atlas`);
-    await expect(page.getByTestId('canvas-surface')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'North wall' })).toBeVisible();
 
     const overflows = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
     );
 
     expect(overflows).toBe(false);
-  });
-
-  test('reports the measurement the Core computed', async ({ page }) => {
-    await workspace(page);
-
-    await page.goto(`/projects/${PROJECT_ID}?product=atlas`);
-
-    const surface = page.getByTestId('canvas-surface');
-    await expect(surface).toBeVisible();
-
-    // Clicked through the locator with element-relative positions: it scrolls the
-    // surface into view first, which `page.mouse` does not — the canvas sits well
-    // down the project page.
-    await surface.click({ position: { x: 20, y: 20 } });
-    await surface.click({ position: { x: 120, y: 20 } });
-    await surface.click({ position: { x: 120, y: 120 } });
-
-    await page.getByRole('button', { name: 'Finish shape' }).click();
-    await page.getByRole('button', { name: 'Measure' }).click();
-
-    // 4242 over a right triangle drawn by hand is not any function of these
-    // three points: it is what the API said.
-    await expect(page.getByTestId('area')).toHaveText('4242');
-    await expect(page.getByTestId('perimeter')).toHaveText('1337');
   });
 });
