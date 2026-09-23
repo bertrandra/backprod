@@ -31,6 +31,32 @@ describe('t', () => {
   });
 });
 
+describe('two languages asked for at once', () => {
+  it('applies the one asked for last, not the one whose catalogue arrives last', async () => {
+    // German is not installed in this file, so its catalogue is a real
+    // `import()` and this call has to wait for it. English needs none and
+    // finishes first. Without a sequence, German would land afterwards and
+    // overwrite a choice made after it — which is what made one profile
+    // test fail for days under the name "flaky".
+    const german = setLocale('de');
+    const english = setLocale('en');
+
+    await Promise.all([german, english]);
+
+    expect(currentLocale()).toBe('en');
+  });
+
+  it('keeps the catalogue it loaded, so the next ask for it costs nothing', async () => {
+    const italian = setLocale('it');
+    await Promise.all([italian, setLocale('en')]);
+
+    installCatalogue('it', { 'Rank of {name}': 'Rango di {name}' });
+    await setLocale('it');
+
+    expect(t('Rank of {name}', { name: 'Pro' })).toBe('Rango di Pro');
+  });
+});
+
 describe('detectLocale', () => {
   it('is the address first, and says so', () => {
     expect(detectLocale('?lang=de', 'fr', ['es-ES'])).toEqual({ locale: 'de', explicit: true });
