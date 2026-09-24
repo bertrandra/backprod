@@ -7,6 +7,7 @@ import { withRoot } from '@/app/root';
 import { useForgotPassword, useResetPassword, useSignIn, useVerifyEmail } from '@/queries/auth';
 import { useSessionStore } from '@/state/session';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { PasswordInput } from '@/ui/PasswordInput';
 import { PageHeader } from '@/ui/Page';
 import { t } from '@/i18n';
 import { LanguageSelect } from '@/i18n/LanguageSelect';
@@ -168,11 +169,10 @@ export function SignInScreen() {
         </Field>
 
         <Field id="password" label={t("Password")} error={form.formState.errors.password?.message}>
-          <input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="current-password"
-            className={inputClass(form.formState.errors.password !== undefined)}
+            invalid={form.formState.errors.password !== undefined}
             {...form.register('password')}
           />
         </Field>
@@ -284,11 +284,10 @@ function ResetPasswordForm({ token, onDone }: { token: string; onDone: () => voi
         }}
       >
         <Field id="new-password" label={t("New password")} hint={t("At least 12 characters.")} error={form.formState.errors.password?.message}>
-          <input
+          <PasswordInput
             id="new-password"
-            type="password"
             autoComplete="new-password"
-            className={inputClass(form.formState.errors.password !== undefined)}
+            invalid={form.formState.errors.password !== undefined}
             {...form.register('password')}
           />
         </Field>

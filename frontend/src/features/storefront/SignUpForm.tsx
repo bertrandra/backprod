@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { useSignUp, type CreatedAccount } from '@/queries/auth';
 import type { PublicOffer, PublicTenant } from '@/queries/storefront';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { PasswordInput } from '@/ui/PasswordInput';
 import { Amount } from '@/ui/Money';
 import { PageHeader } from '@/ui/Page';
 import { currentLocale, t } from '@/i18n';
@@ -163,11 +164,10 @@ export function SignUpForm({
           hint={t("At least 12 characters.")}
           error={form.formState.errors.password?.message}
         >
-          <input
+          <PasswordInput
             id="signup-password"
-            type="password"
             autoComplete="new-password"
-            className={inputClass(form.formState.errors.password !== undefined)}
+            invalid={form.formState.errors.password !== undefined}
             {...form.register('password')}
           />
         </Field>

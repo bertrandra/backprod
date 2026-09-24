@@ -108,7 +108,7 @@ const SESSION = { access_token: 'access-token', token_type: 'Bearer', expires_in
 async function openSignIn(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByTestId('sign-in-link').click();
-  await page.getByLabel('Password').waitFor();
+  await page.getByLabel('Password', { exact: true }).waitFor();
 }
 
 test.describe('arriving with no session', () => {
@@ -126,7 +126,7 @@ test.describe('arriving with no session', () => {
     // something that genuinely requires a session.
     await page.goto('/profile?product=atlas');
 
-    await expect(page.getByLabel('Password')).toBeVisible();
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
 
     // Exactly one call, and it is the gate asking whether there is a session to
     // resume. U11's version of this test asserted *no* calls, which was true when
@@ -152,7 +152,7 @@ test.describe('arriving with no session', () => {
     await page.goto('/');
     await page.getByTestId('sign-in-link').click();
     await page.getByLabel('Email').fill('ada@acme.test');
-    await page.getByLabel('Password').fill('correct horse');
+    await page.getByLabel('Password', { exact: true }).fill('correct horse');
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     // The one product this person has is chosen for them and the shell fills.
@@ -202,7 +202,7 @@ test.describe('arriving with no session', () => {
     await page.goto('/');
     await page.getByTestId('sign-in-link').click();
     await page.getByLabel('Email').fill('ada@zenith.test');
-    await page.getByLabel('Password').fill('correct horse');
+    await page.getByLabel('Password', { exact: true }).fill('correct horse');
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     // Moved to /zenith/ — a full navigation, the session restored from the
@@ -224,7 +224,7 @@ test.describe('arriving with no session', () => {
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
 
     await page.getByLabel('Email').fill('ada@acme.test');
-    await page.getByLabel('Password').fill('correct horse');
+    await page.getByLabel('Password', { exact: true }).fill('correct horse');
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     // Still /profile. There is no redirect to a sign-in route, so there is
@@ -242,7 +242,7 @@ test.describe('arriving with no session', () => {
     // that — so it has nothing to show but the way out.
     await page.goto('/sign-in?product=atlas');
     await page.getByLabel('Email').fill('ada@acme.test');
-    await page.getByLabel('Password').fill('correct horse');
+    await page.getByLabel('Password', { exact: true }).fill('correct horse');
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     await expect(page).not.toHaveURL(/\/sign-in/);
@@ -255,7 +255,7 @@ test.describe('arriving with no session', () => {
 
     await openSignIn(page);
     await page.getByLabel('Email').fill('ada@acme.test');
-    await page.getByLabel('Password').fill('correct horse');
+    await page.getByLabel('Password', { exact: true }).fill('correct horse');
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeHidden();
@@ -276,7 +276,7 @@ test.describe('arriving with no session', () => {
     // Long enough to pass the form's own minimum, so the server is what refuses
     // it. Typing 'wrong' — which is what this test did first — never leaves the
     // browser, and the assertion then reads the field's own message instead.
-    await page.getByLabel('Password').fill('wrong but long enough');
+    await page.getByLabel('Password', { exact: true }).fill('wrong but long enough');
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     await expect(page.getByRole('alert')).toHaveText(
@@ -284,7 +284,7 @@ test.describe('arriving with no session', () => {
     );
     // Not the provider's wording, which distinguishes "no such user" from "wrong
     // password" on some paths.
-    await expect(page.getByLabel('Password')).toHaveValue('');
+    await expect(page.getByLabel('Password', { exact: true })).toHaveValue('');
     await expect(page.getByLabel('Email')).toHaveValue('ada@acme.test');
   });
 
@@ -292,7 +292,7 @@ test.describe('arriving with no session', () => {
     await stubApi(page);
     await stubAuth(page, { token: { status: 200, json: SESSION } });
     await openSignIn(page);
-    await page.getByLabel('Password').waitFor();
+    await page.getByLabel('Password', { exact: true }).waitFor();
 
     // The one screen the U9 suite could not reach, because that suite is signed
     // in by the time it scans anything.
@@ -324,7 +324,7 @@ test.describe('coming back later', () => {
 
     await page.goto('/profile?product=atlas');
 
-    await expect(page.getByLabel('Password')).toBeVisible();
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
     // And there is nothing in storage to clear, because U12 put nothing there. The
     // credential was a cookie, and the server is what decides it is spent.
     expect(await page.evaluate(() => Object.keys(window.localStorage))).not.toContain(
