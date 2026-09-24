@@ -160,10 +160,13 @@ test.describe('arriving with no session', () => {
     // A menu: the sidebar's entry on a desktop, the bottom bar's on a phone.
     await expect(page.locator('[data-nav="profile"]:visible, [data-nav-bottom="profile"]:visible')).toHaveCount(1);
     await expect(page.getByTestId('account-menu')).toHaveText('A');
-    // And the first screen in that menu is where they land (2026-09-18):
-    // the same place a deep link's form leads, not a page the menu leads
-    // with somewhere else.
-    await expect(page).toHaveURL(/\/profile/);
+    // And they land on the product's story, which is what `/` is since
+    // 2026-09-24 (docs/home-showcase-spec.md §2). It used to move them on
+    // to the first entry of the menu, which is why `/` could never be a
+    // page: a stranger saw the storefront, a member was ejected, and
+    // nobody ever saw what the product was.
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByTestId('showcase-hero')).toBeVisible();
   });
 
   test('signing in at the bare host as a member of another organisation lands under its own root', async ({ page }) => {
@@ -206,8 +209,8 @@ test.describe('arriving with no session', () => {
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     // Moved to /zenith/ — a full navigation, the session restored from the
-    // cookie — and from there to the first screen in the menu (2026-09-18).
-    await expect(page).toHaveURL(/\/zenith\/profile/);
+    // cookie — and left on the product's story there (2026-09-24).
+    await expect(page).toHaveURL(/\/zenith\/$/);
     await expect(page.getByTestId('active-product')).toHaveAttribute('data-product', 'atlas');
   });
 

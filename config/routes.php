@@ -107,6 +107,8 @@ use App\Product\Controller\ProductFeaturesController;
 use App\Product\Controller\ProductTenantEntitlementsController;
 use App\Product\Controller\ProductTenantMembersController;
 use App\Product\Controller\ProductTenantUsageController;
+use App\Product\Controller\PublicShowcaseAssetController;
+use App\Product\Controller\PublicShowcaseController;
 use App\Product\Controller\ShowProductController;
 use App\Project\Controller\CreateProjectController;
 use App\Project\Controller\CreateProjectVersionController;
@@ -163,6 +165,7 @@ use App\Staff\Controller\ListTenantsController;
 use App\Staff\Controller\ListWebhookDeliveriesController;
 use App\Staff\Controller\PostSupportMessageController;
 use App\Staff\Controller\PublishStaffOfferVersionController;
+use App\Staff\Controller\PublishStoryController;
 use App\Staff\Controller\RenameFeatureController;
 use App\Staff\Controller\RenameStaffOfferController;
 use App\Staff\Controller\ResetDemoWorldController;
@@ -186,6 +189,7 @@ use App\Staff\Controller\ShowNavigationSetupController;
 use App\Staff\Controller\ShowReadinessController;
 use App\Staff\Controller\ShowStaffNavigationController;
 use App\Staff\Controller\ShowStorefrontSettingsController;
+use App\Staff\Controller\ShowStoryController;
 use App\Staff\Controller\ShowSupportConversationController;
 use App\Staff\Controller\ShowTenantController;
 use App\Staff\Controller\ShowTenantEntitlementController;
@@ -196,7 +200,9 @@ use App\Staff\Controller\UpdatePlanController;
 use App\Staff\Controller\UpdateProductController;
 use App\Staff\Controller\UpdateStaffProfileController;
 use App\Staff\Controller\UpdateTenantController;
+use App\Staff\Controller\UploadShowcaseAssetController;
 use App\Staff\Controller\WithdrawTenantEntitlementController;
+use App\Staff\Controller\WriteStoryController;
 use App\Storage\Controller\CreateAssetLinkController;
 use App\Storage\Controller\DeleteAssetController;
 use App\Storage\Controller\DownloadAssetController;
@@ -284,6 +290,15 @@ return static function (RouteCollector $routes): void {
     // The shop windows a stranger may choose between: only products that
     // advertise something, so the list says nothing the windows do not.
     $routes->addRoute('GET', '/api/v1/public/products', PublicProductsController::class);
+    // What a product says about itself (2026-09-24,
+    // `docs/home-showcase-spec.md`). By code, because a stranger has no
+    // session to resolve an id from; 404 for a draft, so an unpublished
+    // page is not a way to learn that a product exists.
+    $routes->addRoute('GET', '/api/v1/public/products/{code}/showcase', PublicShowcaseController::class);
+    // Its pictures, public because the page is and only while it is: the
+    // read joins the product and answers 404 the moment the story comes
+    // down. Not a signed link — the reader has no session to mint one with.
+    $routes->addRoute('GET', '/api/v1/public/products/{code}/showcase/assets/{assetId}', PublicShowcaseAssetController::class);
     // The organisation at a URL root (2026-09-17), before any session.
     $routes->addRoute('GET', '/api/v1/public/tenant', PublicTenantController::class);
     // The demonstration page (2026-09-18): 404 until the console switches it on.
@@ -633,6 +648,19 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('POST', '/api/v1/staff/products/{productId}/webhook-secret', IssueWebhookSecretController::class);
     $routes->addRoute('GET', '/api/v1/staff/products/{productId}/webhook-deliveries', ListWebhookDeliveriesController::class);
     $routes->addRoute('POST', '/api/v1/staff/products/{productId}/webhook-deliveries/{deliveryId}/retry', RetryWebhookDeliveryController::class);
+
+    // The story a product tells on its own page (2026-09-24,
+    // `docs/home-showcase-spec.md`). Written by the platform's own staff
+    // and never by a tenant: a page written by one customer would be read
+    // by every other customer of the same product (§11.1).
+    //
+    // Writing and publishing are separate acts, so four bands can be
+    // written over an afternoon without a stranger reading the
+    // half-finished ones.
+    $routes->addRoute('GET', '/api/v1/staff/products/{productId}/showcase', ShowStoryController::class);
+    $routes->addRoute('PUT', '/api/v1/staff/products/{productId}/showcase', WriteStoryController::class);
+    $routes->addRoute('POST', '/api/v1/staff/products/{productId}/showcase/publish', PublishStoryController::class);
+    $routes->addRoute('POST', '/api/v1/staff/products/{productId}/assets', UploadShowcaseAssetController::class);
 
     // The demonstration world, rebuilt from the console. Behind a permission
     // of its own, and refused while a product that is not the demo's exists.

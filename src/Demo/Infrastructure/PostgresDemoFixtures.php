@@ -41,6 +41,11 @@ final class PostgresDemoFixtures implements DemoFixtures
         'entitlements', 'subscription_events', 'subscriptions',
         'offer_version_features', 'offer_versions', 'offers', 'features', 'plans',
         'product_features', 'product_configuration',
+        // The story a product tells and the pictures it shows (2026-09-24).
+        // Named although both cascade from `products`: this list is what a
+        // reader checks to answer "is anything left behind", and a table
+        // that is only ever emptied by a cascade is one nobody finds.
+        'product_showcase_translations', 'product_showcase', 'product_assets',
         'messages', 'conversation_participants', 'conversations',
         'notification_deliveries', 'notifications', 'notification_consents', 'notification_preferences',
         'project_versions', 'assets', 'projects',
@@ -111,6 +116,7 @@ final class PostgresDemoFixtures implements DemoFixtures
                 $offers[$code] = $this->catalogue($products[$code], $definition['base'], $definition['meters'], $definition['capabilities'] ?? [], $definition['plans'] ?? []);
                 $this->supplier($products[$code], $definition['name']);
                 $this->schemaVersions($products[$code]);
+                $this->showcase($products[$code], $code);
             }
 
             $this->customers($tenants);
@@ -231,6 +237,28 @@ final class PostgresDemoFixtures implements DemoFixtures
                 SELECT count(*) FROM offers o
                 WHERE (SELECT count(*) FROM offer_translations t WHERE t.offer_id = o.id) <> 4
                 SQL,
+            ),
+            // The shop window (2026-09-24). Counted rather than spot-checked
+            // for the reason the catalogue's translations are: a band seeded
+            // without its four still renders — in English — so nothing on
+            // screen would say this had quietly stopped working.
+            'the product beside the platform tells its story' => count(DemoWorld::SHOWCASE['plan']) === $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM product_showcase s
+                JOIN products p ON p.id = s.product_id
+                WHERE p.code = 'plan'
+                SQL,
+            ),
+            'every band of it says itself in four other languages' => 0 === $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM product_showcase s
+                WHERE (SELECT count(*) FROM product_showcase_translations t WHERE t.block_id = s.id) <> 4
+                SQL,
+            ),
+            // Published, or a stranger reads a 404 — which is right for a
+            // draft and useless in a demonstration.
+            'its story is published, and no other product pretends to have one' => 1 === $this->count(
+                'SELECT count(*) FROM products WHERE showcase_published_at IS NOT NULL',
             ),
         ];
     }
@@ -561,6 +589,74 @@ final class PostgresDemoFixtures implements DemoFixtures
         }
 
         return $offers;
+    }
+
+    /**
+     * The story a product tells on its own page (2026-09-24, step 5 of
+     * `docs/home-showcase-spec.md`).
+     *
+     * Written for real and in five languages, because a demonstration
+     * whose shop window said *lorem ipsum* would let the page be judged on
+     * its layout and never on whether it works — and one written only in
+     * English would demonstrate the fallback rather than the feature.
+     *
+     * **Published**, so a stranger can read it: an unpublished story
+     * answers 404, which is right for a draft and useless in a demo.
+     *
+     * Only the product that has something to say. The other four show
+     * their name and their prices, which is the honest state of a product
+     * nobody has written a page for — and the one somebody most needs to
+     * see before writing their own.
+     */
+    private function showcase(string $product, string $code): void
+    {
+        $blocks = DemoWorld::SHOWCASE[$code] ?? [];
+
+        if ($blocks === []) {
+            return;
+        }
+
+        // Positions within a kind, minted from the order they are written
+        // in, in tens — `display_order`'s habit, so one can be slipped
+        // between two others without renumbering anybody.
+        $positions = [];
+
+        foreach ($blocks as $block) {
+            $positions[$block['block']] = ($positions[$block['block']] ?? 0) + 10;
+
+            $id = $this->id(
+                <<<'SQL'
+                INSERT INTO product_showcase (product_id, block, position, content)
+                VALUES (:product, :block, :position, CAST(:content AS jsonb))
+                RETURNING id
+                SQL,
+                [
+                    'product' => $product,
+                    'block' => $block['block'],
+                    'position' => $positions[$block['block']],
+                    'content' => json_encode($block['content'], JSON_THROW_ON_ERROR),
+                ],
+            );
+
+            foreach ($block['translations'] as $locale => $content) {
+                $this->connection->executeStatement(
+                    <<<'SQL'
+                    INSERT INTO product_showcase_translations (block_id, locale, content)
+                    VALUES (:block, :locale, CAST(:content AS jsonb))
+                    SQL,
+                    [
+                        'block' => $id,
+                        'locale' => $locale,
+                        'content' => json_encode($content, JSON_THROW_ON_ERROR),
+                    ],
+                );
+            }
+        }
+
+        $this->connection->executeStatement(
+            'UPDATE products SET showcase_published_at = now() WHERE id = :id',
+            ['id' => $product],
+        );
     }
 
     /**

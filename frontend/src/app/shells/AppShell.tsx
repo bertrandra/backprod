@@ -97,7 +97,7 @@ export function AppShell() {
 
   // The landing address, signed in: the person's root, their product, and
   // the first screen in their menu (`landing.ts`, 2026-09-18).
-  useLanding(pathname === '/' && !onPlatformScreen, sections);
+  useLanding(pathname === '/' && !onPlatformScreen);
 
   // Their language (ADR-050), once `/me` says it — and nothing overrides it
   // (2026-09-23). It used to lose to `?lang=` in the address, which meant a

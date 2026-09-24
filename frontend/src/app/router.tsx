@@ -18,6 +18,7 @@ import { InvoicesScreen } from '@/features/billing/InvoicesScreen';
 import { PaymentsScreen } from '@/features/billing/PaymentsScreen';
 import { SubscriptionScreen } from '@/features/billing/SubscriptionScreen';
 import { CatalogueScreen } from '@/features/commerce/CatalogueScreen';
+import { ShowcaseScreen } from '@/features/showcase/ShowcaseScreen';
 import { CheckoutScreen } from '@/features/commerce/CheckoutScreen';
 import { OfferAuthoringScreen } from '@/features/commerce/OfferAuthoringScreen';
 import { ConversationsScreen } from '@/features/messaging/ConversationsScreen';
@@ -197,20 +198,27 @@ const appShellRoute = createRoute({
 });
 
 /**
- * The tenant application's landing: the catalogue (2026-09-17).
+ * The tenant application's landing: the product's story (2026-09-24).
  *
  * The root of an organisation — `hostname/acme/` — is one page seen by two
- * authorities: a stranger gets the storefront, a member gets the catalogue
- * for the same products, with Buy where their permission allows and prices
- * where it does not (docs/tenant-roots.md §2.2). Signing out returns here,
- * which is why the landing is the page a stranger and a member both know,
- * rather than a sentence pointing at the navigation.
+ * authorities: a stranger gets the storefront, a member gets the same six
+ * bands with a different call to action (docs/tenant-roots.md §2.2,
+ * docs/home-showcase-spec.md §2). Signing out returns here, which is why
+ * the landing is the page a stranger and a member both know, rather than a
+ * sentence pointing at the navigation.
+ *
+ * It was the **catalogue** until 2026-09-24, and a member never saw even
+ * that: `useLanding` moved them on to the first entry of their menu the
+ * moment they touched `/`. So the platform had three behaviours at one
+ * address and no page that said what the product is. The prices are still
+ * here — they are one of the six bands — and `/catalogue` still has them
+ * on their own.
  */
 const indexRoute = createRoute({
   getParentRoute: () => appShellRoute,
   path: '/',
   validateSearch,
-  component: CatalogueScreen,
+  component: ShowcaseScreen,
 });
 
 /**

@@ -364,6 +364,126 @@
           }
         }
       },
+      "ShowcaseBlockContent": {
+        "type": "object",
+        "description": "One band's own fields, all plain text (2026-09-24). Which fields a band has depends on its kind — a HEADLINE has `headline` and `subline`, a QUESTION has `question` and `answer` — and the server refuses any field no band renders, so nobody writes into a hole. No markup is accepted or rendered anywhere in here.",
+        "additionalProperties": false,
+        "properties": {
+          "headline": { "type": "string", "maxLength": 2000, "description": "HEADLINE: what it does, for whom." },
+          "subline": { "type": "string", "maxLength": 2000, "description": "HEADLINE: the change it makes." },
+          "title": { "type": "string", "maxLength": 2000, "description": "STEPS: the move." },
+          "body": { "type": "string", "maxLength": 2000, "description": "STEPS: what happens in it." },
+          "who": { "type": "string", "maxLength": 2000, "description": "USE_CASE: the customer who recognises themselves." },
+          "before": { "type": "string", "maxLength": 2000, "description": "USE_CASE: what they were doing." },
+          "after": { "type": "string", "maxLength": 2000, "description": "USE_CASE: what they do now." },
+          "caption": { "type": "string", "maxLength": 2000, "description": "PROOF: what the picture shows." },
+          "alt": { "type": "string", "maxLength": 2000, "description": "HEADLINE and PROOF: what the picture shows, for somebody who cannot see it. A band field rather than a column on the picture, so it travels through the same translation mechanism as every other sentence on the page." },
+          "question": { "type": "string", "maxLength": 2000, "description": "QUESTION: what somebody asks before buying." },
+          "answer": { "type": "string", "maxLength": 2000, "description": "QUESTION: the answer, in two lines." }
+        }
+      },
+      "ShowcaseBlockInput": {
+        "type": "object",
+        "description": "A band as the console writes it. The English is `content` and is the key and the fallback; `translations` holds the four other languages, field by field — a French headline with no French subline reads French above and English below, which is the honest rendering of a page somebody is still working through.",
+        "required": ["block", "content"],
+        "properties": {
+          "block": {
+            "type": "string",
+            "enum": ["HEADLINE", "STEPS", "USE_CASE", "PROOF", "QUESTION"],
+            "description": "PRICING is absent and must stay absent: it is a position in the order and reads the catalogue. One HEADLINE per page."
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 10,
+            "description": "Within its kind. In tens, so one can be slipped between two others without renumbering anybody."
+          },
+          "asset_id": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "A picture uploaded to this product, or null for none. Deleting the picture leaves the band and its words: the foreign key is ON DELETE SET NULL, because tidying an image must not delete a caption."
+          },
+          "content": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
+          "translations": {
+            "type": "object",
+            "description": "By language. English is refused — it lives on the block itself, and a second home for it would let the two disagree. A language may fill any subset of the band's fields.",
+            "additionalProperties": false,
+            "properties": {
+              "fr": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
+              "es": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
+              "de": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
+              "it": { "$ref": "#/components/schemas/ShowcaseBlockContent" }
+            }
+          }
+        }
+      },
+      "EditableShowcaseBlock": {
+        "type": "object",
+        "description": "A band as the console reads it back: the English, and every language somebody has written beside it — the incomplete ones included, because the console is the only place that can finish them.",
+        "required": ["id", "block", "position", "content", "translations", "asset_id", "image"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "block": { "type": "string", "enum": ["HEADLINE", "STEPS", "USE_CASE", "PROOF", "QUESTION"] },
+          "position": { "type": "integer" },
+          "content": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
+          "asset_id": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "The picture this band carries. An id, because what the console sends back on the next save is the id."
+          },
+          "image": {
+            "type": ["string", "null"],
+            "description": "And its address, so the console's preview does not compose one. A URL written by hand in a screen is a second place the route is spelled, and the one that goes stale. It resolves only once the page is published, which is what makes the picture readable at all."
+          },
+          "translations": {
+            "type": "object",
+            "description": "An empty object means nobody has translated this band yet, which is the ordinary case and not a gap.",
+            "additionalProperties": false,
+            "properties": {
+              "fr": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
+              "es": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
+              "de": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
+              "it": { "$ref": "#/components/schemas/ShowcaseBlockContent" }
+            }
+          }
+        }
+      },
+      "Showcase": {
+        "type": "object",
+        "description": "A product's story as a reader gets it: one language, resolved field by field. The product's own facts come with it because a stranger cannot ask for them separately — `listProducts` answers from a membership, and they have none.",
+        "required": ["product", "blocks"],
+        "properties": {
+          "product": {
+            "type": "object",
+            "required": ["code", "name", "active"],
+            "properties": {
+              "code": { "type": "string" },
+              "name": { "type": "string" },
+              "active": {
+                "type": "boolean",
+                "description": "False for a retired product, which keeps its page (§11.3). It is what lets the prices band say *No longer sold* rather than showing an empty band or a Buy that leads to a refusal."
+              }
+            }
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "block", "position", "content"],
+              "properties": {
+                "id": { "type": "string", "format": "uuid" },
+                "block": { "type": "string", "enum": ["HEADLINE", "STEPS", "USE_CASE", "PROOF", "QUESTION"] },
+                "position": { "type": "integer" },
+                "content": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
+                "image": {
+                  "type": ["string", "null"],
+                  "description": "Where the band's picture lives, ready for an <img src>. An address and not an id, because a client that had to compose the URL would be a second place the route is spelled. Null where the band carries no picture, which is most of them."
+                }
+              }
+            }
+          }
+        }
+      },
       "EditableFeature": {
         "type": "object",
         "description": "A feature as the console edits it: the English on the row, and every translation somebody has written beside it — including the incomplete ones, because the console is the only place that can finish them. A customer is answered `Feature` instead, with one name in their own language.",
@@ -17753,6 +17873,136 @@
         ]
       }
     },
+    "/api/v1/public/products/{code}/showcase": {
+      "get": {
+        "tags": [
+          "Storefront"
+        ],
+        "operationId": "getPublicShowcase",
+        "summary": "What a product says about itself",
+        "description": "Unauthenticated (2026-09-24, docs/home-showcase-spec.md). The product's story as a stranger reads it: the bands somebody wrote, in order, with each field resolved into one language. By **code**, because a stranger has no session to resolve an id from.\n\n`404 SHOWCASE_NOT_FOUND` for a draft, a code nobody has, and a product that does not exist — one answer for all three, so an unpublished page is not a way to learn that a product exists (ADR-041).\n\nA **retired** product still answers: retiring stops the selling, not the record (§11.3). `product.active` is false for one, and the page says *No longer sold* where the prices were rather than showing an empty band or a Buy that leads to a refusal.\n\nThe language is English. A stranger has no profile, and `?lang=` was removed on 2026-09-23 (ADR-050) because a shared link could impose a language on whoever opened it next — the same open question the storefront already has, and it will be settled for both at once.",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["en", "fr", "es", "de", "it"]
+            },
+            "description": "The language to answer in. A header and not `?lang=`, which ADR-050 removed on 2026-09-23: a query parameter travels in a link, so a page somebody shared could impose a language on whoever opened it next. A header cannot be shared by accident — it is the reader saying which language they are reading in, now. Absent or unknown answers English, which is the key and the fallback everywhere on this platform."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The story.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "showcase"
+                  ],
+                  "properties": {
+                    "showcase": {
+                      "$ref": "#/components/schemas/Showcase"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/public/products/{code}/showcase/assets/{assetId}": {
+      "get": {
+        "tags": [
+          "Storefront"
+        ],
+        "operationId": "getPublicShowcaseAsset",
+        "summary": "A picture on a published product page",
+        "description": "Unauthenticated (2026-09-24). Public because the page is, and only while it is: the read joins the product and answers 404 the moment the story is taken down. One non-answer for an unpublished product, an unknown id and another product’s picture, so an id is not a way to ask what a draft contains.\n\nNot a signed link, unlike `downloadAsset`: that one serves a tenant’s file to somebody handed a link by a person who may see it, and the reader here has no session to mint one with. What is served is marketing material somebody chose to publish.\n\nThe **sniffed** content type is what is sent, never a claim from the upload, with `nosniff` so a browser does not improve on it. Cached immutably: the id names *these* bytes, and a new picture is a new id.",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "assetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes.",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/gif": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/public/tenant": {
       "get": {
         "tags": [
@@ -19142,6 +19392,278 @@
           "429": { "$ref": "#/components/responses/TooManyRequests" },
           "500": { "$ref": "#/components/responses/InternalError" },
           "503": { "description": "`WEBHOOKS_NOT_CONFIGURED` — the deployment has no WEBHOOK_SECRET_KEY to seal the secret under.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/v1/staff/products/{productId}/showcase": {
+      "get": {
+        "tags": ["Staff"],
+        "operationId": "showProductStory",
+        "summary": "The product's story, as the console edits it",
+        "description": "Every band with **every language beside it**, drafts included (2026-09-24). Answered differently from the public read for the reason a feature is: a customer is shown one language, resolved, and the console is shown all five — because it is the only place that can finish a half-translated page and the only place where seeing a gap helps. `staff.products.manage`.",
+        "parameters": [
+          { "name": "productId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "The story.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["product", "published_at", "blocks"],
+                  "properties": {
+                    "product": {
+                      "type": "object",
+                      "required": ["id", "code", "name"],
+                      "properties": {
+                        "id": { "type": "string", "format": "uuid" },
+                        "code": { "type": "string" },
+                        "name": { "type": "string" }
+                      }
+                    },
+                    "published_at": {
+                      "type": ["string", "null"],
+                      "format": "date-time",
+                      "description": "Null is a draft, and the public read answers 404 for one."
+                    },
+                    "blocks": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/EditableShowcaseBlock" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/PermissionDenied" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "put": {
+        "tags": ["Staff"],
+        "operationId": "writeProductStory",
+        "summary": "Replace the product's story",
+        "description": "PUT, and the set is replaced: the console sends what the page says, so a band it left out is one it removed. Merging would make deleting a band impossible without a route whose only purpose was deletion — the same reasoning as a translation set.\n\n**Every field is plain text.** No markup is accepted and none is rendered: a rich-text field would be an XSS surface reachable by anybody with `staff.products.manage` and read by everybody with a browser. A field no band renders is refused rather than stored, so nobody writes into a hole.\n\n`PRICING` is not a block kind and is refused: it is a position in the order and reads the catalogue, so a row for it would be a row somebody could type a price into. One `HEADLINE` per page.\n\nWriting does not publish — that is the next route — so four bands can be written over an afternoon without a stranger reading the half-finished ones. `staff.products.manage`.",
+        "parameters": [
+          { "name": "productId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["blocks"],
+                "properties": {
+                  "blocks": {
+                    "type": "array",
+                    "maxItems": 40,
+                    "description": "The whole story. Empty removes it, which leaves the page as the product's name and its prices.",
+                    "items": { "$ref": "#/components/schemas/ShowcaseBlockInput" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What the product now says.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["blocks"],
+                  "properties": {
+                    "blocks": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/EditableShowcaseBlock" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — an unknown band, an unknown field, a missing English sentence, or a second headline.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/PermissionDenied" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/staff/products/{productId}/assets": {
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "uploadShowcaseAsset",
+        "summary": "Upload a picture for the product’s page",
+        "description": "The **bytes are the body** — a raw body rather than multipart, exactly as `uploadAsset` does: there is no form to parse, no boundary to get wrong, and the request is the file. `X-Filename` carries the label, which is the only thing a multipart part would have added, and the label is for display and never for addressing.\n\nThe request’s own Content-Type is not read at all; the type stored and later served is the one **sniffed from the bytes**. Pictures only — PNG, JPEG, GIF, WebP — because this is drawn into an `<img>` on a public page and there is no such thing as an `<img src=\"…zip\">`. SVG is refused for the reason the shared policy gives: an image to a person, a script container to a browser, served from the platform’s own origin.\n\n`staff.products.manage`, like the rest of the story.",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Filename",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "A label, kept to hand back. Never used to address anything."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The picture.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "asset"
+                  ],
+                  "properties": {
+                    "asset": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "filename",
+                        "content_type",
+                        "byte_size"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "filename": {
+                          "type": "string"
+                        },
+                        "content_type": {
+                          "type": "string"
+                        },
+                        "byte_size": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "description": "`UPLOAD_TOO_LARGE`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`NOT_A_PICTURE` or `UPLOAD_EMPTY`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/products/{productId}/showcase/publish": {
+      "post": {
+        "tags": ["Staff"],
+        "operationId": "publishProductStory",
+        "summary": "Put the story in front of strangers, or take it down",
+        "description": "`published` both ways, because a page that could go up and never come down would be a decision nobody could undo.\n\n**One language is enough, and it is English** (§11.2): a page publishes with the English filled and nothing else, and a reader whose language is unwritten reads English — exactly as they do for a mail, a feature name and an offer name. What is refused is *nothing*: `409 SHOWCASE_INCOMPLETE` while there is no headline, because a shop window with the sign taken down is not a published page. `staff.products.manage`.",
+        "parameters": [
+          { "name": "productId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["published"],
+                "properties": { "published": { "type": "boolean" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "When it was published, or null once it is down.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["published_at"],
+                  "properties": {
+                    "published_at": { "type": ["string", "null"], "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "`VALIDATION_FAILED`.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/PermissionDenied" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": {
+            "description": "`SHOWCASE_INCOMPLETE` — no headline with an English sentence in it.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
     },

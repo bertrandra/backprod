@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Shared\Database;
 
+use App\Shared\Validation\Uuid as Format;
+
 /**
  * Whether a string can be compared against a UUID column at all.
  *
@@ -15,15 +17,19 @@ namespace App\Shared\Database;
  * typos.
  *
  * So adapters check first and report "not found" without asking the
- * database. The format is checked rather than parsed: the only question is
- * whether the comparison is answerable.
+ * database.
+ *
+ * **The regex itself lives in the kernel** ({@see Format}), since
+ * 2026-09-24: a controller validating a request body asks the same
+ * question and may not reach this layer — `deptrac` says so, and rightly,
+ * because a controller allowed into the persistence helpers is how a
+ * Domain → SQL dependency comes back through a side door. This name stays
+ * because sixty adapters read better for it.
  */
 final class Uuid
 {
-    private const PATTERN = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
-
     public static function isValid(string $value): bool
     {
-        return preg_match(self::PATTERN, $value) === 1;
+        return Format::isValid($value);
     }
 }

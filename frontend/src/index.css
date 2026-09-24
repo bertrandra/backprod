@@ -74,6 +74,29 @@
   --text-3xl--line-height: 2.15rem;
   --text-3xl--letter-spacing: -0.022em;
 
+  /* And a display scale, which the application above deliberately has not.
+     That one stops at 1.875rem because it dresses dense administration
+     screens, where anything larger is shouting. The product's story at `/`
+     is the one page on this platform that is read by somebody who has just
+     arrived, and a headline set at 30px there reads as a section title —
+     no weight fixes it, because the problem is size, not emphasis.
+
+     Tracking tightens as the size grows, which is the whole difference
+     between large text that reads as designed and large text that reads as
+     zoomed. A band picks a step; it never writes `text-[52px]`. */
+  --text-display-sm: 1.75rem;
+  --text-display-sm--line-height: 2.1rem;
+  --text-display-sm--letter-spacing: -0.02em;
+  --text-display-md: 2.5rem;
+  --text-display-md--line-height: 2.8rem;
+  --text-display-md--letter-spacing: -0.025em;
+  --text-display-lg: 3.5rem;
+  --text-display-lg--line-height: 3.7rem;
+  --text-display-lg--letter-spacing: -0.03em;
+  --text-display-xl: 4.5rem;
+  --text-display-xl--line-height: 4.6rem;
+  --text-display-xl--letter-spacing: -0.035em;
+
   /* Surfaces, in levels. Depth is what a flat application has none of: a page
      ground, a card that sits on it, and a well that sits inside the card. */
   --color-canvas: var(--ds-canvas);
@@ -205,6 +228,42 @@
 
     --shadow-raise: 0 1px 2px 0 rgb(0 0 0 / 0.5);
     --shadow-float: 0 10px 30px -10px rgb(0 0 0 / 0.7), 0 2px 8px -2px rgb(0 0 0 / 0.5);
+  }
+}
+
+/**
+ * Display text, wherever it is set.
+ *
+ * `body` sets `tabular-nums` for the whole application, which is right for a
+ * column of invoices and wrong in a sentence: "3 minutes" in tabular figures
+ * carries a visible gap where the 3 was padded to the width of a 0. Display
+ * type is prose, so it takes proportional figures back.
+ *
+ * `text-wrap: balance` for the same reason a heading gets it in `base` — a
+ * two-line headline with one word on the second line is the commonest way a
+ * hero looks unfinished.
+ */
+@utility display-type {
+  font-variant-numeric: proportional-nums;
+  text-wrap: balance;
+}
+
+/**
+ * The mobile call to action arriving once the hero has left.
+ *
+ * A keyframe rather than a transition, because the bar is *mounted* at that
+ * moment rather than revealed: it must not exist while the hero's own copy
+ * of the action is on screen, or the page offers the same thing twice and
+ * axe reports a focusable element inside an `aria-hidden` one.
+ */
+@keyframes showcase-action-in {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
   }
 }
 

@@ -332,9 +332,26 @@ completeness rule (§11.2).
 
 **Which language the public read answers.** The reader's profile, when
 there is one, falls back to English (ADR-050, amended 2026-09-23: `?lang=`
-is gone and the profile decides). A stranger has no profile, so a stranger
-reads English — the same open question the storefront already has, and the
-same answer until it is settled for both at once.
+is gone and the profile decides). A stranger has no profile — and that was
+left open here until 2026-09-24, when it was settled: **`Accept-Language`**.
+
+It has to be a header rather than a parameter, and for the reason ADR-050
+removed `?lang=` in the first place. A query parameter travels in a link,
+so a page somebody shared would impose its author's language on whoever
+opened it next; a header cannot be shared by accident. It is the reader
+saying which language they are reading in, *now* — which is exactly what
+the storefront's language picker means when somebody uses it, and the
+frontend sends the picker's choice as the header and keys the read by it,
+so switching language refetches rather than showing the previous one.
+
+Absent, unknown, or a browser's full `fr-FR,fr;q=0.9,en;q=0.8` answers
+English. The page is a shop window: it does not refuse people over a
+header.
+
+The fallback is **field by field**, not row by row: a band whose headline
+is translated and whose subline is not reads with the French headline and
+the English subline. Answering the whole English row over one missing
+field would throw away the sentence that *was* translated.
 
 ## 9. What must never happen
 
@@ -364,8 +381,22 @@ Each step leaves `composer run gates` and `npm run build` green.
    page and not on a form.
 3. **The rows.** Migration, the staff routes, the publish state, the public
    read, and the console screen that edits bands through the registry.
-4. **The pictures.** `product_assets`, the upload, the signed link, and the
-   bands that carry one.
+4. **The pictures.** `product_assets`, the upload, the address the bytes
+   answer at, and the bands that carry one.
+
+   This step said *"the signed link"*, the way `downloadAsset` serves a
+   tenant's files, and that could not be built: a signed link needs an
+   authenticated caller to mint it, and the reader of a shop window has no
+   session at all. So a showcase picture is **public while its page is
+   published** — the join to `showcase_published_at` *is* the
+   authorisation, which is why an unpublished page's picture has no address
+   that answers rather than an address that refuses. It is the same
+   reasoning as the read itself (§8): the page is public, so what it shows
+   is public with it, and nothing else in `product_assets` is reachable.
+
+   The server composes the address and puts it on the band as `image`. No
+   client builds one out of an id — a URL assembled in two places is two
+   contracts, and the second one drifts.
 5. **The demonstration says something, in five languages.** Plan's showcase
    written for real — headline, three moves, two use cases, two
    screenshots, four questions — in English, French, Spanish, German and
@@ -385,7 +416,8 @@ Each step leaves `composer run gates` and `npm run build` green.
 - The page renders complete with JavaScript motion disabled, and a
   screenshot of it at rest shows every band.
 - Switching the profile's language rewrites the story, not only the
-  buttons.
+  buttons — and a stranger, who has no profile, gets the same by sending
+  `Accept-Language` (§8).
 - Adding a seventh band touches four files and no existing band (§6).
 - `gate:ui` accounts for the five new operations.
 

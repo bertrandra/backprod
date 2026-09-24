@@ -44,16 +44,31 @@ export function TranslatedField({
   onChange,
   disabled = false,
   placeholder,
+  openOn,
 }: {
   id: string;
   value: Translated;
   onChange: (next: Translated) => void;
   disabled?: boolean;
   placeholder?: string | undefined;
+  /**
+   * The language the field opens on, where the reader's own is the wrong
+   * guess (2026-09-24).
+   *
+   * The default is right for correcting a catalogue: somebody reading in
+   * French opens on French and types the French. It is wrong where the
+   * English is what the *work* produces — a product's story cannot be
+   * published without it — because an operator reading in French would
+   * fill the French, save, and be refused for an English they never saw a
+   * field for. That is not a hypothetical: it is what happened the first
+   * time the story editor was driven.
+   */
+  openOn?: LocaleCode;
 }) {
   // Opens on the language this person reads in, which is the one they are
-  // most likely to be adding — and English when that is what they read.
-  const [editing, setEditing] = useState<LocaleCode>(currentLocale());
+  // most likely to be adding — and English when that is what they read, or
+  // when the caller says the English is the point.
+  const [editing, setEditing] = useState<LocaleCode>(openOn ?? currentLocale());
   const [open, setOpen] = useState(false);
 
   const shown = editing === 'en' ? value.en : (value[editing] ?? '');

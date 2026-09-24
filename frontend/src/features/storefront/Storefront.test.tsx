@@ -87,7 +87,7 @@ function signUpAs(fields: { email: string; password: string; name?: string }): v
 
 /** Points the page at the offers and opens the door with the first one. */
 async function chooseTheOffer(): Promise<void> {
-  await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
+  await waitFor(() => expect(screen.getByTestId('showcase-offers')).toBeTruthy());
   fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
   await waitFor(() => expect(screen.getByLabelText('Email')).toBeTruthy());
 }
@@ -114,7 +114,7 @@ describe('the shop window', () => {
   it('shows prices to somebody with no account', async () => {
     renderWith(<Storefront onSignIn={() => undefined} />, clientFor());
 
-    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('showcase-offers')).toBeTruthy());
 
     expect(screen.getByText('Pro, monthly')).toBeTruthy();
     // The integer the API sent, not the rendered string: `Intl` formats it
@@ -144,7 +144,7 @@ describe('the shop window', () => {
     renderWith(<Storefront onSignIn={() => undefined} />, clientFor(), { product: null });
 
     // A dropdown with one option is a question with one answer.
-    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('showcase-offers')).toBeTruthy());
     expect(useSessionStore.getState().productCode).toBe('atlas');
     expect(screen.queryByTestId('storefront-product')).toBeNull();
   });
@@ -229,7 +229,7 @@ describe('the shop window', () => {
 
     // The API deliberately does not say whether the product exists, is off, or
     // advertises nothing. Telling them apart here would leak what it withholds.
-    await waitFor(() => expect(screen.getByText(/Nothing on sale here/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Nothing on sale yet/i)).toBeTruthy());
   });
 
   it('keeps signing in secondary, not the front door', async () => {
@@ -237,7 +237,7 @@ describe('the shop window', () => {
 
     renderWith(<Storefront onSignIn={onSignIn} />, clientFor());
 
-    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('showcase-offers')).toBeTruthy());
 
     // Present and reachable, below the offers rather than instead of them: an
     // account is what buying produces, not what it requires.
@@ -287,7 +287,7 @@ describe('choosing an offer', () => {
     await chooseTheOffer();
     fireEvent.click(screen.getByTestId('choose-another'));
 
-    await waitFor(() => expect(screen.getByTestId('storefront-offers')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('showcase-offers')).toBeTruthy());
   });
 
   it('has a door with nothing in hand, from the footer', async () => {

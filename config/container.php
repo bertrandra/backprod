@@ -108,21 +108,25 @@ use App\Payment\Service\PaymentProviders;
 use App\Privacy\Domain\ErasureRepository;
 use App\Privacy\Infrastructure\PostgresErasureRepository;
 use App\Product\Domain\ProductAccessLog;
+use App\Product\Domain\ProductAssets;
 use App\Product\Domain\ProductCapabilities;
 use App\Product\Domain\ProductDirectory;
 use App\Product\Domain\ProductKeys;
 use App\Product\Domain\ProductRegistry;
 use App\Product\Domain\ProductRepository;
 use App\Product\Domain\ProductSettings;
+use App\Product\Domain\ProductShowcase;
 use App\Product\Domain\ProductUsageLedger;
 use App\Product\Domain\TenantHoldings;
 use App\Product\Infrastructure\PostgresProductAccessLog;
+use App\Product\Infrastructure\PostgresProductAssets;
 use App\Product\Infrastructure\PostgresProductCapabilities;
 use App\Product\Infrastructure\PostgresProductDirectory;
 use App\Product\Infrastructure\PostgresProductKeys;
 use App\Product\Infrastructure\PostgresProductRegistry;
 use App\Product\Infrastructure\PostgresProductRepository;
 use App\Product\Infrastructure\PostgresProductSettings;
+use App\Product\Infrastructure\PostgresProductShowcase;
 use App\Product\Infrastructure\PostgresProductUsage;
 use App\Product\Infrastructure\PostgresTenantHoldings;
 use App\Project\Domain\ProjectRepository;
@@ -362,6 +366,13 @@ return static function (array $overrides = []): ContainerInterface {
         // method on the registry: everything that asks what a product offers
         // depends on that interface, and none of them may declare one.
         ProductCapabilities::class => autowire(PostgresProductCapabilities::class),
+        // The story a product tells on its own page (2026-09-24), apart from
+        // the registry for the same reason: every screen depends on that one
+        // to ask what a product is, and none of them may rewrite its page.
+        ProductShowcase::class => autowire(PostgresProductShowcase::class),
+        // Its pictures, in a table of their own: ssets is tenant-scoped
+        // by construction and a shop window belongs to no tenant.
+        ProductAssets::class => autowire(PostgresProductAssets::class),
         CatalogueRepository::class => autowire(PostgresCatalogueRepository::class),
         StorefrontListing::class => autowire(PostgresStorefrontListing::class),
         CatalogueAdministration::class => autowire(PostgresCatalogueAdministration::class),

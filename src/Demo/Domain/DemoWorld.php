@@ -300,6 +300,182 @@ final class DemoWorld
     ];
 
     /**
+     * The story Plan tells on its own page (2026-09-24, step 5 of
+     * `docs/home-showcase-spec.md`).
+     *
+     * **Written for real, and in five languages.** A demonstration whose
+     * shop window said *lorem ipsum* would let the page be judged on its
+     * layout and never on whether it works; one written only in English
+     * would demonstrate the fallback rather than the feature (§11.2 keeps
+     * the fallback for *operators*, who publish as they go — the demo does
+     * not get to lean on it).
+     *
+     * One product only. Plan is the one deployed beside the platform and
+     * the one with something concrete to say; giving Atlas, Boreas, Ceres
+     * and Delos invented stories would be four pages of filler and would
+     * also hide the honest case — **a product that has published nothing
+     * shows its name and its prices**, which is a page and not a hole.
+     *
+     * The order within each band is the order they are written here.
+     *
+     * @var array<string, list<array{block: string, content: array<string, string>, translations: array<string, array<string, string>>}>>
+     */
+    public const SHOWCASE = [
+        'plan' => [
+            [
+                'block' => 'HEADLINE',
+                'content' => [
+                    'headline' => 'Draw a terrace in three minutes',
+                    'subline' => 'From the cadastral plot to a file your builder can read — without redrawing anything by hand.',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'headline' => 'Dessinez une terrasse en trois minutes',
+                        'subline' => 'De la parcelle cadastrale au fichier que votre artisan peut lire, sans rien redessiner a la main.',
+                    ],
+                    'es' => [
+                        'headline' => 'Dibuje una terraza en tres minutos',
+                        'subline' => 'De la parcela catastral al archivo que su constructor puede leer, sin volver a dibujar nada a mano.',
+                    ],
+                    'de' => [
+                        'headline' => 'Zeichnen Sie eine Terrasse in drei Minuten',
+                        'subline' => 'Vom Katasterplan zur Datei, die Ihr Handwerker lesen kann — ohne etwas von Hand nachzuzeichnen.',
+                    ],
+                    'it' => [
+                        'headline' => 'Disegna una terrazza in tre minuti',
+                        'subline' => 'Dalla particella catastale al file che il tuo costruttore puo leggere, senza ridisegnare nulla a mano.',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'STEPS',
+                'content' => [
+                    'title' => 'Bring in the plot',
+                    'body' => 'Import it from the cadastre by its reference, or trace it yourself. The boundaries come with it.',
+                ],
+                'translations' => [
+                    'fr' => ['title' => 'Faites venir la parcelle', 'body' => 'Importez-la du cadastre par sa reference, ou tracez-la vous-meme. Les limites viennent avec.'],
+                    'es' => ['title' => 'Traiga la parcela', 'body' => 'Importela del catastro por su referencia, o trazala usted mismo. Los limites vienen con ella.'],
+                    'de' => ['title' => 'Holen Sie das Grundstuck herein', 'body' => 'Importieren Sie es uber die Katasternummer oder zeichnen Sie es selbst. Die Grenzen kommen mit.'],
+                    'it' => ['title' => 'Porta dentro la particella', 'body' => 'Importala dal catasto tramite il riferimento, o tracciala tu stesso. I confini arrivano con lei.'],
+                ],
+            ],
+            [
+                'block' => 'STEPS',
+                'content' => [
+                    'title' => 'The terrace follows',
+                    'body' => 'Slopes, levels and edges are computed while you drag. Nothing is redrawn twice.',
+                ],
+                'translations' => [
+                    'fr' => ['title' => 'La terrasse suit', 'body' => 'Pentes, niveaux et bordures se calculent pendant que vous deplacez. Rien ne se redessine deux fois.'],
+                    'es' => ['title' => 'La terraza sigue', 'body' => 'Pendientes, niveles y bordes se calculan mientras arrastra. Nada se vuelve a dibujar dos veces.'],
+                    'de' => ['title' => 'Die Terrasse folgt', 'body' => 'Gefalle, Hohen und Kanten werden beim Ziehen berechnet. Nichts wird zweimal gezeichnet.'],
+                    'it' => ['title' => 'La terrazza segue', 'body' => 'Pendenze, livelli e bordi si calcolano mentre trascini. Nulla viene ridisegnato due volte.'],
+                ],
+            ],
+            [
+                'block' => 'STEPS',
+                'content' => [
+                    'title' => 'The file prints',
+                    'body' => 'DXF for the builder, a PDF dossier for the client. Both from the same drawing.',
+                ],
+                'translations' => [
+                    'fr' => ['title' => 'Le fichier sort', 'body' => 'DXF pour l artisan, dossier PDF pour le client. Les deux du meme dessin.'],
+                    'es' => ['title' => 'El archivo sale', 'body' => 'DXF para el constructor, dosier PDF para el cliente. Ambos del mismo dibujo.'],
+                    'de' => ['title' => 'Die Datei geht raus', 'body' => 'DXF fur den Handwerker, ein PDF-Dossier fur den Kunden. Beide aus derselben Zeichnung.'],
+                    'it' => ['title' => 'Il file esce', 'body' => 'DXF per il costruttore, dossier PDF per il cliente. Entrambi dallo stesso disegno.'],
+                ],
+            ],
+            [
+                'block' => 'USE_CASE',
+                'content' => [
+                    'who' => 'A landscaper quoting on site',
+                    'before' => 'An afternoon redrawing the plot by hand, and a second afternoon when the client moves the pool.',
+                    'after' => 'The plot is on screen before the coffee is finished, and the second version takes three minutes.',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'who' => 'Un paysagiste qui chiffre sur place',
+                        'before' => 'Un apres-midi a redessiner la parcelle a la main, et un deuxieme quand le client deplace la piscine.',
+                        'after' => 'La parcelle est a l ecran avant la fin du cafe, et la deuxieme version prend trois minutes.',
+                    ],
+                    'es' => [
+                        'who' => 'Un paisajista presupuestando sobre el terreno',
+                        'before' => 'Una tarde redibujando la parcela a mano, y otra cuando el cliente mueve la piscina.',
+                        'after' => 'La parcela esta en pantalla antes de acabar el cafe, y la segunda version lleva tres minutos.',
+                    ],
+                    'de' => [
+                        'who' => 'Ein Garten- und Landschaftsbauer, der vor Ort kalkuliert',
+                        'before' => 'Ein Nachmittag, um das Grundstuck von Hand nachzuzeichnen — und ein zweiter, wenn der Kunde den Pool verschiebt.',
+                        'after' => 'Das Grundstuck ist auf dem Bildschirm, bevor der Kaffee ausgetrunken ist, und die zweite Fassung dauert drei Minuten.',
+                    ],
+                    'it' => [
+                        'who' => 'Un paesaggista che fa un preventivo in cantiere',
+                        'before' => 'Un pomeriggio a ridisegnare la particella a mano, e un secondo quando il cliente sposta la piscina.',
+                        'after' => 'La particella e sullo schermo prima che finisca il caffe, e la seconda versione richiede tre minuti.',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'USE_CASE',
+                'content' => [
+                    'who' => 'A builder reading somebody else s drawing',
+                    'before' => 'A PDF with no dimensions, and a phone call to ask what the levels were.',
+                    'after' => 'A DXF that opens in the tools they already have, with the levels in it.',
+                ],
+                'translations' => [
+                    'fr' => [
+                        'who' => 'Un artisan qui lit le dessin d un autre',
+                        'before' => 'Un PDF sans cotes, et un coup de fil pour demander les niveaux.',
+                        'after' => 'Un DXF qui s ouvre dans ses outils, avec les niveaux dedans.',
+                    ],
+                    'es' => [
+                        'who' => 'Un constructor que lee el dibujo de otro',
+                        'before' => 'Un PDF sin cotas y una llamada para preguntar por los niveles.',
+                        'after' => 'Un DXF que se abre en las herramientas que ya tiene, con los niveles dentro.',
+                    ],
+                    'de' => [
+                        'who' => 'Ein Handwerker, der die Zeichnung eines anderen liest',
+                        'before' => 'Ein PDF ohne Masse und ein Anruf, um nach den Hohen zu fragen.',
+                        'after' => 'Eine DXF, die sich in den vorhandenen Werkzeugen offnet — mit den Hohen darin.',
+                    ],
+                    'it' => [
+                        'who' => 'Un costruttore che legge il disegno di un altro',
+                        'before' => 'Un PDF senza quote e una telefonata per chiedere i livelli.',
+                        'after' => 'Un DXF che si apre negli strumenti che ha gia, con i livelli dentro.',
+                    ],
+                ],
+            ],
+            [
+                'block' => 'QUESTION',
+                'content' => [
+                    'question' => 'Can I cancel?',
+                    'answer' => 'Yes. The service stays yours until the end of the period you have paid for, and the request is recorded with the date it takes effect.',
+                ],
+                'translations' => [
+                    'fr' => ['question' => 'Puis-je resilier ?', 'answer' => 'Oui. Le service reste le votre jusqu a la fin de la periode payee, et la demande est enregistree avec sa date d effet.'],
+                    'es' => ['question' => 'Puedo cancelar?', 'answer' => 'Si. El servicio sigue siendo suyo hasta el final del periodo pagado, y la solicitud se registra con su fecha de efecto.'],
+                    'de' => ['question' => 'Kann ich kundigen?', 'answer' => 'Ja. Die Leistung bleibt Ihnen bis zum Ende des bezahlten Zeitraums, und die Kundigung wird mit ihrem Wirkungsdatum festgehalten.'],
+                    'it' => ['question' => 'Posso disdire?', 'answer' => 'Si. Il servizio resta tuo fino alla fine del periodo pagato, e la richiesta viene registrata con la sua data di effetto.'],
+                ],
+            ],
+            [
+                'block' => 'QUESTION',
+                'content' => [
+                    'question' => 'Does a colleague who only looks need a full seat?',
+                    'answer' => 'No. A read-only seat costs a fraction of one, and it is a seat of its own rather than a smaller version of the product.',
+                ],
+                'translations' => [
+                    'fr' => ['question' => 'Un collegue qui ne fait que consulter a-t-il besoin d un siege complet ?', 'answer' => 'Non. Un siege en lecture seule coute une fraction, et c est un siege a part plutot qu une version reduite du produit.'],
+                    'es' => ['question' => 'Un companero que solo consulta necesita un asiento completo?', 'answer' => 'No. Un asiento de solo lectura cuesta una fraccion, y es un asiento propio y no una version reducida del producto.'],
+                    'de' => ['question' => 'Braucht ein Kollege, der nur schaut, einen vollen Platz?', 'answer' => 'Nein. Ein Platz mit Lesezugriff kostet einen Bruchteil und ist ein eigener Platz, keine kleinere Fassung des Produkts.'],
+                    'it' => ['question' => 'Un collega che si limita a consultare ha bisogno di una postazione completa?', 'answer' => 'No. Una postazione in sola lettura costa una frazione, ed e una postazione a se e non una versione ridotta del prodotto.'],
+                ],
+            ],
+        ],
+    ];
+
+    /**
      * The feature code the workspace counts projects against — the same
      * string as `ProjectWorkspace::QUOTA`, named here because the fixtures
      * are infrastructure and may not read an application service;

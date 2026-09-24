@@ -102,6 +102,54 @@ export const inputClass = (invalid = false): string =>
  */
 export const touchTargetClass = 'min-h-[44px] min-w-[44px]';
 
+export type ButtonVariant = 'primary' | 'secondary' | 'danger';
+
+/**
+ * What a button looks like, apart from what a button *is*.
+ *
+ * Extracted on 2026-09-24 for the product's story, whose calls to action
+ * are **links**: a product deployed beside the platform opens at its own
+ * address and the prices are an anchor four bands down. Both are
+ * navigations, so both are `<a>` — a `<button>` that navigates cannot be
+ * opened in a new tab, middle-clicked, or copied, and reads to a screen
+ * reader as the wrong kind of thing.
+ *
+ * So the appearance is a function and `Button` is one caller of it. The
+ * alternative, an `asChild` prop cloning arbitrary children, buys the same
+ * thing for more machinery and a worse type.
+ */
+export function buttonClass(variant: ButtonVariant = 'primary', className?: string): string {
+  return cn(
+    // 44px minimum, so the same control works on a phone (ui-spec.md §4.2).
+    'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-control px-3.5 py-2',
+    'text-base font-medium whitespace-nowrap transition-[background-color,border-color,box-shadow,transform]',
+    'duration-150 ease-out-quart focus-visible:outline-2 focus-visible:outline-offset-2',
+    // No underline when it is a link wearing this: the shape already says
+    // it can be pressed, and an underlined button reads as a mistake.
+    'no-underline',
+    // Pressed, not merely hovered. A control that acknowledges the press is
+    // the cheapest possible signal that a write is under way, and it costs a
+    // single transform.
+    'active:translate-y-px disabled:translate-y-0 disabled:opacity-55 disabled:shadow-none',
+    // **The primary action is the accent now, not the monochrome.** The old
+    // one was `bg-neutral-900` inverting to near-white in dark, which read
+    // as a print button rather than as the thing to press: on a page where
+    // every border is grey, the only saturated element should be the action.
+    variant === 'primary' &&
+      'bg-accent text-on-accent shadow-raise hover:bg-accent-strong hover:shadow-float',
+    variant === 'secondary' &&
+      'border border-line-strong bg-surface text-ink shadow-raise hover:border-ink/25 hover:bg-well',
+    variant === 'danger' &&
+      'border border-danger/45 bg-danger-wash text-danger shadow-raise hover:border-danger',
+    // Merged, and last so it wins. It used to be swallowed: `{...rest}` is
+    // spread above, and the `className` below overwrote whatever a caller
+    // had passed. That typechecks — `className` is part of
+    // `ButtonHTMLAttributes` — and did nothing, so two screens had grown a
+    // wrapper `<span>` to place a button they could not place directly.
+    className,
+  );
+}
+
 export function Button({
   children,
   pending = false,
@@ -110,7 +158,7 @@ export function Button({
   ...rest
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   pending?: boolean;
-  variant?: 'primary' | 'secondary' | 'danger';
+  variant?: ButtonVariant;
 }) {
   return (
     <button
@@ -123,32 +171,7 @@ export function Button({
       // screen reader unless it is said out loud, which is what this does — the
       // label used to change to "Working…" and carried it by accident.
       aria-busy={pending || undefined}
-      className={cn(
-        // 44px minimum, so the same control works on a phone (ui-spec.md §4.2).
-        'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-control px-3.5 py-2',
-        'text-base font-medium whitespace-nowrap transition-[background-color,border-color,box-shadow,transform]',
-        'duration-150 ease-out-quart focus-visible:outline-2 focus-visible:outline-offset-2',
-        // Pressed, not merely hovered. A control that acknowledges the press is
-        // the cheapest possible signal that a write is under way, and it costs a
-        // single transform.
-        'active:translate-y-px disabled:translate-y-0 disabled:opacity-55 disabled:shadow-none',
-        // **The primary action is the accent now, not the monochrome.** The old
-        // one was `bg-neutral-900` inverting to near-white in dark, which read
-        // as a print button rather than as the thing to press: on a page where
-        // every border is grey, the only saturated element should be the action.
-        variant === 'primary' &&
-          'bg-accent text-on-accent shadow-raise hover:bg-accent-strong hover:shadow-float',
-        variant === 'secondary' &&
-          'border border-line-strong bg-surface text-ink shadow-raise hover:border-ink/25 hover:bg-well',
-        variant === 'danger' &&
-          'border border-danger/45 bg-danger-wash text-danger shadow-raise hover:border-danger',
-        // Merged, and last so it wins. It used to be swallowed: `{...rest}` is
-        // spread above, and the `className` below overwrote whatever a caller
-        // had passed. That typechecks — `className` is part of
-        // `ButtonHTMLAttributes` — and did nothing, so two screens had grown a
-        // wrapper `<span>` to place a button they could not place directly.
-        className,
-      )}
+      className={buttonClass(variant, className)}
     >
       {pending && (
         <span

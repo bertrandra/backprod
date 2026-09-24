@@ -19,6 +19,22 @@ const NOBODY_ON_STAFF = {
   error: { error: { code: 'PERMISSION_DENIED', message: 'No.', details: {}, request_id: 'r' } },
 };
 
+/**
+ * The chosen product is remembered in `localStorage`, so it outlives a test.
+ *
+ * At the file's top level rather than inside one `describe`, since
+ * 2026-09-24: it used to sit in the first block only, and the second block
+ * passed because nothing had leaked into it *yet*. When the landing stopped
+ * navigating away from `/`, something did — and a test that passes on the
+ * order its neighbours ran in is a test that proves nothing about the
+ * screen.
+ */
+afterEach(() => {
+  window.localStorage.clear();
+  useSessionStore.setState({ productCode: null, root: '', tenantSlug: null });
+  vi.restoreAllMocks();
+});
+
 function clientFor(pending: { tenant: string; name: string }[]) {
   return stubClient({
     'GET /api/v1/products': { data: { products: [], default: null, pending_memberships: pending } },
@@ -27,14 +43,6 @@ function clientFor(pending: { tenant: string; name: string }[]) {
 }
 
 describe('the landing address, signed in', () => {
-  // The product chosen here is remembered in localStorage, and the tests
-  // below are about having none.
-  afterEach(() => {
-    window.localStorage.clear();
-    useSessionStore.setState({ productCode: null, root: '', tenantSlug: null });
-    vi.restoreAllMocks();
-  });
-
   const MEMBER = {
     user_id: 'u-1',
     email: 'ada@acme.test',
@@ -65,16 +73,20 @@ describe('the landing address, signed in', () => {
     });
   }
 
-  it('goes to the first screen in the menu, and keeps the product in the address', async () => {
-    // Whether they came in by the storefront's link or by a deep link's
-    // form, signing in lands on what the rail leads with (2026-09-18).
+  it('leaves them on the product’s story, and keeps the product in the address', async () => {
+    // It used to move them on to what the rail leads with (2026-09-18).
+    // That is why `/` could never be a page: a stranger saw the storefront,
+    // a member was ejected, and nobody ever saw what the product *was*.
+    // Since 2026-09-24 the landing settles the root and the product and
+    // then stops (`docs/home-showcase-spec.md` §2).
     const { location } = renderAtRoute(
       <AppShell />,
       stubs({ products: [ATLAS], default: 'atlas', memberships: [{ tenant: 'acme', name: 'Acme Ltd' }] }),
       { path: '/', initial: '/?product=atlas' },
     );
 
-    await waitFor(() => expect(location()).toMatch(/^\/projects/));
+    await waitFor(() => expect(screen.getByTestId('context-organisation')).toBeTruthy());
+    expect(location()).toMatch(/^\/\?/);
     expect(location()).toContain('product=atlas');
   });
 
@@ -86,8 +98,8 @@ describe('the landing address, signed in', () => {
       { path: '/', product: 'atlas' },
     );
 
-    await waitFor(() => expect(location()).toMatch(/^\/projects/));
-    expect(useSessionStore.getState().productCode).toBe('boreas');
+    await waitFor(() => expect(useSessionStore.getState().productCode).toBe('boreas'));
+    expect(location()).toBe('/');
   });
 
   it('keeps the product the address names over the person\'s own', async () => {
@@ -100,8 +112,9 @@ describe('the landing address, signed in', () => {
       { path: '/', initial: '/?product=atlas' },
     );
 
-    await waitFor(() => expect(location()).toMatch(/^\/projects/));
+    await waitFor(() => expect(screen.getByTestId('context-organisation')).toBeTruthy());
     expect(useSessionStore.getState().productCode).toBe('atlas');
+    expect(location()).toMatch(/^\/\?/);
   });
 
   it('moves a member of another organisation from the bare host to their own root', async () => {
@@ -167,8 +180,9 @@ describe('the landing address, signed in', () => {
       { path: '/' },
     );
 
-    await waitFor(() => expect(location()).toMatch(/^\/projects/));
+    await waitFor(() => expect(screen.getByTestId('context-organisation')).toBeTruthy());
     expect(assign).not.toHaveBeenCalled();
+    expect(location()).toBe('/');
   });
 });
 

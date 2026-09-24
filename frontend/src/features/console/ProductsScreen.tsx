@@ -18,6 +18,7 @@ import { tx } from '@/i18n/react';
 
 import { ProductCredentials } from './ProductCredentials';
 import { ProductWebhook } from './ProductWebhook';
+import { StoryScreen } from './StoryScreen';
 
 /**
  * `console.admin.products` — the top of the model, and the screen that was
@@ -231,6 +232,7 @@ function ProductRow({
   // the platform for every product's keys and deliveries to draw a closed
   // triangle.
   const [serverOpen, setServerOpen] = useState(false);
+  const [storyOpen, setStoryOpen] = useState(false);
 
   return (
     <li
@@ -423,6 +425,34 @@ function ProductRow({
             <ProductCredentials productId={product.id} />
             <ProductWebhook product={product} pending={pending} onSetWebhookUrl={onSetWebhookUrl} />
           </>
+        )}
+      </details>
+
+      {/* The story this product tells at its own address (2026-09-24). Here
+          rather than on a screen of its own because it is a *product's*
+          setting, written by whoever creates the product — the operator's
+          decision in home-showcase-spec §11.1 — and because the page it
+          writes is the one `/` renders.
+
+          Behind a disclosure, and loaded only when opened: a story is a
+          dozen fields in five languages, and every product on the screen
+          fetching one would be a console that took a second to draw. */}
+      <details
+        className="mt-3 rounded-control border border-line px-3 py-2"
+        data-testid={`story-${product.code}`}
+        onToggle={(event) => setStoryOpen(event.currentTarget.open)}
+      >
+        <summary className="cursor-pointer text-xs font-semibold">
+          {t("What this product says about itself")}
+        </summary>
+
+        <p className="mt-2 max-w-prose text-xs text-muted">
+          {t("The page a newcomer reads at this product's address: what it does, how it works, who it is for. Written here and nowhere else — a customer never writes it, because one customer's words would be read by all the others.")}</p>
+
+        {storyOpen && (
+          <div className="mt-4">
+            <StoryScreen productId={product.id} />
+          </div>
         )}
       </details>
 
