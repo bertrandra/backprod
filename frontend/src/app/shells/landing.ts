@@ -1,7 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
-import { leaveFor, useChooseProduct } from '@/app/frame/ProductSwitcher';
+import { useChooseProduct } from '@/app/frame/ProductSwitcher';
 import { firstEntry, type NavSection } from '@/app/frame/navigation';
 import { useMyProducts } from '@/queries/catalogue';
 import { usePublicTenant } from '@/queries/storefront';
@@ -87,16 +87,17 @@ export function useLanding(atLanding: boolean, sections: readonly NavSection[]):
       return;
     }
 
-    // 2b. A product that lives beside the platform (ADR-051 §3): the
-    // landing is its address, reached by a full navigation with the
-    // product code alone. The cookie signs them in there.
-    const external = products.find((product) => product.code === productCode)?.app_url;
-
-    if (external != null && productCode !== null) {
-      leaveFor(external, productCode);
-
-      return;
-    }
+    // The landing used to leave here for a product deployed beside the
+    // platform (ADR-051 §3), on the reasoning that its address *is* its
+    // landing. Removed on 2026-09-24: it meant somebody whose default
+    // product lives elsewhere could never reach a platform screen for it,
+    // because `/` threw them out before the shell rendered — their
+    // subscription, their invoices, their members and their projects are
+    // all here. The product's own door is a door somebody opens: the card
+    // above the project list, or a project's name.
+    //
+    // It is also why this went unnoticed for three days: `GET /products`
+    // never carried `app_url` until 2026-09-23, so nothing ever left.
 
     // 3. The screen.
     if (first !== undefined) {

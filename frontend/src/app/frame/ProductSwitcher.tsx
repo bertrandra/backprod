@@ -116,20 +116,14 @@ export function ProductSwitcher({ platform = false }: { platform?: boolean }) {
         data-testid="product-switcher"
         data-product={productCode ?? ''}
         value={productCode ?? ''}
-        onChange={(event) => {
-          const chosen = known.find((product) => product.code === event.target.value);
-
-          // A product deployed beside the platform (ADR-051 §3) is left
-          // for, not switched to: its own page resumes the session from
-          // the cookie. `?product=` and nothing else travels.
-          if (chosen?.appUrl != null) {
-            leaveFor(chosen.appUrl, chosen.code);
-
-            return;
-          }
-
-          chooseProduct(event.target.value);
-        }}
+        // Switching switches, and never leaves (2026-09-24). Choosing a
+        // product with an address of its own used to navigate straight to
+        // it, which made every platform screen *for that product*
+        // unreachable: its subscription, its invoices, its members, its
+        // projects and the card above them all live here. The door to the
+        // product is a door — the card's button, a project's name — and a
+        // menu that teleports is not one.
+        onChange={(event) => chooseProduct(event.target.value)}
         className={cn(
           touchTargetClass,
           // No inverse fill (2026-09-18): a black block in the bar read as a

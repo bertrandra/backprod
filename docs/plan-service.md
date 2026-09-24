@@ -169,8 +169,11 @@ itself.
 
 ### 5.5 Coming and going
 
-The platform's shell sends a person to Plan at `app_url?product=plan` (ADR-051
-§3). Plan's landing reads two things from the address and ignores the rest:
+A person reaches Plan at `app_url?product=plan` by opening a door: the card
+above the platform's project list, or a project's own name (ADR-051 §3).
+Nothing sends them automatically — the switcher and the landing did until
+2026-09-24, and it made Plan's platform screens unreachable. Plan's landing
+reads two things from the address and ignores the rest:
 
 ```text
 product   the product code, always

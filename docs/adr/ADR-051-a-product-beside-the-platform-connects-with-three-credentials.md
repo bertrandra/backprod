@@ -160,22 +160,32 @@ one.
   `iss`, `exp`, and its own code in `aud`; a token opened on another
   product does not name it and is refused.
 
-**The person moves between the two by ordinary links.** The shell's product
-switcher, for a product that has an `app_url`, navigates there with
-`?product=plan` and the language, and nothing else — no token, no session
-id, nothing a history or a proxy log could replay. The product's page
-resumes from the cookie. `landing.ts` treats an external default product
-the same way. Sign out from either side clears the one cookie and revokes
-the family (ADR-038), so there is no second session to forget.
+**The person moves between the two by ordinary links.** A link to the
+product's `app_url` carries `?product=plan` and nothing else — no token, no
+session id, nothing a history or a proxy log could replay. The product's
+page resumes from the cookie. Sign out from either side clears the one
+cookie and revokes the family (ADR-038), so there is no second session to
+forget.
 
-**Three doors, not one** (amended 2026-09-22). The switcher is the way to
-the product; the card above the project list is the way to the product
-*from the screen a person lands on*; and a project carries `?project=<id>`
-so the product opens the one that was on screen. The third exists because
-the second was not enough: a product beside the platform keeps its
-documents **in** the platform, so its projects are listed here, and from
-one of them the only way over was to leave, pick the product in the
-switcher, and find the same project again by hand.
+**Two doors, and neither is automatic** (amended 2026-09-24). The card
+above the project list is the way to the product; a project's name is the
+way to *that project* in it, carrying `?project=<id>` so the product opens
+the one that was on screen rather than whichever it last remembered.
+
+Until today there was a third way and it was not a door but a trapdoor:
+the switcher navigated to the product when one was chosen, and `landing.ts`
+did the same on `/` for somebody whose default product lives elsewhere.
+The cost was discovered by the operator, not by a test: **every platform
+screen for that product became unreachable** — its subscription, its
+invoices, its members, its projects and the card above them are all here,
+and a person whose default was Plan was thrown out of the platform before
+the shell had rendered. A menu that teleports is not a menu, and a landing
+that ejects is not a landing.
+
+The trapdoor was also invisible for three days, which is worth recording:
+`GET /products` never carried `app_url` until 2026-09-23, so nothing ever
+left. The defect and its fix arrived within a day of each other, and the
+fix is what made the defect visible.
 
 The id is safe to put in an address for the reason the product code is:
 it names a thing, it does not authorise anything. The product reads the

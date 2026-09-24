@@ -136,10 +136,11 @@ describe('with more than one', () => {
     await waitFor(() => expect(offerReads).toBe(2));
   });
 
-  it('leaves for a product that lives beside the platform, with the code alone', async () => {
-    // ADR-051 §3: a full navigation to its address with `?product=` and
-    // nothing else — no token, and no language since 2026-09-23. The cookie
-    // signs them in there, and the product asks the platform what they read.
+  it('switches to a product that lives beside the platform rather than leaving for it', async () => {
+    // It used to leave (ADR-051 §3, amended 2026-09-24), which made every
+    // platform screen for that product unreachable: its subscription, its
+    // invoices, its members and its projects are all here, and a menu that
+    // teleports is not a door. The door is the card above the project list.
     const assign = vi.fn();
     vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign });
     const PLAN = { id: 'prod-plan', code: 'plan', name: 'Plan', app_url: 'https://plan.example.test' };
@@ -149,9 +150,8 @@ describe('with more than one', () => {
     await waitFor(() => expect(screen.getByTestId('product-switcher')).toBeTruthy());
     fireEvent.change(screen.getByTestId('product-switcher'), { target: { value: 'plan' } });
 
-    expect(assign).toHaveBeenCalledWith('https://plan.example.test/?product=plan');
-    // The store did not move: this shell is still on its own product.
-    expect(useSessionStore.getState().productCode).toBe('atlas');
+    expect(assign).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().productCode).toBe('plan');
   });
 
   it('does nothing when the same product is chosen again', async () => {

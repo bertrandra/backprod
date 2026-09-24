@@ -134,8 +134,12 @@ describe('the landing address, signed in', () => {
     await waitFor(() => expect(assign).toHaveBeenCalledWith('/'));
   });
 
-  it('sends a person whose product lives beside the platform to its address', async () => {
-    // ADR-051 §3: the landing for an external product is the product.
+  it('keeps a person whose product lives beside the platform on the platform', async () => {
+    // The landing used to leave for the product's own address (ADR-051 §3,
+    // amended 2026-09-24). Somebody whose default product lives elsewhere
+    // could then never reach a platform screen for it: `/` threw them out
+    // before the shell rendered, and their subscription, invoices, members
+    // and projects are all here. Going to the product is a door they open.
     const assign = vi.fn();
     vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign });
     const PLAN = { id: 'prod-plan', code: 'plan', name: 'Plan', app_url: 'https://plan.example.test' };
@@ -146,9 +150,10 @@ describe('the landing address, signed in', () => {
       { path: '/', product: 'plan' },
     );
 
-    // The product code and nothing else: no token, and since 2026-09-23 no
-    // language either — the product asks the platform whose language it is.
-    await waitFor(() => expect(assign).toHaveBeenCalledWith('https://plan.example.test/?product=plan'));
+    // The shell renders — region A names the organisation — and nothing
+    // navigates away from it.
+    await waitFor(() => expect(screen.getByTestId('context-organisation')).toBeTruthy());
+    expect(assign.mock.calls.filter((call) => String(call[0]).startsWith('https://'))).toEqual([]);
   });
 
   it('stays where the root is already theirs', async () => {
