@@ -1,8 +1,11 @@
-import { OfferCard } from '@/features/commerce/OfferCard';
+import { contentFrom, isRetired } from '@/features/showcase/blocks/fromApi';
+import { BAND_META } from '@/features/showcase/blocks/meta';
+import { Showcase } from '@/features/showcase/Showcase';
+import { usePublicShowcase } from '@/queries/showcase';
 import { useStorefront, type PublicOffer, type PublicProduct, type PublicTenant } from '@/queries/storefront';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
-import { Field, inputClass } from '@/ui/Field';
+import { buttonClass, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { t } from '@/i18n';
 import { LanguageSelect } from '@/i18n/LanguageSelect';
@@ -59,6 +62,7 @@ export function StorefrontScreen({
 }) {
   const slug = tenant === null || tenant === 'unknown' ? null : tenant.slug;
   const storefront = useStorefront(productCode, slug);
+  const story = usePublicShowcase(productCode);
   const several = products !== null && products.length > 1;
 
   if (tenant === 'unknown') {
@@ -76,93 +80,93 @@ export function StorefrontScreen({
   }
 
   return (
-    <main className="mx-auto max-w-3xl space-y-8 p-4 py-10">
-      <div className="flex justify-end">
-        <LanguageSelect />
-      </div>
-      <header className="space-y-2 text-center">
-        {tenant !== null && (
-          <p data-testid="storefront-tenant" className="text-xs font-semibold uppercase tracking-wide text-subtle">
+    <main className="min-h-dvh">
+      {/* The page's own chrome, in a measure — whose organisation this is,
+          which language it is read in, which window. The story below runs
+          full width: it is a shop window, not a document. */}
+      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-8">
+        {tenant !== null ? (
+          <p data-testid="storefront-tenant" className="text-xs font-semibold uppercase tracking-[0.14em] text-subtle">
             {tenant.name}
           </p>
+        ) : (
+          <span />
         )}
-        <h1 className="text-3xl font-semibold">
-          {storefront.data?.product?.name ?? t("What we sell")}
-        </h1>
-        <p className="mx-auto max-w-prose text-sm text-muted">
-          {t("Choose a plan to get started. You will create your account as part of the purchase — there is nothing to set up first.")}</p>
-      </header>
+        <LanguageSelect />
+      </div>
 
       {several && (
         // Only when there is a choice: a dropdown with one option is a
         // question with one answer, and the container has already given it.
-        <div className="mx-auto max-w-xs">
-          <Field id="storefront-product" label={t("Product")}>
-            <select
-              id="storefront-product"
-              data-testid="storefront-product"
-              className={inputClass()}
-              value={productCode ?? ''}
-              onChange={(event) => onChooseProduct(event.target.value)}
-            >
-              {(productCode === null || productCode === '') && <option value="">{t("Select…")}</option>}
-              {products.map((product) => (
-                <option key={product.code} value={product.code}>
-                  {product.name}
-                </option>
-              ))}
-            </select>
-          </Field>
+        <div className="mx-auto w-full max-w-6xl px-4 pb-2 md:px-8">
+          <div className="max-w-xs">
+            <Field id="storefront-product" label={t("Product")}>
+              <select
+                id="storefront-product"
+                data-testid="storefront-product"
+                className={inputClass()}
+                value={productCode ?? ''}
+                onChange={(event) => onChooseProduct(event.target.value)}
+              >
+                {(productCode === null || productCode === '') && <option value="">{t("Select…")}</option>}
+                {products.map((product) => (
+                  <option key={product.code} value={product.code}>
+                    {product.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
         </div>
       )}
 
       {products !== null && products.length === 0 ? (
         // No window anywhere: nothing is advertised on this deployment yet.
         // Not an error, and not something the person reading it can fix.
-        <EmptyState
-          title={t("Nothing on sale yet")}
-          description={t("There is nothing to buy here for now. If you already have an account, sign in below.")}
-        />
+        <div className="mx-auto w-full max-w-3xl px-4 py-10">
+          <EmptyState
+            title={t("Nothing on sale yet")}
+            description={t("There is nothing to buy here for now. If you already have an account, sign in below.")}
+          />
+        </div>
       ) : productCode === null || productCode === '' ? (
         // Several windows and none chosen: the question is the dropdown above.
         // The one case left without a list is a deployment whose products are
         // still being asked for, which the skeleton below covers.
-        products === null ? (
-          <SkeletonRows rows={3} />
-        ) : (
-          <EmptyState
-            title={t("Choose a product")}
-            description={t("Pick one above to see what is on sale for it.")}
-          />
-        )
-      ) : storefront.isPending ? (
-        <SkeletonRows rows={3} />
+        <div className="mx-auto w-full max-w-3xl px-4 py-10">
+          {products === null ? (
+            <SkeletonRows rows={3} />
+          ) : (
+            <EmptyState
+              title={t("Choose a product")}
+              description={t("Pick one above to see what is on sale for it.")}
+            />
+          )}
+        </div>
       ) : storefront.error !== null ? (
-        <ErrorSurface error={storefront.error} onRetry={() => void storefront.refetch()} />
-      ) : storefront.data.offers.length === 0 ? (
-        // One message for "no such product", "switched off" and "advertises
-        // nothing", because the API deliberately gives one answer for all
-        // three — telling them apart here would leak what it withholds.
-        <EmptyState
-          title={t("Nothing on sale here")}
-          description={t("There is nothing to buy for this product yet. If you already have an account, sign in below.")}
-        />
+        <div className="mx-auto w-full max-w-3xl px-4 py-10">
+          <ErrorSurface error={storefront.error} onRetry={() => void storefront.refetch()} />
+        </div>
       ) : (
-        // A grid rather than a stack, because the question on this page is
-        // "which of these", and a comparison is made across a row. It collapses
-        // to one column on a phone, where a stack is the comparison.
-        <ul
-          className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3"
-          data-testid="storefront-offers"
-        >
-          {storefront.data.offers.map((offer) => (
-            <OfferCard key={offer.id} offer={offer} onChoose={onChoose} />
-          ))}
-        </ul>
+        // **The same page a member reads** (docs/home-showcase-spec.md §2).
+        // What differs is the call to action — choosing an offer here opens
+        // the door rather than a checkout — never the story. A second
+        // rendering of it for strangers would be the one nobody proofread.
+        <Showcase
+          productName={storefront.data?.product?.name ?? t("What we sell")}
+          content={contentFrom(story.data)}
+          offers={storefront.data?.offers ?? []}
+          offersLoading={storefront.isPending}
+          onChooseOffer={onChoose}
+          retired={isRetired(story.data)}
+          action={
+            <a href={`#${BAND_META.PRICING.anchor}`} data-testid="see-the-offers" className={buttonClass()}>
+              {t("See the offers")}</a>
+          }
+        />
       )}
-
-      <footer className="border-t border-line pt-4 text-sm">
-        <p className="text-muted">
+      <footer className="border-t border-line bg-canvas px-4 py-8 text-sm md:px-8">
+        <p className="mx-auto max-w-6xl text-muted">
           {t("Already have an account?")}{' '}
           <button
             type="button"

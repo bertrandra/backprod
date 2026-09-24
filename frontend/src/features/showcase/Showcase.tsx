@@ -60,8 +60,13 @@ export function Showcase({
 
   const present = bandsInOrder().filter((kind) => BAND_VIEWS[kind].speaks(props));
 
+  // No bleed of its own: the bands run edge to edge of whatever contains
+  // them, and what that edge is differs. Inside the shell it is the padded
+  // view region, which `ShowcaseScreen` cancels; on the storefront the page
+  // *is* the container. A negative margin baked in here would be right in
+  // one of the two places.
   return (
-    <div data-testid="showcase" className="-mx-4 md:-mx-8">
+    <div data-testid="showcase">
       <ShowcaseNav present={present} />
 
       {present.map((kind) => (

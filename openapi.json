@@ -364,6 +364,107 @@
           }
         }
       },
+      "ShowcaseBlockContent": {
+        "type": "object",
+        "description": "One band's own fields, all plain text (2026-09-24). Which fields a band has depends on its kind — a HEADLINE has `headline` and `subline`, a QUESTION has `question` and `answer` — and the server refuses any field no band renders, so nobody writes into a hole. No markup is accepted or rendered anywhere in here.",
+        "additionalProperties": false,
+        "properties": {
+          "headline": { "type": "string", "maxLength": 2000, "description": "HEADLINE: what it does, for whom." },
+          "subline": { "type": "string", "maxLength": 2000, "description": "HEADLINE: the change it makes." },
+          "title": { "type": "string", "maxLength": 2000, "description": "STEPS: the move." },
+          "body": { "type": "string", "maxLength": 2000, "description": "STEPS: what happens in it." },
+          "who": { "type": "string", "maxLength": 2000, "description": "USE_CASE: the customer who recognises themselves." },
+          "before": { "type": "string", "maxLength": 2000, "description": "USE_CASE: what they were doing." },
+          "after": { "type": "string", "maxLength": 2000, "description": "USE_CASE: what they do now." },
+          "caption": { "type": "string", "maxLength": 2000, "description": "PROOF: what the picture shows." },
+          "question": { "type": "string", "maxLength": 2000, "description": "QUESTION: what somebody asks before buying." },
+          "answer": { "type": "string", "maxLength": 2000, "description": "QUESTION: the answer, in two lines." }
+        }
+      },
+      "ShowcaseBlockInput": {
+        "type": "object",
+        "description": "A band as the console writes it. The English is `content` and is the key and the fallback; `translations` holds the four other languages, field by field — a French headline with no French subline reads French above and English below, which is the honest rendering of a page somebody is still working through.",
+        "required": ["block", "content"],
+        "properties": {
+          "block": {
+            "type": "string",
+            "enum": ["HEADLINE", "STEPS", "USE_CASE", "PROOF", "QUESTION"],
+            "description": "PRICING is absent and must stay absent: it is a position in the order and reads the catalogue. One HEADLINE per page."
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 10,
+            "description": "Within its kind. In tens, so one can be slipped between two others without renumbering anybody."
+          },
+          "content": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
+          "translations": {
+            "type": "object",
+            "description": "By language. English is refused — it lives on the block itself, and a second home for it would let the two disagree. A language may fill any subset of the band's fields.",
+            "additionalProperties": false,
+            "properties": {
+              "fr": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
+              "es": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
+              "de": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
+              "it": { "$ref": "#/components/schemas/ShowcaseBlockContent" }
+            }
+          }
+        }
+      },
+      "EditableShowcaseBlock": {
+        "type": "object",
+        "description": "A band as the console reads it back: the English, and every language somebody has written beside it — the incomplete ones included, because the console is the only place that can finish them.",
+        "required": ["id", "block", "position", "content", "translations"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "block": { "type": "string", "enum": ["HEADLINE", "STEPS", "USE_CASE", "PROOF", "QUESTION"] },
+          "position": { "type": "integer" },
+          "content": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
+          "translations": {
+            "type": "object",
+            "description": "An empty object means nobody has translated this band yet, which is the ordinary case and not a gap.",
+            "additionalProperties": false,
+            "properties": {
+              "fr": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
+              "es": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
+              "de": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
+              "it": { "$ref": "#/components/schemas/ShowcaseBlockContent" }
+            }
+          }
+        }
+      },
+      "Showcase": {
+        "type": "object",
+        "description": "A product's story as a reader gets it: one language, resolved field by field. The product's own facts come with it because a stranger cannot ask for them separately — `listProducts` answers from a membership, and they have none.",
+        "required": ["product", "blocks"],
+        "properties": {
+          "product": {
+            "type": "object",
+            "required": ["code", "name", "active"],
+            "properties": {
+              "code": { "type": "string" },
+              "name": { "type": "string" },
+              "active": {
+                "type": "boolean",
+                "description": "False for a retired product, which keeps its page (§11.3). It is what lets the prices band say *No longer sold* rather than showing an empty band or a Buy that leads to a refusal."
+              }
+            }
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "block", "position", "content"],
+              "properties": {
+                "id": { "type": "string", "format": "uuid" },
+                "block": { "type": "string", "enum": ["HEADLINE", "STEPS", "USE_CASE", "PROOF", "QUESTION"] },
+                "position": { "type": "integer" },
+                "content": { "$ref": "#/components/schemas/ShowcaseBlockContent" }
+              }
+            }
+          }
+        }
+      },
       "EditableFeature": {
         "type": "object",
         "description": "A feature as the console edits it: the English on the row, and every translation somebody has written beside it — including the incomplete ones, because the console is the only place that can finish them. A customer is answered `Feature` instead, with one name in their own language.",
@@ -17753,6 +17854,56 @@
         ]
       }
     },
+    "/api/v1/public/products/{code}/showcase": {
+      "get": {
+        "tags": [
+          "Storefront"
+        ],
+        "operationId": "getPublicShowcase",
+        "summary": "What a product says about itself",
+        "description": "Unauthenticated (2026-09-24, docs/home-showcase-spec.md). The product's story as a stranger reads it: the bands somebody wrote, in order, with each field resolved into one language. By **code**, because a stranger has no session to resolve an id from.\n\n`404 SHOWCASE_NOT_FOUND` for a draft, a code nobody has, and a product that does not exist — one answer for all three, so an unpublished page is not a way to learn that a product exists (ADR-041).\n\nA **retired** product still answers: retiring stops the selling, not the record (§11.3). `product.active` is false for one, and the page says *No longer sold* where the prices were rather than showing an empty band or a Buy that leads to a refusal.\n\nThe language is English. A stranger has no profile, and `?lang=` was removed on 2026-09-23 (ADR-050) because a shared link could impose a language on whoever opened it next — the same open question the storefront already has, and it will be settled for both at once.",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The story.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "showcase"
+                  ],
+                  "properties": {
+                    "showcase": {
+                      "$ref": "#/components/schemas/Showcase"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/public/tenant": {
       "get": {
         "tags": [
@@ -19142,6 +19293,160 @@
           "429": { "$ref": "#/components/responses/TooManyRequests" },
           "500": { "$ref": "#/components/responses/InternalError" },
           "503": { "description": "`WEBHOOKS_NOT_CONFIGURED` — the deployment has no WEBHOOK_SECRET_KEY to seal the secret under.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/v1/staff/products/{productId}/showcase": {
+      "get": {
+        "tags": ["Staff"],
+        "operationId": "showProductStory",
+        "summary": "The product's story, as the console edits it",
+        "description": "Every band with **every language beside it**, drafts included (2026-09-24). Answered differently from the public read for the reason a feature is: a customer is shown one language, resolved, and the console is shown all five — because it is the only place that can finish a half-translated page and the only place where seeing a gap helps. `staff.products.manage`.",
+        "parameters": [
+          { "name": "productId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "The story.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["product", "published_at", "blocks"],
+                  "properties": {
+                    "product": {
+                      "type": "object",
+                      "required": ["id", "code", "name"],
+                      "properties": {
+                        "id": { "type": "string", "format": "uuid" },
+                        "code": { "type": "string" },
+                        "name": { "type": "string" }
+                      }
+                    },
+                    "published_at": {
+                      "type": ["string", "null"],
+                      "format": "date-time",
+                      "description": "Null is a draft, and the public read answers 404 for one."
+                    },
+                    "blocks": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/EditableShowcaseBlock" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/PermissionDenied" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "put": {
+        "tags": ["Staff"],
+        "operationId": "writeProductStory",
+        "summary": "Replace the product's story",
+        "description": "PUT, and the set is replaced: the console sends what the page says, so a band it left out is one it removed. Merging would make deleting a band impossible without a route whose only purpose was deletion — the same reasoning as a translation set.\n\n**Every field is plain text.** No markup is accepted and none is rendered: a rich-text field would be an XSS surface reachable by anybody with `staff.products.manage` and read by everybody with a browser. A field no band renders is refused rather than stored, so nobody writes into a hole.\n\n`PRICING` is not a block kind and is refused: it is a position in the order and reads the catalogue, so a row for it would be a row somebody could type a price into. One `HEADLINE` per page.\n\nWriting does not publish — that is the next route — so four bands can be written over an afternoon without a stranger reading the half-finished ones. `staff.products.manage`.",
+        "parameters": [
+          { "name": "productId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["blocks"],
+                "properties": {
+                  "blocks": {
+                    "type": "array",
+                    "maxItems": 40,
+                    "description": "The whole story. Empty removes it, which leaves the page as the product's name and its prices.",
+                    "items": { "$ref": "#/components/schemas/ShowcaseBlockInput" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What the product now says.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["blocks"],
+                  "properties": {
+                    "blocks": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/EditableShowcaseBlock" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — an unknown band, an unknown field, a missing English sentence, or a second headline.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/PermissionDenied" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/staff/products/{productId}/showcase/publish": {
+      "post": {
+        "tags": ["Staff"],
+        "operationId": "publishProductStory",
+        "summary": "Put the story in front of strangers, or take it down",
+        "description": "`published` both ways, because a page that could go up and never come down would be a decision nobody could undo.\n\n**One language is enough, and it is English** (§11.2): a page publishes with the English filled and nothing else, and a reader whose language is unwritten reads English — exactly as they do for a mail, a feature name and an offer name. What is refused is *nothing*: `409 SHOWCASE_INCOMPLETE` while there is no headline, because a shop window with the sign taken down is not a published page. `staff.products.manage`.",
+        "parameters": [
+          { "name": "productId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["published"],
+                "properties": { "published": { "type": "boolean" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "When it was published, or null once it is down.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["published_at"],
+                  "properties": {
+                    "published_at": { "type": ["string", "null"], "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "`VALIDATION_FAILED`.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/PermissionDenied" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": {
+            "description": "`SHOWCASE_INCOMPLETE` — no headline with an English sentence in it.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
     },

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { Showcase } from './Showcase';
 import type { ShowcaseContent } from './blocks/content';
+import { contentFrom } from './blocks/fromApi';
 import { BAND_META, bandsInOrder } from './blocks/meta';
 import { BAND_VIEWS } from './blocks/registry';
 
@@ -181,6 +182,27 @@ describe('the page at rest', () => {
     // Absent rather than hidden: `aria-hidden` over a focusable link is an
     // axe violation, which the accessibility suite caught.
     expect(screen.queryByTestId('showcase-sticky-action')).toBeNull();
+  });
+});
+
+describe('a bad answer', () => {
+  it('renders a page rather than a blank screen', () => {
+    // The first thing a stranger sees, with no session behind it to blame.
+    // An answer whose `blocks` is missing — an older server, a proxy that
+    // rewrote something — has to read as "nothing written yet", which is a
+    // page. It used to throw, and took the shell's own frame down with it.
+    const { container } = render(
+      <Showcase
+        productName="Plan"
+        content={contentFrom({ product: { code: 'plan', name: 'Plan', active: true } } as never)}
+        offers={[]}
+        offersLoading={false}
+        action={<span />}
+      />,
+    );
+
+    expect(screen.getByTestId('showcase-headline').textContent).toBe('Plan');
+    expect(container.querySelectorAll('[data-band]')).toHaveLength(2);
   });
 });
 

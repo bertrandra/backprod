@@ -2981,6 +2981,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/products/{code}/showcase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What a product says about itself
+         * @description Unauthenticated (2026-09-24, docs/home-showcase-spec.md). The product's story as a stranger reads it: the bands somebody wrote, in order, with each field resolved into one language. By **code**, because a stranger has no session to resolve an id from.
+         *
+         *     `404 SHOWCASE_NOT_FOUND` for a draft, a code nobody has, and a product that does not exist — one answer for all three, so an unpublished page is not a way to learn that a product exists (ADR-041).
+         *
+         *     A **retired** product still answers: retiring stops the selling, not the record (§11.3). `product.active` is false for one, and the page says *No longer sold* where the prices were rather than showing an empty band or a Buy that leads to a refusal.
+         *
+         *     The language is English. A stranger has no profile, and `?lang=` was removed on 2026-09-23 (ADR-050) because a shared link could impose a language on whoever opened it next — the same open question the storefront already has, and it will be settled for both at once.
+         */
+        get: operations["getPublicShowcase"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/tenant": {
         parameters: {
             query?: never;
@@ -3311,6 +3337,58 @@ export interface paths {
          * @description The answer carries the secret in the clear, once (ADR-051 §5): the platform keeps it sealed under its own key and never shows it again. Issuing is rotating — the secret it replaces keeps signing for a day, so the product swaps its copy at its own pace and nothing is refused in between. No body. Trailed as ISSUE_WEBHOOK_SECRET. `staff.products.manage`.
          */
         post: operations["issueWebhookSecret"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/products/{productId}/showcase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The product's story, as the console edits it
+         * @description Every band with **every language beside it**, drafts included (2026-09-24). Answered differently from the public read for the reason a feature is: a customer is shown one language, resolved, and the console is shown all five — because it is the only place that can finish a half-translated page and the only place where seeing a gap helps. `staff.products.manage`.
+         */
+        get: operations["showProductStory"];
+        /**
+         * Replace the product's story
+         * @description PUT, and the set is replaced: the console sends what the page says, so a band it left out is one it removed. Merging would make deleting a band impossible without a route whose only purpose was deletion — the same reasoning as a translation set.
+         *
+         *     **Every field is plain text.** No markup is accepted and none is rendered: a rich-text field would be an XSS surface reachable by anybody with `staff.products.manage` and read by everybody with a browser. A field no band renders is refused rather than stored, so nobody writes into a hole.
+         *
+         *     `PRICING` is not a block kind and is refused: it is a position in the order and reads the catalogue, so a row for it would be a row somebody could type a price into. One `HEADLINE` per page.
+         *
+         *     Writing does not publish — that is the next route — so four bands can be written over an afternoon without a stranger reading the half-finished ones. `staff.products.manage`.
+         */
+        put: operations["writeProductStory"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/products/{productId}/showcase/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Put the story in front of strangers, or take it down
+         * @description `published` both ways, because a page that could go up and never come down would be a decision nobody could undo.
+         *
+         *     **One language is enough, and it is English** (§11.2): a page publishes with the English filled and nothing else, and a reader whose language is unwritten reads English — exactly as they do for a mail, a feature name and an offer name. What is refused is *nothing*: `409 SHOWCASE_INCOMPLETE` while there is no headline, because a shop window with the sign taken down is not a published page. `staff.products.manage`.
+         */
+        post: operations["publishProductStory"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3844,6 +3922,83 @@ export interface components {
         TranslatedName: {
             name?: string | null;
             description?: string | null;
+        };
+        /** @description One band's own fields, all plain text (2026-09-24). Which fields a band has depends on its kind — a HEADLINE has `headline` and `subline`, a QUESTION has `question` and `answer` — and the server refuses any field no band renders, so nobody writes into a hole. No markup is accepted or rendered anywhere in here. */
+        ShowcaseBlockContent: {
+            /** @description HEADLINE: what it does, for whom. */
+            headline?: string;
+            /** @description HEADLINE: the change it makes. */
+            subline?: string;
+            /** @description STEPS: the move. */
+            title?: string;
+            /** @description STEPS: what happens in it. */
+            body?: string;
+            /** @description USE_CASE: the customer who recognises themselves. */
+            who?: string;
+            /** @description USE_CASE: what they were doing. */
+            before?: string;
+            /** @description USE_CASE: what they do now. */
+            after?: string;
+            /** @description PROOF: what the picture shows. */
+            caption?: string;
+            /** @description QUESTION: what somebody asks before buying. */
+            question?: string;
+            /** @description QUESTION: the answer, in two lines. */
+            answer?: string;
+        };
+        /** @description A band as the console writes it. The English is `content` and is the key and the fallback; `translations` holds the four other languages, field by field — a French headline with no French subline reads French above and English below, which is the honest rendering of a page somebody is still working through. */
+        ShowcaseBlockInput: {
+            /**
+             * @description PRICING is absent and must stay absent: it is a position in the order and reads the catalogue. One HEADLINE per page.
+             * @enum {string}
+             */
+            block: "HEADLINE" | "STEPS" | "USE_CASE" | "PROOF" | "QUESTION";
+            /**
+             * @description Within its kind. In tens, so one can be slipped between two others without renumbering anybody.
+             * @default 10
+             */
+            position?: number;
+            content: components["schemas"]["ShowcaseBlockContent"];
+            /** @description By language. English is refused — it lives on the block itself, and a second home for it would let the two disagree. A language may fill any subset of the band's fields. */
+            translations?: {
+                fr?: components["schemas"]["ShowcaseBlockContent"];
+                es?: components["schemas"]["ShowcaseBlockContent"];
+                de?: components["schemas"]["ShowcaseBlockContent"];
+                it?: components["schemas"]["ShowcaseBlockContent"];
+            };
+        };
+        /** @description A band as the console reads it back: the English, and every language somebody has written beside it — the incomplete ones included, because the console is the only place that can finish them. */
+        EditableShowcaseBlock: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            block: "HEADLINE" | "STEPS" | "USE_CASE" | "PROOF" | "QUESTION";
+            position: number;
+            content: components["schemas"]["ShowcaseBlockContent"];
+            /** @description An empty object means nobody has translated this band yet, which is the ordinary case and not a gap. */
+            translations: {
+                fr?: components["schemas"]["ShowcaseBlockContent"];
+                es?: components["schemas"]["ShowcaseBlockContent"];
+                de?: components["schemas"]["ShowcaseBlockContent"];
+                it?: components["schemas"]["ShowcaseBlockContent"];
+            };
+        };
+        /** @description A product's story as a reader gets it: one language, resolved field by field. The product's own facts come with it because a stranger cannot ask for them separately — `listProducts` answers from a membership, and they have none. */
+        Showcase: {
+            product: {
+                code: string;
+                name: string;
+                /** @description False for a retired product, which keeps its page (§11.3). It is what lets the prices band say *No longer sold* rather than showing an empty band or a Buy that leads to a refusal. */
+                active: boolean;
+            };
+            blocks: {
+                /** Format: uuid */
+                id: string;
+                /** @enum {string} */
+                block: "HEADLINE" | "STEPS" | "USE_CASE" | "PROOF" | "QUESTION";
+                position: number;
+                content: components["schemas"]["ShowcaseBlockContent"];
+            }[];
         };
         /** @description A feature as the console edits it: the English on the row, and every translation somebody has written beside it — including the incomplete ones, because the console is the only place that can finish them. A customer is answered `Feature` instead, with one name in their own language. */
         EditableFeature: {
@@ -12708,6 +12863,33 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    getPublicShowcase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The story. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        showcase: components["schemas"]["Showcase"];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     showPublicTenant: {
         parameters: {
             query?: {
@@ -13596,6 +13778,145 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+        };
+    };
+    showProductStory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The story. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        product: {
+                            /** Format: uuid */
+                            id: string;
+                            code: string;
+                            name: string;
+                        };
+                        /**
+                         * Format: date-time
+                         * @description Null is a draft, and the public read answers 404 for one.
+                         */
+                        published_at: string | null;
+                        blocks: components["schemas"]["EditableShowcaseBlock"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    writeProductStory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description The whole story. Empty removes it, which leaves the page as the product's name and its prices. */
+                    blocks: components["schemas"]["ShowcaseBlockInput"][];
+                };
+            };
+        };
+        responses: {
+            /** @description What the product now says. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        blocks: components["schemas"]["EditableShowcaseBlock"][];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — an unknown band, an unknown field, a missing English sentence, or a second headline. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    publishProductStory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    published: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description When it was published, or null once it is down. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        published_at: string | null;
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description `SHOWCASE_INCOMPLETE` — no headline with an English sentence in it. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
         };
     };
     listWebhookDeliveries: {

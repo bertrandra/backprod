@@ -79,6 +79,11 @@ final class RouteSurfaceTest extends ApiTestCase
         'GET /api/v1/public/offers',
         'GET /api/v1/public/offers/{offerId}',
         'GET /api/v1/public/products',
+        // What a product says about itself (2026-09-24). Public because it
+        // is a shop window and for no other reason: a draft answers 404,
+        // which is the same non-answer an unknown code gets, so the route
+        // reveals nothing about what the platform runs.
+        'GET /api/v1/public/products/{code}/showcase',
         'GET /api/v1/public/tenant',
         // The demonstration page: a 404 until switched on, so the route itself
         // reveals nothing.

@@ -5,11 +5,13 @@ import { useCurrentProduct } from '@/queries/catalogue';
 import { useOffers } from '@/queries/catalogue';
 import { useStaffIdentity, staffAccess } from '@/queries/staff';
 import { useSubscription } from '@/queries/subscription';
+import { usePublicShowcase } from '@/queries/showcase';
 import { useSessionStore } from '@/state/session';
 import { buttonClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { t } from '@/i18n';
 
+import { contentFrom, isRetired } from './blocks/fromApi';
 import { BAND_META } from './blocks/meta';
 import { Showcase } from './Showcase';
 
@@ -28,10 +30,14 @@ import { Showcase } from './Showcase';
  * decided by permissions and entitlements, which is where every other
  * screen on this platform decides such things.
  *
- * The story's rows arrive in step 3; until then the page is the product's
- * name, its prices and the right button, which is `NO_CONTENT` rendering
- * as two bands rather than six. A product that has said nothing looks
- * deliberate rather than broken.
+ * **The same read a stranger makes**, on purpose. A member reading a
+ * different copy of the story — from the console's route, say — would be a
+ * second answer to "what does this product say about itself", and the one
+ * somebody proofread would be the one nobody saw.
+ *
+ * A product that has published nothing renders its name, its prices and
+ * the right button: two bands rather than six, which looks deliberate
+ * rather than broken.
  */
 export function ShowcaseScreen() {
   const navigate = useNavigate();
@@ -40,14 +46,25 @@ export function ShowcaseScreen() {
   const offers = useOffers();
   const staff = useStaffIdentity();
   const subscription = useSubscription();
+  // The same read a stranger makes, on purpose: **one story, one place it
+  // comes from**. A member reading a different copy of the page — from the
+  // console's route, say — would be a second answer to "what does this
+  // product say about itself", and the one somebody proofread would be the
+  // one nobody saw.
+  const story = usePublicShowcase(productCode);
 
   if (product === null && offers.isPending) {
     return <SkeletonRows rows={6} />;
   }
 
+  // The bands run edge to edge, so the view region's own padding is
+  // cancelled here — this is the one screen on the platform that is not a
+  // document inside a margin.
   return (
-    <Showcase
+    <div className="-mx-4 md:-mx-6 lg:-mx-8">
+      <Showcase
       productName={product?.name ?? productCode ?? t("This product")}
+      content={contentFrom(story.data)}
       offers={offers.data ?? []}
       offersLoading={offers.isPending}
       // The prices band states a price; buying one is the catalogue's act,
@@ -78,13 +95,13 @@ export function ShowcaseScreen() {
           )}
         </>
       }
-      // Not said here, and deliberately: `GET /products` answers from a
-      // membership and carries no `active`, so a member's shell cannot
+      // From the story, not from `GET /products` — which answers from a
+      // membership and carries no `active`, so a member's shell could not
       // tell a retired product from one with nothing published yet. The
-      // prices band says "nothing on sale" for both, which is true of
-      // both. "No longer sold" (spec §11.3) is the *public* page's answer,
-      // where the showcase read knows it — step 3.
-    />
+      // public read knows, and says so (spec §11.3).
+      retired={isRetired(story.data)}
+      />
+    </div>
   );
 }
 

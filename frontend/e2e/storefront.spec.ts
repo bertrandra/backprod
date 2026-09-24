@@ -152,7 +152,7 @@ test.describe('the shop window', () => {
 
     // One message, because the API gives one answer for "no such product", "not
     // active" and "advertises nothing".
-    await expect(page.getByText('Nothing on sale here')).toBeVisible();
+    await expect(page.getByText('Nothing on sale yet')).toBeVisible();
   });
 });
 

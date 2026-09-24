@@ -48,6 +48,18 @@ export const keys = {
     preferences: ['notifications', 'preferences'] as const,
     consents: ['notifications', 'consents'] as const,
   },
+  /**
+   * A product's story (2026-09-24). Two reads and one branch: the public
+   * one is keyed by code because a stranger has no id to name, the
+   * console's by id because that is what its route takes, and `all` is what
+   * a write invalidates — a story is published once in a while, and a stale
+   * shop window is worse than a refetch nobody notices.
+   */
+  showcase: {
+    all: ['showcase'] as const,
+    public: (code: string) => ['showcase', 'public', code] as const,
+    story: (productId: string) => ['showcase', 'story', productId] as const,
+  },
   catalogue: {
     products: ['catalogue', 'products'] as const,
     /** The same list with the person's default beside it — one read, two facts. */

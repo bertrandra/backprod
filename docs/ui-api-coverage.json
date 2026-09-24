@@ -169,6 +169,18 @@
         "publishStaffOfferVersion"
       ]
     },
+    "console.admin.showcase": {
+      "authority": "platform",
+      "$comment": "The story a product tells on its own page (2026-09-24, docs/home-showcase-spec.md). Written by the platform's own staff under staff.products.manage and never by a tenant: a page written by one customer would be read by every other customer of the same product (§11.1). Writing and publishing are separate acts, so four bands can be written over an afternoon without a stranger reading the half-finished ones. The editor is driven by the same block registry the page renders from, so a band added tomorrow gets its form by existing.",
+      "routes": [
+        "/console/products"
+      ],
+      "operations": [
+        "showProductStory",
+        "writeProductStory",
+        "publishProductStory"
+      ]
+    },
     "console.admin.features": {
       "authority": "platform",
       "$comment": "The platform's one list of features (2026-09-24, docs/translatable-fields-spec.md §4). A feature is not a thing a product owns; it is a word the platform and a product's code have agreed on, and max_projects existed once per product until this screen. No product is named here, which is the whole point: a product's catalogue picks a code from this list. Retiring replaces deleting, because a feature some offer version grants can never be removed.",
@@ -442,6 +454,7 @@
         "showPublicTenant",
         "getPublicOffers",
         "getPublicOffer",
+        "getPublicShowcase",
         "signUp"
       ]
     },
