@@ -313,10 +313,13 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
         // reversible later without leaving rows nobody can reach.
         $this->connection->executeStatement('DELETE FROM features WHERE id = :id', ['id' => $featureId]);
 
-        self::assertSame(0, (int) $this->connection->fetchOne(
+        $left = $this->connection->fetchOne(
             'SELECT count(*) FROM feature_translations WHERE feature_id = :id',
             ['id' => $featureId],
-        ));
+        );
+
+        self::assertIsNumeric($left);
+        self::assertSame(0, (int) $left);
     }
 
     /**
@@ -352,12 +355,16 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
     /** What `GET /api/v1/features` answers somebody whose profile says this language. */
     private function featureNameAsReadBy(string $locale, string $code): ?string
     {
-        return $this->featureAsReadBy($locale, $code)['name'] ?? null;
+        $name = $this->featureAsReadBy($locale, $code)['name'] ?? null;
+
+        return is_string($name) ? $name : null;
     }
 
     private function descriptionAsReadBy(string $locale, string $code): ?string
     {
-        return $this->featureAsReadBy($locale, $code)['description'] ?? null;
+        $description = $this->featureAsReadBy($locale, $code)['description'] ?? null;
+
+        return is_string($description) ? $description : null;
     }
 
     /** @return array<string, mixed> */
