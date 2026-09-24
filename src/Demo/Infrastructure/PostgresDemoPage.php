@@ -54,7 +54,7 @@ final class PostgresDemoPage implements DemoPage
         // inside its window), advertised or not: it is a demonstration.
         $products = [];
 
-        foreach ($this->connection->fetchAllAssociative('SELECT id, code, name FROM products WHERE active ORDER BY code') as $row) {
+        foreach ($this->connection->fetchAllAssociative('SELECT id, code, name FROM products WHERE active ORDER BY display_order, code') as $row) {
             $products[Row::string($row, 'id')] = ['code' => Row::string($row, 'code'), 'name' => Row::string($row, 'name'), 'offers' => []];
         }
 
@@ -117,7 +117,7 @@ final class PostgresDemoPage implements DemoPage
                   FROM tenant_products tp
                   JOIN products p ON p.id = tp.product_id
                  WHERE p.active
-                 ORDER BY p.code
+                 ORDER BY p.display_order, p.code
                 SQL,
         );
 

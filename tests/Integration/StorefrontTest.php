@@ -516,6 +516,41 @@ final class StorefrontTest extends DatabaseApiTestCase
         ]))['default'] ?? null);
     }
 
+    /**
+     * The fallback default is the first product the platform *shows*, not
+     * the first alphabetically (2026-09-24).
+     *
+     * `atlas` sorts before `plan` and would have won on the alphabet, which
+     * is how somebody who signed up on a Plan offer landed on Atlas: the
+     * operator had put Plan at the top of every list and this query did not
+     * read that column at all.
+     */
+    public function testTheFallbackDefaultFollowsTheOrderTheListsUse(): void
+    {
+        $plan = $this->id("INSERT INTO products (code, name, active, display_order) VALUES ('plan', 'Plan', true, 10) RETURNING id");
+        $this->connection->executeStatement('UPDATE products SET display_order = 20 WHERE id = :id', ['id' => $this->product]);
+        TestDatabase::assignProduct($this->connection, $this->acme, $plan);
+
+        // Naming a product the organisation does not hold, so the fallback
+        // decides — the one place the order was read from the alphabet.
+        $this->connection->executeStatement("INSERT INTO products (code, name, active) VALUES ('boreas', 'Boreas', true)");
+
+        $token = $this->decode($this->signUp([
+            'email' => 'ada@acme.test',
+            'password' => 'a-long-enough-password',
+            'tenant' => 'acme',
+            'product' => 'boreas',
+        ]))['access_token'] ?? null;
+        self::assertIsString($token);
+
+        $products = $this->decode($this->request('GET', '/api/v1/products', ['Authorization' => 'Bearer ' . $token]));
+
+        self::assertSame('plan', $products['default'] ?? null);
+        // And the list itself is in that order, which is what makes the
+        // default and the first option agree.
+        self::assertSame(['plan', 'atlas'], array_column(is_array($products['products'] ?? null) ? $products['products'] : [], 'code'));
+    }
+
     public function testASignUpRecordsTheLanguageThePageWasReadIn(): void
     {
         $response = $this->signUp([

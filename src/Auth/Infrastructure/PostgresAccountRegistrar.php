@@ -86,13 +86,18 @@ final class PostgresAccountRegistrar implements AccountRegistrar
             $email,
         );
 
+        // In the order the platform shows products (2026-09-24), not the
+        // alphabet's: `$products[0]` below becomes somebody's default, and
+        // until today that meant whichever code sorted first. An operator
+        // who had put Plan at the top of every list watched a person who
+        // signed up on a Plan offer land on Atlas.
         $products = $this->connection->fetchFirstColumn(
             <<<'SQL'
                 SELECT tp.product_id
                   FROM tenant_products tp
                   JOIN products p ON p.id = tp.product_id
                  WHERE tp.tenant_id = :tenant AND p.active
-                 ORDER BY p.code
+                 ORDER BY p.display_order, p.code
                 SQL,
             ['tenant' => $tenantId],
         );
@@ -299,7 +304,7 @@ final class PostgresAccountRegistrar implements AccountRegistrar
                 $userId = $this->connection->fetchOne(
                     <<<'SQL'
                         INSERT INTO users (auth_subject, email, default_product_id)
-                        VALUES ('pending', :email, (SELECT tp.product_id FROM tenant_products tp JOIN products p ON p.id = tp.product_id WHERE tp.tenant_id = :tenant AND p.active ORDER BY p.code LIMIT 1))
+                        VALUES ('pending', :email, (SELECT tp.product_id FROM tenant_products tp JOIN products p ON p.id = tp.product_id WHERE tp.tenant_id = :tenant AND p.active ORDER BY p.display_order, p.code LIMIT 1))
                         RETURNING id
                         SQL,
                     ['email' => $email, 'tenant' => $tenantId],
