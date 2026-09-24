@@ -3555,7 +3555,7 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Correct a feature’s name
+         * Correct what a feature is called, in every language
          * @description The only thing about a feature that may change. Its code is how grants and entitlements name it; its kind decides how every grant already written against it is read.
          */
         patch: operations["renameFeature"];
@@ -3816,11 +3816,38 @@ export interface components {
             /** @description Orders plans against each other. An upgrade is a comparison of two ranks, never of two names (§13). */
             rank: number;
         };
+        /** @description One language's words for something an operator named. Both fields are optional and null clears one; a language that says nothing at all is simply not stored. */
+        TranslatedName: {
+            name?: string | null;
+            description?: string | null;
+        };
+        /** @description A feature as the console edits it: the English on the row, and every translation somebody has written beside it — including the incomplete ones, because the console is the only place that can finish them. A customer is answered `Feature` instead, with one name in their own language. */
+        EditableFeature: {
+            /** Format: uuid */
+            id: string;
+            code: string;
+            /** @description The English, which is the key and the fallback. */
+            name: string;
+            description: string | null;
+            /** @enum {string} */
+            kind: "BOOLEAN" | "QUOTA";
+            unit: string | null;
+            /** @description By language, and only the languages that say something. An empty object means nobody has translated this yet, which is the ordinary case and not a gap. */
+            translations: {
+                fr?: components["schemas"]["TranslatedName"];
+                es?: components["schemas"]["TranslatedName"];
+                de?: components["schemas"]["TranslatedName"];
+                it?: components["schemas"]["TranslatedName"];
+            };
+        };
         Feature: {
             /** Format: uuid */
             id: string;
             code: string;
+            /** @description What the operator calls this feature, **in the reader's own language** (2026-09-24): the platform resolves it from their profile and falls back to the English, which is the value on the row itself. The other languages are not sent here — a client given five names would have to choose, and choosing is the server's job (`docs/translatable-fields-spec.md`). */
             name: string;
+            /** @description A sentence beside the name, in the reader's language, or null where nobody wrote one. */
+            description: string | null;
             /** @enum {string} */
             kind: "BOOLEAN" | "QUOTA";
             /** @description Only a quota has one; the database refuses a unit on a boolean. */
@@ -13877,7 +13904,7 @@ export interface operations {
                             name: string;
                         };
                         plans: components["schemas"]["Plan"][];
-                        features: components["schemas"]["Feature"][];
+                        features: components["schemas"]["EditableFeature"][];
                     };
                 };
             };
@@ -14036,7 +14063,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        feature: components["schemas"]["Feature"];
+                        feature: components["schemas"]["EditableFeature"];
                     };
                 };
             };
@@ -14080,7 +14107,17 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** @description The English, which is the key and the fallback for every language nobody has written (ADR-050). */
                     name: string;
+                    /** @description A sentence a customer reads beside the name, in English. Absent leaves it alone; null clears it. */
+                    description?: string | null;
+                    /** @description What this feature is called in the four other languages, replacing the set: a language left out here is removed, which is how one is deleted without a route whose whole purpose is deletion. Absent leaves every translation alone. English is refused — it lives on the row itself, and a second home for it would let the two disagree (docs/translatable-fields-spec.md). */
+                    translations?: {
+                        fr?: components["schemas"]["TranslatedName"];
+                        es?: components["schemas"]["TranslatedName"];
+                        de?: components["schemas"]["TranslatedName"];
+                        it?: components["schemas"]["TranslatedName"];
+                    };
                 };
             };
         };
@@ -14092,7 +14129,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        feature: components["schemas"]["Feature"];
+                        feature: components["schemas"]["EditableFeature"];
                     };
                 };
             };

@@ -28,8 +28,12 @@ final class ListFeaturesController implements RouteHandler
         $context = RequestContextReader::from($request);
         $context->requirePermission('catalog.read');
 
+        // In the caller's own language (2026-09-24): what an operator wrote
+        // about their own catalogue is translated, and the reader's profile
+        // says which one. The codes, kinds and units are not — they are the
+        // API's vocabulary and stay English everywhere.
         return new JsonResponse(
-            ['features' => CataloguePresenter::features($this->catalogue->features($context->productId))],
+            ['features' => CataloguePresenter::features($this->catalogue->features($context->productId), $context->locale)],
             200,
         );
     }

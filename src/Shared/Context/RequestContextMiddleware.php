@@ -131,6 +131,10 @@ final class RequestContextMiddleware implements MiddlewareInterface
             // person would make every seat tenant-wide.
             $this->entitlements->capabilitiesFor($membership->tenantId, $product->id, $user->id),
             $tokenExpiresAt,
+            // Free: the directory read above already carries it, and a
+            // catalogue answered in the reader's language would otherwise
+            // ask for the same row again on every request.
+            $user->locale,
         );
 
         return $handler->handle($request->withAttribute(RequestContext::ATTRIBUTE, $context));

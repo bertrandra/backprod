@@ -18,7 +18,18 @@ const PRODUCT = { id: 'p-1', code: 'atlas', name: 'Atlas' };
 const PRO = { id: 'plan-1', code: 'pro', name: 'Pro', rank: 10 };
 const FREE = { id: 'plan-2', code: 'free', name: 'Free', rank: 0 };
 
-const QUOTA = { id: 'f-1', code: 'projects', name: 'Projects', kind: 'QUOTA', unit: 'projects' };
+const QUOTA = {
+  id: 'f-1',
+  code: 'projects',
+  name: 'Projects',
+  description: null,
+  kind: 'QUOTA',
+  unit: 'projects',
+  // What the operator wrote in the other languages (2026-09-24). One
+  // filled and three empty is the ordinary state of a catalogue, and the
+  // screen has to read as ordinary in it.
+  translations: { fr: { name: 'Projets', description: null } },
+};
 
 const version = (n: number, status: string, minorUnits: number) => ({
   id: `v-${n}`,
@@ -186,6 +197,41 @@ describe('features', () => {
       name: 'API access',
       kind: 'BOOLEAN',
       unit: null,
+    });
+  });
+
+  it('renames a feature in one language without losing the others', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/catalogue': { data: { product: PRODUCT, plans: [PRO], features: [QUOTA] } },
+      'GET /api/v1/staff/storefront/offers': { data: { product: PRODUCT, offers: [] } },
+      'PATCH /api/v1/staff/catalogue/features/{featureId}': { data: { feature: QUOTA } },
+    });
+
+    renderAtRoute(<CatalogueScreen />, client, ROUTE);
+
+    fireEvent.click(await screen.findByTestId('rename-projects'));
+
+    // The field opens on the reader's language — English in a test — and
+    // the dots say which languages say something without opening anything.
+    const written = screen.getByTestId('written-in-feature-projects');
+    expect(written.querySelector('[data-locale="fr"]')?.getAttribute('data-written')).toBe('true');
+    expect(written.querySelector('[data-locale="de"]')?.getAttribute('data-written')).toBe('false');
+
+    // Correct the German, leave the French alone.
+    fireEvent.click(screen.getByTestId('language-of-feature-projects'));
+    fireEvent.click(screen.getByTestId('language-de-of-feature-projects'));
+    fireEvent.change(screen.getByTestId('translated-feature-projects'), { target: { value: 'Projekte' } });
+
+    fireEvent.submit(screen.getByTestId('rename-form-projects'));
+
+    await waitFor(() => expect(requests.some((r) => r.method === 'PATCH')).toBe(true));
+
+    // The English and every translation travel together: the server
+    // replaces the set, so a language left out of this body is one it
+    // removes — and the French must therefore still be in it.
+    expect(requests.find((r) => r.method === 'PATCH')?.body).toEqual({
+      name: 'Projects',
+      translations: { fr: { name: 'Projets' }, de: { name: 'Projekte' } },
     });
   });
 

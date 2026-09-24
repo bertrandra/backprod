@@ -161,7 +161,11 @@ final class OfferVersionLoader
     /**
      * @param array<string, mixed> $row
      */
-    public static function toFeature(array $row): Feature
+    /**
+     * @param array<string, mixed>                                      $row
+     * @param array<string, array{name: ?string, description: ?string}> $translations
+     */
+    public static function toFeature(array $row, array $translations = []): Feature
     {
         return new Feature(
             Row::string($row, 'id'),
@@ -169,6 +173,8 @@ final class OfferVersionLoader
             Row::string($row, 'name'),
             Row::string($row, 'kind'),
             Row::nullableString($row, 'unit'),
+            Row::nullableString($row, 'description'),
+            $translations,
         );
     }
 

@@ -343,12 +343,90 @@
           }
         }
       },
+      "TranslatedName": {
+        "type": "object",
+        "description": "One language's words for something an operator named. Both fields are optional and null clears one; a language that says nothing at all is simply not stored.",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          }
+        }
+      },
+      "EditableFeature": {
+        "type": "object",
+        "description": "A feature as the console edits it: the English on the row, and every translation somebody has written beside it — including the incomplete ones, because the console is the only place that can finish them. A customer is answered `Feature` instead, with one name in their own language.",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "description",
+          "kind",
+          "unit",
+          "translations"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "The English, which is the key and the fallback."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "BOOLEAN",
+              "QUOTA"
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "translations": {
+            "type": "object",
+            "description": "By language, and only the languages that say something. An empty object means nobody has translated this yet, which is the ordinary case and not a gap.",
+            "additionalProperties": false,
+            "properties": {
+              "fr": { "$ref": "#/components/schemas/TranslatedName" },
+              "es": { "$ref": "#/components/schemas/TranslatedName" },
+              "de": { "$ref": "#/components/schemas/TranslatedName" },
+              "it": { "$ref": "#/components/schemas/TranslatedName" }
+            }
+          }
+        }
+      },
       "Feature": {
         "type": "object",
         "required": [
           "id",
           "code",
           "name",
+          "description",
           "kind",
           "unit"
         ],
@@ -361,7 +439,15 @@
             "type": "string"
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "description": "What the operator calls this feature, **in the reader's own language** (2026-09-24): the platform resolves it from their profile and falls back to the English, which is the value on the row itself. The other languages are not sent here — a client given five names would have to choose, and choosing is the server's job (`docs/translatable-fields-spec.md`)."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A sentence beside the name, in the reader's language, or null where nobody wrote one."
           },
           "kind": {
             "type": "string",
@@ -19360,7 +19446,7 @@
                     "features": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/Feature"
+                        "$ref": "#/components/schemas/EditableFeature"
                       }
                     }
                   }
@@ -19674,7 +19760,7 @@
                   ],
                   "properties": {
                     "feature": {
-                      "$ref": "#/components/schemas/Feature"
+                      "$ref": "#/components/schemas/EditableFeature"
                     }
                   }
                 }
@@ -19725,7 +19811,7 @@
           "Staff"
         ],
         "operationId": "renameFeature",
-        "summary": "Correct a feature’s name",
+        "summary": "Correct what a feature is called, in every language",
         "description": "The only thing about a feature that may change. Its code is how grants and entitlements name it; its kind decides how every grant already written against it is read.",
         "parameters": [
           {
@@ -19760,7 +19846,27 @@
                 "properties": {
                   "name": {
                     "type": "string",
-                    "maxLength": 200
+                    "maxLength": 200,
+                    "description": "The English, which is the key and the fallback for every language nobody has written (ADR-050)."
+                  },
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 500,
+                    "description": "A sentence a customer reads beside the name, in English. Absent leaves it alone; null clears it."
+                  },
+                  "translations": {
+                    "type": "object",
+                    "description": "What this feature is called in the four other languages, replacing the set: a language left out here is removed, which is how one is deleted without a route whose whole purpose is deletion. Absent leaves every translation alone. English is refused — it lives on the row itself, and a second home for it would let the two disagree (docs/translatable-fields-spec.md).",
+                    "additionalProperties": false,
+                    "properties": {
+                      "fr": { "$ref": "#/components/schemas/TranslatedName" },
+                      "es": { "$ref": "#/components/schemas/TranslatedName" },
+                      "de": { "$ref": "#/components/schemas/TranslatedName" },
+                      "it": { "$ref": "#/components/schemas/TranslatedName" }
+                    }
                   }
                 }
               }
@@ -19779,7 +19885,7 @@
                   ],
                   "properties": {
                     "feature": {
-                      "$ref": "#/components/schemas/Feature"
+                      "$ref": "#/components/schemas/EditableFeature"
                     }
                   }
                 }

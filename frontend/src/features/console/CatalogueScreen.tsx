@@ -7,6 +7,7 @@ import {
   useCreateStaffOffer,
   useCreateStaffOfferVersion,
   usePublishStaffOfferVersion,
+  useRenameFeature,
   useStaffCatalogue,
   useStorefrontOffers,
   useUpdatePlan,
@@ -14,6 +15,7 @@ import {
   type StaffFeature,
   type StaffPlan,
 } from '@/queries/staff';
+import { asTranslations, TranslatedField, type Translated } from '@/ui/TranslatedField';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
@@ -256,19 +258,7 @@ function Features({
       ) : (
         <ul className="space-y-2" data-testid="feature-list">
           {features.map((feature) => (
-            <li
-              key={feature.id}
-              data-feature={feature.code}
-              className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
-            >
-              <span className="font-medium">{feature.name}</span>{' '}
-              <code className="select-all text-xs text-muted">
-                {feature.code}
-              </code>
-              <span className="ml-2 text-xs text-subtle">
-                {feature.kind === 'QUOTA' ? t("quota in {value}", { value: feature.unit ?? '—' }) : t("switch")}
-              </span>
-            </li>
+            <FeatureRow key={feature.id} productCode={productCode} feature={feature} />
           ))}
         </ul>
       )}
@@ -349,6 +339,93 @@ function Features({
       </FormCard>
     </Section>
   );
+}
+
+/**
+ * One feature, and what it is called in each language (2026-09-24).
+ *
+ * The row reads as it did — name, code, kind — until somebody opens it.
+ * Editing is behind a click because naming a feature is done once and
+ * corrected rarely, and a catalogue of open forms is a screen nobody can
+ * scan.
+ *
+ * The code and the kind are shown and never editable: the code is how
+ * grants and entitlements name this, and the kind decides how every grant
+ * already written against it is read.
+ */
+function FeatureRow({ productCode, feature }: { productCode: string; feature: StaffFeature }) {
+  const rename = useRenameFeature(productCode);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<Translated>(() => translatedOf(feature));
+
+  return (
+    <li
+      data-feature={feature.code}
+      className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
+    >
+      <div className="flex flex-wrap items-baseline gap-2">
+        <span className="font-medium">{feature.name}</span>
+        <code className="select-all text-xs text-muted">{feature.code}</code>
+        <span className="text-xs text-subtle">
+          {feature.kind === 'QUOTA' ? t("quota in {value}", { value: feature.unit ?? '—' }) : t("switch")}
+        </span>
+
+        <Button
+          type="button"
+          variant="secondary"
+          data-testid={`rename-${feature.code}`}
+          onClick={() => {
+            setDraft(translatedOf(feature));
+            setEditing(!editing);
+          }}
+        >
+          {t("Rename")}</Button>
+      </div>
+
+      {editing && (
+        <form
+          className="mt-3 space-y-2"
+          data-testid={`rename-form-${feature.code}`}
+          onSubmit={(event) => {
+            event.preventDefault();
+
+            if (draft.en.trim() === '') {
+              return;
+            }
+
+            rename.mutate(
+              { featureId: feature.id, name: draft.en.trim(), translations: asTranslations(draft) },
+              { onSuccess: () => setEditing(false) },
+            );
+          }}
+        >
+          <TranslatedField id={`feature-${feature.code}`} value={draft} onChange={setDraft} />
+
+          {rename.error !== null && <ErrorSurface error={rename.error} />}
+
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" pending={rename.isPending}>
+              {t("Save")}</Button>
+            <Button type="button" variant="secondary" onClick={() => setEditing(false)}>
+              {t("Cancel")}</Button>
+          </div>
+        </form>
+      )}
+    </li>
+  );
+}
+
+/** The row's five names, as the field edits them. */
+function translatedOf(feature: StaffFeature): Translated {
+  const translations = feature.translations ?? {};
+
+  return {
+    en: feature.name,
+    fr: translations.fr?.name ?? '',
+    es: translations.es?.name ?? '',
+    de: translations.de?.name ?? '',
+    it: translations.it?.name ?? '',
+  };
 }
 
 type AuthoredOffer = NonNullable<ReturnType<typeof useStorefrontOffers>['data']>['offers'][number];

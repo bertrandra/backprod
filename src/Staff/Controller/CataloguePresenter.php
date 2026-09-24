@@ -26,6 +26,15 @@ final class CataloguePresenter
     }
 
     /**
+     * A feature as the console edits it (2026-09-24): the English on the
+     * row, and every translation somebody has written beside it.
+     *
+     * This is where the two sides genuinely differ, and why this class
+     * still exists. A customer is shown one name, in their language; the
+     * console is shown all five, because it is the only place that can
+     * finish a half-translated catalogue — and the only place where seeing
+     * a gap is useful rather than confusing.
+     *
      * @return array<string, mixed>
      */
     public static function feature(Feature $feature): array
@@ -34,8 +43,13 @@ final class CataloguePresenter
             'id' => $feature->id,
             'code' => $feature->code,
             'name' => $feature->name,
+            'description' => $feature->description,
             'kind' => $feature->kind,
             'unit' => $feature->unit,
+            // An object, not an array: `{}` in JSON rather than `[]`, so a
+            // feature nobody has translated reads as "no translations"
+            // rather than as a list the client has to guess the shape of.
+            'translations' => (object) $feature->translations,
         ];
     }
 }

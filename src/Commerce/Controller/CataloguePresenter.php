@@ -43,14 +43,26 @@ final class CataloguePresenter
     }
 
     /**
-     * @return array{id: string, code: string, name: string, kind: string, unit: string|null}
+     * A feature as a customer reads it: one name, in their language
+     * (2026-09-24).
+     *
+     * The locale is the reader's own, and the fallback is English — the
+     * `Feature` itself resolves both, because which language a feature is
+     * called in is a rule about the feature and not about this response.
+     * A customer is never shown the other four: they are an editing
+     * concern, and a client that received five names would have to choose,
+     * which is the mistake `Money` was written to prevent in another
+     * currency.
+     *
+     * @return array{id: string, code: string, name: string, description: string|null, kind: string, unit: string|null}
      */
-    public static function feature(Feature $feature): array
+    public static function feature(Feature $feature, string $locale = 'en'): array
     {
         return [
             'id' => $feature->id,
             'code' => $feature->code,
-            'name' => $feature->name,
+            'name' => $feature->nameIn($locale),
+            'description' => $feature->descriptionIn($locale),
             'kind' => $feature->kind,
             'unit' => $feature->unit,
         ];
@@ -61,10 +73,15 @@ final class CataloguePresenter
      *
      * @return list<array<string, mixed>>
      */
-    public static function features(array $features): array
+    public static function features(array $features, string $locale = 'en'): array
     {
-        return array_map(self::feature(...), $features);
+        return array_map(static fn (Feature $feature): array => self::feature($feature, $locale), $features);
     }
+
+    // The console's shape — the English beside every translation — is
+    // `App\Staff\Controller\CataloguePresenter::feature()`. That class used
+    // to exist only to save a reach across namespaces; since 2026-09-24 the
+    // two sides genuinely answer different questions.
 
     /**
      * @return array<string, mixed>
