@@ -119,7 +119,7 @@ test.describe('the shop window', () => {
     await expect(page.getByText('Pro, monthly')).toBeVisible();
     await expect(page.getByText('€29.00')).toBeVisible();
     // No form. Arriving is not asking to sign in.
-    await expect(page.getByLabel('Password')).toBeHidden();
+    await expect(page.getByLabel('Password', { exact: true })).toBeHidden();
   });
 
   test('asks the public list of windows, never the membership list', async ({ page }) => {
@@ -142,7 +142,7 @@ test.describe('the shop window', () => {
 
     // Below the offers, not instead of them — and it does reach the form.
     await page.getByTestId('sign-in-link').click();
-    await expect(page.getByLabel('Password')).toBeVisible();
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
   });
 
   test('says nothing about why a window is empty', async ({ page }) => {
@@ -231,7 +231,7 @@ test.describe('choosing an offer', () => {
     await page.getByRole('button', { name: 'Choose' }).click();
 
     await page.getByLabel('Email').fill('ada@acme.test');
-    await page.getByLabel('Password').fill('a-long-enough-password');
+    await page.getByLabel('Password', { exact: true }).fill('a-long-enough-password');
     await page.getByRole('button', { name: 'Create account and continue' }).click();
 
     // The pay step, where the secret was born (ADR-048). The stub has no card
@@ -288,7 +288,7 @@ test.describe('choosing an offer', () => {
 
     await expect(page.getByText(/accepts new members/i)).toBeVisible();
     await page.getByLabel('Email').fill('ada@acme.test');
-    await page.getByLabel('Password').fill('a-long-enough-password');
+    await page.getByLabel('Password', { exact: true }).fill('a-long-enough-password');
     await page.getByRole('button', { name: 'Create account and join' }).click();
 
     await expect(page.getByTestId('waiting-for-approval')).toBeVisible();
@@ -313,7 +313,7 @@ test.describe('choosing an offer', () => {
     await page.getByRole('button', { name: 'Choose' }).click();
 
     await page.getByLabel('Email').fill('ada@acme.test');
-    await page.getByLabel('Password').fill('a-long-enough-password');
+    await page.getByLabel('Password', { exact: true }).fill('a-long-enough-password');
     await page.getByRole('button', { name: 'Create account and continue' }).click();
 
     // The one place this platform tells anybody an account exists. Somebody who
