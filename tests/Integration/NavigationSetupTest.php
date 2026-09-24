@@ -74,16 +74,22 @@ final class NavigationSetupTest extends DatabaseApiTestCase
 
     // --- The setup ------------------------------------------------------------
 
-    public function testUnsetReadsAsEverythingForEveryAudience(): void
+    public function testUnsetHidesNothingAndLeavesAMemberTheScreensWithSomethingOnThem(): void
     {
         $response = $this->get('/api/v1/staff/navigation', 'sam-token');
 
         self::assertSame(200, $response->getStatusCode());
+        // Nothing is switched off for anybody — a screen added tomorrow
+        // appears until somebody decides otherwise — and `hide_empty` starts
+        // **on for a plain member only** (2026-09-24). An empty queue is
+        // information to whoever runs the platform and a dead end to whoever
+        // is looking for their projects, and a new member used to meet nine
+        // entries that all said "nothing here yet".
         self::assertSame([
             'navigation' => [
                 'platform_admin' => ['hidden' => [], 'hide_empty' => false],
                 'tenant_admin' => ['hidden' => [], 'hide_empty' => false],
-                'user' => ['hidden' => [], 'hide_empty' => false],
+                'user' => ['hidden' => [], 'hide_empty' => true],
             ],
         ], $this->decode($response));
     }

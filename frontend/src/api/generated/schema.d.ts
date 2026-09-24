@@ -2929,7 +2929,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The shop window for one product
+         * The shop window for one product (in the reader's language)
          * @description Unauthenticated. Returns only offers the platform has marked `publicly_listed` **and** that are inside their sale window. `product` comes back null whenever there is nothing to show — whether the code names no product, an inactive one, or one that advertises nothing — so this cannot be used to tell an unknown product from one with nothing advertised. Which products *do* advertise something is `listPublicProducts`’s answer.
          */
         get: operations["getPublicOffers"];
@@ -2996,7 +2996,7 @@ export interface paths {
          *
          *     A **retired** product still answers: retiring stops the selling, not the record (§11.3). `product.active` is false for one, and the page says *No longer sold* where the prices were rather than showing an empty band or a Buy that leads to a refusal.
          *
-         *     The language is English. A stranger has no profile, and `?lang=` was removed on 2026-09-23 (ADR-050) because a shared link could impose a language on whoever opened it next — the same open question the storefront already has, and it will be settled for both at once.
+         *     The language comes from `Accept-Language`, and so does the shop window’s (2026-09-24). A stranger has no profile to read one from, and `?lang=` was removed on 2026-09-23 (ADR-050) because a shared link would impose a language on whoever opened it next. The fallback is field by field: a band whose headline is translated and whose subline is not reads with the translated headline and the English subline.
          */
         get: operations["getPublicShowcase"];
         put?: never;
@@ -5606,6 +5606,12 @@ export interface components {
         AccessPurpose: "SUPPORT_REQUEST" | "BILLING_INVESTIGATION" | "INCIDENT" | "SECURITY_REVIEW" | "LEGAL_REQUEST";
         /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
         AccessReason: string;
+        /**
+         * @description The language to answer in, on the reads a stranger makes. A header and not `?lang=`, which ADR-050 removed on 2026-09-23: a query parameter travels in a link, so a page somebody shared would impose a language on whoever opened it next. A header cannot be shared by accident — it is the reader saying which language they are reading in, now. Absent or unknown answers English, which is the key and the fallback everywhere on this platform.
+         *
+         *     It decides *names* a person reads — an offer's, a feature's, a showcase band's. A code is never translated: it is what an entitlement, a quota check and a product's own source name the thing by.
+         */
+        AcceptLanguage: "en" | "fr" | "es" | "de" | "it";
     };
     requestBodies: never;
     headers: never;
@@ -12824,7 +12830,14 @@ export interface operations {
                 /** @description The slug of the organisation whose URL root the page is on (2026-09-17). Narrows the window to the products that organisation holds; absent, the bare host's — the default tenant's, or the platform's where none is set. A slug nobody has shows nothing, as an unknown product does. */
                 tenant?: string;
             };
-            header?: never;
+            header?: {
+                /**
+                 * @description The language to answer in, on the reads a stranger makes. A header and not `?lang=`, which ADR-050 removed on 2026-09-23: a query parameter travels in a link, so a page somebody shared would impose a language on whoever opened it next. A header cannot be shared by accident — it is the reader saying which language they are reading in, now. Absent or unknown answers English, which is the key and the fallback everywhere on this platform.
+                 *
+                 *     It decides *names* a person reads — an offer's, a feature's, a showcase band's. A code is never translated: it is what an entitlement, a quota check and a product's own source name the thing by.
+                 */
+                "Accept-Language"?: components["parameters"]["AcceptLanguage"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -12864,7 +12877,14 @@ export interface operations {
                 /** @description The product code the storefront is about. A public route resolves no ambient product — there is no context chain on it — so the filter is named explicitly. */
                 product: string;
             };
-            header?: never;
+            header?: {
+                /**
+                 * @description The language to answer in, on the reads a stranger makes. A header and not `?lang=`, which ADR-050 removed on 2026-09-23: a query parameter travels in a link, so a page somebody shared would impose a language on whoever opened it next. A header cannot be shared by accident — it is the reader saying which language they are reading in, now. Absent or unknown answers English, which is the key and the fallback everywhere on this platform.
+                 *
+                 *     It decides *names* a person reads — an offer's, a feature's, a showcase band's. A code is never translated: it is what an entitlement, a quota check and a product's own source name the thing by.
+                 */
+                "Accept-Language"?: components["parameters"]["AcceptLanguage"];
+            };
             path: {
                 offerId: string;
             };
@@ -12931,8 +12951,12 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description The language to answer in. A header and not `?lang=`, which ADR-050 removed on 2026-09-23: a query parameter travels in a link, so a page somebody shared could impose a language on whoever opened it next. A header cannot be shared by accident — it is the reader saying which language they are reading in, now. Absent or unknown answers English, which is the key and the fallback everywhere on this platform. */
-                "Accept-Language"?: "en" | "fr" | "es" | "de" | "it";
+                /**
+                 * @description The language to answer in, on the reads a stranger makes. A header and not `?lang=`, which ADR-050 removed on 2026-09-23: a query parameter travels in a link, so a page somebody shared would impose a language on whoever opened it next. A header cannot be shared by accident — it is the reader saying which language they are reading in, now. Absent or unknown answers English, which is the key and the fallback everywhere on this platform.
+                 *
+                 *     It decides *names* a person reads — an offer's, a feature's, a showcase band's. A code is never translated: it is what an entitlement, a quota check and a product's own source name the thing by.
+                 */
+                "Accept-Language"?: components["parameters"]["AcceptLanguage"];
             };
             path: {
                 code: string;

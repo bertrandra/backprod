@@ -28,7 +28,15 @@ final class NavigationSetup
     {
     }
 
-    public static function everything(): self
+    /**
+     * What a platform that has never opened the Menus screen shows.
+     *
+     * Called `everything()` until 2026-09-24, and that stopped being true
+     * when a member's menu started leaving out the screens with nothing on
+     * them ({@see AudienceMenu::initialFor()}). A factory whose name
+     * promises more than it returns is how a reader stops checking.
+     */
+    public static function initial(): self
     {
         return self::of([]);
     }
@@ -41,7 +49,10 @@ final class NavigationSetup
         $complete = [];
 
         foreach (Audience::all() as $audience) {
-            $complete[$audience] = $menus[$audience] ?? AudienceMenu::everything();
+            // Not `everything()`: an audience nobody has set up gets the
+            // default for *that* audience, which for a member leaves out the
+            // screens that have nothing on them yet.
+            $complete[$audience] = $menus[$audience] ?? AudienceMenu::initialFor($audience);
         }
 
         foreach (array_keys($menus) as $audience) {
@@ -55,7 +66,7 @@ final class NavigationSetup
 
     public function for(string $audience): AudienceMenu
     {
-        return $this->menus[$audience] ?? AudienceMenu::everything();
+        return $this->menus[$audience] ?? AudienceMenu::initialFor($audience);
     }
 
     /** @return array<string, array{hidden: list<string>, hide_empty: bool}> */

@@ -6,6 +6,7 @@ namespace App\Commerce\Controller;
 
 use App\Commerce\Service\Storefront;
 use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Http\ReaderLanguage;
 use App\Shared\Http\RouteHandler;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
@@ -42,6 +43,6 @@ final class PublicOfferController implements RouteHandler
             throw new NotFoundException('Offer not found.', [], 'OFFER_NOT_FOUND');
         }
 
-        return new JsonResponse(['offer' => CataloguePresenter::offer($offer)], 200);
+        return new JsonResponse(['offer' => CataloguePresenter::offer($offer, ReaderLanguage::of($request))], 200);
     }
 }

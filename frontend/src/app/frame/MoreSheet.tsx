@@ -76,6 +76,21 @@ export function MoreSheet({
           </div>
         ))}
 
+        {/* The product's story (2026-09-24). On a phone it is here rather
+            than in region A: the bar already holds the organisation, the
+            product switcher, search and the account at 375px, and a sixth
+            thing in it overlapped the search button. §4.2's rule is that no
+            region loses a *capability* on a phone, not that every region
+            holds the same controls — this drawer is where region A's
+            secondary entries go. */}
+        <div className="border-t border-line pt-3">
+          <a
+            href={withRoot(root, '/')}
+            data-testid="product-story-more"
+            className="block min-h-[44px] py-2 text-sm text-ink"
+          >
+            {t("About this product")}</a>
+        </div>
       </div>
     </div>
   );

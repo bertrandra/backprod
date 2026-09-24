@@ -117,6 +117,33 @@ second password — provided the origin is on the CORS allowlist, which is what
 does for exact origins. The reverse holds too: signing in on the product's
 page sets the cookie for the platform's host, and the shell resumes from it.
 
+**Amended 2026-09-24: `SameSite` was necessary and not sufficient, and until
+today this did not work.** The paragraph above is right that Strict permits
+the call — `plan.raillard.org` and the platform's host are one site — and it
+stops one step short of the browser's other rule. A `Set-Cookie` with no
+`Domain` attribute is **host-only**: it is returned to exactly the host that
+set it and to no subdomain, sibling or otherwise, whatever `SameSite` says.
+So the cookie was never sent, the refresh answered 401, and the product asked
+for a password.
+
+It was found the way these are always found. Somebody bought a seat on the
+platform, followed the link to the product, and was asked to sign in again on
+the way to the thing they had just paid for.
+
+The fix is `AUTH_COOKIE_DOMAIN`, empty by default and host-only with it — the
+behaviour every deployment has had — and set to the registrable domain where a
+product lives on a sibling subdomain. It is deliberately opt-in, because it
+widens where a month-long credential may travel: every host under that domain
+can receive it, on `/api/v1/auth` only, `Secure`, unreadable by script. A
+deployment that hosts anything it does not trust on a subdomain must leave it
+empty and accept the second sign-in.
+
+The same omission bit *inside* one deployment, which is how confident one
+should be about "one host": `raillard.org` and `www.raillard.org` both answer,
+neither redirects to the other, and a session taken on one was invisible on
+the other. Whether a reload resumed depended on which of two addresses
+somebody had typed.
+
 *Consequence:* a product on **another registrable domain** does not get this.
 The token endpoint still works (the person types their password on the
 product's page), but the cookie is then cross-site and Strict, so every

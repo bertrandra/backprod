@@ -99,7 +99,7 @@ final class CataloguePresenter
             // Never null in practice — an offer is only presented once a
             // sellable version has been chosen — but typed honestly rather
             // than asserted away.
-            'version' => $offer->currentVersion === null ? null : self::version($offer->currentVersion),
+            'version' => $offer->currentVersion === null ? null : self::version($offer->currentVersion, $locale),
         ];
     }
 
@@ -154,6 +154,9 @@ final class CataloguePresenter
         // the sale view's grants would win and the feature ids below would be
         // silently discarded. An integration test caught this, which is the
         // second time this operator has cost an afternoon.
+        // English, deliberately: this is the authoring view, and an author
+        // editing a catalogue needs the words the platform stores, not the
+        // ones their own browser happens to be set to.
         return array_merge(self::version($version), [
             'status' => $version->status,
             'terms' => self::terms($version->terms),
@@ -205,7 +208,7 @@ final class CataloguePresenter
     /**
      * @return array<string, mixed>
      */
-    public static function version(OfferVersion $version): array
+    public static function version(OfferVersion $version, string $locale = 'en'): array
     {
         return [
             'id' => $version->id,
@@ -219,18 +222,32 @@ final class CataloguePresenter
             // subscription period, which §12 keeps deliberately separate.
             'valid_from' => self::moment($version->validFrom),
             'valid_until' => $version->validUntil === null ? null : self::moment($version->validUntil),
-            'grants' => array_map(self::grant(...), $version->grants),
+            'grants' => array_map(
+                static fn (OfferGrant $grant): array => self::grant($grant, $locale),
+                $version->grants,
+            ),
         ];
     }
 
     /**
+     * What one grant gives, named in the reader's language (2026-09-24).
+     *
+     * The name goes through `nameIn` for the reason the offer's does: a
+     * feature's name is the sentence a customer reads on a price, and a
+     * French catalogue that listed `Exports`, `Projects`, `Users` beside
+     * `Lecture, mensuel` was a French page with an English price list on it.
+     *
+     * The *code* is not translated and never will be: it is what an
+     * entitlement, a quota check and a product's own source all name this
+     * feature by.
+     *
      * @return array{feature: string, name: string, kind: string, unit: string|null, limit: int|null, unlimited: bool}
      */
-    public static function grant(OfferGrant $grant): array
+    public static function grant(OfferGrant $grant, string $locale = 'en'): array
     {
         return [
             'feature' => $grant->feature->code,
-            'name' => $grant->feature->name,
+            'name' => $grant->feature->nameIn($locale),
             'kind' => $grant->feature->kind,
             'unit' => $grant->feature->unit,
             // limit is null for a boolean capability and for an unlimited

@@ -160,6 +160,17 @@ describe('when it completes', () => {
     expect(screen.getByTestId('checkout-completed').textContent).toMatch(/paid/i);
     expect(screen.getByTestId('checkout-completed').textContent).toMatch(/subscription has started/i);
 
+    // And offers the way in to what they just bought (2026-09-24). The page
+    // used to say the money had arrived and then offer one link — to the
+    // order list — so somebody who had just paid for a seat was left on a
+    // receipt with the product two guesses away. This product runs here, so
+    // the way in is the project list; one that runs beside the platform gets
+    // its own address instead.
+    const onward = screen.getByTestId('start-working');
+
+    expect(onward.getAttribute('href')).toBe('/projects');
+    expect(onward.textContent).toMatch(/projects/i);
+
     const after = polls;
     // Longer than the interval, deliberately: a 250 ms wait proved nothing,
     // because no poll could have fired in it either way. This version fails when

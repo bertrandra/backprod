@@ -200,15 +200,71 @@ final class OfferVersionLoader
             ['versionIds' => ArrayParameterType::STRING],
         );
 
+        // What each of those features is called in the other four languages
+        // (2026-09-24). Loaded here because a grant is read on the pages a
+        // *customer* sees — the shop window, the catalogue, a subscription —
+        // and until today it was not: a French storefront listed `Lecture,
+        // mensuel` over `Exports`, `Projects` and `Users`, the offer's own
+        // name translated and everything it grants in English.
+        //
+        // A second query rather than a join, because a feature has up to four
+        // translations and joining them would multiply the grant rows — then
+        // one offer would appear to grant the same feature four times.
+        $translations = $this->translationsOf(array_values(array_unique(
+            array_map(static fn (array $row): string => Row::string($row, 'id'), $rows),
+        )));
+
         $grants = [];
 
         foreach ($rows as $row) {
+            $featureId = Row::string($row, 'id');
+
             $grants[Row::string($row, 'offer_version_id')][] = new OfferGrant(
-                self::toFeature($row),
+                self::toFeature($row, $translations[$featureId] ?? []),
                 Row::nullableInteger($row, 'limit_value'),
             );
         }
 
         return $grants;
+    }
+
+    /**
+     * What an operator wrote about these features in the four other
+     * languages, by feature and then by locale.
+     *
+     * On the loader rather than on one of its callers because both of them
+     * want it: the features list and everything an offer grants are the same
+     * rows read for two reasons.
+     *
+     * @param list<string> $featureIds
+     *
+     * @return array<string, array<string, array{name: ?string, description: ?string}>>
+     */
+    public function translationsOf(array $featureIds): array
+    {
+        if ($featureIds === []) {
+            return [];
+        }
+
+        $rows = $this->connection->fetchAllAssociative(
+            <<<'SQL'
+                SELECT feature_id, locale, name, description
+                  FROM feature_translations
+                 WHERE feature_id = ANY(CAST(:ids AS uuid[]))
+                 ORDER BY feature_id, locale
+                SQL,
+            ['ids' => '{' . implode(',', $featureIds) . '}'],
+        );
+
+        $byFeature = [];
+
+        foreach ($rows as $row) {
+            $byFeature[Row::string($row, 'feature_id')][Row::string($row, 'locale')] = [
+                'name' => Row::nullableString($row, 'name'),
+                'description' => Row::nullableString($row, 'description'),
+            ];
+        }
+
+        return $byFeature;
     }
 }

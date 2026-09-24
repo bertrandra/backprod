@@ -1,7 +1,8 @@
 import type { Offer } from '@/queries/catalogue';
 import { Button } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
-import { t } from '@/i18n';
+import { billingPeriod } from '@/ui/period';
+import { currentLocale, t } from '@/i18n';
 
 /**
  * One offer, as a price with a reason to believe it.
@@ -59,12 +60,23 @@ export function OfferCard({
           {t("Price on request")}</p>
       ) : (
         <>
-          <p className="flex items-baseline gap-1.5">
+          <p className="flex flex-wrap items-baseline gap-x-1.5">
             <Amount
               money={version.price}
               className="display-type text-3xl font-semibold"
             />
             <span className="text-xs text-muted">{billingPeriod(version.billing_period)}</span>
+            {/* Said only where the figure is an offer somebody can act on
+                (2026-09-24). An offer's price is the taxable base — VAT is
+                calculated on top of it at invoicing (§25.3) — so a page that
+                offers a Buy beside it and says nothing has quoted a number
+                the customer will not be charged. Where the card only states
+                a price and offers no way to take it, there is no purchase to
+                mislead. */}
+            {onChoose !== undefined && (
+              <span data-testid="price-excludes-tax" className="text-xs text-subtle">
+                {t("excl. VAT")}</span>
+            )}
           </p>
 
           {grants.length > 0 && (
@@ -93,19 +105,31 @@ export function OfferCard({
   );
 }
 
-/** "monthly" reads better under a price than "MONTHLY" or "per MONTH". */
-function billingPeriod(period: string): string {
-  return period.toLowerCase().replace(/_/g, ' ');
-}
-
 /**
  * What one grant gives, in words.
  *
  * A boolean grant is the feature's name and nothing else — "Priority support",
- * not "Priority support: yes". A quota is its number and its unit, and
+ * not "Priority support: yes". A quota is its number and its name, and
  * `unlimited` is spelled rather than shown as a missing limit: the contract
  * separates them precisely because a limit of zero is a real and different
  * answer.
+ *
+ * **The unit is not printed** (2026-09-24). It used to be, beside the name,
+ * and the operator found what that composes to on a real catalogue:
+ *
+ * ```text
+ * 10 exports exports          3 projects projects          1 users users
+ * ```
+ *
+ * The feature is called `Exports` and its unit is `exports`, so the line said
+ * the same word twice — and where a unit existed the singular fold was skipped
+ * too, hence *1 users users*. Comparing the two to decide would have worked in
+ * English and nowhere else: once the name is translated, `Exportations` and
+ * `exports` are not the same string and the repetition comes straight back.
+ *
+ * So the name is what a customer reads and the unit is how usage is *counted* —
+ * which is a different question, asked on the subscription screen, where the
+ * number beside it is a measurement rather than a promise.
  */
 function describeGrant(grant: {
   name: string;
@@ -119,32 +143,46 @@ function describeGrant(grant: {
   }
 
   if (grant.unlimited) {
-    return `Unlimited ${grant.name.toLowerCase()}`;
+    return t("Unlimited {feature}", { feature: grant.name });
   }
 
   if (grant.limit === null) {
     return grant.name;
   }
 
-  const noun = grant.unit === null ? singular(grant.name.toLowerCase(), grant.limit) : grant.name.toLowerCase();
-
-  return `${String(grant.limit)}${grant.unit === null ? '' : ` ${grant.unit}`} ${noun}`;
+  return t("{count} {feature}", { count: grant.limit, feature: singular(grant.name, grant.limit) });
 }
+
+/**
+ * The languages whose regular plural is a trailing `s`.
+ *
+ * English, French and Spanish all lose a trailing `s` to become singular —
+ * `Projects`, `Projets`, `Proyectos`. German and Italian do not: `Nutzer` is
+ * already both numbers, and `Esportazioni` never had an `s` to lose. So the
+ * fold is not attempted there.
+ *
+ * It was English-only for an afternoon on 2026-09-24, which put **1
+ * Utilisateurs** on the French shop window: the right caution applied to the
+ * wrong set. Three languages is not a guess about grammar in general, it is
+ * the list of the ones this rule actually holds for.
+ */
+const FOLDS_PLURAL_WITH_S = new Set(['en', 'fr', 'es']);
 
 /**
  * "1 seat", not "1 seats".
  *
  * A feature is named in the plural by whoever created it — "Seats", "Projects" —
  * because that is how it reads in a catalogue. Beside the number 1 it reads
- * wrong, and a storefront is the one page where wrong English costs something.
+ * wrong, and a storefront is the one page where that costs something.
  *
- * Trailing `s` only, and never after `ss`: this handles the names this catalogue
- * actually contains and deliberately does not attempt English. A name it cannot
- * fold is left exactly as its author wrote it, which is the safe failure — a
- * wrong plural is a blemish, an invented singular is a different word.
+ * Trailing `s` only, never after `ss`, and only in a language whose plural
+ * works that way. A name this cannot fold — `Documents Plan`, whose plural is
+ * not at the end — is left exactly as its author wrote it, which is the safe
+ * failure: a wrong plural is a blemish, an invented singular is a different
+ * word.
  */
 function singular(noun: string, count: number): string {
-  if (count !== 1 || !noun.endsWith('s') || noun.endsWith('ss')) {
+  if (!FOLDS_PLURAL_WITH_S.has(currentLocale()) || count !== 1 || !noun.endsWith('s') || noun.endsWith('ss')) {
     return noun;
   }
 

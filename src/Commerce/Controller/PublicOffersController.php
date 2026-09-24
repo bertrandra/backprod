@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commerce\Controller;
 
 use App\Commerce\Service\Storefront;
+use App\Shared\Http\ReaderLanguage;
 use App\Shared\Http\RouteHandler;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
@@ -39,7 +40,7 @@ final class PublicOffersController implements RouteHandler
             'product' => $product === null
                 ? null
                 : ['code' => $product->code, 'name' => $product->name],
-            'offers' => CataloguePresenter::offers($window['offers']),
+            'offers' => CataloguePresenter::offers($window['offers'], ReaderLanguage::of($request)),
         ], 200);
     }
 }

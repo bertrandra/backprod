@@ -9,6 +9,11 @@ use App\Admin\Service\FinancialDashboard;
 use App\Audit\Domain\AuditLog;
 use App\Audit\Domain\AuditReader;
 use App\Audit\Infrastructure\PostgresAuditLog;
+use App\Auth\Controller\RefreshCookie;
+use App\Auth\Controller\RefreshSessionController;
+use App\Auth\Controller\SignInController;
+use App\Auth\Controller\SignOutController;
+use App\Auth\Controller\SignUpController;
 use App\Auth\Domain\AccountRegistrar;
 use App\Auth\Domain\AuthProvider;
 use App\Auth\Domain\LocalCredentialRepository;
@@ -733,6 +738,25 @@ return static function (array $overrides = []): ContainerInterface {
         // points.
         Sessions::class => autowire(Sessions::class)
             ->constructorParameter('appUrl', $env('APP_URL')),
+
+        // Where the refresh cookie belongs (2026-09-24). Empty is host-only,
+        // which is what a deployment on one host wants; a registrable domain
+        // is what lets one sign-in serve the platform and a product beside it
+        // on a sibling subdomain — ADR-051 §3's promise, which `SameSite`
+        // alone never kept. `RefreshCookie::domainFrom` explains the widening
+        // and what it costs.
+        //
+        // All four, because a cookie is cleared with the attributes it was
+        // set with: a sign-out that forgot the domain would leave the
+        // credential in the browser (see `RefreshCookie::clear`).
+        SignInController::class => autowire()
+            ->constructorParameter('cookieDomain', RefreshCookie::domainFrom($env('AUTH_COOKIE_DOMAIN'))),
+        SignUpController::class => autowire()
+            ->constructorParameter('cookieDomain', RefreshCookie::domainFrom($env('AUTH_COOKIE_DOMAIN'))),
+        SignOutController::class => autowire()
+            ->constructorParameter('cookieDomain', RefreshCookie::domainFrom($env('AUTH_COOKIE_DOMAIN'))),
+        RefreshSessionController::class => autowire()
+            ->constructorParameter('cookieDomain', RefreshCookie::domainFrom($env('AUTH_COOKIE_DOMAIN'))),
 
         RateLimiter::class => autowire(PostgresRateLimiter::class),
 

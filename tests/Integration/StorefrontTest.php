@@ -185,6 +185,90 @@ final class StorefrontTest extends DatabaseApiTestCase
         self::assertIsArray($offer['plan'] ?? null);
     }
 
+    /**
+     * The shop window answers in the reader's language (2026-09-24).
+     *
+     * It did not, and the operator read the result: a French page listing
+     * *Lecture, monthly* over *Exports*, *Projects*, *Users* — the offer's
+     * own name translated by nobody and the feature names in English under a
+     * French heading. The locale reached `offer()` for the name and stopped
+     * there; `version()` and `grant()` never received one.
+     *
+     * `Accept-Language`, because a stranger has no profile — the same
+     * header, and the same reasoning, as the product's story (ADR-050).
+     */
+    public function testTheWindowIsReadInTheReadersLanguage(): void
+    {
+        $this->connection->executeStatement(
+            "INSERT INTO offer_translations (offer_id, locale, name) VALUES (:offer, 'fr', 'Pro, mensuel')",
+            ['offer' => $this->advertised],
+        );
+
+        $feature = $this->id(
+            "INSERT INTO features (code, name, kind, unit) VALUES ('exports', 'Exports', 'QUOTA', 'exports') RETURNING id",
+        );
+        $this->connection->executeStatement(
+            "INSERT INTO feature_translations (feature_id, locale, name) VALUES (:feature, 'fr', 'Exportations')",
+            ['feature' => $feature],
+        );
+        // Back to a draft to grant it, then published again: what a
+        // **published** version grants is frozen (ADR-033), and the database
+        // enforces that with a trigger rather than trusting a service. The
+        // fixture obeys the same rule a console would.
+        $this->connection->executeStatement(
+            "UPDATE offer_versions SET status = 'DRAFT' WHERE offer_id = :offer",
+            ['offer' => $this->advertised],
+        );
+        $this->connection->executeStatement(
+            <<<'SQL'
+                INSERT INTO offer_version_features (offer_version_id, feature_id, limit_value)
+                SELECT id, :feature, 10 FROM offer_versions WHERE offer_id = :offer
+                SQL,
+            ['feature' => $feature, 'offer' => $this->advertised],
+        );
+        $this->connection->executeStatement(
+            "UPDATE offer_versions SET status = 'ACTIVE' WHERE offer_id = :offer",
+            ['offer' => $this->advertised],
+        );
+
+        $french = $this->request('GET', '/api/v1/public/offers?product=atlas', ['Accept-Language' => 'fr']);
+        $offer = $this->listIn($french, 'offers')[0] ?? null;
+
+        self::assertIsArray($offer);
+        self::assertSame('Pro, mensuel', $offer['name'] ?? null);
+
+        $version = $offer['version'] ?? null;
+        self::assertIsArray($version);
+
+        $grants = $version['grants'] ?? null;
+        self::assertIsArray($grants);
+        $grant = $grants[0] ?? null;
+        self::assertIsArray($grant);
+
+        self::assertSame('Exportations', $grant['name'] ?? null);
+        // The **code** is not translated, and never will be: an entitlement,
+        // a quota check and the product's own source all name it by this.
+        self::assertSame('exports', $grant['feature'] ?? null);
+
+        // No header is English, as is a language nobody wrote and one the
+        // platform does not know. A shop window does not refuse people over
+        // an `Accept-Language`.
+        foreach ([[], ['Accept-Language' => 'de'], ['Accept-Language' => 'kl']] as $headers) {
+            $english = $this->listIn($this->request('GET', '/api/v1/public/offers?product=atlas', $headers), 'offers')[0];
+            $englishVersion = $english['version'] ?? null;
+
+            self::assertIsArray($englishVersion);
+            self::assertSame('Pro, monthly', $english['name'] ?? null);
+
+            $englishGrants = $englishVersion['grants'] ?? null;
+            self::assertIsArray($englishGrants);
+
+            $englishGrant = $englishGrants[0] ?? null;
+            self::assertIsArray($englishGrant);
+            self::assertSame('Exports', $englishGrant['name'] ?? null);
+        }
+    }
+
     public function testALinkToAnAdvertisedOfferOpens(): void
     {
         $response = $this->request(

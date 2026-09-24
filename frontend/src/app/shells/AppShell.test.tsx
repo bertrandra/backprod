@@ -31,6 +31,11 @@ const NOBODY_ON_STAFF = {
  */
 afterEach(() => {
   window.localStorage.clear();
+  // And `sessionStorage`, which since 2026-09-24 holds whether this browsing
+  // session has already been landed (`landing.ts` step 3). Left behind, the
+  // first test to land would be the only one that ever does, and every test
+  // after it would pass by not moving.
+  window.sessionStorage.clear();
   useSessionStore.setState({ productCode: null, root: '', tenantSlug: null });
   vi.restoreAllMocks();
 });
@@ -73,21 +78,62 @@ describe('the landing address, signed in', () => {
     });
   }
 
-  it('leaves them on the product’s story, and keeps the product in the address', async () => {
-    // It used to move them on to what the rail leads with (2026-09-18).
-    // That is why `/` could never be a page: a stranger saw the storefront,
-    // a member was ejected, and nobody ever saw what the product *was*.
-    // Since 2026-09-24 the landing settles the root and the product and
-    // then stops (`docs/home-showcase-spec.md` §2).
+  it('moves them on to the first screen their own menu offers', async () => {
+    // Removed earlier on 2026-09-24 so that `/` — the product's story,
+    // built that morning — would be an address somebody could reach at all,
+    // and restored the same day. Being reachable and being where signing in
+    // puts you are different questions: the operator signed in and got a
+    // shop window for a product they had already bought, with their
+    // projects two clicks away.
+    //
+    // This member holds `projects.read`, so Work leads their rail.
     const { location } = renderAtRoute(
       <AppShell />,
       stubs({ products: [ATLAS], default: 'atlas', memberships: [{ tenant: 'acme', name: 'Acme Ltd' }] }),
       { path: '/', initial: '/?product=atlas' },
     );
 
+    await waitFor(() => expect(location()).toBe('/projects'));
+  });
+
+  it('lands once a session, so a later arrival at the story stays on it', async () => {
+    // The half the landing must not take away. `/` is in no menu, so the way
+    // back is the About link in region A — and that is a real navigation,
+    // as is typing the address. Both are fresh mounts, so "have we landed"
+    // has to outlive one: it is in `sessionStorage`, not in a ref.
+    const stubbed = stubs({ products: [ATLAS], default: 'atlas', memberships: [{ tenant: 'acme', name: 'Acme Ltd' }] });
+
+    const landing = renderAtRoute(<AppShell />, stubbed, { path: '/', initial: '/?product=atlas' });
+
+    await waitFor(() => expect(landing.location()).toBe('/projects'));
+    landing.unmount();
+
+    // Arriving at `/` again, in the same browsing session.
+    const again = renderAtRoute(<AppShell />, stubbed, { path: '/', initial: '/?product=atlas' });
+
     await waitFor(() => expect(screen.getByTestId('context-organisation')).toBeTruthy());
-    expect(location()).toMatch(/^\/\?/);
-    expect(location()).toContain('product=atlas');
+    expect(again.location()).toMatch(/^\/(\?|$)/);
+  });
+
+  it('waits for the menu rather than guessing where to send them', async () => {
+    // `/me` never answers, so no permission is known and no entry is
+    // visible. Moving then would send everybody to whichever screen
+    // survives an empty permission set — so nothing moves, and the story is
+    // what they are looking at meanwhile.
+    const client = stubClient({
+      'GET /api/v1/me': { status: 503, error: { error: { code: 'UNAVAILABLE', message: 'later' } } },
+      'GET /api/v1/me/navigation': { data: { hidden: [] } },
+      'GET /api/v1/products': {
+        data: { products: [ATLAS], default: 'atlas', memberships: [{ tenant: 'acme', name: 'Acme Ltd' }], pending_memberships: [] },
+      },
+      'GET /api/v1/public/tenant': { data: { tenant: HQ } },
+      'GET /api/v1/staff/me': NOBODY_ON_STAFF,
+    });
+
+    const { location } = renderAtRoute(<AppShell />, client, { path: '/', initial: '/?product=atlas' });
+
+    await waitFor(() => expect(useSessionStore.getState().productCode).toBe('atlas'));
+    expect(location()).toMatch(/^\/(\?|$)/);
   });
 
   it('opens in the person\'s own product, unless the address names one', async () => {
@@ -99,7 +145,7 @@ describe('the landing address, signed in', () => {
     );
 
     await waitFor(() => expect(useSessionStore.getState().productCode).toBe('boreas'));
-    expect(location()).toBe('/');
+    await waitFor(() => expect(location()).toBe('/projects'));
   });
 
   it('keeps the product the address names over the person\'s own', async () => {
@@ -114,7 +160,7 @@ describe('the landing address, signed in', () => {
 
     await waitFor(() => expect(screen.getByTestId('context-organisation')).toBeTruthy());
     expect(useSessionStore.getState().productCode).toBe('atlas');
-    expect(location()).toMatch(/^\/\?/);
+    await waitFor(() => expect(location()).toBe('/projects'));
   });
 
   it('moves a member of another organisation from the bare host to their own root', async () => {

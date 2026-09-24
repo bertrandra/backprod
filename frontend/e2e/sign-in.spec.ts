@@ -160,11 +160,42 @@ test.describe('arriving with no session', () => {
     // A menu: the sidebar's entry on a desktop, the bottom bar's on a phone.
     await expect(page.locator('[data-nav="profile"]:visible, [data-nav-bottom="profile"]:visible')).toHaveCount(1);
     await expect(page.getByTestId('account-menu')).toHaveText('A');
-    // And they land on the product's story, which is what `/` is since
-    // 2026-09-24 (docs/home-showcase-spec.md §2). It used to move them on
-    // to the first entry of the menu, which is why `/` could never be a
-    // page: a stranger saw the storefront, a member was ejected, and
-    // nobody ever saw what the product was.
+    // And they land on the first screen **their own menu** offers — which
+    // for this session is Your profile, because `account.read` and
+    // `tenant.read` are all it holds. Asserted as what the rail leads with
+    // rather than as a path spelled out here: a landing that named screens
+    // of its own could disagree with the menu beside it.
+    //
+    // For one day on 2026-09-24 they were left on `/` — the product's story
+    // — so that the page built that morning would be reachable at all.
+    // Being reachable and being where signing in puts you turned out to be
+    // different questions: the operator signed in and got a shop window for
+    // a product they had already bought. The story keeps its address; it is
+    // simply not where somebody is left.
+    const leads = page.locator('[data-nav]:visible, [data-nav-bottom]:visible').first();
+    const first = await leads.getAttribute('href');
+
+    expect(first).not.toBeNull();
+    await expect(page).toHaveURL(new RegExp(`${first ?? ''}$`));
+
+    // And the story is still reachable, which is the half the landing must
+    // not take away. Landing is arriving, not visiting: going back to `/` on
+    // purpose stays there. A screen test pins the rule (`AppShell.test.tsx`);
+    // this one pins the **door**, which only exists in the real shell.
+    //
+    // In region A on a desktop and in the drawer on a phone, where the bar
+    // already holds four things at 375px. Both widths run this test, so it
+    // takes whichever door is there — a capability present at both sizes,
+    // which is §4.2's rule, rather than the same control in the same place.
+    const inTheBar = page.getByTestId('product-story');
+
+    if (await inTheBar.isVisible()) {
+      await inTheBar.click();
+    } else {
+      await page.getByTestId('menu-button').click();
+      await page.getByTestId('product-story-more').click();
+    }
+
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByTestId('showcase-hero')).toBeVisible();
   });
@@ -209,8 +240,10 @@ test.describe('arriving with no session', () => {
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     // Moved to /zenith/ — a full navigation, the session restored from the
-    // cookie — and left on the product's story there (2026-09-24).
-    await expect(page).toHaveURL(/\/zenith\/$/);
+    // cookie. The root is what this test is about; which screen they reach
+    // under it is the previous test's, and the landing settles the root
+    // first and returns, so the assertion is on the root alone.
+    await expect(page).toHaveURL(/\/zenith\//);
     await expect(page.getByTestId('active-product')).toHaveAttribute('data-product', 'atlas');
   });
 

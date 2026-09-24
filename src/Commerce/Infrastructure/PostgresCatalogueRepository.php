@@ -64,7 +64,7 @@ final class PostgresCatalogueRepository implements CatalogueRepository
         // so the whole set comes back at once and the caller picks. Joining
         // on one locale would mean a second method for the console, which
         // needs them all.
-        $translations = $this->translationsOf(array_map(
+        $translations = $this->versions->translationsOf(array_map(
             static fn (array $row): string => Row::string($row, 'id'),
             $rows,
         ));
@@ -78,41 +78,6 @@ final class PostgresCatalogueRepository implements CatalogueRepository
         );
     }
 
-    /**
-     * What an operator wrote about these features in the four other
-     * languages, by feature and then by locale.
-     *
-     * @param list<string> $featureIds
-     *
-     * @return array<string, array<string, array{name: ?string, description: ?string}>>
-     */
-    private function translationsOf(array $featureIds): array
-    {
-        if ($featureIds === []) {
-            return [];
-        }
-
-        $rows = $this->connection->fetchAllAssociative(
-            <<<'SQL'
-                SELECT feature_id, locale, name, description
-                  FROM feature_translations
-                 WHERE feature_id = ANY(CAST(:ids AS uuid[]))
-                 ORDER BY feature_id, locale
-                SQL,
-            ['ids' => '{' . implode(',', $featureIds) . '}'],
-        );
-
-        $byFeature = [];
-
-        foreach ($rows as $row) {
-            $byFeature[Row::string($row, 'feature_id')][Row::string($row, 'locale')] = [
-                'name' => Row::nullableString($row, 'name'),
-                'description' => Row::nullableString($row, 'description'),
-            ];
-        }
-
-        return $byFeature;
-    }
 
     public function offersFor(string $productId): array
     {

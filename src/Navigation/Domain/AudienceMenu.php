@@ -52,6 +52,32 @@ final class AudienceMenu
     }
 
     /**
+     * What an audience's menu is before anybody has set one up (2026-09-24).
+     *
+     * Everything, for the two administrators. For a plain **member, empty
+     * entries are left out**: the operator asked for it after watching a
+     * new person sign in and meet nine screens that all said "nothing here
+     * yet" — Invoices before an invoice exists, Payments before a payment,
+     * Quotes, Orders, Credit notes. A menu that is mostly dead ends teaches
+     * somebody the product is empty rather than what it does, and the
+     * entries appear on their own the moment there is something behind them.
+     *
+     * An administrator sees them regardless, and that is the distinction
+     * `hideEmpty` was created for on 2026-09-17: an empty queue is
+     * information to whoever runs the platform, and noise to whoever is
+     * trying to find their projects. A tenant's own administrator counts as
+     * running something — they set up billing before there is a bill.
+     *
+     * A **default**, not a rule: it is what the setup screen starts on, and
+     * the operator switches it either way per audience. Once they have saved
+     * anything, their document answers and this is never consulted again.
+     */
+    public static function initialFor(string $audience): self
+    {
+        return new self([], $audience === Audience::USER);
+    }
+
+    /**
      * An entry id as the shell writes them: lowercase words joined by
      * hyphens. Checked here so a setup body cannot smuggle markup or a
      * kilobyte into a list the shell renders from.

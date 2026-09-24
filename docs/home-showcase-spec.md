@@ -371,7 +371,8 @@ field would throw away the sentence that *was* translated.
 
 Each step leaves `composer run gates` and `npm run build` green.
 
-1. **The page, from nothing.** `/` stops redirecting a member; the screen
+1. **The page, from nothing.** `/` stops redirecting a member — *reversed the
+   same day; see the note under the exit criteria* — the screen
    renders the product's name, the catalogue's plans, and the right call to
    action from the table in §3. No showcase rows yet — a product that has
    said nothing looks deliberate rather than broken.
@@ -407,7 +408,8 @@ Each step leaves `composer run gates` and `npm run build` green.
 
 **Exit criteria**
 
-- A stranger opening the bare host sees the first product's story, and
+- A stranger opening the bare host sees the story of the product this
+  deployment leads with — `DEFAULT_PRODUCT`, not whichever sorts first — and
   switching product rewrites it without a reload.
 - A member subscribed to Plan sees *Open Plan* and lands in Plan.
 - Every sentence on the page comes from a row; deleting the rows leaves a
@@ -420,6 +422,33 @@ Each step leaves `composer run gates` and `npm run build` green.
   `Accept-Language` (§8).
 - Adding a seventh band touches four files and no existing band (§6).
 - `gate:ui` accounts for the five new operations.
+
+**Signing in does not land here** (reversed 2026-09-24, the same day step 1
+was built). Step 1 removed the landing redirect so that `/` would be an
+address somebody could reach at all: before it, a member was ejected from the
+page before the shell had rendered, and the story existed for strangers only.
+
+That was right about the page and wrong about the landing, and the operator
+found out by signing in: they got a shop window for a product they had
+already bought, with their projects two clicks away, and a platform
+administrator got a tenant's front page instead of the console they had
+signed in to run.
+
+**Being reachable and being where signing in puts you are different
+questions**, and the first does not need the second — but it does need a
+door, and this page had none: it is in no menu.
+
+So the landing goes back to meaning *take me to my work* — the first entry of
+the person's own menu — and two things keep this page reachable:
+
+- the redirect fires **once per browsing session** (`sessionStorage`, cleared
+  on sign-out), so any later arrival at `/` stays here, from a link or from
+  the address bar;
+- region A carries an **About** link to it, in the drawer on a phone
+  (ui-spec §4.1).
+
+This page keeps its address and every word on it. Nothing above changes
+except who is *left* here.
 
 ## 11. Decided by the operator (2026-09-24)
 

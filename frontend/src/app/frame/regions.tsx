@@ -101,6 +101,33 @@ export function ContextBar({
           <span aria-hidden="true" className="h-5 w-px shrink-0 bg-line" />
           <span className="text-2xs font-semibold uppercase tracking-wide text-subtle">{t("Product")}</span>
           <ProductSwitcher platform={platform} />
+          {/* The way back to what the product *is* (2026-09-24).
+
+              Signing in lands on the person's work, which is what they came
+              for — and `/` then had no door, because it is in no menu. The
+              story would have been a page only strangers could read, which
+              is the defect the page was built to remove. (The other half is
+              that the landing fires once per browsing session, so arriving
+              here does not bounce back out; see `landing.ts`.)
+
+              In region A because "what is this product" is a context
+              question, beside the control that says which product. Not on
+              the console: `/` there is a tenant's front page, and the
+              console answers to the platform.
+
+              From `md` up only, and that is not a capability lost on a
+              phone: at 375px this bar already holds the organisation, the
+              switcher, search and the account, and a sixth thing overlapped
+              the search button. The drawer carries it there
+              (`MoreSheet`). */}
+          {!platform && (
+            <Link
+              to="/"
+              data-testid="product-story"
+              className="hidden shrink-0 text-2xs font-medium text-subtle underline decoration-dotted underline-offset-2 hover:text-ink md:inline"
+            >
+              {t("About")}</Link>
+          )}
         </span>
       )}
 

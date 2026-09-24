@@ -25,6 +25,7 @@ import { PageHeader } from '@/ui/Page';
 import { SubscriptionPeople } from './SubscriptionPeople';
 import { currentLocale, t } from '@/i18n';
 import { tx } from '@/i18n/react';
+import { billingPeriod } from '@/ui/period';
 
 /**
  * `tenant.subscription` — and the distinction §13.1 exists to protect.
@@ -146,7 +147,7 @@ export function SubscriptionScreen() {
           <div>
             <dt className="text-xs uppercase tracking-wide text-subtle">{t("Billed")}</dt>
             <dd data-testid="periodicity">
-              {current.offer.version.billing_period.toLowerCase()} ·{' '}
+              {billingPeriod(current.offer.version.billing_period)} ·{' '}
               <Amount money={current.offer.version.price} />
             </dd>
             <dd className="text-xs text-subtle">
@@ -370,7 +371,7 @@ function YourSeat({
         <div>
           <dt className="text-xs uppercase tracking-wide text-subtle">{t("Billed")}</dt>
           <dd>
-            {seat.offer.version.billing_period.toLowerCase()} · <Amount money={seat.offer.version.price} />
+            {billingPeriod(seat.offer.version.billing_period)} · <Amount money={seat.offer.version.price} />
           </dd>
           <dd className="text-xs text-subtle">
             {t("period")}{' '}{new Date(seat.current_period_start).toLocaleDateString(currentLocale())} —{' '}

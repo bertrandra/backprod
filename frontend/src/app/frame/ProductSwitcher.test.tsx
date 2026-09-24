@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { useOffers } from '@/queries/catalogue';
 import { useSessionStore } from '@/state/session';
@@ -212,6 +212,52 @@ describe('with nothing chosen yet', () => {
 
     await waitFor(() => expect(useSessionStore.getState().productCode).toBe('boreas'));
     expect(screen.getByTestId<HTMLSelectElement>('product-switcher').value).toBe('boreas');
+  });
+
+  // `VITE_DEFAULT_PRODUCT` is a build-time constant, so a stub left behind
+  // would decide the next test in this file as well.
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('opens on the product this deployment leads with, not the one that sorts first', async () => {
+    // A platform hosting five products opened on whichever had the lowest
+    // rank while the bundle had been built with `DEFAULT_PRODUCT=atlas` —
+    // so the operator's storefront honoured the setting and their own shell
+    // did not, and one deployment showed two different products either side
+    // of a sign-in. Rank is the order things are *listed* in.
+    vi.stubEnv('VITE_DEFAULT_PRODUCT', 'atlas');
+
+    renderWith(<ProductSwitcher />, clientFor([BOREAS, ATLAS]), { product: null });
+
+    await waitFor(() => expect(useSessionStore.getState().productCode).toBe('atlas'));
+  });
+
+  it('still puts the person’s own default first', async () => {
+    // Their profile is somebody saying which product is theirs; the
+    // deployment's default is only what to do when nobody has said.
+    vi.stubEnv('VITE_DEFAULT_PRODUCT', 'atlas');
+
+    renderWith(
+      <ProductSwitcher />,
+      stubClient({
+        'GET /api/v1/me': { data: SESSION },
+        'GET /api/v1/products': { data: { products: [ATLAS, BOREAS], default: 'boreas' } },
+      }),
+      { product: null },
+    );
+
+    await waitFor(() => expect(useSessionStore.getState().productCode).toBe('boreas'));
+  });
+
+  it('falls through a configured product this deployment does not host', async () => {
+    // Otherwise a stale value pins the shell to a product nobody holds,
+    // which is worse than the ordering it was meant to fix.
+    vi.stubEnv('VITE_DEFAULT_PRODUCT', 'ceres');
+
+    renderWith(<ProductSwitcher />, clientFor([BOREAS, ATLAS]), { product: null });
+
+    await waitFor(() => expect(useSessionStore.getState().productCode).toBe('boreas'));
   });
 });
 

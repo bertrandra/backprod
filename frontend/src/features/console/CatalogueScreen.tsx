@@ -26,6 +26,7 @@ import { useSessionStore } from '@/state/session';
 import { FieldCell, FieldGroup, FieldRow, FormActions, FormCard } from '@/ui/Form';
 import { t } from '@/i18n';
 import { tx } from '@/i18n/react';
+import { billingPeriod } from '@/ui/period';
 
 /**
  * `console.admin.catalogue` — the platform pricing its own product.
@@ -575,7 +576,7 @@ function OfferRow({
           >
             <span className="text-subtle">v{version.version}</span>
             <Amount money={version.price} className="font-medium" />
-            <span className="text-subtle">{version.billing_period.toLowerCase()}</span>
+            <span className="text-subtle">{billingPeriod(version.billing_period)}</span>
             <span
               className={
                 version.status === 'ACTIVE'

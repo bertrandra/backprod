@@ -22,8 +22,15 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 final class SignInController implements RouteHandler
 {
-    public function __construct(private readonly Sessions $sessions)
-    {
+    /**
+     * @param string $cookieDomain where the refresh cookie belongs — empty is
+     *                             host-only, which is the default
+     *                             ({@see RefreshCookie::domainFrom()})
+     */
+    public function __construct(
+        private readonly Sessions $sessions,
+        private readonly string $cookieDomain = '',
+    ) {
     }
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
@@ -46,6 +53,7 @@ final class SignInController implements RouteHandler
             $request,
             $session->refreshToken,
             $session->refreshLifetimeSeconds,
+            $this->cookieDomain,
         );
     }
 }

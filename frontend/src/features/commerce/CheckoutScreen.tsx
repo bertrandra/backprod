@@ -2,14 +2,16 @@ import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import { can } from '@/app/access/access';
+import { addressFor } from '@/app/frame/ProductSwitcher';
 import { withRoot } from '@/app/root';
 import { PaymentElementPanel } from '@/features/commerce/payment/PaymentElementPanel';
+import { useCurrentProduct } from '@/queries/catalogue';
 import { isAwaitingPayment, useCancelCheckoutSession, useCheckoutSession } from '@/queries/checkout';
 import { useStartPayment, type StartedPayment } from '@/queries/payments';
 import { useSession } from '@/queries/session';
 import { useSessionStore } from '@/state/session';
 import { ErrorSurface } from '@/ui/ErrorSurface';
-import { Button } from '@/ui/Field';
+import { Button, buttonClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { notice, pill, type Tone } from '@/ui/tone';
@@ -100,13 +102,28 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
       </header>
 
       {current.status === 'COMPLETED' && (
-        <section data-testid="checkout-completed" className={`${notice('success')} space-y-1`}>
-          <p className="font-medium">{t("Paid — thank you.")}</p>
-          <p>
-            {forSelf
-              ? t("Your seat has started; what it entitles you to is yours now.")
-              : t("The subscription has started; everyone in the organisation is entitled to it now.")}
-          </p>
+        <section data-testid="checkout-completed" className={`${notice('success')} space-y-3`}>
+          <div className="space-y-1">
+            <p className="font-medium">{t("Paid — thank you.")}</p>
+            <p>
+              {forSelf
+                ? t("Your seat has started; what it entitles you to is yours now.")
+                : t("The subscription has started; everyone in the organisation is entitled to it now.")}
+            </p>
+          </div>
+
+          {/* **The way in to the thing they just bought** (2026-09-24). The
+              page said the money had arrived and then offered one link, to
+              the order list — so somebody who had just paid for a seat was
+              left on a receipt, with the product two guesses away. The
+              operator watched it happen.
+
+              Where the product runs beside the platform it is the product's
+              own address, because that is where the work is; otherwise the
+              project list, which is where it is here. Either way it is a
+              real link and not a button that navigates: it can be opened in
+              a new tab and read in the status bar first. */}
+          <StartWorking />
         </section>
       )}
 
@@ -315,6 +332,39 @@ function PayNow({
         onSettled={onSettled}
       />
     </div>
+  );
+}
+
+/**
+ * Where somebody goes once they have paid.
+ *
+ * The product's own address when it runs beside the platform (ADR-051 §3) —
+ * `?product=` and nothing else, no token, exactly as every other door to it
+ * does — and the project list otherwise.
+ *
+ * The product is the one the session is already in, so there is nothing to
+ * choose and nothing to pass: what somebody just bought, they bought here.
+ */
+function StartWorking() {
+  const product = useCurrentProduct();
+  const appUrl = product?.app_url ?? null;
+
+  if (appUrl !== null && appUrl !== '') {
+    return (
+      <a
+        href={addressFor(appUrl, product?.code ?? '')}
+        rel="noreferrer"
+        data-testid="start-working"
+        className={buttonClass()}
+      >
+        {t("Open {product}", { product: product?.name ?? '' })}
+      </a>
+    );
+  }
+
+  return (
+    <Link to="/projects" data-testid="start-working" className={buttonClass()}>
+      {t("Go to your projects")}</Link>
   );
 }
 
