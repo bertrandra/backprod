@@ -3417,6 +3417,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * A product says what it gates on
+         * @description The one product route that names no tenant (2026-09-24, ADR-051 §4 and ADR-052): a program saying what it has built is saying something about itself, so the gate checks the scope alone. **Every code must already be on the platform's one list of features** — a program may tell the platform what it gates on and may not invent a priced capability, which is `staff.features.manage` and belongs to a person. Unknown codes are refused `400 FEATURE_CODE_UNKNOWN` with `unknown` and `known` in the details. The set is replaced, so a capability the product stops shipping is one it stops sending, and an empty list is a valid declaration of none. Recorded in the product access log. Scope `product.capabilities.write`.
+         */
+        put: operations["declareProductCapabilities"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/demo/reset": {
         parameters: {
             query?: never;
@@ -4948,7 +4968,7 @@ export interface components {
          * @description What a product key may do (ADR-051 §4): a catalogue of its own beside the tenant’s permissions and the platform’s. A key holds what it was issued and nothing else.
          * @enum {string}
          */
-        ProductScope: "product.usage.write" | "product.entitlements.read" | "product.members.read";
+        ProductScope: "product.usage.write" | "product.entitlements.read" | "product.members.read" | "product.capabilities.write";
         /** @description A product key as the console sees it: never the secret, which was shown once at issue. A revoked key stays listed, because the access log points at it. */
         ProductCredential: {
             /** Format: uuid */
@@ -13785,6 +13805,65 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    declareProductCapabilities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description What this product has built, replacing the set. Empty declares none. */
+                    capabilities: {
+                        /** @description A code on the platform's list of features. */
+                        code: string;
+                        name: string;
+                        /**
+                         * @description Off for everybody, however much they subscribed to.
+                         * @default true
+                         */
+                        enabled?: boolean;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description What the product now declares, in code order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        capabilities: components["schemas"]["ProductFeature"][];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED`, or `FEATURE_CODE_UNKNOWN` with `unknown` and `known` in the details. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `PRODUCT_KEY_SCOPE`, `PRODUCT_KEY_REVOKED` or `PRODUCT_KEY_EXPIRED`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

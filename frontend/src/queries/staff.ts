@@ -1075,8 +1075,18 @@ export function useUpdateProduct() {
 
 export type ProductCredential = Schemas['ProductCredential'];
 export type ProductScope = Schemas['ProductScope'];
-/** What a product key may do (ADR-051 §4), in the order the console offers them. */
-export const PRODUCT_SCOPES: readonly ProductScope[] = ['product.entitlements.read', 'product.members.read', 'product.usage.write'];
+/**
+ * What a product key may do (ADR-051 §4), in the order the console offers
+ * them. Reads first, then the two writes — `product.capabilities.write`
+ * last because it is the one that names no tenant: it declares what the
+ * product itself has built (2026-09-24, ADR-052).
+ */
+export const PRODUCT_SCOPES: readonly ProductScope[] = [
+  'product.entitlements.read',
+  'product.members.read',
+  'product.usage.write',
+  'product.capabilities.write',
+];
 
 /** Every key a product was issued, live or not — never a secret. */
 export function useProductCredentials(productId: string) {

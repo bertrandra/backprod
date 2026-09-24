@@ -105,6 +105,9 @@ final class RouteSurfaceTest extends ApiTestCase
         'GET /api/v1/product/tenants/{tenantId}/entitlements',
         'POST /api/v1/product/tenants/{tenantId}/usage',
         'GET /api/v1/product/tenants/{tenantId}/members',
+        // The one that names no tenant (2026-09-24): a product saying what
+        // it gates on is saying something about itself.
+        'PUT /api/v1/product/capabilities',
     ];
 
     public function testEveryProductKeyRouteIsOneWeMeantToOpenToAKey(): void

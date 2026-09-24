@@ -99,6 +99,7 @@ use App\Payment\Controller\PaymentWebhookController;
 use App\Payment\Controller\RefundPaymentController;
 use App\Payment\Controller\ShowPaymentController;
 use App\Payment\Controller\StartPaymentController;
+use App\Product\Controller\DeclareCapabilitiesController;
 use App\Product\Controller\ListProductsController;
 use App\Product\Controller\ProductCatalogueController;
 use App\Product\Controller\ProductConfigurationController;
@@ -301,6 +302,11 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/product/tenants/{tenantId}/entitlements', ProductTenantEntitlementsController::class);
     $routes->addRoute('POST', '/api/v1/product/tenants/{tenantId}/usage', ProductTenantUsageController::class);
     $routes->addRoute('GET', '/api/v1/product/tenants/{tenantId}/members', ProductTenantMembersController::class);
+    // The one that names no tenant (2026-09-24): a product saying what it
+    // gates on is saying something about itself. Every code is checked
+    // against the platform's one list of features and none is added to it —
+    // a program says what it gates on, a person adds to the vocabulary.
+    $routes->addRoute('PUT', '/api/v1/product/capabilities', DeclareCapabilitiesController::class);
 
     // Identity-only: discovery cannot require the product context it supplies.
     $routes->addRoute('GET', '/api/v1/products', ListProductsController::class);

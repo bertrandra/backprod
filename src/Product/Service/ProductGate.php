@@ -62,6 +62,28 @@ final class ProductGate
     }
 
     /**
+     * A route that names no tenant: the scope alone, recorded either way
+     * (2026-09-24).
+     *
+     * Separate from {@see tenant()} rather than a null tenant through it,
+     * because the two questions differ: that one also asks whether a
+     * customer holds this product, and a route about the *product itself*
+     * has no customer to ask about. A nullable argument there would read as
+     * "sometimes we skip the isolation check", which is the sentence nobody
+     * should be able to write.
+     */
+    public function scope(ProductKey $key, string $scope, string $method, string $path): void
+    {
+        if (!$key->allows($scope)) {
+            $this->log->record(new ProductAccess($key->id, $key->productId, null, '', $method, $path, 403));
+
+            throw new ForbiddenException('PRODUCT_KEY_SCOPE', 'This key does not hold the scope this route needs.', ['scope' => $scope]);
+        }
+
+        $this->log->record(new ProductAccess($key->id, $key->productId, null, '', $method, $path, 200));
+    }
+
+    /**
      * Records what a product metered, unless the quota does not cover it.
      *
      * Asked *before* the product does the work, so a refusal costs nothing:

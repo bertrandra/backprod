@@ -282,7 +282,158 @@ final class ProductKeysTest extends DatabaseApiTestCase
         self::assertSame(400, $this->asProduct('POST', $path, $bearer, ['feature' => 'plan.documents', 'quantity' => 0, 'idempotency_key' => 'y'])->getStatusCode());
     }
 
+    // --- What the product says it has built (2026-09-24) ------------------------
+
+    /**
+     * A product declares what it gates on, and may not invent it.
+     *
+     * The whole point of step 5 of `docs/translatable-fields-spec.md`: a
+     * program says what it has built, checked against the platform's one
+     * list of features rather than written into it. `plan.terrase` typed
+     * once used to be a capability nothing would ever honour.
+     */
+    public function testAProductDeclaresWhatItGatesOnAndCannotInventIt(): void
+    {
+        $this->seedFeature('plan.terrasse', 'Terrace engine');
+        $this->seedFeature('plan.documents', 'Documents');
+        $bearer = $this->bearer(['product.capabilities.write']);
+
+        $declared = $this->asProduct('PUT', '/api/v1/product/capabilities', $bearer, [
+            'capabilities' => [
+                ['code' => 'plan.terrasse', 'name' => 'Moteur de terrasse'],
+                ['code' => 'plan.documents', 'name' => 'Documents', 'enabled' => false],
+            ],
+        ]);
+
+        self::assertSame(200, $declared->getStatusCode(), (string) $declared->getBody());
+
+        $capabilities = $this->listIn($declared, 'capabilities');
+        self::assertSame(['plan.documents', 'plan.terrasse'], array_column($capabilities, 'code'));
+        self::assertFalse($capabilities[0]['enabled'] ?? null);
+
+        // The product is the key's: nothing named it, and the rows landed on
+        // Plan rather than on whichever product an argument said.
+        self::assertSame(2, $this->connection->fetchOne(
+            'SELECT count(*) FROM product_features WHERE product_id = :p',
+            ['p' => $this->plan],
+        ));
+
+        // A code the platform does not know is refused, with what may be
+        // picked — an integration meeting a bare "no" against a list only the
+        // console can see is a guessing game.
+        $refused = $this->asProduct('PUT', '/api/v1/product/capabilities', $bearer, [
+            'capabilities' => [['code' => 'plan.terrase', 'name' => 'Typo']],
+        ]);
+
+        self::assertSame(400, $refused->getStatusCode());
+
+        $error = $this->errorOf($refused);
+        self::assertSame('FEATURE_CODE_UNKNOWN', $error['code'] ?? null);
+
+        $details = $error['details'] ?? null;
+        self::assertIsArray($details);
+        self::assertSame(['plan.terrase'], $details['unknown'] ?? null);
+
+        $known = $details['known'] ?? null;
+        self::assertIsArray($known);
+        self::assertContains('plan.terrasse', $known);
+
+        // And refused whole: the previous declaration stands rather than
+        // being half-replaced by a list one code of which was wrong.
+        self::assertSame(2, $this->connection->fetchOne('SELECT count(*) FROM product_features'));
+    }
+
+    /**
+     * The set is replaced, and empty is a declaration of none.
+     *
+     * A product that stops shipping a capability stops sending it; a product
+     * that stops gating on anything has to be able to say so, or removing
+     * the last one would need a route whose whole purpose was removal.
+     */
+    public function testDeclaringReplacesTheSetAndEmptyIsADeclaration(): void
+    {
+        $this->seedFeature('plan.documents', 'Documents');
+        $this->seedFeature('plan.exports', 'Exports');
+        $bearer = $this->bearer(['product.capabilities.write']);
+
+        $this->asProduct('PUT', '/api/v1/product/capabilities', $bearer, [
+            'capabilities' => [
+                ['code' => 'plan.documents', 'name' => 'Documents'],
+                ['code' => 'plan.exports', 'name' => 'Exports'],
+            ],
+        ]);
+
+        $narrowed = $this->asProduct('PUT', '/api/v1/product/capabilities', $bearer, [
+            'capabilities' => [['code' => 'plan.documents', 'name' => 'Documents']],
+        ]);
+
+        self::assertSame(['plan.documents'], array_column(
+            $this->listIn($narrowed, 'capabilities'),
+            'code',
+        ));
+
+        $none = $this->asProduct('PUT', '/api/v1/product/capabilities', $bearer, ['capabilities' => []]);
+
+        self::assertSame(200, $none->getStatusCode());
+        self::assertSame([], $this->listIn($none, 'capabilities'));
+        self::assertSame(0, $this->connection->fetchOne('SELECT count(*) FROM product_features'));
+    }
+
+    /**
+     * A key without the scope is refused, and the refusal is recorded.
+     *
+     * Naming no tenant does not make the route unguarded: a run of refusals
+     * is what probing looks like, and a log of successes cannot show it.
+     */
+    public function testAKeyWithoutTheScopeIsRefusedAndRecorded(): void
+    {
+        $bearer = $this->bearer(['product.entitlements.read']);
+
+        $refused = $this->asProduct('PUT', '/api/v1/product/capabilities', $bearer, ['capabilities' => []]);
+
+        self::assertSame(403, $refused->getStatusCode());
+        self::assertSame('PRODUCT_KEY_SCOPE', $this->errorOf($refused)['code'] ?? null);
+        self::assertSame(0, $this->connection->fetchOne('SELECT count(*) FROM product_features'));
+
+        $crossing = $this->connection->fetchAssociative(
+            "SELECT status, tenant_id, path FROM product_access_log WHERE path = '/api/v1/product/capabilities'",
+        );
+
+        self::assertIsArray($crossing);
+        self::assertSame(403, $crossing['status']);
+        // No tenant, because the route is about the product itself.
+        self::assertNull($crossing['tenant_id']);
+    }
+
     // --- Helpers ---------------------------------------------------------------
+
+    private function seedFeature(string $code, string $name): void
+    {
+        $this->connection->executeStatement(
+            "INSERT INTO features (code, name, kind) VALUES (:code, :name, 'BOOLEAN')",
+            ['code' => $code, 'name' => $name],
+        );
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function listIn(ResponseInterface $response, string $key): array
+    {
+        $rows = $this->decode($response)[$key] ?? null;
+
+        self::assertIsArray($rows);
+
+        $items = [];
+
+        foreach ($rows as $row) {
+            self::assertIsArray($row);
+            /** @var array<string, mixed> $row */
+            $items[] = $row;
+        }
+
+        return $items;
+    }
 
     /**
      * @return array<string, string>
