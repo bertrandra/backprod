@@ -24,9 +24,20 @@ interface CatalogueRepository
     public function plansFor(string $productId): array;
 
     /**
+     * Every feature the platform knows (2026-09-24).
+     *
+     * Not per product any more: a feature is a word the platform and a
+     * product's code have agreed on, and `max_projects` meaning one thing
+     * on Atlas and another on Plan was never a state anybody wanted. A
+     * *grant* still belongs to a product, because it lives on an offer
+     * version (`docs/translatable-fields-spec.md` §4).
+     *
+     * Retired ones are excluded: they are what an offer may no longer
+     * grant, and every caller here is deciding what may be sold.
+     *
      * @return list<Feature>
      */
-    public function featuresFor(string $productId): array;
+    public function features(): array;
 
     /**
      * Offers of a product, each with the versions that could be sold — that

@@ -432,10 +432,7 @@ final class PostgresDemoFixtures implements DemoFixtures
         $scale = [];
 
         foreach (DemoWorld::FEATURES as $code => $feature) {
-            $features[$code] = $this->id(
-                'INSERT INTO features (product_id, code, name, kind, unit) VALUES (:product, :code, :name, :kind, :unit) RETURNING id',
-                ['product' => $product, 'code' => $code, 'name' => $feature['name'], 'kind' => $feature['kind'], 'unit' => $feature['unit']],
-            );
+            $features[$code] = $this->feature($code, $feature['name'], $feature['kind'], $feature['unit']);
 
             // A BOOLEAN feature is Pro's and Scale's; a quota is everybody's
             // with its limit, and Scale's without one.
@@ -457,10 +454,7 @@ final class PostgresDemoFixtures implements DemoFixtures
         $paliers = [&$starter, &$pro, &$scale];
 
         foreach ($capabilities as $code => $capability) {
-            $features[$code] = $this->id(
-                "INSERT INTO features (product_id, code, name, kind, unit) VALUES (:product, :code, :name, 'BOOLEAN', NULL) RETURNING id",
-                ['product' => $product, 'code' => $code, 'name' => $capability['name']],
-            );
+            $features[$code] = $this->feature($code, $capability['name'], 'BOOLEAN', null);
 
             // Un `from` hors de l'echelle nomme un plan a part : la capacite ne remonte nulle
             // part, elle appartient a ce plan-la et a lui seul.
@@ -482,10 +476,7 @@ final class PostgresDemoFixtures implements DemoFixtures
         unset($paliers);
 
         foreach ($meters as $code => $meter) {
-            $features[$code] = $this->id(
-                "INSERT INTO features (product_id, code, name, kind, unit) VALUES (:product, :code, :name, 'QUOTA', :unit) RETURNING id",
-                ['product' => $product, 'code' => $code, 'name' => $meter['name'], 'unit' => $meter['unit']],
-            );
+            $features[$code] = $this->feature($code, $meter['name'], 'QUOTA', $meter['unit']);
             $starter[$code] = $meter['starter'];
             $pro[$code] = $meter['pro'];
             $scale[$code] = null;
@@ -552,6 +543,31 @@ final class PostgresDemoFixtures implements DemoFixtures
         }
 
         return $offers;
+    }
+
+    /**
+     * A feature on the platform's one list, created once however many
+     * products sell it (2026-09-24).
+     *
+     * `ON CONFLICT` rather than an insert, because the demonstration seeds
+     * five products and `max_projects` is the same capability in every one
+     * of them — that is the whole point of there being one list
+     * (`docs/translatable-fields-spec.md` §4). The name is refreshed and
+     * the kind is not: a second product disagreeing about what a code
+     * *means* is the state the merge migration refuses outright, and a
+     * seeder that quietly reconciled it would hide exactly that.
+     */
+    private function feature(string $code, string $name, string $kind, ?string $unit): string
+    {
+        return $this->id(
+            <<<'SQL'
+            INSERT INTO features (code, name, kind, unit)
+            VALUES (:code, :name, :kind, :unit)
+            ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+            RETURNING id
+            SQL,
+            ['code' => $code, 'name' => $name, 'kind' => $kind, 'unit' => $unit],
+        );
     }
 
     /**

@@ -146,6 +146,7 @@ use App\Staff\Controller\GrantTenantEntitlementController;
 use App\Staff\Controller\IssueProductCredentialController;
 use App\Staff\Controller\IssueWebhookSecretController;
 use App\Staff\Controller\ListAccessLogController;
+use App\Staff\Controller\ListPlatformFeaturesController;
 use App\Staff\Controller\ListPlatformProductsController;
 use App\Staff\Controller\ListProductCredentialsController;
 use App\Staff\Controller\ListStaffController;
@@ -639,18 +640,16 @@ return static function (RouteCollector $routes): void {
     // borrower. These are the door that should have existed first; the tenant
     // routes keep the meaning ADR-040 gave them.
     //
-    // Plans and features especially: nothing on this platform could create
-    // one, so an installation had a product and no way to build a catalogue
-    // on it at all.
+    // Plans especially: nothing on this platform could create one, so an
+    // installation had a product and no way to build a catalogue on it at
+    // all.
+    //
+    // Features are no longer here (2026-09-24). They are the platform's one
+    // list, below, under a permission of their own — a product's catalogue
+    // picks a code from it rather than inventing one.
     $routes->addRoute('GET', '/api/v1/staff/catalogue', ShowCatalogueController::class);
     $routes->addRoute('POST', '/api/v1/staff/catalogue/plans', CreatePlanController::class);
     $routes->addRoute('PATCH', '/api/v1/staff/catalogue/plans/{planId}', UpdatePlanController::class);
-    $routes->addRoute('POST', '/api/v1/staff/catalogue/features', CreateFeatureController::class);
-    $routes->addRoute(
-        'PATCH',
-        '/api/v1/staff/catalogue/features/{featureId}',
-        RenameFeatureController::class,
-    );
     $routes->addRoute('POST', '/api/v1/staff/catalogue/offers', CreateStaffOfferController::class);
     $routes->addRoute(
         'PATCH',
@@ -667,6 +666,14 @@ return static function (RouteCollector $routes): void {
         '/api/v1/staff/catalogue/offers/{offerId}/publish',
         PublishStaffOfferVersionController::class,
     );
+
+    // The platform's one list of features (2026-09-24). Not under
+    // `/staff/catalogue`, which is a *product's* price list and takes
+    // `?product=`: a feature is a word the platform and a product's code have
+    // agreed on, and `max_projects` existed once per product until this moved.
+    $routes->addRoute('GET', '/api/v1/staff/features', ListPlatformFeaturesController::class);
+    $routes->addRoute('POST', '/api/v1/staff/features', CreateFeatureController::class);
+    $routes->addRoute('PATCH', '/api/v1/staff/features/{featureId}', RenameFeatureController::class);
 
     // What a product needs configured before it can take money. ADR-042 gave
     // the console a way to create a product and ADR-043 a way to price it, and

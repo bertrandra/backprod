@@ -46,6 +46,10 @@ final class CataloguePresenter
             'description' => $feature->description,
             'kind' => $feature->kind,
             'unit' => $feature->unit,
+            // Shown to the console alone (2026-09-24). A customer is never
+            // told that a capability was retired — they are simply not sold
+            // it — and the tenant-side presenter has no such field.
+            'active' => $feature->active,
             // An object, not an array: `{}` in JSON rather than `[]`, so a
             // feature nobody has translated reads as "no translations"
             // rather than as a list the client has to guess the shape of.

@@ -2,12 +2,10 @@ import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import {
-  useCreateFeature,
   useCreatePlan,
   useCreateStaffOffer,
   useCreateStaffOfferVersion,
   usePublishStaffOfferVersion,
-  useRenameFeature,
   useRenameStaffOffer,
   useStaffCatalogue,
   useStorefrontOffers,
@@ -44,10 +42,15 @@ import { tx } from '@/i18n/react';
  * to make one — so creating an offer was impossible regardless of permissions,
  * because its insert selects the plan by id and matched nothing.
  *
- * The three sections are in the order the chain runs: a plan groups offers, a
- * feature is what a plan grants, an offer is a plan with a price. Nothing here
- * branches on a plan's name or a product's code (non-negotiable #25) — plans
- * are ordered by `rank` and that is the only ordering there is.
+ * The two sections are in the order the chain runs: a plan groups offers, an
+ * offer is a plan with a price. Nothing here branches on a plan's name or a
+ * product's code (non-negotiable #25) — plans are ordered by `rank` and that
+ * is the only ordering there is.
+ *
+ * **Features are not edited here** since 2026-09-24. They are the platform's
+ * one list, on Console → Features, and what this screen does with them is
+ * pick: an offer's grants name features from that list, at the limits this
+ * product sells them at.
  */
 export function CatalogueScreen() {
   const productCode = useSessionStore((state) => state.productCode);
@@ -87,7 +90,6 @@ export function CatalogueScreen() {
       />
 
       <Plans productCode={productCode} plans={catalogue.data.plans} />
-      <Features productCode={productCode} features={catalogue.data.features} />
 
       <Offers
         productCode={productCode}
@@ -224,211 +226,7 @@ function Plans({ productCode, plans }: { productCode: string; plans: readonly St
   );
 }
 
-function Features({
-  productCode,
-  features,
-}: {
-  productCode: string;
-  features: readonly StaffFeature[];
-}) {
-  const create = useCreateFeature(productCode);
-
-  const [code, setCode] = useState('');
-  const [name, setName] = useState('');
-  const [kind, setKind] = useState<'BOOLEAN' | 'QUOTA'>('QUOTA');
-  const [unit, setUnit] = useState('');
-
-  return (
-    <Section
-      className="border-t border-line pt-6"
-      title={t("Features")}
-      description={
-        <>
-          {t("What a plan grants. A")}{' '}<strong>{t("quota")}</strong> {t("is counted in a unit; a")}{' '}
-          <strong>{t("switch")}</strong> {t("is on or off. The kind cannot be changed afterwards — every grant written against a feature meant one or the other, and flipping it would reinterpret prices somebody is already paying.")}</>
-      }
-    >
-
-      {create.error !== null && <ErrorSurface error={create.error} />}
-
-      {features.length === 0 ? (
-        <EmptyState
-          title={t("No features yet")}
-          description={t("An offer can be sold without them — they are what a plan grants beyond access.")}
-        />
-      ) : (
-        <ul className="space-y-2" data-testid="feature-list">
-          {features.map((feature) => (
-            <FeatureRow key={feature.id} productCode={productCode} feature={feature} />
-          ))}
-        </ul>
-      )}
-
-      <FormCard
-        className="grid gap-3 sm:grid-cols-[1fr_1fr_8rem_1fr_auto] sm:items-end"
-        onSubmit={(event) => {
-          event.preventDefault();
-
-          if (code.trim() !== '' && name.trim() !== '') {
-            create.mutate(
-              {
-                code: code.trim().toLowerCase(),
-                name: name.trim(),
-                kind,
-                // Null rather than "", and never on a switch: the API refuses
-                // a unit on a boolean and the form should not send one.
-                unit: kind === 'QUOTA' && unit.trim() !== '' ? unit.trim() : null,
-              },
-              {
-                onSuccess: () => {
-                  setCode('');
-                  setName('');
-                  setUnit('');
-                },
-              },
-            );
-          }
-        }}
-      >
-        <Field id="feature-code" label={t("Feature code")}>
-          <input
-            id="feature-code"
-            className={inputClass()}
-            placeholder="projects"
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-          />
-        </Field>
-        <Field id="feature-name" label={t("Feature name")}>
-          <input
-            id="feature-name"
-            className={inputClass()}
-            placeholder={t("Projects")}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </Field>
-        <Field id="feature-kind" label={t("Kind")}>
-          <select
-            id="feature-kind"
-            className={inputClass()}
-            value={kind}
-            onChange={(event) => setKind(event.target.value === 'BOOLEAN' ? 'BOOLEAN' : 'QUOTA')}
-          >
-            <option value="QUOTA">{t("Quota")}</option>
-            <option value="BOOLEAN">{t("Switch")}</option>
-          </select>
-        </Field>
-        <Field id="feature-unit" label={t("Unit")}>
-          <input
-            id="feature-unit"
-            className={inputClass()}
-            placeholder="projects"
-            // Disabled rather than hidden, so the rule is visible instead of
-            // being discovered through a 400.
-            disabled={kind === 'BOOLEAN'}
-            value={kind === 'BOOLEAN' ? '' : unit}
-            onChange={(event) => setUnit(event.target.value)}
-          />
-        </Field>
-        <Button
-          type="submit"
-          pending={create.isPending}
-          disabled={code.trim() === '' || name.trim() === ''}
-        >
-          {t("Add feature")}</Button>
-      </FormCard>
-    </Section>
-  );
-}
-
-/**
- * One feature, and what it is called in each language (2026-09-24).
- *
- * The row reads as it did — name, code, kind — until somebody opens it.
- * Editing is behind a click because naming a feature is done once and
- * corrected rarely, and a catalogue of open forms is a screen nobody can
- * scan.
- *
- * The code and the kind are shown and never editable: the code is how
- * grants and entitlements name this, and the kind decides how every grant
- * already written against it is read.
- */
-function FeatureRow({ productCode, feature }: { productCode: string; feature: StaffFeature }) {
-  const rename = useRenameFeature(productCode);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<Translated>(() => translatedOf(feature));
-
-  return (
-    <li
-      data-feature={feature.code}
-      className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
-    >
-      <div className="flex flex-wrap items-baseline gap-2">
-        <span className="font-medium">{feature.name}</span>
-        <code className="select-all text-xs text-muted">{feature.code}</code>
-        <span className="text-xs text-subtle">
-          {feature.kind === 'QUOTA' ? t("quota in {value}", { value: feature.unit ?? '—' }) : t("switch")}
-        </span>
-
-        <Button
-          type="button"
-          variant="secondary"
-          data-testid={`rename-${feature.code}`}
-          onClick={() => {
-            setDraft(translatedOf(feature));
-            setEditing(!editing);
-          }}
-        >
-          {t("Rename")}</Button>
-      </div>
-
-      {editing && (
-        <form
-          className="mt-3 space-y-2"
-          data-testid={`rename-form-${feature.code}`}
-          onSubmit={(event) => {
-            event.preventDefault();
-
-            if (draft.en.trim() === '') {
-              return;
-            }
-
-            rename.mutate(
-              { featureId: feature.id, name: draft.en.trim(), translations: asTranslations(draft) },
-              { onSuccess: () => setEditing(false) },
-            );
-          }}
-        >
-          <TranslatedField id={`feature-${feature.code}`} value={draft} onChange={setDraft} />
-
-          {rename.error !== null && <ErrorSurface error={rename.error} />}
-
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" pending={rename.isPending}>
-              {t("Save")}</Button>
-            <Button type="button" variant="secondary" onClick={() => setEditing(false)}>
-              {t("Cancel")}</Button>
-          </div>
-        </form>
-      )}
-    </li>
-  );
-}
-
-/** The row's five names, as the field edits them. */
-function translatedOf(feature: StaffFeature): Translated {
-  const translations = feature.translations ?? {};
-
-  return {
-    en: feature.name,
-    fr: translations.fr?.name ?? '',
-    es: translations.es?.name ?? '',
-    de: translations.de?.name ?? '',
-    it: translations.it?.name ?? '',
-  };
-}
-
+/** An offer as the storefront list answers it, which is what this screen edits. */
 type AuthoredOffer = NonNullable<ReturnType<typeof useStorefrontOffers>['data']>['offers'][number];
 
 function Offers({

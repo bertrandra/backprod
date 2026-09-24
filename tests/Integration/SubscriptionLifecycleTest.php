@@ -588,10 +588,10 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
     {
         return $this->id(
             <<<'SQL'
-                INSERT INTO features (product_id, code, name, kind, unit)
-                VALUES (:product, :code, :code, :kind, :unit) RETURNING id
+                INSERT INTO features (code, name, kind, unit)
+                VALUES (:code, :code, :kind, :unit) RETURNING id
                 SQL,
-            ['product' => $this->product, 'code' => $code, 'kind' => $kind, 'unit' => $unit],
+            ['code' => $code, 'kind' => $kind, 'unit' => $unit],
         );
     }
 

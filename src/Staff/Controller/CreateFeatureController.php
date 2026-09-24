@@ -9,13 +9,18 @@ use App\Shared\Exceptions\BadRequestException;
 use App\Shared\Http\JsonBody;
 use App\Shared\Http\RouteHandler;
 use App\Staff\Domain\StaffPermission;
-use App\Staff\Service\CatalogueDesk;
+use App\Staff\Service\FeatureDesk;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
- * POST /api/v1/staff/catalogue/features?product=CODE — a billable capability.
+ * POST /api/v1/staff/features — a billable capability, platform-wide.
+ *
+ * No product (2026-09-24, `docs/translatable-fields-spec.md` §4): there is
+ * one list, and a product's catalogue picks from it. `max_projects` existed
+ * once per product until this route moved, and the code that reads it
+ * depended on every one of those rows having been spelled the same.
  *
  * `kind` is BOOLEAN or QUOTA, and it is chosen here because it can never
  * change: every grant written against a feature was written meaning one or the
@@ -29,13 +34,13 @@ final class CreateFeatureController implements RouteHandler
 {
     private const KINDS = [Feature::BOOLEAN, Feature::QUOTA];
 
-    public function __construct(private readonly CatalogueDesk $desk)
+    public function __construct(private readonly FeatureDesk $desk)
     {
     }
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
-        $context = StaffRoute::permitted($request, StaffPermission::CATALOG_MANAGE);
+        $context = StaffRoute::permitted($request, StaffPermission::FEATURES_MANAGE);
 
         $body = JsonBody::of($request);
         $kind = strtoupper($body->requiredString('kind', 16));
@@ -50,9 +55,8 @@ final class CreateFeatureController implements RouteHandler
             );
         }
 
-        $feature = $this->desk->createFeature(
+        $feature = $this->desk->create(
             $context->identity,
-            StaffRoute::productCode($request),
             CatalogueRoute::code($body),
             $body->requiredString('name', 200),
             $kind,

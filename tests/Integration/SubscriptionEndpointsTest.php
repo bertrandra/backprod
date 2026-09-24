@@ -358,8 +358,8 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
         $free = $this->id($plan, ['product' => $this->product, 'code' => 'FREE', 'rank' => 10]);
         $pro = $this->id($plan, ['product' => $this->product, 'code' => 'PRO', 'rank' => 20]);
 
-        $feature = 'INSERT INTO features (product_id, code, name, kind, unit)'
-            . ' VALUES (:product, :code, :code, :kind, :unit) RETURNING id';
+        $feature = 'INSERT INTO features (code, name, kind, unit)'
+            . ' VALUES (:code, :code, :kind, :unit) RETURNING id';
 
         $projects = $this->id($feature, [
             'product' => $this->product,

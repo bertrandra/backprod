@@ -323,7 +323,8 @@ final class CatalogueEndpointsTest extends ApiTestCase
 
         return new InMemoryCatalogueRepository(
             plans: [self::ATLAS => [$free, $pro]],
-            features: [self::ATLAS => [$advanced3d, $maxProjects]],
+            // The platform's one list, no longer keyed by product (2026-09-24).
+            features: [$advanced3d, $maxProjects],
             offers: [
                 self::ATLAS => [
                     new OfferCandidate('offer-free', 'free', 'Free', $free, [

@@ -57,7 +57,7 @@ final class PasswordAndPeopleTest extends DatabaseApiTestCase
             "INSERT INTO offer_versions (offer_id, version, status, billing_period, price_minor_units, currency, valid_from) VALUES (:o, 1, 'DRAFT', 'MONTHLY', 4900, 'EUR', now() - interval '1 day') RETURNING id",
             ['o' => $offer],
         );
-        $users = $this->id("INSERT INTO features (product_id, code, name, kind, unit) VALUES (:p, 'users', 'Users', 'QUOTA', 'users') RETURNING id", ['p' => $this->atlas]);
+        $users = $this->id("INSERT INTO features (code, name, kind, unit) VALUES ('users', 'Users', 'QUOTA', 'users') RETURNING id");
         $this->connection->executeStatement(
             'INSERT INTO offer_version_features (offer_version_id, feature_id, limit_value) VALUES (:v, :f, 3)',
             ['v' => $this->version, 'f' => $users],

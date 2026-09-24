@@ -249,6 +249,8 @@ describe('the navigation is ordered by dependency', () => {
       'readiness',
       'products',
       'invoicing',
+      // Before the catalogue, because a catalogue picks from it (2026-09-24).
+      'features',
       'platform-catalogue',
       'storefront',
       // Not on the chain — after it.

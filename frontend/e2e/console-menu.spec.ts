@@ -22,6 +22,7 @@ const STAFF = {
     permissions: [
       'staff.self.read',
       'staff.products.manage',
+      'staff.features.manage',
       'staff.catalog.manage',
       'staff.tenants.read',
       'staff.tenants.manage',
@@ -78,13 +79,13 @@ test.describe('moving between console screens', () => {
     if (narrow) {
       await page.getByRole('button', { name: 'Menu' }).click();
       await expect(page.getByTestId('menu-sheet')).toBeVisible();
-      // Fourteen admin screens for a full administrator, in the one drawer.
-      await expect(page.getByTestId('menu-sheet').locator('[data-nav-more]')).toHaveCount(15);
+      // Sixteen admin screens for a full administrator, in the one drawer.
+      await expect(page.getByTestId('menu-sheet').locator('[data-nav-more]')).toHaveCount(16);
       // And no sign-out there: the account circle carries it at every width.
       await expect(page.getByTestId('menu-sheet').getByRole('button', { name: 'Sign out' })).toHaveCount(0);
       await page.getByTestId('menu-sheet').locator('[data-nav-more="audit"]').click();
     } else {
-      await expect(page.locator('[data-region="primary-nav"] [data-nav]')).toHaveCount(15);
+      await expect(page.locator('[data-region="primary-nav"] [data-nav]')).toHaveCount(16);
       // The section headings read as headings: named, above their entries.
       await expect(page.locator('[data-nav-section="setup"]')).toBeVisible();
       await page.locator('[data-nav="audit"]').click();

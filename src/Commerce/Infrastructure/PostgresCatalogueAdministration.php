@@ -74,8 +74,53 @@ final class PostgresCatalogueAdministration implements CatalogueAdministration
         return $row === false ? null : OfferVersionLoader::toPlan($row);
     }
 
+    public function features(): array
+    {
+        $rows = $this->connection->fetchAllAssociative(
+            <<<'SQL'
+                SELECT id, code, name, description, kind, unit, active
+                FROM features
+                ORDER BY code
+                SQL,
+        );
+
+        // One query for every translation of every feature, like the
+        // catalogue read: a platform list is a few dozen rows and four
+        // languages, and a query per row here would be the N+1 the console
+        // screen would pay on every visit.
+        $translations = $this->everyTranslation();
+
+        return array_map(
+            static fn (array $row): Feature => OfferVersionLoader::toFeature(
+                $row,
+                $translations[Row::string($row, 'id')] ?? [],
+            ),
+            $rows,
+        );
+    }
+
+    /**
+     * @return array<string, array<string, array{name: ?string, description: ?string}>>
+     */
+    private function everyTranslation(): array
+    {
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT feature_id, locale, name, description FROM feature_translations ORDER BY feature_id, locale',
+        );
+
+        $byFeature = [];
+
+        foreach ($rows as $row) {
+            $byFeature[Row::string($row, 'feature_id')][Row::string($row, 'locale')] = [
+                'name' => Row::nullableString($row, 'name'),
+                'description' => Row::nullableString($row, 'description'),
+            ];
+        }
+
+        return $byFeature;
+    }
+
     public function createFeature(
-        string $productId,
         string $code,
         string $name,
         string $kind,
@@ -95,12 +140,11 @@ final class PostgresCatalogueAdministration implements CatalogueAdministration
         try {
             $row = $this->connection->fetchAssociative(
                 <<<'SQL'
-                    INSERT INTO features (product_id, code, name, kind, unit)
-                    VALUES (:product, :code, :name, :kind, :unit)
-                    RETURNING id, code, name, kind, unit
+                    INSERT INTO features (code, name, kind, unit)
+                    VALUES (:code, :name, :kind, :unit)
+                    RETURNING id, code, name, description, kind, unit, active
                     SQL,
                 [
-                    'product' => $productId,
                     'code' => $code,
                     'name' => $name,
                     'kind' => $kind,
@@ -108,9 +152,13 @@ final class PostgresCatalogueAdministration implements CatalogueAdministration
                 ],
             );
         } catch (UniqueConstraintViolationException) {
+            // `features_code_unique` is on the code alone since 2026-09-24,
+            // so the collision is with the platform's list and not with one
+            // product's — including with a code that has been retired, which
+            // is why the list shows those too.
             throw new ConflictException(
                 'FEATURE_CODE_TAKEN',
-                'A feature of this product already uses that code.',
+                'A feature already uses that code.',
                 ['code' => $code],
             );
         }
@@ -126,12 +174,12 @@ final class PostgresCatalogueAdministration implements CatalogueAdministration
      * @param array<string, array{name?: ?string, description?: ?string}>|null $translations
      */
     public function renameFeature(
-        string $productId,
         string $featureId,
         string $name,
         bool $setDescription = false,
         ?string $description = null,
         ?array $translations = null,
+        ?bool $active = null,
     ): ?Feature {
         if (!Uuid::isValid($featureId)) {
             return null;
@@ -141,28 +189,35 @@ final class PostgresCatalogueAdministration implements CatalogueAdministration
         // translations are one act. Written apart, a failure between them
         // leaves a feature renamed and its Spanish still saying the old
         // thing — which is exactly the state nobody would think to look for.
-        return $this->connection->transactional(function () use ($productId, $featureId, $name, $setDescription, $description, $translations): ?Feature {
+        return $this->connection->transactional(function () use ($featureId, $name, $setDescription, $description, $translations, $active): ?Feature {
             // `kind` is deliberately absent from this statement. Every grant
             // written against this feature meant one kind or the other, and
             // flipping it would reinterpret rows already priced into live
             // subscriptions.
+            //
+            // `active` through COALESCE, so null means "leave it" — the
+            // console sends it only when somebody moved the switch.
             $row = $this->connection->fetchAssociative(
                 <<<'SQL'
                     UPDATE features
                        SET name = :name,
                            description = CASE WHEN :setDescription THEN :description ELSE description END,
+                           active = COALESCE(CAST(:active AS boolean), active),
                            updated_at = now()
-                     WHERE id = :id AND product_id = :product
-                    RETURNING id, code, name, description, kind, unit
+                     WHERE id = :id
+                    RETURNING id, code, name, description, kind, unit, active
                     SQL,
                 [
                     'id' => $featureId,
-                    'product' => $productId,
                     'name' => $name,
                     'setDescription' => $setDescription,
                     'description' => $description,
+                    'active' => $active,
                 ],
-                ['setDescription' => ParameterType::BOOLEAN],
+                [
+                    'setDescription' => ParameterType::BOOLEAN,
+                    'active' => ParameterType::BOOLEAN,
+                ],
             );
 
             if ($row === false) {

@@ -61,9 +61,8 @@ final class OfferAuthoringTest extends DatabaseApiTestCase
             ['p' => $this->product],
         );
         $this->feature = $this->id(
-            'INSERT INTO features (product_id, code, name, kind)'
-            . " VALUES (:p, 'projects', 'Projects', 'QUOTA') RETURNING id",
-            ['p' => $this->product],
+            'INSERT INTO features (code, name, kind)'
+            . " VALUES ('projects', 'Projects', 'QUOTA') RETURNING id",
         );
 
         // A whole second product, so "belongs to this product" is tested
@@ -278,15 +277,24 @@ final class OfferAuthoringTest extends DatabaseApiTestCase
         self::assertSame(10, $grant['limit'] ?? null);
     }
 
-    public function testAFeatureFromAnotherProductIsRefusedAndTakesTheVersionWithIt(): void
+    /**
+     * A retired feature cannot be granted by a new offer, and the refusal
+     * takes the whole version with it.
+     *
+     * This used to be "a feature from another product", which since
+     * 2026-09-24 is not a thing: there is one list, and every product's
+     * offers grant out of it. What replaced the product filter is the
+     * `active` flag — retiring is how the platform stops something being
+     * sold, without deleting a row that live entitlements name.
+     */
+    public function testARetiredFeatureIsRefusedAndTakesTheVersionWithIt(): void
     {
-        $foreign = $this->id(
-            'INSERT INTO features (product_id, code, name, kind)'
-            . " VALUES (:p, 'seats', 'Seats', 'QUOTA') RETURNING id",
-            ['p' => $this->otherProduct],
+        $retired = $this->id(
+            'INSERT INTO features (code, name, kind, active)'
+            . " VALUES ('seats', 'Seats', 'QUOTA', false) RETURNING id",
         );
 
-        $response = $this->create(['grants' => [['feature_id' => $foreign, 'limit' => 5]]]);
+        $response = $this->create(['grants' => [['feature_id' => $retired, 'limit' => 5]]]);
 
         self::assertSame(404, $response->getStatusCode());
         self::assertSame('FEATURE_NOT_FOUND', $this->errorOf($response)['code'] ?? null);

@@ -1,6 +1,10 @@
 # A field the operator writes in five languages, and a code they never type
 
-**Status:** specification, 2026-09-24. Nothing below is built.
+**Status:** specification, 2026-09-24. Steps 1–3 of §8 are built: the
+mechanism on a feature's name and description, offer names, and the one
+platform-wide list of features (ADR-052). Steps 4–6 — the picker, a
+product declaring its own capabilities, and the demonstration translated —
+are not.
 **Decides:** where a translated catalogue value lives, how one field is
 edited in five languages without a second interface, and where the list of
 feature codes comes from.
@@ -182,10 +186,10 @@ own.
 
 ```text
 GET   /api/v1/products/{productId}/catalog     unchanged shape, resolved names
-GET   /api/v1/staff/features                   the platform's one list
-POST  /api/v1/staff/features                   create one          staff.features.manage
-PATCH /api/v1/staff/features/{featureId}       name, description, active, and
-                                               their translations
+GET   /api/v1/staff/features                   the platform's one list     ✓
+POST  /api/v1/staff/features                   create one   features.manage ✓
+PATCH /api/v1/staff/features/{featureId}       name, description, active,
+                                               and their translations      ✓
 GET   /api/v1/staff/products/{id}/catalogue    every translation, for editing
 POST  /api/v1/staff/products/{id}/features     pick a code from the list
 PATCH /api/v1/staff/offers/{offerId}           the name and its translations

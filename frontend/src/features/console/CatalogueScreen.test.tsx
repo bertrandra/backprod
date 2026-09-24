@@ -65,7 +65,6 @@ function clientFor(extra: Stubs = {}) {
     'GET /api/v1/staff/storefront/offers': { data: { product: PRODUCT, offers: [OFFER] } },
     'POST /api/v1/staff/catalogue/plans': { status: 201, data: { plan: PRO } },
     'PATCH /api/v1/staff/catalogue/plans/{planId}': { data: { plan: { ...PRO, rank: 30 } } },
-    'POST /api/v1/staff/catalogue/features': { status: 201, data: { feature: QUOTA } },
     'POST /api/v1/staff/catalogue/offers': { status: 201, data: { offer: OFFER } },
     'POST /api/v1/staff/catalogue/offers/{offerId}/versions': { status: 201, data: { offer: OFFER } },
     'POST /api/v1/staff/catalogue/offers/{offerId}/publish': {
@@ -161,87 +160,6 @@ describe('plans', () => {
 
     expect(screen.getByText(/cannot be deleted/i)).toBeTruthy();
     expect(screen.queryByRole('button', { name: /delete/i })).toBeNull();
-  });
-});
-
-describe('features', () => {
-  it('refuses to send a unit on a switch', async () => {
-    const { client, requests } = recordingClient({
-      'GET /api/v1/staff/catalogue': {
-        data: { product: PRODUCT, plans: [PRO], features: [] },
-      },
-      'GET /api/v1/staff/storefront/offers': { data: { product: PRODUCT, offers: [] } },
-      'POST /api/v1/staff/catalogue/features': { status: 201, data: { feature: QUOTA } },
-    });
-
-    renderAtRoute(<CatalogueScreen />, client, ROUTE);
-
-    await waitFor(() => expect(screen.getByLabelText('Feature code')).toBeTruthy());
-
-    fireEvent.change(screen.getByLabelText('Feature code'), { target: { value: 'api' } });
-    fireEvent.change(screen.getByLabelText('Feature name'), { target: { value: 'API access' } });
-    fireEvent.change(screen.getByLabelText('Kind'), { target: { value: 'BOOLEAN' } });
-
-    // The field is disabled rather than hidden, so the rule is visible instead
-    // of being discovered through a 400.
-    expect(screen.getByLabelText<HTMLInputElement>('Unit').disabled).toBe(true);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Add feature' }));
-
-    await waitFor(() =>
-      expect(requests.some((r) => r.path === '/api/v1/staff/catalogue/features')).toBe(true),
-    );
-
-    expect(requests.find((r) => r.path === '/api/v1/staff/catalogue/features')?.body).toEqual({
-      code: 'api',
-      name: 'API access',
-      kind: 'BOOLEAN',
-      unit: null,
-    });
-  });
-
-  it('renames a feature in one language without losing the others', async () => {
-    const { client, requests } = recordingClient({
-      'GET /api/v1/staff/catalogue': { data: { product: PRODUCT, plans: [PRO], features: [QUOTA] } },
-      'GET /api/v1/staff/storefront/offers': { data: { product: PRODUCT, offers: [] } },
-      'PATCH /api/v1/staff/catalogue/features/{featureId}': { data: { feature: QUOTA } },
-    });
-
-    renderAtRoute(<CatalogueScreen />, client, ROUTE);
-
-    fireEvent.click(await screen.findByTestId('rename-projects'));
-
-    // The field opens on the reader's language — English in a test — and
-    // the dots say which languages say something without opening anything.
-    const written = screen.getByTestId('written-in-feature-projects');
-    expect(written.querySelector('[data-locale="fr"]')?.getAttribute('data-written')).toBe('true');
-    expect(written.querySelector('[data-locale="de"]')?.getAttribute('data-written')).toBe('false');
-
-    // Correct the German, leave the French alone.
-    fireEvent.click(screen.getByTestId('language-of-feature-projects'));
-    fireEvent.click(screen.getByTestId('language-de-of-feature-projects'));
-    fireEvent.change(screen.getByTestId('translated-feature-projects'), { target: { value: 'Projekte' } });
-
-    fireEvent.submit(screen.getByTestId('rename-form-projects'));
-
-    await waitFor(() => expect(requests.some((r) => r.method === 'PATCH')).toBe(true));
-
-    // The English and every translation travel together: the server
-    // replaces the set, so a language left out of this body is one it
-    // removes — and the French must therefore still be in it.
-    expect(requests.find((r) => r.method === 'PATCH')?.body).toEqual({
-      name: 'Projects',
-      translations: { fr: { name: 'Projets' }, de: { name: 'Projekte' } },
-    });
-  });
-
-  it('says the kind cannot be changed afterwards', async () => {
-    renderAtRoute(<CatalogueScreen />, clientFor(), ROUTE);
-
-    await waitFor(() => expect(screen.getByTestId('feature-list')).toBeTruthy());
-
-    expect(screen.getByText(/cannot be changed afterwards/i)).toBeTruthy();
-    expect(screen.getByText(/reinterpret prices somebody is already paying/i)).toBeTruthy();
   });
 });
 

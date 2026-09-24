@@ -171,157 +171,6 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
         self::assertSame(404, $this->patch('/api/v1/staff/catalogue/plans/' . $planId, ['name' => 'Stolen'])->getStatusCode());
     }
 
-    // --- Features -------------------------------------------------------------
-
-    public function testAQuotaCarriesItsUnitAndABooleanMayNot(): void
-    {
-        $quota = $this->createFeature(['code' => 'projects', 'name' => 'Projects', 'kind' => 'QUOTA', 'unit' => 'projects']);
-
-        self::assertSame(201, $quota->getStatusCode());
-        self::assertSame('projects', $this->itemIn($quota, 'feature')['unit'] ?? null);
-
-        $bad = $this->createFeature(['code' => 'api', 'name' => 'API', 'kind' => 'BOOLEAN', 'unit' => 'calls']);
-
-        // Said with the field that is wrong rather than with a constraint's
-        // name, which is what the database would have answered.
-        self::assertSame(400, $bad->getStatusCode());
-        self::assertSame('VALIDATION_FAILED', $this->errorOf($bad)['code']);
-    }
-
-    public function testAnUnknownKindIsRefusedWithTheListOfWhatIsExpected(): void
-    {
-        $response = $this->createFeature(['code' => 'x', 'name' => 'X', 'kind' => 'COUNTER']);
-
-        self::assertSame(400, $response->getStatusCode());
-        self::assertStringContainsString(
-            'BOOLEAN',
-            json_encode($this->errorOf($response)['details'] ?? []) ?: '',
-        );
-    }
-
-    public function testAFeatureKindCannotBeChangedAfterwards(): void
-    {
-        $featureId = $this->featureId($this->createFeature([
-            'code' => 'projects', 'name' => 'Projects', 'kind' => 'QUOTA', 'unit' => 'projects',
-        ]));
-
-        // The rename route takes a name and nothing else. Every grant written
-        // against this feature meant QUOTA, and flipping it would reinterpret
-        // rows already priced into live subscriptions.
-        $this->patch('/api/v1/staff/catalogue/features/' . $featureId, ['name' => 'Project slots', 'kind' => 'BOOLEAN']);
-
-        self::assertSame('QUOTA', $this->connection->fetchOne(
-            'SELECT kind FROM features WHERE id = :id',
-            ['id' => $featureId],
-        ));
-        self::assertSame('Project slots', $this->connection->fetchOne(
-            'SELECT name FROM features WHERE id = :id',
-            ['id' => $featureId],
-        ));
-    }
-
-    /**
-     * A feature says its name in five languages (2026-09-24).
-     *
-     * The English stays on the row and is the key; the other four are rows
-     * of their own, written in the same call so a name and its Spanish
-     * cannot disagree for the length of a failure between two requests.
-     */
-    public function testAFeatureIsNamedInEveryLanguageItSpeaks(): void
-    {
-        $featureId = $this->featureId($this->createFeature([
-            'code' => 'terrasse', 'name' => 'Terrace engine', 'kind' => 'BOOLEAN',
-        ]));
-
-        $response = $this->patch('/api/v1/staff/catalogue/features/' . $featureId, [
-            'name' => 'Terrace engine',
-            'description' => 'Draws a terrace on a parcel.',
-            'translations' => [
-                'fr' => ['name' => 'Moteur de terrasse', 'description' => 'Dessine une terrasse sur une parcelle.'],
-                'de' => ['name' => 'Terrassenmodul'],
-            ],
-        ]);
-
-        self::assertSame(200, $response->getStatusCode());
-
-        // The console is answered with all of them, because it is the only
-        // place that can finish a half-translated catalogue.
-        $feature = $this->decode($response)['feature'] ?? null;
-        self::assertIsArray($feature);
-        self::assertSame('Terrace engine', $feature['name'] ?? null);
-        self::assertSame(
-            ['de' => ['name' => 'Terrassenmodul', 'description' => null], 'fr' => ['name' => 'Moteur de terrasse', 'description' => 'Dessine une terrasse sur une parcelle.']],
-            $feature['translations'] ?? null,
-        );
-
-        // A customer is answered in their own language, and in English for
-        // the one nobody has written.
-        self::assertSame('Moteur de terrasse', $this->featureNameAsReadBy('fr', 'terrasse'));
-        self::assertSame('Terrassenmodul', $this->featureNameAsReadBy('de', 'terrasse'));
-        self::assertSame('Terrace engine', $this->featureNameAsReadBy('it', 'terrasse'));
-        // German has a name and no description, so the English answers for
-        // the sentence while the German answers for the name.
-        self::assertSame('Draws a terrace on a parcel.', $this->descriptionAsReadBy('de', 'terrasse'));
-    }
-
-    public function testATranslationIsReplacedAsASetAndEnglishIsNeverOneOfThem(): void
-    {
-        $featureId = $this->featureId($this->createFeature([
-            'code' => 'exports', 'name' => 'Exports', 'kind' => 'QUOTA', 'unit' => 'exports',
-        ]));
-
-        $this->patch('/api/v1/staff/catalogue/features/' . $featureId, [
-            'name' => 'Exports',
-            'translations' => ['fr' => ['name' => 'Exports FR'], 'es' => ['name' => 'Exportaciones']],
-        ]);
-
-        // Sent again without Spanish: the set is what the console says it
-        // is, so the one it dropped is gone rather than left behind.
-        $this->patch('/api/v1/staff/catalogue/features/' . $featureId, [
-            'name' => 'Exports',
-            'translations' => ['fr' => ['name' => 'Exports FR']],
-        ]);
-
-        self::assertSame(['fr'], $this->connection->fetchFirstColumn(
-            'SELECT locale FROM feature_translations WHERE feature_id = :id ORDER BY locale',
-            ['id' => $featureId],
-        ));
-
-        // English has one home, and this is not it.
-        $refused = $this->patch('/api/v1/staff/catalogue/features/' . $featureId, [
-            'name' => 'Exports',
-            'translations' => ['en' => ['name' => 'Something else']],
-        ]);
-
-        self::assertSame(400, $refused->getStatusCode());
-        self::assertSame('VALIDATION_FAILED', $this->errorOf($refused)['code'] ?? null);
-    }
-
-    public function testDeletingAFeatureTakesItsTranslationsWithIt(): void
-    {
-        $featureId = $this->featureId($this->createFeature([
-            'code' => 'doomed', 'name' => 'Doomed', 'kind' => 'BOOLEAN',
-        ]));
-
-        $this->patch('/api/v1/staff/catalogue/features/' . $featureId, [
-            'name' => 'Doomed',
-            'translations' => ['fr' => ['name' => 'Condamne']],
-        ]);
-
-        // No route deletes a feature, and there may never be one while
-        // grants point at it — but the cascade is what makes that decision
-        // reversible later without leaving rows nobody can reach.
-        $this->connection->executeStatement('DELETE FROM features WHERE id = :id', ['id' => $featureId]);
-
-        $left = $this->connection->fetchOne(
-            'SELECT count(*) FROM feature_translations WHERE feature_id = :id',
-            ['id' => $featureId],
-        );
-
-        self::assertIsNumeric($left);
-        self::assertSame(0, (int) $left);
-    }
-
     /**
      * An offer says its name in five languages too (2026-09-24, step 2).
      *
@@ -408,46 +257,6 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
         );
 
         return $this->member;
-    }
-
-    /** What `GET /api/v1/features` answers somebody whose profile says this language. */
-    private function featureNameAsReadBy(string $locale, string $code): ?string
-    {
-        $name = $this->featureAsReadBy($locale, $code)['name'] ?? null;
-
-        return is_string($name) ? $name : null;
-    }
-
-    private function descriptionAsReadBy(string $locale, string $code): ?string
-    {
-        $description = $this->featureAsReadBy($locale, $code)['description'] ?? null;
-
-        return is_string($description) ? $description : null;
-    }
-
-    /** @return array<string, mixed> */
-    private function featureAsReadBy(string $locale, string $code): array
-    {
-        $this->connection->executeStatement(
-            'UPDATE users SET locale = :locale WHERE id = :id',
-            ['locale' => $locale, 'id' => $this->reader()],
-        );
-
-        $features = $this->decode($this->request('GET', '/api/v1/features', [
-            'Authorization' => 'Bearer ada-token',
-            'X-Product' => 'atlas',
-        ]))['features'] ?? [];
-
-        self::assertIsArray($features);
-
-        foreach ($features as $feature) {
-            if (is_array($feature) && ($feature['code'] ?? null) === $code) {
-                /** @var array<string, mixed> $feature */
-                return $feature;
-            }
-        }
-
-        return [];
     }
 
     // --- Offers ----------------------------------------------------------------
@@ -545,7 +354,6 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
     public function testEveryActThatChangesWhatCanBeSoldIsRecorded(): void
     {
         $planId = $this->planId($this->createPlan(['code' => 'pro', 'name' => 'Pro', 'rank' => 10]));
-        $this->createFeature(['code' => 'projects', 'name' => 'Projects', 'kind' => 'QUOTA', 'unit' => 'projects']);
         $offerId = $this->offerId($this->createOffer($planId));
         $this->postJson('/api/v1/staff/catalogue/offers/' . $offerId . '/publish', ['version' => 1]);
 
@@ -570,10 +378,13 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
         }
 
         self::assertContains('plan:CREATE', $acts);
-        self::assertContains('feature:CREATE', $acts);
         self::assertContains('offer:CREATE', $acts);
         // The one an auditor comes for: who put this price on sale.
         self::assertContains('offer:PUBLISH', $acts);
+
+        // One permission, because this desk answers for one thing. Creating
+        // a *feature* is recorded too, under `staff.features.manage` and by
+        // a desk of its own — see ConsolePlatformFeaturesTest.
         self::assertSame(['staff.catalog.manage'], array_keys($permissions));
     }
 
@@ -710,19 +521,28 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
         self::assertSame(50, $only['limit'] ?? null);
     }
 
-    public function testAFeatureOfAnotherProductCannotBeGranted(): void
+    /**
+     * A retired feature cannot be granted by a new offer.
+     *
+     * This used to read "a feature of another product", which since
+     * 2026-09-24 is not a thing: there is one list and every product's
+     * offers grant out of it. Retiring is what replaced the product filter —
+     * it is how the platform stops selling something without deleting a row
+     * that live entitlements name.
+     */
+    public function testARetiredFeatureCannotBeGranted(): void
     {
         $planId = $this->planId($this->createPlan(['code' => 'pro', 'name' => 'Pro', 'rank' => 10]));
 
-        $elsewhere = $this->id(
+        $retired = $this->id(
             <<<'SQL'
-                INSERT INTO features (product_id, code, name, kind)
-                SELECT id, 'seats', 'Seats', 'QUOTA' FROM products WHERE code = 'orbit'
+                INSERT INTO features (code, name, kind, active)
+                VALUES ('seats', 'Seats', 'QUOTA', false)
                 RETURNING id
                 SQL,
         );
 
-        $refused = $this->offerGranting($planId, [['feature_id' => $elsewhere, 'limit' => 5]], 404);
+        $refused = $this->offerGranting($planId, [['feature_id' => $retired, 'limit' => 5]], 404);
 
         // Refused rather than ignored. An offer that silently dropped a grant
         // would be sold as granting something it does not.
@@ -793,9 +613,12 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
      */
     private function createFeature(array $body): ResponseInterface
     {
+        // No product (2026-09-24): a feature is the platform's, and what a
+        // product's offer does with it is the subject of the tests above.
+        // {@see ConsolePlatformFeaturesTest} is where the list itself is.
         return $this->request(
             'POST',
-            '/api/v1/staff/catalogue/features?product=atlas',
+            '/api/v1/staff/features',
             ['Authorization' => 'Bearer ola-token'],
             $this->json($body),
         );

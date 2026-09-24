@@ -278,17 +278,22 @@ final class PostgresOfferAuthoringRepository implements OfferAuthoringRepository
         }
 
         foreach ($draft->grants as $featureId => $limit) {
+            // No product filter since 2026-09-24: there is one list of
+            // features and every product's offers grant out of it
+            // (`docs/translatable-fields-spec.md` §4). `active` replaces the
+            // filter that used to be there — a retired feature is precisely
+            // one no new offer may grant, and this is where a new offer is
+            // written.
             $granted = (int) $this->connection->executeStatement(
                 <<<'SQL'
                     INSERT INTO offer_version_features (offer_version_id, feature_id, limit_value)
                     SELECT :versionId, f.id, :limit
                       FROM features f
-                     WHERE f.id = :featureId AND f.product_id = :productId
+                     WHERE f.id = :featureId AND f.active
                     SQL,
                 [
                     'versionId' => $versionId,
                     'featureId' => $featureId,
-                    'productId' => $productId,
                     'limit' => $limit,
                 ],
             );

@@ -3521,18 +3521,22 @@ export interface paths {
         patch: operations["updatePlan"];
         trace?: never;
     };
-    "/api/v1/staff/catalogue/features": {
+    "/api/v1/staff/features": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * The platform's one list of features
+         * @description Every feature the platform knows, retired ones included. No product parameter, unlike the rest of the console catalogue: since 2026-09-24 a feature is a word the platform and a product's code have agreed on, and a product's catalogue picks from this list rather than keeping one of its own (docs/translatable-fields-spec.md §4). The retired are listed because their codes are still taken, and a list that hid them would refuse a retyped code with nothing on screen to say why.
+         */
+        get: operations["listPlatformFeatures"];
         put?: never;
         /**
          * Create a billable capability
-         * @description `kind` is chosen here because it can never change: every grant written against a feature meant one kind or the other — a quota’s carries a limit, a boolean’s carries null — and flipping it would reinterpret rows already priced into live subscriptions. A feature that should have been the other kind is a new feature. `unit` is what a quota is counted in and is refused on a boolean.
+         * @description Platform-wide, under `staff.features.manage`: there is one list and a product's catalogue picks from it. `kind` is chosen here because it can never change: every grant written against a feature meant one kind or the other — a quota’s carries a limit, a boolean’s carries null — and flipping it would reinterpret rows already priced into live subscriptions. A feature that should have been the other kind is a new feature. `unit` is what a quota is counted in and is refused on a boolean.
          */
         post: operations["createFeature"];
         delete?: never;
@@ -3541,7 +3545,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/staff/catalogue/features/{featureId}": {
+    "/api/v1/staff/features/{featureId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -3555,8 +3559,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Correct what a feature is called, in every language
-         * @description The only thing about a feature that may change. Its code is how grants and entitlements name it; its kind decides how every grant already written against it is read.
+         * Correct a feature's wording, and whether it may still be granted
+         * @description Its code is how grants and entitlements name it; its kind decides how every grant already written against it is read. Neither may change. `active` false retires it — no new offer may grant it, and every entitlement already resting on it is untouched, which is why retiring exists instead of a delete.
          */
         patch: operations["renameFeature"];
         trace?: never;
@@ -3839,6 +3843,8 @@ export interface components {
                 de?: components["schemas"]["TranslatedName"];
                 it?: components["schemas"]["TranslatedName"];
             };
+            /** @description Whether a new offer may grant it. Retired features stay on this list and keep entitling everybody who already holds them; `Feature`, which is what a customer reads, has no such field — a customer is not told a capability was retired, they are simply not sold it. */
+            active: boolean;
         };
         Feature: {
             /** Format: uuid */
@@ -14037,12 +14043,35 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    listPlatformFeatures: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The list, in code order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        features: components["schemas"]["EditableFeature"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     createFeature: {
         parameters: {
-            query: {
-                /** @description The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership. */
-                product: string;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -14086,7 +14115,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description `FEATURE_CODE_TAKEN`. */
+            /** @description `FEATURE_CODE_TAKEN` — the code is already on the platform's list, retired or not. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14101,10 +14130,7 @@ export interface operations {
     };
     renameFeature: {
         parameters: {
-            query: {
-                /** @description The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership. */
-                product: string;
-            };
+            query?: never;
             header?: never;
             path: {
                 featureId: string;
@@ -14125,6 +14151,8 @@ export interface operations {
                         de?: components["schemas"]["TranslatedName"];
                         it?: components["schemas"]["TranslatedName"];
                     };
+                    /** @description Whether a new offer may grant it. Absent leaves it alone. False retires it, which takes nothing away from anybody already entitled. */
+                    active?: boolean;
                 };
             };
         };

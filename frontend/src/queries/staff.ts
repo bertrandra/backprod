@@ -1531,14 +1531,71 @@ export function useUpdatePlan(productCode: string) {
   );
 }
 
-export function useCreateFeature(productCode: string) {
+/**
+ * The platform's one list of features (2026-09-24).
+ *
+ * No product anywhere in this group — not in the route, not in the key, not
+ * in a parameter that would read as scoping and scope nothing. A feature is
+ * a word the platform and a product's code have agreed on
+ * (`docs/translatable-fields-spec.md` §4); what belongs to a product is the
+ * *grant*, which lives on an offer version and is written by the catalogue
+ * hooks above.
+ *
+ * Retired features are in this list. Their codes are still taken, and a
+ * screen that hid them would refuse a retyped code with nothing to explain
+ * the refusal.
+ */
+export type PlatformFeature = Schemas['EditableFeature'];
+
+export function usePlatformFeatures(enabled = true) {
   const client = useApiClient();
 
-  return useCatalogueWrite(
-    productCode,
+  return useQuery({
+    queryKey: keys.staff.features,
+    enabled,
+    queryFn: async () => {
+      const { data, error, response } = await client.GET('/api/v1/staff/features');
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.features;
+    },
+  });
+}
+
+/**
+ * Every write on the list invalidates the list, and every product's
+ * catalogue with it.
+ *
+ * A feature created here is one an offer may now grant, and a feature
+ * retired here is one it may not — so a catalogue screen left holding the
+ * old answer would offer a choice the server refuses. The catalogue key is
+ * invalidated in full rather than per product: the list is platform-wide,
+ * and naming products here would mean knowing which ones exist.
+ */
+function useFeatureListWrite<TVariables, TData>(mutationFn: (variables: TVariables) => Promise<TData>) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.staff.features }),
+        queryClient.invalidateQueries({ queryKey: ['staff', 'catalogue'] }),
+        queryClient.invalidateQueries({ queryKey: keys.catalogue.features }),
+      ]);
+    },
+  });
+}
+
+export function useCreateFeature() {
+  const client = useApiClient();
+
+  return useFeatureListWrite(
     async (feature: { code: string; name: string; kind: 'BOOLEAN' | 'QUOTA'; unit: string | null }) => {
-      const { data, error, response } = await client.POST('/api/v1/staff/catalogue/features', {
-        params: { query: { product: productCode } },
+      const { data, error, response } = await client.POST('/api/v1/staff/features', {
         body: feature,
       });
 
@@ -1674,35 +1731,39 @@ export function useRenameStaffOffer(productCode: string) {
 }
 
 /**
- * What a feature is called, in every language it is called something
- * (2026-09-24).
+ * What a feature is called, in every language it is called something, and
+ * whether it may still be granted (2026-09-24).
  *
  * The English and the translations go together, in one call: written
  * apart, a failure between them leaves a feature renamed in English and
  * still saying the old thing in Spanish — a state nobody would think to
  * look for. `translations` absent leaves them alone; present replaces the
  * set, so a language the operator emptied is one the server removes.
+ *
+ * `active` false retires it. Not a delete, and the screen must not offer
+ * one: a feature some offer version grants can never be removed, and every
+ * entitlement resting on it keeps resting on it.
  */
-export function useRenameFeature(productCode: string) {
+export function useRenameFeature() {
   const client = useApiClient();
 
-  return useCatalogueWrite(
-    productCode,
+  return useFeatureListWrite(
     async (change: {
       featureId: string;
       name: string;
-      translations?: Record<string, { name: string | null }>;
+      description?: string | null;
+      translations?: Record<string, { name: string | null; description?: string | null }>;
+      active?: boolean;
     }) => {
-      const { data, error, response } = await client.PATCH(
-        '/api/v1/staff/catalogue/features/{featureId}',
-        {
-          params: { path: { featureId: change.featureId }, query: { product: productCode } },
-          body: {
-            name: change.name,
-            ...(change.translations !== undefined && { translations: change.translations }),
-          },
+      const { data, error, response } = await client.PATCH('/api/v1/staff/features/{featureId}', {
+        params: { path: { featureId: change.featureId } },
+        body: {
+          name: change.name,
+          ...(change.description !== undefined && { description: change.description }),
+          ...(change.translations !== undefined && { translations: change.translations }),
+          ...(change.active !== undefined && { active: change.active }),
         },
-      );
+      });
 
       if (error !== undefined || data === undefined) {
         throw toApiError(response.status, error);

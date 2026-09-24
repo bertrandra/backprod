@@ -159,9 +159,10 @@ final class OfferVersionLoader
     }
 
     /**
-     * @param array<string, mixed> $row
-     */
-    /**
+     * `description` and `active` are read only when the statement asked for
+     * them: a grant's join wants the feature's identity, not the platform's
+     * view of it, and a column nobody selected is absent rather than false.
+     *
      * @param array<string, mixed>                                      $row
      * @param array<string, array{name: ?string, description: ?string}> $translations
      */
@@ -175,6 +176,7 @@ final class OfferVersionLoader
             Row::nullableString($row, 'unit'),
             Row::nullableString($row, 'description'),
             $translations,
+            !array_key_exists('active', $row) || Row::boolean($row, 'active'),
         );
     }
 
