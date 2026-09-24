@@ -11,7 +11,11 @@ use App\Auth\Domain\TokenIssuer;
 use App\Auth\Infrastructure\LocalJwtAuthProvider;
 use App\Auth\Infrastructure\LocalJwtTokenIssuer;
 use App\Shared\Logging\ErrorLogLogger;
+use Laminas\Diactoros\Response\EmptyResponse;
+use Laminas\Diactoros\ServerRequest;
+use Laminas\Diactoros\Uri;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * Signing in, against the real database and the real pipeline (U12).
@@ -104,6 +108,15 @@ final class SignInTest extends DatabaseApiTestCase
         return $error;
     }
 
+    /**
+     * A bare request, for the two tests that build a cookie rather than earn
+     * one. `https` so `Secure` is added, as it is on any real deployment.
+     */
+    private static function aRequest(): ServerRequestInterface
+    {
+        return (new ServerRequest())->withUri(new Uri('https://api.test/'));
+    }
+
     private function cookieFrom(ResponseInterface $response): string
     {
         foreach ($response->getHeader('Set-Cookie') as $header) {
@@ -176,6 +189,72 @@ final class SignInTest extends DatabaseApiTestCase
         self::assertStringContainsString('Path=' . RefreshCookie::PATH, $header);
         // The test harness speaks https, as any real deployment does.
         self::assertStringContainsString('Secure', $header);
+
+        // And **host-only unless a deployment asks otherwise** (2026-09-24):
+        // no `Domain`, so the browser returns it to exactly the host that set
+        // it. This is the default because widening where a month-long
+        // credential may travel is a decision somebody makes on purpose.
+        self::assertStringNotContainsString('Domain=', $header);
+    }
+
+    /**
+     * ADR-051 §3's single sign-on, which `SameSite` alone never delivered.
+     *
+     * Strict is a rule about *site*, so `plan.raillard.org` calling the
+     * platform is allowed — and a cookie with no `Domain` is **host-only**,
+     * which no subdomain ever receives whatever SameSite says. Somebody who
+     * had just bought a seat was asked for their password on the way to it.
+     *
+     * Asserted on the built header rather than through a request, because
+     * what was wrong was the *attribute*, and a test that signed in twice
+     * would prove the wiring and not the cookie.
+     */
+    public function testAConfiguredDomainWidensTheCookieToSiblingSubdomains(): void
+    {
+        $response = RefreshCookie::set(
+            new EmptyResponse(204),
+            self::aRequest(),
+            'a-token',
+            3600,
+            RefreshCookie::domainFrom('raillard.org'),
+        );
+
+        self::assertStringContainsString('Domain=raillard.org', $response->getHeaderLine('Set-Cookie'));
+
+        // A leading dot is what half the internet writes and RFC 6265
+        // ignores; an operator who writes one gets what they meant.
+        self::assertSame('raillard.org', RefreshCookie::domainFrom('.raillard.org'));
+        self::assertSame('raillard.org', RefreshCookie::domainFrom('  raillard.org '));
+
+        // Unset, empty and whitespace are all "host-only" — the default a
+        // deployment on one host wants, and the one it gets by saying nothing.
+        self::assertSame('', RefreshCookie::domainFrom(null));
+        self::assertSame('', RefreshCookie::domainFrom(''));
+        self::assertSame('', RefreshCookie::domainFrom('   '));
+    }
+
+    /**
+     * Clearing must repeat every attribute it was set with.
+     *
+     * A browser matches a replacement by name, domain and path: clear without
+     * the `Domain` that set it and it stores a *second*, empty, host-only
+     * cookie while the wide one keeps being sent. A sign-out that leaves the
+     * credential in the browser is not a sign-out, which is why all four
+     * controllers take the domain and not only the two that issue.
+     */
+    public function testClearingRepeatsTheDomainItWasSetWith(): void
+    {
+        $cleared = RefreshCookie::clear(
+            new EmptyResponse(204),
+            self::aRequest(),
+            RefreshCookie::domainFrom('raillard.org'),
+        );
+
+        $header = $cleared->getHeaderLine('Set-Cookie');
+
+        self::assertStringContainsString('Domain=raillard.org', $header);
+        self::assertStringContainsString('Max-Age=0', $header);
+        self::assertStringContainsString('Path=' . RefreshCookie::PATH, $header);
     }
 
     public function testAWrongPasswordAndAnUnknownAddressAreAnsweredIdentically(): void

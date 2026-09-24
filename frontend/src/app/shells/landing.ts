@@ -1,9 +1,11 @@
+import { useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
 import { useChooseProduct } from '@/app/frame/ProductSwitcher';
+import { firstEntry, type NavSection } from '@/app/frame/navigation';
 import { useMyProducts } from '@/queries/catalogue';
 import { usePublicTenant } from '@/queries/storefront';
-import { useSessionStore } from '@/state/session';
+import { hasLanded, markLanded, useSessionStore } from '@/state/session';
 
 /**
  * Where the landing address goes once somebody has signed in (2026-09-18).
@@ -20,15 +22,37 @@ import { useSessionStore } from '@/state/session';
  * 2. **The product.** The person's own default — the product they signed up
  *    for, or chose on their profile — unless the address names one, which is
  *    somebody saying which they mean now.
- * There used to be a third step — moving them on to the first entry of
- * their menu — and it is gone (2026-09-24). `/` is the product's story
- * now, and a landing that redirected off it was why that page could not
- * exist: a stranger saw the storefront, a member saw their work, and
- * nobody ever saw what the product *was*.
+ * 3. **Their first screen**, once. The first entry of their own menu: their
+ *    work for a member, the console's setup for platform staff — on
+ *    arrival only, so a deliberate return to `/` stays on the story.
+ *
+ * Step 3 was removed earlier on 2026-09-24 and is back the same day, which
+ * is worth recording rather than quietly reverting. It was removed so that
+ * `/` — the product's story, built that morning — would be an address
+ * somebody could actually reach; before it, a member was ejected from it
+ * before the shell had rendered and the page existed for strangers only.
+ *
+ * That reasoning was right about the page and wrong about the landing. The
+ * operator signed in and got a shop window for a product they had already
+ * bought, with their projects two clicks away; a platform administrator got
+ * a tenant's front page rather than the console they signed in to run. **A
+ * page being reachable and a page being where signing in puts you are
+ * different questions**, and the first does not need the second.
+ *
+ * But it does need a door, and there was none: `/` is in no menu. So two
+ * things make the page reachable — the redirect fires **once per browsing
+ * session**, so any later arrival at `/` stays there, whether it came from
+ * a link or from the address bar; and region A carries an *About* link to
+ * it (the drawer on a phone).
+ *
+ * So the story keeps its address and signing in goes back to meaning "take
+ * me to my work". What a person sees at `/` is unchanged — this only stops
+ * them being *left* there.
  *
  * Only the exact root: a deep link keeps its address.
  */
-export function useLanding(atLanding: boolean): void {
+export function useLanding(atLanding: boolean, sections: readonly NavSection[] = []): void {
+  const navigate = useNavigate();
   const chooseProduct = useChooseProduct();
   const root = useSessionStore((state) => state.root);
   const productCode = useSessionStore((state) => state.productCode);
@@ -95,15 +119,42 @@ export function useLanding(atLanding: boolean): void {
     // It is also why this went unnoticed for three days: `GET /products`
     // never carried `app_url` until 2026-09-23, so nothing ever left.
 
-    // 3. **The screen is this one.** Until 2026-09-24 the landing moved a
-    // member on to the first entry of their menu, which meant `/` was an
-    // address nobody ever saw: a stranger got the storefront, a member was
-    // ejected, and the page in between — the one that says *what the
-    // product is* — did not exist to be reached.
+    // 3. **Their first screen**, in their menu's own order — Work before
+    // Commerce for a member, the platform's Setup before its Customers for
+    // staff. So a member lands on their projects and an administrator lands
+    // in the console, each on the screen their own permissions put first,
+    // with no list of names here that could disagree with the menu beside
+    // it.
     //
-    // It does now (`docs/home-showcase-spec.md`), so the landing settles
-    // the root and the product and then leaves the person on it. Their
-    // work is one click away in the rail, which is where somebody looking
-    // for it goes anyway.
-  }, [atLanding, known, defaultSlug, root, productCode, chooseProduct]);
+    // Waited for, not guessed: an empty `sections` is the menu not having
+    // arrived, and moving then would send everybody to the same screen —
+    // whichever one happens to survive an empty permission set. Nothing
+    // moves until there is something to move to.
+    const first = firstEntry(sections);
+
+    if (first === undefined) {
+      return;
+    }
+
+    // **Once**, on arrival — and this is what makes the page reachable at
+    // the same time as the landing means "my work".
+    //
+    // The redirect was removed earlier on 2026-09-24 because it fired on
+    // *every* visit to `/`, so somebody who went to read the product's
+    // story was thrown off it again before it rendered. That is a real
+    // defect, and restoring the redirect unchanged would restore it.
+    //
+    // Landing is arriving, not visiting. The flag lives in `sessionStorage`
+    // and not in a ref, because a full load of `/` — typing the address, or
+    // the drawer's link, which is a real navigation — is a fresh mount and
+    // a ref would have called it an arrival. It survives the reload and
+    // dies with the tab; `forget()` clears it, so signing out and back in
+    // lands again.
+    if (hasLanded()) {
+      return;
+    }
+
+    markLanded();
+    void navigate({ to: first.to, replace: true });
+  }, [atLanding, known, defaultSlug, root, productCode, chooseProduct, sections, navigate]);
 }

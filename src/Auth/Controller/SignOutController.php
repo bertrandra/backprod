@@ -25,14 +25,21 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 final class SignOutController implements RouteHandler
 {
-    public function __construct(private readonly Sessions $sessions)
-    {
+    /**
+     * @param string $cookieDomain where the refresh cookie belongs — empty is
+     *                             host-only, which is the default
+     *                             ({@see RefreshCookie::domainFrom()})
+     */
+    public function __construct(
+        private readonly Sessions $sessions,
+        private readonly string $cookieDomain = '',
+    ) {
     }
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
         $this->sessions->signOut(RefreshCookie::read($request));
 
-        return RefreshCookie::clear(new EmptyResponse(204), $request);
+        return RefreshCookie::clear(new EmptyResponse(204), $request, $this->cookieDomain);
     }
 }

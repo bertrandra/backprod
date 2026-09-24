@@ -36,6 +36,44 @@ final class RefreshCookie
      */
     public const PATH = '/api/v1/auth';
 
+    /**
+     * The host the cookie belongs to, or none (2026-09-24).
+     *
+     * **Empty is host-only**, which is the default and the right answer for a
+     * deployment served from one host: the browser sends the cookie back to
+     * exactly the host that set it and to nothing else.
+     *
+     * `AUTH_COOKIE_DOMAIN=raillard.org` widens it to that registrable domain
+     * and its subdomains, which is what ADR-051 §3 promises and had not
+     * built. The ADR reasoned about `SameSite=Strict` — a rule about *site*,
+     * so `plan.raillard.org` calling the platform is same-site and allowed —
+     * and stopped one step short: a cookie with no `Domain` is **host-only**,
+     * and host-only does not match a sibling subdomain, whatever SameSite
+     * says. So single sign-on did not happen, and the operator found it the
+     * way these are always found — somebody who had just bought a seat was
+     * asked for their password on the way to the thing they had bought.
+     *
+     * It bites inside one deployment too. This platform answers on
+     * `raillard.org` *and* `www.raillard.org`, neither redirecting to the
+     * other: signing in on one leaves a cookie the other never receives, so
+     * whether a reload resumes depends on which of two addresses somebody
+     * typed.
+     *
+     * **It is a widening of a credential's reach, so it is opt-in and it is
+     * named.** Every host under the configured domain can receive this
+     * refresh token — on `PATH` only, over `Secure`, unreadable by script,
+     * and a deployment that puts something it does not trust on a subdomain
+     * must not set this. A leading dot is accepted and dropped: RFC 6265
+     * ignores it, and an operator who writes one should get what they meant
+     * rather than a cookie the browser quietly discards.
+     */
+    public static function domainFrom(?string $configured): string
+    {
+        $domain = trim($configured ?? '');
+
+        return ltrim($domain, '.');
+    }
+
     public static function read(ServerRequestInterface $request): string
     {
         $value = $request->getCookieParams()[self::NAME] ?? null;
@@ -48,10 +86,11 @@ final class RefreshCookie
         ServerRequestInterface $request,
         #[SensitiveParameter] string $token,
         int $lifetimeSeconds,
+        string $domain = '',
     ): ResponseInterface {
         return $response->withAddedHeader(
             'Set-Cookie',
-            self::build($request, $token, $lifetimeSeconds),
+            self::build($request, $token, $lifetimeSeconds, $domain),
         );
     }
 
@@ -63,15 +102,19 @@ final class RefreshCookie
      * first, and the original keeps being sent. A sign-out that leaves the
      * credential in the browser is not a sign-out.
      */
-    public static function clear(ResponseInterface $response, ServerRequestInterface $request): ResponseInterface
-    {
-        return $response->withAddedHeader('Set-Cookie', self::build($request, '', 0));
+    public static function clear(
+        ResponseInterface $response,
+        ServerRequestInterface $request,
+        string $domain = '',
+    ): ResponseInterface {
+        return $response->withAddedHeader('Set-Cookie', self::build($request, '', 0, $domain));
     }
 
     private static function build(
         ServerRequestInterface $request,
         #[SensitiveParameter] string $token,
         int $lifetimeSeconds,
+        string $domain = '',
     ): string {
         $attributes = [
             self::NAME . '=' . $token,
@@ -87,6 +130,14 @@ final class RefreshCookie
             // no link ever needs this cookie to be sent.
             'SameSite=Strict',
         ];
+
+        // Absent means host-only, which is what a single-host deployment
+        // wants and what every deployment got until 2026-09-24. Present, the
+        // browser sends it to that domain and its subdomains — which is what
+        // makes one sign-in serve the platform and a product beside it.
+        if ($domain !== '') {
+            $attributes[] = 'Domain=' . $domain;
+        }
 
         if (self::isSecure($request)) {
             $attributes[] = 'Secure';

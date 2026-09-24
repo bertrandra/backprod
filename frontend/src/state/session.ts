@@ -112,6 +112,74 @@ const PRODUCT_KEY = 'backprod.product';
  * gone with it.
  */
 
+/**
+ * The product this deployment opens on when nothing else names one
+ * (2026-09-24) — `DEFAULT_PRODUCT` at build time, `VITE_DEFAULT_PRODUCT` in
+ * the bundle.
+ *
+ * Here rather than read inline where it is wanted, because it was read inline
+ * in one of the two places that needed it and the two then disagreed: a
+ * stranger's storefront honoured it and the signed-in shell did not, so the
+ * same deployment showed one product before signing in and another after. A
+ * deployment built with `DEFAULT_PRODUCT=atlas` opened on Plan, which is
+ * merely the product that sorts first.
+ *
+ * It is a *fallback*, never an override: a person's own default and an
+ * address that names a product both win over it, and a code this deployment
+ * does not host is ignored by whoever asks — so a stale value cannot pin the
+ * shell to a product nobody holds.
+ */
+export function configuredProduct(): string | null {
+  const configured = import.meta.env.VITE_DEFAULT_PRODUCT;
+
+  return typeof configured === 'string' && configured !== '' ? configured : null;
+}
+
+const LANDED_KEY = 'backprod.landed';
+
+/**
+ * Whether this browsing session has already been put where it belongs
+ * (2026-09-24) — see `app/shells/landing.ts` step 3.
+ *
+ * **`sessionStorage`, not a ref.** Signing in lands somebody on their work,
+ * and `/` then has to stay reachable: a ref in the hook survives an in-app
+ * navigation and nothing else, so a full load of `/` — typing the address,
+ * or the drawer's own link, which is a real navigation — counted as a fresh
+ * arrival and bounced them straight back out. The page would have been one
+ * only strangers could read, which is the defect the landing redirect was
+ * removed for in the first place.
+ *
+ * Per tab and cleared when the tab closes, which is what "this session"
+ * means here; `forget()` clears it too, so signing out and back in lands
+ * again. Wrapped, because a private window can refuse storage and a landing
+ * that threw would take the shell with it — refused means "not landed yet",
+ * which is the behaviour without this at worst, never a broken page.
+ */
+export function hasLanded(): boolean {
+  try {
+    return window.sessionStorage.getItem(LANDED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function markLanded(): void {
+  try {
+    window.sessionStorage.setItem(LANDED_KEY, '1');
+  } catch {
+    // The landing still worked for this page's lifetime; it just will not
+    // outlive a reload, and the person is sent to their work once more.
+  }
+}
+
+function forgetLanding(): void {
+  try {
+    window.sessionStorage.removeItem(LANDED_KEY);
+  } catch {
+    // Nothing to do: the next sign-in lands, which is what should happen.
+  }
+}
+
 export function rememberedProduct(): string | null {
   try {
     const stored = window.localStorage.getItem(PRODUCT_KEY);
@@ -162,6 +230,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   // may not have — including in storage, so a reload cannot bring it back.
   forget: () => {
     remember(null);
+    forgetLanding();
     set({ token: null, productCode: null, expiresAt: null, status: 'anonymous' });
   },
   chooseProduct: (productCode) => {

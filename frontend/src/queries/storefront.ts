@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import type { Schemas } from '@/api/client';
 import { useApiClient } from '@/app/providers/ApiProvider';
+import { currentLocale } from '@/i18n';
 
 import { keys } from './keys';
 import { toApiError } from './session';
@@ -13,6 +14,12 @@ import { toApiError } from './session';
  * `X-Product` because the context chain resolves a membership from it; there is
  * no membership here and no chain to resolve one, so the product travels as a
  * query parameter — the "filtre produit" a public page is built around.
+ *
+ * One header does travel, and it is not ambient: `Accept-Language`
+ * (2026-09-24), the language the reader has picked, sent explicitly and part
+ * of the query key. It is a header rather than `?lang=` for the reason
+ * ADR-050 removed that one — a parameter travels inside a shared link, and
+ * would impose its author's language on whoever opened it next.
  *
  * **What comes back is narrow by construction.** The backend returns only
  * offers somebody has marked as advertised *and* that are inside their sale
@@ -101,13 +108,20 @@ export function usePublicProducts(tenant: string | null = null) {
 
 export function useStorefront(productCode: string | null, tenant: string | null = null) {
   const client = useApiClient();
+  // Part of the key as well as of the request: switching language is a
+  // different answer, not a stale one, so the window refetches instead of
+  // sitting in English with French buttons around it.
+  const locale = currentLocale();
 
   return useQuery({
-    queryKey: keys.storefront.window(productCode ?? '', tenant ?? ''),
+    queryKey: keys.storefront.window(productCode ?? '', tenant ?? '', locale),
     enabled: productCode !== null && productCode !== '',
     queryFn: async (): Promise<Storefront> => {
       const { data, error, response } = await client.GET('/api/v1/public/offers', {
-        params: { query: tenant === null ? { product: productCode ?? '' } : { product: productCode ?? '', tenant } },
+        params: {
+          query: tenant === null ? { product: productCode ?? '' } : { product: productCode ?? '', tenant },
+          header: { 'Accept-Language': locale },
+        },
       });
 
       if (error !== undefined || data === undefined) {
@@ -128,15 +142,17 @@ export function useStorefront(productCode: string | null, tenant: string | null 
 
 export function usePublicOffer(productCode: string | null, offerId: string | null) {
   const client = useApiClient();
+  const locale = currentLocale();
 
   return useQuery({
-    queryKey: keys.storefront.offer(productCode ?? '', offerId ?? ''),
+    queryKey: keys.storefront.offer(productCode ?? '', offerId ?? '', locale),
     enabled: productCode !== null && productCode !== '' && offerId !== null && offerId !== '',
     queryFn: async (): Promise<PublicOffer> => {
       const { data, error, response } = await client.GET('/api/v1/public/offers/{offerId}', {
         params: {
           path: { offerId: offerId ?? '' },
           query: { product: productCode ?? '' },
+          header: { 'Accept-Language': locale },
         },
       });
 

@@ -35,16 +35,16 @@ final class PostgresNavigationSetup implements NavigationSetupRepository
         );
 
         if (!is_string($value)) {
-            return NavigationSetup::everything();
+            return NavigationSetup::initial();
         }
 
         try {
             $decoded = json_decode($value, true, 8, JSON_THROW_ON_ERROR);
 
             /** @var array<string, mixed> $decoded */
-            return is_array($decoded) ? NavigationSetup::fromArray($decoded) : NavigationSetup::everything();
+            return is_array($decoded) ? NavigationSetup::fromArray($decoded) : NavigationSetup::initial();
         } catch (\JsonException | InvalidArgumentException) {
-            return NavigationSetup::everything();
+            return NavigationSetup::initial();
         }
     }
 

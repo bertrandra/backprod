@@ -6,8 +6,8 @@ namespace App\Product\Controller;
 
 use App\Product\Domain\ProductShowcase;
 use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Http\ReaderLanguage;
 use App\Shared\Http\RouteHandler;
-use App\Shared\Validation\Locale;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -57,12 +57,11 @@ final class PublicShowcaseController implements RouteHandler
             throw new NotFoundException('No such page.', [], 'SHOWCASE_NOT_FOUND');
         }
 
-        // `Locale::of` answers the default for anything it does not know,
-        // so a browser's full `fr-FR,fr;q=0.9,en;q=0.8` — or a header
-        // somebody made up — reads as English rather than as an error. The
-        // page is a shop window; it does not refuse people over a header.
+        // The rule, and the reasoning for it, live in `ReaderLanguage` — it
+        // is the same question the shop window and one offer now answer, and
+        // three copies of a fallback would be three answers to it.
         return new JsonResponse(
-            ['showcase' => ShowcasePresenter::page($page, Locale::of($request->getHeaderLine('Accept-Language')))],
+            ['showcase' => ShowcasePresenter::page($page, ReaderLanguage::of($request))],
             200,
         );
     }

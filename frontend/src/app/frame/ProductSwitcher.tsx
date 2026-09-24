@@ -3,7 +3,7 @@ import { useCallback, useEffect } from 'react';
 
 import { useMyProducts } from '@/queries/catalogue';
 import { usePlatformProducts } from '@/queries/staff';
-import { useSessionStore } from '@/state/session';
+import { configuredProduct, useSessionStore } from '@/state/session';
 import { touchTargetClass } from '@/ui/Field';
 import { cn } from '@/utils/cn';
 import { t } from '@/i18n';
@@ -85,8 +85,23 @@ export function ProductSwitcher({ platform = false }: { platform?: boolean }) {
       return;
     }
 
+    // **The deployment's configured default before the one that sorts first**
+    // (2026-09-24). A platform hosting five products opened on whichever had
+    // the lowest rank — Plan, at 10 — while the bundle had been built with
+    // `DEFAULT_PRODUCT=atlas`, so the operator's own storefront and their own
+    // shell disagreed about what this deployment is. Rank is the order things
+    // are *listed* in; it was never a statement about which one a deployment
+    // leads with.
+    //
+    // Still last-but-two: a person's own default wins, because that is
+    // somebody saying which product is theirs, and a configured code this
+    // deployment no longer hosts falls through rather than pinning the shell
+    // to nothing.
+    const configured = configuredProduct();
+
     const first =
       known.find((product) => product.code === preferred) ??
+      known.find((product) => product.code === configured && !product.retired) ??
       known.find((product) => !product.retired) ??
       known[0];
 

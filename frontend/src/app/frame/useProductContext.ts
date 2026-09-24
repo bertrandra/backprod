@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-import { rememberedProduct, useSessionStore } from '@/state/session';
+import { configuredProduct, rememberedProduct, useSessionStore } from '@/state/session';
 
 /**
  * How U1 learns which product it is in.
@@ -31,9 +31,7 @@ export function useProductContext(): { productCode: string | null } {
     }
 
     const fromUrl = new URLSearchParams(window.location.search).get('product');
-    const configured = import.meta.env.VITE_DEFAULT_PRODUCT;
-    const next =
-      fromUrl ?? rememberedProduct() ?? (typeof configured === 'string' ? configured : null);
+    const next = fromUrl ?? rememberedProduct() ?? configuredProduct();
 
     if (next !== null && next !== '') {
       chooseProduct(next);

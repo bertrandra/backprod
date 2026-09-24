@@ -28,6 +28,7 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
 import { currentLocale, t } from '@/i18n';
 import { tx } from '@/i18n/react';
+import { billingPeriod } from '@/ui/period';
 
 /**
  * `commerce.catalogue_authoring` — drafting a version, and publishing it.
@@ -425,7 +426,7 @@ function VersionRow({
           <span className="text-xs font-normal text-subtle">{version.status}</span>
         </p>
         <p className="text-xs text-muted">
-          {version.billing_period.toLowerCase()} · <Amount money={version.price} /> {t("· sellable from")}{' '}
+          {billingPeriod(version.billing_period)} · <Amount money={version.price} /> {t("· sellable from")}{' '}
           {new Date(version.valid_from).toLocaleDateString(currentLocale())}
           {version.valid_until !== null &&
             ` to ${new Date(version.valid_until).toLocaleDateString(currentLocale())}`}

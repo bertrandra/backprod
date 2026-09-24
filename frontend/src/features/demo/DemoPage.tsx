@@ -4,6 +4,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { t } from '@/i18n';
+import { billingPeriod } from '@/ui/period';
 
 /**
  * `/demo` — the demonstration page (2026-09-18).
@@ -91,7 +92,7 @@ function DemoScreen({ contents }: { contents: DemoContents }) {
                         <span>
                           {offer.name}
                           <span className="ml-1 text-xs text-subtle">
-                            {offer.plan} · {offer.billing_period.toLowerCase()}
+                            {offer.plan} · {billingPeriod(offer.billing_period)}
                             {!offer.publicly_listed && ' · not advertised'}
                           </span>
                         </span>

@@ -215,7 +215,7 @@ and USER. Placing it in the console would have been the intuitive mistake.
 | `console.admin.mail` | the words the platform's mails say (2026-09-19): the four a person acts on from an inbox — reset link, invitation, password changed, address confirmation — each with a subject and body the platform administrator rewrites (`{link}`, `{email}` filled at send time; emptying both puts the default back), behind `staff.mail.manage`. Says whether mail leaves at all (`MAIL_DSN`) and offers *Send me a test* per kind — sent inside the request to the administrator's own address, so the host's answer is seen now, with its reason when it fails. One tab per language (ADR-050): the words are per language and per kind, a kind with no words of its own in a language shows English's, and the test goes out in the language being edited |
 | `console.admin.storefront` | what a stranger sees. Being on sale and being advertised are two decisions; this is the only place the second is made, behind `staff.catalog.manage` rather than `catalog.manage` (ADR-041). The product it administers is the one chosen in region A's switcher, which on the console lists every product the platform hosts (ADR-047). Also where the platform decides how a self-service sign-up ends — pay right there, or the application first — for every storefront at once (2026-09-18) |
 | `console.admin.staff` | who holds a platform role, and appointing or removing them. The database keeps at least one administrator, so the last one is shown as protected rather than offered and then refused |
-| `console.admin.menus` | what the navigation shows each kind of person — platform administrator, tenant administrator, user — as three checklists of the shell's own entries, and per audience whether an entry with nothing behind it is shown. Stored as what is switched *off*, so a screen added tomorrow appears until somebody decides otherwise; saved whole and recorded in the access log |
+| `console.admin.menus` | what the navigation shows each kind of person — platform administrator, tenant administrator, user — as three checklists of the shell's own entries, and per audience whether an entry with nothing behind it is shown — **on by default for a plain member** (2026-09-24), off for both administrators, because an empty queue is information to whoever runs something and a dead end to whoever is looking for their projects; a new member used to meet nine screens that all said "nothing here yet". Stored as what is switched *off*, so a screen added tomorrow appears until somebody decides otherwise; saved whole and recorded in the access log |
 | `console.admin.queue` | queue liveness and the job list — "has the runner run" |
 | `console.admin.audit` | the audit trail |
 | `console.admin.erasure` | RGPD erasure, against legal retention (non-negotiable #15). The person is found in the directory and read back by name before the irreversible step, which stays the confirmation; without `admin.directory.read` the id is typed |
@@ -267,6 +267,20 @@ in, and the switcher is a plain control rather than a black badge. On
 the ones this person belongs to — a platform role grants no membership — and
 every console screen follows it (ADR-047).
 
+Beside the switcher, from `md` up, an **About** link to the product's story
+at `/` (2026-09-24) — the drawer carries it on a phone, where the bar already
+holds the organisation, the switcher, search and the account and a sixth
+control overlapped the search button. It is the story's only door: signing in
+lands on the person's work and `/` is in no menu, so without it the page would
+be one only strangers could read. Not on `/console/*`, where `/` is a tenant's
+front page and the screens answer to the platform.
+
+The other half of the same rule is that the landing redirect fires **once per
+browsing session** (`sessionStorage`, cleared on sign-out): any later arrival
+at `/` stays there, whether it came from that link or from the address bar.
+Landing is arriving, not visiting — a redirect on every visit is what made the
+story unreachable and got the redirect removed for half of 2026-09-24.
+
 **Region B's section headings read as headings** (2026-09-18): a rule above,
 small capitals with letter-spacing, the ink colour — three cues, because with
 one the operator could not tell Work from the entries under it. **Signing in
@@ -277,7 +291,9 @@ members belong at the bare host; `listProducts.memberships` says which), the
 **product** (their own default — the one they signed up for or chose on
 their profile — unless the address names one), and the **screen** (the first
 entry the rail offers, in the tree's own order: the console for a platform
-administrator, Work for a member). A deep link keeps its address. After a
+administrator, Work for a member — **once per browsing session**, so a later
+return to `/` reads the product's story instead). A deep link keeps its
+address. After a
 self-service sign-up the platform's `after_sign_up` decides: the checkout on
 the storefront, or the catalogue in the product chosen there.
 

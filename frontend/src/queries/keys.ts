@@ -21,9 +21,12 @@ export const keys = {
     /** The organisation at a URL root; '' for the bare host. */
     tenant: (slug: string) => ['storefront', 'tenant', slug] as const,
     products: (tenant: string) => ['storefront', 'products', tenant] as const,
-    window: (product: string, tenant: string) => ['storefront', 'offers', tenant, product] as const,
-    offer: (product: string, offerId: string) =>
-      ['storefront', 'offer', product, offerId] as const,
+    // Keyed by language too (2026-09-24): the public catalogue answers in the
+    // reader's, so two languages are two answers and not one stale one.
+    window: (product: string, tenant: string, locale: string) =>
+      ['storefront', 'offers', tenant, product, locale] as const,
+    offer: (product: string, offerId: string, locale: string) =>
+      ['storefront', 'offer', product, offerId, locale] as const,
     listing: (product: string) => ['storefront', 'listing', product] as const,
   },
   organisation: {

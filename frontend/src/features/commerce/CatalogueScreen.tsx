@@ -18,6 +18,7 @@ import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { notice } from '@/ui/tone';
 import { t } from '@/i18n';
+import { billingPeriod } from '@/ui/period';
 
 /**
  * `commerce.catalogue` — what is on sale.
@@ -337,7 +338,7 @@ function OfferRow({
         <p className="font-medium">{offer.name}</p>
         <p className="text-xs text-muted">
           <code>{offer.code}</code>
-          {version !== null && ` · ${version.billing_period.toLowerCase()} · v${version.version}`}
+          {version !== null && ` · ${billingPeriod(version.billing_period)} · v${version.version}`}
         </p>
       </div>
 
@@ -349,7 +350,19 @@ function OfferRow({
           {t("No sellable version")}</p>
       ) : (
         <>
-          <Amount money={version.price} className="text-sm font-medium" />
+          <span className="flex items-baseline gap-1.5">
+            <Amount money={version.price} className="text-sm font-medium" />
+            {/* Said wherever the price can be acted on (2026-09-24). An
+                offer's price is the taxable base and VAT is calculated on
+                top of it at invoicing (§25.3), so a Buy beside a silent
+                figure quotes a number the customer will not be charged.
+                Withheld where the row is read-only, because there is then no
+                purchase to mislead. */}
+            {(mayBuySeat || mayBuyForTenant || maySell) && (
+              <span data-testid="price-excludes-tax" className="text-xs text-subtle">
+                {t("excl. VAT")}</span>
+            )}
+          </span>
 
           <div className="mt-2 flex flex-wrap items-center gap-2 md:mt-0">
             {seatTaken && (
