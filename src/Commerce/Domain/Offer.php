@@ -25,6 +25,23 @@ final class Offer
          * reseller is sellable and is nobody else's business.
          */
         public readonly bool $publiclyListed = false,
+        /**
+         * What the operator calls it in the four other languages
+         * (2026-09-24). The English on this object is the key and the
+         * fallback; a version's price and terms are frozen, a translation
+         * of its name is not (ADR-033, `docs/translatable-fields-spec.md`).
+         *
+         * @var array<string, string>
+         */
+        public readonly array $translations = [],
     ) {
+    }
+
+    /** The name in one language, falling back to the English. */
+    public function nameIn(string $locale): string
+    {
+        $translated = $this->translations[$locale] ?? null;
+
+        return $translated === null || $translated === '' ? $this->name : $translated;
     }
 }

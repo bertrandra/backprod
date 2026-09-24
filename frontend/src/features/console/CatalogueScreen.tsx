@@ -8,6 +8,7 @@ import {
   useCreateStaffOfferVersion,
   usePublishStaffOfferVersion,
   useRenameFeature,
+  useRenameStaffOffer,
   useStaffCatalogue,
   useStorefrontOffers,
   useUpdatePlan,
@@ -481,6 +482,7 @@ function Offers({
           {offers.map((offer) => (
             <OfferRow
               key={offer.id}
+              productCode={productCode}
               offer={offer}
               pending={publish.isPending || addVersion.isPending}
               onPublish={(version) => publish.mutate({ offerId: offer.id, version })}
@@ -652,12 +654,87 @@ function Offers({
   );
 }
 
+/**
+ * What an offer is called, in each language (2026-09-24).
+ *
+ * The same control as a feature's, for the same reason: an operator
+ * writes this, a customer reads it, and a customer reads in their own
+ * language. What the offer *costs* is not here and never will be — a
+ * published version is frozen (ADR-033) — but its name in Spanish is not
+ * a term anybody agreed to, so it stays correctable.
+ */
+function OfferName({ productCode, offer }: { productCode: string; offer: AuthoredOffer }) {
+  const rename = useRenameStaffOffer(productCode);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<Translated>(() => translatedOffer(offer));
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="secondary"
+        data-testid={`rename-offer-${offer.code}`}
+        onClick={() => {
+          setDraft(translatedOffer(offer));
+          setEditing(!editing);
+        }}
+      >
+        {t("Rename")}</Button>
+
+      {editing && (
+        <form
+          className="mt-3 w-full space-y-2"
+          data-testid={`rename-offer-form-${offer.code}`}
+          onSubmit={(event) => {
+            event.preventDefault();
+
+            if (draft.en.trim() === '') {
+              return;
+            }
+
+            rename.mutate(
+              { offerId: offer.id, name: draft.en.trim(), translations: asTranslations(draft) },
+              { onSuccess: () => setEditing(false) },
+            );
+          }}
+        >
+          <TranslatedField id={`offer-${offer.code}`} value={draft} onChange={setDraft} />
+
+          {rename.error !== null && <ErrorSurface error={rename.error} />}
+
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" pending={rename.isPending}>
+              {t("Save")}</Button>
+            <Button type="button" variant="secondary" onClick={() => setEditing(false)}>
+              {t("Cancel")}</Button>
+          </div>
+        </form>
+      )}
+    </>
+  );
+}
+
+/** An offer's five names, as the field edits them. */
+function translatedOffer(offer: AuthoredOffer): Translated {
+  const translations = offer.translations ?? {};
+
+  return {
+    en: offer.name,
+    fr: translations.fr?.name ?? '',
+    es: translations.es?.name ?? '',
+    de: translations.de?.name ?? '',
+    it: translations.it?.name ?? '',
+  };
+}
+
 function OfferRow({
+  productCode,
   offer,
   pending,
   onPublish,
   onRepeatPrice,
 }: {
+  productCode: string;
   offer: AuthoredOffer;
   pending: boolean;
   onPublish: (version: number) => void;
@@ -686,6 +763,8 @@ function OfferRow({
           >
             {t("on the public page")}</span>
         )}
+
+        <OfferName productCode={productCode} offer={offer} />
       </div>
 
       <ul className="mt-2 space-y-1">

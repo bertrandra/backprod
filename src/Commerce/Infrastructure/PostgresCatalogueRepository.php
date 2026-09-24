@@ -234,9 +234,10 @@ final class PostgresCatalogueRepository implements CatalogueRepository
 
         $offerIds = array_map(static fn (array $row): string => Row::string($row, 'id'), $rows);
         $versions = $this->versions->versionsOf($offerIds, true);
+        $names = $this->offerNames($offerIds);
 
         return array_map(
-            static function (array $row) use ($versions): OfferCandidate {
+            static function (array $row) use ($versions, $names): OfferCandidate {
                 $id = Row::string($row, 'id');
 
                 return new OfferCandidate(
@@ -251,9 +252,46 @@ final class PostgresCatalogueRepository implements CatalogueRepository
                     ),
                     $versions[$id] ?? [],
                     Row::boolean($row, 'publicly_listed'),
+                    $names[$id] ?? [],
                 );
             },
             $rows,
         );
+    }
+
+    /**
+     * What these offers are called in the four other languages, by offer.
+     *
+     * One query for the whole page, like the versions above: a storefront
+     * shows every offer of a product at once, and a read per offer here
+     * would be the N+1 this class was written to avoid.
+     *
+     * @param list<string> $offerIds
+     *
+     * @return array<string, array<string, string>>
+     */
+    private function offerNames(array $offerIds): array
+    {
+        if ($offerIds === []) {
+            return [];
+        }
+
+        $rows = $this->connection->fetchAllAssociative(
+            <<<'SQL'
+                SELECT offer_id, locale, name
+                  FROM offer_translations
+                 WHERE offer_id = ANY(CAST(:ids AS uuid[]))
+                 ORDER BY offer_id, locale
+                SQL,
+            ['ids' => '{' . implode(',', $offerIds) . '}'],
+        );
+
+        $byOffer = [];
+
+        foreach ($rows as $row) {
+            $byOffer[Row::string($row, 'offer_id')][Row::string($row, 'locale')] = Row::string($row, 'name');
+        }
+
+        return $byOffer;
     }
 }

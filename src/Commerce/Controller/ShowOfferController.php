@@ -37,6 +37,6 @@ final class ShowOfferController implements RouteHandler
             is_string($offerId) ? $offerId : '',
         );
 
-        return new JsonResponse(CataloguePresenter::offer($offer), 200);
+        return new JsonResponse(CataloguePresenter::offer($offer, $context->locale), 200);
     }
 }

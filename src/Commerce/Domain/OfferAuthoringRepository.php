@@ -38,10 +38,21 @@ interface OfferAuthoringRepository
     ): OfferCandidate;
 
     /**
-     * Renames an offer. The code is not touched: it is how documents refer to
-     * this offer, and a code that can change is not an identifier.
+     * Renames an offer, in every language it is called something.
+     *
+     * The code is not touched: it is how documents refer to this offer, and
+     * a code that can change is not an identifier. `$translations` absent
+     * leaves them alone; present replaces the set (2026-09-24,
+     * `docs/translatable-fields-spec.md`).
+     *
+     * @param array<string, array{name: ?string, description: ?string}>|null $translations
      */
-    public function renameOffer(string $productId, string $offerId, string $name): OfferCandidate;
+    public function renameOffer(
+        string $productId,
+        string $offerId,
+        string $name,
+        ?array $translations = null,
+    ): OfferCandidate;
 
     /**
      * Adds a DRAFT version, numbered by the database rather than the caller.

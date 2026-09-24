@@ -86,12 +86,15 @@ final class CataloguePresenter
     /**
      * @return array<string, mixed>
      */
-    public static function offer(Offer $offer): array
+    public static function offer(Offer $offer, string $locale = 'en'): array
     {
         return [
             'id' => $offer->id,
             'code' => $offer->code,
-            'name' => $offer->name,
+            // In the reader's language (2026-09-24), English where nobody
+            // wrote theirs. The *code* is not translated: it is how a
+            // document, a link and a subscription name this offer.
+            'name' => $offer->nameIn($locale),
             'plan' => self::plan($offer->plan),
             // Never null in practice — an offer is only presented once a
             // sellable version has been chosen — but typed honestly rather
@@ -105,9 +108,9 @@ final class CataloguePresenter
      *
      * @return list<array<string, mixed>>
      */
-    public static function offers(array $offers): array
+    public static function offers(array $offers, string $locale = 'en'): array
     {
-        return array_map(self::offer(...), $offers);
+        return array_map(static fn (Offer $offer): array => self::offer($offer, $locale), $offers);
     }
 
     /**
@@ -133,6 +136,11 @@ final class CataloguePresenter
             // buying an offer is looking at it — "is this on the front page"
             // is a question only its author has.
             'publicly_listed' => $offer->publiclyListed,
+            // Every language it is called something in (2026-09-24), because
+            // this is the authoring view: the console is the only place that
+            // can finish a half-translated catalogue, and the only one where
+            // seeing the gap is useful rather than confusing.
+            'translations' => (object) $offer->translations,
             'versions' => array_map(self::authoredVersion(...), $offer->versions),
         ];
     }

@@ -323,6 +323,64 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
     }
 
     /**
+     * An offer says its name in five languages too (2026-09-24, step 2).
+     *
+     * And the distinction worth keeping: a published version's price and
+     * terms are frozen (ADR-033), while the offer's name in another
+     * language is the same offer said differently — correctable after
+     * publication, because nobody agreed to a translation.
+     */
+    public function testAnOfferIsNamedInEveryLanguageEvenOncePublished(): void
+    {
+        $planId = $this->planId($this->createPlan(['code' => 'pro', 'name' => 'Pro', 'rank' => 10]));
+        $offerId = $this->offerId($this->createOffer($planId));
+
+        $this->request(
+            'POST',
+            '/api/v1/staff/catalogue/offers/' . $offerId . '/publish?product=atlas',
+            ['Authorization' => 'Bearer ola-token'],
+            $this->json(['version' => 1]),
+        );
+
+        $renamed = $this->patch('/api/v1/staff/catalogue/offers/' . $offerId, [
+            'name' => 'Pro, monthly',
+            'translations' => ['fr' => ['name' => 'Pro, mensuel'], 'es' => ['name' => 'Pro, mensual']],
+        ]);
+
+        self::assertSame(200, $renamed->getStatusCode());
+
+        // The customer reads it in their own language; the version they
+        // would buy is untouched.
+        self::assertSame('Pro, mensuel', $this->offerNameAsReadBy('fr'));
+        self::assertSame('Pro, monthly', $this->offerNameAsReadBy('it'));
+        self::assertSame(2900, $this->connection->fetchOne(
+            "SELECT price_minor_units FROM offer_versions WHERE offer_id = :id AND status = 'ACTIVE'",
+            ['id' => $offerId],
+        ));
+    }
+
+    /** What `GET /api/v1/offers` calls the offer, to somebody reading in this language. */
+    private function offerNameAsReadBy(string $locale): ?string
+    {
+        $this->connection->executeStatement(
+            'UPDATE users SET locale = :locale WHERE id = :id',
+            ['locale' => $locale, 'id' => $this->reader()],
+        );
+
+        $offers = $this->decode($this->request('GET', '/api/v1/offers', [
+            'Authorization' => 'Bearer ada-token',
+            'X-Product' => 'atlas',
+        ]))['offers'] ?? [];
+
+        self::assertIsArray($offers);
+        $first = $offers[0] ?? null;
+        self::assertIsArray($first);
+        $name = $first['name'] ?? null;
+
+        return is_string($name) ? $name : null;
+    }
+
+    /**
      * A member of an organisation that holds Atlas, created on first use.
      *
      * Not in `setUp`: this suite is about the platform pricing its own

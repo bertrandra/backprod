@@ -30,7 +30,7 @@ final class ListOffersController implements RouteHandler
         $context->requirePermission('catalog.read');
 
         return new JsonResponse(
-            ['offers' => CataloguePresenter::offers($this->catalogue->offersOnSale($context->productId))],
+            ['offers' => CataloguePresenter::offers($this->catalogue->offersOnSale($context->productId), $context->locale)],
             200,
         );
     }

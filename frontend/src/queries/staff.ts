@@ -1646,21 +1646,31 @@ export function usePublishStaffOfferVersion(productCode: string) {
 export function useRenameStaffOffer(productCode: string) {
   const client = useApiClient();
 
-  return useCatalogueWrite(productCode, async (change: { offerId: string; name: string }) => {
-    const { data, error, response } = await client.PATCH(
-      '/api/v1/staff/catalogue/offers/{offerId}',
-      {
-        params: { path: { offerId: change.offerId }, query: { product: productCode } },
-        body: { name: change.name },
-      },
-    );
+  return useCatalogueWrite(
+    productCode,
+    async (change: {
+      offerId: string;
+      name: string;
+      translations?: Record<string, { name: string | null }>;
+    }) => {
+      const { data, error, response } = await client.PATCH(
+        '/api/v1/staff/catalogue/offers/{offerId}',
+        {
+          params: { path: { offerId: change.offerId }, query: { product: productCode } },
+          body: {
+            name: change.name,
+            ...(change.translations !== undefined && { translations: change.translations }),
+          },
+        },
+      );
 
-    if (error !== undefined || data === undefined) {
-      throw toApiError(response.status, error);
-    }
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
 
-    return data.offer;
-  });
+      return data.offer;
+    },
+  );
 }
 
 /**

@@ -35,7 +35,26 @@ final class OfferCandidate
          * a private price by omission.
          */
         public readonly bool $publiclyListed = false,
+        /**
+         * What the operator calls this offer in the four other languages
+         * (2026-09-24). Empty is ordinary: English answers.
+         *
+         * Not part of what a version freezes (ADR-033). A price and its
+         * terms are snapshotted because somebody agreed to them; the same
+         * offer said in Spanish is not a term.
+         *
+         * @var array<string, string>
+         */
+        public readonly array $translations = [],
     ) {
+    }
+
+    /** The name in one language, falling back to the English. */
+    public function nameIn(string $locale): string
+    {
+        $translated = $this->translations[$locale] ?? null;
+
+        return $translated === null || $translated === '' ? $this->name : $translated;
     }
 
     /**
@@ -58,6 +77,14 @@ final class OfferCandidate
 
     public function withVersion(?OfferVersion $version): Offer
     {
-        return new Offer($this->id, $this->code, $this->name, $this->plan, $version, $this->publiclyListed);
+        return new Offer(
+            $this->id,
+            $this->code,
+            $this->name,
+            $this->plan,
+            $version,
+            $this->publiclyListed,
+            $this->translations,
+        );
     }
 }
