@@ -6,6 +6,7 @@ namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
 use App\Tests\Support\FakeAuthProvider;
+use App\Tests\Support\TestDatabase;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
 
@@ -32,6 +33,7 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
 {
     private string $admin = '';
     private string $support = '';
+    private string $member = '';
 
     protected function setUp(): void
     {
@@ -59,6 +61,11 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
             AuthProvider::class => new FakeAuthProvider([
                 'ola-token' => 'sub-ola',
                 'sam-token' => 'sub-sam',
+                // A customer, for the two tests that ask what a *reader*
+                // sees: a catalogue translated by the console is only
+                // translated if somebody on the other side reads it that
+                // way (2026-09-24).
+                'ada-token' => 'sub-ada',
             ]),
         ]);
     }
@@ -211,6 +218,178 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
             'SELECT name FROM features WHERE id = :id',
             ['id' => $featureId],
         ));
+    }
+
+    /**
+     * A feature says its name in five languages (2026-09-24).
+     *
+     * The English stays on the row and is the key; the other four are rows
+     * of their own, written in the same call so a name and its Spanish
+     * cannot disagree for the length of a failure between two requests.
+     */
+    public function testAFeatureIsNamedInEveryLanguageItSpeaks(): void
+    {
+        $featureId = $this->featureId($this->createFeature([
+            'code' => 'terrasse', 'name' => 'Terrace engine', 'kind' => 'BOOLEAN',
+        ]));
+
+        $response = $this->patch('/api/v1/staff/catalogue/features/' . $featureId, [
+            'name' => 'Terrace engine',
+            'description' => 'Draws a terrace on a parcel.',
+            'translations' => [
+                'fr' => ['name' => 'Moteur de terrasse', 'description' => 'Dessine une terrasse sur une parcelle.'],
+                'de' => ['name' => 'Terrassenmodul'],
+            ],
+        ]);
+
+        self::assertSame(200, $response->getStatusCode());
+
+        // The console is answered with all of them, because it is the only
+        // place that can finish a half-translated catalogue.
+        $feature = $this->decode($response)['feature'] ?? null;
+        self::assertIsArray($feature);
+        self::assertSame('Terrace engine', $feature['name'] ?? null);
+        self::assertSame(
+            ['de' => ['name' => 'Terrassenmodul', 'description' => null], 'fr' => ['name' => 'Moteur de terrasse', 'description' => 'Dessine une terrasse sur une parcelle.']],
+            $feature['translations'] ?? null,
+        );
+
+        // A customer is answered in their own language, and in English for
+        // the one nobody has written.
+        self::assertSame('Moteur de terrasse', $this->featureNameAsReadBy('fr', 'terrasse'));
+        self::assertSame('Terrassenmodul', $this->featureNameAsReadBy('de', 'terrasse'));
+        self::assertSame('Terrace engine', $this->featureNameAsReadBy('it', 'terrasse'));
+        // German has a name and no description, so the English answers for
+        // the sentence while the German answers for the name.
+        self::assertSame('Draws a terrace on a parcel.', $this->descriptionAsReadBy('de', 'terrasse'));
+    }
+
+    public function testATranslationIsReplacedAsASetAndEnglishIsNeverOneOfThem(): void
+    {
+        $featureId = $this->featureId($this->createFeature([
+            'code' => 'exports', 'name' => 'Exports', 'kind' => 'QUOTA', 'unit' => 'exports',
+        ]));
+
+        $this->patch('/api/v1/staff/catalogue/features/' . $featureId, [
+            'name' => 'Exports',
+            'translations' => ['fr' => ['name' => 'Exports FR'], 'es' => ['name' => 'Exportaciones']],
+        ]);
+
+        // Sent again without Spanish: the set is what the console says it
+        // is, so the one it dropped is gone rather than left behind.
+        $this->patch('/api/v1/staff/catalogue/features/' . $featureId, [
+            'name' => 'Exports',
+            'translations' => ['fr' => ['name' => 'Exports FR']],
+        ]);
+
+        self::assertSame(['fr'], $this->connection->fetchFirstColumn(
+            'SELECT locale FROM feature_translations WHERE feature_id = :id ORDER BY locale',
+            ['id' => $featureId],
+        ));
+
+        // English has one home, and this is not it.
+        $refused = $this->patch('/api/v1/staff/catalogue/features/' . $featureId, [
+            'name' => 'Exports',
+            'translations' => ['en' => ['name' => 'Something else']],
+        ]);
+
+        self::assertSame(400, $refused->getStatusCode());
+        self::assertSame('VALIDATION_FAILED', $this->errorOf($refused)['code'] ?? null);
+    }
+
+    public function testDeletingAFeatureTakesItsTranslationsWithIt(): void
+    {
+        $featureId = $this->featureId($this->createFeature([
+            'code' => 'doomed', 'name' => 'Doomed', 'kind' => 'BOOLEAN',
+        ]));
+
+        $this->patch('/api/v1/staff/catalogue/features/' . $featureId, [
+            'name' => 'Doomed',
+            'translations' => ['fr' => ['name' => 'Condamne']],
+        ]);
+
+        // No route deletes a feature, and there may never be one while
+        // grants point at it — but the cascade is what makes that decision
+        // reversible later without leaving rows nobody can reach.
+        $this->connection->executeStatement('DELETE FROM features WHERE id = :id', ['id' => $featureId]);
+
+        $left = $this->connection->fetchOne(
+            'SELECT count(*) FROM feature_translations WHERE feature_id = :id',
+            ['id' => $featureId],
+        );
+
+        self::assertIsNumeric($left);
+        self::assertSame(0, (int) $left);
+    }
+
+    /**
+     * A member of an organisation that holds Atlas, created on first use.
+     *
+     * Not in `setUp`: this suite is about the platform pricing its own
+     * product, and every other test here would gain a fixture it has no
+     * use for.
+     */
+    private function reader(): string
+    {
+        if ($this->member !== '') {
+            return $this->member;
+        }
+
+        $atlas = $this->id("SELECT id FROM products WHERE code = 'atlas'");
+        $tenant = $this->id("INSERT INTO tenants (name, slug) VALUES ('Acme', 'acme') RETURNING id");
+        $this->member = $this->id("INSERT INTO users (auth_subject, email) VALUES ('sub-ada', 'ada@acme.test') RETURNING id");
+
+        TestDatabase::assignProduct($this->connection, $tenant, $atlas);
+        $this->connection->executeStatement(
+            'INSERT INTO tenant_members (tenant_id, user_id, product_id) VALUES (:tenant, :user, :product)',
+            ['tenant' => $tenant, 'user' => $this->member, 'product' => $atlas],
+        );
+        $this->connection->executeStatement(
+            "INSERT INTO tenant_member_roles (tenant_id, user_id, product_id, role_id) SELECT :tenant, :user, :product, id FROM roles WHERE code = 'USER'",
+            ['tenant' => $tenant, 'user' => $this->member, 'product' => $atlas],
+        );
+
+        return $this->member;
+    }
+
+    /** What `GET /api/v1/features` answers somebody whose profile says this language. */
+    private function featureNameAsReadBy(string $locale, string $code): ?string
+    {
+        $name = $this->featureAsReadBy($locale, $code)['name'] ?? null;
+
+        return is_string($name) ? $name : null;
+    }
+
+    private function descriptionAsReadBy(string $locale, string $code): ?string
+    {
+        $description = $this->featureAsReadBy($locale, $code)['description'] ?? null;
+
+        return is_string($description) ? $description : null;
+    }
+
+    /** @return array<string, mixed> */
+    private function featureAsReadBy(string $locale, string $code): array
+    {
+        $this->connection->executeStatement(
+            'UPDATE users SET locale = :locale WHERE id = :id',
+            ['locale' => $locale, 'id' => $this->reader()],
+        );
+
+        $features = $this->decode($this->request('GET', '/api/v1/features', [
+            'Authorization' => 'Bearer ada-token',
+            'X-Product' => 'atlas',
+        ]))['features'] ?? [];
+
+        self::assertIsArray($features);
+
+        foreach ($features as $feature) {
+            if (is_array($feature) && ($feature['code'] ?? null) === $code) {
+                /** @var array<string, mixed> $feature */
+                return $feature;
+            }
+        }
+
+        return [];
     }
 
     // --- Offers ----------------------------------------------------------------

@@ -123,6 +123,10 @@ final class CatalogueEndpointsTest extends ApiTestCase
                     'id' => 'feature-3d',
                     'code' => 'advanced_3d',
                     'name' => 'Advanced 3D',
+                    // A sentence the operator may write beside the name
+                    // (2026-09-24), translated like it; null until somebody
+                    // does.
+                    'description' => null,
                     'kind' => 'BOOLEAN',
                     'unit' => null,
                 ],
@@ -130,6 +134,7 @@ final class CatalogueEndpointsTest extends ApiTestCase
                     'id' => 'feature-projects',
                     'code' => 'max_projects',
                     'name' => 'Projects',
+                    'description' => null,
                     'kind' => 'QUOTA',
                     'unit' => 'projects',
                 ],

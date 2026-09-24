@@ -1422,7 +1422,12 @@ export function useSetStorefrontSettings() {
  * `useStorefrontOffers`, which already answers the unfiltered authoring view.
  */
 export type StaffPlan = Schemas['Plan'];
-export type StaffFeature = Schemas['Feature'];
+/**
+ * The console's shape, not the customer's (2026-09-24): the English on the
+ * row and every translation beside it. A customer reads `Feature`, whose
+ * one name the server already resolved into their language.
+ */
+export type StaffFeature = Schemas['EditableFeature'];
 
 /**
  * One line of what a version grants: a feature and, for a quota, how much of it.
@@ -1658,24 +1663,44 @@ export function useRenameStaffOffer(productCode: string) {
   });
 }
 
+/**
+ * What a feature is called, in every language it is called something
+ * (2026-09-24).
+ *
+ * The English and the translations go together, in one call: written
+ * apart, a failure between them leaves a feature renamed in English and
+ * still saying the old thing in Spanish — a state nobody would think to
+ * look for. `translations` absent leaves them alone; present replaces the
+ * set, so a language the operator emptied is one the server removes.
+ */
 export function useRenameFeature(productCode: string) {
   const client = useApiClient();
 
-  return useCatalogueWrite(productCode, async (change: { featureId: string; name: string }) => {
-    const { data, error, response } = await client.PATCH(
-      '/api/v1/staff/catalogue/features/{featureId}',
-      {
-        params: { path: { featureId: change.featureId }, query: { product: productCode } },
-        body: { name: change.name },
-      },
-    );
+  return useCatalogueWrite(
+    productCode,
+    async (change: {
+      featureId: string;
+      name: string;
+      translations?: Record<string, { name: string | null }>;
+    }) => {
+      const { data, error, response } = await client.PATCH(
+        '/api/v1/staff/catalogue/features/{featureId}',
+        {
+          params: { path: { featureId: change.featureId }, query: { product: productCode } },
+          body: {
+            name: change.name,
+            ...(change.translations !== undefined && { translations: change.translations }),
+          },
+        },
+      );
 
-    if (error !== undefined || data === undefined) {
-      throw toApiError(response.status, error);
-    }
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
 
-    return data.feature;
-  });
+      return data.feature;
+    },
+  );
 }
 
 /**

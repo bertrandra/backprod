@@ -135,20 +135,40 @@ final class CatalogueDesk
         return $feature;
     }
 
+    /**
+     * @param array<string, array{name?: ?string, description?: ?string}>|null $translations
+     */
     public function renameFeature(
         StaffIdentity $staff,
         string $productCode,
         string $featureId,
         string $name,
+        bool $setDescription = false,
+        ?string $description = null,
+        ?array $translations = null,
     ): Feature {
         $product = $this->product($productCode);
-        $feature = $this->administration->renameFeature($product->id, $featureId, $name);
+        $feature = $this->administration->renameFeature(
+            $product->id,
+            $featureId,
+            $name,
+            $setDescription,
+            $description,
+            $translations,
+        );
 
         if ($feature === null) {
             throw new NotFoundException('Feature not found.', [], 'FEATURE_NOT_FOUND');
         }
 
-        $this->record($staff, $product, 'RENAME', 'feature', $feature->id, ['name' => $feature->name]);
+        // The languages it now says something in, rather than what it says
+        // in them: a trail is for "who changed this, and roughly what", and
+        // four paragraphs of marketing copy in an audit row is neither
+        // readable nor anybody's business later.
+        $this->record($staff, $product, 'RENAME', 'feature', $feature->id, [
+            'name' => $feature->name,
+            'translated' => array_keys($feature->translations),
+        ]);
 
         return $feature;
     }

@@ -32,7 +32,7 @@ final class PostgresUserDirectory implements UserDirectory
                 ON CONFLICT (auth_subject) DO UPDATE
                     SET email = EXCLUDED.email,
                         updated_at = now()
-                RETURNING id, auth_subject, email, display_name
+                RETURNING id, auth_subject, email, display_name, locale
                 SQL,
             [
                 'subject' => $identity->userId,
@@ -53,11 +53,20 @@ final class PostgresUserDirectory implements UserDirectory
             throw new RuntimeException('The users table returned an unexpected row shape.');
         }
 
+        $locale = $row['locale'] ?? null;
+
         return new PlatformUser(
             $id,
             $subject,
             is_string($email) ? $email : null,
             is_string($displayName) ? $displayName : null,
+            // The default product is not read here: this row exists to say
+            // *who* is asking, and the landing reads the default from its
+            // own route. The language is, since 2026-09-24 — every request
+            // context carries it, so a catalogue can answer in it without a
+            // second read.
+            null,
+            is_string($locale) ? $locale : 'en',
         );
     }
 }

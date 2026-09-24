@@ -7,6 +7,7 @@ namespace App\Commerce\Infrastructure;
 use App\Commerce\Domain\CatalogueAdministration;
 use App\Commerce\Domain\Feature;
 use App\Commerce\Domain\Plan;
+use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
 use App\Shared\Exceptions\BadRequestException;
 use App\Shared\Exceptions\ConflictException;
@@ -121,26 +122,124 @@ final class PostgresCatalogueAdministration implements CatalogueAdministration
         return OfferVersionLoader::toFeature($row);
     }
 
-    public function renameFeature(string $productId, string $featureId, string $name): ?Feature
-    {
+    /**
+     * @param array<string, array{name?: ?string, description?: ?string}>|null $translations
+     */
+    public function renameFeature(
+        string $productId,
+        string $featureId,
+        string $name,
+        bool $setDescription = false,
+        ?string $description = null,
+        ?array $translations = null,
+    ): ?Feature {
         if (!Uuid::isValid($featureId)) {
             return null;
         }
 
-        // `kind` is deliberately absent from this statement. Every grant
-        // written against this feature meant one kind or the other, and
-        // flipping it would reinterpret rows already priced into live
-        // subscriptions.
-        $row = $this->connection->fetchAssociative(
-            <<<'SQL'
-                UPDATE features
-                   SET name = :name, updated_at = now()
-                 WHERE id = :id AND product_id = :product
-                RETURNING id, code, name, kind, unit
-                SQL,
-            ['id' => $featureId, 'product' => $productId, 'name' => $name],
+        // One transaction (2026-09-24): the English and its four
+        // translations are one act. Written apart, a failure between them
+        // leaves a feature renamed and its Spanish still saying the old
+        // thing — which is exactly the state nobody would think to look for.
+        return $this->connection->transactional(function () use ($productId, $featureId, $name, $setDescription, $description, $translations): ?Feature {
+            // `kind` is deliberately absent from this statement. Every grant
+            // written against this feature meant one kind or the other, and
+            // flipping it would reinterpret rows already priced into live
+            // subscriptions.
+            $row = $this->connection->fetchAssociative(
+                <<<'SQL'
+                    UPDATE features
+                       SET name = :name,
+                           description = CASE WHEN :setDescription THEN :description ELSE description END,
+                           updated_at = now()
+                     WHERE id = :id AND product_id = :product
+                    RETURNING id, code, name, description, kind, unit
+                    SQL,
+                [
+                    'id' => $featureId,
+                    'product' => $productId,
+                    'name' => $name,
+                    'setDescription' => $setDescription,
+                    'description' => $description,
+                ],
+                ['setDescription' => ParameterType::BOOLEAN],
+            );
+
+            if ($row === false) {
+                return null;
+            }
+
+            if ($translations !== null) {
+                $this->replaceTranslations($featureId, $translations);
+            }
+
+            return OfferVersionLoader::toFeature($row, $this->translationsOf($featureId));
+        });
+    }
+
+    /**
+     * The four other languages, replaced as a set.
+     *
+     * Replaced rather than merged: the console sends what the feature says
+     * in every language it says anything in, so a translation removed there
+     * is removed here. Merging would make deleting one impossible without a
+     * route whose whole purpose was deletion.
+     *
+     * @param array<string, array{name?: ?string, description?: ?string}> $translations
+     */
+    private function replaceTranslations(string $featureId, array $translations): void
+    {
+        $this->connection->executeStatement(
+            'DELETE FROM feature_translations WHERE feature_id = :id',
+            ['id' => $featureId],
         );
 
-        return $row === false ? null : OfferVersionLoader::toFeature($row);
+        foreach ($translations as $locale => $values) {
+            $name = $values['name'] ?? null;
+            $description = $values['description'] ?? null;
+
+            // A locale that says nothing is not written at all. The table
+            // refuses it anyway (`feature_translations_says_something`), and
+            // a row of two nulls would be a translation somebody would
+            // later read as "translated, deliberately empty".
+            if (($name === null || $name === '') && ($description === null || $description === '')) {
+                continue;
+            }
+
+            $this->connection->executeStatement(
+                <<<'SQL'
+                    INSERT INTO feature_translations (feature_id, locale, name, description)
+                    VALUES (:id, :locale, :name, :description)
+                    SQL,
+                [
+                    'id' => $featureId,
+                    'locale' => $locale,
+                    'name' => $name === '' ? null : $name,
+                    'description' => $description === '' ? null : $description,
+                ],
+            );
+        }
+    }
+
+    /**
+     * @return array<string, array{name: ?string, description: ?string}>
+     */
+    private function translationsOf(string $featureId): array
+    {
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT locale, name, description FROM feature_translations WHERE feature_id = :id ORDER BY locale',
+            ['id' => $featureId],
+        );
+
+        $translations = [];
+
+        foreach ($rows as $row) {
+            $translations[Row::string($row, 'locale')] = [
+                'name' => Row::nullableString($row, 'name'),
+                'description' => Row::nullableString($row, 'description'),
+            ];
+        }
+
+        return $translations;
     }
 }

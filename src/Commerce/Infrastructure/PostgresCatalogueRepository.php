@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commerce\Infrastructure;
 
 use App\Commerce\Domain\CatalogueRepository;
+use App\Commerce\Domain\Feature;
 use App\Commerce\Domain\OfferCandidate;
 use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Domain\Plan;
@@ -51,7 +52,7 @@ final class PostgresCatalogueRepository implements CatalogueRepository
     {
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
-                SELECT id, code, name, kind, unit
+                SELECT id, code, name, description, kind, unit
                 FROM features
                 WHERE product_id = :productId
                 ORDER BY code
@@ -59,7 +60,59 @@ final class PostgresCatalogueRepository implements CatalogueRepository
             ['productId' => $productId],
         );
 
-        return array_map(OfferVersionLoader::toFeature(...), $rows);
+        // Two queries rather than a join, and rather than one per feature
+        // (2026-09-24): a catalogue is a handful of rows and four languages,
+        // so the whole set comes back at once and the caller picks. Joining
+        // on one locale would mean a second method for the console, which
+        // needs them all.
+        $translations = $this->translationsOf(array_map(
+            static fn (array $row): string => Row::string($row, 'id'),
+            $rows,
+        ));
+
+        return array_map(
+            static fn (array $row): Feature => OfferVersionLoader::toFeature(
+                $row,
+                $translations[Row::string($row, 'id')] ?? [],
+            ),
+            $rows,
+        );
+    }
+
+    /**
+     * What an operator wrote about these features in the four other
+     * languages, by feature and then by locale.
+     *
+     * @param list<string> $featureIds
+     *
+     * @return array<string, array<string, array{name: ?string, description: ?string}>>
+     */
+    private function translationsOf(array $featureIds): array
+    {
+        if ($featureIds === []) {
+            return [];
+        }
+
+        $rows = $this->connection->fetchAllAssociative(
+            <<<'SQL'
+                SELECT feature_id, locale, name, description
+                  FROM feature_translations
+                 WHERE feature_id = ANY(CAST(:ids AS uuid[]))
+                 ORDER BY feature_id, locale
+                SQL,
+            ['ids' => '{' . implode(',', $featureIds) . '}'],
+        );
+
+        $byFeature = [];
+
+        foreach ($rows as $row) {
+            $byFeature[Row::string($row, 'feature_id')][Row::string($row, 'locale')] = [
+                'name' => Row::nullableString($row, 'name'),
+                'description' => Row::nullableString($row, 'description'),
+            ];
+        }
+
+        return $byFeature;
     }
 
     public function offersFor(string $productId): array

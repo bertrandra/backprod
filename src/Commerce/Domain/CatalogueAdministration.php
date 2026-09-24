@@ -72,7 +72,27 @@ interface CatalogueAdministration
     ): Feature;
 
     /**
-     * Renames a feature. Neither its code nor its kind may change.
+     * Corrects what a feature is called, in every language it is called
+     * something.
+     *
+     * Neither its code nor its kind may change: the code is how grants and
+     * entitlements name it, and the kind decides how every grant already
+     * written against it is read.
+     *
+     * `$translations` absent leaves them alone; present replaces the set,
+     * so a language removed in the console is removed here. The English
+     * stays on the feature itself — it is the key and the fallback
+     * (ADR-050, `docs/translatable-fields-spec.md`).
+     *
+     * @param bool                                                        $setDescription whether `$description` is to be written — null is a value, so absence needs its own flag
+     * @param array<string, array{name?: ?string, description?: ?string}>|null $translations
      */
-    public function renameFeature(string $productId, string $featureId, string $name): ?Feature;
+    public function renameFeature(
+        string $productId,
+        string $featureId,
+        string $name,
+        bool $setDescription = false,
+        ?string $description = null,
+        ?array $translations = null,
+    ): ?Feature;
 }

@@ -36,6 +36,18 @@ final class RequestContext
         public readonly array $capabilities,
         /** When the bearer this context was resolved for expires (ADR-051 §3); null when it says nothing. */
         public readonly ?int $tokenExpiresAt = null,
+        /**
+         * The language the caller reads in (2026-09-24), from their own
+         * profile — never from a header or an address (ADR-050, amended
+         * 2026-09-23).
+         *
+         * Here because the middleware already holds the user row that says
+         * it, and because a controller that answers in somebody's language
+         * would otherwise read the same row again on every request. What is
+         * *presented* in it is operator data — a feature's name, an offer's
+         * — never the API's own vocabulary, which stays English.
+         */
+        public readonly string $locale = 'en',
     ) {
     }
 
