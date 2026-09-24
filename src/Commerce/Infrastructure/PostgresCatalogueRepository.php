@@ -48,16 +48,15 @@ final class PostgresCatalogueRepository implements CatalogueRepository
         return array_map(OfferVersionLoader::toPlan(...), $rows);
     }
 
-    public function featuresFor(string $productId): array
+    public function features(): array
     {
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
                 SELECT id, code, name, description, kind, unit
                 FROM features
-                WHERE product_id = :productId
+                WHERE active
                 ORDER BY code
                 SQL,
-            ['productId' => $productId],
         );
 
         // Two queries rather than a join, and rather than one per feature

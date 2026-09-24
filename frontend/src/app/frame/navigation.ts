@@ -124,6 +124,12 @@ export const APP_NAV: readonly NavSection[] = [
       // Before the catalogue, because an invoice must name its issuer: a product
       // can be priced and advertised and still refuse at the checkout.
       { id: 'invoicing', label: 'Invoicing', to: '/console/invoicing', scope: 'platform', permission: 'staff.products.manage' },
+      // Before the catalogue, because a catalogue picks from it: a feature is
+      // a word the platform and a product's code have agreed on, and there is
+      // one list of them (2026-09-24, docs/translatable-fields-spec.md §4).
+      // Its own permission, not `staff.catalog.manage` — somebody lent a price
+      // list must not be able to invent a capability.
+      { id: 'features', label: 'Features', to: '/console/features', scope: 'platform', permission: 'staff.features.manage' },
       {
         // `platform-catalogue`, not `catalogue`: the tenant entry below already
         // uses that id, and ids stay unique across the whole tree so that a

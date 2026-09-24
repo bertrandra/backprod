@@ -576,18 +576,16 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
         );
 
         $advanced = $this->id(
-            'INSERT INTO features (product_id, code, name, kind, unit)'
-            . " VALUES (:product, 'advanced_3d', 'advanced_3d', 'BOOLEAN', NULL) RETURNING id",
-            ['product' => $this->product],
+            'INSERT INTO features (code, name, kind, unit)'
+            . " VALUES ('advanced_3d', 'advanced_3d', 'BOOLEAN', NULL) RETURNING id",
         );
 
         // A quota, so the seat scenarios can ask the question a boolean
         // capability never does: is the *limit* found for the person holding
         // the seat, or only for the tenant?
         $projects = $this->id(
-            'INSERT INTO features (product_id, code, name, kind, unit)'
-            . " VALUES (:product, 'max_projects', 'max_projects', 'QUOTA', 'projects') RETURNING id",
-            ['product' => $this->product],
+            'INSERT INTO features (code, name, kind, unit)'
+            . " VALUES ('max_projects', 'max_projects', 'QUOTA', 'projects') RETURNING id",
         );
 
         // Twelve months of commitment on every one of them. What differs is

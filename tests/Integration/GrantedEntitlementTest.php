@@ -63,15 +63,16 @@ final class GrantedEntitlementTest extends DatabaseApiTestCase
             );
         }
 
-        // Atlas's features, and a Pro plan whose active version grants two of them.
+        // The platform's features, and a Pro plan whose active version grants
+        // two of them. The features are nobody's product since 2026-09-24;
+        // the *grant* is Atlas's, because it lives on an offer version.
         $this->connection->executeStatement(
             <<<'SQL'
-                INSERT INTO features (product_id, code, name, kind, unit) VALUES
-                    (:p, 'advanced_3d', 'Advanced 3D', 'BOOLEAN', NULL),
-                    (:p, 'max_projects', 'Projects', 'QUOTA', 'projects'),
-                    (:p, 'exports', 'Exports', 'QUOTA', 'exports')
+                INSERT INTO features (code, name, kind, unit) VALUES
+                    ('advanced_3d', 'Advanced 3D', 'BOOLEAN', NULL),
+                    ('max_projects', 'Projects', 'QUOTA', 'projects'),
+                    ('exports', 'Exports', 'QUOTA', 'exports')
                 SQL,
-            ['p' => $this->atlas],
         );
         $plan = $this->id("INSERT INTO plans (product_id, code, name, rank) VALUES (:p, 'pro', 'Pro', 20) RETURNING id", ['p' => $this->atlas]);
         $offer = $this->id("INSERT INTO offers (product_id, plan_id, code, name) VALUES (:p, :plan, 'pro-monthly', 'Pro monthly') RETURNING id", ['p' => $this->atlas, 'plan' => $plan]);
@@ -83,9 +84,9 @@ final class GrantedEntitlementTest extends DatabaseApiTestCase
             <<<'SQL'
                 INSERT INTO offer_version_features (offer_version_id, feature_id, limit_value)
                 SELECT :v, id, CASE code WHEN 'max_projects' THEN 10 ELSE NULL END
-                  FROM features WHERE product_id = :p AND code IN ('advanced_3d', 'max_projects')
+                  FROM features WHERE code IN ('advanced_3d', 'max_projects')
                 SQL,
-            ['v' => $version, 'p' => $this->atlas],
+            ['v' => $version],
         );
         // Published after its grants are written: a published version is frozen.
         $this->connection->executeStatement("UPDATE offer_versions SET status = 'ACTIVE' WHERE id = :v", ['v' => $version]);

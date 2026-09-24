@@ -233,7 +233,7 @@ final class ProductKeysTest extends DatabaseApiTestCase
     public function testUsageIsRefusedAgainstTheQuotaBeforeTheWorkAndCountedOnce(): void
     {
         // Plan sells documents: a quota of two on Acme's entitlement.
-        $feature = $this->id("INSERT INTO features (product_id, code, name, kind, unit) VALUES (:p, 'plan.documents', 'Documents', 'QUOTA', 'documents') RETURNING id", ['p' => $this->plan]);
+        $feature = $this->id("INSERT INTO features (code, name, kind, unit) VALUES ('plan.documents', 'Documents', 'QUOTA', 'documents') RETURNING id");
         $this->connection->executeStatement(
             "INSERT INTO entitlements (tenant_id, product_id, feature_id, limit_value, source) VALUES (:t, :p, :f, 2, 'OVERRIDE')",
             ['t' => $this->acme, 'p' => $this->plan, 'f' => $feature],

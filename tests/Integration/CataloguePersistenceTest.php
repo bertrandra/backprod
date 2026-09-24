@@ -35,26 +35,67 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         $this->beacon = $this->seedProduct('beacon');
     }
 
-    public function testPlansAndFeaturesBelongToOneProduct(): void
+    public function testPlansBelongToOneProductAndFeaturesToThePlatform(): void
     {
         $this->seedPlan($this->atlas, 'PRO', 20);
-        $this->seedFeature($this->atlas, 'max_projects', 'QUOTA', 'projects');
         $this->seedPlan($this->beacon, 'PRO', 20);
+        $this->seedFeature('max_projects', 'QUOTA', 'projects');
 
         $catalogue = $this->catalogue();
 
-        // The same code in both products, and neither sees the other's row.
+        // The same plan code in both products, and neither sees the other's row.
         self::assertCount(1, $catalogue->plansFor($this->atlas));
         self::assertCount(1, $catalogue->plansFor($this->beacon));
-        self::assertCount(1, $catalogue->featuresFor($this->atlas));
-        self::assertSame([], $catalogue->featuresFor($this->beacon));
+
+        // The feature is the platform's, and both products read the same one
+        // (2026-09-24). `max_projects` used to exist once per product, and
+        // the code that enforces it depended on every one of those rows
+        // having been spelled the same.
+        self::assertCount(1, $catalogue->features());
+        self::assertSame('max_projects', $catalogue->features()[0]->code);
+    }
+
+    /**
+     * A code is taken platform-wide, which is what makes the list one list.
+     */
+    public function testAFeatureCodeCannotBeUsedTwice(): void
+    {
+        $this->seedFeature('max_projects', 'QUOTA', 'projects');
+
+        $this->expectException(DriverException::class);
+
+        $this->seedFeature('max_projects', 'QUOTA', 'projects');
+    }
+
+    /**
+     * Retiring is not deleting: what may no longer be sold is still what a
+     * live entitlement names.
+     */
+    public function testARetiredFeatureLeavesTheSellableList(): void
+    {
+        $projects = $this->seedFeature('max_projects', 'QUOTA', 'projects');
+
+        self::assertCount(1, $this->catalogue()->features());
+
+        $this->connection->executeStatement(
+            'UPDATE features SET active = false WHERE id = :id',
+            ['id' => $projects],
+        );
+
+        self::assertSame([], $this->catalogue()->features());
+
+        // Still there, and still granting whoever holds it.
+        $kept = $this->connection->fetchOne('SELECT count(*) FROM features WHERE id = :id', ['id' => $projects]);
+
+        self::assertIsNumeric($kept);
+        self::assertSame(1, (int) $kept);
     }
 
     public function testAnOfferLoadsWithItsPlanAndItsGrants(): void
     {
         $plan = $this->seedPlan($this->atlas, 'PRO', 20);
-        $projects = $this->seedFeature($this->atlas, 'max_projects', 'QUOTA', 'projects');
-        $advanced = $this->seedFeature($this->atlas, 'advanced_3d', 'BOOLEAN', null);
+        $projects = $this->seedFeature('max_projects', 'QUOTA', 'projects');
+        $advanced = $this->seedFeature('advanced_3d', 'BOOLEAN', null);
 
         $offer = $this->seedOffer($this->atlas, $plan, 'pro-monthly');
         $version = $this->seedVersion($offer, 1, OfferVersion::DRAFT, 2900);
@@ -90,7 +131,7 @@ final class CataloguePersistenceTest extends DatabaseTestCase
     public function testAnUnlimitedQuotaIsDistinguishableFromABooleanGrant(): void
     {
         $plan = $this->seedPlan($this->atlas, 'ENTERPRISE', 40);
-        $projects = $this->seedFeature($this->atlas, 'max_projects', 'QUOTA', 'projects');
+        $projects = $this->seedFeature('max_projects', 'QUOTA', 'projects');
 
         $version = $this->seedVersion(
             $this->seedOffer($this->atlas, $plan, 'enterprise'),
@@ -160,7 +201,7 @@ final class CataloguePersistenceTest extends DatabaseTestCase
     public function testExpiringAVersionLeavesItStoredAndReadable(): void
     {
         $plan = $this->seedPlan($this->atlas, 'PRO', 20);
-        $projects = $this->seedFeature($this->atlas, 'max_projects', 'QUOTA', 'projects');
+        $projects = $this->seedFeature('max_projects', 'QUOTA', 'projects');
         $offer = $this->seedOffer($this->atlas, $plan, 'pro-monthly');
         $version = $this->seedVersion($offer, 1, OfferVersion::DRAFT, 2900);
         $this->grant($version, $projects, 50);
@@ -270,10 +311,9 @@ final class CataloguePersistenceTest extends DatabaseTestCase
 
         $this->connection->executeStatement(
             <<<'SQL'
-                INSERT INTO features (product_id, code, name, kind, unit)
-                VALUES (:product, 'advanced_3d', 'Advanced 3D', 'BOOLEAN', 'exports')
+                INSERT INTO features (code, name, kind, unit)
+                VALUES ('advanced_3d', 'Advanced 3D', 'BOOLEAN', 'exports')
                 SQL,
-            ['product' => $this->atlas],
         );
     }
 
@@ -285,7 +325,7 @@ final class CataloguePersistenceTest extends DatabaseTestCase
     public function testAFeatureStillGrantedCannotBeDeleted(): void
     {
         $plan = $this->seedPlan($this->atlas, 'PRO', 20);
-        $projects = $this->seedFeature($this->atlas, 'max_projects', 'QUOTA', 'projects');
+        $projects = $this->seedFeature('max_projects', 'QUOTA', 'projects');
         $version = $this->seedVersion($this->seedOffer($this->atlas, $plan, 'pro'), 1, OfferVersion::DRAFT, 2900);
         $this->grant($version, $projects, 50);
         $this->promote($version, OfferVersion::ACTIVE);
@@ -345,14 +385,17 @@ final class CataloguePersistenceTest extends DatabaseTestCase
         );
     }
 
-    private function seedFeature(string $productId, string $code, string $kind, ?string $unit): string
+    /**
+     * A feature on the platform's one list — no product (2026-09-24).
+     */
+    private function seedFeature(string $code, string $kind, ?string $unit): string
     {
         return $this->id(
             <<<'SQL'
-                INSERT INTO features (product_id, code, name, kind, unit)
-                VALUES (:product, :code, :name, :kind, :unit) RETURNING id
+                INSERT INTO features (code, name, kind, unit)
+                VALUES (:code, :name, :kind, :unit) RETURNING id
                 SQL,
-            ['product' => $productId, 'code' => $code, 'name' => $code, 'kind' => $kind, 'unit' => $unit],
+            ['code' => $code, 'name' => $code, 'kind' => $kind, 'unit' => $unit],
         );
     }
 

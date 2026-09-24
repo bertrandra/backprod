@@ -73,15 +73,18 @@ final class PostgresTenantGrants implements TenantGrants
         ?DateTimeImmutable $validUntil,
         string $staffUserId,
     ): GrantedEntitlement {
-        $features = $this->connection->fetchAllKeyValue(
-            'SELECT code, id FROM features WHERE product_id = :product',
-            ['product' => $productId],
-        );
+        // The platform's one list (2026-09-24), retired rows included. A
+        // negotiated override is the exception path by construction — it is
+        // how support restores something outside any offer — and refusing a
+        // retired code here would leave a customer who already held one
+        // unable to be given it back. What retirement stops is a *new offer*
+        // granting it, which is enforced where an offer version is written.
+        $features = $this->connection->fetchAllKeyValue('SELECT code, id FROM features');
 
         foreach (array_keys($limits) as $code) {
             if (!isset($features[$code])) {
                 throw new NotFoundException(
-                    'No feature of this product has that code.',
+                    'No feature has that code.',
                     ['feature' => $code],
                     'FEATURE_NOT_FOUND',
                 );

@@ -34,6 +34,15 @@ final class Feature
          * @var array<string, array{name: ?string, description: ?string}>
          */
         public readonly array $translations = [],
+        /**
+         * Whether this may still be granted by a new offer (2026-09-24).
+         *
+         * Retired rather than deleted, like a product: a feature some offer
+         * version grants can never be removed, and there has to be a way to
+         * stop offering a new one. Retiring takes nothing away from anybody
+         * already entitled — their grant names this row and keeps naming it.
+         */
+        public readonly bool $active = true,
     ) {
     }
 

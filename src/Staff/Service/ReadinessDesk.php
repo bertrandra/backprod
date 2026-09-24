@@ -76,7 +76,7 @@ final class ReadinessDesk
         $supplier = SupplierDetails::parse($configured[SupplierDetails::CONFIGURATION_KEY] ?? null);
 
         $plans = $this->catalogue->plansFor($product->id);
-        $features = $this->catalogue->featuresFor($product->id);
+        $features = $this->catalogue->features();
         $offers = $this->catalogue->offersFor($product->id);
         $advertised = $this->catalogue->publiclyListedOffersFor($product->id);
 

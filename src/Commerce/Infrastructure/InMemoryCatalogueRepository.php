@@ -19,7 +19,7 @@ final class InMemoryCatalogueRepository implements CatalogueRepository
 {
     /**
      * @param array<string, list<Plan>>           $plans    keyed by product id
-     * @param array<string, list<Feature>>        $features keyed by product id
+     * @param list<Feature>                       $features the platform's one list (2026-09-24)
      * @param array<string, list<OfferCandidate>> $offers   keyed by product id
      */
     public function __construct(
@@ -34,9 +34,9 @@ final class InMemoryCatalogueRepository implements CatalogueRepository
         return $this->plans[$productId] ?? [];
     }
 
-    public function featuresFor(string $productId): array
+    public function features(): array
     {
-        return $this->features[$productId] ?? [];
+        return array_values($this->features);
     }
 
     public function offersFor(string $productId): array

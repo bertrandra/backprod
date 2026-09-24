@@ -171,6 +171,13 @@ export const keys = {
     /** Plans and features of one product, which an offer is built out of. */
     catalogue: (product: string) => ['staff', 'catalogue', product] as const,
     /**
+     * The platform's one list of features (2026-09-24). No product in the
+     * key, because there is none in the route: a feature is a word the
+     * platform and a product's code have agreed on, and a product's
+     * catalogue picks from this list.
+     */
+    features: ['staff', 'features'] as const,
+    /**
      * What one product needs configured before it can take money: the identity
      * its invoices name, and the supplier's own fiscal position.
      */

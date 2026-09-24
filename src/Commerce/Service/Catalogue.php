@@ -34,11 +34,17 @@ final class Catalogue
     }
 
     /**
+     * Every feature that may be sold, platform-wide (2026-09-24).
+     *
+     * The product argument is gone rather than ignored: it would have read
+     * as scoping and scoped nothing, which is the kind of parameter that
+     * survives three refactorings and then misleads somebody.
+     *
      * @return list<Feature>
      */
-    public function features(string $productId): array
+    public function features(): array
     {
-        return $this->catalogue->featuresFor($productId);
+        return $this->catalogue->features();
     }
 
     /**

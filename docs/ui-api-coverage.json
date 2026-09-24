@@ -155,7 +155,7 @@
     },
     "console.admin.catalogue": {
       "authority": "platform",
-      "$comment": "The platform pricing its own product. ADR-040 made catalog.manage a delegation to a tenant, which left the platform able to price its own catalogue only by lending it away and acting as the borrower; and plans and features could not be created at all, so a fresh installation had a product it could not price. Plans, features, offers and versions, with the product named in ?selected= because the console has no ambient product.",
+      "$comment": "The platform pricing its own product. ADR-040 made catalog.manage a delegation to a tenant, which left the platform able to price its own catalogue only by lending it away and acting as the borrower; and plans could not be created at all, so a fresh installation had a product it could not price. Plans, offers and versions, with the product taken from the switcher because the console has no ambient product. Features are no longer here: they are the platform's one list, under console.admin.features.",
       "routes": [
         "/console/catalogue"
       ],
@@ -163,12 +163,22 @@
         "showStaffCatalogue",
         "createPlan",
         "updatePlan",
-        "createFeature",
-        "renameFeature",
         "createStaffOffer",
         "renameStaffOffer",
         "createStaffOfferVersion",
         "publishStaffOfferVersion"
+      ]
+    },
+    "console.admin.features": {
+      "authority": "platform",
+      "$comment": "The platform's one list of features (2026-09-24, docs/translatable-fields-spec.md §4). A feature is not a thing a product owns; it is a word the platform and a product's code have agreed on, and max_projects existed once per product until this screen. No product is named here, which is the whole point: a product's catalogue picks a code from this list. Retiring replaces deleting, because a feature some offer version grants can never be removed.",
+      "routes": [
+        "/console/features"
+      ],
+      "operations": [
+        "listPlatformFeatures",
+        "createFeature",
+        "renameFeature"
       ]
     },
     "console.admin.directory": {

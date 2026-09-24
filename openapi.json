@@ -374,7 +374,8 @@
           "description",
           "kind",
           "unit",
-          "translations"
+          "translations",
+          "active"
         ],
         "properties": {
           "id": {
@@ -417,6 +418,10 @@
               "de": { "$ref": "#/components/schemas/TranslatedName" },
               "it": { "$ref": "#/components/schemas/TranslatedName" }
             }
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Whether a new offer may grant it. Retired features stay on this list and keep entitling everybody who already holds them; `Feature`, which is what a customer reads, has no such field — a customer is not told a capability was retired, they are simply not sold it."
           }
         }
       },
@@ -19700,26 +19705,57 @@
         }
       }
     },
-    "/api/v1/staff/catalogue/features": {
+    "/api/v1/staff/features": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "listPlatformFeatures",
+        "summary": "The platform's one list of features",
+        "description": "Every feature the platform knows, retired ones included. No product parameter, unlike the rest of the console catalogue: since 2026-09-24 a feature is a word the platform and a product's code have agreed on, and a product's catalogue picks from this list rather than keeping one of its own (docs/translatable-fields-spec.md §4). The retired are listed because their codes are still taken, and a list that hid them would refuse a retyped code with nothing on screen to say why.",
+        "responses": {
+          "200": {
+            "description": "The list, in code order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "features"
+                  ],
+                  "properties": {
+                    "features": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/EditableFeature"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
       "post": {
         "tags": [
           "Staff"
         ],
         "operationId": "createFeature",
         "summary": "Create a billable capability",
-        "description": "`kind` is chosen here because it can never change: every grant written against a feature meant one kind or the other — a quota’s carries a limit, a boolean’s carries null — and flipping it would reinterpret rows already priced into live subscriptions. A feature that should have been the other kind is a new feature. `unit` is what a quota is counted in and is refused on a boolean.",
-        "parameters": [
-          {
-            "name": "product",
-            "in": "query",
-            "required": true,
-            "description": "The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership.",
-            "schema": {
-              "type": "string",
-              "maxLength": 64
-            }
-          }
-        ],
+        "description": "Platform-wide, under `staff.features.manage`: there is one list and a product's catalogue picks from it. `kind` is chosen here because it can never change: every grant written against a feature meant one kind or the other — a quota’s carries a limit, a boolean’s carries null — and flipping it would reinterpret rows already priced into live subscriptions. A feature that should have been the other kind is a new feature. `unit` is what a quota is counted in and is refused on a boolean.",
         "requestBody": {
           "required": true,
           "content": {
@@ -19793,7 +19829,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "`FEATURE_CODE_TAKEN`.",
+            "description": "`FEATURE_CODE_TAKEN` — the code is already on the platform's list, retired or not.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19817,14 +19853,14 @@
         }
       }
     },
-    "/api/v1/staff/catalogue/features/{featureId}": {
+    "/api/v1/staff/features/{featureId}": {
       "patch": {
         "tags": [
           "Staff"
         ],
         "operationId": "renameFeature",
-        "summary": "Correct what a feature is called, in every language",
-        "description": "The only thing about a feature that may change. Its code is how grants and entitlements name it; its kind decides how every grant already written against it is read.",
+        "summary": "Correct a feature's wording, and whether it may still be granted",
+        "description": "Its code is how grants and entitlements name it; its kind decides how every grant already written against it is read. Neither may change. `active` false retires it — no new offer may grant it, and every entitlement already resting on it is untouched, which is why retiring exists instead of a delete.",
         "parameters": [
           {
             "name": "featureId",
@@ -19833,16 +19869,6 @@
             "schema": {
               "type": "string",
               "format": "uuid"
-            }
-          },
-          {
-            "name": "product",
-            "in": "query",
-            "required": true,
-            "description": "The product code whose catalogue this is. A staff route resolves no product of its own — a platform role grants no membership.",
-            "schema": {
-              "type": "string",
-              "maxLength": 64
             }
           }
         ],
@@ -19879,6 +19905,10 @@
                       "de": { "$ref": "#/components/schemas/TranslatedName" },
                       "it": { "$ref": "#/components/schemas/TranslatedName" }
                     }
+                  },
+                  "active": {
+                    "type": "boolean",
+                    "description": "Whether a new offer may grant it. Absent leaves it alone. False retires it, which takes nothing away from anybody already entitled."
                   }
                 }
               }

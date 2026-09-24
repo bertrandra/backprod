@@ -307,6 +307,17 @@ Offers are versioned and historical offers must not be destructively rewritten.
 
 Authorization must use capabilities/entitlements, not scattered plan-name checks.
 
+A **feature** is a word the platform and a product's code have agreed on, so
+there is one list of them, kept by the platform under `staff.features.manage`
+(ADR-052). A product's catalogue picks from that list; a **grant** is still a
+product's, because it lives on an offer version. Never re-scope a feature to a
+product: `max_projects` meaning one thing on one product and another somewhere
+else is exactly what the code reading it by name cannot survive.
+
+A feature is never deleted — offer versions and live entitlements name it — so
+it is **retired** (`active = false`): no new offer may grant it, and everybody
+already entitled keeps what they bought.
+
 Commitment terms — total term, commitment period, cancellation policy — are
 in the section below.
 

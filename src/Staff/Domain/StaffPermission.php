@@ -46,6 +46,17 @@ final class StaffPermission
     public const CATALOG_MANAGE = 'staff.catalog.manage';
 
     /**
+     * Keeping the platform's one list of features (2026-09-24) —
+     * PLATFORM_ADMIN alone.
+     *
+     * Apart from `staff.catalog.manage`, which prices a product: a feature
+     * is a word the platform and a product's code have agreed on, and the
+     * code that reads `max_projects` depends on that word existing exactly
+     * once. Somebody lent a price list must not be able to invent one.
+     */
+    public const FEATURES_MANAGE = 'staff.features.manage';
+
+    /**
      * Seeing every product on the platform, and creating or retiring one —
      * PLATFORM_ADMIN alone.
      *

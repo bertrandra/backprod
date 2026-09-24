@@ -33,7 +33,7 @@ final class ListFeaturesController implements RouteHandler
         // says which one. The codes, kinds and units are not — they are the
         // API's vocabulary and stay English everywhere.
         return new JsonResponse(
-            ['features' => CataloguePresenter::features($this->catalogue->features($context->productId), $context->locale)],
+            ['features' => CataloguePresenter::features($this->catalogue->features(), $context->locale)],
             200,
         );
     }

@@ -56,6 +56,12 @@ final class CatalogueDesk
      * Plans and features together, because an offer is built out of both and a
      * screen that fetched them separately would render half a form.
      *
+     * The features are the platform's one list (2026-09-24) and this desk no
+     * longer writes them — {@see FeatureDesk} does, under
+     * `staff.features.manage`. What stays here is a product's own price
+     * list: its plans, its offers, and which of the platform's features
+     * those offers grant.
+     *
      * @return array{product: Product, plans: list<Plan>, features: list<Feature>}
      */
     public function catalogue(string $productCode): array
@@ -65,7 +71,7 @@ final class CatalogueDesk
         return [
             'product' => $product,
             'plans' => $this->catalogue->plansFor($product->id),
-            'features' => $this->catalogue->featuresFor($product->id),
+            'features' => $this->catalogue->features(),
         ];
     }
 
@@ -114,63 +120,6 @@ final class CatalogueDesk
         );
 
         return $plan;
-    }
-
-    public function createFeature(
-        StaffIdentity $staff,
-        string $productCode,
-        string $code,
-        string $name,
-        string $kind,
-        ?string $unit,
-    ): Feature {
-        $product = $this->product($productCode);
-        $feature = $this->administration->createFeature($product->id, $code, $name, $kind, $unit);
-
-        $this->record($staff, $product, 'CREATE', 'feature', $feature->id, [
-            'code' => $feature->code,
-            'kind' => $feature->kind,
-        ]);
-
-        return $feature;
-    }
-
-    /**
-     * @param array<string, array{name?: ?string, description?: ?string}>|null $translations
-     */
-    public function renameFeature(
-        StaffIdentity $staff,
-        string $productCode,
-        string $featureId,
-        string $name,
-        bool $setDescription = false,
-        ?string $description = null,
-        ?array $translations = null,
-    ): Feature {
-        $product = $this->product($productCode);
-        $feature = $this->administration->renameFeature(
-            $product->id,
-            $featureId,
-            $name,
-            $setDescription,
-            $description,
-            $translations,
-        );
-
-        if ($feature === null) {
-            throw new NotFoundException('Feature not found.', [], 'FEATURE_NOT_FOUND');
-        }
-
-        // The languages it now says something in, rather than what it says
-        // in them: a trail is for "who changed this, and roughly what", and
-        // four paragraphs of marketing copy in an audit row is neither
-        // readable nor anybody's business later.
-        $this->record($staff, $product, 'RENAME', 'feature', $feature->id, [
-            'name' => $feature->name,
-            'translated' => array_keys($feature->translations),
-        ]);
-
-        return $feature;
     }
 
     public function createOffer(
