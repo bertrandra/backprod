@@ -1,10 +1,9 @@
 # A field the operator writes in five languages, and a code they never type
 
-**Status:** specification, 2026-09-24. Steps 1–5 of §8 are built: the
-mechanism on a feature's name and description, offer names, the one
-platform-wide list of features (ADR-052), the picker, and
-`PUT /api/v1/product/capabilities`. Step 6 — the demonstration translated
-— is not.
+**Status:** built, 2026-09-24. All six steps of §8 are done: the mechanism
+on a feature's name and description, offer names, the one platform-wide
+list of features (ADR-052), the picker, `PUT /api/v1/product/capabilities`,
+and the demonstration world translated.
 
 **Step 4 needed no code of its own**, and that is worth recording rather
 than quietly ticking off. It asked that a product's catalogue pick from the
@@ -225,12 +224,21 @@ will reach for "offers are immutable" and stop there.
 
 ## 6. The demonstration speaks five languages
 
-The demo world writes its catalogue in English today. It gains the four
-translations for every feature name, every feature description and every
-offer name — Plan's seven capabilities included — so that switching the
-interface to French shows a French catalogue rather than an English one
-with French buttons around it. That is also the only way anybody notices
-this works.
+The demo world wrote its catalogue in English. It now seeds the four
+translations for every feature name and every offer name — Plan's eight
+capabilities and its meter included — so that switching the interface to
+French shows a French catalogue rather than an English one with French
+buttons around it. That is also the only way anybody notices this works.
+
+Descriptions exist where a description earns its place: the four features
+every catalogue grants, which are what a customer reads on a pricing page.
+What `plan.terrasse` *does* is Plan's documentation, not the platform's, so
+that one is named in five languages and explained in none.
+
+The seeder **refuses a world with a translation missing**
+(`DemoFixtures::verify`). A feature seeded without one still renders — in
+English — so nothing on screen would say this had quietly stopped working,
+which is exactly the kind of silence an invariant is for.
 
 ## 7. What must never happen
 
