@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { Schemas } from '@/api/client';
 import { useApiClient } from '@/app/providers/ApiProvider';
+import { currentLocale } from '@/i18n';
 
 import { keys } from './keys';
 import { toApiError } from './session';
@@ -34,14 +35,27 @@ export type ShowcaseBlockInput = Schemas['ShowcaseBlockInput'];
  */
 export function usePublicShowcase(productCode: string | null) {
   const client = useApiClient();
+  // Read at call time and **part of the key**, so switching language
+  // refetches instead of showing the previous one's story until something
+  // else invalidates it. `currentLocale()` is the language the reader is
+  // actually reading in, which is what the picker on the storefront sets.
+  const locale = currentLocale();
 
   return useQuery({
-    queryKey: keys.showcase.public(productCode ?? ''),
+    queryKey: keys.showcase.public(productCode ?? '', locale),
     enabled: productCode !== null && productCode !== '',
     queryFn: async (): Promise<Showcase | null> => {
       const { data, error, response } = await client.GET(
         '/api/v1/public/products/{code}/showcase',
-        { params: { path: { code: productCode ?? '' } } },
+        {
+          params: {
+            path: { code: productCode ?? '' },
+            // A header and not `?lang=`, which ADR-050 removed: a query
+            // parameter travels in a link, so a shared page could impose a
+            // language on whoever opened it next. A header cannot.
+            header: { 'Accept-Language': locale },
+          },
+        },
       );
 
       if (response.status === 404) {
@@ -125,6 +139,41 @@ export function useWriteProductStory(productId: string) {
     }
 
     return data.blocks;
+  });
+}
+
+/**
+ * A picture for the product's page.
+ *
+ * **The bytes are the body**, as `uploadAsset` does it: no form to parse,
+ * no boundary to get wrong, and `X-Filename` for the label. The generated
+ * client is still the only door — the body is a `File`, which `fetch`
+ * sends as-is.
+ *
+ * It does **not** invalidate the story: uploading a picture does not put
+ * it on a band. Choosing which band carries it is the next act, and it is
+ * saved with the rest of the story.
+ */
+export function useUploadShowcaseAsset(productId: string) {
+  const client = useApiClient();
+
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const { data, error, response } = await client.POST(
+        '/api/v1/staff/products/{productId}/assets',
+        {
+          params: { path: { productId }, header: { 'X-Filename': file.name } },
+          body: file as unknown as string,
+          bodySerializer: (body: unknown) => body as BodyInit,
+        },
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.asset;
+    },
   });
 }
 

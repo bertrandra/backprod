@@ -32,6 +32,7 @@ final class ShowStoryController implements RouteHandler
         StaffRoute::permitted($request, StaffPermission::PRODUCTS_MANAGE);
 
         $story = $this->desk->story(StaffRoute::id($request, 'productId'));
+        $code = $story['product']->code;
 
         return new JsonResponse([
             'product' => [
@@ -41,7 +42,7 @@ final class ShowStoryController implements RouteHandler
             ],
             'published_at' => $story['published_at']?->format('c'),
             'blocks' => array_map(
-                static fn (ShowcaseBlock $block): array => ShowcasePresenter::block($block),
+                static fn (ShowcaseBlock $block): array => ShowcasePresenter::block($block, $code),
                 $story['blocks'],
             ),
         ], 200);

@@ -43,10 +43,37 @@ final class ShowcasePresenter
                     'block' => $block->block,
                     'position' => $block->position,
                     'content' => (object) $block->contentIn($locale),
+                    // An **address**, not an id: the page draws this into an
+                    // `<img src>`, and a client that had to compose the URL
+                    // would be a second place the route is spelled. Null
+                    // where the band carries no picture, which is most of
+                    // them.
+                    'image' => self::pictureAt($showcase->code, $block->assetId),
                 ],
                 $showcase->blocks,
             ),
         ];
+    }
+
+    /**
+     * Where a published page's picture lives.
+     *
+     * Built from the product's code rather than its id, because that is
+     * what the public route takes — a stranger has no session to resolve an
+     * id from — and because the same code is already in the address they
+     * are reading.
+     */
+    private static function pictureAt(string $code, ?string $assetId): ?string
+    {
+        if ($assetId === null) {
+            return null;
+        }
+
+        return sprintf(
+            '/api/v1/public/products/%s/showcase/assets/%s',
+            rawurlencode($code),
+            rawurlencode($assetId),
+        );
     }
 
     /**
@@ -55,7 +82,7 @@ final class ShowcasePresenter
      *
      * @return array<string, mixed>
      */
-    public static function block(ShowcaseBlock $block): array
+    public static function block(ShowcaseBlock $block, string $code): array
     {
         return [
             'id' => $block->id,
@@ -69,6 +96,14 @@ final class ShowcasePresenter
                 static fn (array $content): object => (object) $content,
                 $block->translations,
             ),
+            // The **id** here, unlike the public read: the console is
+            // choosing which picture a band carries, and what it sends back
+            // on the next save is the id.
+            'asset_id' => $block->assetId,
+            // And the address beside it, so the console's preview does not
+            // compose one. A URL written by hand in a screen is a second
+            // place the route is spelled, and the one that goes stale.
+            'image' => self::pictureAt($code, $block->assetId),
         ];
     }
 }

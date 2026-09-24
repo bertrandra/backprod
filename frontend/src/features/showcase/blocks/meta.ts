@@ -50,6 +50,21 @@ export const AUTHORED_BANDS = ['HEADLINE', 'STEPS', 'USE_CASE', 'PROOF', 'QUESTI
 
 export type AuthoredBandKind = (typeof AUTHORED_BANDS)[number];
 
+/**
+ * The bands that show a picture.
+ *
+ * Here rather than inferred from "does this band have an `alt` field",
+ * because those are two different facts that happen to coincide today: a
+ * band could carry a picture nobody has to describe, or a description of
+ * something that is not a picture. Stated once, read by the console's
+ * editor and by nothing else.
+ */
+export const BANDS_WITH_A_PICTURE: readonly AuthoredBandKind[] = ['HEADLINE', 'PROOF'];
+
+export function carriesAPicture(kind: AuthoredBandKind): boolean {
+  return BANDS_WITH_A_PICTURE.includes(kind);
+}
+
 /** The bands in the order they are read, which is the order they are rendered. */
 export function bandsInOrder(): readonly BandKind[] {
   return (Object.keys(BAND_META) as BandKind[]).sort(

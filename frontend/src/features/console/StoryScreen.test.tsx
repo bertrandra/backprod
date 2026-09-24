@@ -126,6 +126,9 @@ describe('saving', () => {
           position: 10,
           content: { headline: 'Draw a terrace', subline: 'And print the file.' },
           translations: { fr: { headline: 'Dessinez une terrasse' } },
+          // Always sent, null included: the story is replaced wholly, so
+          // "no picture" has to be said rather than left out.
+          asset_id: null,
         },
       ],
     });

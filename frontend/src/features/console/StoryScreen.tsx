@@ -5,7 +5,7 @@ import {
   BandFieldEditor,
   BAND_FIELDS,
 } from '@/features/showcase/blocks/editors';
-import { BAND_META, type AuthoredBandKind } from '@/features/showcase/blocks/meta';
+import { BAND_META, carriesAPicture, type AuthoredBandKind } from '@/features/showcase/blocks/meta';
 import {
   useProductStory,
   usePublishProductStory,
@@ -18,6 +18,8 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { Section } from '@/ui/Page';
+
+import { BandPicture } from './BandPicture';
 import type { Translated } from '@/ui/TranslatedField';
 import { t } from '@/i18n';
 
@@ -149,6 +151,21 @@ export function StoryScreen({ productId }: { productId: string }) {
                     }
                   />
                 ))}
+
+                {carriesAPicture(block.block) && (
+                  <BandPicture
+                    productId={productId}
+                    image={block.image}
+                    assetId={block.assetId}
+                    onChoose={(assetId) =>
+                      setDraft((current) =>
+                        (current ?? []).map((candidate, at) =>
+                          at === index ? { ...candidate, assetId } : candidate,
+                        ),
+                      )
+                    }
+                  />
+                )}
               </li>
             ))}
           </ul>
@@ -196,6 +213,9 @@ interface DraftBlock {
   readonly key: string;
   readonly block: AuthoredBandKind;
   readonly fields: Record<string, Translated>;
+  readonly assetId: string | null;
+  /** Where it lives, from the server. Null until the page is published. */
+  readonly image: string | null;
 }
 
 let minted = 0;
@@ -207,6 +227,8 @@ function blank(block: AuthoredBandKind): DraftBlock {
     key: `new-${String(minted)}`,
     block,
     fields: Object.fromEntries(BAND_FIELDS[block].map((field) => [field.name, EMPTY])),
+    assetId: null,
+    image: null,
   };
 }
 
@@ -218,6 +240,8 @@ function toDraft(block: ShowcaseBlock): DraftBlock {
   return {
     key: block.id,
     block: kind,
+    assetId: block.asset_id ?? null,
+    image: block.image ?? null,
     fields: Object.fromEntries(
       BAND_FIELDS[kind].map((field) => [
         field.name,
@@ -268,6 +292,7 @@ function toInput(block: DraftBlock, index: number): ShowcaseBlockInput {
     block: block.block,
     position: (index + 1) * 10,
     content,
+    asset_id: block.assetId,
     ...(Object.keys(translations).length === 0 ? {} : { translations }),
   };
 }

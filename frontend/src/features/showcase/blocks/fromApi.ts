@@ -3,6 +3,7 @@ import type { Showcase } from '@/queries/showcase';
 import {
   NO_CONTENT,
   type ShowcaseContent,
+  type ShowcaseImage,
   type ShowcaseRow,
 } from './content';
 
@@ -42,7 +43,7 @@ export function contentFrom(showcase: Showcase | null | undefined): ShowcaseCont
 
       const content = read(block.content);
 
-      return content === null ? [] : [{ id: block.id, content, image: null }];
+      return content === null ? [] : [{ id: block.id, content, image: pictureOf(block) }];
     });
 
   return {
@@ -96,6 +97,30 @@ export function isRetired(showcase: Showcase | null | undefined): boolean {
     showcase.product !== null &&
     showcase.product.active === false
   );
+}
+
+/**
+ * The picture a band carries, with the words that describe it.
+ *
+ * **`alt` is a band field**, not a column on the picture, so it goes
+ * through the same translation mechanism as every sentence on the page
+ * rather than needing a second one of its own. Empty where nobody wrote
+ * one, which `ShowcaseImageFrame` reads as decorative — the honest answer
+ * for a screenshot whose caption is already beside it.
+ *
+ * The **ratio is not known here** and is not guessed: the server stores
+ * bytes, not dimensions. The frame reserves 16:10 so nothing jumps while
+ * the image loads, and the image fills it. Measuring on upload would be a
+ * column and an image library for a box that is right either way.
+ */
+function pictureOf(block: { image?: string | null; content: Record<string, unknown> }): ShowcaseImage | null {
+  const url = typeof block.image === 'string' && block.image !== '' ? block.image : null;
+
+  if (url === null) {
+    return null;
+  }
+
+  return { url, alt: text(block.content.alt) ?? '', ratio: 16 / 10 };
 }
 
 /** A field that says something, or nothing at all. Never an empty string. */

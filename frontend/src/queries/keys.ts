@@ -57,7 +57,13 @@ export const keys = {
    */
   showcase: {
     all: ['showcase'] as const,
-    public: (code: string) => ['showcase', 'public', code] as const,
+    /**
+     * Keyed by language as well as by code: switching language is a
+     * different answer, not a stale one, so the story refetches rather
+     * than sitting in the previous language until something else
+     * invalidates it.
+     */
+    public: (code: string, locale: string) => ['showcase', 'public', code, locale] as const,
     story: (productId: string) => ['showcase', 'story', productId] as const,
   },
   catalogue: {

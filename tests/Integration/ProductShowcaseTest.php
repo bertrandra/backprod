@@ -200,6 +200,38 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         self::assertSame(404, $this->public()->getStatusCode());
     }
 
+    public function testAStrangerReadsTheirOwnLanguage(): void
+    {
+        $this->write([
+            [
+                'block' => 'HEADLINE',
+                'content' => ['headline' => 'Draw a terrace', 'subline' => 'And print the file.'],
+                // French says the headline and nothing else, which is the
+                // ordinary state of a page somebody is working through.
+                'translations' => ['fr' => ['headline' => 'Dessinez une terrasse']],
+            ],
+        ]);
+        $this->publish(true);
+
+        // A header, not `?lang=` (ADR-050): a query parameter travels in a
+        // link, so a shared page could impose a language on whoever opened
+        // it next. A header cannot be shared by accident.
+        $french = $this->headlineOf($this->public('fr'));
+
+        self::assertSame('Dessinez une terrasse', $french['headline'] ?? null);
+        // **Field by field**: the French headline with the English subline,
+        // because answering the whole English row over one missing field
+        // would throw away the sentence that *was* translated.
+        self::assertSame('And print the file.', $french['subline'] ?? null);
+
+        // A language nobody wrote reads English, and so does a header the
+        // platform does not know — a shop window does not refuse people
+        // over an `Accept-Language`.
+        self::assertSame('Draw a terrace', $this->headlineOf($this->public('de'))['headline'] ?? null);
+        self::assertSame('Draw a terrace', $this->headlineOf($this->public('kl'))['headline'] ?? null);
+        self::assertSame('Draw a terrace', $this->headlineOf($this->public())['headline'] ?? null);
+    }
+
     public function testNothingIsNotAStory(): void
     {
         $refused = $this->publish(true);
@@ -246,6 +278,80 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         // What lets the prices band say "No longer sold" rather than
         // showing an empty band or a Buy that leads to a refusal.
         self::assertFalse($product['active'] ?? null);
+    }
+
+    // --- The pictures -----------------------------------------------------------
+
+    public function testAPictureIsPublicWhileThePageIsAndNotBefore(): void
+    {
+        $asset = $this->upload(self::png(), 'terrace.png');
+
+        self::assertSame(201, $asset->getStatusCode(), (string) $asset->getBody());
+
+        $picture = $this->decode($asset)['asset'] ?? null;
+        self::assertIsArray($picture);
+        // The sniffed type, never the claim: the upload sent no
+        // Content-Type at all and the bytes are a PNG.
+        self::assertSame('image/png', $picture['content_type'] ?? null);
+
+        $assetId = $picture['id'] ?? null;
+        self::assertIsString($assetId);
+
+        $this->write([
+            [
+                'block' => 'HEADLINE',
+                'content' => ['headline' => 'Draw a terrace', 'alt' => 'The terrace, drawn'],
+                'asset_id' => $assetId,
+            ],
+        ]);
+
+        // A draft's picture is nobody's: the page is not published, so the
+        // bytes are not served.
+        self::assertSame(404, $this->picture($assetId)->getStatusCode());
+
+        $this->publish(true);
+
+        $served = $this->picture($assetId);
+
+        self::assertSame(200, $served->getStatusCode());
+        self::assertSame('image/png', $served->getHeaderLine('Content-Type'));
+        // Never improved upon by a browser, and never rendered as a
+        // document: this is the platform's own origin.
+        self::assertSame('nosniff', $served->getHeaderLine('X-Content-Type-Options'));
+        self::assertSame(self::png(), (string) $served->getBody());
+
+        // And the page hands the reader an address rather than an id.
+        $showcase = $this->decode($this->public())['showcase'] ?? null;
+        self::assertIsArray($showcase);
+        $blocks = $showcase['blocks'] ?? null;
+        self::assertIsArray($blocks);
+        $first = $blocks[0] ?? null;
+        self::assertIsArray($first);
+        self::assertSame(
+            '/api/v1/public/products/plan/showcase/assets/' . $assetId,
+            $first['image'] ?? null,
+        );
+
+        // Taken down, and the picture goes with it.
+        $this->publish(false);
+        self::assertSame(404, $this->picture($assetId)->getStatusCode());
+    }
+
+    public function testAPageShowsPicturesAndNotWhateverWasSent(): void
+    {
+        // A zip announces itself as nothing at all; the bytes are what is
+        // read. There is no such thing as an `<img src="…zip">`, so this is
+        // refused before anything is written — and said with the type that
+        // was found rather than with a constraint's name.
+        $refused = $this->upload("PK\x03\x04" . str_repeat("\0", 64), 'archive.zip');
+
+        self::assertSame(422, $refused->getStatusCode());
+        self::assertSame('NOT_A_PICTURE', $this->errorOf($refused)['code'] ?? null);
+    }
+
+    public function testOnlyThePlatformUploadsAPicture(): void
+    {
+        self::assertSame(403, $this->upload(self::png(), 'terrace.png', 'sam-token')->getStatusCode());
     }
 
     // --- The trail --------------------------------------------------------------
@@ -324,10 +430,78 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         );
     }
 
-    /** No token at all: this is the page a stranger reads. */
-    private function public(): ResponseInterface
+    /**
+     * No token at all: this is the page a stranger reads.
+     *
+     * `$language` goes in `Accept-Language`, because a stranger has no
+     * profile to read a language from and `?lang=` was removed by ADR-050 —
+     * a query parameter travels in a shared link and would impose a
+     * language on whoever opened it next.
+     */
+    private function public(?string $language = null): ResponseInterface
     {
-        return $this->request('GET', '/api/v1/public/products/plan/showcase');
+        return $this->request(
+            'GET',
+            '/api/v1/public/products/plan/showcase',
+            $language === null ? [] : ['Accept-Language' => $language],
+        );
+    }
+
+    /**
+     * The resolved content of the published page's headline band.
+     *
+     * @return array<string, mixed>
+     */
+    private function headlineOf(ResponseInterface $response): array
+    {
+        self::assertSame(200, $response->getStatusCode());
+
+        $showcase = $this->decode($response)['showcase'] ?? null;
+        self::assertIsArray($showcase);
+
+        $blocks = $showcase['blocks'] ?? null;
+        self::assertIsArray($blocks);
+
+        $first = $blocks[0] ?? null;
+        self::assertIsArray($first);
+        self::assertSame('HEADLINE', $first['block'] ?? null);
+
+        $content = $first['content'] ?? null;
+        self::assertIsArray($content);
+
+        /** @var array<string, mixed> $content */
+        return $content;
+    }
+
+    /** Nor for its pictures. */
+    private function picture(string $assetId): ResponseInterface
+    {
+        return $this->request('GET', '/api/v1/public/products/plan/showcase/assets/' . $assetId);
+    }
+
+    private function upload(string $bytes, string $filename, string $token = 'ola-token'): ResponseInterface
+    {
+        // The bytes **are** the body, and no Content-Type is sent: whatever
+        // a request claims, the stored type is the one sniffed.
+        return $this->request(
+            'POST',
+            '/api/v1/staff/products/' . $this->plan . '/assets',
+            ['Authorization' => 'Bearer ' . $token, 'X-Filename' => $filename],
+            $bytes,
+        );
+    }
+
+    /** The smallest PNG that is really a PNG, so the sniffer agrees. */
+    private static function png(): string
+    {
+        $bytes = base64_decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+            true,
+        );
+
+        self::assertIsString($bytes);
+
+        return $bytes;
     }
 
     private function appoint(string $userId, string $role): void

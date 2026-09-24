@@ -21,7 +21,7 @@ final class PostgresProductShowcase implements ProductShowcase
     {
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
-                SELECT id, block, position, content
+                SELECT id, block, position, content, asset_id
                   FROM product_showcase
                  WHERE product_id = :product
                  ORDER BY block, position
@@ -77,8 +77,8 @@ final class PostgresProductShowcase implements ProductShowcase
             foreach ($blocks as $block) {
                 $id = $this->connection->fetchOne(
                     <<<'SQL'
-                        INSERT INTO product_showcase (product_id, block, position, content)
-                        VALUES (:product, :block, :position, CAST(:content AS jsonb))
+                        INSERT INTO product_showcase (product_id, block, position, content, asset_id)
+                        VALUES (:product, :block, :position, CAST(:content AS jsonb), :asset)
                         RETURNING id
                         SQL,
                     [
@@ -86,6 +86,7 @@ final class PostgresProductShowcase implements ProductShowcase
                         'block' => $block->block,
                         'position' => $block->position,
                         'content' => self::json($block->content),
+                        'asset' => $block->assetId,
                     ],
                 );
 
@@ -184,6 +185,7 @@ final class PostgresProductShowcase implements ProductShowcase
                 Row::integer($row, 'position'),
                 self::decode(Row::nullableString($row, 'content')),
                 $translations[Row::string($row, 'id')] ?? [],
+                Row::nullableString($row, 'asset_id'),
             ),
             $rows,
         );

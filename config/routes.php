@@ -107,6 +107,7 @@ use App\Product\Controller\ProductFeaturesController;
 use App\Product\Controller\ProductTenantEntitlementsController;
 use App\Product\Controller\ProductTenantMembersController;
 use App\Product\Controller\ProductTenantUsageController;
+use App\Product\Controller\PublicShowcaseAssetController;
 use App\Product\Controller\PublicShowcaseController;
 use App\Product\Controller\ShowProductController;
 use App\Project\Controller\CreateProjectController;
@@ -199,6 +200,7 @@ use App\Staff\Controller\UpdatePlanController;
 use App\Staff\Controller\UpdateProductController;
 use App\Staff\Controller\UpdateStaffProfileController;
 use App\Staff\Controller\UpdateTenantController;
+use App\Staff\Controller\UploadShowcaseAssetController;
 use App\Staff\Controller\WithdrawTenantEntitlementController;
 use App\Staff\Controller\WriteStoryController;
 use App\Storage\Controller\CreateAssetLinkController;
@@ -293,6 +295,10 @@ return static function (RouteCollector $routes): void {
     // session to resolve an id from; 404 for a draft, so an unpublished
     // page is not a way to learn that a product exists.
     $routes->addRoute('GET', '/api/v1/public/products/{code}/showcase', PublicShowcaseController::class);
+    // Its pictures, public because the page is and only while it is: the
+    // read joins the product and answers 404 the moment the story comes
+    // down. Not a signed link — the reader has no session to mint one with.
+    $routes->addRoute('GET', '/api/v1/public/products/{code}/showcase/assets/{assetId}', PublicShowcaseAssetController::class);
     // The organisation at a URL root (2026-09-17), before any session.
     $routes->addRoute('GET', '/api/v1/public/tenant', PublicTenantController::class);
     // The demonstration page (2026-09-18): 404 until the console switches it on.
@@ -654,6 +660,7 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/staff/products/{productId}/showcase', ShowStoryController::class);
     $routes->addRoute('PUT', '/api/v1/staff/products/{productId}/showcase', WriteStoryController::class);
     $routes->addRoute('POST', '/api/v1/staff/products/{productId}/showcase/publish', PublishStoryController::class);
+    $routes->addRoute('POST', '/api/v1/staff/products/{productId}/assets', UploadShowcaseAssetController::class);
 
     // The demonstration world, rebuilt from the console. Behind a permission
     // of its own, and refused while a product that is not the demo's exists.

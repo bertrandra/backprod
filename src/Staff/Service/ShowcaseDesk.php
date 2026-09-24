@@ -58,9 +58,16 @@ final class ShowcaseDesk
     }
 
     /**
+     * Replaces the story, and says which product it belongs to.
+     *
+     * The code comes back with the blocks because the presenter needs it
+     * to build a picture's address, and this method has already looked the
+     * product up to check it exists — asking twice would be two reads for
+     * one fact.
+     *
      * @param list<ShowcaseBlock> $blocks
      *
-     * @return list<ShowcaseBlock>
+     * @return array{code: string, blocks: list<ShowcaseBlock>}
      */
     public function write(StaffIdentity $staff, string $productId, array $blocks): array
     {
@@ -76,7 +83,7 @@ final class ShowcaseDesk
             'translated' => self::languages($written),
         ]);
 
-        return $written;
+        return ['code' => $product->code, 'blocks' => $written];
     }
 
     public function publish(StaffIdentity $staff, string $productId, bool $published): ?PublishedShowcase

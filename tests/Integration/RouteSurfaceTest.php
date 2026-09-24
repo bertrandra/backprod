@@ -84,6 +84,9 @@ final class RouteSurfaceTest extends ApiTestCase
         // which is the same non-answer an unknown code gets, so the route
         // reveals nothing about what the platform runs.
         'GET /api/v1/public/products/{code}/showcase',
+        // And its pictures, on exactly the same ground: served while the
+        // page is published, 404 the moment it is not.
+        'GET /api/v1/public/products/{code}/showcase/assets/{assetId}',
         'GET /api/v1/public/tenant',
         // The demonstration page: a 404 until switched on, so the route itself
         // reveals nothing.

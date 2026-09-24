@@ -3007,6 +3007,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/products/{code}/showcase/assets/{assetId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A picture on a published product page
+         * @description Unauthenticated (2026-09-24). Public because the page is, and only while it is: the read joins the product and answers 404 the moment the story is taken down. One non-answer for an unpublished product, an unknown id and another product’s picture, so an id is not a way to ask what a draft contains.
+         *
+         *     Not a signed link, unlike `downloadAsset`: that one serves a tenant’s file to somebody handed a link by a person who may see it, and the reader here has no session to mint one with. What is served is marketing material somebody chose to publish.
+         *
+         *     The **sniffed** content type is what is sent, never a claim from the upload, with `nosniff` so a browser does not improve on it. Cached immutably: the id names *these* bytes, and a new picture is a new id.
+         */
+        get: operations["getPublicShowcaseAsset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/tenant": {
         parameters: {
             query?: never;
@@ -3367,6 +3391,30 @@ export interface paths {
          */
         put: operations["writeProductStory"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/products/{productId}/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a picture for the product’s page
+         * @description The **bytes are the body** — a raw body rather than multipart, exactly as `uploadAsset` does: there is no form to parse, no boundary to get wrong, and the request is the file. `X-Filename` carries the label, which is the only thing a multipart part would have added, and the label is for display and never for addressing.
+         *
+         *     The request’s own Content-Type is not read at all; the type stored and later served is the one **sniffed from the bytes**. Pictures only — PNG, JPEG, GIF, WebP — because this is drawn into an `<img>` on a public page and there is no such thing as an `<img src="…zip">`. SVG is refused for the reason the shared policy gives: an image to a person, a script container to a browser, served from the platform’s own origin.
+         *
+         *     `staff.products.manage`, like the rest of the story.
+         */
+        post: operations["uploadShowcaseAsset"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3941,6 +3989,8 @@ export interface components {
             after?: string;
             /** @description PROOF: what the picture shows. */
             caption?: string;
+            /** @description HEADLINE and PROOF: what the picture shows, for somebody who cannot see it. A band field rather than a column on the picture, so it travels through the same translation mechanism as every other sentence on the page. */
+            alt?: string;
             /** @description QUESTION: what somebody asks before buying. */
             question?: string;
             /** @description QUESTION: the answer, in two lines. */
@@ -3958,6 +4008,11 @@ export interface components {
              * @default 10
              */
             position?: number;
+            /**
+             * Format: uuid
+             * @description A picture uploaded to this product, or null for none. Deleting the picture leaves the band and its words: the foreign key is ON DELETE SET NULL, because tidying an image must not delete a caption.
+             */
+            asset_id?: string | null;
             content: components["schemas"]["ShowcaseBlockContent"];
             /** @description By language. English is refused — it lives on the block itself, and a second home for it would let the two disagree. A language may fill any subset of the band's fields. */
             translations?: {
@@ -3975,6 +4030,13 @@ export interface components {
             block: "HEADLINE" | "STEPS" | "USE_CASE" | "PROOF" | "QUESTION";
             position: number;
             content: components["schemas"]["ShowcaseBlockContent"];
+            /**
+             * Format: uuid
+             * @description The picture this band carries. An id, because what the console sends back on the next save is the id.
+             */
+            asset_id: string | null;
+            /** @description And its address, so the console's preview does not compose one. A URL written by hand in a screen is a second place the route is spelled, and the one that goes stale. It resolves only once the page is published, which is what makes the picture readable at all. */
+            image: string | null;
             /** @description An empty object means nobody has translated this band yet, which is the ordinary case and not a gap. */
             translations: {
                 fr?: components["schemas"]["ShowcaseBlockContent"];
@@ -3998,6 +4060,8 @@ export interface components {
                 block: "HEADLINE" | "STEPS" | "USE_CASE" | "PROOF" | "QUESTION";
                 position: number;
                 content: components["schemas"]["ShowcaseBlockContent"];
+                /** @description Where the band's picture lives, ready for an <img src>. An address and not an id, because a client that had to compose the URL would be a second place the route is spelled. Null where the band carries no picture, which is most of them. */
+                image?: string | null;
             }[];
         };
         /** @description A feature as the console edits it: the English on the row, and every translation somebody has written beside it — including the incomplete ones, because the console is the only place that can finish them. A customer is answered `Feature` instead, with one name in their own language. */
@@ -12866,7 +12930,10 @@ export interface operations {
     getPublicShowcase: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description The language to answer in. A header and not `?lang=`, which ADR-050 removed on 2026-09-23: a query parameter travels in a link, so a page somebody shared could impose a language on whoever opened it next. A header cannot be shared by accident — it is the reader saying which language they are reading in, now. Absent or unknown answers English, which is the key and the fallback everywhere on this platform. */
+                "Accept-Language"?: "en" | "fr" | "es" | "de" | "it";
+            };
             path: {
                 code: string;
             };
@@ -12883,6 +12950,35 @@ export interface operations {
                     "application/json": {
                         showcase: components["schemas"]["Showcase"];
                     };
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPublicShowcaseAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+                assetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The bytes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": string;
+                    "image/jpeg": string;
+                    "image/gif": string;
+                    "image/webp": string;
                 };
             };
             404: components["responses"]["NotFound"];
@@ -13861,6 +13957,66 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    uploadShowcaseAsset: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description A label, kept to hand back. Never used to address anything. */
+                "X-Filename"?: string;
+            };
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description The picture. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        asset: {
+                            /** Format: uuid */
+                            id: string;
+                            filename: string;
+                            content_type: string;
+                            byte_size: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description `UPLOAD_TOO_LARGE`. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `NOT_A_PICTURE` or `UPLOAD_EMPTY`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

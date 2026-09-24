@@ -178,7 +178,8 @@
       "operations": [
         "showProductStory",
         "writeProductStory",
-        "publishProductStory"
+        "publishProductStory",
+        "uploadShowcaseAsset"
       ]
     },
     "console.admin.features": {
@@ -638,7 +639,8 @@
     }
   },
   "not_in_ui": {
-    "downloadAsset": "Reached by browser navigation on a signed link that createAssetLink produced; the generated client never fetches these bytes itself.",
+    "getPublicShowcaseAsset": "The bytes of a picture on a published product page (2026-09-24). Reached by the browser as an <img src> whose address the *server* composed — both showProductStory and getPublicShowcase answer it as a field — so the generated client never fetches these bytes itself and no screen spells the route. The same story as downloadAsset, minus the signature: the reader has no session to mint one with, and the page is public by the operator's own act.",
+    "downloadAsset":"Reached by browser navigation on a signed link that createAssetLink produced; the generated client never fetches these bytes itself.",
     "einvoiceWebhook": "Server-to-server callback from the e-invoicing platform. No human origin, so no screen.",
     "health": "Monitoring probe consumed by infrastructure, not by a person.",
     "paymentWebhook": "Server-to-server callback from the payment provider. No human origin, so no screen.",

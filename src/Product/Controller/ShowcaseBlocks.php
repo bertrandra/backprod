@@ -8,6 +8,7 @@ use App\Product\Domain\ShowcaseBlock;
 use App\Shared\Exceptions\BadRequestException;
 use App\Shared\Http\JsonBody;
 use App\Shared\Validation\Locale;
+use App\Shared\Validation\Uuid;
 use stdClass;
 
 /**
@@ -44,10 +45,10 @@ final class ShowcaseBlocks
      * @var array<string, array{required: list<string>, optional: list<string>}>
      */
     private const FIELDS = [
-        ShowcaseBlock::HEADLINE => ['required' => ['headline'], 'optional' => ['subline']],
+        ShowcaseBlock::HEADLINE => ['required' => ['headline'], 'optional' => ['subline', 'alt']],
         ShowcaseBlock::STEPS => ['required' => ['title'], 'optional' => ['body']],
         ShowcaseBlock::USE_CASE => ['required' => ['who'], 'optional' => ['before', 'after']],
-        ShowcaseBlock::PROOF => ['required' => ['caption'], 'optional' => []],
+        ShowcaseBlock::PROOF => ['required' => ['caption'], 'optional' => ['alt']],
         ShowcaseBlock::QUESTION => ['required' => ['question', 'answer'], 'optional' => []],
     ];
 
@@ -99,6 +100,12 @@ final class ShowcaseBlocks
             throw self::invalid($index, 'position', 'a positive whole number');
         }
 
+        $assetId = $raw->asset_id ?? null;
+
+        if ($assetId !== null && (!is_string($assetId) || !Uuid::isValid($assetId))) {
+            throw self::invalid($index, 'asset_id', 'the id of a picture uploaded to this product, or null');
+        }
+
         return new ShowcaseBlock(
             // Ignored on the way in: the story is replaced wholly, so a
             // block's id is the database's to mint and never the client's
@@ -108,6 +115,7 @@ final class ShowcaseBlocks
             $position,
             self::content($raw->content ?? null, $kind, $index, true),
             self::translations($raw->translations ?? null, $kind, $index),
+            $assetId,
         );
     }
 

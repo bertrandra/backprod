@@ -43,7 +43,7 @@ final class WriteStoryController implements RouteHandler
     {
         $context = StaffRoute::permitted($request, StaffPermission::PRODUCTS_MANAGE);
 
-        $written = $this->desk->write(
+        $story = $this->desk->write(
             $context->identity,
             StaffRoute::id($request, 'productId'),
             ShowcaseBlocks::of(JsonBody::of($request), 'blocks'),
@@ -51,8 +51,8 @@ final class WriteStoryController implements RouteHandler
 
         return new JsonResponse([
             'blocks' => array_map(
-                static fn (ShowcaseBlock $block): array => ShowcasePresenter::block($block),
-                $written,
+                static fn (ShowcaseBlock $block): array => ShowcasePresenter::block($block, $story['code']),
+                $story['blocks'],
             ),
         ], 200);
     }

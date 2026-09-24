@@ -1,5 +1,3 @@
-import { t } from '@/i18n';
-
 import type { ShowcaseImage } from './blocks/content';
 
 /**
@@ -43,7 +41,14 @@ export function ShowcaseImageFrame({
     >
       <img
         src={image.url}
-        alt={image.alt === '' ? t("A screenshot of the product") : image.alt}
+        // **Empty means decorative**, and is left empty rather than filled
+        // with something invented. A proof band's caption is already beside
+        // the picture, so an `alt` repeating it makes a screen reader say
+        // the same sentence twice; inventing "a screenshot of the product"
+        // would be worse still — it describes nothing and cannot be
+        // skipped. Where a picture does carry meaning of its own, the
+        // operator writes the `alt`, and the console offers the field.
+        alt={image.alt}
         loading={priority ? 'eager' : 'lazy'}
         // The hero's picture is the largest thing in the first frame, so it
         // is fetched with the document rather than after it.

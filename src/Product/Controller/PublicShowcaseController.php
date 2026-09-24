@@ -30,11 +30,17 @@ use Psr\Http\Message\ServerRequestInterface;
  * not the record; what it stops is the prices band having anything to show,
  * and the page says that in words rather than showing a blank.
  *
- * The language is the reader's, from `?lang=`— *no*. `?lang=` was removed
- * on 2026-09-23 (ADR-050) because a shared link could impose a language on
- * whoever opened it next. A stranger has no profile either, so a stranger
- * reads English: the same open question the storefront already has, and it
- * will be settled for both at once.
+ * **The language comes from `Accept-Language`**, and that is the whole of
+ * the answer to a question the specification left open. A stranger has no
+ * profile to read a language from, and `?lang=` was removed on 2026-09-23
+ * (ADR-050) because a query parameter travels in a link — a page somebody
+ * shared could impose a language on whoever opened it next.
+ *
+ * A header cannot be shared by accident. It is the reader saying which
+ * language they are reading in, *now*, which is exactly what the language
+ * picker on the storefront means when somebody uses it. Absent or unknown
+ * answers English, the key and the fallback everywhere else on this
+ * platform.
  */
 final class PublicShowcaseController implements RouteHandler
 {
@@ -51,8 +57,12 @@ final class PublicShowcaseController implements RouteHandler
             throw new NotFoundException('No such page.', [], 'SHOWCASE_NOT_FOUND');
         }
 
+        // `Locale::of` answers the default for anything it does not know,
+        // so a browser's full `fr-FR,fr;q=0.9,en;q=0.8` — or a header
+        // somebody made up — reads as English rather than as an error. The
+        // page is a shop window; it does not refuse people over a header.
         return new JsonResponse(
-            ['showcase' => ShowcasePresenter::page($page, Locale::DEFAULT)],
+            ['showcase' => ShowcasePresenter::page($page, Locale::of($request->getHeaderLine('Accept-Language')))],
             200,
         );
     }
