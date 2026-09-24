@@ -1,10 +1,19 @@
 # A field the operator writes in five languages, and a code they never type
 
-**Status:** specification, 2026-09-24. Steps 1–3 of §8 are built: the
-mechanism on a feature's name and description, offer names, and the one
-platform-wide list of features (ADR-052). Steps 4–6 — the picker, a
-product declaring its own capabilities, and the demonstration translated —
-are not.
+**Status:** specification, 2026-09-24. Steps 1–5 of §8 are built: the
+mechanism on a feature's name and description, offer names, the one
+platform-wide list of features (ADR-052), the picker, and
+`PUT /api/v1/product/capabilities`. Step 6 — the demonstration translated
+— is not.
+
+**Step 4 needed no code of its own**, and that is worth recording rather
+than quietly ticking off. It asked that a product's catalogue pick from the
+list and that a code outside it be refused. Step 3 removed `product_id`
+from `features`, so there is no longer anywhere to type a code *into* a
+product's catalogue: an offer's grants name features from the platform's
+list by id, which is the picker. What remained was the one place a code is
+still sent as text — a product's own server declaring what it gates on —
+and that is step 5, where `FEATURE_CODE_UNKNOWN` lives.
 **Decides:** where a translated catalogue value lives, how one field is
 edited in five languages without a second interface, and where the list of
 feature codes comes from.
@@ -192,10 +201,16 @@ PATCH /api/v1/staff/features/{featureId}       name, description, active,
                                                and their translations      ✓
 GET   /api/v1/staff/products/{id}/catalogue    every translation, for editing
 POST  /api/v1/staff/products/{id}/features     pick a code from the list
-PATCH /api/v1/staff/offers/{offerId}           the name and its translations
+PATCH /api/v1/staff/offers/{offerId}           the name and its translations ✓
 PUT   /api/v1/product/capabilities             a product declares what it gates
-                                               on, checked against the list
+                                               on, checked against the list   ✓
 ```
+
+`POST /api/v1/staff/products/{id}/features` was in this table when it was
+written, and is not built: after step 3 a product's catalogue has no
+feature list of its own to add to. What a product has *built* is declared
+by the product (`PUT /product/capabilities`); what it *sells* is an offer's
+grants. Neither needs a third route.
 
 A translation is written with the thing it translates — `PATCH` takes the
 English and the four others together — rather than through a route of its

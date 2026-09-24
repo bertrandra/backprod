@@ -317,6 +317,32 @@ final class JsonBody
         return $this->requiredStringList($field);
     }
 
+    /**
+     * The same list, where **empty is a value** (2026-09-24).
+     *
+     * `requiredObjectList` refuses `[]` because an empty list there is a
+     * caller that forgot something. Where the field *replaces a set*, empty
+     * is the only way to say "none any more" — a product that stops
+     * shipping its last capability has to be able to declare that — and
+     * refusing it would make removal expressible only through a route whose
+     * whole purpose was removal.
+     *
+     * An absent field is still absent, and everything else goes through the
+     * same validation, so `[1]` and `"nope"` are refused either way.
+     *
+     * @return list<stdClass>
+     */
+    public function optionalObjectList(string $field, int $maximum): array
+    {
+        $value = $this->value($field);
+
+        if ($value === null || $value === []) {
+            return [];
+        }
+
+        return $this->requiredObjectList($field, $maximum);
+    }
+
     private function value(string $field): mixed
     {
         return $this->has($field) ? $this->fields->{$field} : null;

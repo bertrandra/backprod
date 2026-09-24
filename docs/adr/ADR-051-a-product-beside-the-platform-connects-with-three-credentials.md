@@ -211,7 +211,8 @@ product_credentials
   product_id    → products, ON DELETE CASCADE
   key_id        text unique          public half, in the header
   secret_hash   text                 argon2id of the secret; the secret is shown once
-  scopes        text[]               among product.usage.write, product.entitlements.read, product.members.read
+  scopes        text[]               among product.usage.write, product.entitlements.read,
+                                     product.members.read, product.capabilities.write
   label         text                 "plan production", "plan staging"
   created_by    → users              who issued it, from the console
   created_at, expires_at, revoked_at, last_used_at
@@ -258,6 +259,15 @@ POST /api/v1/product/tenants/{tenantId}/usage            product.usage.write
 GET  /api/v1/product/tenants/{tenantId}/members          product.members.read
      who may use this product at this tenant: user id, email, roles —
      never a password hash, never another product's membership
+
+PUT  /api/v1/product/capabilities                        product.capabilities.write
+     { capabilities: [{ code, name, enabled }] } — what this product has
+     built, replacing the set (2026-09-24). The one route that names no
+     tenant: a program saying what it gates on is saying something about
+     itself, so the gate checks the scope alone. Every code must already be
+     on the platform's one list of features (ADR-052) — a program may say
+     what it gates on and may not invent a priced capability — and unknown
+     ones are refused `400 FEATURE_CODE_UNKNOWN` with what may be picked
 ```
 
 A tenant the product's key cannot see — one that does not hold the product

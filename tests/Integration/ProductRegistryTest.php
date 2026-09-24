@@ -195,8 +195,25 @@ final class ProductRegistryTest extends DatabaseTestCase
         return $id;
     }
 
+    /**
+     * A built capability names a word on the platform's list (2026-09-24).
+     *
+     * The list row comes first because `product_features_code_known` says
+     * it must: a product may say what it gates on and may not add to the
+     * vocabulary, which is why this fixture does both explicitly instead of
+     * inventing a code the platform never heard of.
+     */
     private function seedFeature(string $productId, string $code, string $name, bool $enabled): void
     {
+        $this->connection->executeStatement(
+            <<<'SQL'
+                INSERT INTO features (code, name, kind)
+                VALUES (:code, :name, 'BOOLEAN')
+                ON CONFLICT (code) DO NOTHING
+                SQL,
+            ['code' => $code, 'name' => $name],
+        );
+
         $this->connection->executeStatement(
             <<<'SQL'
                 INSERT INTO product_features (product_id, code, name, enabled)
