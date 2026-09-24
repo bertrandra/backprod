@@ -28,37 +28,78 @@ They are one job because they are the same form. The code must come from a
 list; the name must come in five languages; and neither may turn the
 catalogue screen into a translation workbench.
 
-## 2. Where a translated value lives
+## 1.5 Two translation systems, and they must not be confused
 
-**Proposal: a JSONB column beside the field it translates**, not a table of
-translations.
+**The application's own sentences stay in JSON, exactly where they are.**
+Field labels, buttons, hints, empty states, error wording — everything a
+developer wrote — live in `frontend/src/i18n/catalogues/{fr,es,de,it}.json`,
+keyed by the English, shipped with the bundle, checked by `gate:i18n`
+(ADR-050). Nothing below touches them, and nothing below is a reason to
+move one of them into a database.
+
+**What this specification is about is the other kind: words an operator
+typed about their own business.** A feature's name, its description, an
+offer's name, and later a showcase block. They are not in the bundle
+because they are not in the source: they appear when somebody creates an
+offer on a Wednesday afternoon, on one deployment and not another.
 
 ```text
-features.name          text            the English, required, the key
-features.name_i18n     jsonb           {"fr": "...", "es": "...", ...}
-features.description       text        }  the same pair, for the sentence
-features.description_i18n  jsonb       }  a customer reads
-offers.name            text
-offers.name_i18n       jsonb
+"Save", "At least 12 characters."        the application's        JSON catalogues
+"Terrace engine", "Pro monthly"          the operator's           the database
 ```
 
-English stays in its own column and stays required. It is the key, exactly
-as ADR-050 decided for the application's own sentences: a missing French
-falls back to something a person can read rather than to a code, and the
-platform's own API, logs and invoicing stay in one language.
+The test that separates them: if the sentence would be identical on every
+deployment of this platform, it is the application's. If it changes when
+somebody sells something different, it is the operator's.
 
-**Why not a `translations` table.** It is the textbook answer and it costs
-a join on every list, a locale filter in every query, and a second place
-for a row to be orphaned. The set of languages is fixed and small (five,
-ADR-050), a catalogue is tens of rows, and the value belongs to the row it
-describes. A table would be right if translations were versioned,
-attributed or reviewed — none of which anybody has asked for.
+## 2. Where a translated value lives
+
+**Decided by the operator (2026-09-24): in a table of its own, not in a
+column beside the value.**
+
+```text
+feature_translations
+  feature_id   uuid     → features(id) ON DELETE CASCADE
+  locale       text     one of the five (ADR-050), never 'en'
+  name         text
+  description  text
+  PRIMARY KEY (feature_id, locale)
+
+offer_translations
+  offer_id     uuid     → offers(id) ON DELETE CASCADE
+  locale       text
+  name         text
+  PRIMARY KEY (offer_id, locale)
+```
+
+**One table per translated thing, not one table for everything.** A single
+`translations(entity_type, entity_id, field, locale, value)` is the shape
+everybody draws first, and it is the one shape PostgreSQL cannot keep
+honest: an `entity_id` that points at two tables can carry no foreign key,
+so nothing stops a row surviving the feature it describes, and nothing
+catches an `entity_type` misspelt in a migration written at speed. Three
+narrow tables cost three migrations and give `ON DELETE CASCADE`, which
+means a deleted offer takes its translations with it without anybody
+remembering to.
+
+**English stays on the row it belongs to**, in `features.name` as today,
+and stays required. It is the key — exactly as ADR-050 decided for the
+application's own sentences — so a missing French falls back to something a
+person can read rather than to a code, the platform's own logs and invoices
+stay in one language, and a `LEFT JOIN` that finds nothing is not an error
+to handle but the fallback itself.
+
+**Reading them.** One `LEFT JOIN ... AND t.locale = :locale` per translated
+table, in the same query that already reads the catalogue — not a second
+round trip per row, which is how this shape turns into forty queries for a
+list of twelve offers. The staff read takes no locale and returns every
+row, because the console edits them all.
 
 **Resolution is the reader's, at the edge.** The API answers a *resolved*
 string to a tenant or a stranger — `name` in the language the caller reads,
-falling back to English — and the *whole map* to the console, which is the
-only place that edits it. Two shapes, one row, and the resolution rule
-written once in PHP the way `MailWording` already resolves a mail.
+falling back to English — and the *whole set* to the console, which is the
+only place that edits it. Two shapes, one row, and the rule written once in
+PHP the way `MailWording` already resolves a mail.
 
 ## 3. The field, and the button at its end
 
@@ -86,50 +127,76 @@ subject *and* a body *and* a link, edited together and previewed together,
 and one tab per language is the shape that fits. Nothing here changes
 `MailScreen`.
 
-## 4. Where the codes come from
+## 4. The features are one list, at platform level
 
-A feature code is a contract between the platform and a product's own code.
-So the form stops accepting prose and offers a list.
+**Decided by the operator (2026-09-24).** A feature is not a thing a
+product owns; it is a word the platform and a product's code have agreed
+on. So there is **one list**, kept by the platform, and a product's
+catalogue picks from it.
 
 ```text
-product_configuration[product].feature_catalogue = [
-  { code: "plan.terrasse",      kind: "BOOLEAN", name: "Terrace engine" },
-  { code: "plan.documents",     kind: "QUOTA", unit: "documents" },
-  …
-]
+features                     today                  after
+  product_id    →  each product has its own    (gone)
+  code             unique per product          unique, full stop
+  kind, unit       per product                 on the one row
 ```
 
-- The four the platform itself enforces — `max_projects`, `exports`,
-  `users`, `white_label` — are always in the list, whatever a product says,
-  because the platform reads them (`ProjectWorkspace::QUOTA`,
-  `SubscriptionPeople::USERS_FEATURE`).
-- The rest are the product's, and the product is the authority on them.
-  Today the operator types them once, in the console, for a product with no
-  server of its own. When a product grows one, the same list arrives by
-  `PUT /api/v1/product/capabilities` with its product key — the route
-  exists in ADR-051's authority, and the console then shows the list
-  read-only, because a program that gates on a code may not be contradicted
-  by a form.
-- Creating a feature therefore **picks** a code, and the kind and unit come
-  with it. Typing a code that is not in the list is refused, not corrected:
-  `FEATURE_CODE_UNKNOWN`, with the list in the details.
+What this settles, and what it costs:
 
-A code already sold cannot be withdrawn from the list silently: removing
-one that an offer version grants is refused the same way retiring a product
-with a live subscription is.
+- **`max_projects` stops existing five times.** The four the platform
+  itself enforces — `max_projects`, `exports`, `users`, `white_label` —
+  are one row each, and the code that reads them
+  (`ProjectWorkspace::QUOTA`, `SubscriptionPeople::USERS_FEATURE`) stops
+  depending on every product's catalogue having been seeded with the same
+  spelling.
+- **A grant still belongs to a product**, because it lives on an offer
+  version and an offer belongs to a product. Nothing about entitlement
+  resolution moves: what a tenant holds is still decided per (tenant,
+  product), and a feature nobody granted them is still absent.
+- **The migration is the real work.** Today five products carry five rows
+  called `max_projects`; they must be merged into one and every
+  `offer_version_features` row repointed, in one transaction, with a
+  refusal if two rows sharing a code disagree about `kind` or `unit` —
+  because merging a `QUOTA` into a `BOOLEAN` would reinterpret a price
+  somebody is paying (ADR-033's rule, applied to the thing being priced).
+- **Creating a feature is a platform act**, `staff.features.manage`, on a
+  screen of its own — Console → Features — beside Products. Adding one to a
+  product's catalogue is then picking from that list, and typing a code
+  that is not in it is refused rather than created: `FEATURE_CODE_UNKNOWN`,
+  with what may be picked in the details.
+- **Retiring a feature is not deleting it.** One that any offer version
+  grants cannot be removed — the same refusal as a product with a live
+  subscription — so the list gains an `active` flag rather than a delete.
+
+**Where a product's own codes come from.** `plan.terrasse` and its six
+siblings are Plan's words, and Plan's code gates on them; the platform only
+carries them. They are created in the same list, by the same act, and the
+product remains the authority on what they *mean*. When a product grows a
+server it may declare them itself — `PUT /api/v1/product/capabilities`
+under its product key (ADR-051 §4) — and what arrives is checked against
+this list rather than written straight into it: a program may tell the
+platform what it gates on, and may not invent a priced capability on its
+own.
 
 ## 5. What the API changes
 
 ```text
-GET  /api/v1/products/{productId}/catalog        unchanged shape, resolved name
-GET  /api/v1/staff/products/{id}/catalogue       names as maps, for editing
-POST /api/v1/staff/products/{id}/features        code from the list, name + name_i18n
-PATCH /api/v1/staff/features/{featureId}         the map, partially
-PATCH /api/v1/staff/offers/{offerId}             the map, partially
-GET  /api/v1/staff/products/{id}/feature-catalogue   what may be picked
-PUT  /api/v1/staff/products/{id}/feature-catalogue   staff.products.manage
-PUT  /api/v1/product/capabilities                    a product's own key
+GET   /api/v1/products/{productId}/catalog     unchanged shape, resolved names
+GET   /api/v1/staff/features                   the platform's one list
+POST  /api/v1/staff/features                   create one          staff.features.manage
+PATCH /api/v1/staff/features/{featureId}       name, description, active, and
+                                               their translations
+GET   /api/v1/staff/products/{id}/catalogue    every translation, for editing
+POST  /api/v1/staff/products/{id}/features     pick a code from the list
+PATCH /api/v1/staff/offers/{offerId}           the name and its translations
+PUT   /api/v1/product/capabilities             a product declares what it gates
+                                               on, checked against the list
 ```
+
+A translation is written with the thing it translates — `PATCH` takes the
+English and the four others together — rather than through a route of its
+own per language. One call, one transaction, and no state where a name has
+been renamed but its Spanish still says the old thing.
 
 An offer version stays frozen (ADR-033): its **price and terms** are
 snapshotted and immutable. A translation of its *name* is not a term — it
@@ -148,9 +215,11 @@ this works.
 
 ## 7. What must never happen
 
-- No translation in the frontend's catalogues for operator data. Those are
-  the application's sentences, shipped with the bundle; a feature's name
-  belongs to the deployment's database.
+- No operator data in the frontend's catalogues, and no application
+  sentence in the database (§1.5). Each is unusable in the other's place: a
+  feature name shipped in the bundle would be one deployment's business in
+  everybody's build, and a button label in a table would need a migration
+  to fix a typo.
 - No code typed twice. The picker is the only way in, and the platform's
   four are not special-cased in a component.
 - No resolution in React. The API answers the reader's language, as it does
@@ -161,22 +230,32 @@ this works.
 
 ## 8. Build order
 
-1. **The mechanism, on one field.** `features.name_i18n`, resolution in
-   PHP, the map on the staff read, the button at the end of the field.
-2. **The rest of the catalogue.** Feature descriptions, offer names.
-3. **The codes.** `feature_catalogue` in product configuration, the picker,
-   the refusal, and the console screen that edits the list.
-4. **The product's own voice.** `PUT /product/capabilities` under a product
-   key, and the console list becomes read-only for a product that speaks.
-5. **The demonstration**, translated.
+1. **The mechanism, on one field.** `feature_translations`, the resolving
+   read, the staff read that returns every language, and the button at the
+   end of the field.
+2. **The rest of the catalogue.** Feature descriptions and offer names,
+   through `offer_translations`.
+3. **One list of features.** The migration that merges the duplicates and
+   repoints the grants, `staff.features.manage`, and Console → Features.
+   This is the step that can go wrong quietly, so it is its own.
+4. **The picker.** A product's catalogue chooses from the list, and a code
+   outside it is refused.
+5. **The product's own voice.** `PUT /product/capabilities` under a product
+   key, checked against the list rather than writing into it.
+6. **The demonstration**, translated.
 
 **Exit criteria**
 
 - A feature created in the console with a French name shows that name to a
   French reader and its English to everybody else.
-- A feature code that no product declares cannot be created at all.
-- Deleting every translation leaves a catalogue in English, not a catalogue
-  of codes.
+- A code that is not in the platform's list cannot be added to a product's
+  catalogue at all.
+- After the merge, `max_projects` is one row, every offer version grants
+  the same one, and no entitlement changed for anybody — asserted against a
+  seeded world before and after.
+- Deleting a feature deletes its translations, and deleting every
+  translation leaves a catalogue in English rather than a catalogue of
+  codes.
 - `gate:i18n` is untouched: none of this is an application sentence.
 
 ## 9. Open questions for the operator
@@ -187,6 +266,11 @@ this works.
 2. **Must a translation be complete before an offer is advertised?** The
    readiness path (ADR-045) could refuse to publish an offer whose name has
    no French — or say nothing and let English through.
-3. **Machine translation**: out of scope here. If it ever arrives it is a
+3. **Does a feature belong to nobody now?** One list at platform level
+   means `plan.terrasse` is visible to whoever administers the catalogue of
+   any product. That is a disclosure of one product's capabilities to
+   another's administrator — small, and probably fine on a platform whose
+   staff is one person, but it is a change and it is worth saying out loud.
+4. **Machine translation**: out of scope here. If it ever arrives it is a
    suggestion in the console, never a value written without somebody
    reading it.

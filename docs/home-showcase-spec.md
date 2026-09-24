@@ -113,11 +113,16 @@ product_showcase
 Rows rather than one document because the console edits one block at a
 time, and because a missing picture must not take a headline with it.
 
-Every human-readable value inside `content` is a **translated value**, in
-the mechanism `docs/translatable-fields-spec.md` settles — the same one the
+The words themselves go in `product_showcase_translations`, one row per
+block and per language, beside the English on the block itself — the
+mechanism `docs/translatable-fields-spec.md` settles, and the same one the
 feature descriptions and the offer names use. The console edits the current
 language and offers the others behind the language button at the end of the
 field; nothing here invents a second translation UI.
+
+This is operator data, not an application sentence: it never enters
+`frontend/src/i18n/catalogues/` and `gate:i18n` has no opinion about it
+(that spec, §1.5).
 
 **The pictures** are assets of the product, not of a project: a new
 `product_assets` scope beside the existing store, served by signed link the
