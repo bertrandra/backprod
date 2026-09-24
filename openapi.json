@@ -3306,7 +3306,8 @@
           "name",
           "plan",
           "versions",
-          "publicly_listed"
+          "publicly_listed",
+          "translations"
         ],
         "properties": {
           "id": {
@@ -3333,6 +3334,17 @@
           "publicly_listed": {
             "type": "boolean",
             "description": "Whether the public storefront advertises this offer. Distinct from being on sale: a price negotiated with one reseller is sellable and is nobody else’s business. Only `staff.catalog.manage` may change it."
+          },
+          "translations": {
+            "type": "object",
+            "description": "Every language this offer is called something in, the incomplete ones included: the console is the only place that can finish them. A customer reads one name, resolved into their own language.",
+            "additionalProperties": false,
+            "properties": {
+              "fr": { "$ref": "#/components/schemas/TranslatedName" },
+              "es": { "$ref": "#/components/schemas/TranslatedName" },
+              "de": { "$ref": "#/components/schemas/TranslatedName" },
+              "it": { "$ref": "#/components/schemas/TranslatedName" }
+            }
           }
         }
       },
@@ -20079,7 +20091,19 @@
                 "properties": {
                   "name": {
                     "type": "string",
-                    "maxLength": 200
+                    "maxLength": 200,
+                    "description": "The English, which is the key and the fallback (ADR-050)."
+                  },
+                  "translations": {
+                    "type": "object",
+                    "description": "What this offer is called in the four other languages, replacing the set: a language left out is removed. An offer has a name and no description — what it grants is the plan's features, each named in their own row. A translation is not a term: an offer version freezes its price and its conditions (ADR-033), and the same offer said in Spanish changes nothing anybody agreed to.",
+                    "additionalProperties": false,
+                    "properties": {
+                      "fr": { "$ref": "#/components/schemas/TranslatedName" },
+                      "es": { "$ref": "#/components/schemas/TranslatedName" },
+                      "de": { "$ref": "#/components/schemas/TranslatedName" },
+                      "it": { "$ref": "#/components/schemas/TranslatedName" }
+                    }
                   }
                 }
               }

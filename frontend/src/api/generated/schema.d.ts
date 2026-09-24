@@ -4758,6 +4758,13 @@ export interface components {
             versions: components["schemas"]["AuthoredOfferVersion"][];
             /** @description Whether the public storefront advertises this offer. Distinct from being on sale: a price negotiated with one reseller is sellable and is nobody else’s business. Only `staff.catalog.manage` may change it. */
             publicly_listed: boolean;
+            /** @description Every language this offer is called something in, the incomplete ones included: the console is the only place that can finish them. A customer reads one name, resolved into their own language. */
+            translations: {
+                fr?: components["schemas"]["TranslatedName"];
+                es?: components["schemas"]["TranslatedName"];
+                de?: components["schemas"]["TranslatedName"];
+                it?: components["schemas"]["TranslatedName"];
+            };
         };
         /** @description One page and how much lies behind it. The total is counted rather than inferred from a short page — an operator needs to know whether they are looking at forty customers or four thousand, and "the page came back short" answers that only on the last one. */
         DirectoryEnvelope: {
@@ -14228,7 +14235,15 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** @description The English, which is the key and the fallback (ADR-050). */
                     name: string;
+                    /** @description What this offer is called in the four other languages, replacing the set: a language left out is removed. An offer has a name and no description — what it grants is the plan's features, each named in their own row. A translation is not a term: an offer version freezes its price and its conditions (ADR-033), and the same offer said in Spanish changes nothing anybody agreed to. */
+                    translations?: {
+                        fr?: components["schemas"]["TranslatedName"];
+                        es?: components["schemas"]["TranslatedName"];
+                        de?: components["schemas"]["TranslatedName"];
+                        it?: components["schemas"]["TranslatedName"];
+                    };
                 };
             };
         };

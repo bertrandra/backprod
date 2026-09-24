@@ -88,19 +88,55 @@ final class PostgresOfferAuthoringRepository implements OfferAuthoringRepository
         return $this->reload($productId, $offerId);
     }
 
-    public function renameOffer(string $productId, string $offerId, string $name): OfferCandidate
-    {
-        $changed = (int) $this->connection->executeStatement(
-            <<<'SQL'
-                UPDATE offers SET name = :name, updated_at = now()
-                 WHERE id = :offerId AND product_id = :productId
-                SQL,
-            ['offerId' => $offerId, 'productId' => $productId, 'name' => $name],
-        );
+    /**
+     * @param array<string, array{name: ?string, description: ?string}>|null $translations
+     */
+    public function renameOffer(
+        string $productId,
+        string $offerId,
+        string $name,
+        ?array $translations = null,
+    ): OfferCandidate {
+        // One transaction: the English and its four translations are one
+        // act, and written apart a failure between them leaves an offer
+        // renamed here and saying the old thing in Spanish.
+        $this->connection->transactional(function () use ($productId, $offerId, $name, $translations): void {
+            $changed = (int) $this->connection->executeStatement(
+                <<<'SQL'
+                    UPDATE offers SET name = :name, updated_at = now()
+                     WHERE id = :offerId AND product_id = :productId
+                    SQL,
+                ['offerId' => $offerId, 'productId' => $productId, 'name' => $name],
+            );
 
-        if ($changed === 0) {
-            throw new NotFoundException('Offer not found.', [], 'OFFER_NOT_FOUND');
-        }
+            if ($changed === 0) {
+                throw new NotFoundException('Offer not found.', [], 'OFFER_NOT_FOUND');
+            }
+
+            if ($translations === null) {
+                return;
+            }
+
+            // Replaced as a set, like a feature's: a language the console
+            // left out is one it removed.
+            $this->connection->executeStatement(
+                'DELETE FROM offer_translations WHERE offer_id = :id',
+                ['id' => $offerId],
+            );
+
+            foreach ($translations as $locale => $values) {
+                $translated = $values['name'] ?? null;
+
+                if ($translated === null || trim($translated) === '') {
+                    continue;
+                }
+
+                $this->connection->executeStatement(
+                    'INSERT INTO offer_translations (offer_id, locale, name) VALUES (:id, :locale, :name)',
+                    ['id' => $offerId, 'locale' => $locale, 'name' => trim($translated)],
+                );
+            }
+        });
 
         return $this->reload($productId, $offerId);
     }

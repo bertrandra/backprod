@@ -7,6 +7,7 @@ namespace App\Staff\Controller;
 use App\Commerce\Controller\CataloguePresenter as CommercePresenter;
 use App\Shared\Http\JsonBody;
 use App\Shared\Http\RouteHandler;
+use App\Shared\Http\Translations;
 use App\Staff\Domain\StaffPermission;
 use App\Staff\Service\CatalogueDesk;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -32,11 +33,16 @@ final class RenameStaffOfferController implements RouteHandler
     {
         $context = StaffRoute::permitted($request, StaffPermission::CATALOG_MANAGE);
 
+        $body = JsonBody::of($request);
+
         $offer = $this->desk->renameOffer(
             $context->identity,
             StaffRoute::productCode($request),
             StaffRoute::id($request, 'offerId'),
-            JsonBody::of($request)->requiredString('name', 200),
+            $body->requiredString('name', 200),
+            // An offer has a name and no description: what it grants is the
+            // plan's features, each named in their own row (2026-09-24).
+            $body->has('translations') ? Translations::of($body, 'translations', false) : null,
         );
 
         return new JsonResponse(['offer' => CommercePresenter::authored($offer)], 200);

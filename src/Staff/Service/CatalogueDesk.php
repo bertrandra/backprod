@@ -189,16 +189,25 @@ final class CatalogueDesk
         return $offer;
     }
 
+    /**
+     * @param array<string, array{name: ?string, description: ?string}>|null $translations
+     */
     public function renameOffer(
         StaffIdentity $staff,
         string $productCode,
         string $offerId,
         string $name,
+        ?array $translations = null,
     ): OfferCandidate {
         $product = $this->product($productCode);
-        $offer = $this->offers->renameOffer($product->id, $offerId, $name);
+        $offer = $this->offers->renameOffer($product->id, $offerId, $name, $translations);
 
-        $this->record($staff, $product, 'RENAME', 'offer', $offerId, ['name' => $name]);
+        // The languages it now says something in, not what it says in them:
+        // a trail answers "who changed this, and roughly what".
+        $this->record($staff, $product, 'RENAME', 'offer', $offerId, [
+            'name' => $name,
+            'translated' => array_keys($offer->translations),
+        ]);
 
         return $offer;
     }
