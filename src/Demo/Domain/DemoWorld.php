@@ -144,6 +144,162 @@ final class DemoWorld
     ];
 
     /**
+     * What a feature says beside its name, in English (2026-09-24).
+     *
+     * Only the four every catalogue grants: they are what a customer reads
+     * on a pricing page, so they are where a description earns its place. A
+     * product's own capabilities are named and not explained here — what
+     * `plan.terrasse` *does* is Plan's documentation, not the platform's.
+     *
+     * @var array<string, string>
+     */
+    public const FEATURE_DESCRIPTIONS = [
+        'max_projects' => 'How many plans you may keep at once.',
+        'exports' => 'How many files you may export each month.',
+        'users' => 'How many colleagues the subscription covers.',
+        'white_label' => 'Your own logo and colours instead of ours.',
+    ];
+
+    /**
+     * The catalogue in the four other languages (2026-09-24, step 6 of
+     * `docs/translatable-fields-spec.md`).
+     *
+     * This is **operator data**, not an application sentence: it belongs in
+     * `feature_translations`, written by the seeder, and never in
+     * `frontend/src/i18n/catalogues/` — the two systems are kept apart on
+     * purpose (§1.5 of the spec). A feature name shipped in the bundle
+     * would be one deployment's business in everybody's build.
+     *
+     * Present for every code the demonstration seeds, the products' own
+     * included: a French reader switching the interface should see a French
+     * catalogue rather than an English one with French buttons around it,
+     * and that is also the only way anybody notices this works. A
+     * description is translated where there is one to translate.
+     *
+     * @var array<string, array<string, array{name: string, description?: string}>>
+     */
+    public const FEATURE_TRANSLATIONS = [
+        'max_projects' => [
+            'fr' => ['name' => 'Projets', 'description' => 'Combien de plans vous pouvez garder en meme temps.'],
+            'es' => ['name' => 'Proyectos', 'description' => 'Cuantos planos puede conservar a la vez.'],
+            'de' => ['name' => 'Projekte', 'description' => 'Wie viele Plane Sie gleichzeitig behalten durfen.'],
+            'it' => ['name' => 'Progetti', 'description' => 'Quanti progetti puo conservare alla volta.'],
+        ],
+        'exports' => [
+            'fr' => ['name' => 'Exports', 'description' => 'Combien de fichiers vous pouvez exporter chaque mois.'],
+            'es' => ['name' => 'Exportaciones', 'description' => 'Cuantos archivos puede exportar cada mes.'],
+            'de' => ['name' => 'Exporte', 'description' => 'Wie viele Dateien Sie jeden Monat exportieren durfen.'],
+            'it' => ['name' => 'Esportazioni', 'description' => 'Quanti file puo esportare ogni mese.'],
+        ],
+        'users' => [
+            'fr' => ['name' => 'Utilisateurs', 'description' => 'Combien de collegues l abonnement couvre.'],
+            'es' => ['name' => 'Usuarios', 'description' => 'A cuantos companeros cubre la suscripcion.'],
+            'de' => ['name' => 'Nutzer', 'description' => 'Wie viele Kollegen das Abonnement abdeckt.'],
+            'it' => ['name' => 'Utenti', 'description' => 'Quanti colleghi copre l abbonamento.'],
+        ],
+        'white_label' => [
+            'fr' => ['name' => 'Marque blanche', 'description' => 'Votre logo et vos couleurs a la place des notres.'],
+            'es' => ['name' => 'Marca blanca', 'description' => 'Su logotipo y sus colores en lugar de los nuestros.'],
+            'de' => ['name' => 'White Label', 'description' => 'Ihr Logo und Ihre Farben statt unserer.'],
+            'it' => ['name' => 'Marchio bianco', 'description' => 'Il vostro logo e i vostri colori al posto dei nostri.'],
+        ],
+
+        // Plan's own words. The codes are the product's and the platform
+        // only carries them; what they are *called* is still read by a
+        // person, in their language.
+        'plan.documents' => [
+            'fr' => ['name' => 'Documents Plan'],
+            'es' => ['name' => 'Documentos Plan'],
+            'de' => ['name' => 'Plan-Dokumente'],
+            'it' => ['name' => 'Documenti Plan'],
+        ],
+        'plan.terrasse' => [
+            'fr' => ['name' => 'Moteur de terrasse'],
+            'es' => ['name' => 'Motor de terraza'],
+            'de' => ['name' => 'Terrassenmodul'],
+            'it' => ['name' => 'Motore terrazza'],
+        ],
+        'plan.cadastre' => [
+            'fr' => ['name' => 'Import cadastre (IGN)'],
+            'es' => ['name' => 'Importacion catastral (IGN)'],
+            'de' => ['name' => 'Katasterimport (IGN)'],
+            'it' => ['name' => 'Importazione catastale (IGN)'],
+        ],
+        'plan.ortho' => [
+            'fr' => ['name' => 'Vue aerienne (IGN)'],
+            'es' => ['name' => 'Imagen aerea (IGN)'],
+            'de' => ['name' => 'Luftbild (IGN)'],
+            'it' => ['name' => 'Ortofoto (IGN)'],
+        ],
+        'plan.plu' => [
+            'fr' => ['name' => 'Regles d urbanisme (PLU)'],
+            'es' => ['name' => 'Normas urbanisticas (PLU)'],
+            'de' => ['name' => 'Bauvorschriften (PLU)'],
+            'it' => ['name' => 'Regole urbanistiche (PLU)'],
+        ],
+        'plan.3d' => [
+            'fr' => ['name' => 'Vue 3D et visionneuse GLB'],
+            'es' => ['name' => 'Vista 3D y visor GLB'],
+            'de' => ['name' => '3D-Ansicht und GLB-Viewer'],
+            'it' => ['name' => 'Vista 3D e visualizzatore GLB'],
+        ],
+        'plan.export.dxf' => [
+            'fr' => ['name' => 'Export DXF'],
+            'es' => ['name' => 'Exportacion DXF'],
+            'de' => ['name' => 'DXF-Export'],
+            'it' => ['name' => 'Esportazione DXF'],
+        ],
+        'plan.export.dossier' => [
+            'fr' => ['name' => 'Dossier PDF client'],
+            'es' => ['name' => 'Dosier PDF para el cliente'],
+            'de' => ['name' => 'Kunden-PDF-Dossier'],
+            'it' => ['name' => 'Dossier PDF cliente'],
+        ],
+        'plan.readonly' => [
+            'fr' => ['name' => 'Siege en lecture seule'],
+            'es' => ['name' => 'Asiento de solo lectura'],
+            'de' => ['name' => 'Platz mit Lesezugriff'],
+            'it' => ['name' => 'Postazione in sola lettura'],
+        ],
+    ];
+
+    /**
+     * What each offer is called in the four other languages, by offer code.
+     *
+     * A translation of an offer's *name* is not a term (ADR-033): the price
+     * and the conditions of a published version are frozen, and saying the
+     * same offer in another language changes neither.
+     *
+     * @var array<string, array<string, string>>
+     */
+    public const OFFER_TRANSLATIONS = [
+        'starter-monthly' => [
+            'fr' => 'Starter, mensuel',
+            'es' => 'Starter, mensual',
+            'de' => 'Starter, monatlich',
+            'it' => 'Starter, mensile',
+        ],
+        'pro-monthly' => [
+            'fr' => 'Pro, mensuel',
+            'es' => 'Pro, mensual',
+            'de' => 'Pro, monatlich',
+            'it' => 'Pro, mensile',
+        ],
+        'scale-yearly' => [
+            'fr' => 'Scale, annuel',
+            'es' => 'Scale, anual',
+            'de' => 'Scale, jahrlich',
+            'it' => 'Scale, annuale',
+        ],
+        'lecture-monthly' => [
+            'fr' => 'Lecture, mensuel',
+            'es' => 'Lectura, mensual',
+            'de' => 'Lesen, monatlich',
+            'it' => 'Lettura, mensile',
+        ],
+    ];
+
+    /**
      * The feature code the workspace counts projects against — the same
      * string as `ProjectWorkspace::QUOTA`, named here because the fixtures
      * are infrastructure and may not read an application service;

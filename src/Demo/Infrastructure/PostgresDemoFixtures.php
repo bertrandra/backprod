@@ -216,6 +216,22 @@ final class PostgresDemoFixtures implements DemoFixtures
             'platform staff hold no tenant membership' => 0 === $this->count(
                 'SELECT count(*) FROM tenant_members m JOIN platform_staff s ON s.user_id = m.user_id',
             ),
+            // The catalogue speaks five languages (2026-09-24). Counted
+            // rather than spot-checked: a feature seeded without its
+            // translations still renders — in English — so nothing on
+            // screen would say this had quietly stopped working.
+            'every feature says its name in four other languages' => 0 === $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM features f
+                WHERE (SELECT count(*) FROM feature_translations t WHERE t.feature_id = f.id) <> 4
+                SQL,
+            ),
+            'every offer says its name in four other languages' => 0 === $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM offers o
+                WHERE (SELECT count(*) FROM offer_translations t WHERE t.offer_id = o.id) <> 4
+                SQL,
+            ),
         ];
     }
 
@@ -510,6 +526,8 @@ final class PostgresDemoFixtures implements DemoFixtures
                 ['product' => $product, 'plan' => $plans[$plan] ?? throw new RuntimeException("unknown plan {$plan}"), 'code' => $code, 'name' => $name],
             );
 
+            $this->translateOffer($offer, $code);
+
             // Draft, grant, publish — the order the product actually uses. A
             // version's grants freeze the moment it leaves DRAFT (ADR-033), so
             // seeding an ACTIVE row and attaching grants afterwards would build
@@ -559,15 +577,72 @@ final class PostgresDemoFixtures implements DemoFixtures
      */
     private function feature(string $code, string $name, string $kind, ?string $unit): string
     {
-        return $this->id(
+        $id = $this->id(
             <<<'SQL'
-            INSERT INTO features (code, name, kind, unit)
-            VALUES (:code, :name, :kind, :unit)
-            ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+            INSERT INTO features (code, name, kind, unit, description)
+            VALUES (:code, :name, :kind, :unit, :description)
+            ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description
             RETURNING id
             SQL,
-            ['code' => $code, 'name' => $name, 'kind' => $kind, 'unit' => $unit],
+            [
+                'code' => $code,
+                'name' => $name,
+                'kind' => $kind,
+                'unit' => $unit,
+                'description' => DemoWorld::FEATURE_DESCRIPTIONS[$code] ?? null,
+            ],
         );
+
+        $this->translateFeature($id, $code);
+
+        return $id;
+    }
+
+    /**
+     * What a feature says in the four other languages (2026-09-24).
+     *
+     * Written here rather than left to an operator, because the point of
+     * the demonstration is that somebody switching the interface to French
+     * sees a French catalogue — an English one with French buttons around
+     * it would demonstrate the opposite of what was built.
+     *
+     * `ON CONFLICT DO NOTHING`, because a feature the five products share
+     * is seeded once per product and translated with it.
+     */
+    private function translateFeature(string $featureId, string $code): void
+    {
+        foreach (DemoWorld::FEATURE_TRANSLATIONS[$code] ?? [] as $locale => $written) {
+            $this->connection->executeStatement(
+                <<<'SQL'
+                INSERT INTO feature_translations (feature_id, locale, name, description)
+                VALUES (:feature, :locale, :name, :description)
+                ON CONFLICT (feature_id, locale) DO NOTHING
+                SQL,
+                [
+                    'feature' => $featureId,
+                    'locale' => $locale,
+                    'name' => $written['name'],
+                    'description' => $written['description'] ?? null,
+                ],
+            );
+        }
+    }
+
+    /**
+     * What an offer is called in the four other languages.
+     *
+     * A translation of an offer's name is not a term (ADR-033): the price
+     * and the conditions of a published version are frozen, and saying the
+     * same offer in another language changes neither.
+     */
+    private function translateOffer(string $offerId, string $code): void
+    {
+        foreach (DemoWorld::OFFER_TRANSLATIONS[$code] ?? [] as $locale => $name) {
+            $this->connection->executeStatement(
+                'INSERT INTO offer_translations (offer_id, locale, name) VALUES (:offer, :locale, :name)',
+                ['offer' => $offerId, 'locale' => $locale, 'name' => $name],
+            );
+        }
     }
 
     /**
