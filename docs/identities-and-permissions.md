@@ -208,7 +208,7 @@ accordée au rôle puis retirée à la résolution.
 | `subscription.read` | oui | oui | abonnement, échéancier |
 | `subscription.manage` | oui | oui | souscrire, changer, résilier — un membre, son siège |
 | `billing.read` | oui | oui | factures, avoirs, profil — un membre, **les siens** |
-| `billing.pay` | oui | oui | **le checkout**, payer une facture, relancer un paiement |
+| `billing.pay` | **non** | oui | **le checkout**, placer une commande, payer une facture, relancer un paiement — l'acte de l'acheteur (2026-09-25) |
 | `billing.manage` | oui | non | émettre, annuler, créditer, marquer payée à la main, profil de facturation ; **la vue de l'organisation** |
 | `payments.read` | oui | oui | paiements — un membre, **les siens** |
 | `payments.manage` | oui | non | encaisser, rembourser |
@@ -250,9 +250,14 @@ ont été retirées.)
 
 ## Les arêtes vives
 
-**Un membre achète pour lui, et ne voit que le sien.** Le checkout, le paiement
-d'une facture et la relance sont derrière `billing.pay`, que les deux rôles
-portent ; ce qu'un membre achète est **un siège** (§13.1), et ce qu'il lit —
+**Un membre achète pour lui, et ne voit que le sien.** Le checkout, placer une
+commande, le paiement d'une facture et la relance sont derrière `billing.pay`,
+que **le membre seul** porte depuis le 25 septembre 2026 — un administrateur
+administre : il lit ce que ses gens détiennent et enregistre l'argent qui
+arrive (`billing.manage`, `markPaid`), il n'achète pas et ne paie pas par
+carte. Il l'avait parce que le rôle est un sur-ensemble, pas parce que
+quelqu'un l'avait décidé, et cela se voyait : *Buy for yourself* lui était
+offert sur chaque offre du catalogue ; ce qu'un membre achète est **un siège** (§13.1), et ce qu'il lit —
 factures, paiements, avoirs, commandes, devis — est restreint aux documents de
 ce siège par les services de lecture, sans permission nouvelle : la vue de
 l'organisation est `billing.manage`. Émettre, annuler, créditer, rembourser

@@ -71,6 +71,38 @@ anybody.
   what a deployment already has. Deleting rows to tidy a surface would destroy
   records of what was offered to a customer.
 
+## 2b. Who may buy — amended 2026-09-25
+
+The decision above said what may be sold and not *who may buy it*, and the
+answer was inherited rather than chosen: `billing.pay` went to both tenant
+roles on 2026-09-18 so a stranger who had just signed up could pay for what
+they chose, and the administrator held it because the role is a superset.
+
+The operator found the consequence on their own catalogue: **an administrator
+who subscribes to nothing was offered *Buy for yourself* on every offer.** It
+would have worked — a seat in their own name, invoiced by their organisation
+to themselves — which is coherent and is not the model.
+
+So `billing.pay` is the member's alone (`Version20260925160000`). It gates
+taking out a seat, giving one up before paying, and paying an invoice through
+the provider; all three are the buyer's. An administrator reads what their
+people hold and records the money that arrived — `billing.manage`, and
+`markPaid` — which assumes the money reaches the organisation outside the
+platform, as it does.
+
+**And placing an order moved with it.** `POST /sales/orders` answered to
+`sales.manage`, so after this change the only person who could place one was
+the person who may not buy, while the member who may could not. It now answers
+to `billing.pay`, because placing an order *is* buying. The checkout had hidden
+that — `Checkout::open` calls `Sales::order` through the service, so no route
+permission ever applied and self-service worked all along; the route was simply
+pointing at the wrong person.
+
+Fulfilling stays `sales.manage`: raising the invoice is the **seller's** act,
+and the seller is the organisation. What is left is a two-party flow that says
+the model out loud — the member orders, the organisation invoices, the
+administrator records the payment.
+
 ## 3. Consequences worth stating plainly
 
 **A working feature was removed.** Quotes did what they said: priced an offer
