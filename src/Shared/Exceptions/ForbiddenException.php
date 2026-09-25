@@ -66,8 +66,17 @@ final class ForbiddenException extends HttpException
      * something their colleague is already paying for.
      *
      * Nothing about the subscription is returned — not its offer, not who
-     * owns it, not how many seats are left. A member who is not on it has
-     * not been told it exists, and a refusal is a poor place to start.
+     * owns it, not how many seats are left. A refusal is a poor place to
+     * publish a price.
+     *
+     * That is discretion in *this* answer and not a secret being kept: a
+     * member of the organisation reads the whole subscription from
+     * `GET /subscription`, which their role allows and coverage does not
+     * gate. An earlier draft of this note claimed they "have not been told
+     * it exists", which was never true — checked on 2026-09-25 by joining
+     * Acme through the storefront and reading it back. Whether that read
+     * should narrow is a question about what a member may know about their
+     * own organisation, and it is not answered here.
      */
     public static function subscriptionRequired(): self
     {
