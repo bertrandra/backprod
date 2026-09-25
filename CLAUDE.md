@@ -601,6 +601,15 @@ A closed reporting period is immutable. Corrections go into a later period,
 never back into a closed one — the same rule as gapless numbering and credit
 notes.
 
+**A gapless series belongs to its issuer.** A number is continuous within the
+series of whoever raised the document — the organisation when it sells a seat
+to one of its own people, the platform otherwise (`issuer_tenant_id`, NULL for
+the platform). One counter shared between issuers puts other companies'
+numbers in the middle of everybody's sequence, which is the gap the rule
+exists to prevent: the demonstration's Initech raised one invoice and it came
+out `2026-000005`. A credit note takes its number from the series of the
+invoice it corrects, never a fresh decision.
+
 The backend produces and retains fiscal data, and exports it. It is not an
 accounting package: no chart of accounts, no general ledger, no filing with
 the tax authority.

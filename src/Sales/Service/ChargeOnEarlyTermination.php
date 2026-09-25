@@ -140,6 +140,17 @@ final class ChargeOnEarlyTermination implements EarlyTerminationCharge
         $invoice = $this->invoices->applyIssue(
             $subscription->tenantId,
             $subscription->productId,
+            // The platform issues it, because the supplier read above is the
+            // product's — this path bills a buy-out the same way for an
+            // organisation's subscription and for a seat.
+            //
+            // For a seat that is arguably the wrong document: the seat was
+            // sold by the organisation to one of its people, so the buy-out
+            // of it should be too, the way `InvoiceThenSubscribe` does. That
+            // is a commercial decision rather than a numbering one, so it is
+            // left alone here and the number follows the supplier actually on
+            // the document — which is the only way the two cannot disagree.
+            null,
             $subscription->id,
             [$line],
             $supplier,

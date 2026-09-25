@@ -26,6 +26,15 @@ final class Invoice
         public readonly string $id,
         public readonly string $tenantId,
         public readonly string $productId,
+        /**
+         * The organisation that issued this document, and whose gapless
+         * series its number belongs to; null when the platform issued it
+         * (2026-09-25). Not the same question as `$tenantId`, which is the
+         * isolation context and is the organisation either way — a seat sold
+         * by Acme to one of its people and a platform subscription sold to
+         * Acme are both Acme's rows, and only one of them is Acme's document.
+         */
+        public readonly ?string $issuerTenantId,
         public readonly ?string $subscriptionId,
         public readonly ?string $number,
         public readonly string $status,

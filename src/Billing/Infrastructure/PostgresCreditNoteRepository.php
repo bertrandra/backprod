@@ -118,15 +118,24 @@ final class PostgresCreditNoteRepository implements CreditNoteRepository
                 $vat = $vat->plus($line->vat);
             }
 
-            $number = DocumentNumbering::next($this->connection, DocumentNumbering::CREDIT_NOTE);
+            // The issuer of the invoice, never a fresh decision: a credit note
+            // corrects one company's document, so it belongs in that company's
+            // series (2026-09-25). Deciding again here could put the
+            // correction in the platform's series and leave the invoice's own
+            // with a correction it never records.
+            $number = DocumentNumbering::next(
+                $this->connection,
+                DocumentNumbering::CREDIT_NOTE,
+                $invoice->issuerTenantId,
+            );
 
             $id = $this->connection->fetchOne(
                 <<<'SQL'
                     INSERT INTO credit_notes
-                        (tenant_id, product_id, invoice_id, number, reason, currency,
+                        (tenant_id, product_id, issuer_tenant_id, invoice_id, number, reason, currency,
                          net_minor_units, vat_minor_units, gross_minor_units,
                          issued_at, supplier_snapshot, customer_snapshot)
-                    VALUES (:tenantId, :productId, :invoice, :number, :reason, :currency,
+                    VALUES (:tenantId, :productId, CAST(:issuerTenantId AS uuid), :invoice, :number, :reason, :currency,
                             :net, :vat, :gross, now(),
                             CAST(:supplier AS jsonb), CAST(:customer AS jsonb))
                     RETURNING id
@@ -134,6 +143,7 @@ final class PostgresCreditNoteRepository implements CreditNoteRepository
                 [
                     'tenantId' => $invoice->tenantId,
                     'productId' => $invoice->productId,
+                    'issuerTenantId' => $invoice->issuerTenantId,
                     'invoice' => $invoice->id,
                     'number' => $number,
                     'reason' => $reason,
