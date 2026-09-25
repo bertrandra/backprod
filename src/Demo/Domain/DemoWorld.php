@@ -577,21 +577,54 @@ final class DemoWorld
      * The seats: a subscription that belongs to ONE person rather than to the
      * organisation (§13.1, `Subscriber::user`).
      *
-     * A seat's entitlements reach its holder and nobody else — the repository
-     * excludes "a seat belonging to somebody else" from every other person's
-     * answer. That is what makes a read-only seat possible at all: acme keeps
-     * its Pro subscription for everybody, and one person additionally holds
-     * Lecture, which tells Plan that this person looks and does not change.
+     * A seat's entitlements reach its holder and nobody else. Since
+     * 2026-09-25 that is no longer special: an organisation's subscription
+     * reaches the people on it and nobody else either, and a seat is simply
+     * one addressed to a person from the start. What a seat still does that
+     * nothing else does is cover somebody **without using a place** on the
+     * organisation's subscription — `acme-user4` is covered by Lecture, and
+     * Acme's three Pro places stay with the administrator, `user1` and
+     * `user2`.
      *
-     * Note the direction: the seat ADDS `plan.readonly` on top of what the
-     * tenant already grants. Capabilities are a union, so a restricting one has
-     * to be read as a restriction by the product — which Plan does, and says so
-     * where it reads it.
+     * Note the direction: the seat ADDS `plan.readonly` on top of what it
+     * grants. Capabilities are a union, so a restricting one has to be read
+     * as a restriction by the product — which Plan does, and says so where
+     * it reads it.
      *
      * @var list<array{tenant: string, product: string, offer: string, holder: string}>
      */
     public const SEATS = [
         ['tenant' => 'acme', 'product' => 'plan', 'offer' => 'lecture-monthly', 'holder' => 'acme-user4'],
+    ];
+
+    /**
+     * Who the owner has put on each organisation's subscription
+     * (2026-09-25) — added through `SubscriptionPeople`, so the quota is
+     * enforced here exactly as it is for a customer.
+     *
+     * **Buying covers people, membership does not.** Until today an
+     * organisation's subscription entitled every member of it, which made
+     * the `users` quota decorative: Acme sold three people and listed none,
+     * and a fourth member was as entitled as the first. Now the owner is
+     * covered and adds the rest, up to the number their offer sells.
+     *
+     * The three organisations demonstrate the whole rule between them:
+     *
+     * - **Acme** is on Pro, which sells three *counting the owner*. The
+     *   administrator plus `user1` and `user2` — full. `user4` needs no
+     *   place here: they hold their own Lecture seat, which covers them.
+     * - **Globex** and **Initech** are on Starter, which sells one. The
+     *   administrator alone, and their other members are covered by
+     *   nothing — deliberately, because a demonstration where every quota
+     *   happens to fit teaches nobody what a quota is.
+     *
+     * @var list<array{tenant: string, product: string, user: string}>
+     */
+    public const SUBSCRIPTION_PEOPLE = [
+        ['tenant' => 'acme', 'product' => 'plan', 'user' => 'acme-user1'],
+        ['tenant' => 'acme', 'product' => 'plan', 'user' => 'acme-user2'],
+        ['tenant' => 'acme', 'product' => 'atlas', 'user' => 'acme-user1'],
+        ['tenant' => 'acme', 'product' => 'atlas', 'user' => 'acme-user2'],
     ];
 
     /**
@@ -628,7 +661,13 @@ final class DemoWorld
             'document' => ['source' => 'demo'],
         ],
         [
-            'tenant' => 'globex', 'product' => 'boreas', 'by' => 'globex-user1',
+            // By the administrator, not by `globex-user1`, since 2026-09-25:
+            // Globex is on Starter, which sells one person, and the one is
+            // its owner. A member the subscription does not cover cannot
+            // make a project — and the seeder proves it by going through the
+            // workspace, which counts the quota against whoever is named
+            // here. Before the rule changed, `globex-user1` made this one.
+            'tenant' => 'globex', 'product' => 'boreas', 'by' => 'globex-admin',
             'name' => 'Site survey',
             'description' => 'First pass at the Globex yard.',
             'document' => ['source' => 'demo'],

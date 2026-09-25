@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Entitlement\Domain\EntitlementRepository;
+use App\Entitlement\Infrastructure\InMemoryEntitlementRepository;
 use App\Job\Service\JobRunner;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
+use App\Project\Service\ProjectWorkspace;
 use App\Storage\Domain\StorageProvider;
 use App\Storage\Infrastructure\LocalStorageProvider;
 use App\Storage\Service\AssetLinks;
@@ -80,6 +83,16 @@ final class AssetEndpointsTest extends DatabaseApiTestCase
                     ['TENANT_ADMIN'],
                     ['projects.read', 'projects.write', 'assets.read', 'assets.manage', 'jobs.read', 'jobs.manage'],
                 ),
+            ]),
+
+            // Exporting a project goes through `ProjectRoute`, which since
+            // 2026-09-25 asks whether a subscription covers this person
+            // before it asks what their role allows (ADR-053). The project
+            // above is INSERTed rather than bought, so without this the
+            // tenant has bought nothing and Mia may reach none of it —
+            // a true refusal, and not what these tests are about.
+            EntitlementRepository::class => InMemoryEntitlementRepository::granting([
+                $this->tenant . ':' . $this->product => [ProjectWorkspace::QUOTA],
             ]),
         ]);
     }

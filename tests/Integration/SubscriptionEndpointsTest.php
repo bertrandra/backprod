@@ -232,7 +232,13 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
         $response = $this->createProject('One');
 
         self::assertSame(403, $response->getStatusCode());
-        self::assertSame('ENTITLEMENT_REQUIRED', $this->errorOf($response)['code'] ?? null);
+        // `SUBSCRIPTION_REQUIRED` since 2026-09-25 (ADR-053), and the change
+        // of code is the improvement rather than a side effect: the refusal
+        // used to say "your organisation did not buy this feature", when
+        // what is true is that no subscription covers this person at all.
+        // The first sends somebody to a price list; the second sends them to
+        // whoever owns the subscription, which is where the answer is.
+        self::assertSame('SUBSCRIPTION_REQUIRED', $this->errorOf($response)['code'] ?? null);
     }
 
     // --- Cancelling ----------------------------------------------------------

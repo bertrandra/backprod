@@ -50,6 +50,34 @@ final class ForbiddenException extends HttpException
     }
 
     /**
+     * The caller is a member of the organisation and is not on a
+     * subscription for this product (2026-09-25).
+     *
+     * A **fifth** refusal, and it is fixed in a fifth place. The four others
+     * are answered by a platform administrator, a tenant administrator, a
+     * purchase or a deletion; this one is answered by whoever owns the
+     * subscription putting this person on it — within the number of people
+     * their offer sells.
+     *
+     * Distinct from `ENTITLEMENT_REQUIRED` on purpose, and the difference is
+     * the whole point of the rule: that one says the *organisation* never
+     * bought the feature, this one says it did and **you are not one of the
+     * people it covers**. Collapsing them would tell somebody to buy
+     * something their colleague is already paying for.
+     *
+     * Nothing about the subscription is returned — not its offer, not who
+     * owns it, not how many seats are left. A member who is not on it has
+     * not been told it exists, and a refusal is a poor place to start.
+     */
+    public static function subscriptionRequired(): self
+    {
+        return new self(
+            'SUBSCRIPTION_REQUIRED',
+            'You are not one of the people this subscription covers.',
+        );
+    }
+
+    /**
      * The tenant has the feature and has used all of it.
      *
      * A fourth refusal, distinct from the three above because it is fixed in

@@ -1343,9 +1343,34 @@ Le souscripteur est la partie qui s'engage. Ce peut être l'organisation, ou
 une personne nommée :
 
 ```text
-subscriber_kind = TENANT   l'organisation souscrit ; l'entitlement vaut pour tous ses membres
-subscriber_kind = USER     une personne souscrit (siège) ; l'entitlement ne vaut que pour elle
+subscriber_kind = TENANT   l'organisation est la partie contractante
+subscriber_kind = USER     une personne l'est (siège)
 ```
+
+**Le kind ne décide pas qui est couvert** (ADR-053, 2026-09-25). Les deux
+entitlent le même ensemble : la personne qui a souscrit, plus celles qu'elle
+a ajoutées, dans la limite du quota `users` que vend son offre. Appartenir à
+l'organisation donne un rôle, jamais un entitlement.
+
+Cette ligne disait *« l'entitlement vaut pour tous ses membres »*, et
+l'opérateur a trouvé ce que cela signifie en se servant de son propre
+produit : il a ajouté une personne à Acme, et cette personne — sur aucun
+abonnement, sans siège — a reçu les onze capacités de Pro et lisait tous les
+projets. Le quota `users` bornait alors une liste sur laquelle personne ne
+figurait, pendant que l'entitlement venait de l'appartenance. **Un nombre
+qu'un client paie doit borner quelque chose.**
+
+Un espace de travail pose donc deux questions et non une :
+`requireSubscription()` avant `requirePermission()`. Le rôle dit ce qu'on
+peut faire du travail ; la couverture dit si ce travail est atteignable. Son
+refus est le sien — `SUBSCRIPTION_REQUIRED`, auquel répond un collègue en
+donnant une place, jamais `ENTITLEMENT_REQUIRED`, qui dirait d'acheter ce
+que l'organisation paie déjà.
+
+La question **à l'échelle du tenant** ne change pas : ne nommer personne
+demande ce que l'organisation a acheté — ses propres abonnements, aucun
+siège — et c'est cette réponse-là que mesure la consommation et qu'affiche
+la console.
 
 **Un abonnement nomme toujours un tenant et un produit, même quand le
 souscripteur est une personne.** Le tenant est le contexte d'isolation

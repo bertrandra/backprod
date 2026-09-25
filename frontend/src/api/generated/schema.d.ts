@@ -5538,7 +5538,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Authenticated, but not allowed to do this here. */
+        /**
+         * @description Authenticated, but not allowed to do this here. The envelope's `code` says which of the refusals it is, and they are answered by different people:
+         *
+         *     - `PERMISSION_DENIED` — the caller's role in this organisation does not allow it. Answered by its administrator.
+         *     - `ENTITLEMENT_REQUIRED` — the organisation never bought the feature. Answered by buying it.
+         *     - `QUOTA_EXCEEDED` — it did, and there is none left. Answered by upgrading or deleting something.
+         *     - `SUBSCRIPTION_REQUIRED` — the organisation bought it and **the caller is not one of the people the subscription covers** (ADR-053, 2026-09-25). Answered by whoever owns that subscription adding them to it, within the number of people their offer sells. Raised where a product's own work lives, before the permission is even considered, and never in place of `ENTITLEMENT_REQUIRED`: telling somebody to buy what their colleague already pays for sends them to the wrong place.
+         *     - `NO_TENANT_ACCESS` — the caller has no membership resolving here at all.
+         */
         PermissionDenied: {
             headers: {
                 [name: string]: unknown;

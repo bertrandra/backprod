@@ -42,9 +42,24 @@ final class ProjectRoute
         return self::attribute($request, 'versionId');
     }
 
+    /**
+     * Two questions, in this order, on every project endpoint.
+     *
+     * **A subscription covers this person**, and only then what their role
+     * lets them do with the work (2026-09-25). Until today there was one
+     * question — the permission — which every `USER` role carries by
+     * membership, so anybody added to an organisation could read every
+     * project in it whether or not a subscription covered them, and whether
+     * or not the organisation had one at all.
+     *
+     * Coverage first because it is the broader refusal: somebody no
+     * subscription covers should be told that, not told their role is
+     * insufficient for work they were never entitled to reach.
+     */
     private static function contextFor(ServerRequestInterface $request, string $permission): RequestContext
     {
         $context = RequestContextReader::from($request);
+        $context->requireSubscription();
         $context->requirePermission($permission);
 
         return $context;

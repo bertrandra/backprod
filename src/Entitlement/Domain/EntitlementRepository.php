@@ -47,4 +47,26 @@ interface EntitlementRepository
      * @return list<Entitlement>
      */
     public function entitlementsFor(string $tenantId, string $productId, ?string $userId = null): array;
+
+    /**
+     * Whether this person is one of the people a subscription covers
+     * (2026-09-25).
+     *
+     * **A different question from "what may they use".** The two above
+     * answer which *features* are live; this answers whether the person is
+     * on a subscription at all — its owner, or somebody the owner added
+     * within the number of people their offer sells.
+     *
+     * It has to be asked separately, because the obvious shortcuts are both
+     * wrong. "Do they hold some capability" lets a tenant-wide override
+     * cover a whole organisation, which is how the hole this closes was
+     * opened. "Do they hold the workspace quota" refuses a read-only
+     * seat — Plan's *Lecture* sells no `max_projects`, because a reader
+     * stores nothing to count, and a reader is exactly somebody who should
+     * see the work.
+     *
+     * An override grants features and covers nobody: staff hand out a
+     * feature, never a seat.
+     */
+    public function covers(string $tenantId, string $productId, string $userId): bool;
 }

@@ -39,30 +39,58 @@ final class PostgresEntitlementRepository implements EntitlementRepository
                 SELECT 1
                   FROM subscriptions s
                  WHERE s.id = e.subscription_id
-                   AND s.subscriber_kind = 'USER'
-                   AND s.subscriber_user_id IS DISTINCT FROM CAST(:userId AS uuid)
-                   AND NOT EXISTS (
-                         SELECT 1 FROM subscription_members m
-                          WHERE m.subscription_id = s.id AND m.user_id = CAST(:userId AS uuid)
-                       )
+                   AND CASE
+                         WHEN CAST(:userId AS uuid) IS NULL
+                           THEN s.subscriber_kind = 'USER'
+                         ELSE s.owner_user_id IS DISTINCT FROM CAST(:userId AS uuid)
+                              AND s.subscriber_user_id IS DISTINCT FROM CAST(:userId AS uuid)
+                              AND NOT EXISTS (
+                                    SELECT 1 FROM subscription_members m
+                                     WHERE m.subscription_id = s.id
+                                       AND m.user_id = CAST(:userId AS uuid)
+                                  )
+                       END
               )
         SQL;
 
     /**
      * Why that NOT EXISTS is written the way it is (§13.1).
      *
-     * It excludes exactly one thing: an entitlement whose subscription is a
-     * seat belonging to somebody else — and not to one of the seat's people
-     * either (2026-09-19): a member of Ada's seat is entitled by it, within
-     * the quota Ada's offer sold. Everything else survives — an
-     * override has no subscription at all, so the subquery finds nothing and
-     * the row is kept.
+     * It excludes an entitlement whose subscription is **not this person's**:
+     * neither owned by them, nor addressed to them, nor listing them among
+     * the people the owner added. Everything else survives — an override has
+     * no subscription at all, so the subquery finds nothing and the row is
+     * kept.
      *
-     * IS DISTINCT FROM rather than <> so a null $userId behaves correctly
-     * instead of collapsing the whole condition to null: with nobody named,
-     * every seat is somebody else's, and the tenant-wide answer contains
-     * none of them. That is the honest reading of "what does this tenant
-     * have" — one person's seat is not the tenant's.
+     * **Amended 2026-09-25, and this is the rule that changed.** Until today
+     * the exclusion began `s.subscriber_kind = 'USER'`, so it applied to
+     * seats alone and an organisation's subscription entitled *every member*
+     * of that organisation. The operator found what that means: they added a
+     * person to Acme, and that person — on no subscription, holding no seat —
+     * received all eleven of Pro's capabilities and could read every project.
+     *
+     * It also made the `users` quota decorative for an organisation's
+     * subscription. Acme's Plan subscription sells three people and listed
+     * none; the quota bounded a list nobody was on, while entitlement came
+     * from membership regardless. A number somebody pays for has to bound
+     * something.
+     *
+     * So the kind of subscriber no longer decides who is covered. **Buying
+     * is what covers people**: the person who subscribed, plus those they
+     * add within the number their offer sells (§13.1).
+     *
+     * The CASE keeps the **tenant-wide** question exactly as it was. With
+     * nobody named, the answer is what the organisation bought — its own
+     * subscriptions, and no seat, because one person's seat is not the
+     * tenant's. That answer is what usage is measured against and what the
+     * console shows, and neither is about any one person. Without the CASE,
+     * `IS DISTINCT FROM NULL` is true of every subscription and the
+     * tenant-wide answer would have silently emptied.
+     *
+     * IS DISTINCT FROM rather than <> throughout, so a null on either side
+     * reads as "not this person" instead of collapsing the condition to
+     * null — a subscription with no owner recorded covers nobody rather
+     * than everybody. This fails closed, which is the direction to fail in.
      */
 
     /**
@@ -141,6 +169,59 @@ final class PostgresEntitlementRepository implements EntitlementRepository
             ),
             $rows,
         );
+    }
+
+    /**
+     * Whether this person is on a subscription for this product
+     * (2026-09-25).
+     *
+     * Against the same clock as everything else here: a subscription whose
+     * period has ended covers nobody the morning after, whether or not a job
+     * has run to notice. The three ways to be on one are the three the
+     * exclusion above tests, said positively — owner, named subscriber, or
+     * added by the owner.
+     *
+     * The clock is the **entitlement's** window, not a second reading of the
+     * subscription's dates. This class says at the top that there is one
+     * convention for "is this in force" and not two, and a coverage question
+     * with its own idea of when a period ends is exactly the second one: it
+     * would let somebody through on a day they are entitled to nothing, or
+     * refuse them on a day they are.
+     *
+     * The join to `subscriptions` is what excludes an **override**. Staff
+     * grant a feature to an organisation, with no subscription behind it;
+     * answered without this join, one support exception would cover every
+     * member — the shape of the hole this whole change closes.
+     */
+    public function covers(string $tenantId, string $productId, string $userId): bool
+    {
+        if (!self::addressable($tenantId, $productId) || !Uuid::isValid($userId)) {
+            return false;
+        }
+
+        return $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT EXISTS (
+                    SELECT 1
+                      FROM entitlements e
+                      JOIN subscriptions s ON s.id = e.subscription_id
+                     WHERE e.tenant_id = CAST(:tenantId AS uuid)
+                       AND e.product_id = CAST(:productId AS uuid)
+                       AND e.valid_from <= now()
+                       AND (e.valid_until IS NULL OR e.valid_until > now())
+                       AND (
+                             s.owner_user_id = CAST(:userId AS uuid)
+                             OR s.subscriber_user_id = CAST(:userId AS uuid)
+                             OR EXISTS (
+                                  SELECT 1 FROM subscription_members m
+                                   WHERE m.subscription_id = s.id
+                                     AND m.user_id = CAST(:userId AS uuid)
+                                )
+                           )
+                )
+                SQL,
+            ['tenantId' => $tenantId, 'productId' => $productId, 'userId' => $userId],
+        ) === true;
     }
 
     /**
