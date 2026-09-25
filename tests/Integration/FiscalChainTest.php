@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Commerce\Service\Subscriptions;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
@@ -817,16 +818,23 @@ final class FiscalChainTest extends DatabaseApiTestCase
         return $id;
     }
 
+    /**
+     * An organisation's own subscription, started through the service.
+     *
+     * It went through `POST /api/v1/subscription` until 2026-09-25. That
+     * endpoint is gone: it started a subscription with no invoice and no
+     * payment, which is ADR-024's rule broken, and it was reachable by any
+     * member, which is ADR-055's. The platform can still hold one — a grant,
+     * a migration, a deployment from before — so the fixture calls what the
+     * platform calls, and no customer can reach it.
+     */
     private function subscribe(): void
     {
-        $response = $this->request(
-            'POST',
-            '/api/v1/subscription',
-            $this->headers(),
-            $this->json(['offer_id' => $this->offer]),
-        );
+        $subscriptions = $this->container()->get(Subscriptions::class);
 
-        self::assertSame(201, $response->getStatusCode());
+        self::assertInstanceOf(Subscriptions::class, $subscriptions);
+
+        $subscriptions->subscribe($this->tenant, $this->product, $this->offer, $this->user);
     }
 
     /**

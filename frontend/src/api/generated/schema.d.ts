@@ -2340,11 +2340,7 @@ export interface paths {
          */
         get: operations["showSubscription"];
         put?: never;
-        /**
-         * Take out a subscription
-         * @description `seat: true` subscribes the caller personally rather than the tenant. A tenant may hold one active subscription and a person one active seat — both are unique indexes, so two simultaneous requests cannot produce two.
-         */
-        post: operations["subscribe"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5409,6 +5405,8 @@ export interface components {
                 /** @description For a quota: the allowance, or null for unlimited. Always null for a boolean feature. */
                 limit: number | null;
             }[];
+            /** @description Whether this grant lets the tenant's people reach the product, or only adds a feature (2026-09-25). A trial against a support exception, said back because the two look identical on every other field and only one of them opens a workspace. */
+            covers_people: boolean;
             /**
              * Format: date-time
              * @description When the grant lapses, or null for no end. A lapsed grant is a lapsed entitlement: nothing is invoiced and nothing renews itself — a person renews it.
@@ -10687,6 +10685,15 @@ export interface operations {
                         limit?: number | null;
                     }[];
                     /**
+                     * @description Whether this grant lets the tenant's people **reach the product**, or only adds a feature (2026-09-25).
+                     *
+                     *     The difference between a trial and a support exception, and it has to be said rather than inferred. Coverage is otherwise a question about subscriptions (ADR-053) — staff hand out a feature, never a seat — so a grant with this false lights the features and every workspace still refuses, which is right for restoring one missing capability and wrong for "this organisation may try this product".
+                     *
+                     *     False unless chosen: the wider answer is the one that should take a decision. True reaches every member of the tenant, because a trial names no people.
+                     * @default false
+                     */
+                    covers_people?: boolean;
+                    /**
                      * Format: date-time
                      * @description In the future, or omitted for no end.
                      */
@@ -11191,65 +11198,6 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    subscribe: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: uuid */
-                    offer_id: string;
-                    /**
-                     * @description Subscribe the caller personally instead of the tenant.
-                     * @default false
-                     */
-                    seat?: boolean;
-                };
-            };
-        };
-        responses: {
-            /** @description The new subscription. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Subscription"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description Already subscribed, or the offer is not on sale. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Well-formed JSON, but not acceptable. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

@@ -4624,6 +4624,7 @@
           "tenant_id",
           "product_id",
           "features",
+          "covers_people",
           "valid_until",
           "granted_by",
           "granted_at"
@@ -4670,6 +4671,10 @@
                 }
               }
             }
+          },
+          "covers_people": {
+            "type": "boolean",
+            "description": "Whether this grant lets the tenant's people reach the product, or only adds a feature (2026-09-25). A trial against a support exception, said back because the two look identical on every other field and only one of them opens a workspace."
           },
           "valid_until": {
             "type": [
@@ -14245,6 +14250,11 @@
                       }
                     }
                   },
+                  "covers_people": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether this grant lets the tenant's people **reach the product**, or only adds a feature (2026-09-25).\n\nThe difference between a trial and a support exception, and it has to be said rather than inferred. Coverage is otherwise a question about subscriptions (ADR-053) — staff hand out a feature, never a seat — so a grant with this false lights the features and every workspace still refuses, which is right for restoring one missing capability and wrong for \"this organisation may try this product\".\n\nFalse unless chosen: the wider answer is the one that should take a decision. True reaches every member of the tenant, because a trial names no people."
+                  },
                   "valid_until": {
                     "type": [
                       "string",
@@ -15072,90 +15082,6 @@
                       "description": "The caller’s own live seat on this product, or null (§13.1, 2026-09-18). Apart from `subscription`, the organisation’s, because the two bind different parties: a member may hold a seat at an organisation that also subscribes."
                     }
                   }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthenticated"
-          },
-          "403": {
-            "$ref": "#/components/responses/PermissionDenied"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Subscription"
-        ],
-        "operationId": "subscribe",
-        "summary": "Take out a subscription",
-        "description": "`seat: true` subscribes the caller personally rather than the tenant. A tenant may hold one active subscription and a person one active seat — both are unique indexes, so two simultaneous requests cannot produce two.",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/ProductHeader"
-          },
-          {
-            "$ref": "#/components/parameters/TenantHeader"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "offer_id"
-                ],
-                "properties": {
-                  "offer_id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "seat": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Subscribe the caller personally instead of the tenant."
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "The new subscription.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Subscription"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Already subscribed, or the offer is not on sale.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Well-formed JSON, but not acceptable.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
                 }
               }
             }

@@ -809,6 +809,13 @@ export interface GrantInput {
   readonly productId: string;
   readonly plan: string | null;
   readonly features: readonly { readonly code: string; readonly limit: number | null }[];
+  /**
+   * Whether the grant opens the product to the tenant's people, or only adds
+   * a feature (2026-09-25). A trial against a support exception — and the
+   * difference has to be said, because coverage is otherwise a question
+   * about subscriptions and every workspace refuses (ADR-053).
+   */
+  readonly covers_people: boolean;
   readonly valid_until: string | null;
 }
 
@@ -858,6 +865,7 @@ export function useGrantTenantEntitlement(tenantId: string) {
           body: {
             plan: input.plan,
             features: input.features.map((feature) => ({ code: feature.code, limit: feature.limit })),
+            covers_people: input.covers_people,
             valid_until: input.valid_until,
           },
         },

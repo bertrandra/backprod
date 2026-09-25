@@ -216,7 +216,104 @@ final class GrantedEntitlementTest extends DatabaseApiTestCase
         self::assertSame(0, $this->grantRows());
     }
 
+    // --- A trial, which is not a support exception (2026-09-25) ----------------
+
+    /**
+     * **A grant lights the features and opens no workspace, unless it says
+     * so.**
+     *
+     * ADR-053 made coverage a question about subscriptions on a principle
+     * that still holds — staff hand out a feature, never a seat — and the
+     * consequence went unnoticed: the platform could not give a trial at
+     * all. A granted product read "provided by the platform" on the
+     * subscription screen and refused every workspace.
+     *
+     * So the two are now different requests, and this is both of them. The
+     * default is the narrow one, because the wide one should take a
+     * decision.
+     */
+    public function testAGrantOpensNoWorkspaceUnlessItSaysItCoversPeople(): void
+    {
+        $this->grant(['plan' => 'pro', 'features' => [['code' => 'exports', 'limit' => 5]]]);
+
+        // Everything Pro grants, and no way in: the features are live and
+        // the workspace refuses, which is exactly right for restoring
+        // something a customer is missing.
+        self::assertSame(['advanced_3d', 'exports', 'max_projects'], $this->mine()['capabilities'] ?? null);
+
+        $refused = $this->projects();
+        self::assertSame(403, $refused->getStatusCode());
+        self::assertSame('SUBSCRIPTION_REQUIRED', $this->errorOf($refused)['code'] ?? null);
+    }
+
+    public function testAGrantThatCoversPeopleIsATrialAndEveryMemberReachesIt(): void
+    {
+        $response = $this->grant([
+            'plan' => 'pro',
+            'covers_people' => true,
+            'features' => [['code' => 'exports', 'limit' => 5]],
+        ]);
+
+        self::assertSame(200, $response->getStatusCode());
+
+        $granted = $this->decode($response)['entitlement'] ?? null;
+        self::assertIsArray($granted);
+        self::assertTrue($granted['covers_people'] ?? null);
+
+        // Ada bought nothing and holds no seat. The platform said this
+        // organisation may use the product, and it names no people because a
+        // trial has none to name.
+        self::assertSame(200, $this->projects()->getStatusCode());
+    }
+
+    /**
+     * A trial ends by its own clock, like the entitlement it is. Nothing
+     * invoices it and nothing renews it — the workspace simply closes again.
+     */
+    public function testALapsedTrialStopsCoveringAnybody(): void
+    {
+        $this->grant([
+            'plan' => 'pro',
+            'covers_people' => true,
+            'features' => [['code' => 'exports', 'limit' => 5]],
+            'valid_until' => '2026-09-24T23:59:59Z',
+        ]);
+
+        $refused = $this->projects();
+
+        self::assertSame(403, $refused->getStatusCode());
+        self::assertSame('SUBSCRIPTION_REQUIRED', $this->errorOf($refused)['code'] ?? null);
+    }
+
+    /**
+     * Withdrawing takes the trial with it: the rows are the grant, and the
+     * flag lives on them.
+     */
+    public function testWithdrawingATrialClosesTheWorkspace(): void
+    {
+        $this->grant([
+            'plan' => 'pro',
+            'covers_people' => true,
+            'features' => [['code' => 'exports', 'limit' => 5]],
+        ]);
+
+        self::assertSame(200, $this->projects()->getStatusCode());
+
+        $this->request('DELETE', $this->path(), ['Authorization' => 'Bearer ola-token']);
+
+        self::assertSame(403, $this->projects()->getStatusCode());
+    }
+
     // --- Helpers ---------------------------------------------------------------
+
+    private function projects(): ResponseInterface
+    {
+        return $this->request(
+            'GET',
+            '/api/v1/projects',
+            ['Authorization' => 'Bearer ada-token', 'X-Product' => 'atlas'],
+        );
+    }
 
     /** @param array<string, mixed> $body */
     private function grant(array $body, ?string $productId = null, string $token = 'ola-token'): ResponseInterface

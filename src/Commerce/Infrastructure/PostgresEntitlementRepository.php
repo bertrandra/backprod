@@ -227,6 +227,22 @@ final class PostgresEntitlementRepository implements EntitlementRepository
                                 )
                            )
                 )
+                OR EXISTS (
+                    -- A trial the platform opened (2026-09-25). It names no
+                    -- people, and does not need to: the caller reached this
+                    -- product through a membership of this tenant, which the
+                    -- context resolved before anything here ran. What it
+                    -- names is the decision — `covers_people` — because a
+                    -- grant that only adds a feature must still cover nobody.
+                    SELECT 1
+                      FROM entitlements e
+                     WHERE e.tenant_id = CAST(:tenantId AS uuid)
+                       AND e.product_id = CAST(:productId AS uuid)
+                       AND e.source = 'GRANT'
+                       AND e.covers_people
+                       AND e.valid_from <= now()
+                       AND (e.valid_until IS NULL OR e.valid_until > now())
+                )
                 SQL,
             ['tenantId' => $tenantId, 'productId' => $productId, 'userId' => $userId],
         ) === true;

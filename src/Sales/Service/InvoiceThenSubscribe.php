@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace App\Sales\Service;
 
-use App\Billing\Domain\BillingProfileRepository;
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceRepository;
-use App\Billing\Service\SupplierIdentity;
+use App\Billing\Service\WhoSellsAndWhoBuys;
 use App\Commerce\Domain\SubscribedOffer;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Service\Catalogue;
@@ -15,7 +14,6 @@ use App\Sales\Domain\Order;
 use App\Sales\Domain\OrderFulfilment;
 use App\Shared\Exceptions\ConflictException;
 use App\Tax\Service\Taxation;
-use App\User\Domain\UserRepository;
 use DateTimeImmutable;
 
 /**
@@ -43,66 +41,19 @@ final class InvoiceThenSubscribe implements OrderFulfilment
     public function __construct(
         private readonly SubscriptionRepository $subscriptions,
         private readonly InvoiceRepository $invoices,
-        private readonly BillingProfileRepository $profiles,
         private readonly Catalogue $catalogue,
-        private readonly SupplierIdentity $supplier,
+        private readonly WhoSellsAndWhoBuys $parties,
         private readonly Taxation $taxation,
-        private readonly UserRepository $users,
     ) {
-    }
-
-    /**
-     * The person a seat is sold to (2026-09-19), as the customer on the
-     * invoice: their name — or their address, for somebody who gave none —
-     * copied in like every snapshot, so a later change of name or an
-     * erasure (§26) leaves the document as it was sent. Falls back to the
-     * organisation's identity when the person cannot be found, which is a
-     * broken invariant rather than a case.
-     *
-     * @param array<string, mixed> $organisation
-     *
-     * @return array<string, mixed>
-     */
-    private function customerOf(Order $order, array $organisation): array
-    {
-        if ($order->subscriber->userId === null) {
-            return $organisation;
-        }
-
-        $person = $this->users->find($order->subscriber->userId);
-
-        if ($person === null) {
-            return $organisation;
-        }
-
-        $name = $person->displayName ?? $person->email ?? 'A member';
-
-        return [
-            'legal_name' => $name,
-            'billing_email' => $person->email,
-            'country_code' => $organisation['country_code'] ?? null,
-            'person' => ['name' => $name, 'email' => $person->email],
-            'organisation' => $organisation['legal_name'] ?? null,
-            // The language the document is issued in (ADR-050): theirs.
-            'locale' => $person->locale,
-        ];
     }
 
     public function invoice(Order $order, ?string $actorUserId = null): array
     {
-        $profile = $this->profiles->find($order->tenantId);
+        // Who sells and who buys, decided in one place since 2026-09-25 —
+        // and it refuses before anything is written, because numbering is
+        // gapless and a document raised by mistake cannot be deleted.
+        $parties = $this->parties->forSale($order->tenantId, $order->productId, $order->subscriber);
 
-        if ($profile === null) {
-            // Refused before anything is written, as when invoicing a
-            // subscription directly: numbering is gapless, so a document
-            // raised by mistake cannot be deleted.
-            throw new ConflictException(
-                'BILLING_PROFILE_REQUIRED',
-                'This tenant has no billing profile, so no order can be invoiced to it.',
-            );
-        }
-
-        $supplier = $this->supplier->forProduct($order->productId);
         $offer = SubscribedOffer::from(
             $this->catalogue->offerOnSale($order->productId, $this->offerIdFor($order)),
         );
@@ -125,32 +76,15 @@ final class InvoiceThenSubscribe implements OrderFulfilment
 
         $supplyType = $this->taxation->defaultSupplyType($order->productId);
 
-        // Who issues (2026-09-25), and from it who sells and who buys
-        // (2026-09-19). One expression, because they are one decision: a
-        // document whose supplier block names the organisation and whose
-        // number came from the platform's series would be a document neither
-        // of them can account for.
-        //
-        // The organisation's own subscription is sold by the product's
-        // supplier to the organisation. A seat is the organisation selling to
-        // one of its people: the organisation's legal identity is the
-        // supplier, the person is the customer, and the VAT jurisdiction is
-        // the organisation's country.
-        $issuer = $order->subscriber->isSeat() ? $order->tenantId : null;
-
-        [$from, $to, $jurisdiction] = $issuer !== null
-            ? [$profile->snapshot(), $this->customerOf($order, $profile->snapshot()), $profile->countryCode ?? SupplierIdentity::jurisdictionOf($supplier)]
-            : [$supplier, $profile->snapshot(), SupplierIdentity::jurisdictionOf($supplier)];
-
         $invoice = $this->invoices->applyIssue(
             $order->tenantId,
             $order->productId,
-            $issuer,
+            $parties->issuerTenantId,
             null,
             $order->lines,
-            $from,
-            $to,
-            $jurisdiction,
+            $parties->from,
+            $parties->to,
+            $parties->jurisdiction,
             $now,
             $offer->version->periodEndFrom($now),
             'Payable on receipt.',

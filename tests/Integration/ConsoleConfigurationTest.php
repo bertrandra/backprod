@@ -26,8 +26,20 @@ use Psr\Http\Message\ResponseInterface;
  *
  * The test that matters is the last one, and it is the same shape as
  * `ConsoleCatalogueTest`'s: **a product created, priced and configured entirely
- * through the console can take somebody's money and name itself correctly on the
- * invoice.** Everything above it is the rules that make that safe.
+ * through the console can take somebody's money.** Everything above it is the
+ * rules that make that safe.
+ *
+ * It used to end "…and name itself correctly on the invoice", and that half is
+ * gone with the sale it described (2026-09-25). What the tenant surface sells
+ * is a seat, and a seat is *the organisation* selling to one of its own people:
+ * the supplier on that document is the customer's own company, and the
+ * console's issuer is nowhere on it. So the test now says the two things that
+ * are true separately — the sale names the organisation, and the console's
+ * issuer is what the *platform's* own invoice needs.
+ *
+ * And it no longer gates the seat on that issuer. It did until today, which
+ * meant a product with no billing identity refused a sale its identity would
+ * never have appeared on.
  *
  * `product_configuration` is never written by SQL here — writing the fixture the
  * way the old tests had to would test nothing about the gap being closed.
@@ -381,16 +393,8 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
             $this->json(['legal_name' => 'Acme SARL', 'country_code' => 'FR', 'city' => 'Paris']),
         )->getStatusCode());
 
-        // Before the console wrote an issuer: everything is in place, the offer
-        // is on sale, the customer can pay — and it refuses, because an invoice
-        // with a blank issuer is not an invoice. This is the failure the last
-        // two ADRs left behind.
-        $refused = $this->checkout($offer);
-
-        self::assertSame(409, $refused->getStatusCode());
-        self::assertSame('BILLING_NOT_CONFIGURED', $this->errorOf($refused)['code'] ?? null);
-
-        $this->setIssuer(self::ISSUER);
+        // The tax position, which the sale *does* need: a rate is decided from
+        // a regime, and a product with no fiscal position has none.
         $this->setTax([
             'country' => 'FR',
             'oss_registered' => true,
@@ -398,7 +402,9 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
             'currency' => 'EUR',
         ]);
 
-        // The same call, and nothing else changed but two console writes.
+        // A product with no billing identity at all — the console has not
+        // written one, and this sale does not need one, because the supplier
+        // on it is Acme.
         $opened = $this->checkout($offer);
 
         self::assertSame(201, $opened->getStatusCode(), (string) $opened->getBody());
@@ -414,14 +420,7 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
         //
         // The seller is **the organisation**, because what the tenant surface
         // sells is a seat — Acme selling to one of its own people
-        // (2026-09-19), and since 2026-09-25 the only sale there is. So the
-        // console's issuer is not on this document, and the two halves of
-        // this test now say different things: the 409 above is what the
-        // console's issuer still decides, and the snapshot below is who the
-        // customer is actually buying from.
-        //
-        // That the product's identity gates a sale it never appears on is
-        // worth knowing about rather than asserting away.
+        // (2026-09-19), and since 2026-09-25 the only sale there is.
         $issuer = $this->connection->fetchOne(
             'SELECT supplier_snapshot::text FROM invoices WHERE id = :id',
             ['id' => $invoiceId],
@@ -442,7 +441,115 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
         );
     }
 
+    /**
+     * The other half, which is still true and is now the only thing the
+     * console's issuer decides: the **platform's** own invoice, raised
+     * against an organisation's subscription, names the company the console
+     * named — and refuses to exist before it does.
+     *
+     * The subscription is written directly because nothing sells one any more
+     * (ADR-055). That is the point: the platform can still hold one, and when
+     * it bills it, it bills as itself.
+     */
+    public function testThePlatformsOwnInvoiceIsWhatTheConsolesIssuerDecides(): void
+    {
+        $offer = $this->priceTheProduct();
+
+        $this->override([
+            TenantMembershipRepository::class => new InMemoryTenantMembershipRepository([
+                new TenantMembership(
+                    $this->tenant,
+                    $this->buyer,
+                    $this->product,
+                    ['TENANT_ADMIN'],
+                    ['billing.read', 'billing.manage', 'subscription.read'],
+                ),
+            ]),
+        ]);
+
+        self::assertSame(200, $this->request(
+            'PUT',
+            '/api/v1/billing/profile',
+            $this->buyerHeaders(),
+            $this->json(['legal_name' => 'Acme SARL', 'country_code' => 'FR', 'city' => 'Paris']),
+        )->getStatusCode());
+
+        $this->setTax([
+            'country' => 'FR',
+            'oss_registered' => true,
+            'supply_type' => 'DIGITAL_SERVICES',
+            'currency' => 'EUR',
+        ]);
+
+        $this->subscribeTheOrganisation($offer);
+
+        // No issuer yet: an invoice with a blank issuer is not an invoice.
+        $refused = $this->request('POST', '/api/v1/billing/invoices', $this->buyerHeaders());
+
+        self::assertSame(409, $refused->getStatusCode());
+        self::assertSame('BILLING_NOT_CONFIGURED', $this->errorOf($refused)['code'] ?? null);
+
+        $this->setIssuer(self::ISSUER);
+
+        $issued = $this->request('POST', '/api/v1/billing/invoices', $this->buyerHeaders());
+
+        self::assertSame(201, $issued->getStatusCode(), (string) $issued->getBody());
+
+        $invoiceId = $this->decode($issued)['id'] ?? null;
+        self::assertIsString($invoiceId);
+
+        $supplier = $this->connection->fetchOne(
+            'SELECT supplier_snapshot::text FROM invoices WHERE id = :id',
+            ['id' => $invoiceId],
+        );
+        self::assertIsString($supplier);
+
+        $decoded = json_decode($supplier, true);
+        self::assertIsArray($decoded);
+        self::assertSame('Atlas SAS', $decoded['legal_name'] ?? null);
+        self::assertSame('FR12345678901', $decoded['vat_number'] ?? null);
+
+        // And it is the platform's series, not Acme's (ADR-054).
+        self::assertNull(
+            $this->connection->fetchOne('SELECT issuer_tenant_id FROM invoices WHERE id = :id', ['id' => $invoiceId]),
+        );
+    }
+
     // --- Helpers -------------------------------------------------------------
+
+    /**
+     * An organisation's own subscription, written directly.
+     *
+     * Nothing sells one any more (ADR-055), and the platform can still hold
+     * one — a grant, a migration, a deployment from before. Going through a
+     * service to set up a state no customer can reach would be testing the
+     * service, not the invoice.
+     */
+    private function subscribeTheOrganisation(string $offerId): void
+    {
+        $version = $this->connection->fetchOne(
+            "SELECT id FROM offer_versions WHERE offer_id = :offer AND status = 'ACTIVE'",
+            ['offer' => $offerId],
+        );
+
+        self::assertIsString($version);
+
+        $this->connection->executeStatement(
+            <<<'SQL'
+                INSERT INTO subscriptions
+                    (tenant_id, product_id, offer_version_id, status, started_at,
+                     current_period_start, current_period_end, subscriber_kind, owner_user_id)
+                VALUES (:tenant, :product, :version, 'ACTIVE', now(), now(), now() + interval '30 days',
+                        'TENANT', :owner)
+                SQL,
+            [
+                'tenant' => $this->tenant,
+                'product' => $this->product,
+                'version' => $version,
+                'owner' => $this->buyer,
+            ],
+        );
+    }
 
     /**
      * Plan, offer, published version — all through the console, as ADR-043's own

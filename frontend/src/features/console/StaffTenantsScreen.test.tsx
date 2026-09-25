@@ -626,11 +626,60 @@ describe('the entitlement the platform gives', () => {
     expect(requests.find((r) => r.method === 'PUT' && r.path.endsWith('/entitlement'))?.body).toEqual({
       plan: 'pro',
       features: [{ code: 'max_projects', limit: 50 }],
+      // Unticked, and said: a grant adds a feature and opens no workspace
+      // unless somebody chose otherwise (2026-09-25). Sending nothing would
+      // be the same default, and this asserts it was a decision.
+      covers_people: false,
       valid_until: '2027-01-31T23:59:59.000Z',
     });
 
     // The answer, not the form: what the server wrote is what is shown.
     await waitFor(() => expect(screen.getByTestId('entitlement-atlas').getAttribute('data-granted')).toBe('true'));
+  });
+
+  /**
+   * The one choice on that form that changes what people can *do*.
+   *
+   * Without it a grant lights the features and every workspace still
+   * refuses, which is right for restoring a missing capability and wrong for
+   * a trial. The server decides on this field; the form has to send it.
+   */
+  it('sends a trial when the platform says the people may use the product', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/me': { data: ADMIN },
+      'GET /api/v1/staff/tenants': { data: { tenants: [TENANT], total: 1, limit: 25, offset: 0 } },
+      'GET /api/v1/staff/tenants/{tenantId}': { data: { tenant: TENANT } },
+      'GET /api/v1/staff/products': { data: { products: [ATLAS] } },
+      'GET /api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement': { data: { entitlement: null } },
+      'GET /api/v1/staff/catalogue': { data: { product: ATLAS, plans: [PRO], features: [ADVANCED, PROJECTS] } },
+      'PUT /api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement': {
+        data: { entitlement: { ...GRANTED, covers_people: true } },
+      },
+    });
+
+    renderAtRoute(<StaffTenantsScreen />, client, open);
+    await giveAMotive();
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Grant' })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Grant' }));
+
+    await waitFor(() => expect(screen.getByTestId('grant-covers-atlas')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('grant-covers-atlas'));
+    fireEvent.click(screen.getByLabelText('Projects'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save grant' }));
+
+    await waitFor(() =>
+      expect(requests.some((r) => r.method === 'PUT' && r.path.endsWith('/entitlement'))).toBe(true),
+    );
+
+    const sent = requests.find((r) => r.method === 'PUT' && r.path.endsWith('/entitlement'))?.body;
+    expect((sent as { covers_people?: boolean } | undefined)?.covers_people).toBe(true);
+
+    // And the answer says which kind it is, because the two look identical
+    // on every other field.
+    await waitFor(() =>
+      expect(screen.getByTestId('grant-kind-atlas').textContent).toMatch(/people may use it/i),
+    );
   });
 
   it('withdraws with DELETE and asks again rather than assuming nothing', async () => {

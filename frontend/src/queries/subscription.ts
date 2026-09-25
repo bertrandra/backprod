@@ -152,27 +152,6 @@ async function refreshSubscription(
   ]);
 }
 
-export function useSubscribe() {
-  const client = useApiClient();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: { offer_id: string; seat?: boolean }): Promise<Subscription> => {
-      const { data, error, response } = await client.POST('/api/v1/subscription', {
-        ...ambientParams(sessionSnapshot),
-        body: input,
-      });
-
-      if (error !== undefined || data === undefined) {
-        throw toApiError(response.status, error);
-      }
-
-      return data;
-    },
-    onSuccess: () => refreshSubscription(queryClient),
-  });
-}
-
 export function useChangeOffer() {
   const client = useApiClient();
   const queryClient = useQueryClient();

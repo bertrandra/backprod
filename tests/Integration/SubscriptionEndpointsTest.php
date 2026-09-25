@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Commerce\Domain\Subscription;
+use App\Commerce\Service\Subscriptions;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
+use App\Shared\Exceptions\HttpException;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
@@ -98,12 +101,9 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
 
     public function testSubscribingGrantsTheOffersCapabilities(): void
     {
-        $response = $this->subscribeTo($this->proOffer);
+        $subscription = $this->subscribeTo($this->proOffer);
 
-        self::assertSame(201, $response->getStatusCode());
-
-        $body = $this->decode($response);
-        self::assertSame('ACTIVE', $body['status'] ?? null);
+        self::assertSame('ACTIVE', $subscription->status);
 
         // The §10.6 chain now resolves capabilities from what was bought.
         $mine = $this->decode($this->request('GET', '/api/v1/me/entitlements', $this->headers()));
@@ -112,10 +112,17 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
 
     public function testSubscribingToAnUnknownOfferIsRefused(): void
     {
-        $response = $this->subscribeTo('2f1c1c8e-0000-4000-8000-000000000000');
+        $refused = null;
 
-        self::assertSame(404, $response->getStatusCode());
-        self::assertSame('OFFER_NOT_FOUND', $this->errorOf($response)['code'] ?? null);
+        try {
+            $this->subscribeTo('2f1c1c8e-0000-4000-8000-000000000000');
+        } catch (HttpException $error) {
+            $refused = $error;
+        }
+
+        self::assertInstanceOf(HttpException::class, $refused);
+        self::assertSame(404, $refused->statusCode());
+        self::assertSame('OFFER_NOT_FOUND', $refused->errorCode());
     }
 
     public function testEntitlementsReportTheirLimits(): void
@@ -291,11 +298,18 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
     // --- Permissions ---------------------------------------------------------
 
     /**
-     * A member may see what the tenant is on; only an administrator may
-     * change it. Both are role questions, and neither is an entitlement one.
+     * A member may see what the tenant is on; only somebody holding
+     * `subscription.manage` may change it. Both are role questions, and
+     * neither is an entitlement one.
+     *
+     * It used to prove this on `POST /subscription`, which is gone
+     * (ADR-055). Changing what is held is `change-offer`, and the refusal is
+     * the same one.
      */
     public function testChangingASubscriptionNeedsThePermission(): void
     {
+        $this->subscribeTo($this->freeOffer);
+
         $this->override([
             TenantMembershipRepository::class => new InMemoryTenantMembershipRepository([
                 new TenantMembership(
@@ -310,7 +324,13 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
 
         self::assertSame(200, $this->request('GET', '/api/v1/subscription', $this->headers())->getStatusCode());
 
-        $response = $this->subscribeTo($this->freeOffer);
+        $response = $this->request(
+            'POST',
+            '/api/v1/subscription/change-offer',
+            $this->headers(),
+            $this->json(['offer_id' => $this->proOffer]),
+        );
+
         self::assertSame(403, $response->getStatusCode());
 
         $details = $this->errorOf($response)['details'] ?? null;
@@ -320,14 +340,21 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
 
     // --- Helpers -------------------------------------------------------------
 
-    private function subscribeTo(string $offerId): ResponseInterface
+    /**
+     * Subscribing, through the service.
+     *
+     * `POST /api/v1/subscription` did this until 2026-09-25 and is gone: it
+     * started a subscription with no invoice and no payment (ADR-024's rule)
+     * and any member could reach it (ADR-055's). The platform still does this
+     * when it holds one itself, so the fixture calls what the platform calls.
+     */
+    private function subscribeTo(string $offerId): Subscription
     {
-        return $this->request(
-            'POST',
-            '/api/v1/subscription',
-            $this->headers(),
-            $this->json(['offer_id' => $offerId]),
-        );
+        $subscriptions = $this->container()->get(Subscriptions::class);
+
+        self::assertInstanceOf(Subscriptions::class, $subscriptions);
+
+        return $subscriptions->subscribe($this->tenant, $this->product, $offerId, $this->user);
     }
 
     private function createProject(string $name): ResponseInterface

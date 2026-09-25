@@ -51,6 +51,7 @@ type Draft = {
   readonly plan: string;
   readonly ticked: Readonly<Record<string, boolean>>;
   readonly limits: Readonly<Record<string, string>>;
+  readonly covers: boolean;
   readonly until: string;
 };
 
@@ -75,7 +76,13 @@ function ProductEntitlement({ tenantId, product }: { tenantId: string; product: 
       limits[feature.code] = feature.limit === null ? '' : String(feature.limit);
     }
 
-    setDraft({ plan: '', ticked, limits, until: current?.valid_until?.slice(0, 10) ?? '' });
+    setDraft({
+      plan: '',
+      ticked,
+      limits,
+      covers: current?.covers_people ?? false,
+      until: current?.valid_until?.slice(0, 10) ?? '',
+    });
   };
 
   return (
@@ -123,6 +130,10 @@ function ProductEntitlement({ tenantId, product }: { tenantId: string; product: 
             ))}
           </ul>
           <p className="mt-1 text-xs text-muted">
+            <span data-testid={`grant-kind-${product.code}`}>
+              {current.covers_people ? t("a trial · people may use it") : t("features only · no workspace")}
+            </span>
+            {t(" · ")}
             {current.valid_until === null ? t("No end date") : t("Until {value}", { value: current.valid_until.slice(0, 10) })}
             {t(" · given ")}
             {current.granted_at.slice(0, 10)}
@@ -158,6 +169,7 @@ function ProductEntitlement({ tenantId, product }: { tenantId: string; product: 
                 productId: product.id,
                 plan: draft.plan === '' ? null : draft.plan,
                 features,
+                covers_people: draft.covers,
                 valid_until: draft.until === '' ? null : new Date(`${draft.until}T23:59:59Z`).toISOString(),
               },
               { onSuccess: () => setDraft(null) },
@@ -221,6 +233,26 @@ function ProductEntitlement({ tenantId, product }: { tenantId: string; product: 
                   </div>
                 ))}
               </fieldset>
+
+              {/* The one choice on this form that changes what people can
+                  *do*, rather than what the organisation holds. Its own
+                  block, with the consequence spelled out, because a grant
+                  that opens a product to everybody in a company should not
+                  be a checkbox somebody ticks past. */}
+              <label className="flex items-start gap-2 rounded-card border border-line bg-well p-3 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  data-testid={`grant-covers-${product.code}`}
+                  checked={draft.covers}
+                  onChange={(event) => setDraft({ ...draft, covers: event.target.checked })}
+                />
+                <span>
+                  <span className="font-medium">{t("Let this organisation's people use the product")}</span>
+                  <span className="block text-xs text-muted">
+                    {t("A trial. Every member reaches the workspace while the grant lasts. Leave this off to add a feature without opening the product — restoring something a customer is missing.")}</span>
+                </span>
+              </label>
 
               <Field id={`grant-until-${product.code}`} label={t("Until")} hint={t("Leave empty for no end date.")}>
                 <input

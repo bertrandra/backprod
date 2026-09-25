@@ -21,9 +21,15 @@ use stdClass;
  * give a tenant its entitlement to a product without a sale
  * (docs/tenant-roots.md §2.8).
  *
- * PUT because the body states the whole grant: features and limits, an
- * expiry or none, a plan as the starting point. The same request twice is
- * the same grant. `staff.tenants.manage`, like assigning the product — a
+ * PUT because the body states the whole grant: features and limits, whether
+ * it opens the product to the tenant's people, an expiry or none, a plan as
+ * the starting point. The same request twice is the same grant.
+ *
+ * **`covers_people` is what makes a trial possible** (2026-09-25). Without
+ * it a grant lights the features and every workspace still refuses, because
+ * coverage is a question about subscriptions (ADR-053) and staff hand out a
+ * feature rather than a seat. That rule stays the default; this is how the
+ * platform says it means the other thing. `staff.tenants.manage`, like assigning the product — a
  * support engineer able to hand a customer a product's features is one able
  * to give away what the platform sells. No motive header: nothing of the
  * customer's is read, and the trail carries what was given.
@@ -56,6 +62,11 @@ final class GrantTenantEntitlementController implements RouteHandler
             StaffRoute::id($request, 'productId'),
             $body->optionalNullableString('plan', 64),
             $limits,
+            // The difference between a trial and a support exception, said
+            // rather than inferred (2026-09-25). False unless chosen: a
+            // grant that opens the product to everybody in the organisation
+            // is the wider answer, and the wider answer takes a decision.
+            $body->optionalBool('covers_people'),
             $until === null ? null : self::moment($until),
         );
 
