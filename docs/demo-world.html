@@ -257,7 +257,7 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
   </div>
 
   <div class="password">
-    <p>Every account signs in with the password <code>demo-password-1234</code>, at <code>/sign-in?product=atlas</code> — the <code>?product=</code> is needed the first time; after that the browser remembers it.</p>
+    <p>Every account signs in with the password <code>demo-password-1234</code>, at <code>/sign-in?product=plan</code> — the <code>?product=</code> is needed the first time; after that the browser remembers it. A bundle built with <code>DEFAULT_PRODUCT=plan</code> needs it never: that is the product this deployment leads with, and the front page opens on its story.</p>
     <p><strong>That password is in this platform's public source.</strong> On any deployment that is reachable by someone else, change the platform administrator's password before anything else — the installer's success page offers the form — or, since 2026-09-19, use <em>Forgot your password?</em> on the sign-in page, which sends a link to the account's address once the mail channel is configured (<code>MAIL_DSN</code>).</p>
   </div>
 

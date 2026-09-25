@@ -99,7 +99,7 @@ point of asking first.
 ## 1. Build the bundle
 
 ```sh
-DEFAULT_PRODUCT=atlas bin/build-dist.sh --slim-fonts --payment-provider stripe
+DEFAULT_PRODUCT=plan bin/build-dist.sh --slim-fonts --payment-provider stripe
 ```
 
 **No keys, and one thing to decide.** The browser holds no credential of any
@@ -112,6 +112,14 @@ origin alone and Stripe's form cannot load, whatever `.env` says.
 
 `DEFAULT_PRODUCT` is the product code to act in when a URL does not name one. A
 single-product install should set it, or every link needs `?product=CODE`.
+
+**It is what the deployment leads with, and it beats the order products are
+listed in** (2026-09-24). The home page a stranger lands on is this product's,
+and so is the shell for somebody whose profile names no default. It was
+`atlas` here until 2026-09-25, while Plan sorted first and was the only
+product with a story to show, so the front page opened on a product with
+nothing on it but three prices. Rank is the order things are *listed* in; this
+is which one the deployment is about.
 
 `--slim-fonts` keeps only the DejaVu family mPDF actually uses: 8.9 MB instead of
 47 MB, at the cost of a blank where a non-Latin legal name would go on an invoice
