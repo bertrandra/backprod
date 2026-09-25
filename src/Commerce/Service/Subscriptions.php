@@ -125,18 +125,31 @@ final class Subscriptions
     }
 
     /**
-     * Whether this person is entitled to the product right now, by the
-     * tenant's subscription or by a seat of their own.
+     * Whether **this** subscription is one of the people's (2026-09-25).
      *
-     * Two questions, both of which must be yes: live at this moment, and
-     * addressed to them (§13.1).
+     * Its owner, the person it is addressed to when it is a seat, or
+     * somebody the owner added within the number the offer sells (ADR-053).
+     *
+     * A third expression of the coverage rule, and the three answer
+     * different questions on purpose. `PostgresEntitlementRepository`'s
+     * `IN_FORCE` decides which *entitlements* reach somebody, and its
+     * `covers()` decides whether anything reaches them at all; this one is
+     * asked about a subscription already in hand, to decide whether its
+     * commercial terms are theirs to read. Change one and read the other
+     * two — they are the same sentence about three questions.
+     *
+     * No clock here: the caller holds the subscription it is asking about
+     * and has already decided which one that is. `current()` returns the
+     * live one.
      */
-    public function entitles(string $tenantId, string $productId, string $userId): bool
+    public function coversPerson(Subscription $subscription, string $userId): bool
     {
-        $now = new DateTimeImmutable();
+        if ($subscription->ownerUserId === $userId || $subscription->subscriber->userId === $userId) {
+            return true;
+        }
 
-        foreach ($this->subscriptions->liveFor($tenantId, $productId, $userId) as $subscription) {
-            if ($subscription->entitlesAt($userId, $now)) {
+        foreach ($this->subscriptions->membersOf($subscription->id) as $member) {
+            if ($member->userId === $userId) {
                 return true;
             }
         }

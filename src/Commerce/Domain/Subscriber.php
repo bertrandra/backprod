@@ -53,15 +53,11 @@ final class Subscriber
         return $this->kind === self::USER;
     }
 
-    /**
-     * Whether this subscription entitles the given person.
-     *
-     * A tenant subscription entitles everyone in the tenant; a seat entitles
-     * one person. This is the whole behavioural difference, and it is why
-     * entitlement resolution has to know which it is holding.
-     */
-    public function entitles(string $userId): bool
-    {
-        return !$this->isSeat() || $this->userId === $userId;
-    }
+    // `entitles()` stood here until 2026-09-25 and returned true for anybody
+    // when the subscriber was a tenant. That was the whole behavioural
+    // difference between the two kinds, and ADR-053 removed it: both cover
+    // the person who subscribed and those they added, so the kind now says
+    // who *contracted*, not who is entitled. The method was dead by then,
+    // and a unit test still pinned its old answer — green, and proving
+    // something the platform had stopped doing.
 }

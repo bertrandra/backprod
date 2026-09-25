@@ -91,9 +91,16 @@ obvious shortcuts are wrong, in opposite directions:
   is exactly somebody who should see the work, and that test refuses them.
 
 So coverage is asked directly — owner, named subscriber, or on
-`subscription_members` — against the **entitlement's** clock rather than a
-second reading of the subscription's dates. One convention for "is this in
-force", not two.
+`subscription_members` — of the **subscription**, against its own clock:
+active, and inside its paid period.
+
+*Corrected before merge.* The first draft joined through `entitlements` to
+reuse this class's one clock, which was tidy and wrong: it made coverage
+depend on whether the offer happens to grant any features. An offer selling
+access and no feature writes no entitlement row, so its buyer would have been
+covered by nothing on the work they had just paid for. `SalesChainTest`,
+whose offer grants none, is what said so. **Coverage is about being on a
+subscription; what it grants is a different question.**
 
 ## 4. What did not change
 
@@ -113,6 +120,32 @@ organisation. Staff hand out a feature; they do not hand out a seat.
 
 **The `users` quota itself.** It counted the owner before and counts the
 owner now. What changed is that it now bounds something.
+
+## 4b. The owner had to start being recorded
+
+Making the owner load-bearing exposed that the sales chain never set one.
+`InvoiceThenSubscribe::activate()` passed no actor, so **every purchase made
+through quote → order → payment produced a subscription owned by nobody** —
+which, with a `TENANT` subscriber and no members, covers nobody at all. The
+customer who had just paid would have met `SUBSCRIPTION_REQUIRED` on the work
+they bought, and could not even add themselves, because adding people is the
+owner's act.
+
+It cost nothing before, which is why it survived: the owner was a convenience
+for deciding who may manage people, and an organisation's subscription
+entitled every member regardless.
+
+`orders.placed_by` had recorded the buyer since orders existed and was read by
+nothing — not in `ORDER_COLUMNS`, not on the `Order` value object. It is now,
+so the rows this chain writes from here on name their owner.
+
+A migration was written to recover the owner of rows already made, from that
+same column, and then removed: the operator is reinstalling from the
+demonstration seed, so there are no such rows to repair. **If a deployment
+with existing sales is ever upgraded in place instead, it needs that
+backfill** — `UPDATE subscriptions SET owner_user_id = orders.placed_by`
+where the subscription came from an order and has none — or every
+organisation subscription bought through the chain will cover nobody.
 
 ## 5. Consequences
 

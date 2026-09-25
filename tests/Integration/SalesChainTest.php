@@ -7,6 +7,7 @@ namespace App\Tests\Integration;
 use App\Auth\Domain\AuthProvider;
 use App\EInvoice\Infrastructure\StubEInvoiceProvider;
 use App\EInvoice\Service\EInvoiceProviders;
+use App\Entitlement\Domain\EntitlementRepository;
 use App\Payment\Infrastructure\StubPaymentProvider;
 use App\Payment\Service\PaymentProviders;
 use App\Product\Domain\Product;
@@ -174,9 +175,28 @@ final class SalesChainTest extends DatabaseApiTestCase
         self::assertIsString($completed['invoice_id'] ?? null);
         self::assertIsString($completed['completed_at'] ?? null);
 
-        // And now the subscription actually entitles the tenant.
+        // And now the subscription actually entitles the buyer.
+        //
+        // **This assertion caught a real one on 2026-09-25.** `activate()`
+        // passed no actor, so a subscription bought through this chain had
+        // no owner. That cost nothing while an organisation's subscription
+        // entitled every member of it; the moment coverage stopped following
+        // membership (ADR-053), a bought subscription covered *nobody* — the
+        // customer who had just paid included, and they could not even add
+        // themselves, because adding people is the owner's act. Every
+        // purchase made this way would have granted nothing.
         $mine = $this->decode($this->request('GET', '/api/v1/subscription', $this->headers()));
         self::assertIsArray($mine['subscription'] ?? null);
+
+        // Said directly, and not only through the read above: the person who
+        // paid is one of the people it covers, which is what makes the work
+        // reachable at all.
+        $entitlements = $this->container()->get(EntitlementRepository::class);
+        self::assertInstanceOf(EntitlementRepository::class, $entitlements);
+        self::assertTrue(
+            $entitlements->covers($this->tenant, $this->product, $this->user),
+            'whoever bought it owns it, and an owner is covered',
+        );
     }
 
     public function testTheInvoiceBillsWhatWasQuotedNotWhatTheOfferBecame(): void
