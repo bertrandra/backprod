@@ -169,14 +169,15 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
     <thead><tr><th>Tenant</th><th>Slug</th><th>Holds</th><th>Who subscribed, to what</th><th>Invoices it raised</th></tr></thead>
     <tbody>
       <tr><td>Acme Ltd</td><td><code>acme</code></td><td>atlas, boreas, ceres, delos, plan</td><td><strong>user1</strong> · Plan, Pro monthly<br><strong>user1</strong> · Atlas, Pro monthly<br><strong>user4</strong> · Plan, Lecture monthly<br>Ceres and Delos: held, nothing bought</td><td><code>2026-000001</code>, <code>2026-000002</code>, <code>2026-000003</code> — paid</td></tr>
-      <tr><td>Globex SA</td><td><code>globex</code></td><td>atlas, boreas, plan</td><td><strong>user1</strong> · Boreas, Starter monthly<br>Atlas and Plan: held, nothing bought</td><td><code>2026-000004</code> — paid</td></tr>
-      <tr><td>Initech SARL</td><td><code>initech</code></td><td>plan</td><td><strong>user1</strong> · Plan, Starter monthly</td><td><code>2026-000005</code> — paid</td></tr>
+      <tr><td>Globex SA</td><td><code>globex</code></td><td>atlas, boreas, plan</td><td><strong>user1</strong> · Boreas, Starter monthly<br>Atlas and Plan: held, nothing bought</td><td><code>2026-000001</code> — paid</td></tr>
+      <tr><td>Initech SARL</td><td><code>initech</code></td><td>plan</td><td><strong>user1</strong> · Plan, Starter monthly</td><td><code>2026-000001</code> — paid</td></tr>
     </tbody>
   </table>
   </div>
   <p><strong>No organisation subscribed to anything</strong>, and no administrator did (2026-09-25). A person decides to use a product and buys a seat for themselves; the organisation administers — its members, its billing identity, its VAT, its documents — and reads what its people hold. So each of the five invoices is raised <strong>by the organisation to one of its own people</strong>: supplier <em>Acme Ltd</em>, customer <em>ACME user1</em>, VAT in Acme's country. The platform's own supplier identity appears on none of them.</p>
   <p>Each was bought the way a customer buys one — the person orders the seat, fulfilling the order raises the invoice, and the organisation's administrator marks it <em>paid</em>, the money having arrived outside the platform. Paying is what activates the seat, so there is no subscription here the application could not have produced.</p>
-  <p class="note">Invoice numbers come from the gapless sequence, so they are the first five of the year the seed ran; a reseed after a reset starts again at <code>000001</code>.</p>
+  <p><strong>Each organisation numbers from one</strong>, because a gapless series belongs to whoever issues it (2026-09-25). Acme sold three seats and its invoices run 1, 2, 3; Globex and Initech sold one each and both hold a <code>2026-000001</code>. Until that day there was a single platform-wide counter, and it showed: Initech's only invoice came out <code>2026-000005</code>, telling its customer about four documents Initech never wrote — while Acme's own series was missing the two that had gone to the other companies, which is the gap the rule exists to prevent.</p>
+  <p class="note">A reseed after a reset starts every series again at <code>000001</code>. The platform keeps a series of its own, with nothing in it here: in this world the platform sells nothing directly.</p>
 
   <h2>The five projects</h2>
   <p>Made through the workspace by the people who would make them — so each one was counted against a quota somebody bought, by an author that purchase covers, and stored under the schema version the product declares — rather than inserted. No administrator made one: they bought nothing, so they are entitled to nothing. Plan's carry what Plan keeps for a parcel; the other two show the platform's own workspace with something in it.</p>
@@ -232,7 +233,7 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
     <div class="person">
       <span class="who">Globex user1</span><span class="chip tenant">USER</span>
       <span class="mail"><code>globex-user1@raillard.org</code></span>
-      <p class="sees">Holds the Boreas Starter seat they bought — <code>2026-000004</code>, from Globex to them — which sells <strong>one person</strong>, so there is no place to give away. <em>Site survey</em> is theirs.</p>
+      <p class="sees">Holds the Boreas Starter seat they bought — <code>2026-000001</code>, from Globex to them — the first of Globex's own series — which sells <strong>one person</strong>, so there is no place to give away. <em>Site survey</em> is theirs.</p>
       <p class="start">Start with: Subscription → People, and try to add user2: the refusal is the quota, in the words a customer reads.</p>
     </div>
     <div class="person">
@@ -245,7 +246,7 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
       <span class="who">Initech tenant admin</span><span class="chip tenant">TENANT_ADMIN</span>
       <span class="mail"><code>initech-admin@raillard.org</code></span>
       <p class="sees">Administrator of Initech, at <code>/initech/</code>, on Plan alone: an organisation with one product, whose switcher is a chip rather than a menu. Subscribes to nothing; user1 bought the Starter seat and Initech invoiced them for it.</p>
-      <p class="start">Start with: <code>2026-000005</code> — the whole model on one page: supplier Initech SARL, customer Initech user1.</p>
+      <p class="start">Start with: <code>2026-000001</code> — the whole model on one page: supplier Initech SARL, customer Initech user1, and the number one of a series that is Initech's alone.</p>
     </div>
     <div class="person">
       <span class="who">Initech user1</span><span class="chip tenant">USER</span>

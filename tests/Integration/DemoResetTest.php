@@ -76,7 +76,19 @@ final class DemoResetTest extends DatabaseApiTestCase
             ],
             array_column($this->listIn($world, 'people'), 'email'),
         );
-        self::assertSame(['2026-000001', '2026-000002', '2026-000003', '2026-000004', '2026-000005'], $world['invoices'] ?? null);
+        // Three issuers, three series (2026-09-25). Acme sold three seats and
+        // numbers them 1, 2, 3; Globex and Initech sold one each and both
+        // start at 1. Under the platform-wide counter this read 1 to 5, so
+        // Initech's only invoice announced four documents it never wrote and
+        // Acme's own series was missing the two that went elsewhere.
+        self::assertSame(['2026-000001', '2026-000002', '2026-000003', '2026-000001', '2026-000001'], $world['invoices'] ?? null);
+        // And the series is the issuer's, not the tenant scope's: every
+        // document here was raised by the organisation it is scoped to,
+        // because every one of them is a seat it sold.
+        self::assertSame(
+            0,
+            $this->rowCount('SELECT count(*) FROM invoices WHERE issuer_tenant_id IS DISTINCT FROM tenant_id'),
+        );
 
         // What the database holds: the world and nothing else.
         self::assertSame(5, $this->rowCount('SELECT count(*) FROM products'));

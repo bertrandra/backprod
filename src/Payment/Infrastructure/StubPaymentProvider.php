@@ -58,14 +58,26 @@ final class StubPaymentProvider implements PaymentProvider
     public function authorize(Money $amount, string $reference, ?string $attemptKey = null): ProviderPayment
     {
         // A real adapter calls the provider here. This one mints a handle
-        // that is derived from the reference, so a test can predict it and a
-        // human reading the two systems side by side can line them up.
+        // that is derived from the attempt's key, so a test can predict it
+        // and a human reading the two systems side by side can line them up.
+        //
+        // **The key, not the reference** (2026-09-25). It minted from the
+        // reference until today, which is the invoice's *number* — and a
+        // number is unique within its issuer's series and nowhere else, so
+        // an organisation's first invoice and the platform's first invoice
+        // collided on one handle and the second payment died on
+        // `payments_provider_reference_unique`. Stripe already keys on
+        // `$attemptKey ?? $reference`, and the port says the reference is
+        // the key only for a provider with no memory; this one has a memory,
+        // so it follows the same rule.
+        $key = $attemptKey ?? $reference;
+
         return new ProviderPayment(
-            'stub_pi_' . substr(hash('sha256', $reference), 0, 24),
+            'stub_pi_' . substr(hash('sha256', $key), 0, 24),
             PaymentStatus::PENDING,
             // A real client secret would come from the provider and is never
             // stored; this one is here to prove the shape travels.
-            'stub_secret_' . substr(hash('sha256', $reference . $amount->minorUnits), 0, 16),
+            'stub_secret_' . substr(hash('sha256', $key . $amount->minorUnits), 0, 16),
             null,
         );
     }

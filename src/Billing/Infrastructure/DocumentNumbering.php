@@ -16,6 +16,19 @@ use InvalidArgumentException;
  * a legal sequence is a question from an auditor rather than a cosmetic
  * problem.
  *
+ * **And a series belongs to whoever issues it** (2026-09-25). An organisation
+ * that sells seats to its own people issues under its own legal identity, so
+ * `$issuerTenantId` names it; `null` means the platform issued the document.
+ * One counter shared between issuers gives each of them a series full of other
+ * companies' numbers — which is a gap, in every one of them at once. The
+ * demonstration said it plainly: Initech raised one invoice and it came out
+ * `2026-000005`.
+ *
+ * The platform keeps **one series across its products**, although its supplier
+ * identity is configured per product. Splitting on that would cut the
+ * platform's own history into pieces with gaps in each — the same defect, in
+ * the other direction.
+ *
  * The mechanism is deliberately not a PostgreSQL sequence. Sequences are fast
  * because they do not participate in transactions, so a rolled-back document
  * burns its number permanently. Here the next number is `max + 1`, read and
@@ -44,8 +57,11 @@ final class DocumentNumbering
      * The next number in a series. Must be called inside a transaction: the
      * lock it takes is released at commit, and without one the read and the
      * write are not the same moment.
+     *
+     * @param ?string $issuerTenantId the organisation issuing the document,
+     *                                or null when the platform issues it
      */
-    public static function next(Connection $connection, string $series): string
+    public static function next(Connection $connection, string $series, ?string $issuerTenantId): string
     {
         $definition = self::SERIES[$series] ?? throw new InvalidArgumentException(
             'Unknown document series: ' . $series,
@@ -58,20 +74,31 @@ final class DocumentNumbering
         // A table-level lock for the shortest possible moment. Issuing is
         // rare and its correctness is legal rather than merely important, so
         // serialising it is the right trade.
+        //
+        // Still the whole table, although the series is now one issuer's: the
+        // lock has to cover the rows the read below looks at, and narrowing it
+        // to a range of a partial index would be a lock this code has to
+        // reason about being right, in exchange for concurrency between
+        // organisations that issue a handful of documents a month.
         $connection->executeStatement(
             sprintf('LOCK TABLE %s IN SHARE ROW EXCLUSIVE MODE', $table),
         );
 
+        // `IS NOT DISTINCT FROM` rather than `=`, because the platform's own
+        // series is the one whose issuer is NULL, and `= NULL` matches
+        // nothing — which would restart the platform's numbering at 1 on
+        // every issue and collide on the first one.
         $highest = $connection->fetchOne(
             sprintf(
                 <<<'SQL'
                     SELECT max(substring(number from '\d+$')::bigint)
                       FROM %s
                      WHERE number LIKE :prefix
+                       AND issuer_tenant_id IS NOT DISTINCT FROM CAST(:issuer AS uuid)
                     SQL,
                 $table,
             ),
-            ['prefix' => $prefix . '-%'],
+            ['prefix' => $prefix . '-%', 'issuer' => $issuerTenantId],
         );
 
         $next = (is_numeric($highest) ? (int) $highest : 0) + 1;

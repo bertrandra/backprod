@@ -163,6 +163,11 @@ final class Invoicing
         return $this->invoices->issue(
             $tenantId,
             $productId,
+            // The platform issues this one: it sells the subscription to the
+            // organisation, under the product's own supplier identity read
+            // above. So it takes a number from the platform's series, not
+            // from the organisation's (2026-09-25).
+            null,
             $subscription->id,
             [$line],
             $supplier,

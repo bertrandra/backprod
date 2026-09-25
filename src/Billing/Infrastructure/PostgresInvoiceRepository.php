@@ -39,7 +39,7 @@ use stdClass;
 final class PostgresInvoiceRepository implements InvoiceRepository
 {
     private const COLUMNS = <<<'SQL'
-        id, tenant_id, product_id, subscription_id, number, status, currency,
+        id, tenant_id, product_id, issuer_tenant_id, subscription_id, number, status, currency,
         net_minor_units, vat_minor_units, gross_minor_units,
         issued_at, due_at, paid_at, period_start, period_end, payment_terms,
         supplier_snapshot::text AS supplier_snapshot,
@@ -111,6 +111,7 @@ final class PostgresInvoiceRepository implements InvoiceRepository
     public function issue(
         string $tenantId,
         string $productId,
+        ?string $issuerTenantId,
         ?string $subscriptionId,
         array $lines,
         array $supplier,
@@ -131,6 +132,7 @@ final class PostgresInvoiceRepository implements InvoiceRepository
         return $this->connection->transactional(fn (): Invoice => $this->applyIssue(
             $tenantId,
             $productId,
+            $issuerTenantId,
             $subscriptionId,
             $lines,
             $supplier,
@@ -147,6 +149,7 @@ final class PostgresInvoiceRepository implements InvoiceRepository
     public function applyIssue(
         string $tenantId,
         string $productId,
+        ?string $issuerTenantId,
         ?string $subscriptionId,
         array $lines,
         array $supplier,
@@ -171,17 +174,17 @@ final class PostgresInvoiceRepository implements InvoiceRepository
             $vat = $vat->plus($line->vat);
         }
 
-        $number = DocumentNumbering::next($this->connection, DocumentNumbering::INVOICE);
+        $number = DocumentNumbering::next($this->connection, DocumentNumbering::INVOICE, $issuerTenantId);
 
         $id = $this->connection->fetchOne(
             <<<'SQL'
                 INSERT INTO invoices
-                    (tenant_id, product_id, subscription_id, number, status, currency,
+                    (tenant_id, product_id, issuer_tenant_id, subscription_id, number, status, currency,
                      net_minor_units, vat_minor_units, gross_minor_units,
                      issued_at, period_start, period_end, payment_terms,
                      supplier_snapshot, customer_snapshot, locale)
                 VALUES
-                    (:tenantId, :productId, :subscriptionId, :number, 'ISSUED', :currency,
+                    (:tenantId, :productId, CAST(:issuerTenantId AS uuid), :subscriptionId, :number, 'ISSUED', :currency,
                      :net, :vat, :gross,
                      now(), :periodStart, :periodEnd, :paymentTerms,
                      CAST(:supplier AS jsonb), CAST(:customer AS jsonb),
@@ -197,6 +200,7 @@ final class PostgresInvoiceRepository implements InvoiceRepository
                 'actor' => $actorUserId !== null && Uuid::isValid($actorUserId) ? $actorUserId : null,
                 'tenantId' => $tenantId,
                 'productId' => $productId,
+                'issuerTenantId' => $issuerTenantId,
                 'subscriptionId' => $subscriptionId,
                 'number' => $number,
                 'currency' => $currency,
@@ -443,6 +447,7 @@ final class PostgresInvoiceRepository implements InvoiceRepository
                     $id,
                     Row::string($row, 'tenant_id'),
                     Row::string($row, 'product_id'),
+                    Row::nullableString($row, 'issuer_tenant_id'),
                     Row::nullableString($row, 'subscription_id'),
                     Row::nullableString($row, 'number'),
                     Row::string($row, 'status'),

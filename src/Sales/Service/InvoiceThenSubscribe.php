@@ -125,18 +125,27 @@ final class InvoiceThenSubscribe implements OrderFulfilment
 
         $supplyType = $this->taxation->defaultSupplyType($order->productId);
 
-        // Who sells and who buys (2026-09-19). The organisation's own
-        // subscription is sold by the product's supplier to the organisation.
-        // A seat is the organisation selling to one of its people: the
-        // organisation's legal identity is the supplier, the person is the
-        // customer, and the VAT jurisdiction is the organisation's country.
-        [$from, $to, $jurisdiction] = $order->subscriber->isSeat()
+        // Who issues (2026-09-25), and from it who sells and who buys
+        // (2026-09-19). One expression, because they are one decision: a
+        // document whose supplier block names the organisation and whose
+        // number came from the platform's series would be a document neither
+        // of them can account for.
+        //
+        // The organisation's own subscription is sold by the product's
+        // supplier to the organisation. A seat is the organisation selling to
+        // one of its people: the organisation's legal identity is the
+        // supplier, the person is the customer, and the VAT jurisdiction is
+        // the organisation's country.
+        $issuer = $order->subscriber->isSeat() ? $order->tenantId : null;
+
+        [$from, $to, $jurisdiction] = $issuer !== null
             ? [$profile->snapshot(), $this->customerOf($order, $profile->snapshot()), $profile->countryCode ?? SupplierIdentity::jurisdictionOf($supplier)]
             : [$supplier, $profile->snapshot(), SupplierIdentity::jurisdictionOf($supplier)];
 
         $invoice = $this->invoices->applyIssue(
             $order->tenantId,
             $order->productId,
+            $issuer,
             null,
             $order->lines,
             $from,

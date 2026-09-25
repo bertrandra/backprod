@@ -1954,6 +1954,18 @@ payment_status
 credit_note_reference
 ```
 
+**La série sans trou appartient à l'émetteur** (2026-09-25). `invoice_number`
+est unique et continu *dans la série de qui émet le document* — l'organisation
+quand elle vend un siège à l'une de ses personnes, la plateforme sinon — et
+non sur l'ensemble de la base. Un compteur unique partagé entre plusieurs
+émetteurs met les numéros des autres au milieu de la séquence de chacun, ce
+qui est exactement le trou que la règle interdit, et annonce au client d'un
+émetteur des documents qu'il n'a jamais écrits.
+
+C'est `issuer_tenant_id` sur `invoices` et `credit_notes` (ADR-054) : `NULL` signifie que
+la plateforme a émis. Un avoir prend son numéro dans la série de la facture
+qu'il corrige, jamais dans une autre.
+
 Pour les clients professionnels français, prévoir les données structurées nécessaires au dispositif.
 
 Un simple PDF envoyé par email ne constitue pas, à lui seul, une facture électronique au sens de la réforme. citeturn0search28

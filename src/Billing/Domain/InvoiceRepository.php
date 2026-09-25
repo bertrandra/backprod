@@ -34,6 +34,13 @@ interface InvoiceRepository
      * transaction rolls back, and a missing invoice number is a question
      * from an auditor rather than a cosmetic gap.
      *
+     * From the existing maximum **of this issuer's series** (2026-09-25).
+     * `$issuerTenantId` is the organisation whose legal identity the document
+     * is raised under — an organisation selling a seat to one of its own
+     * people — and null when the platform raises it. One counter shared
+     * between issuers puts other companies' numbers in the middle of
+     * everybody's sequence, which is precisely the gap this avoids.
+     *
      * `$alsoRecord` runs **inside** that transaction, after the document
      * exists and before it commits. It is how the fiscal facts of §25.3 are
      * written atomically with the invoice that produced them: an invoice
@@ -49,6 +56,7 @@ interface InvoiceRepository
     public function issue(
         string $tenantId,
         string $productId,
+        ?string $issuerTenantId,
         ?string $subscriptionId,
         array $lines,
         array $supplier,
@@ -78,6 +86,7 @@ interface InvoiceRepository
     public function applyIssue(
         string $tenantId,
         string $productId,
+        ?string $issuerTenantId,
         ?string $subscriptionId,
         array $lines,
         array $supplier,
