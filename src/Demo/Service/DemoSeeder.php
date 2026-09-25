@@ -144,7 +144,7 @@ final class DemoSeeder
             $order = $this->sales->fulfil(
                 $tenant,
                 $product,
-                $this->sales->order($tenant, $product, $structure->offer($seat['product'], $seat['offer']), $buyer, true)->id,
+                $this->sales->order($tenant, $product, $structure->offer($seat['product'], $seat['offer']), $buyer)->id,
                 $buyer,
             );
 

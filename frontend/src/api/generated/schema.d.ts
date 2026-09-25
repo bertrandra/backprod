@@ -1848,90 +1848,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/sales/quotes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The tenant's quotes
-         * @description Newest first, paginated.
-         */
-        get: operations["listQuotes"];
-        put?: never;
-        /**
-         * Quote an offer
-         * @description Priced from the offer version on sale now and pinned to it, so a catalogue change cannot reprice a quote already sent. `validity_days` is clamped to the platform's maximum — a quote open for ever is a price open for ever. Raised for business customers only: a tenant whose tax profile says `B2C` is refused with `QUOTE_REQUIRES_BUSINESS_CUSTOMER` and buys at the listed price instead. Declaring the organisation a business in its tax profile is what makes it quotable.
-         */
-        post: operations["createQuote"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/sales/quotes/{quoteId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * One quote
-         * @description With its lines and the moment it stops being acceptable.
-         */
-        get: operations["showQuote"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/sales/quotes/{quoteId}/accept": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Accept a quote, creating an order
-         * @description 201, because an order is created. Accepting an expired quote is refused rather than honoured — the clock decides, not the status column, so a quote that lapsed a second ago is already closed.
-         */
-        post: operations["acceptQuote"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/sales/quotes/{quoteId}/reject": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Decline a quote
-         * @description Recorded rather than deleted: a quote that was refused is a commercial fact, and the date of the refusal is part of it.
-         */
-        post: operations["rejectQuote"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/staff/access-log": {
         parameters: {
             query?: never;
@@ -6917,11 +6833,6 @@ export interface operations {
                      * @description An offer on sale in this product right now. A draft, an expired one, or one belonging to another product is not found.
                      */
                     offer_id: string;
-                    /**
-                     * @description Buy for the caller alone — a seat (§13.1) — rather than for the organisation (2026-09-18). Whose seat it is comes from the session, never from the body. A person holds one live seat per product and an organisation one live subscription per product; the two do not stand in each other's way, so a member may take a seat at an organisation that already subscribes, and vice versa.
-                     * @default false
-                     */
-                    seat?: boolean;
                 };
             };
         };
@@ -6952,7 +6863,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `BILLING_PROFILE_REQUIRED` — the tenant has no billing profile, so nothing can be invoiced to it. Or `SUBSCRIPTION_ALREADY_ACTIVE` (or `SEAT_ALREADY_ACTIVE` for a seat) — the organisation already has a live subscription to this product; changing what it has is a change on the subscription, not a second purchase. Refused before any document is raised, because numbering is gapless. */
+            /** @description `BILLING_PROFILE_REQUIRED` — the tenant has no billing profile, so nothing can be invoiced to it. Or `SEAT_ALREADY_ACTIVE` — the caller already holds a live seat on this product; changing what they have is a change on the subscription, not a second purchase. Refused before any document is raised, because numbering is gapless. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9791,7 +9702,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `SUBSCRIPTION_ALREADY_ACTIVE` — the organisation already has a live subscription to this product; changing what it has is a change on the subscription, not a second purchase. Refused before any document is raised, because numbering is gapless. */
+            /** @description `SEAT_ALREADY_ACTIVE` — the caller already holds a live seat on this product; changing what they have is a change on the subscription, not a second purchase. Refused before any document is raised, because numbering is gapless. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9906,215 +9817,6 @@ export interface operations {
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
             /** @description Not in a state that can be fulfilled. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    listQuotes: {
-        parameters: {
-            query?: {
-                /** @description How many to return. */
-                limit?: components["parameters"]["Limit"];
-                /** @description How many to skip. */
-                offset?: components["parameters"]["Offset"];
-            };
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description A page of quotes. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        quotes: components["schemas"]["Quote"][];
-                        total: number;
-                        limit: number;
-                        offset: number;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    createQuote: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: uuid */
-                    offer_id: string;
-                    /** @description Clamped to the platform maximum if larger. */
-                    validity_days?: number;
-                };
-            };
-        };
-        responses: {
-            /** @description The quote. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Quote"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description The offer is not on sale. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description A field was unacceptable — or `QUOTE_REQUIRES_BUSINESS_CUSTOMER`: the tenant's tax profile does not say B2B, and quotes are a business instrument. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showQuote: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                quoteId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The quote. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Quote"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    acceptQuote: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                quoteId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The order the quote became. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Order"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description `QUOTE_EXPIRED` or `INVALID_QUOTE_TRANSITION` — no longer open: expired, or already decided. Or `SUBSCRIPTION_ALREADY_ACTIVE` — the organisation already has a live subscription to this product; changing what it has is a change on the subscription, not a second purchase. Refused before any document is raised, because numbering is gapless. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    rejectQuote: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                quoteId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The rejected quote. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Quote"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            404: components["responses"]["NotFound"];
-            /** @description Already decided. */
             409: {
                 headers: {
                     [name: string]: unknown;

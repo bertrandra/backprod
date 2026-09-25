@@ -347,6 +347,17 @@ subscriber_kind = TENANT   the organisation is the contracting party
 subscriber_kind = USER     one person is (a seat)
 ```
 
+**The tenant surface sells the second one only** (ADR-055, 2026-09-25). A
+person decides to use a product and buys a seat for themselves; the
+organisation administers and reads what its people hold. `Sales::order()` has
+no argument for the other sale and `openCheckoutSession` no field for it, so
+it is a fact rather than a button nobody offers — the frontend is never the
+authority. The quote went with it: a quote priced the organisation's own
+subscription, so there was nobody left for one to be addressed to.
+
+`TENANT` is still a column and still carries the rows a deployment already
+has. What no longer exists is a way for a customer to buy one.
+
 **Buying covers people; membership does not** (ADR-053, 2026-09-25). Either
 kind entitles the same set: the person who took it out, plus those they have
 added within the `users` quota their offer sells. Joining an organisation

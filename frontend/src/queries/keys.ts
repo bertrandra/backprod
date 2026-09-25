@@ -129,9 +129,6 @@ export const keys = {
     profile: ['billing', 'profile'] as const,
   },
   sales: {
-    quoteLists: ['sales', 'quotes'] as const,
-    quoteList: (limit: number, offset: number) => ['sales', 'quotes', limit, offset] as const,
-    quote: (id: string) => ['sales', 'quote', id] as const,
     orderLists: ['sales', 'orders'] as const,
     orderList: (limit: number, offset: number) => ['sales', 'orders', limit, offset] as const,
     order: (id: string) => ['sales', 'order', id] as const,

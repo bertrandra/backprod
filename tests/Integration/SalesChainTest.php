@@ -23,7 +23,12 @@ use Psr\Http\Message\ResponseInterface;
 /**
  * §20's chain end to end, through the real pipeline and the real database:
  *
- *     Quote → Order → Invoice → Payment → Subscription → e-invoice
+ *     Order → Invoice → Payment → Seat → e-invoice
+ *
+ * It began at a quote until 2026-09-25. A quote priced the *organisation's*
+ * own subscription, and the tenant surface stopped selling that, so the chain
+ * now starts where a customer starts: placing an order, which is always a
+ * seat for whoever placed it.
  *
  * The order of those middle two is the gate. A subscription used to start the
  * moment an order was fulfilled, on the assumption the money would follow;
@@ -89,56 +94,40 @@ final class SalesChainTest extends DatabaseApiTestCase
         ]);
 
         $this->saveProfile();
-        // Acme is a business: a quote is raised for a B2B customer and refused
-        // for a private person (the test below), and everything in this chain
-        // starts from a quote.
+        // Acme is a business, which is what an organisation ordinarily is.
+        // Nothing in the chain turns on it any more — that was the quote's
+        // gate — and it stays because the VAT the invoices carry is a B2B
+        // domestic sale, which is the case worth exercising.
         $this->declareBusiness();
     }
 
     // --- The chain -----------------------------------------------------------
 
-    public function testAPrivatePersonIsNotQuotedButBuysAtTheListedPrice(): void
+    /**
+     * A private person buys at the listed price, like everybody else
+     * (2026-09-25).
+     *
+     * This used to assert the other half too: that the same person was
+     * *refused a quote*, because a quote was a B2B document. The tenant
+     * surface no longer raises one — a quote priced the organisation's own
+     * subscription, and the organisation no longer buys — so what is left to
+     * check is that the fiscal kind gates nothing on the way to a seat.
+     */
+    public function testAPrivatePersonBuysAtTheListedPrice(): void
     {
         $this->request('PUT', '/api/v1/tax/profile', $this->headers(), $this->json(['customer_kind' => 'B2C', 'country_code' => 'FR']));
 
-        $refused = $this->quote();
-
-        self::assertSame(422, $refused->getStatusCode());
-        self::assertSame('QUOTE_REQUIRES_BUSINESS_CUSTOMER', $this->errorOf($refused)['code'] ?? null);
-        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM quotes'));
-
-        // Buying is not a quote: the same person may still order at the price.
-        $order = $this->request('POST', '/api/v1/sales/orders', $this->headers(), $this->json(['offer_id' => $this->offer]));
-        self::assertSame(201, $order->getStatusCode());
+        self::assertSame(201, $this->place()->getStatusCode());
     }
 
-    public function testAQuoteIsPricedFromTheOfferAndHeldUntilADate(): void
+    public function testTheWholeChainRunsFromOrderToInvoice(): void
     {
-        $response = $this->quote();
-
-        self::assertSame(201, $response->getStatusCode());
-
-        $quote = $this->decode($response);
-        self::assertSame('SENT', $quote['status'] ?? null);
-        self::assertTrue($quote['open'] ?? null);
-        self::assertSame(['minor_units' => 2900, 'currency' => 'EUR'], $quote['net'] ?? null);
-        self::assertSame(['minor_units' => 580, 'currency' => 'EUR'], $quote['vat'] ?? null);
-        self::assertSame(['minor_units' => 3480, 'currency' => 'EUR'], $quote['gross'] ?? null);
-        self::assertIsString($quote['valid_until'] ?? null);
-
-        // The customer as they were when the quote was sent, like an invoice.
-        $customer = $quote['customer'] ?? null;
-        self::assertIsArray($customer);
-        self::assertSame('Acme SARL', $customer['legal_name'] ?? null);
-    }
-
-    public function testTheWholeChainRunsFromQuoteToInvoice(): void
-    {
-        $quoteId = $this->quotedId();
-
-        $order = $this->decode($this->accept($quoteId));
+        $order = $this->decode($this->place());
         self::assertSame('PENDING', $order['status'] ?? null);
-        self::assertSame($quoteId, $order['quote_id'] ?? null);
+        // No quote in front of it, and no way to raise one: what the order
+        // records is the offer version it was placed on.
+        self::assertArrayHasKey('quote_id', $order);
+        self::assertNull($order['quote_id']);
         self::assertArrayHasKey('subscription_id', $order);
         self::assertNull($order['subscription_id']);
         self::assertArrayHasKey('invoice_id', $order);
@@ -158,9 +147,6 @@ final class SalesChainTest extends DatabaseApiTestCase
         self::assertNull($fulfilled['subscription_id']);
         self::assertArrayHasKey('completed_at', $fulfilled);
         self::assertNull($fulfilled['completed_at']);
-
-        // The quote was accepted by the same act.
-        self::assertSame('ACCEPTED', $this->statusOf('quotes', $quoteId));
 
         // Nothing is switched on yet, which is the whole point.
         self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM subscriptions'));
@@ -185,8 +171,14 @@ final class SalesChainTest extends DatabaseApiTestCase
         // customer who had just paid included, and they could not even add
         // themselves, because adding people is the owner's act. Every
         // purchase made this way would have granted nothing.
+        // Read under `seat`, not `subscription`: what was bought belongs to
+        // the person, and that read keeps the two apart (§13.1). Before
+        // 2026-09-25 this chain produced the organisation's subscription and
+        // the assertion was on the other key.
         $mine = $this->decode($this->request('GET', '/api/v1/subscription', $this->headers()));
-        self::assertIsArray($mine['subscription'] ?? null);
+        self::assertIsArray($mine['seat'] ?? null);
+        self::assertArrayHasKey('subscription', $mine);
+        self::assertNull($mine['subscription']);
 
         // Said directly, and not only through the read above: the person who
         // paid is one of the people it covers, which is what makes the work
@@ -199,12 +191,9 @@ final class SalesChainTest extends DatabaseApiTestCase
         );
     }
 
-    public function testTheInvoiceBillsWhatWasQuotedNotWhatTheOfferBecame(): void
+    public function testTheInvoiceKeepsWhatWasOrderedNotWhatTheOfferBecame(): void
     {
-        $quoteId = $this->quotedId();
-
-        $orderId = $this->decode($this->accept($quoteId))['id'] ?? null;
-        self::assertIsString($orderId);
+        $orderId = $this->orderedId();
 
         $invoiceId = $this->decode($this->fulfil($orderId))['invoice_id'] ?? null;
         self::assertIsString($invoiceId);
@@ -266,66 +255,30 @@ final class SalesChainTest extends DatabaseApiTestCase
         self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM invoices'));
     }
 
-    public function testAnOrderCanBePlacedWithoutAQuote(): void
+    /**
+     * What an order is sold to (2026-09-25): the person who placed it, never
+     * the organisation. There is no flag for the other one — `order()` has
+     * nowhere to express it — so this is the fact that says the tenant
+     * surface sells seats rather than merely not offering the alternative.
+     */
+    public function testAnOrderIsAlwaysASeatForWhoeverPlacedIt(): void
     {
-        $response = $this->request(
-            'POST',
-            '/api/v1/sales/orders',
-            $this->headers(),
-            $this->json(['offer_id' => $this->offer]),
+        $orderId = $this->orderedId();
+
+        self::assertSame(
+            ['USER', $this->user],
+            [
+                $this->connection->fetchOne('SELECT subscriber_kind FROM orders WHERE id = :id', ['id' => $orderId]),
+                $this->connection->fetchOne('SELECT subscriber_user_id FROM orders WHERE id = :id', ['id' => $orderId]),
+            ],
         );
 
-        self::assertSame(201, $response->getStatusCode());
-
-        $order = $this->decode($response);
-        self::assertSame('PENDING', $order['status'] ?? null);
-        self::assertArrayHasKey('quote_id', $order);
-        self::assertNull($order['quote_id']);
+        // And nothing raised a quote on the way: the routes are gone, so the
+        // only way this table could fill is something else writing to it.
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM quotes'));
     }
 
     // --- What the chain refuses ----------------------------------------------
-
-    public function testALapsedQuoteCannotBeAccepted(): void
-    {
-        $quoteId = $this->quotedId();
-
-        // The status column is left saying SENT, which is exactly the state a
-        // platform with no sweeper is in. The clock decides.
-        $this->connection->executeStatement(
-            "UPDATE quotes SET valid_until = now() - interval '1 day' WHERE id = :id",
-            ['id' => $quoteId],
-        );
-
-        $response = $this->accept($quoteId);
-
-        self::assertSame(409, $response->getStatusCode());
-        self::assertSame('QUOTE_EXPIRED', $this->errorOf($response)['code'] ?? null);
-        self::assertSame('SENT', $this->statusOf('quotes', $quoteId));
-        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM orders'));
-    }
-
-    public function testOneQuoteCannotBecomeTwoOrders(): void
-    {
-        $quoteId = $this->quotedId();
-
-        self::assertSame(201, $this->accept($quoteId)->getStatusCode());
-
-        $again = $this->accept($quoteId);
-
-        self::assertSame(409, $again->getStatusCode());
-        self::assertSame('INVALID_QUOTE_TRANSITION', $this->errorOf($again)['code'] ?? null);
-        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM orders'));
-    }
-
-    public function testARejectedQuoteCannotBeAccepted(): void
-    {
-        $quoteId = $this->quotedId();
-
-        $this->request('POST', '/api/v1/sales/quotes/' . $quoteId . '/reject', $this->headers());
-
-        self::assertSame('REJECTED', $this->statusOf('quotes', $quoteId));
-        self::assertSame(409, $this->accept($quoteId)->getStatusCode());
-    }
 
     public function testAnOrderCannotBeFulfilledTwice(): void
     {
@@ -411,10 +364,10 @@ final class SalesChainTest extends DatabaseApiTestCase
             ]),
         ]);
 
-        $response = $this->quote();
+        $response = $this->place();
 
         self::assertSame(403, $response->getStatusCode());
-        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM quotes'));
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM orders'));
     }
 
     // --- E-invoicing (§25.1) -------------------------------------------------
@@ -658,15 +611,18 @@ final class SalesChainTest extends DatabaseApiTestCase
     }
 
     /**
-     * One live subscription per tenant and product is a partial unique
-     * index, and an index refuses last — after the order, the numbered
-     * invoice and the card. The operator met exactly that on their own
-     * deployment on 2026-09-17: a second offer bought beside a live
-     * subscription, charged twice over, and a webhook that could only ever
-     * fail. So the sale is refused where it is placed, before any document
-     * exists, and a quote accepted into one is refused the same way.
+     * One live seat per person and product is a partial unique index, and an
+     * index refuses last — after the order, the numbered invoice and the
+     * card. The operator met exactly that on their own deployment on
+     * 2026-09-17: a second offer bought beside a live subscription, charged
+     * twice over, and a webhook that could only ever fail. So the sale is
+     * refused where it is placed, before any document exists.
+     *
+     * The refusal was `SUBSCRIPTION_ALREADY_ACTIVE` while the organisation
+     * could buy. It is the seat's now, because the seat is the only thing
+     * this surface sells.
      */
-    public function testASecondOrderIsRefusedWhileTheSubscriptionIsLive(): void
+    public function testASecondOrderIsRefusedWhileTheSeatIsLive(): void
     {
         $first = $this->orderedId();
         $this->fulfil($first);
@@ -677,22 +633,14 @@ final class SalesChainTest extends DatabaseApiTestCase
         $orders = $this->rowsMatching('SELECT count(*) FROM orders');
         $invoices = $this->rowsMatching('SELECT count(*) FROM invoices');
 
-        // Quoting is still allowed — a quote is a document, and the next
-        // term may well be quoted while this one runs — but accepting it
-        // into an order is not.
-        $response = $this->accept($this->quotedId());
+        $direct = $this->place();
 
-        self::assertSame(409, $response->getStatusCode());
-        self::assertSame('SUBSCRIPTION_ALREADY_ACTIVE', $this->errorOf($response)['code'] ?? null);
-        $details = $this->errorOf($response)['details'] ?? null;
+        self::assertSame(409, $direct->getStatusCode());
+        self::assertSame('SEAT_ALREADY_ACTIVE', $this->errorOf($direct)['code'] ?? null);
+        $details = $this->errorOf($direct)['details'] ?? null;
         self::assertIsArray($details);
         // Named, so the refusal points at what to change rather than at a wall.
         self::assertIsString($details['subscription_id'] ?? null);
-
-        $direct = $this->request('POST', '/api/v1/sales/orders', $this->headers(), $this->json(['offer_id' => $this->offer]));
-
-        self::assertSame(409, $direct->getStatusCode());
-        self::assertSame('SUBSCRIPTION_ALREADY_ACTIVE', $this->errorOf($direct)['code'] ?? null);
 
         // Nothing written, nothing numbered: the refusal is before the order.
         self::assertSame($orders, $this->rowsMatching('SELECT count(*) FROM orders'));
@@ -741,7 +689,7 @@ final class SalesChainTest extends DatabaseApiTestCase
         self::assertNull($shown['subscription_id']);
         self::assertSame(1, $this->rowsMatching(
             "SELECT count(*) FROM financial_events WHERE type = 'ORDER_HELD' AND order_id = '{$second}'"
-            . " AND detail->>'reason' = 'SUBSCRIPTION_ALREADY_ACTIVE' AND detail->>'subscription_id' IS NOT NULL",
+            . " AND detail->>'reason' = 'SEAT_ALREADY_ACTIVE' AND detail->>'subscription_id' IS NOT NULL",
         ));
         self::assertSame(1, $this->rowsMatching("SELECT count(*) FROM financial_events WHERE type = 'ORDER_COMPLETED'"));
 
@@ -839,35 +787,22 @@ final class SalesChainTest extends DatabaseApiTestCase
 
     // --- Helpers -------------------------------------------------------------
 
-    private function quote(): ResponseInterface
+    private function place(): ResponseInterface
     {
         return $this->request(
             'POST',
-            '/api/v1/sales/quotes',
+            '/api/v1/sales/orders',
             $this->headers(),
             $this->json(['offer_id' => $this->offer]),
         );
     }
 
-    private function quotedId(): string
+    private function orderedId(): string
     {
-        $response = $this->quote();
+        $response = $this->place();
         self::assertSame(201, $response->getStatusCode());
 
         $id = $this->decode($response)['id'] ?? null;
-        self::assertIsString($id);
-
-        return $id;
-    }
-
-    private function accept(string $quoteId): ResponseInterface
-    {
-        return $this->request('POST', '/api/v1/sales/quotes/' . $quoteId . '/accept', $this->headers());
-    }
-
-    private function orderedId(): string
-    {
-        $id = $this->decode($this->accept($this->quotedId()))['id'] ?? null;
         self::assertIsString($id);
 
         return $id;

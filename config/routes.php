@@ -122,16 +122,11 @@ use App\Project\Controller\ShowProjectController;
 use App\Project\Controller\ShowProjectVersionController;
 use App\Project\Controller\UndeleteProjectController;
 use App\Project\Controller\UpdateProjectController;
-use App\Sales\Controller\AcceptQuoteController;
 use App\Sales\Controller\CancelOrderController;
-use App\Sales\Controller\CreateQuoteController;
 use App\Sales\Controller\FulfilOrderController;
 use App\Sales\Controller\ListOrdersController;
-use App\Sales\Controller\ListQuotesController;
 use App\Sales\Controller\PlaceOrderController;
-use App\Sales\Controller\RejectQuoteController;
 use App\Sales\Controller\ShowOrderController;
-use App\Sales\Controller\ShowQuoteController;
 use App\Skin\Controller\DeleteSkinLogoController;
 use App\Skin\Controller\ShowSkinController;
 use App\Skin\Controller\UpdateSkinController;
@@ -460,16 +455,12 @@ return static function (RouteCollector $routes): void {
     // signature over the raw body, checked before a field is read.
     $routes->addRoute('POST', '/api/v1/webhooks/payments/{provider}', PaymentWebhookController::class);
     $routes->addRoute('POST', '/api/v1/webhooks/einvoice/{provider}', EInvoiceWebhookController::class);
-
-    // §20's chain, left half: what was proposed, and what was committed to.
-    // A quote lapses on the clock rather than on a sweep, so accepting one
-    // asks the date and not the status column.
-    $routes->addRoute('GET', '/api/v1/sales/quotes', ListQuotesController::class);
-    $routes->addRoute('POST', '/api/v1/sales/quotes', CreateQuoteController::class);
-    $routes->addRoute('GET', '/api/v1/sales/quotes/{quoteId}', ShowQuoteController::class);
-    $routes->addRoute('POST', '/api/v1/sales/quotes/{quoteId}/accept', AcceptQuoteController::class);
-    $routes->addRoute('POST', '/api/v1/sales/quotes/{quoteId}/reject', RejectQuoteController::class);
-
+    // §20's chain, right half: what was committed to, and what was paid for.
+    //
+    // The left half — quotes — left the tenant surface on 2026-09-25 with the
+    // organisation's own subscription, which is what a quote priced. The rows
+    // stay: the console still reads a tenant's quotes, and the job that
+    // lapses them still runs over what a deployment already has.
     $routes->addRoute('GET', '/api/v1/sales/orders', ListOrdersController::class);
     $routes->addRoute('POST', '/api/v1/sales/orders', PlaceOrderController::class);
     $routes->addRoute('GET', '/api/v1/sales/orders/{orderId}', ShowOrderController::class);

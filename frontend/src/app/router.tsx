@@ -27,7 +27,6 @@ import { NotificationSettingsScreen } from '@/features/notifications/Notificatio
 import { NotificationsScreen } from '@/features/notifications/NotificationsScreen';
 import { OrganisationScreen } from '@/features/organisation/OrganisationScreen';
 import { OrdersScreen } from '@/features/sales/OrdersScreen';
-import { QuotesScreen } from '@/features/sales/QuotesScreen';
 import { TaxProfileScreen } from '@/features/tax/TaxProfileScreen';
 import { TaxRatesScreen } from '@/features/tax/TaxRatesScreen';
 import { VatReportsScreen } from '@/features/tax/VatReportsScreen';
@@ -93,7 +92,6 @@ const SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element
   // U5
   { path: '/catalogue', component: CatalogueScreen },
   { path: '/offers', component: OfferAuthoringScreen },
-  { path: '/quotes', component: QuotesScreen },
   { path: '/orders', component: OrdersScreen },
   // U6
   { path: '/subscription', component: SubscriptionScreen },

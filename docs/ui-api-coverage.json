@@ -472,19 +472,6 @@
         "showOrder"
       ]
     },
-    "sales.quotes": {
-      "authority": "tenant",
-      "routes": [
-        "/quotes"
-      ],
-      "operations": [
-        "acceptQuote",
-        "createQuote",
-        "listQuotes",
-        "rejectQuote",
-        "showQuote"
-      ]
-    },
     "tax.profile": {
       "authority": "tenant",
       "routes": [

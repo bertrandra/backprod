@@ -25,8 +25,11 @@ vi.mock('@stripe/react-stripe-js', () => ({
  * sorting by name puts them in the opposite order to anything sorting by rank.
  * A screen that reads correctly here is reading `rank`.
  */
-// An administrator: buys for the organisation (`billing.manage`), for
-// themselves (`billing.pay`), and raises quotes.
+// An administrator, holding everything this screen ever gated on — including
+// `billing.manage`, `sales.manage` and `tax.read`, which gated the
+// organisation's purchase and the quote until 2026-09-25. Kept deliberately:
+// a fixture that dropped them could not tell "the button is gone" from "this
+// person never had it".
 const BUYER = {
   ...SESSION,
   permissions: [...SESSION.permissions, 'catalog.read', 'billing.pay', 'billing.manage', 'sales.manage', 'tax.read'],
@@ -64,17 +67,6 @@ const BUSINESS = {
   vat_number_verified_at: '2026-08-01T09:00:00Z',
   vat_number_country: 'FR',
   reverse_charge_available: false,
-};
-
-// A private person, which is what signing up without a company leaves.
-const PERSON = {
-  ...BUSINESS,
-  customer_kind: 'B2C',
-  taxable_person: false,
-  vat_number: null,
-  vat_number_status: null,
-  vat_number_verified_at: null,
-  vat_number_country: null,
 };
 
 const ZEBRA = { id: 'p-zebra', code: 'ZEBRA', name: 'Zebra', rank: 10 };
@@ -167,22 +159,28 @@ describe('an offer with no sellable version', () => {
 });
 
 describe('what the catalogue offers to do', () => {
-  it('offers a quote and both purchases to a business whose administrator may do all three', async () => {
+  it('offers one purchase, and it is a seat — even to somebody who may do everything', async () => {
+    // BUYER holds `billing.manage`, `sales.manage` and `tax.read`, which is
+    // exactly what the organisation's purchase and the quote were gated on
+    // until 2026-09-25. Neither is offered, because neither exists: the
+    // tenant surface sells seats.
     render(clientFor([offer('o-1', ZEBRA)]));
 
-    await waitFor(() => expect(screen.getByRole('button', { name: TENANT_BUTTON })).toBeTruthy());
-    expect(screen.getByRole('button', { name: SEAT_BUTTON })).toBeTruthy();
-    await waitFor(() => expect(screen.getByRole('button', { name: /^quote$/i })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole('button', { name: SEAT_BUTTON })).toBeTruthy());
+    expect(screen.queryByRole('button', { name: TENANT_BUTTON })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^quote$/i })).toBeNull();
   });
 
-  it('offers a private person the purchases and not the quote', async () => {
-    // Same permissions, different customer: the server refuses a quote for a
-    // tenant whose tax profile does not say B2B, so the button is not there.
-    // Not a gate on a role or a plan — on the customer's own declared kind.
-    render(clientFor([offer('o-1', ZEBRA)], { 'GET /api/v1/tax/profile': { data: { profile: PERSON } } }));
+  it('never asks for the fiscal record at all any more', async () => {
+    // It was read to decide whether to offer a quote — a document for a B2B
+    // customer. With no quote there is nothing for it to decide, and a screen
+    // that keeps fetching what it no longer reads is a 403 waiting for the
+    // first person who lacks `tax.read`.
+    const { client, requests } = recordingClient(stubsFor([offer('o-1', ZEBRA)]));
+    render(client);
 
-    await waitFor(() => expect(screen.getByRole('button', { name: TENANT_BUTTON })).toBeTruthy());
-    expect(screen.queryByRole('button', { name: /^quote$/i })).toBeNull();
+    await waitFor(() => expect(screen.getByRole('button', { name: SEAT_BUTTON })).toBeTruthy());
+    expect(requests.some((request) => request.path === '/api/v1/tax/profile')).toBe(false);
   });
 
   it('offers a member a seat of their own and nothing that binds the organisation', async () => {
@@ -216,32 +214,27 @@ describe('what the catalogue offers to do', () => {
     expect(requests.some((request) => request.path === '/api/v1/tax/profile')).toBe(false);
   });
 
-  it('still offers a seat while the organisation is subscribed, and only then withholds the organisation\'s', async () => {
-    // One live subscription per product for the organisation (409
-    // SUBSCRIPTION_ALREADY_ACTIVE), so that button and the quote are not
-    // there and the person is pointed at the subscription instead. A seat
-    // stands beside it (§13.1): the operator's default organisation is
-    // subscribed, and a newcomer still has something to buy.
+  it('still offers a seat while the organisation is subscribed, and says nothing about it', async () => {
+    // An organisation subscription can still exist — a deployment may hold one
+    // from before 2026-09-25, and the platform can still grant one. It decides
+    // nothing here: there is no organisation button for it to withhold, and
+    // telling somebody about a purchase they cannot make reads as somebody
+    // else's business.
     const subscriber = { ...BUYER, permissions: [...BUYER.permissions, 'subscription.read'] };
 
     render(clientFor([offer('o-1', ZEBRA)], subscriptionRead(live()), subscriber));
 
-    await waitFor(() => expect(screen.getByTestId('already-subscribed')).toBeTruthy());
-    expect(screen.getByTestId('already-subscribed').textContent).toContain('Zebra monthly');
-    expect(screen.getByTestId('already-subscribed').textContent).toMatch(/already subscribed/i);
-    expect(screen.queryByRole('button', { name: TENANT_BUTTON })).toBeNull();
-    // Said where the button was, not only at the top: a button that vanishes
-    // without a word reads as a screen that lost something.
-    expect(screen.getByTestId('tenant-subscribed').textContent).toMatch(/already subscribed/i);
-    expect(screen.queryByTestId('seat-taken')).toBeNull();
-    expect(screen.queryByRole('button', { name: /^quote$/i })).toBeNull();
     await waitFor(() => expect(screen.getByRole('button', { name: SEAT_BUTTON })).toBeTruthy());
+    expect(screen.queryByTestId('already-subscribed')).toBeNull();
+    expect(screen.queryByTestId('tenant-subscribed')).toBeNull();
+    expect(screen.queryByTestId('seat-taken')).toBeNull();
     // Still a catalogue: the prices are what `catalog.read` is for.
     expect(document.querySelector('[data-minor-units="2900"]')).not.toBeNull();
   });
 
-  it('withholds the seat while the person already holds one, and not the organisation\'s', async () => {
-    // The mirror: one live seat per person (409 SEAT_ALREADY_ACTIVE).
+  it('withholds the seat while the person already holds one, and says where the button was', async () => {
+    // One live seat per person (409 SEAT_ALREADY_ACTIVE), which is now the
+    // only refusal this screen has to explain.
     const subscriber = { ...BUYER, permissions: [...BUYER.permissions, 'subscription.read'] };
 
     render(clientFor([offer('o-1', ZEBRA)], subscriptionRead(null, live()), subscriber));
@@ -250,19 +243,15 @@ describe('what the catalogue offers to do', () => {
     expect(screen.getByTestId('already-seated').textContent).toContain('Zebra monthly');
     expect(screen.queryByRole('button', { name: SEAT_BUTTON })).toBeNull();
     expect(screen.getByTestId('seat-taken').textContent).toMatch(/your seat is live/i);
-    expect(screen.queryByTestId('tenant-subscribed')).toBeNull();
-    await waitFor(() => expect(screen.getByRole('button', { name: TENANT_BUTTON })).toBeTruthy());
-    expect(screen.queryByTestId('already-subscribed')).toBeNull();
+    expect(screen.queryByRole('button', { name: TENANT_BUTTON })).toBeNull();
   });
 
-  it('offers both once the subscription read says there is neither', async () => {
+  it('offers the seat once the subscription read says there is none', async () => {
     const subscriber = { ...BUYER, permissions: [...BUYER.permissions, 'subscription.read'] };
 
     render(clientFor([offer('o-1', ZEBRA)], subscriptionRead(null), subscriber));
 
-    await waitFor(() => expect(screen.getByRole('button', { name: TENANT_BUTTON })).toBeTruthy());
-    expect(screen.getByRole('button', { name: SEAT_BUTTON })).toBeTruthy();
-    expect(screen.queryByTestId('already-subscribed')).toBeNull();
+    await waitFor(() => expect(screen.getByRole('button', { name: SEAT_BUTTON })).toBeTruthy());
     expect(screen.queryByTestId('already-seated')).toBeNull();
   });
 
@@ -308,19 +297,20 @@ describe('what the catalogue offers to do', () => {
     );
     const { location } = render(client);
 
-    await waitFor(() => expect(screen.getByRole('button', { name: TENANT_BUTTON })).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: TENANT_BUTTON }));
+    await waitFor(() => expect(screen.getByRole('button', { name: SEAT_BUTTON })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: SEAT_BUTTON }));
 
     // Not a navigation: the secret is returned once (ADR-034) and the order
     // page cannot hold it, so leaving now would leave an order nobody can pay.
     await waitFor(() => expect(screen.getByTestId('catalogue-pay')).toBeTruthy());
     expect(location()).not.toContain('/checkout/');
-    // For the organisation: said to the server, and said on the page.
+    // Exactly this, and a `seat` field would fail it: the contract dropped it
+    // on 2026-09-25, so a body still carrying one is a client that thinks it
+    // can still buy for the organisation. Whose seat it is, the server knows.
     expect(requests.filter((request) => request.method === 'POST').map((request) => request.body)).toEqual([
-      { offer_id: 'o-1', seat: false },
+      { offer_id: 'o-1' },
     ]);
-    expect(screen.getByTestId('catalogue-pay').getAttribute('data-seat')).toBe('false');
-    expect(screen.getByTestId('catalogue-pay').textContent).toContain('for the organisation');
+    expect(screen.getByTestId('catalogue-pay').textContent).toContain('for yourself');
     await waitFor(() => expect(screen.getByTestId('stripe-payment-element')).toBeTruthy());
     // The server's amount on the button, never re-derived here.
     expect(screen.getByRole('button', { name: /Pay/ }).querySelector('[data-minor-units="3480"]')).not.toBeNull();
@@ -330,22 +320,17 @@ describe('what the catalogue offers to do', () => {
     await waitFor(() => expect(location()).toContain('/checkout/order-1'));
   });
 
-  it('buys a seat with the flag, and says whose it is', async () => {
-    const { client, requests } = recordingClient(
-      stubsFor([offer('o-1', ZEBRA)], {
+  it('says on the page that the seat is the buyer\'s own', async () => {
+    render(
+      clientFor([offer('o-1', ZEBRA)], {
         'POST /api/v1/checkout/sessions': { data: { session: { ...OPENED, seat: true } }, status: 201 },
       }),
     );
-    render(client);
 
     await waitFor(() => expect(screen.getByRole('button', { name: SEAT_BUTTON })).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: SEAT_BUTTON }));
 
     await waitFor(() => expect(screen.getByTestId('catalogue-pay')).toBeTruthy());
-    // A flag, never an id: whose seat it is, the server already knows.
-    expect(requests.filter((request) => request.method === 'POST').map((request) => request.body)).toEqual([
-      { offer_id: 'o-1', seat: true },
-    ]);
     expect(screen.getByTestId('catalogue-pay').getAttribute('data-seat')).toBe('true');
     expect(screen.getByTestId('catalogue-pay').textContent).toContain('for yourself');
   });
@@ -377,41 +362,11 @@ describe('what the catalogue offers to do', () => {
       }),
     );
 
-    await waitFor(() => expect(screen.getByRole('button', { name: TENANT_BUTTON })).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: TENANT_BUTTON }));
+    await waitFor(() => expect(screen.getByRole('button', { name: SEAT_BUTTON })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: SEAT_BUTTON }));
 
     await waitFor(() => expect(screen.getByTestId('continue-to-order')).toBeTruthy());
     expect(screen.queryByTestId('payment-panel')).toBeNull();
-  });
-
-  it('goes to the quote it just raised', async () => {
-    const { location } = render(
-      clientFor([offer('o-1', ZEBRA)], {
-        'POST /api/v1/sales/quotes': {
-          data: {
-            id: 'quote-1',
-            status: 'SENT',
-            open: true,
-            offer_version_id: 'v-o-1',
-            net: { minor_units: 2900, currency: 'EUR' },
-            vat: { minor_units: 580, currency: 'EUR' },
-            gross: { minor_units: 3480, currency: 'EUR' },
-            valid_until: '2026-02-01T00:00:00Z',
-            customer: {},
-            sent_at: '2026-01-01T00:00:00Z',
-            decided_at: null,
-            created_at: '2026-01-01T00:00:00Z',
-            lines: [],
-          },
-          status: 201,
-        },
-      }),
-    );
-
-    await waitFor(() => expect(screen.getByRole('button', { name: /^quote$/i })).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: /^quote$/i }));
-
-    await waitFor(() => expect(location()).toContain('selected=quote-1'));
   });
 });
 

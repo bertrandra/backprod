@@ -154,11 +154,11 @@ export function Storefront({ onSignIn }: { onSignIn: () => void }) {
         }
 
         // A stranger who just signed up buys a seat of their own (§13.1,
-        // 2026-09-18): paid with their card, theirs alone, and beside the
-        // organisation's subscription if it holds one. The organisation's
-        // purchase is the administrator's and is made from the catalogue.
+        // 2026-09-18): paid with their card, theirs alone. Since 2026-09-25
+        // that is the only kind of purchase there is, so the call no longer
+        // says which — it was the one place that already said `true`.
         void checkout
-          .mutateAsync({ offerId: offer.id, seat: true })
+          .mutateAsync({ offerId: offer.id })
           .then((session) => setOpened(session))
           .catch(() => {
             // The account exists and the person is holding a token, so the

@@ -408,9 +408,20 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
 
         self::assertIsString($invoiceId);
 
-        // And the document names the company the console named, copied at the
-        // moment it was raised: changing the configuration afterwards can never
-        // rewrite an invoice already issued.
+        // And the document names the seller, copied at the moment it was
+        // raised: changing either configuration afterwards can never rewrite
+        // an invoice already issued.
+        //
+        // The seller is **the organisation**, because what the tenant surface
+        // sells is a seat — Acme selling to one of its own people
+        // (2026-09-19), and since 2026-09-25 the only sale there is. So the
+        // console's issuer is not on this document, and the two halves of
+        // this test now say different things: the 409 above is what the
+        // console's issuer still decides, and the snapshot below is who the
+        // customer is actually buying from.
+        //
+        // That the product's identity gates a sale it never appears on is
+        // worth knowing about rather than asserting away.
         $issuer = $this->connection->fetchOne(
             'SELECT supplier_snapshot::text FROM invoices WHERE id = :id',
             ['id' => $invoiceId],
@@ -421,8 +432,14 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
         $decoded = json_decode($issuer, true);
 
         self::assertIsArray($decoded);
-        self::assertSame('Atlas SAS', $decoded['legal_name'] ?? null);
-        self::assertSame('FR12345678901', $decoded['vat_number'] ?? null);
+        self::assertSame('Acme SARL', $decoded['legal_name'] ?? null);
+
+        // Numbered in Acme's own series, which is the same fact read from the
+        // other side (ADR-054).
+        self::assertSame(
+            $this->tenant,
+            $this->connection->fetchOne('SELECT issuer_tenant_id FROM invoices WHERE id = :id', ['id' => $invoiceId]),
+        );
     }
 
     // --- Helpers -------------------------------------------------------------
