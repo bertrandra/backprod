@@ -203,9 +203,6 @@ export const APP_NAV: readonly NavSection[] = [
       // Authoring is a different job from buying, and a different permission —
       // one ADR-040 makes a *lending*, so most tenants never see this.
       { id: 'offers', label: 'Offer authoring', to: '/offers', scope: 'tenant', permission: 'catalog.manage', secondary: true },
-      // A quote is raised by `sales.manage` and only the administrator holds
-      // it, so a member's Quotes screen was always empty (2026-09-18).
-      { id: 'quotes', label: 'Quotes', to: '/quotes', scope: 'tenant', permission: 'sales.manage', secondary: true },
       { id: 'orders', label: 'Orders', to: '/orders', scope: 'tenant', permission: 'sales.read', secondary: true },
     ],
   },

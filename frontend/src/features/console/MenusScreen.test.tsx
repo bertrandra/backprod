@@ -57,7 +57,7 @@ describe('the menu setup', () => {
     const { client, requests } = recordingClient({
       'GET /api/v1/staff/navigation': { data: { navigation: setup() } },
       'PUT /api/v1/staff/navigation': (): Stub => ({
-        data: { navigation: setup({ user: { hidden: ['invoices', 'quotes'], hide_empty: true } }) },
+        data: { navigation: setup({ user: { hidden: ['invoices', 'orders'], hide_empty: true } }) },
       }),
     });
 
@@ -68,7 +68,7 @@ describe('the menu setup', () => {
     expect(save.hasAttribute('disabled')).toBe(true);
 
     fireEvent.click(box('user', 'invoices') as HTMLInputElement);
-    fireEvent.click(box('user', 'quotes') as HTMLInputElement);
+    fireEvent.click(box('user', 'orders') as HTMLInputElement);
     fireEvent.click(screen.getByTestId('menus-user').querySelector('[data-hide-empty="user"]') as HTMLInputElement);
     expect(save.hasAttribute('disabled')).toBe(false);
 
@@ -81,7 +81,7 @@ describe('the menu setup', () => {
       navigation: {
         platform_admin: EVERYTHING,
         tenant_admin: EVERYTHING,
-        user: { hidden: ['invoices', 'quotes'], hide_empty: true },
+        user: { hidden: ['invoices', 'orders'], hide_empty: true },
       },
     });
     // The stored document is what is shown afterwards, not the draft.
@@ -90,14 +90,14 @@ describe('the menu setup', () => {
 
   it('re-ticking an entry takes it out of the hidden list', async () => {
     const { client, requests } = recordingClient({
-      'GET /api/v1/staff/navigation': { data: { navigation: setup({ tenant_admin: { hidden: ['quotes'], hide_empty: false } }) } },
+      'GET /api/v1/staff/navigation': { data: { navigation: setup({ tenant_admin: { hidden: ['orders'], hide_empty: false } }) } },
       'PUT /api/v1/staff/navigation': (): Stub => ({ data: { navigation: setup() } }),
     });
 
     renderAtRoute(<MenusScreen />, client, ROUTE);
-    await waitFor(() => expect(box('tenant_admin', 'quotes')?.checked).toBe(false));
+    await waitFor(() => expect(box('tenant_admin', 'orders')?.checked).toBe(false));
 
-    fireEvent.click(box('tenant_admin', 'quotes') as HTMLInputElement);
+    fireEvent.click(box('tenant_admin', 'orders') as HTMLInputElement);
     fireEvent.click(screen.getByRole('button', { name: 'Save menus' }));
 
     await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));

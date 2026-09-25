@@ -49,7 +49,7 @@ U3  Notifications & messaging   3 areas — proves invalidation, badges, consent
       ↓
 U4  Product workspace           5 areas — projects, assets, jobs, canvas
       ↓
-U5  Commerce & sales            5 areas — catalogue, checkout, quotes, orders
+U5  Commerce & sales            5 areas — catalogue, checkout, quotes, orders (quotes withdrawn 2026-09-25, ADR-055)
       ↓
 U6  Subscription & billing      6 areas — the money, where nothing is optimistic
       ↓
@@ -749,7 +749,7 @@ ago is what made this one honest rather than optimistic.
 - Accessibility pass: keyboard, focus order, labels, contrast, `prefers-reduced-motion`, screen-reader review of the six regions
 - Performance budgets per route; no screen blocking entirely on its slowest query
 - Offline and stale behaviour: what is shown when the API is unreachable, and how stale data is marked as stale
-- Playwright coverage of the §37.4 chains end to end: quote → order → invoice → payment → activation, and a failed payment retried
+- Playwright coverage of the §37.4 chains end to end: order → invoice → payment → activation, and a failed payment retried (it began at a quote until ADR-055)
 - **A screen-level coverage gate**: every area in `ui-api-coverage.json` has a route, and every operation it claims is called through the generated client. This is the check ui-spec.md §7 names as impossible until a frontend exists — U9 is when it exists
 
 **Exit criteria** — all met

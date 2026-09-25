@@ -472,7 +472,6 @@ describe('creating the account', () => {
     // stand in the way.
     expect(requests.find((r) => r.path === '/api/v1/checkout/sessions')?.body).toEqual({
       offer_id: 'offer-1',
-      seat: true,
     });
 
     // No hop yet: the render that received the secret is the one that can

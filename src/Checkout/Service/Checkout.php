@@ -53,9 +53,9 @@ final class Checkout
      *
      * @return array{order: Order, payment: Payment|null, client_secret: string|null, provider: array{name: string, sandbox: bool, client_key: string|null}|null}
      */
-    public function open(string $tenantId, string $productId, string $offerId, ?string $actorUserId, bool $seat = false): array
+    public function open(string $tenantId, string $productId, string $offerId, ?string $actorUserId): array
     {
-        $order = $this->sales->order($tenantId, $productId, $offerId, $actorUserId, $seat);
+        $order = $this->sales->order($tenantId, $productId, $offerId, $actorUserId);
         $order = $this->sales->fulfil($tenantId, $productId, $order->id, $actorUserId);
 
         if ($order->invoiceId === null) {

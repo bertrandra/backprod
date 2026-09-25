@@ -66,7 +66,6 @@ async function online(page: Page, latencyMs = 0) {
         invoices: [INVOICE],
         projects: [],
         jobs: [],
-        quotes: [],
         orders: [],
         payments: [],
         // A shape the subscription screen can read: no subscription, rather
@@ -238,7 +237,7 @@ test.describe('performance budgets', () => {
    * until the last query lands, which is the failure this measures. The budget
    * is the frame, not the content.
    */
-  const ROUTES = ['/invoices', '/projects', '/jobs', '/quotes', '/subscription'] as const;
+  const ROUTES = ['/invoices', '/projects', '/jobs', '/orders', '/subscription'] as const;
 
   for (const route of ROUTES) {
     test(`${route} paints its frame before its data`, async ({ page }) => {

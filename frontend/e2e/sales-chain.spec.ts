@@ -3,21 +3,25 @@ import type { Page } from '@playwright/test';
 import { expect, stubSession, test } from './support/app';
 
 /**
- * §37.4's chain, in a browser: **quote → order → invoice → payment →
- * activation**, and a failed payment retried.
+ * §37.4's chain, in a browser: **order → invoice → payment → activation**, and
+ * a failed payment retried.
+ *
+ * It began at a quote until 2026-09-25, and the walk started by accepting one.
+ * A quote priced the *organisation's* own subscription and left with it, so the
+ * chain now opens on the order — which is where a customer's own purchase has
+ * always put them.
  *
  * PHPUnit already proves the chain server-side. What it cannot prove is that a
- * *person* can walk it: that accepting a quote lands somewhere useful, that the
- * order carries the invoice it raised, that nothing is activated before the
- * money arrives, and that a declined card leads somewhere other than a dead end.
- * Those are five screens and four navigations, and every one of them is a place
- * the chain can break without a single backend test noticing.
+ * *person* can walk it: that the order carries the invoice it raised, that
+ * nothing is activated before the money arrives, and that a declined card leads
+ * somewhere other than a dead end. Those are four screens and three
+ * navigations, and every one of them is a place the chain can break without a
+ * single backend test noticing.
  *
  * **The stub is a state machine, not a fixture.** Each step changes what the
- * next read returns, exactly as the backend would — accepting the quote creates
- * the order, paying it activates the subscription. A fixture that answered the
- * final state from the start would pass this suite with the middle of the chain
- * deleted.
+ * next read returns, exactly as the backend would — paying activates the
+ * subscription. A fixture that answered the final state from the start would
+ * pass this suite with the middle of the chain deleted.
  */
 const SESSION = {
   user_id: '11111111-1111-4111-8111-111111111111',
@@ -40,7 +44,6 @@ const SESSION = {
   capabilities: [],
 };
 
-const QUOTE_ID = '44444444-4444-4444-8444-444444444444';
 const ORDER_ID = '55555555-5555-4555-8555-555555555555';
 const INVOICE_ID = '66666666-6666-4666-8666-666666666666';
 const PAYMENT_ID = '77777777-7777-4777-8777-777777777777';
@@ -52,35 +55,18 @@ const MONEY = {
 };
 
 interface Chain {
-  accepted: boolean;
+  placed: boolean;
   paid: boolean;
   paymentFailed: boolean;
   retried: number;
 }
 
-/** The contract's shape, field for field — a quote has no number. */
-function quote(state: Chain) {
-  return {
-    id: QUOTE_ID,
-    status: state.accepted ? 'ACCEPTED' : 'SENT',
-    // Derived server-side from the clock, and read as an answer here.
-    open: !state.accepted,
-    offer_version_id: 'ov-1',
-    valid_until: '2126-01-01T00:00:00Z',
-    customer: {},
-    sent_at: '2026-01-01T10:00:00Z',
-    decided_at: state.accepted ? '2026-01-02T10:00:00Z' : null,
-    created_at: '2026-01-01T10:00:00Z',
-    lines: [],
-    ...MONEY,
-  };
-}
-
+/** The contract's shape, field for field. No quote in front of it any more. */
 function order(state: Chain) {
   return {
     id: ORDER_ID,
     status: state.paid ? 'COMPLETED' : 'AWAITING_PAYMENT',
-    quote_id: QUOTE_ID,
+    quote_id: null,
     offer_version_id: 'ov-1',
     // The invoice is raised at order time; the subscription waits for the money
     // (ADR-024, split fulfilment).
@@ -158,7 +144,7 @@ function subscription(state: Chain) {
 }
 
 async function chain(page: Page): Promise<Chain> {
-  const state: Chain = { accepted: false, paid: false, paymentFailed: true, retried: 0 };
+  const state: Chain = { placed: true, paid: false, paymentFailed: true, retried: 0 };
 
   // First, so everything below overrides it. Playwright matches the *most
   // recently* registered route, and a catch-all added last silently answers
@@ -179,25 +165,9 @@ async function chain(page: Page): Promise<Chain> {
     }),
   );
 
-  // Accepting answers with the **order**, not with the quote — the contract's
-  // point being that acceptance produces something new.
-  await page.route(/\/api\/v1\/sales\/quotes\/[^/]+\/accept$/, (route) => {
-    state.accepted = true;
-
-    return route.fulfill({ status: 201, json: order(state) });
-  });
-
-  await page.route(/\/api\/v1\/sales\/quotes(\?|$)/, (route) =>
-    route.fulfill({ json: { quotes: [quote(state)], total: 1, limit: 25, offset: 0 } }),
-  );
-
-  await page.route(/\/api\/v1\/sales\/quotes\/[^/]+$/, (route) =>
-    route.fulfill({ json: quote(state) }),
-  );
-
   await page.route(/\/api\/v1\/sales\/orders(\?|$)/, (route) =>
     route.fulfill({
-      json: { orders: state.accepted ? [order(state)] : [], total: state.accepted ? 1 : 0, limit: 25, offset: 0 },
+      json: { orders: state.placed ? [order(state)] : [], total: state.placed ? 1 : 0, limit: 25, offset: 0 },
     }),
   );
 
@@ -208,8 +178,8 @@ async function chain(page: Page): Promise<Chain> {
   await page.route(/\/api\/v1\/billing\/invoices(\?|$)/, (route) =>
     route.fulfill({
       json: {
-        invoices: state.accepted ? [invoice(state)] : [],
-        total: state.accepted ? 1 : 0,
+        invoices: state.placed ? [invoice(state)] : [],
+        total: state.placed ? 1 : 0,
         limit: 25,
         offset: 0,
       },
@@ -223,8 +193,8 @@ async function chain(page: Page): Promise<Chain> {
   await page.route(/\/api\/v1\/billing\/payments(\?|$)/, (route) =>
     route.fulfill({
       json: {
-        payments: state.accepted ? [payment(state)] : [],
-        total: state.accepted ? 1 : 0,
+        payments: state.placed ? [payment(state)] : [],
+        total: state.placed ? 1 : 0,
         limit: 25,
         offset: 0,
       },
@@ -254,20 +224,13 @@ async function chain(page: Page): Promise<Chain> {
 }
 
 test.describe('the §37.4 chain', () => {
-  test('quote → order → invoice → payment → activation, walked by a person', async ({ page }) => {
+  test('order → invoice → payment → activation, walked by a person', async ({ page }) => {
     const state = await chain(page);
 
-    // 1. The quote, open and actionable.
-    await page.goto('/quotes?product=atlas');
-    await expect(page.getByRole('button', { name: /^Accept$/ })).toBeVisible();
+    // 1. The order, placed and awaiting its money.
+    await page.goto('/orders?product=atlas');
 
-    // 2. Accepting produces an order, and the screen follows the person to it —
-    //    they accepted in order to get somewhere.
-    await page.getByRole('button', { name: /^Accept$/ }).click();
-    await expect(page).toHaveURL(/\/orders/, { timeout: 10_000 });
-    expect(state.accepted).toBe(true);
-
-    // 3. The order raised an invoice and has **no subscription yet**: nothing is
+    // 2. The order raised an invoice and has **no subscription yet**: nothing is
     //    provisioned before the money arrives (ADR-024). The screen renders that
     //    split as a gate, so the assertion is the gate rather than a status
     //    string that could be anywhere on the page.
@@ -280,15 +243,15 @@ test.describe('the §37.4 chain', () => {
     await page.goto('/subscription?product=atlas');
     await expect(page.getByText('No subscription')).toBeVisible();
 
-    // 4. The invoice exists, final, with its allocated number.
+    // 3. The invoice exists, final, with its allocated number.
     await page.goto('/invoices?product=atlas');
     await expect(page.getByTestId('invoice-number').first()).toHaveText('2026-000042');
 
-    // 5. The payment failed, and says why in words a person can act on.
+    // 4. The payment failed, and says why in words a person can act on.
     await page.goto('/payments?product=atlas');
     await expect(page.getByTestId('failure')).toContainText('card_declined');
 
-    // 6. Retrying is a new attempt, and the money arriving is what activates.
+    // 5. Retrying is a new attempt, and the money arriving is what activates.
     await page.getByRole('button', { name: 'Try again' }).click();
     await expect(page.getByTestId('new-attempt')).toContainText('new');
     expect(state.retried).toBe(1);
@@ -305,9 +268,7 @@ test.describe('the §37.4 chain', () => {
 
   test('nothing is activated before the money arrives', async ({ page }) => {
     await chain(page);
-
-    await page.goto('/quotes?product=atlas');
-    await page.getByRole('button', { name: /^Accept$/ }).click();
+    await page.goto('/orders?product=atlas');
     await expect(page).toHaveURL(/\/orders/, { timeout: 10_000 });
 
     // The order exists and the invoice is raised — and the subscription is not.
@@ -322,10 +283,6 @@ test.describe('the §37.4 chain', () => {
 
   test('the credential for the retry never reaches the page', async ({ page }) => {
     await chain(page);
-
-    await page.goto('/quotes?product=atlas');
-    await page.getByRole('button', { name: /^Accept$/ }).click();
-    await expect(page).toHaveURL(/\/orders/, { timeout: 10_000 });
 
     await page.goto('/payments?product=atlas');
     await page.getByRole('button', { name: 'Try again' }).click();

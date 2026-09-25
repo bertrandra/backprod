@@ -21,12 +21,18 @@ use Psr\Http\Message\ServerRequestInterface;
  * mid-way leaves an order they can look up rather than a charge nobody can
  * account for.
  *
- * The body names an offer and, since 2026-09-18, whether it is a seat. No
- * amount: a client that could name a figure could name a smaller one, and
- * the price is the offer's. No instrument: the customer gives that to the
- * provider directly (§24, and non-negotiable — card data never reaches
- * PostgreSQL). `seat: true` buys for the caller alone (§13.1) — whose seat
- * it is comes from the resolved context, never from the body.
+ * The body names an offer, and that is all it names. No amount: a client that
+ * could name a figure could name a smaller one, and the price is the offer's.
+ * No instrument: the customer gives that to the provider directly (§24, and
+ * non-negotiable — card data never reaches PostgreSQL).
+ *
+ * And no `seat` since 2026-09-25: what is bought is always the caller's own
+ * seat, and whose it is comes from the resolved context (§13.1). The field
+ * existed so a body could say `false` and buy the organisation's
+ * subscription; the tenant surface no longer sells that, so the field is gone
+ * rather than accepted and ignored — a request that cannot express the other
+ * sale is the difference between selling seats and merely not offering
+ * anything else.
  *
  * The `client_secret` is returned here and nowhere else. It is short-lived
  * and it is a credential, so it is never stored (§31); a caller who needs a
@@ -48,7 +54,6 @@ final class OpenCheckoutSessionController implements RouteHandler
             $context->productId,
             $body->requiredString('offer_id', 64),
             $context->userId,
-            $body->optionalBool('seat'),
         );
 
         $body = CheckoutPresenter::session($session['order'], $session['payment']);

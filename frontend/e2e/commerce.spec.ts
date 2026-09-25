@@ -156,7 +156,7 @@ test.describe('a checkout whose connection drops', () => {
     const state = await commerce(page);
 
     await page.goto('/catalogue?product=atlas');
-    await page.getByRole('button', { name: 'Buy for the organisation' }).click();
+    await page.getByRole('button', { name: 'Buy for yourself' }).click();
     // Buying pays on the catalogue (ADR-048): the secret is offered there and
     // never carried to the order page. With no provider stubbed, the pay step
     // is only the link on.
@@ -191,7 +191,7 @@ test.describe('a checkout whose connection drops', () => {
     await commerce(page);
 
     await page.goto('/catalogue?product=atlas');
-    await page.getByRole('button', { name: 'Buy for the organisation' }).click();
+    await page.getByRole('button', { name: 'Buy for yourself' }).click();
     // Buying pays on the catalogue (ADR-048): the secret is offered there and
     // never carried to the order page. With no provider stubbed, the pay step
     // is only the link on.
@@ -272,7 +272,7 @@ test.describe('paying where the secret was born', () => {
     );
 
     await page.goto('/catalogue?product=atlas');
-    await page.getByRole('button', { name: 'Buy for the organisation' }).click();
+    await page.getByRole('button', { name: 'Buy for yourself' }).click();
 
     // Stripe's form, in the page, with the amount the server named — and the
     // sandbox said out loud.
@@ -296,7 +296,7 @@ test.describe('the payment gate', () => {
     await commerce(page);
 
     await page.goto('/catalogue?product=atlas');
-    await page.getByRole('button', { name: 'Buy for the organisation' }).click();
+    await page.getByRole('button', { name: 'Buy for yourself' }).click();
     // Buying pays on the catalogue (ADR-048): the secret is offered there and
     // never carried to the order page. With no provider stubbed, the pay step
     // is only the link on.
@@ -330,7 +330,7 @@ test.describe('every request the application makes', () => {
 
     await page.goto('/catalogue?product=atlas');
     await expect(page.getByText('Pro monthly')).toBeVisible();
-    await page.getByRole('button', { name: 'Buy for the organisation' }).click();
+    await page.getByRole('button', { name: 'Buy for yourself' }).click();
     // Buying pays on the catalogue (ADR-048): the secret is offered there and
     // never carried to the order page. With no provider stubbed, the pay step
     // is only the link on.
