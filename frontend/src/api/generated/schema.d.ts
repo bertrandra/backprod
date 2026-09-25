@@ -2391,6 +2391,12 @@ export interface paths {
         /**
          * The current subscription, its history and its events
          * @description Three answers in one: what is in force now, everything that came before, and the transitions between them. `subscription` is null when the tenant has never subscribed — not the same as a cancelled one, and history tells them apart.
+         *
+         *     **A member sees what concerns them** (ADR-053, 2026-09-25). `subscription` carries the organisation's only to whoever may manage it (`subscription.manage`) and to the people it covers — its owner, or somebody the owner added within the number of people the offer sells. To any other member it is null, and `organisation_subscribed` says whether one exists, so "there is one you are not on" is never shown as "there is none". `history` and `events` are the organisation's commercial record and answer to `subscription.manage` alone.
+         *
+         *     `seat` is never withheld: it is the caller's own.
+         *
+         *     The read is **not** gated on coverage, and deliberately: an administrator whose organisation has bought nothing is covered by nothing, and this is the only screen that leads to buying. Refusing them would mean no tenant could ever subscribe.
          */
         get: operations["showSubscription"];
         put?: never;
@@ -11376,7 +11382,14 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description The organisation's, when it is the caller's to read: they may manage it, or it covers them (ADR-053). Null otherwise — including when there is none. */
                         subscription: components["schemas"]["Subscription"] | null;
+                        /**
+                         * @description Whether the organisation has a live subscription to this product, whether or not the caller is one of the people it covers (2026-09-25).
+                         *
+                         *     Here so that `subscription: null` can be told apart: a member who is not on their organisation's subscription would otherwise be shown the same answer as a tenant that has never bought anything, and invited to buy what their organisation already has. It is also the one fact in this response that genuinely concerns them — it explains why they can reach no work, and who to ask.
+                         */
+                        organisation_subscribed: boolean;
                         history: components["schemas"]["Subscription"][];
                         events: components["schemas"]["SubscriptionEvent"][];
                         /** @description The caller’s own live seat on this product, or null (§13.1, 2026-09-18). Apart from `subscription`, the organisation’s, because the two bind different parties: a member may hold a seat at an organisation that also subscribes. */

@@ -179,19 +179,35 @@ final class CancellationPolicyTest extends TestCase
         self::assertNull($terms->termEndsFrom($start));
     }
 
-    // --- a seat entitles one person --------------------------------------
+    // --- who contracted, which is no longer who is entitled ----------------
 
-    public function testATenantSubscriptionEntitlesEveryone(): void
-    {
-        self::assertTrue(Subscriber::tenant()->entitles('anyone'));
-    }
-
-    public function testASeatEntitlesOnlyItsHolder(): void
+    /**
+     * Two tests stood here until 2026-09-25, and one of them asserted that a
+     * tenant subscription "entitles everyone". It was green the morning the
+     * operator discovered that anybody added to an organisation could read
+     * every project in it — green, and proving something the platform had
+     * been wrong to do.
+     *
+     * ADR-053 made both kinds cover the person who subscribed and those they
+     * added, so the subscriber kind now says who the **contracting party**
+     * is and nothing about entitlement. `Subscriber::entitles()` is gone
+     * with the rule it carried; who a subscription covers is asked of
+     * `Subscriptions::coversPerson()` and proved in `SubscriptionCoverageTest`
+     * against the database, where the members are a real table.
+     */
+    public function testTheSubscriberKindSaysWhoContractedAndNothingMore(): void
     {
         $seat = Subscriber::user('alice');
 
-        self::assertTrue($seat->entitles('alice'));
-        self::assertFalse($seat->entitles('bob'));
+        self::assertTrue($seat->isSeat());
+        self::assertSame('alice', $seat->userId);
+
+        $organisation = Subscriber::tenant();
+
+        self::assertFalse($organisation->isSeat());
+        // Nobody is named: the organisation contracted, and which people it
+        // covers is a different table and a different question.
+        self::assertNull($organisation->userId);
     }
 
     // --- Terms with no computable period end ---------------------------------

@@ -183,12 +183,20 @@ final class InvoiceThenSubscribe implements OrderFulfilment
 
         // The order's subscriber becomes the subscription's (§13.1): the
         // organisation, or the one person whose seat this is.
+        //
+        // And **whoever placed the order owns it** (2026-09-25). This passed
+        // `null` until today, so every purchase made through quote → order →
+        // payment started a subscription owned by nobody. That cost nothing
+        // while an organisation's subscription entitled all its members; the
+        // moment coverage stopped following membership (ADR-053) it meant a
+        // bought subscription covered nobody at all — the buyer included.
+        // `SalesChainTest` is what said so.
         $subscription = $this->subscriptions->applyActivate(
             $order->tenantId,
             $order->productId,
             $offer,
             $offer->version->periodEndFrom($now),
-            null,
+            $order->placedBy,
             $order->subscriber,
         );
 

@@ -39,10 +39,17 @@ final class PostgresSalesRepository implements SalesRepository
         customer_snapshot, sent_at, decided_at, created_at
         SQL;
 
+    /**
+     * `placed_by` joined this list on 2026-09-25, having been written at
+     * placement since orders existed and read by nothing. It is what makes
+     * the subscription this order starts belong to the person who bought it
+     * (ADR-053) — without it, `activate()` had no buyer to name.
+     */
     private const ORDER_COLUMNS = <<<'SQL'
         id, tenant_id, product_id, quote_id, offer_version_id, subscription_id,
         invoice_id, status, currency, net_minor_units, vat_minor_units,
-        gross_minor_units, completed_at, created_at, subscriber_kind, subscriber_user_id
+        gross_minor_units, completed_at, created_at, subscriber_kind, subscriber_user_id,
+        placed_by
         SQL;
 
     public function __construct(
@@ -667,6 +674,7 @@ final class PostgresSalesRepository implements SalesRepository
                     Row::timestamp($row, 'created_at'),
                     self::describedAs($lines[$id] ?? [], $version, $offer),
                     Subscriber::of(Row::string($row, 'subscriber_kind'), Row::nullableString($row, 'subscriber_user_id')),
+                    Row::nullableString($row, 'placed_by'),
                 );
             },
             $rows,

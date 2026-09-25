@@ -181,17 +181,26 @@ final class PostgresEntitlementRepository implements EntitlementRepository
      * exclusion above tests, said positively — owner, named subscriber, or
      * added by the owner.
      *
-     * The clock is the **entitlement's** window, not a second reading of the
-     * subscription's dates. This class says at the top that there is one
-     * convention for "is this in force" and not two, and a coverage question
-     * with its own idea of when a period ends is exactly the second one: it
-     * would let somebody through on a day they are entitled to nothing, or
-     * refuse them on a day they are.
+     * Asked of the **subscription**, and not through the entitlements it
+     * produced. An earlier draft joined through `entitlements` to reuse this
+     * class's one clock, which was tidy and wrong: it made coverage depend
+     * on whether the offer happens to grant any features. An offer that
+     * sells access and no feature writes no entitlement row, so its buyer
+     * would have been covered by nothing on the work they had just paid
+     * for — found by `SalesChainTest`, whose offer grants none.
      *
-     * The join to `subscriptions` is what excludes an **override**. Staff
-     * grant a feature to an organisation, with no subscription behind it;
-     * answered without this join, one support exception would cover every
-     * member — the shape of the hole this whole change closes.
+     * Coverage is about being on a subscription. What that subscription
+     * *grants* is the other two queries' question.
+     *
+     * The clock is therefore the subscription's own, in the words
+     * {@see \App\Commerce\Domain\Subscription::isLiveAt()} uses: active, and
+     * inside its paid period. A null period end is open-ended, not expired —
+     * a `CUSTOM` billing period has no computable end.
+     *
+     * An **override** is excluded by construction, since it has no
+     * subscription at all: staff grant a feature to an organisation, never a
+     * place on a subscription. Answered any other way, one support exception
+     * would cover every member — the shape of the hole this closes.
      */
     public function covers(string $tenantId, string $productId, string $userId): bool
     {
@@ -203,12 +212,11 @@ final class PostgresEntitlementRepository implements EntitlementRepository
             <<<'SQL'
                 SELECT EXISTS (
                     SELECT 1
-                      FROM entitlements e
-                      JOIN subscriptions s ON s.id = e.subscription_id
-                     WHERE e.tenant_id = CAST(:tenantId AS uuid)
-                       AND e.product_id = CAST(:productId AS uuid)
-                       AND e.valid_from <= now()
-                       AND (e.valid_until IS NULL OR e.valid_until > now())
+                      FROM subscriptions s
+                     WHERE s.tenant_id = CAST(:tenantId AS uuid)
+                       AND s.product_id = CAST(:productId AS uuid)
+                       AND s.status = 'ACTIVE'
+                       AND (s.current_period_end IS NULL OR s.current_period_end > now())
                        AND (
                              s.owner_user_id = CAST(:userId AS uuid)
                              OR s.subscriber_user_id = CAST(:userId AS uuid)

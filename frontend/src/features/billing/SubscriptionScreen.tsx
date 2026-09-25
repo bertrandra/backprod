@@ -99,16 +99,31 @@ export function SubscriptionScreen() {
     // must not read as "nothing".
     const provided = (entitlements.data ?? []).filter((entitlement) => entitlement.source === 'GRANT');
 
+    // **There is one, and it is not theirs** (2026-09-25, ADR-053). The
+    // server withholds an organisation's subscription from a member it does
+    // not cover, and says so with this flag — without which this screen
+    // would tell them nothing is subscribed and invite them to buy what
+    // their organisation already pays for.
+    const withheld = subscription.data.organisation_subscribed === true;
+
     return (
       <div className="max-w-3xl space-y-6">
         <h1 className="text-2xl font-semibold">{t("Subscription")}</h1>
         {ownSeat}
         <EmptyState
-          title={seat === null ? t("No subscription") : t("No subscription for the organisation")}
+          title={
+            withheld
+              ? t("You are not on your organisation’s subscription")
+              : seat === null
+                ? t("No subscription")
+                : t("No subscription for the organisation")
+          }
           description={
-            seat === null
-              ? t("Nothing is subscribed in this product yet. An offer from the catalogue starts one.")
-              : t("Your seat is yours alone. An offer from the catalogue, bought for the organisation, starts one for everyone.")
+            withheld
+              ? t("Your organisation has one, and it covers a set number of people. Whoever manages it can add you to it.")
+              : seat === null
+                ? t("Nothing is subscribed in this product yet. An offer from the catalogue starts one.")
+                : t("Your seat is yours alone. An offer from the catalogue, bought for the organisation, starts one for everyone.")
           }
         />
         {provided.length > 0 && <ProvidedByThePlatform entitlements={provided} />}

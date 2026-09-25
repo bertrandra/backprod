@@ -61,15 +61,19 @@ final class SubscriptionCoverageTest extends DatabaseApiTestCase
 
         $this->seedCatalogue();
 
-        // All three are members of the same organisation, with the same
-        // role and the same permissions. That is the point: what separates
-        // them is the subscription, and nothing else.
-        $membership = fn (string $userId): TenantMembership => new TenantMembership(
+        // Ada administers the organisation and manages what it buys; the
+        // other two are ordinary members, as the platform seeds them
+        // (`subscription.read` for everybody, `subscription.manage` for the
+        // administrator alone). What separates the two members from each
+        // other is the subscription and nothing else, which is the point.
+        $membership = fn (string $userId, bool $administrator): TenantMembership => new TenantMembership(
             $this->tenant,
             $userId,
             $this->product,
-            ['TENANT_ADMIN'],
-            ['projects.read', 'projects.write', 'subscription.read', 'subscription.manage'],
+            [$administrator ? 'TENANT_ADMIN' : 'USER'],
+            $administrator
+                ? ['projects.read', 'projects.write', 'subscription.read', 'subscription.manage']
+                : ['projects.read', 'projects.write', 'subscription.read'],
         );
 
         $this->override([
@@ -82,9 +86,9 @@ final class SubscriptionCoverageTest extends DatabaseApiTestCase
                 new Product($this->product, 'atlas', 'Atlas', true),
             ]),
             TenantMembershipRepository::class => new InMemoryTenantMembershipRepository([
-                $membership($this->owner),
-                $membership($this->colleague),
-                $membership($this->outsider),
+                $membership($this->owner, true),
+                $membership($this->colleague, false),
+                $membership($this->outsider, false),
             ]),
         ]);
     }
@@ -220,6 +224,77 @@ final class SubscriptionCoverageTest extends DatabaseApiTestCase
         // And it covers nobody, so it opens no workspace.
         self::assertFalse($entitlements->covers($this->tenant, $this->product, $this->owner));
         self::assertSame(403, $this->projects('ada-token')->getStatusCode());
+    }
+
+    /**
+     * A member sees what concerns them, and an organisation's subscription
+     * concerns the people it covers (2026-09-25).
+     *
+     * Reproduced before the rule existed: somebody who joined Acme through
+     * the storefront — covered by nothing, reaching no work — could read the
+     * organisation's offer, its price, its terms and everything it granted,
+     * because `subscription.read` is carried by every member.
+     */
+    public function testAMemberNotOnItIsToldThereIsOneAndNotWhatItCosts(): void
+    {
+        $this->subscribe();
+
+        $body = $this->decode($this->request('GET', '/api/v1/subscription', $this->headers('bo-token')));
+
+        // `??` would hide the difference between null and absent, and null
+        // is the answer under test — so the key is asserted separately.
+        self::assertArrayHasKey('subscription', $body);
+        self::assertNull($body['subscription'], 'the offer, its price and its terms are withheld');
+        // But not the *fact*, which is the one thing here that concerns
+        // them: it says why they can reach nothing, and who to ask.
+        self::assertTrue($body['organisation_subscribed'] ?? null);
+        self::assertSame([], $body['history'] ?? null);
+        self::assertSame([], $body['events'] ?? null);
+    }
+
+    public function testTheSamePersonSeesItOnceTheyAreOnIt(): void
+    {
+        $this->subscribe();
+        self::assertSame(201, $this->addPerson($this->colleague)->getStatusCode());
+
+        $body = $this->decode($this->request('GET', '/api/v1/subscription', $this->headers('bo-token')));
+        $subscription = $body['subscription'] ?? null;
+
+        self::assertIsArray($subscription);
+        self::assertSame('ACTIVE', $subscription['status'] ?? null);
+    }
+
+    /**
+     * The read is not gated on coverage, and this is why.
+     *
+     * An administrator whose organisation has bought nothing is covered by
+     * nothing — and this screen is the only path to buying. Refusing them
+     * would mean no tenant could ever subscribe, which is a worse hole than
+     * the one being closed.
+     */
+    public function testAnAdministratorWithNothingBoughtStillReachesTheScreenThatSells(): void
+    {
+        $response = $this->request('GET', '/api/v1/subscription', $this->headers('ada-token'));
+
+        self::assertSame(200, $response->getStatusCode());
+
+        $body = $this->decode($response);
+
+        self::assertArrayHasKey('subscription', $body);
+        self::assertNull($body['subscription']);
+        self::assertFalse($body['organisation_subscribed'] ?? null, 'there is none, and they are told so plainly');
+    }
+
+    public function testAnAdministratorSeesTheOrganisationsTermsWhetherOrNotItCoversThem(): void
+    {
+        $this->subscribe();
+
+        // Ada owns it here, so the interesting half is the record: history
+        // and events answer to whoever may manage, and to nobody else.
+        $mine = $this->decode($this->request('GET', '/api/v1/subscription', $this->headers('ada-token')));
+
+        self::assertIsArray($mine['subscription'] ?? null);
+        self::assertNotSame([], $mine['events'] ?? null, 'the activation is on the record');
     }
 
     // --- The world -----------------------------------------------------------

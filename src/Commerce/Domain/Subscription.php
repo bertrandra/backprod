@@ -89,17 +89,13 @@ final class Subscription
         return $this->termEndsAt !== null && $moment >= $this->termEndsAt;
     }
 
-    /**
-     * Whether this subscription entitles the given person.
-     *
-     * A tenant subscription entitles every member; a seat entitles one. Live
-     * *and* addressed to them — the two questions are separate and both have
-     * to be yes.
-     */
-    public function entitlesAt(string $userId, DateTimeImmutable $moment): bool
-    {
-        return $this->isLiveAt($moment) && $this->subscriber->entitles($userId);
-    }
+    // `entitlesAt()` stood here until 2026-09-25 and said "a tenant
+    // subscription entitles every member" — the rule ADR-053 removed. It had
+    // no callers left once entitlement resolution became personal, and a
+    // dead method stating a rule the platform has abandoned is worse than no
+    // method: the next reader reaches for it. Who a subscription covers is
+    // `Subscriptions::coversPerson()`, and what reaches somebody is the
+    // entitlement repository's.
 
     /**
      * Whether this subscription actually entitles the tenant right now.

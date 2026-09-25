@@ -47,6 +47,23 @@ final class Order
         public readonly DateTimeImmutable $createdAt,
         public readonly array $lines,
         public readonly Subscriber $subscriber = new Subscriber(Subscriber::TENANT, null),
+        /**
+         * Who placed it (2026-09-25). The column has recorded this since
+         * orders existed; the value object did not carry it, so nothing
+         * downstream could use it.
+         *
+         * It matters now because **the person who bought owns what they
+         * bought** (ADR-053): a subscription's owner is one of the people it
+         * covers, and a subscription started by this chain was activated
+         * with no actor at all. Every purchase made through quote → order →
+         * payment therefore produced a subscription owned by nobody — which
+         * entitled nobody the moment coverage stopped following membership.
+         *
+         * Null for an order placed with no person behind it, which is a
+         * webhook completing one somebody else began, never a purchase
+         * nobody made.
+         */
+        public readonly ?string $placedBy = null,
     ) {
     }
 
