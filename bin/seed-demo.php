@@ -29,8 +29,8 @@ use Psr\Container\ContainerInterface;
  * permissions, roles, the platform's own roles, EU VAT rates — is created by
  * *migrations* and is not touched here. This seeds the business world on top:
  * five products with a catalogue each — one of them deployed beside the platform — three organisations holding them, one
- * person per role the platform defines, four live subscriptions with the
- * invoices they raised.
+ * person per role the platform defines, five seats bought by five people, each with the
+ * invoice their organisation raised for it.
  *
  * **Refuses a database that already holds the demo**, unless `--reset` is
  * passed. A seeder that silently doubled a catalogue would be discovered by

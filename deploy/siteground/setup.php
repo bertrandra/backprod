@@ -292,7 +292,7 @@ function setupForm(): string
         . '<p class="hint" style="margin:0">The demonstration world: five products (<code>atlas</code>, '
         . '<code>boreas</code>, <code>ceres</code>, <code>delos</code>, <code>plan</code> — the last deployed beside the platform), each with a catalogue, three '
         . 'organisations holding them, one person per role — two tenant roles, four platform roles — '
-        . 'four live subscriptions with the invoices they raised, and five projects. No product or account of your own is asked '
+        . 'five seats bought by five people with the invoices their organisations raised, and five projects. No product or account of your own is asked '
         . 'for: you sign in as those people. Their password is in this platform\'s source, and the next '
         . 'page is where you change it. See <code>docs/demo-world.html</code> in the bundle.</p>'
         . '</fieldset>'
@@ -523,7 +523,7 @@ function handleSetup(): void
     $host = htmlspecialchars(is_string($rawHost) ? $rawHost : 'your-domain');
 
     render('Set up', STYLE_BLOCK . '<p class="ok">Done. Migrations ran and the demonstration world is seeded: '
-        . 'five products, three organisations, nine people, four live subscriptions with their invoices, five projects.</p>'
+        . 'five products, three organisations, nine people, five seats with the invoices their organisations raised, five projects.</p>'
         . accountsTable($world, $host)
         . '<p class="error"><strong>Change the platform administrator\'s password now.</strong> Every account '
         . 'above has the password printed there, and it is in this platform\'s public source — anybody who '
