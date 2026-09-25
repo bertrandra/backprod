@@ -7,8 +7,8 @@ namespace App\Demo\Domain;
 /**
  * What the demonstration world contains — the definition, not the rows.
  *
- * **Five products, three organisations, nine people, four subscriptions,
- * five projects.** The platform is multi-product, and a demo with one
+ * **Five products, three organisations, nine people, five seats, five
+ * projects.** The platform is multi-product, and a demo with one
  * product cannot show the part that matters: a tenant holding several
  * (ADR-047), the console switching between them, the storefront asking
  * which one a stranger wants. Since 2026-09-22 one of the five is **Plan**,
@@ -555,76 +555,93 @@ final class DemoWorld
     /** The one platform administrator, who assigns and grants on the seeder's behalf. */
     public const STAFF_ADMIN = 'backprod';
 
-    /** Who activates each organisation's subscription, and so owns it: its administrator. */
+    /**
+     * Each organisation's administrator.
+     *
+     * They **do not subscribe** (2026-09-25). An administrator runs the
+     * organisation — its members, its billing identity, its VAT, its
+     * documents — and reads the subscriptions its people hold. Buying is
+     * somebody deciding to use a product, and that somebody is a person.
+     *
+     * What they still do here is collect: the money arrives outside the
+     * platform, and the administrator records it by marking the invoice
+     * paid. That is the act that activates the seat, so every seat in this
+     * world was sold by a person's decision and settled by their
+     * organisation's.
+     */
     public const TENANT_ADMINS = ['acme' => 'acme-admin', 'globex' => 'globex-admin', 'initech' => 'initech-admin'];
 
     /**
-     * The subscriptions that run, each with the invoice it raised, so the
-     * console's invoicing and the tenants' billing screens have something on
-     * them for more than one product — and so Plan has subscribers on two
-     * organisations, while Globex holds it and has not bought it.
+     * Every subscription in the world, and every one of them is a **seat**:
+     * a subscription that belongs to one person (§13.1, `Subscriber::user`).
      *
-     * @var list<array{tenant: string, product: string, offer: string}>
-     */
-    public const SUBSCRIPTIONS = [
-        ['tenant' => 'acme', 'product' => 'atlas', 'offer' => 'pro-monthly'],
-        ['tenant' => 'globex', 'product' => 'boreas', 'offer' => 'starter-monthly'],
-        ['tenant' => 'acme', 'product' => 'plan', 'offer' => 'pro-monthly'],
-        ['tenant' => 'initech', 'product' => 'plan', 'offer' => 'starter-monthly'],
-    ];
-
-    /**
-     * The seats: a subscription that belongs to ONE person rather than to the
-     * organisation (§13.1, `Subscriber::user`).
+     * The platform still sells to an organisation — `Subscriber::tenant()`
+     * is not going anywhere — but the demonstration no longer does, because
+     * the operator's model is that a person subscribes and an organisation
+     * administers. So the four tenant subscriptions that stood here until
+     * 2026-09-25 became seats held by the people who would actually have
+     * bought them, and their administrators hold none.
      *
-     * A seat's entitlements reach its holder and nobody else. Since
-     * 2026-09-25 that is no longer special: an organisation's subscription
-     * reaches the people on it and nobody else either, and a seat is simply
-     * one addressed to a person from the start. What a seat still does that
-     * nothing else does is cover somebody **without using a place** on the
-     * organisation's subscription — `acme-user4` is covered by Lecture, and
-     * Acme's three Pro places stay with the administrator, `user1` and
-     * `user2`.
+     * That changes who the invoice names, and it is the point of the
+     * change. A seat is the organisation selling to one of its people
+     * (2026-09-19, `InvoiceThenSubscribe`): **supplier Acme Ltd, customer
+     * ACME user1**, VAT in the organisation's country. The platform's own
+     * supplier identity does not appear on it at all.
      *
-     * Note the direction: the seat ADDS `plan.readonly` on top of what it
-     * grants. Capabilities are a union, so a restricting one has to be read
-     * as a restriction by the product — which Plan does, and says so where
-     * it reads it.
+     * Each is bought the way a customer buys one — order, invoice, payment
+     * — so the demonstration world contains no subscription the application
+     * could not have produced, and the seeder says so.
+     *
+     * What each one is there to show:
+     *
+     * - **acme-user1** holds Pro on Plan and on Atlas: two products, one
+     *   person, and three places on each to give away.
+     * - **acme-user4** holds Lecture on Plan, which grants `plan.readonly`
+     *   — a capability that takes away rather than gives. It costs `user1`
+     *   no place, which is what a seat does that nothing else does.
+     * - **globex-user1** and **initech-user1** hold Starter, which sells
+     *   one person. Their colleagues are covered by nothing, deliberately:
+     *   a demonstration where every quota happens to fit teaches nobody
+     *   what a quota is.
+     *
+     * Note the direction of `plan.readonly`: the seat ADDS it on top of
+     * what it grants. Capabilities are a union, so a restricting one has to
+     * be read as a restriction by the product — which Plan does, and says
+     * so where it reads it.
      *
      * @var list<array{tenant: string, product: string, offer: string, holder: string}>
      */
     public const SEATS = [
+        ['tenant' => 'acme', 'product' => 'plan', 'offer' => 'pro-monthly', 'holder' => 'acme-user1'],
+        ['tenant' => 'acme', 'product' => 'atlas', 'offer' => 'pro-monthly', 'holder' => 'acme-user1'],
         ['tenant' => 'acme', 'product' => 'plan', 'offer' => 'lecture-monthly', 'holder' => 'acme-user4'],
+        ['tenant' => 'globex', 'product' => 'boreas', 'offer' => 'starter-monthly', 'holder' => 'globex-user1'],
+        ['tenant' => 'initech', 'product' => 'plan', 'offer' => 'starter-monthly', 'holder' => 'initech-user1'],
     ];
 
     /**
-     * Who the owner has put on each organisation's subscription
-     * (2026-09-25) — added through `SubscriptionPeople`, so the quota is
-     * enforced here exactly as it is for a customer.
+     * Who each holder has put on their seat (2026-09-25) — added through
+     * `SubscriptionPeople`, so the quota is enforced here exactly as it is
+     * for a customer, and a world that exceeded what it sold could not be
+     * seeded at all.
      *
-     * **Buying covers people, membership does not.** Until today an
-     * organisation's subscription entitled every member of it, which made
-     * the `users` quota decorative: Acme sold three people and listed none,
-     * and a fourth member was as entitled as the first. Now the owner is
-     * covered and adds the rest, up to the number their offer sells.
+     * **Buying covers people, membership does not** (ADR-053). `holder`
+     * names whose subscription it is, because only the owner may add to it:
+     * that is not a permission an administrator can be given, it is who
+     * bought the thing.
      *
-     * The three organisations demonstrate the whole rule between them:
+     * Pro sells three *counting the owner*, so `acme-user1` covers
+     * themselves and `acme-user2` on both products, with one place still
+     * free. Nobody else is on anything: `acme-admin` administers Acme and
+     * is entitled to no product, which is the model the operator asked for
+     * and the most surprising thing in this world — so the seeder asserts
+     * it rather than leaving it to be noticed.
      *
-     * - **Acme** is on Pro, which sells three *counting the owner*. The
-     *   administrator plus `user1` and `user2` — full. `user4` needs no
-     *   place here: they hold their own Lecture seat, which covers them.
-     * - **Globex** and **Initech** are on Starter, which sells one. The
-     *   administrator alone, and their other members are covered by
-     *   nothing — deliberately, because a demonstration where every quota
-     *   happens to fit teaches nobody what a quota is.
-     *
-     * @var list<array{tenant: string, product: string, user: string}>
+     * @var list<array{tenant: string, product: string, holder: string, user: string}>
      */
     public const SUBSCRIPTION_PEOPLE = [
-        ['tenant' => 'acme', 'product' => 'plan', 'user' => 'acme-user1'],
-        ['tenant' => 'acme', 'product' => 'plan', 'user' => 'acme-user2'],
-        ['tenant' => 'acme', 'product' => 'atlas', 'user' => 'acme-user1'],
-        ['tenant' => 'acme', 'product' => 'atlas', 'user' => 'acme-user2'],
+        ['tenant' => 'acme', 'product' => 'plan', 'holder' => 'acme-user1', 'user' => 'acme-user2'],
+        ['tenant' => 'acme', 'product' => 'atlas', 'holder' => 'acme-user1', 'user' => 'acme-user2'],
     ];
 
     /**
@@ -643,13 +660,17 @@ final class DemoWorld
             'document' => ['parcelle' => 'AE 101', 'commune' => 'Le Vésinet', 'surface_m2' => 24, 'lames' => 'pin classe 4', 'source' => 'demo'],
         ],
         [
-            'tenant' => 'acme', 'product' => 'plan', 'by' => 'acme-admin',
+            // By `user2`, whom `user1` put on their seat — not by the
+            // administrator, who since 2026-09-25 subscribes to nothing and
+            // so may create nothing. The place `user1` gave away is what
+            // makes this project possible, which is worth one row to show.
+            'tenant' => 'acme', 'product' => 'plan', 'by' => 'acme-user2',
             'name' => 'Abri de jardin — parcelle AE 101',
             'description' => 'Dalle et abri 12 m² au fond de la parcelle, à vérifier contre le PLU.',
             'document' => ['parcelle' => 'AE 101', 'commune' => 'Le Vésinet', 'surface_m2' => 12, 'source' => 'demo'],
         ],
         [
-            'tenant' => 'initech', 'product' => 'plan', 'by' => 'initech-admin',
+            'tenant' => 'initech', 'product' => 'plan', 'by' => 'initech-user1',
             'name' => 'Terrasse du restaurant',
             'description' => 'Terrasse de 60 m² sur lambourdes, accès PMR, Lyon 2e.',
             'document' => ['parcelle' => 'BC 42', 'commune' => 'Lyon', 'surface_m2' => 60, 'source' => 'demo'],
@@ -661,13 +682,12 @@ final class DemoWorld
             'document' => ['source' => 'demo'],
         ],
         [
-            // By the administrator, not by `globex-user1`, since 2026-09-25:
-            // Globex is on Starter, which sells one person, and the one is
-            // its owner. A member the subscription does not cover cannot
-            // make a project — and the seeder proves it by going through the
-            // workspace, which counts the quota against whoever is named
-            // here. Before the rule changed, `globex-user1` made this one.
-            'tenant' => 'globex', 'product' => 'boreas', 'by' => 'globex-admin',
+            // By `globex-user1`, who bought the Starter seat it is counted
+            // against. Starter sells one person, so `globex-user2` and the
+            // administrator are covered by nothing and can make none — the
+            // seeder proves both halves, because a quota nobody is ever
+            // refused by is a number on a page.
+            'tenant' => 'globex', 'product' => 'boreas', 'by' => 'globex-user1',
             'name' => 'Site survey',
             'description' => 'First pass at the Globex yard.',
             'document' => ['source' => 'demo'],

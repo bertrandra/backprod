@@ -76,21 +76,33 @@ final class DemoResetTest extends DatabaseApiTestCase
             ],
             array_column($this->listIn($world, 'people'), 'email'),
         );
-        self::assertSame(['2026-000001', '2026-000002', '2026-000003', '2026-000004'], $world['invoices'] ?? null);
+        self::assertSame(['2026-000001', '2026-000002', '2026-000003', '2026-000004', '2026-000005'], $world['invoices'] ?? null);
 
         // What the database holds: the world and nothing else.
         self::assertSame(5, $this->rowCount('SELECT count(*) FROM products'));
         self::assertSame(count(DemoWorld::PEOPLE), $this->rowCount('SELECT count(*) FROM users'));
-        // The organisations' subscriptions, plus the seats: a seat is a
-        // subscription of its own, belonging to one person (§13.1), and it
-        // coexists with the tenant's rather than replacing it.
+        // Every subscription is a seat (2026-09-25): one person bought it,
+        // for themselves. The two counts are deliberately the same number
+        // asked two ways — the second is what would notice an organisation
+        // subscription creeping back in.
         self::assertSame(
-            count(DemoWorld::SUBSCRIPTIONS) + count(DemoWorld::SEATS),
+            count(DemoWorld::SEATS),
             $this->rowCount("SELECT count(*) FROM subscriptions WHERE status = 'ACTIVE'"),
         );
         self::assertSame(
             count(DemoWorld::SEATS),
             $this->rowCount("SELECT count(*) FROM subscriptions WHERE subscriber_kind = 'USER' AND status = 'ACTIVE'"),
+        );
+        // And each was sold: an order, fulfilled, and an invoice that was
+        // paid. A seeder that went back to activating them directly would
+        // leave these at zero.
+        self::assertSame(
+            count(DemoWorld::SEATS),
+            $this->rowCount("SELECT count(*) FROM orders WHERE status = 'COMPLETED'"),
+        );
+        self::assertSame(
+            count(DemoWorld::SEATS),
+            $this->rowCount("SELECT count(*) FROM invoices WHERE status = 'PAID'"),
         );
         // Down to the project (2026-09-22): made through the workspace, so
         // each was counted against a quota the offer actually grants and

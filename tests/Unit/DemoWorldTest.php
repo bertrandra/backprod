@@ -60,7 +60,7 @@ final class DemoWorldTest extends TestCase
                 self::assertArrayHasKey($code, DemoWorld::PRODUCTS, "{$slug} holds an unknown product {$code}");
             }
 
-            self::assertArrayHasKey($slug, DemoWorld::TENANT_ADMINS, "{$slug} has no administrator to buy for it");
+            self::assertArrayHasKey($slug, DemoWorld::TENANT_ADMINS, "{$slug} has no administrator to run it");
             self::assertSame('TENANT_ADMIN', DemoWorld::PEOPLE[DemoWorld::TENANT_ADMINS[$slug]]['role']);
         }
 
@@ -70,18 +70,49 @@ final class DemoWorldTest extends TestCase
             }
         }
 
-        foreach (DemoWorld::SUBSCRIPTIONS as $live) {
-            self::assertContains($live['product'], DemoWorld::TENANTS[$live['tenant']]['holds'], 'a subscription to a product the tenant does not hold');
+        foreach (DemoWorld::SEATS as $seat) {
+            self::assertContains($seat['product'], DemoWorld::TENANTS[$seat['tenant']]['holds'], 'a seat on a product the tenant does not hold');
+            self::assertContains($seat['tenant'], DemoWorld::PEOPLE[$seat['holder']]['tenants'], "{$seat['holder']} holds a seat outside their organisation");
+        }
+
+        foreach (DemoWorld::SUBSCRIPTION_PEOPLE as $covered) {
+            // Only the owner adds, so the holder named here must be one
+            // (2026-09-25). Naming anybody else would make the seeder fail
+            // with NOT_THE_OWNER, which is the right refusal reached the
+            // slow way.
+            self::assertNotEmpty(array_filter(
+                DemoWorld::SEATS,
+                static fn (array $seat): bool => $seat['tenant'] === $covered['tenant']
+                    && $seat['product'] === $covered['product']
+                    && $seat['holder'] === $covered['holder'],
+            ), "{$covered['holder']} holds no seat to put {$covered['user']} on");
+            self::assertContains($covered['tenant'], DemoWorld::PEOPLE[$covered['user']]['tenants'], "{$covered['user']} is outside the organisation covering them");
         }
 
         foreach (DemoWorld::PROJECTS as $draft) {
             self::assertContains($draft['product'], DemoWorld::TENANTS[$draft['tenant']]['holds'], "{$draft['name']} is on a product its tenant does not hold");
             self::assertContains($draft['tenant'], DemoWorld::PEOPLE[$draft['by']]['tenants'], "{$draft['name']} is made by somebody outside its organisation");
-            // A project needs a quota, and the quota comes from a subscription.
-            self::assertNotEmpty(array_filter(
-                DemoWorld::SUBSCRIPTIONS,
-                static fn (array $live): bool => $live['tenant'] === $draft['tenant'] && $live['product'] === $draft['product'],
-            ), "{$draft['name']} has no subscription to count against");
+
+            // A project needs a quota, and since 2026-09-25 the quota comes
+            // from a seat that covers **its author** — not from a
+            // subscription that happens to exist in the same organisation.
+            // Whether it really does is the seeder's business, against the
+            // database; what is checkable here is that somebody bought
+            // something the author is on.
+            $covering = array_filter(
+                DemoWorld::SEATS,
+                static fn (array $seat): bool => $seat['tenant'] === $draft['tenant']
+                    && $seat['product'] === $draft['product']
+                    && ($seat['holder'] === $draft['by'] || array_filter(
+                        DemoWorld::SUBSCRIPTION_PEOPLE,
+                        static fn (array $covered): bool => $covered['tenant'] === $seat['tenant']
+                            && $covered['product'] === $seat['product']
+                            && $covered['holder'] === $seat['holder']
+                            && $covered['user'] === $draft['by'],
+                    ) !== []),
+            );
+
+            self::assertNotEmpty($covering, "{$draft['name']} is made by somebody no seat covers");
         }
     }
 }

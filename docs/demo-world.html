@@ -134,14 +134,14 @@
 <main>
   <p class="eyebrow">Backprod · demonstration database</p>
   <h1>The Demonstration World</h1>
-  <p class="lede">Five products — one of them deployed beside the platform — three organisations, one person per role, four live subscriptions with the invoices they raised, five projects — the world <code>composer run demo:seed</code> builds and the installer seeds. This page is who is in it, how to sign in as each of them, and what each one sees.</p>
+  <p class="lede">Five products — one of them deployed beside the platform — three organisations, one person per role, five seats bought by five people with the invoices their organisations raised, five projects — the world <code>composer run demo:seed</code> builds and the installer seeds. This page is who is in it, how to sign in as each of them, and what each one sees.</p>
 
   <h2>Seeding it</h2>
   <p>From a shell, against a migrated database (<code>DATABASE_DSN</code> set, or in <code>.env</code>):</p>
 <pre><code>composer run demo:seed          # seed it into an empty database
 composer run demo:reset         # wipe the business tables first, then seed</code></pre>
   <p>Or from the console: signed in as the platform administrator, <strong>Console → Demo → Reset the demonstration world</strong> does the same as <code>demo:reset</code> — after a second, explicit yes, because it empties every business table, the reader's own account included, and signs everybody out. It then lists who to sign in as. It is refused while the platform hosts a product that is not one of the five: that is somebody's real product.</p>
-  <p>The seeder refuses a database where any of the five product codes already exists, so it never doubles a catalogue. It reads the world back afterwards — subscriptions active, invoices numbered, every offer advertised, every product with its tax position and a project schema version, every offer granting the projects quota the workspace reads, every project where it was made, every role held by somebody — and fails loudly if anything does not hold. Reference data (permissions, roles, EU VAT rates) comes from migrations and is never touched.</p>
+  <p>The seeder refuses a database where any of the five product codes already exists, so it never doubles a catalogue. It reads the world back afterwards — every seat active and owned by the person who bought it, no organisation subscribed to anything, every invoice numbered and raised by an organisation to one of its own people, every project made by somebody a purchase covers, every administrator entitled to nothing, every offer advertised, every product with its tax position and a project schema version, every role held by somebody — and fails loudly if anything does not hold. Reference data (permissions, roles, EU VAT rates) comes from migrations and is never touched.</p>
   <p>The SiteGround installer (<code>setup.php</code>) seeds the same world after writing <code>.env</code> and running the migrations. It asks for no product and no account of your own: you sign in as the people below.</p>
 
   <h2>The five products</h2>
@@ -166,25 +166,27 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
   <p>A tenant holds the products the platform assigned it, and a member of the tenant is mirrored onto every one of them (ADR-047). All three have a billing profile and a B2B French tax profile, so any can be invoiced. Each lives at its own URL root (ADR-049): Acme is the <strong>default tenant</strong>, so it answers at <code>/</code>; Globex answers at <code>/globex/</code>, Initech at <code>/initech/</code>. All admit newcomers at once (join policy <em>OPEN</em>, the default): a sign-up at either root is a member — a USER, who may buy — there and then. Switch a policy on the Organisation screen to see the other three.</p>
   <div class="table-wrap">
   <table>
-    <thead><tr><th>Tenant</th><th>Slug</th><th>Holds</th><th>Subscribed to</th><th>Invoice</th></tr></thead>
+    <thead><tr><th>Tenant</th><th>Slug</th><th>Holds</th><th>Who subscribed, to what</th><th>Invoices it raised</th></tr></thead>
     <tbody>
-      <tr><td>Acme Ltd</td><td><code>acme</code></td><td>atlas, boreas, ceres, delos, plan</td><td>Atlas · Pro, monthly — active<br>Plan · Pro, monthly — active</td><td><code>2026-000001</code>, <code>2026-000003</code>, issued</td></tr>
-      <tr><td>Globex SA</td><td><code>globex</code></td><td>atlas, boreas, plan</td><td>Boreas · Starter, monthly — active<br>Plan: held, nothing bought</td><td><code>2026-000002</code>, issued</td></tr>
-      <tr><td>Initech SARL</td><td><code>initech</code></td><td>plan</td><td>Plan · Starter, monthly — active</td><td><code>2026-000004</code>, issued</td></tr>
+      <tr><td>Acme Ltd</td><td><code>acme</code></td><td>atlas, boreas, ceres, delos, plan</td><td><strong>user1</strong> · Plan, Pro monthly<br><strong>user1</strong> · Atlas, Pro monthly<br><strong>user4</strong> · Plan, Lecture monthly<br>Ceres and Delos: held, nothing bought</td><td><code>2026-000001</code>, <code>2026-000002</code>, <code>2026-000003</code> — paid</td></tr>
+      <tr><td>Globex SA</td><td><code>globex</code></td><td>atlas, boreas, plan</td><td><strong>user1</strong> · Boreas, Starter monthly<br>Atlas and Plan: held, nothing bought</td><td><code>2026-000004</code> — paid</td></tr>
+      <tr><td>Initech SARL</td><td><code>initech</code></td><td>plan</td><td><strong>user1</strong> · Plan, Starter monthly</td><td><code>2026-000005</code> — paid</td></tr>
     </tbody>
   </table>
   </div>
-  <p class="note">Invoice numbers come from the gapless sequence, so they are the first four of the year the seed ran; a reseed after a reset starts again at <code>000001</code>.</p>
+  <p><strong>No organisation subscribed to anything</strong>, and no administrator did (2026-09-25). A person decides to use a product and buys a seat for themselves; the organisation administers — its members, its billing identity, its VAT, its documents — and reads what its people hold. So each of the five invoices is raised <strong>by the organisation to one of its own people</strong>: supplier <em>Acme Ltd</em>, customer <em>ACME user1</em>, VAT in Acme's country. The platform's own supplier identity appears on none of them.</p>
+  <p>Each was bought the way a customer buys one — the person orders the seat, fulfilling the order raises the invoice, and the organisation's administrator marks it <em>paid</em>, the money having arrived outside the platform. Paying is what activates the seat, so there is no subscription here the application could not have produced.</p>
+  <p class="note">Invoice numbers come from the gapless sequence, so they are the first five of the year the seed ran; a reseed after a reset starts again at <code>000001</code>.</p>
 
   <h2>The five projects</h2>
-  <p>Made through the workspace by the people who would make them — so each one was counted against its organisation's quota on the product and stored under the schema version the product declares — rather than inserted. Plan's carry what Plan keeps for a parcel; the other two show the platform's own workspace with something in it.</p>
+  <p>Made through the workspace by the people who would make them — so each one was counted against a quota somebody bought, by an author that purchase covers, and stored under the schema version the product declares — rather than inserted. No administrator made one: they bought nothing, so they are entitled to nothing. Plan's carry what Plan keeps for a parcel; the other two show the platform's own workspace with something in it.</p>
   <div class="table-wrap">
   <table>
     <thead><tr><th>Tenant</th><th>Product</th><th>Project</th><th>Made by</th></tr></thead>
     <tbody>
       <tr><td>Acme</td><td>plan</td><td>Terrasse sud — parcelle AE 101</td><td>ACME user1</td></tr>
-      <tr><td>Acme</td><td>plan</td><td>Abri de jardin — parcelle AE 101</td><td>ACME tenant admin</td></tr>
-      <tr><td>Initech</td><td>plan</td><td>Terrasse du restaurant</td><td>Initech tenant admin</td></tr>
+      <tr><td>Acme</td><td>plan</td><td>Abri de jardin — parcelle AE 101</td><td>ACME user2 — on user1's seat</td></tr>
+      <tr><td>Initech</td><td>plan</td><td>Terrasse du restaurant</td><td>Initech user1</td></tr>
       <tr><td>Acme</td><td>atlas</td><td>North wall</td><td>ACME user1</td></tr>
       <tr><td>Globex</td><td>boreas</td><td>Site survey</td><td>Globex user1</td></tr>
     </tbody>
@@ -206,50 +208,50 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
     <div class="person">
       <span class="who">ACME tenant admin</span><span class="chip tenant">TENANT_ADMIN</span>
       <span class="mail"><code>acme-admin@raillard.org</code></span>
-      <p class="sees">Administrator of Acme — the bare host's organisation — on all five products. Owns Acme's Atlas and Plan subscriptions and manages who they cover.</p>
-      <p class="start">Start with: members, billing, the <code>2026-000001</code> invoice, the subscription's people.</p>
+      <p class="sees">Administrator of Acme — the bare host's organisation — on all five products. <strong>Subscribes to nothing</strong> (2026-09-25): they run the organisation — its members, its billing identity, its VAT, its documents — and read what its people hold. Entitled to no product, so no workspace opens for them.</p>
+      <p class="start">Start with: Acme's three invoices, each raised <em>by Acme to one of its own people</em>; then try Projects and read the refusal.</p>
     </div>
     <div class="person">
       <span class="who">ACME user1</span><span class="chip tenant">USER</span>
       <span class="mail"><code>acme-user1@raillard.org</code></span>
-      <p class="sees">A member of Acme: projects — two of them theirs already, one on Plan and one on Atlas — messaging, notifications, the catalogue with <em>Buy for yourself</em>, and only their own documents.</p>
-      <p class="start">Start with: Projects on Plan — the card above the list says where Plan lives and what Acme holds on it — then buy a seat from the catalogue.</p>
+      <p class="sees">The one who bought. Holds a Pro seat on Plan and another on Atlas — three people each, counting themselves — and has put user2 on both, leaving a place free. Two projects are theirs, one on each product. Their documents are <code>2026-000001</code> and <code>2026-000002</code>, addressed to them by Acme.</p>
+      <p class="start">Start with: Subscription → People, and add somebody by address — they get an account and a link to choose a password.</p>
     </div>
     <div class="person">
       <span class="who">ACME user2</span><span class="chip tenant">USER</span>
       <span class="mail"><code>acme-user2@raillard.org</code></span>
-      <p class="sees">The same as user1 — somebody for user1 to add to a seat, or to be added by the administrator.</p>
-      <p class="start">Start with: what changes once somebody adds you to their subscription.</p>
+      <p class="sees">Covered by user1, on both seats — so the workspace opens and <em>Abri de jardin</em> is theirs — and owner of nothing: no invoice, no people to manage, and the subscription screen says the organisation subscribed without showing terms they did not agree to.</p>
+      <p class="start">Start with: Subscription, then Invoices — what somebody covered by a purchase they did not make is shown.</p>
     </div>
     <div class="person">
       <span class="who">Globex tenant admin</span><span class="chip tenant">TENANT_ADMIN</span>
       <span class="mail"><code>globex-admin@raillard.org</code></span>
-      <p class="sees">Administrator of Globex, at <code>/globex/</code>, on Atlas, Boreas and Plan. Owns Globex's Boreas subscription; holds Plan and has not bought it, which is what the Plan card on Projects says.</p>
+      <p class="sees">Administrator of Globex, at <code>/globex/</code>, on Atlas, Boreas and Plan. Subscribes to nothing, like every administrator here: Globex holds three products and has bought none — its user1 bought one seat on Boreas, which is what the card on Projects says.</p>
       <p class="start">Start with: sign in at the bare host and watch the landing move you to <code>/globex/</code>.</p>
     </div>
     <div class="person">
       <span class="who">Globex user1</span><span class="chip tenant">USER</span>
       <span class="mail"><code>globex-user1@raillard.org</code></span>
-      <p class="sees">A member of Globex, with a Boreas project of their own.</p>
-      <p class="start">Start with: the catalogue at <code>/globex/</code>.</p>
+      <p class="sees">Holds the Boreas Starter seat they bought — <code>2026-000004</code>, from Globex to them — which sells <strong>one person</strong>, so there is no place to give away. <em>Site survey</em> is theirs.</p>
+      <p class="start">Start with: Subscription → People, and try to add user2: the refusal is the quota, in the words a customer reads.</p>
     </div>
     <div class="person">
       <span class="who">Globex user2</span><span class="chip tenant">USER</span>
       <span class="mail"><code>globex-user2@raillard.org</code></span>
-      <p class="sees">A member of Globex.</p>
-      <p class="start">Start with: being added to user1's seat.</p>
+      <p class="sees">Covered by nothing, deliberately: Starter sells one person and user1 is the one. Every workspace refuses them — a demonstration where every quota happens to fit teaches nobody what a quota is.</p>
+      <p class="start">Start with: Projects, and read what a refusal for want of a subscription says; then buy a seat of your own.</p>
     </div>
     <div class="person">
       <span class="who">Initech tenant admin</span><span class="chip tenant">TENANT_ADMIN</span>
       <span class="mail"><code>initech-admin@raillard.org</code></span>
-      <p class="sees">Administrator of Initech, at <code>/initech/</code>, on Plan alone: an organisation with one product, whose switcher is a chip rather than a menu. Owns Initech's Plan subscription — Starter, so three projects at most — and made its one project.</p>
-      <p class="start">Start with: Projects, then try a fourth project once three exist and read the refusal.</p>
+      <p class="sees">Administrator of Initech, at <code>/initech/</code>, on Plan alone: an organisation with one product, whose switcher is a chip rather than a menu. Subscribes to nothing; user1 bought the Starter seat and Initech invoiced them for it.</p>
+      <p class="start">Start with: <code>2026-000005</code> — the whole model on one page: supplier Initech SARL, customer Initech user1.</p>
     </div>
     <div class="person">
       <span class="who">Initech user1</span><span class="chip tenant">USER</span>
       <span class="mail"><code>initech-user1@raillard.org</code></span>
-      <p class="sees">A member of Initech, on Plan.</p>
-      <p class="start">Start with: open Plan from the switcher — the cookie signs you in there.</p>
+      <p class="sees">Holds Initech's only seat — Plan, Starter, so three projects at most — and made <em>Terrasse du restaurant</em>.</p>
+      <p class="start">Start with: open Plan from the switcher — the cookie signs you in there — then try a fourth project once three exist and read the refusal.</p>
     </div>
   </div>
 
@@ -262,15 +264,15 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
   <ol>
     <li><strong>The storefront is one organisation's.</strong> Signed out, <code>/</code> is Acme's window — a dropdown of the five products it holds and the advertised offers of the chosen one — <code>/globex/</code> is Globex's, with three, and <code>/initech/</code> Initech's, with Plan alone and no dropdown. Only products with something sellable are listed.</li>
     <li><strong>A stranger signs up and pays.</strong> At <code>/globex/</code>, choose an offer and create an account: the pay step opens on the same page, on the session the sign-up issued — a USER of Globex on both its products, with <code>billing.pay</code>. As Ada, switch Globex to <em>Ask an administrator</em> on the Organisation screen: the next sign-up lands on "waiting for Globex" and appears under Members as a request to accept or decline.</li>
-    <li><strong>The platform can give what it does not sell.</strong> As the platform admin, open Acme in Console → Tenants and grant Ceres's Pro features until next month; as the ACME tenant admin in Ceres, the Subscription screen says <em>provided by the platform</em> and the workspace opens without a purchase.</li>
-    <li><strong>The invoice says where the money stands.</strong> Download <code>2026-000001</code> as the ACME tenant admin: the PDF carries a band — <em>en attente de paiement</em> with its due date — and after the payment below, <em>payée le …</em> with the reference. The stored document underneath never changes.</li>
+    <li><strong>The platform can give what it does not sell — features, not a place.</strong> As the platform admin, open Acme in Console → Tenants and grant Ceres's Pro features until next month; as the ACME tenant admin in Ceres, the Subscription screen says <em>provided by the platform</em> and the features read as live. The <strong>workspace still refuses</strong>, and deliberately so since 2026-09-25 (ADR-053): staff grant a feature to an organisation, never a place on a subscription, and answering it any other way would let one support exception cover every member — which is the hole that ADR closed. <em>An override that was meant to be a trial therefore cannot open one; the operator has not decided yet whether it should.</em></li>
+    <li><strong>The organisation invoices its own people.</strong> Download <code>2026-000001</code> as the ACME tenant admin: supplier <em>Acme Ltd</em>, customer <em>ACME user1</em>, VAT in Acme's country — the platform's supplier identity is nowhere on it. The band says where the money stands (<em>payée le …</em>, since the administrator recorded the payment), and the stored document underneath never changes.</li>
     <li><strong>The console follows the switcher.</strong> As the platform admin, the top-left switcher lists all five products, and Setup, Catalogue, Storefront and Invoicing follow it. Retire one from Console → Products and watch it marked so.</li>
     <li><strong>A product beside the platform.</strong> As any member of Acme, choose Plan in the switcher: the shell stays here and shows what the platform keeps for Plan — its projects, its subscription, its members. The card above the list is the door: <em>Open Plan</em> leaves for <code>plan.raillard.org</code> with <code>?product=plan</code> and nothing else, and the cookie signs you in there — no token travels. Open <em>Terrasse sud — parcelle AE 101</em> and <em>Open in Plan</em> carries <code>?project=</code> as well, so Plan opens that terrace and not the last one it saw.</li>
     <li><strong>A tenant with several products.</strong> As the ACME tenant admin the switcher offers five products; as the Globex tenant admin, three; as Initech's, one. Assign Ceres to Globex from Console → Tenants (as Sam) and Ada's switcher gains it — her membership was mirrored onto it.</li>
-    <li><strong>Withdrawing a product is refused while service is owed.</strong> Unassign Atlas from Acme and the console answers <code>PRODUCT_IN_USE</code>: the Pro subscription is still running.</li>
+    <li><strong>Withdrawing a product is refused while service is owed.</strong> Unassign Atlas from Acme and the console answers <code>PRODUCT_IN_USE</code>: user1's Pro seat is still running. A seat is a subscription, so a product one person bought into cannot be taken from the organisation under them.</li>
     <li><strong>Money moves only on the provider's word.</strong> With Stripe configured (sandbox keys, <code>stripe listen</code>), take a payment on <code>2026-000001</code> as Ada with card <code>4242 4242 4242 4242</code>; the invoice turns <em>paid</em> when the webhook lands, not when the form closes. <code>4000 0000 0000 9995</code> is declined and offers <em>Try again</em>.</li>
     <li><strong>Staff reads leave a trail.</strong> As the platform admin, open a tenant with a purpose and reference, then read the access log.</li>
-    <li><strong>A subscription covers people.</strong> As ACME user1, buy the Pro seat — three people — and add user2 from the picker, then somebody by address: they get an account and a link to choose a password.</li>
+    <li><strong>Buying covers people; belonging covers nobody</strong> (ADR-053). As ACME user1 — who holds the Pro seat, three people counting themselves — open Subscription → People: user2 is on it, one place is free, and adding somebody by address gets them an account and a link to choose a password. Then sign in as the ACME tenant admin, who runs the organisation and bought nothing: every workspace refuses them. Membership is not a purchase.</li>
   </ol>
 
   <h2>The demonstration page</h2>
@@ -279,7 +281,7 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
   <h2>Where it is defined</h2>
   <dl>
     <dt><code>src/Demo/Domain/DemoWorld.php</code></dt><dd>The one definition of the world — products, organisations, people, subscriptions, projects. This page describes it; when one changes, so does the other.</dd>
-    <dt><code>src/Demo/Service/DemoSeeder.php</code></dt><dd>Builds it and reads it back: the rows through <code>PostgresDemoFixtures</code>, the subscriptions and invoices through the services that own them, then the checks.</dd>
+    <dt><code>src/Demo/Service/DemoSeeder.php</code></dt><dd>Builds it and reads it back: the rows through <code>PostgresDemoFixtures</code>, then every seat through the sale that produces one — order, fulfilment, payment — and the checks.</dd>
     <dt><code>bin/seed-demo.php</code></dt><dd>The command line around it: <code>--reset</code>, the guard against seeding twice, the printed summary.</dd>
     <dt><code>deploy/siteground/setup.php</code></dt><dd>The installer, which seeds the same world once and then only changes passwords.</dd>
     <dt><code>POST /api/v1/staff/demo/reset</code></dt><dd>What the console's button calls; <code>staff.demo.reset</code>, PLATFORM_ADMIN alone.</dd>
