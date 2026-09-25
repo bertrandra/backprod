@@ -240,6 +240,10 @@ export const APP_NAV: readonly NavSection[] = [
       // The screens stay reachable by address for a reader.
       { id: 'organisation', label: 'Organisation', to: '/organisation', scope: 'tenant', permission: 'tenant.manage', secondary: true },
       { id: 'members', label: 'Members', to: '/members', scope: 'tenant', permission: 'members.manage', secondary: true },
+      // What the organisation's people hold (2026-09-25). Here rather than
+      // under Money: Money is what *this* person owes and holds, and this is
+      // a register of everybody — the administrator's, like Members beside it.
+      { id: 'held', label: 'Subscriptions', to: '/organisation/subscriptions', scope: 'tenant', permission: 'tenant.manage', secondary: true },
       { id: 'profile', label: 'Your profile', to: '/profile', scope: 'tenant', permission: 'account.read', secondary: true },
       { id: 'branding', label: 'Branding', to: '/branding', scope: 'tenant', permission: 'skin.manage', secondary: true },
       { id: 'notification-settings', label: 'Notification settings', to: '/notification-settings', scope: 'tenant', permission: 'notifications.read', secondary: true },

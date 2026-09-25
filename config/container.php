@@ -48,6 +48,7 @@ use App\Commerce\Domain\CatalogueRepository;
 use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\OfferAuthoringRepository;
 use App\Commerce\Domain\OfferLineDetails;
+use App\Commerce\Domain\OrganisationSubscriptions;
 use App\Commerce\Domain\StorefrontListing;
 use App\Commerce\Domain\StorefrontSettings;
 use App\Commerce\Domain\SubscriptionRepository;
@@ -56,6 +57,7 @@ use App\Commerce\Infrastructure\PostgresCatalogueRepository;
 use App\Commerce\Infrastructure\PostgresEntitlementRepository;
 use App\Commerce\Infrastructure\PostgresOfferAuthoringRepository;
 use App\Commerce\Infrastructure\PostgresOfferLineDetails;
+use App\Commerce\Infrastructure\PostgresOrganisationSubscriptions;
 use App\Commerce\Infrastructure\PostgresStorefrontListing;
 use App\Commerce\Infrastructure\PostgresStorefrontSettings;
 use App\Commerce\Infrastructure\PostgresSubscriptionRepository;
@@ -388,6 +390,9 @@ return static function (array $overrides = []): ContainerInterface {
         OfferAuthoringRepository::class => autowire(PostgresOfferAuthoringRepository::class),
         OfferLineDetails::class => autowire(PostgresOfferLineDetails::class),
         SubscriptionRepository::class => autowire(PostgresSubscriptionRepository::class),
+        // A read model of its own (2026-09-25): the organisation screen joins
+        // holders and grants, which is not the write side's business.
+        OrganisationSubscriptions::class => autowire(PostgresOrganisationSubscriptions::class),
 
         // One adapter, two ports. Writing happens everywhere and reading on
         // one surface, so a module that records something does not acquire

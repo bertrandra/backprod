@@ -2297,6 +2297,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organisation/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who in this organisation is subscribed to what
+         * @description Every subscription its people hold on this product, live or not, newest first — with the holder, the offer and how many of the places the offer sells are taken.
+         *
+         *     **The administrator's read** (`tenant.manage` — a USER holds `subscription.manage`, for the people on their own seat), and the counterpart of `showSubscription`, which answers for the caller. Since the tenant surface sells seats only (ADR-055) an organisation's subscriptions belong to its people one by one, and nothing else shows them together: the administrator does not buy, they administer, and they cannot administer what they cannot see.
+         *
+         *     **Places count the holder.** Whoever bought a subscription is one of the people it covers, exactly as `addSubscriptionPerson` counts them. `places_sold` is null for an offer that sells an unlimited number, and 1 for an offer that sells no `users` feature at all — a holder's subscription is their own unless it says otherwise.
+         */
+        get: operations["listOrganisationSubscriptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/subscription": {
         parameters: {
             query?: never;
@@ -4086,6 +4110,41 @@ export interface components {
             /** @enum {string} */
             early_termination: "FORBIDDEN" | "CHARGE_REMAINING" | "FREE";
             notice_days: number;
+        };
+        /** @description One row of "who holds what" for an organisation (2026-09-25). A read model, not a Subscription: it carries the holder's identity beside the offer and the places taken beside the places sold, because the question needs all three and a screen assembling them from separate reads would be the one doing the arithmetic. */
+        HeldSubscription: {
+            /** Format: uuid */
+            id: string;
+            /** @description ACTIVE, CANCELLED, EXPIRED — the row's own state. Not the same question as `live`. */
+            status: string;
+            /**
+             * @description Who contracted (§13.1). The tenant surface has sold only USER since 2026-09-25; a TENANT row is one a deployment already had, or one the platform granted.
+             * @enum {string}
+             */
+            subscriber_kind: "TENANT" | "USER";
+            /** @description Active and inside the period that was paid for. Derived server-side from the clock, like `open` on a quote was: a screen recomputing it from `current_period_end` would disagree with the server a second later. */
+            live: boolean;
+            /** @description Who bought it. Null only for a row from before ownership was recorded — said plainly rather than attributed to somebody. */
+            holder: {
+                /** Format: uuid */
+                user_id: string;
+                name: string | null;
+                email: string | null;
+            } | null;
+            offer_name: string;
+            plan_name: string;
+            /** @description MONTHLY, YEARLY or CUSTOM. How often the holder pays, which is not how long they committed for (non-negotiable #23). */
+            billing_period: string;
+            price: components["schemas"]["Money"];
+            /**
+             * Format: date-time
+             * @description How long the service is owed for. Null for an open-ended period, which a CUSTOM billing period has.
+             */
+            current_period_end: string | null;
+            /** @description How many people the offer covers, counting the holder. Null means unlimited; 1 means the offer sells no `users` feature, which covers the holder alone. The two are different facts and are not both null here. */
+            places_sold: number | null;
+            /** @description The holder plus everybody they have added. */
+            places_used: number;
         };
         Subscription: {
             /** Format: uuid */
@@ -11059,6 +11118,37 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listOrganisationSubscriptions: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The organisation's subscriptions. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        subscriptions: components["schemas"]["HeldSubscription"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

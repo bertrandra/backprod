@@ -16,6 +16,7 @@ import { CreditNotesScreen } from '@/features/billing/CreditNotesScreen';
 import { InvoiceScreen } from '@/features/billing/InvoiceScreen';
 import { InvoicesScreen } from '@/features/billing/InvoicesScreen';
 import { PaymentsScreen } from '@/features/billing/PaymentsScreen';
+import { OrganisationSubscriptionsScreen } from '@/features/billing/OrganisationSubscriptionsScreen';
 import { SubscriptionScreen } from '@/features/billing/SubscriptionScreen';
 import { CatalogueScreen } from '@/features/commerce/CatalogueScreen';
 import { ShowcaseScreen } from '@/features/showcase/ShowcaseScreen';
@@ -95,6 +96,7 @@ const SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element
   { path: '/orders', component: OrdersScreen },
   // U6
   { path: '/subscription', component: SubscriptionScreen },
+  { path: '/organisation/subscriptions', component: OrganisationSubscriptionsScreen },
   { path: '/invoices', component: InvoicesScreen },
   { path: '/payments', component: PaymentsScreen },
   { path: '/credit-notes', component: CreditNotesScreen },
