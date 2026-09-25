@@ -476,7 +476,7 @@ export interface paths {
         put?: never;
         /**
          * Begin a payment through the provider
-         * @description Returns the payment **and the provider's client secret**, which is what the browser needs to complete the charge. Card data never reaches this API (§24): the client talks to the provider directly and the platform learns the outcome by webhook. Since 2026-09-18 the permission is `billing.pay`, which both tenant roles hold: a USER who signed up at the organisation’s root pays there and then; issuing, crediting and refunding stay administrative.
+         * @description Returns the payment **and the provider's client secret**, which is what the browser needs to complete the charge. Card data never reaches this API (§24): the client talks to the provider directly and the platform learns the outcome by webhook. The permission is `billing.pay`, and since 2026-09-25 **the member holds it and the administrator does not**: a USER who signed up at the organisation’s root buys and pays there and then, while an administrator administers — they read what their people hold and record the money that arrived (`billing.manage`), they do not buy and do not pay by card. Issuing, crediting and refunding stay administrative.
          */
         post: operations["startPayment"];
         delete?: never;
@@ -644,7 +644,7 @@ export interface paths {
          *
          *     **The body names an offer and nothing else.** No amount, because a client that could name a figure could name a smaller one; the price is the offer's. No instrument, because the customer gives that to the provider directly — card data never reaches this platform's database (§24).
          *
-         *     **It does not start the subscription.** That waits for the money, through the same webhook everything else arrives by. A checkout that activated on creation would extend credit to anyone who can reach this endpoint. Since 2026-09-18 the permission is `billing.pay`, which both tenant roles hold: a USER who signed up at the organisation’s root pays there and then; issuing, crediting and refunding stay administrative.
+         *     **It does not start the subscription.** That waits for the money, through the same webhook everything else arrives by. A checkout that activated on creation would extend credit to anyone who can reach this endpoint. The permission is `billing.pay`, and since 2026-09-25 **the member holds it and the administrator does not**: a USER who signed up at the organisation’s root buys and pays there and then, while an administrator administers — they read what their people hold and record the money that arrived (`billing.manage`), they do not buy and do not pay by card. Issuing, crediting and refunding stay administrative.
          */
         post: operations["openCheckoutSession"];
         delete?: never;
@@ -664,7 +664,7 @@ export interface paths {
          * Where the purchase got to
          * @description The status is derived from the order and its latest payment rather than stored: the order knows whether it completed, the payment knows whether money moved, and a third status written down could disagree with both.
          *
-         *     No `client_secret` — there is nothing to return it from. Since 2026-09-18 the permission is `billing.pay`, which both tenant roles hold: a USER who signed up at the organisation’s root pays there and then; issuing, crediting and refunding stay administrative.
+         *     No `client_secret` — there is nothing to return it from. The permission is `billing.pay`, and since 2026-09-25 **the member holds it and the administrator does not**: a USER who signed up at the organisation’s root buys and pays there and then, while an administrator administers — they read what their people hold and record the money that arrived (`billing.manage`), they do not buy and do not pay by card. Issuing, crediting and refunding stay administrative.
          */
         get: operations["showCheckoutSession"];
         put?: never;
@@ -1437,7 +1437,7 @@ export interface paths {
          * Try to collect an invoice again
          * @description A **new** payment against the same invoice, never a resurrection of the old one. `PaymentStatus` is deliberately one-way and says why: the customer may have used a different instrument, and two attempts that must be told apart cannot share a provider reference.
          *
-         *     Refused while the previous attempt is still in flight — a second authorization then risks collecting twice for one debt — and refused if it succeeded, where there is nothing to retry. Since 2026-09-18 the permission is `billing.pay`, which both tenant roles hold: a USER who signed up at the organisation’s root pays there and then; issuing, crediting and refunding stay administrative.
+         *     Refused while the previous attempt is still in flight — a second authorization then risks collecting twice for one debt — and refused if it succeeded, where there is nothing to retry. The permission is `billing.pay`, and since 2026-09-25 **the member holds it and the administrator does not**: a USER who signed up at the organisation’s root buys and pays there and then, while an administrator administers — they read what their people hold and record the money that arrived (`billing.manage`), they do not buy and do not pay by card. Issuing, crediting and refunding stay administrative.
          */
         post: operations["retryPayment"];
         delete?: never;
