@@ -320,8 +320,8 @@ function accountsTable(SeededWorld $world, string $host): string
     return '<table><thead><tr><th>Sign in as</th><th>Role</th><th>Administers</th></tr></thead>'
         . '<tbody>' . $rows . '</tbody></table>'
         . '<p>Every one of them has the password <code>' . htmlspecialchars(DemoWorld::PASSWORD) . '</code>. '
-        . 'Sign in at <a href="https://' . $host . '/sign-in?product=atlas">' . htmlspecialchars($host)
-        . '/sign-in?product=atlas</a> — the first time, the <code>?product=</code> is needed; after that this '
+        . 'Sign in at <a href="https://' . $host . '/sign-in?product=plan">' . htmlspecialchars($host)
+        . '/sign-in?product=plan</a> — the first time, the <code>?product=</code> is needed; after that this '
         . 'browser remembers it. Platform staff land in the console.</p>';
 }
 
