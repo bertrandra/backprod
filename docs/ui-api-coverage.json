@@ -542,6 +542,16 @@
         "updateCurrentTenant"
       ]
     },
+    "organisation.subscriptions": {
+      "authority": "tenant",
+      "$comment": "Who in the organisation holds what, with the places taken (2026-09-25). Its own area rather than a corner of tenant.subscription: a different permission (tenant.manage) and a different question — that one answers for whoever is asking, this one for everybody.",
+      "routes": [
+        "/organisation/subscriptions"
+      ],
+      "operations": [
+        "listOrganisationSubscriptions"
+      ]
+    },
     "tenant.subscription": {
       "authority": "tenant",
       "routes": [

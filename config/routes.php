@@ -42,6 +42,7 @@ use App\Commerce\Controller\ListEntitlementsController;
 use App\Commerce\Controller\ListFeaturesController;
 use App\Commerce\Controller\ListOffersController;
 use App\Commerce\Controller\ListOfferVersionsController;
+use App\Commerce\Controller\ListOrganisationSubscriptionsController;
 use App\Commerce\Controller\ListPeopleController;
 use App\Commerce\Controller\ListPlansController;
 use App\Commerce\Controller\PublicOfferController;
@@ -348,6 +349,9 @@ return static function (RouteCollector $routes): void {
 
     // What the tenant subscribed to, and what it consequently may use.
     $routes->addRoute('GET', '/api/v1/subscription', ShowSubscriptionController::class);
+    // Who in the organisation holds what (2026-09-25): the administrator's
+    // read, beside the caller's own above.
+    $routes->addRoute('GET', '/api/v1/organisation/subscriptions', ListOrganisationSubscriptionsController::class);
     $routes->addRoute('POST', '/api/v1/subscription', SubscribeController::class);
     $routes->addRoute('POST', '/api/v1/subscription/change-offer', ChangeOfferController::class);
     $routes->addRoute('POST', '/api/v1/subscription/cancel', CancelSubscriptionController::class);

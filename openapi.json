@@ -835,6 +835,104 @@
           }
         }
       },
+      "HeldSubscription": {
+        "type": "object",
+        "description": "One row of \"who holds what\" for an organisation (2026-09-25). A read model, not a Subscription: it carries the holder's identity beside the offer and the places taken beside the places sold, because the question needs all three and a screen assembling them from separate reads would be the one doing the arithmetic.",
+        "required": [
+          "id",
+          "status",
+          "subscriber_kind",
+          "holder",
+          "offer_name",
+          "plan_name",
+          "billing_period",
+          "price",
+          "current_period_end",
+          "places_sold",
+          "places_used",
+          "live"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "description": "ACTIVE, CANCELLED, EXPIRED — the row's own state. Not the same question as `live`."
+          },
+          "subscriber_kind": {
+            "type": "string",
+            "enum": [
+              "TENANT",
+              "USER"
+            ],
+            "description": "Who contracted (§13.1). The tenant surface has sold only USER since 2026-09-25; a TENANT row is one a deployment already had, or one the platform granted."
+          },
+          "live": {
+            "type": "boolean",
+            "description": "Active and inside the period that was paid for. Derived server-side from the clock, like `open` on a quote was: a screen recomputing it from `current_period_end` would disagree with the server a second later."
+          },
+          "holder": {
+            "description": "Who bought it. Null only for a row from before ownership was recorded — said plainly rather than attributed to somebody.",
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "user_id",
+                  "name",
+                  "email"
+                ],
+                "properties": {
+                  "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "email": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "offer_name": {
+            "type": "string"
+          },
+          "plan_name": {
+            "type": "string"
+          },
+          "billing_period": {
+            "type": "string",
+            "description": "MONTHLY, YEARLY or CUSTOM. How often the holder pays, which is not how long they committed for (non-negotiable #23)."
+          },
+          "price": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "current_period_end": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "How long the service is owed for. Null for an open-ended period, which a CUSTOM billing period has."
+          },
+          "places_sold": {
+            "type": "integer",
+            "nullable": true,
+            "description": "How many people the offer covers, counting the holder. Null means unlimited; 1 means the offer sells no `users` feature, which covers the holder alone. The two are different facts and are not both null here."
+          },
+          "places_used": {
+            "type": "integer",
+            "description": "The holder plus everybody they have added."
+          }
+        }
+      },
       "Subscription": {
         "type": "object",
         "required": [
@@ -14841,6 +14939,59 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/organisation/subscriptions": {
+      "get": {
+        "tags": [
+          "Subscription"
+        ],
+        "operationId": "listOrganisationSubscriptions",
+        "summary": "Who in this organisation is subscribed to what",
+        "description": "Every subscription its people hold on this product, live or not, newest first — with the holder, the offer and how many of the places the offer sells are taken.\n\n**The administrator's read** (`tenant.manage` — a USER holds `subscription.manage`, for the people on their own seat), and the counterpart of `showSubscription`, which answers for the caller. Since the tenant surface sells seats only (ADR-055) an organisation's subscriptions belong to its people one by one, and nothing else shows them together: the administrator does not buy, they administer, and they cannot administer what they cannot see.\n\n**Places count the holder.** Whoever bought a subscription is one of the people it covers, exactly as `addSubscriptionPerson` counts them. `places_sold` is null for an offer that sells an unlimited number, and 1 for an offer that sells no `users` feature at all — a holder's subscription is their own unless it says otherwise.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The organisation's subscriptions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "subscriptions"
+                  ],
+                  "properties": {
+                    "subscriptions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/HeldSubscription"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"

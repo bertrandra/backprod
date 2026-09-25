@@ -6,6 +6,7 @@ namespace App\Commerce\Service;
 
 use App\Auth\Domain\AccountRegistrar;
 use App\Auth\Service\Sessions;
+use App\Commerce\Domain\Places;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionMember;
 use App\Commerce\Domain\SubscriptionRepository;
@@ -31,8 +32,14 @@ use App\Shared\Exceptions\NotFoundException;
  */
 final class SubscriptionPeople
 {
-    /** The feature whose quota bounds a subscription's people. A platform convention, not a product's. */
-    public const USERS_FEATURE = 'users';
+    /**
+     * The feature whose quota bounds a subscription's people.
+     *
+     * Kept as an alias since 2026-09-25 rather than as a second literal: the
+     * organisation's read model needs the same word, and `Places` is where
+     * the rule about it now lives.
+     */
+    public const USERS_FEATURE = Places::USERS_FEATURE;
 
     public function __construct(
         private readonly SubscriptionRepository $subscriptions,
@@ -157,10 +164,10 @@ final class SubscriptionPeople
     {
         foreach ($subscription->offer->version->grants as $grant) {
             if ($grant->feature->code === self::USERS_FEATURE) {
-                return $grant->limit;
+                return Places::sold(true, $grant->limit);
             }
         }
 
-        return 1;
+        return Places::sold(false, null);
     }
 }

@@ -111,6 +111,10 @@ export const keys = {
     schedule: ['subscription', 'schedule'] as const,
     entitlements: ['subscription', 'entitlements'] as const,
     people: (seat: boolean) => ['subscription', 'people', seat ? 'seat' : 'tenant'] as const,
+    // What everybody in the organisation holds (2026-09-25). Its own key, not
+    // under `current`: a different question, a different permission, and
+    // invalidating one has no business emptying the other.
+    organisation: ['subscription', 'organisation'] as const,
   },
   billing: {
     invoiceLists: ['billing', 'invoices'] as const,

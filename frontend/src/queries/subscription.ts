@@ -27,6 +27,44 @@ import { toApiError } from './session';
 export type Subscription = Schemas['Subscription'];
 export type CancellationDecision = Schemas['CancellationDecision'];
 export type Entitlement = Schemas['Entitlement'];
+export type HeldSubscription = Schemas['HeldSubscription'];
+
+/**
+ * What everybody in the organisation holds (2026-09-25).
+ *
+ * The counterpart of `useSubscription`, which answers for the caller. Since
+ * the tenant surface sells seats only (ADR-055), an organisation's
+ * subscriptions belong to its people one by one — an administrator does not
+ * buy, they administer, and nothing else shows the set together.
+ *
+ * `enabled` is asked at the call site on `subscription.manage`, because a
+ * member holding only the read would get a 403 for a question they never put.
+ *
+ * `live` and `places_used` are the server's answers, never recomputed here.
+ * A screen deriving "live" from `current_period_end` would disagree with the
+ * server a second later, and one counting places itself would be describing a
+ * quota the server does not enforce.
+ */
+export function useOrganisationSubscriptions(enabled = true) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.subscription.organisation,
+    enabled,
+    queryFn: async (): Promise<HeldSubscription[]> => {
+      const { data, error, response } = await client.GET(
+        '/api/v1/organisation/subscriptions',
+        ambientParams(sessionSnapshot),
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.subscriptions;
+    },
+  });
+}
 
 export function useSubscription(enabled = true) {
   const client = useApiClient();
