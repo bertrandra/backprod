@@ -55,7 +55,6 @@ use App\Commerce\Controller\ResumeSubscriptionController;
 use App\Commerce\Controller\ShowOfferController;
 use App\Commerce\Controller\ShowScheduleController;
 use App\Commerce\Controller\ShowSubscriptionController;
-use App\Commerce\Controller\SubscribeController;
 use App\Commerce\Controller\TenantUsageController;
 use App\Commerce\Controller\UpdateOfferController;
 use App\Demo\Controller\PublicDemoController;
@@ -352,7 +351,6 @@ return static function (RouteCollector $routes): void {
     // Who in the organisation holds what (2026-09-25): the administrator's
     // read, beside the caller's own above.
     $routes->addRoute('GET', '/api/v1/organisation/subscriptions', ListOrganisationSubscriptionsController::class);
-    $routes->addRoute('POST', '/api/v1/subscription', SubscribeController::class);
     $routes->addRoute('POST', '/api/v1/subscription/change-offer', ChangeOfferController::class);
     $routes->addRoute('POST', '/api/v1/subscription/cancel', CancelSubscriptionController::class);
 

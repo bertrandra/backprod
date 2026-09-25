@@ -21,6 +21,14 @@ final class GrantedEntitlement
         public readonly string $tenantId,
         public readonly string $productId,
         public readonly array $features,
+        /**
+         * Whether this grant lets the tenant's members reach the product, or
+         * only adds a feature (2026-09-25). The difference between a trial
+         * and a support exception, and the platform says which — false
+         * unless somebody chose otherwise, because the wider answer is the
+         * one that should take a decision.
+         */
+        public readonly bool $coversPeople,
         public readonly ?DateTimeImmutable $validUntil,
         public readonly ?string $grantedBy,
         public readonly DateTimeImmutable $grantedAt,

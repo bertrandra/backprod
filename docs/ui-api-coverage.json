@@ -566,8 +566,7 @@
         "listSubscriptionPeople",
         "addSubscriptionPerson",
         "removeSubscriptionPerson",
-        "showSubscription",
-        "subscribe"
+        "showSubscription"
       ]
     },
     "workspace.assets": {

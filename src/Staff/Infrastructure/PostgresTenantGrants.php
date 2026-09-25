@@ -13,6 +13,7 @@ use App\Staff\Domain\TenantGrants;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\ParameterType;
 
 /**
  * Grants in PostgreSQL: `entitlements` rows with `source = 'GRANT'`.
@@ -36,7 +37,7 @@ final class PostgresTenantGrants implements TenantGrants
 
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
-                SELECT f.code, f.name, f.kind, e.limit_value, e.valid_until, e.granted_by, e.created_at
+                SELECT f.code, f.name, f.kind, e.limit_value, e.valid_until, e.granted_by, e.created_at, e.covers_people
                   FROM entitlements e
                   JOIN features f ON f.id = e.feature_id
                  WHERE e.tenant_id = :tenant AND e.product_id = :product AND e.source = 'GRANT'
@@ -60,6 +61,7 @@ final class PostgresTenantGrants implements TenantGrants
                 Row::string($row, 'kind'),
                 Row::nullableInteger($row, 'limit_value'),
             ), $rows),
+            Row::boolean($first, 'covers_people'),
             Row::nullableTimestamp($first, 'valid_until'),
             Row::nullableString($first, 'granted_by'),
             Row::timestamp($first, 'created_at'),
@@ -70,6 +72,7 @@ final class PostgresTenantGrants implements TenantGrants
         string $tenantId,
         string $productId,
         array $limits,
+        bool $coversPeople,
         ?DateTimeImmutable $validUntil,
         string $staffUserId,
     ): GrantedEntitlement {
@@ -103,8 +106,8 @@ final class PostgresTenantGrants implements TenantGrants
                 $this->connection->executeStatement(
                     <<<'SQL'
                         INSERT INTO entitlements
-                            (tenant_id, product_id, feature_id, limit_value, source, subscription_id, valid_until, granted_by)
-                        VALUES (:tenant, :product, :feature, :limit, 'GRANT', NULL, :until, :by)
+                            (tenant_id, product_id, feature_id, limit_value, source, subscription_id, valid_until, granted_by, covers_people)
+                        VALUES (:tenant, :product, :feature, :limit, 'GRANT', NULL, :until, :by, :covers)
                         SQL,
                     [
                         'tenant' => $tenantId,
@@ -113,7 +116,12 @@ final class PostgresTenantGrants implements TenantGrants
                         'limit' => $limit,
                         'until' => $validUntil?->format(DateTimeInterface::ATOM),
                         'by' => $staffUserId,
+                        // On every row of the grant: a grant has no header,
+                        // it is the set of rows, and they are rewritten whole
+                        // each time it is given.
+                        'covers' => $coversPeople,
                     ],
+                    ['covers' => ParameterType::BOOLEAN],
                 );
             }
 

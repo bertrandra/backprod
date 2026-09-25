@@ -471,6 +471,7 @@ final class StaffDesk
         string $productId,
         ?string $planCode,
         array $limits,
+        bool $coversPeople,
         ?\DateTimeImmutable $validUntil,
     ): GrantedEntitlement {
         [$tenant, $product] = $this->heldProduct($staff, $tenantId, $productId, 'GRANT_ENTITLEMENT');
@@ -493,7 +494,7 @@ final class StaffDesk
             throw new ConflictException('GRANT_EMPTY', 'A grant names at least one feature; to take everything away, withdraw it.');
         }
 
-        $granted = $this->grants->grant($tenantId, $productId, $merged, $validUntil, $staff->userId);
+        $granted = $this->grants->grant($tenantId, $productId, $merged, $coversPeople, $validUntil, $staff->userId);
 
         // A grant is a commercial decision somebody should be able to trace:
         // the trail carries what was given, not only that something was.

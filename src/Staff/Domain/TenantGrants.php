@@ -35,6 +35,7 @@ interface TenantGrants
         string $tenantId,
         string $productId,
         array $limits,
+        bool $coversPeople,
         ?DateTimeImmutable $validUntil,
         string $staffUserId,
     ): GrantedEntitlement;

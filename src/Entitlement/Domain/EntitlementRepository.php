@@ -65,8 +65,15 @@ interface EntitlementRepository
      * stores nothing to count, and a reader is exactly somebody who should
      * see the work.
      *
-     * An override grants features and covers nobody: staff hand out a
-     * feature, never a seat.
+     * **A platform grant covers people only when it says so** (2026-09-25).
+     * The rule was "staff hand out a feature, never a seat", and it is still
+     * the default — a support engineer restoring one capability must not
+     * thereby hand the workspace to everybody. But it left the platform
+     * unable to give a *trial* at all: a granted product lit up its features
+     * and refused every workspace. So a grant now carries the decision
+     * (`covers_people`), false unless somebody chose otherwise, and a
+     * covering grant reaches every member of the tenant — which is what
+     * "this organisation may try this product" means.
      */
     public function covers(string $tenantId, string $productId, string $userId): bool;
 }

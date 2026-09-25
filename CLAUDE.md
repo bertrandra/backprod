@@ -353,7 +353,18 @@ organisation administers and reads what its people hold. `Sales::order()` has
 no argument for the other sale and `openCheckoutSession` no field for it, so
 it is a fact rather than a button nobody offers — the frontend is never the
 authority. The quote went with it: a quote priced the organisation's own
-subscription, so there was nobody left for one to be addressed to.
+subscription, so there was nobody left for one to be addressed to. And
+`POST /subscription` went with it too (ADR-056): it defaulted to the
+organisation, any member held its permission, and it started a subscription
+with no invoice and no payment at all.
+
+**Who sells and who buys is one decision**, answered in one place
+(`WhoSellsAndWhoBuys`): the issuer, the supplier, the customer and the VAT
+jurisdiction together. A seat is the organisation selling to one of its own
+people, and *every* document raised against it says so — the invoice and the
+buy-out alike. A seat never reads the product's billing identity: it does not
+appear on the document, so it may not gate the sale, and an organisation that
+has not said which country it sells from does not sell.
 
 `TENANT` is still a column and still carries the rows a deployment already
 has. What no longer exists is a way for a customer to buy one.
@@ -384,6 +395,13 @@ in a way worth remembering: a tenant-wide override holds every capability
 and covers nobody, and a read-only seat covers somebody while holding no
 workspace quota at all — Plan's *Lecture* sells no `max_projects`, because a
 reader stores nothing to count.
+
+**A platform grant covers people only when it says so** (ADR-056). Staff hand
+out a feature, never a seat — that is still the default, and it left the
+platform unable to give a *trial*: the features lit up and every workspace
+refused. So a grant carries `covers_people`, false unless chosen, and a
+covering grant reaches every member of the tenant, which is what "this
+organisation may try this product" means.
 
 A subscription **always names a tenant and a product**, even when the
 subscriber is a person — the tenant is the isolation context, the subscriber

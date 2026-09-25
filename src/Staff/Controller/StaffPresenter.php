@@ -162,6 +162,10 @@ final class StaffPresenter
                 'kind' => $feature->kind,
                 'limit' => $feature->limit,
             ], $granted->features),
+            // Whether this is a trial or a feature (2026-09-25). Said back,
+            // because the two look identical on every other field and only
+            // one of them opens a workspace.
+            'covers_people' => $granted->coversPeople,
             'valid_until' => $granted->validUntil?->setTimezone(new DateTimeZone('UTC'))->format(DateTimeInterface::RFC3339),
             'granted_by' => $granted->grantedBy,
             'granted_at' => $granted->grantedAt->setTimezone(new DateTimeZone('UTC'))->format(DateTimeInterface::RFC3339),

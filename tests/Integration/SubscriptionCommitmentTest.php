@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Commerce\Domain\Subscriber;
+use App\Commerce\Domain\Subscription;
 use App\Commerce\Infrastructure\PostgresEntitlementRepository;
+use App\Commerce\Service\Subscriptions;
 use App\Entitlement\Domain\QuotaPolicy;
 use App\Entitlement\Domain\UsageMeter;
 use App\Product\Domain\Product;
@@ -129,12 +132,12 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
      */
     public function testTheSamePersonCannotTakeTwoSeats(): void
     {
-        self::assertSame(201, $this->subscribeTo($this->anytimeOffer, seat: true)->getStatusCode());
+        $this->subscribeTo($this->anytimeOffer, seat: true);
 
-        $again = $this->subscribeTo($this->anytimeOffer, seat: true);
+        $again = $this->refusal(fn (): Subscription => $this->subscribeTo($this->anytimeOffer, seat: true));
 
-        self::assertSame(409, $again->getStatusCode());
-        self::assertSame('ALREADY_SUBSCRIBED', $this->errorOf($again)['code'] ?? null);
+        self::assertSame(409, $again->statusCode());
+        self::assertSame('ALREADY_SUBSCRIBED', $again->errorCode());
     }
 
     /**
@@ -143,8 +146,8 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
      */
     public function testASeatAndATenantSubscriptionCoexist(): void
     {
-        self::assertSame(201, $this->subscribeTo($this->anytimeOffer)->getStatusCode());
-        self::assertSame(201, $this->subscribeTo($this->anytimeOffer, seat: true)->getStatusCode());
+        $this->subscribeTo($this->anytimeOffer);
+        $this->subscribeTo($this->anytimeOffer, seat: true);
 
         self::assertSame(
             2,
@@ -469,14 +472,40 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
         );
     }
 
-    private function subscribeTo(string $offerId, bool $seat = false): ResponseInterface
+    /**
+     * Subscribing, through the service.
+     *
+     * It went through `POST /api/v1/subscription` until 2026-09-25. That
+     * endpoint is gone: it started a subscription with no invoice and no
+     * payment, which is ADR-024's rule broken, and it was reachable by any
+     * member, which is ADR-055's. What it did is still what the platform does
+     * when it holds a subscription itself, so the fixture calls that.
+     */
+    private function subscribeTo(string $offerId, bool $seat = false): Subscription
     {
-        return $this->request(
-            'POST',
-            '/api/v1/subscription',
-            $this->headers(),
-            $this->json(['offer_id' => $offerId, 'seat' => $seat]),
+        $subscriptions = $this->container()->get(Subscriptions::class);
+
+        self::assertInstanceOf(Subscriptions::class, $subscriptions);
+
+        return $subscriptions->subscribe(
+            $this->tenant,
+            $this->product,
+            $offerId,
+            $this->user,
+            $seat ? Subscriber::user($this->user) : Subscriber::tenant(),
         );
+    }
+
+    /** What the service refuses, where an HTTP status used to say it. */
+    private function refusal(callable $act): HttpException
+    {
+        try {
+            $act();
+        } catch (HttpException $error) {
+            return $error;
+        }
+
+        self::fail('The operation was allowed.');
     }
 
     /**

@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace App\Sales\Service;
 
-use App\Billing\Domain\BillingProfileRepository;
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Domain\Money;
-use App\Billing\Service\SupplierIdentity;
+use App\Billing\Service\WhoSellsAndWhoBuys;
 use App\Commerce\Domain\CancellationDecision;
 use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\Subscription;
@@ -47,8 +46,7 @@ final class ChargeOnEarlyTermination implements EarlyTerminationCharge
 
     public function __construct(
         private readonly InvoiceRepository $invoices,
-        private readonly BillingProfileRepository $profiles,
-        private readonly SupplierIdentity $supplier,
+        private readonly WhoSellsAndWhoBuys $parties,
         private readonly Taxation $taxation,
     ) {
     }
@@ -87,14 +85,17 @@ final class ChargeOnEarlyTermination implements EarlyTerminationCharge
             );
         }
 
-        $profile = $this->profiles->find($subscription->tenantId);
-
-        if ($profile === null) {
-            throw new ConflictException(
-                'BILLING_PROFILE_REQUIRED',
-                'This tenant has no billing profile, so no early termination can be invoiced to it.',
-            );
-        }
+        // **Whoever sold the thing bills for ending it** (2026-09-25). Until
+        // today this always raised *product supplier → organisation*, even
+        // for a seat — the platform charging a company for ending a contract
+        // the company had sold to one of its own staff, on a document naming
+        // nobody who was party to it. The same decision as the sale's, from
+        // the same place, so the two cannot come apart again.
+        $parties = $this->parties->forSale(
+            $subscription->tenantId,
+            $subscription->productId,
+            $subscription->subscriber,
+        );
 
         // One moment for the whole charge. Reading the clock twice could land
         // the fiscal fact on the far side of a rate window from the line it
@@ -135,27 +136,16 @@ final class ChargeOnEarlyTermination implements EarlyTerminationCharge
         );
 
         $supplyType = $this->taxation->defaultSupplyType($subscription->productId);
-        $supplier = $this->supplier->forProduct($subscription->productId);
 
         $invoice = $this->invoices->applyIssue(
             $subscription->tenantId,
             $subscription->productId,
-            // The platform issues it, because the supplier read above is the
-            // product's — this path bills a buy-out the same way for an
-            // organisation's subscription and for a seat.
-            //
-            // For a seat that is arguably the wrong document: the seat was
-            // sold by the organisation to one of its people, so the buy-out
-            // of it should be too, the way `InvoiceThenSubscribe` does. That
-            // is a commercial decision rather than a numbering one, so it is
-            // left alone here and the number follows the supplier actually on
-            // the document — which is the only way the two cannot disagree.
-            null,
+            $parties->issuerTenantId,
             $subscription->id,
             [$line],
-            $supplier,
-            $profile->snapshot(),
-            SupplierIdentity::jurisdictionOf($supplier),
+            $parties->from,
+            $parties->to,
+            $parties->jurisdiction,
             $now,
             // The span being bought out: from today to the day the commitment
             // would have ended. That is what the customer is paying for, and

@@ -9,6 +9,9 @@ use App\Auth\Domain\LocalTokens;
 use App\Auth\Domain\TokenIssuer;
 use App\Auth\Infrastructure\LocalJwtAuthProvider;
 use App\Auth\Infrastructure\LocalJwtTokenIssuer;
+use App\Commerce\Domain\Subscriber;
+use App\Commerce\Domain\Subscription;
+use App\Commerce\Service\Subscriptions;
 use App\Shared\Logging\ErrorLogLogger;
 use App\Tests\Support\TestDatabase;
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -124,9 +127,8 @@ final class PasswordAndPeopleTest extends DatabaseApiTestCase
     {
         // Uma buys a seat on the Team offer: three people, herself included.
         $uma = $this->as('uma@acme.test');
-        $seat = $this->request('POST', '/api/v1/subscription', $uma, $this->json(['offer_id' => $this->offerId(), 'seat' => true]));
-        self::assertSame(201, $seat->getStatusCode());
-        self::assertSame($this->uma, $this->decode($seat)['owner_user_id'] ?? null);
+        $seat = $this->takeSeat($this->uma);
+        self::assertSame($this->uma, $seat->ownerUserId);
 
         $people = $this->decode($this->request('GET', '/api/v1/subscription/people?seat=1', $uma));
         self::assertSame(3, $people['quota'] ?? null);
@@ -174,7 +176,7 @@ final class PasswordAndPeopleTest extends DatabaseApiTestCase
     public function testOnlyTheOwnerManagesThePeople(): void
     {
         $uma = $this->as('uma@acme.test');
-        self::assertSame(201, $this->request('POST', '/api/v1/subscription', $uma, $this->json(['offer_id' => $this->offerId(), 'seat' => true]))->getStatusCode());
+        $this->takeSeat($this->uma);
         $this->request('POST', '/api/v1/subscription/people', $uma, $this->json(['seat' => true, 'user_id' => $this->ann]));
 
         // Ann is covered by the seat but does not own it: she holds no seat
@@ -184,7 +186,7 @@ final class PasswordAndPeopleTest extends DatabaseApiTestCase
         self::assertSame(404, $this->request('POST', '/api/v1/subscription/people', $ann, $this->json(['seat' => true, 'user_id' => $this->uma]))->getStatusCode());
 
         // The organisation subscribes, by Ann: she owns that one.
-        self::assertSame(201, $this->request('POST', '/api/v1/subscription', $ann, $this->json(['offer_id' => $this->offerId()]))->getStatusCode());
+        $this->subscribeTheOrganisation($this->ann);
         $company = $this->decode($this->request('GET', '/api/v1/subscription/people', $ann));
         self::assertTrue($company['owner'] ?? null);
         // And Uma, though she may manage her own seat, is not its owner.
@@ -194,6 +196,40 @@ final class PasswordAndPeopleTest extends DatabaseApiTestCase
     }
 
     // --- Helpers ------------------------------------------------------------
+
+    /**
+     * Taking a seat, and subscribing the organisation, through the service.
+     *
+     * `POST /api/v1/subscription` did both until 2026-09-25 and is gone: it
+     * started a subscription with no invoice and no payment (ADR-024's rule)
+     * and any member could reach it (ADR-055's). A seat is bought through the
+     * sales chain now; what these tests are about is the *people* on one, so
+     * they set the state the shortest honest way.
+     */
+    private function takeSeat(string $holder): Subscription
+    {
+        return $this->subscriptions()->subscribe(
+            $this->acme,
+            $this->atlas,
+            $this->offerId(),
+            $holder,
+            Subscriber::user($holder),
+        );
+    }
+
+    private function subscribeTheOrganisation(string $owner): Subscription
+    {
+        return $this->subscriptions()->subscribe($this->acme, $this->atlas, $this->offerId(), $owner);
+    }
+
+    private function subscriptions(): Subscriptions
+    {
+        $subscriptions = $this->container()->get(Subscriptions::class);
+
+        self::assertInstanceOf(Subscriptions::class, $subscriptions);
+
+        return $subscriptions;
+    }
 
     private function offerId(): string
     {
