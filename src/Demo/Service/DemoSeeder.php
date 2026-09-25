@@ -6,10 +6,12 @@ namespace App\Demo\Service;
 
 use App\Billing\Service\Invoicing;
 use App\Commerce\Domain\Subscriber;
+use App\Commerce\Service\SubscriptionPeople;
 use App\Commerce\Service\Subscriptions;
 use App\Demo\Domain\DemoFixtures;
 use App\Demo\Domain\DemoWorld;
 use App\Demo\Domain\SeededWorld;
+use App\Entitlement\Domain\EntitlementRepository;
 use App\Project\Service\ProjectWorkspace;
 use App\Shared\Exceptions\ConflictException;
 
@@ -46,6 +48,8 @@ final class DemoSeeder
         private readonly Subscriptions $subscriptions,
         private readonly Invoicing $invoicing,
         private readonly ProjectWorkspace $workspace,
+        private readonly SubscriptionPeople $people,
+        private readonly EntitlementRepository $entitlements,
     ) {
     }
 
@@ -145,6 +149,25 @@ final class DemoSeeder
             );
         }
 
+        // The people each subscription covers (2026-09-25), added by the
+        // owner through the same service a customer uses — so the `users`
+        // quota is enforced here rather than described, and a demonstration
+        // world that exceeded what it sold could not be seeded at all.
+        //
+        // Before the subscriptions' people are on them, nobody but an owner
+        // is entitled to anything, so this has to come before the projects
+        // below: `acme-user1` makes two of them.
+        foreach (DemoWorld::SUBSCRIPTION_PEOPLE as $covered) {
+            $this->people->add(
+                $structure->tenant($covered['tenant']),
+                $structure->product($covered['product']),
+                $structure->user(DemoWorld::TENANT_ADMINS[$covered['tenant']]),
+                false,
+                $structure->user($covered['user']),
+                null,
+            );
+        }
+
         // After the subscriptions: each project is counted against its
         // organisation's quota on the product, which the subscription grants.
         $projects = [];
@@ -182,6 +205,26 @@ final class DemoSeeder
                 array_keys($invoices),
                 static fn (int $i): bool => $invoices[$i]->tenantId !== $structure->tenant(DemoWorld::SUBSCRIPTIONS[$i]['tenant']),
             ) === [],
+            // The rule the whole demonstration now turns on (2026-09-25):
+            // whoever made a project was covered by a subscription at the
+            // time. Asked through the port the platform itself asks, so a
+            // world that seeded is a world somebody could have built.
+            'every project was made by somebody a subscription covers' => array_filter(
+                DemoWorld::PROJECTS,
+                fn (array $draft): bool => !$this->entitlements->covers(
+                    $structure->tenant($draft['tenant']),
+                    $structure->product($draft['product']),
+                    $structure->user($draft['by']),
+                ),
+            ) === [],
+            // And the other half, which is what makes the number sold mean
+            // something: a member the subscription does not cover is covered
+            // by nothing. Globex sells one place and has three members.
+            'a member outside the places sold is covered by nothing' => !$this->entitlements->covers(
+                $structure->tenant('globex'),
+                $structure->product('boreas'),
+                $structure->user('globex-user1'),
+            ),
         ] + $this->fixtures->verify($structure);
 
         return new SeededWorld($structure, $subscriptions, $invoices, $checks);

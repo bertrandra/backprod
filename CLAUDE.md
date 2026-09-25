@@ -343,9 +343,36 @@ contract after a month.
 A subscriber is a tenant or a named user:
 
 ```text
-subscriber_kind = TENANT   entitles every member
-subscriber_kind = USER     entitles that person only (a seat)
+subscriber_kind = TENANT   the organisation is the contracting party
+subscriber_kind = USER     one person is (a seat)
 ```
+
+**Buying covers people; membership does not** (ADR-053, 2026-09-25). Either
+kind entitles the same set: the person who took it out, plus those they have
+added within the `users` quota their offer sells. Joining an organisation
+gets somebody a role, never an entitlement.
+
+This line used to read *"TENANT entitles every member"*, and it cost the
+operator of this platform a hole they found by using their own product: they
+added a person to a tenant and that person — on no subscription, holding no
+seat — received all eleven of the tenant's capabilities and could read every
+project in it. It also made the `users` quota decorative for an
+organisation's subscription, which bounded a list of people while
+entitlement came from membership regardless. **A number a customer pays for
+has to bound something.**
+
+So a workspace asks two questions and not one: `requireSubscription()`
+before `requirePermission()`. The role says what somebody may do with the
+work; coverage says whether the work is theirs to reach. Its refusal is its
+own — `SUBSCRIPTION_REQUIRED`, answered by a colleague giving them a place,
+never `ENTITLEMENT_REQUIRED`, which would tell them to buy what their
+organisation is already paying for.
+
+Coverage is **not** derived from capabilities, and both shortcuts are wrong
+in a way worth remembering: a tenant-wide override holds every capability
+and covers nobody, and a read-only seat covers somebody while holding no
+workspace quota at all — Plan's *Lecture* sells no `max_projects`, because a
+reader stores nothing to count.
 
 A subscription **always names a tenant and a product**, even when the
 subscriber is a person — the tenant is the isolation context, the subscriber
@@ -386,10 +413,17 @@ Two rules about what that charge costs, both easy to get wrong:
 Nothing outstanding raises **no document at all**. Numbering is gapless, so a
 €0 invoice is a permanent, unremovable record of no transaction.
 
-A seat is addressed to a **person**, so capability resolution asks who is
-asking and excludes seats held by somebody else. Resolve capabilities without
-the person and one colleague's seat entitles the whole tenant, which is the
-opposite of what a seat is.
+**Every subscription** is addressed to people, so capability resolution asks
+who is asking and excludes any subscription that is not theirs. Resolve
+capabilities without the person and one colleague's seat entitles the whole
+tenant, which is the opposite of what a seat is — and, since 2026-09-25, an
+organisation's subscription entitles every member of it, which is the
+opposite of what a number of users is.
+
+The **tenant-wide** answer is unchanged and stays deliberate: naming nobody
+asks what the organisation bought, which contains its own subscriptions and
+no seat. That is the answer usage is measured against and the one the
+console shows, and neither is about any one person.
 
 **Every gate must ask about the same person.** The quota check takes the
 caller too. Asking the tenant-wide question there while the capability chain

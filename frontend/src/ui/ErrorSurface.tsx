@@ -37,6 +37,15 @@ const WORDING: Record<string, { title: string; hint?: string }> = {
     title: 'Your plan does not include this',
     hint: 'This one is answered by an upgrade rather than by an administrator.',
   },
+  // The fifth refusal (ADR-053, 2026-09-25), and the wording is the whole
+  // reason it is not the one above. "Your plan does not include this" would
+  // send somebody to buy what their organisation already pays for; what is
+  // true is that the subscription exists and does not cover them yet. It is
+  // answered by a colleague, so the hint names one.
+  SUBSCRIPTION_REQUIRED: {
+    title: 'You are not on this subscription yet',
+    hint: 'Your organisation has one, and it covers a set number of people. Whoever manages it can add you, on Subscription › People.',
+  },
   NO_TENANT_ACCESS: {
     title: 'You do not have access to this organisation',
   },

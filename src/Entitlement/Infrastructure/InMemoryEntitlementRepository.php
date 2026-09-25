@@ -72,4 +72,22 @@ final class InMemoryEntitlementRepository implements EntitlementRepository
     {
         return $this->entitlements[$tenantId . ':' . $productId] ?? [];
     }
+
+    /**
+     * Covered wherever this double grants anything at all (2026-09-25).
+     *
+     * It holds entitlements with no subscription behind them, so it cannot
+     * tell the owner of one from somebody added to it — the same reason
+     * `entitlementsFor()` ignores the person. What it *can* keep honest is
+     * the other half: a tenant and product this double grants nothing for
+     * covers nobody, so a pipeline test still cannot reach a workspace with
+     * no subscription at all.
+     *
+     * Who is on which subscription is a real column, and the tests about it
+     * run against PostgreSQL (`SubscriptionCoverageTest`).
+     */
+    public function covers(string $tenantId, string $productId, string $userId): bool
+    {
+        return $this->entitlementsFor($tenantId, $productId, $userId) !== [];
+    }
 }

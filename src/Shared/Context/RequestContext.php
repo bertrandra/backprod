@@ -48,6 +48,21 @@ final class RequestContext
          * — never the API's own vocabulary, which stays English.
          */
         public readonly string $locale = 'en',
+        /**
+         * Whether the caller is one of the people a subscription covers for
+         * this product (2026-09-25): its owner, or somebody the owner added
+         * within the number their offer sells (§13.1).
+         *
+         * Beside the capabilities rather than derived from them, because
+         * they answer different questions and the shortcuts are wrong in
+         * both directions — see `EntitlementRepository::covers()`.
+         *
+         * Defaults to true so that a context built by hand in a test is not
+         * silently locked out of everything; the middleware always resolves
+         * it, and the middleware is the only thing that builds one for a
+         * real request.
+         */
+        public readonly bool $subscribed = true,
     ) {
     }
 
@@ -100,6 +115,25 @@ final class RequestContext
     {
         if (!$this->allows($capability)) {
             throw ForbiddenException::entitlementRequired($capability);
+        }
+    }
+
+    /**
+     * Refuses somebody no subscription covers (2026-09-25).
+     *
+     * The fifth refusal, and the one a **colleague** answers: not a role to
+     * change, a feature to buy or a quota to free, but a place on a
+     * subscription somebody else owns.
+     *
+     * Asked where a product's own work lives — a workspace is the thing
+     * being sold — and never in place of a permission. Both still hold: the
+     * role says what a member may do with the work, this says whether the
+     * work is theirs to reach at all.
+     */
+    public function requireSubscription(): void
+    {
+        if (!$this->subscribed) {
+            throw ForbiddenException::subscriptionRequired();
         }
     }
 }
