@@ -356,17 +356,31 @@ final class SalesChainTest extends DatabaseApiTestCase
         self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM invoices'));
     }
 
-    public function testSellingRequiresThePermission(): void
+    /**
+     * Placing an order is **buying**, so it answers to the buyer's permission
+     * (`billing.pay`) rather than to `sales.manage` (2026-09-25).
+     *
+     * The membership here holds `sales.read` — it may look at orders — and
+     * neither of the two that could place one. Before today `sales.manage`
+     * decided, which is the administrator's, so the one person the model says
+     * does not buy was the only one who could reach this.
+     */
+    public function testPlacingAnOrderRequiresTheBuyersPermission(): void
     {
         $this->override([
             TenantMembershipRepository::class => new InMemoryTenantMembershipRepository([
-                new TenantMembership($this->tenant, $this->user, $this->product, ['USER'], ['sales.read']),
+                new TenantMembership($this->tenant, $this->user, $this->product, ['USER'], ['sales.read', 'sales.manage']),
             ]),
         ]);
 
         $response = $this->place();
 
         self::assertSame(403, $response->getStatusCode());
+
+        $details = $this->errorOf($response)['details'] ?? null;
+        self::assertIsArray($details);
+        self::assertSame('billing.pay', $details['permission'] ?? null);
+
         self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM orders'));
     }
 

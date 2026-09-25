@@ -43,6 +43,52 @@ final class MemberEndpointsTest extends DatabaseTestCase
     }
 
     /**
+     * **Buying is the member's, and the administrator does not have it**
+     * (2026-09-25).
+     *
+     * `billing.pay` went to both roles on 2026-09-18 so a stranger who had
+     * just signed up could pay for what they chose; the administrator got it
+     * because the role is a superset, not because anybody decided it. The
+     * operator found the consequence on their own catalogue: an administrator
+     * who subscribes to nothing was offered *Buy for yourself* on every
+     * offer.
+     *
+     * It gates taking out a seat, giving one up before paying, and paying an
+     * invoice through the provider. All three are the buyer's. What the
+     * administrator does with money is record what arrived —
+     * `billing.manage`, which is theirs and stays.
+     *
+     * Against the real role table, because that is the only place this rule
+     * lives: every screen and every route reads the strings it produces, so a
+     * test with its own fixture would prove nothing about it.
+     */
+    public function testBuyingIsTheMembersAndRecordingMoneyIsTheAdministrators(): void
+    {
+        $product = $this->seedProduct('atlas');
+        $tenant = $this->seedTenant('acme');
+        $admin = $this->seedUser('sub-admin', 'admin@example.test');
+        $member = $this->seedUser('sub-member', 'member@example.test');
+
+        $this->seedMember($tenant, $admin, $product, ['TENANT_ADMIN']);
+        $this->seedMember($tenant, $member, $product, ['USER']);
+
+        $memberships = new PostgresTenantMembershipRepository($this->connection);
+
+        $administrator = $memberships->findForUserAndProduct($admin, $product)[0]->permissions;
+        $buyer = $memberships->findForUserAndProduct($member, $product)[0]->permissions;
+
+        self::assertContains('billing.pay', $buyer);
+        self::assertNotContains('billing.pay', $administrator);
+
+        // And the other half, or this would read as taking something away
+        // rather than putting it where it belongs: recording a payment and
+        // issuing a document are the administrator's, and a member has
+        // neither.
+        self::assertContains('billing.manage', $administrator);
+        self::assertNotContains('billing.manage', $buyer);
+    }
+
+    /**
      * A member with no roles is a member with no privileges, not a non-member.
      * The aggregation must not drop them.
      */

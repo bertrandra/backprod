@@ -6710,7 +6710,7 @@
         ],
         "operationId": "startPayment",
         "summary": "Begin a payment through the provider",
-        "description": "Returns the payment **and the provider's client secret**, which is what the browser needs to complete the charge. Card data never reaches this API (§24): the client talks to the provider directly and the platform learns the outcome by webhook. Since 2026-09-18 the permission is `billing.pay`, which both tenant roles hold: a USER who signed up at the organisation’s root pays there and then; issuing, crediting and refunding stay administrative.",
+        "description": "Returns the payment **and the provider's client secret**, which is what the browser needs to complete the charge. Card data never reaches this API (§24): the client talks to the provider directly and the platform learns the outcome by webhook. The permission is `billing.pay`, and since 2026-09-25 **the member holds it and the administrator does not**: a USER who signed up at the organisation’s root buys and pays there and then, while an administrator administers — they read what their people hold and record the money that arrived (`billing.manage`), they do not buy and do not pay by card. Issuing, crediting and refunding stay administrative.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
@@ -7429,7 +7429,7 @@
         ],
         "operationId": "openCheckoutSession",
         "summary": "Buy an offer in one call",
-        "description": "Places the order, raises its invoice and asks the provider to authorize — three calls a client could already make. What this adds is that the client no longer orchestrates them, and that a dropped connection leaves an order they can look up rather than a charge nobody can account for.\n\n**The body names an offer and nothing else.** No amount, because a client that could name a figure could name a smaller one; the price is the offer's. No instrument, because the customer gives that to the provider directly — card data never reaches this platform's database (§24).\n\n**It does not start the subscription.** That waits for the money, through the same webhook everything else arrives by. A checkout that activated on creation would extend credit to anyone who can reach this endpoint. Since 2026-09-18 the permission is `billing.pay`, which both tenant roles hold: a USER who signed up at the organisation’s root pays there and then; issuing, crediting and refunding stay administrative.",
+        "description": "Places the order, raises its invoice and asks the provider to authorize — three calls a client could already make. What this adds is that the client no longer orchestrates them, and that a dropped connection leaves an order they can look up rather than a charge nobody can account for.\n\n**The body names an offer and nothing else.** No amount, because a client that could name a figure could name a smaller one; the price is the offer's. No instrument, because the customer gives that to the provider directly — card data never reaches this platform's database (§24).\n\n**It does not start the subscription.** That waits for the money, through the same webhook everything else arrives by. A checkout that activated on creation would extend credit to anyone who can reach this endpoint. The permission is `billing.pay`, and since 2026-09-25 **the member holds it and the administrator does not**: a USER who signed up at the organisation’s root buys and pays there and then, while an administrator administers — they read what their people hold and record the money that arrived (`billing.manage`), they do not buy and do not pay by card. Issuing, crediting and refunding stay administrative.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
@@ -7558,7 +7558,7 @@
         ],
         "operationId": "showCheckoutSession",
         "summary": "Where the purchase got to",
-        "description": "The status is derived from the order and its latest payment rather than stored: the order knows whether it completed, the payment knows whether money moved, and a third status written down could disagree with both.\n\nNo `client_secret` — there is nothing to return it from. Since 2026-09-18 the permission is `billing.pay`, which both tenant roles hold: a USER who signed up at the organisation’s root pays there and then; issuing, crediting and refunding stay administrative.",
+        "description": "The status is derived from the order and its latest payment rather than stored: the order knows whether it completed, the payment knows whether money moved, and a third status written down could disagree with both.\n\nNo `client_secret` — there is nothing to return it from. The permission is `billing.pay`, and since 2026-09-25 **the member holds it and the administrator does not**: a USER who signed up at the organisation’s root buys and pays there and then, while an administrator administers — they read what their people hold and record the money that arrived (`billing.manage`), they do not buy and do not pay by card. Issuing, crediting and refunding stay administrative.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
@@ -11024,7 +11024,7 @@
         ],
         "operationId": "retryPayment",
         "summary": "Try to collect an invoice again",
-        "description": "A **new** payment against the same invoice, never a resurrection of the old one. `PaymentStatus` is deliberately one-way and says why: the customer may have used a different instrument, and two attempts that must be told apart cannot share a provider reference.\n\nRefused while the previous attempt is still in flight — a second authorization then risks collecting twice for one debt — and refused if it succeeded, where there is nothing to retry. Since 2026-09-18 the permission is `billing.pay`, which both tenant roles hold: a USER who signed up at the organisation’s root pays there and then; issuing, crediting and refunding stay administrative.",
+        "description": "A **new** payment against the same invoice, never a resurrection of the old one. `PaymentStatus` is deliberately one-way and says why: the customer may have used a different instrument, and two attempts that must be told apart cannot share a provider reference.\n\nRefused while the previous attempt is still in flight — a second authorization then risks collecting twice for one debt — and refused if it succeeded, where there is nothing to retry. The permission is `billing.pay`, and since 2026-09-25 **the member holds it and the administrator does not**: a USER who signed up at the organisation’s root buys and pays there and then, while an administrator administers — they read what their people hold and record the money that arrived (`billing.manage`), they do not buy and do not pay by card. Issuing, crediting and refunding stay administrative.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
