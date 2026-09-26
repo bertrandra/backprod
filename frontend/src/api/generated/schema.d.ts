@@ -3611,6 +3611,36 @@ export interface paths {
         patch: operations["updatePlan"];
         trace?: never;
     };
+    "/api/v1/staff/translations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Everything the operator wrote, in every language it has
+         * @description One row per translatable **sentence** — a feature's name, a feature's description, an offer's name — with the English it is keyed by and whatever translations exist.
+         *
+         *     The console could already edit these one at a time, each behind the form that owns its row. What it could not do is answer the question somebody asks when a language is half finished — *what is missing in Italian?* — because the answer spans tables that have nothing else in common (2026-09-26).
+         *
+         *     **This is the operator's words, not the application's.** Field labels, buttons, hints and error wording live in the bundle's JSON catalogues, keyed by the English and proved complete by `gate:i18n` (ADR-050, `docs/translatable-fields-spec.md` §1.5). They are not here, and this operation is not a reason to move them: the test that separates the two is whether the sentence would be identical on every deployment of this platform.
+         *
+         *     **A read, and only a read.** Writing goes back through `renameFeature` and `renameStaffOffer`, which already carry the permission, the validation and the trail for those rows. A second way to write the same rows is the drift the gates exist to prevent.
+         *
+         *     **Unpaginated, deliberately, unlike every other list here.** Its purpose is to count what is missing across the whole set, and a page cannot answer that — a screen totalling one page would report "nothing missing" while the next page was empty. It grows with what the operator sells rather than with their customers, which is the reason that trade is affordable.
+         *
+         *     `staff.catalog.manage`: offers are the larger half of what is written here, and a name a customer is sold is what that permission governs. Somebody holding it without `staff.features.manage` still reads the feature rows — a feature's name appears in every tenant's catalogue, so there is nothing to withhold — and the screen offers them no edit they would be refused.
+         */
+        get: operations["listTranslations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/features": {
         parameters: {
             query?: never;
@@ -4763,6 +4793,31 @@ export interface components {
              *     A courtesy and never an authority: it settles where a screen opens and nothing about what anybody may reach there. The order is `?product=`, then what the browser remembers, then the person's own default, then this.
              */
             default_product: string | null;
+        };
+        /** @description One sentence the operator wrote about their own business, with every translation it has (2026-09-26). A row per *field*, not per record: a feature carries a name and a description, and a feature whose name is translated and whose description is not is one sentence missing, not none. */
+        TranslatableText: {
+            /**
+             * @description Which table the sentence belongs to, and so which operation writes it: `renameFeature` or `renameStaffOffer`.
+             * @enum {string}
+             */
+            kind: "feature" | "offer";
+            /**
+             * Format: uuid
+             * @description The row, for the write that follows.
+             */
+            id: string;
+            /** @description The code a person recognises it by. Shown because two offers can be called the same thing in English and the code is what tells them apart. */
+            code: string;
+            /** @enum {string} */
+            field: "name" | "description";
+            /** @description The product whose catalogue an offer belongs to; null for a feature, which is the platform's own vocabulary (ADR-052). Needed for two reasons: `renameStaffOffer` requires it, because a staff route resolves no product of its own, and an offer's code is unique only within a product — two offers really can both be `pro-monthly`. */
+            product: string | null;
+            /** @description The English, which is the key and stays on the row it belongs to (`docs/translatable-fields-spec.md` §2). A description the operator never wrote is not a sentence waiting for a translator, so it is not listed at all — but this is empty rather than absent where the English was *cleared* while a language still said something: `renameFeature` takes `description: null` and leaves the translations alone. Hiding that row would hide the inconsistency, and would also hand the screen a translation set with a language missing, which the next write would delete. */
+            source: string;
+            /** @description By locale, and **only what is written**. A locale absent is a translation missing, which is the fact the screen counts — filling the gaps with empty strings here would make every sentence look translated into five languages. */
+            translations: {
+                [key: string]: string;
+            };
         };
         /** @description A tenant as the platform sees it: the tenant, and the products it holds (ADR-047). `products` is the platform’s answer — which products it has assigned this tenant, through the console — so it lives on the staff shape and not on the `Tenant` a tenant reads about itself. */
         StaffTenant: components["schemas"]["Tenant"] & {
@@ -14429,6 +14484,32 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listTranslations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every translatable sentence, by kind then code then field. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        texts: components["schemas"]["TranslatableText"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

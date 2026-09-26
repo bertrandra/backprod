@@ -2904,6 +2904,63 @@
           }
         }
       },
+      "TranslatableText": {
+        "type": "object",
+        "description": "One sentence the operator wrote about their own business, with every translation it has (2026-09-26). A row per *field*, not per record: a feature carries a name and a description, and a feature whose name is translated and whose description is not is one sentence missing, not none.",
+        "required": [
+          "kind",
+          "id",
+          "code",
+          "product",
+          "field",
+          "source",
+          "translations"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "feature",
+              "offer"
+            ],
+            "description": "Which table the sentence belongs to, and so which operation writes it: `renameFeature` or `renameStaffOffer`."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The row, for the write that follows."
+          },
+          "code": {
+            "type": "string",
+            "description": "The code a person recognises it by. Shown because two offers can be called the same thing in English and the code is what tells them apart."
+          },
+          "field": {
+            "type": "string",
+            "enum": [
+              "name",
+              "description"
+            ]
+          },
+          "product": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The product whose catalogue an offer belongs to; null for a feature, which is the platform's own vocabulary (ADR-052). Needed for two reasons: `renameStaffOffer` requires it, because a staff route resolves no product of its own, and an offer's code is unique only within a product — two offers really can both be `pro-monthly`."
+          },
+          "source": {
+            "type": "string",
+            "description": "The English, which is the key and stays on the row it belongs to (`docs/translatable-fields-spec.md` §2). A description the operator never wrote is not a sentence waiting for a translator, so it is not listed at all — but this is empty rather than absent where the English was *cleared* while a language still said something: `renameFeature` takes `description: null` and leaves the translations alone. Hiding that row would hide the inconsistency, and would also hand the screen a translation set with a language missing, which the next write would delete."
+          },
+          "translations": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "By locale, and **only what is written**. A locale absent is a translation missing, which is the fact the screen counts — filling the gaps with empty strings here would make every sentence look translated into five languages."
+          }
+        }
+      },
       "StaffTenant": {
         "description": "A tenant as the platform sees it: the tenant, and the products it holds (ADR-047). `products` is the platform’s answer — which products it has assigned this tenant, through the console — so it lives on the staff shape and not on the `Tenant` a tenant reads about itself.",
         "allOf": [
@@ -20139,6 +20196,51 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/translations": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "listTranslations",
+        "summary": "Everything the operator wrote, in every language it has",
+        "description": "One row per translatable **sentence** — a feature's name, a feature's description, an offer's name — with the English it is keyed by and whatever translations exist.\n\nThe console could already edit these one at a time, each behind the form that owns its row. What it could not do is answer the question somebody asks when a language is half finished — *what is missing in Italian?* — because the answer spans tables that have nothing else in common (2026-09-26).\n\n**This is the operator's words, not the application's.** Field labels, buttons, hints and error wording live in the bundle's JSON catalogues, keyed by the English and proved complete by `gate:i18n` (ADR-050, `docs/translatable-fields-spec.md` §1.5). They are not here, and this operation is not a reason to move them: the test that separates the two is whether the sentence would be identical on every deployment of this platform.\n\n**A read, and only a read.** Writing goes back through `renameFeature` and `renameStaffOffer`, which already carry the permission, the validation and the trail for those rows. A second way to write the same rows is the drift the gates exist to prevent.\n\n**Unpaginated, deliberately, unlike every other list here.** Its purpose is to count what is missing across the whole set, and a page cannot answer that — a screen totalling one page would report \"nothing missing\" while the next page was empty. It grows with what the operator sells rather than with their customers, which is the reason that trade is affordable.\n\n`staff.catalog.manage`: offers are the larger half of what is written here, and a name a customer is sold is what that permission governs. Somebody holding it without `staff.features.manage` still reads the feature rows — a feature's name appears in every tenant's catalogue, so there is nothing to withhold — and the screen offers them no edit they would be refused.",
+        "responses": {
+          "200": {
+            "description": "Every translatable sentence, by kind then code then field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "texts"
+                  ],
+                  "properties": {
+                    "texts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TranslatableText"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
