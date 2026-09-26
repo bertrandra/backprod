@@ -11,6 +11,7 @@ use App\Tenant\Domain\TenantMember;
 use App\Tenant\Domain\TenantMemberRepository;
 use App\Tenant\Service\MemberAdministration;
 use App\Tests\Support\InMemoryTenantMemberRepository;
+use App\Tests\Support\RecordingPlaceRelease;
 use App\Tests\Support\RecordingProductEvents;
 use App\User\Domain\PlatformUser;
 use App\User\Infrastructure\InMemoryUserRepository;
@@ -131,6 +132,52 @@ final class MemberAdministrationTest extends TestCase
     }
 
     /**
+     * Leaving the organisation gives up the place it was paying for
+     * (2026-09-26).
+     *
+     * Nothing did this until today: `subscription_members` cascades from
+     * `users` and from `subscriptions` and from nothing else, so a departed
+     * colleague went on occupying a place, and the owner met
+     * `PEOPLE_QUOTA_REACHED` seating their replacement.
+     *
+     * The tenant, not the product: a membership is the tenant's and is only
+     * mirrored onto its products (ADR-047).
+     */
+    public function testRemovingAMemberGivesUpTheirPlaces(): void
+    {
+        $members = $this->members([
+            new TenantMember('u-admin', 'admin@example.test', null, ['TENANT_ADMIN']),
+            new TenantMember('u-member', 'member@example.test', null, ['USER']),
+        ]);
+        $places = new RecordingPlaceRelease();
+
+        $this->administration($members, [], $places)->remove(self::TENANT, self::PRODUCT, 'u-member');
+
+        self::assertSame([['tenantId' => self::TENANT, 'userId' => 'u-member']], $places->released);
+    }
+
+    /**
+     * And a refused removal gives up nothing. The place belongs to somebody
+     * who is still there — freeing it would let the next person be seated
+     * over a colleague who never left.
+     */
+    public function testARefusedRemovalFreesNothing(): void
+    {
+        $members = $this->members([
+            new TenantMember('u-admin', 'admin@example.test', null, ['TENANT_ADMIN']),
+        ]);
+        $places = new RecordingPlaceRelease();
+
+        try {
+            $this->administration($members, [], $places)->remove(self::TENANT, self::PRODUCT, 'u-admin');
+            self::fail('Expected the removal to be refused.');
+        } catch (ConflictException) {
+        }
+
+        self::assertSame([], $places->released);
+    }
+
+    /**
      * The submitted list is the whole truth, so an omitted role is removed.
      */
     public function testReplacingRolesRemovesOnesNotSubmitted(): void
@@ -175,10 +222,14 @@ final class MemberAdministrationTest extends TestCase
     /**
      * @param list<PlatformUser> $users
      */
-    private function administration(?TenantMemberRepository $members = null, array $users = []): MemberAdministration
-    {
+    private function administration(
+        ?TenantMemberRepository $members = null,
+        array $users = [],
+        ?RecordingPlaceRelease $places = null,
+    ): MemberAdministration {
         return new MemberAdministration(
             $members ?? $this->members(),
+            $places ?? new RecordingPlaceRelease(),
             new InMemoryUserRepository($users),
             new RecordingProductEvents(),
         );

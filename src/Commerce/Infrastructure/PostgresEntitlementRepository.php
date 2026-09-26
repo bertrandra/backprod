@@ -229,11 +229,19 @@ final class PostgresEntitlementRepository implements EntitlementRepository
                 )
                 OR EXISTS (
                     -- A trial the platform opened (2026-09-25). It names no
-                    -- people, and does not need to: the caller reached this
-                    -- product through a membership of this tenant, which the
-                    -- context resolved before anything here ran. What it
-                    -- names is the decision — `covers_people` — because a
-                    -- grant that only adds a feature must still cover nobody.
+                    -- people — "this organisation may try this product" has
+                    -- none to name — so what stands in for the list is
+                    -- membership of the tenant.
+                    --
+                    -- **That membership is checked here** (2026-09-26), and
+                    -- not left to the caller. It was, for a day: the branch
+                    -- read only (tenant, product), so this method answered
+                    -- "yes, they are covered" about anybody at all while a
+                    -- trial was live. Nothing exploited it, because the only
+                    -- caller is the request context and it has resolved a
+                    -- membership before it asks — but a method whose name is
+                    -- a question about a person must not answer a different
+                    -- question, and the next caller would not have known.
                     SELECT 1
                       FROM entitlements e
                      WHERE e.tenant_id = CAST(:tenantId AS uuid)
@@ -242,6 +250,12 @@ final class PostgresEntitlementRepository implements EntitlementRepository
                        AND e.covers_people
                        AND e.valid_from <= now()
                        AND (e.valid_until IS NULL OR e.valid_until > now())
+                       AND EXISTS (
+                            SELECT 1
+                              FROM tenant_members tm
+                             WHERE tm.tenant_id = e.tenant_id
+                               AND tm.user_id = CAST(:userId AS uuid)
+                           )
                 )
                 SQL,
             ['tenantId' => $tenantId, 'productId' => $productId, 'userId' => $userId],

@@ -13,7 +13,6 @@ use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Domain\InvoiceStatus;
 use App\Billing\Domain\Money;
 use App\Commerce\Service\Subscriptions;
-use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
 use App\Tax\Service\Taxation;
 use DateTimeImmutable;
@@ -47,7 +46,7 @@ final class Invoicing
         private readonly BillingProfileRepository $profiles,
         private readonly Subscriptions $subscriptions,
         private readonly Taxation $taxation,
-        private readonly SupplierIdentity $supplier,
+        private readonly WhoSellsAndWhoBuys $parties,
     ) {
     }
 
@@ -109,19 +108,17 @@ final class Invoicing
             );
         }
 
-        $profile = $this->profiles->find($tenantId);
+        // Who sells, who buys, who issues and under whose VAT — one decision,
+        // asked in one place (2026-09-26). This resolved them itself until
+        // today, which left the guarantee `WhoSellsAndWhoBuys` exists for
+        // holding on two call sites out of three: a later change to how a
+        // party is snapshotted would have missed this one silently.
+        //
+        // It refuses before a number is allocated, which is what matters:
+        // numbering is gapless, so a document raised by mistake cannot simply
+        // be deleted.
+        $parties = $this->parties->forSale($tenantId, $productId, $subscription->subscriber);
 
-        if ($profile === null) {
-            // A customer with no legal identity cannot be invoiced. Refusing
-            // before a number is allocated matters: numbering is gapless, so
-            // a document raised by mistake cannot simply be deleted.
-            throw new ConflictException(
-                'BILLING_PROFILE_REQUIRED',
-                'This tenant has no billing profile, so no invoice can be issued to it.',
-            );
-        }
-
-        $supplier = $this->supplier->forProduct($productId);
         $version = $subscription->offer->version;
 
         // One moment for the whole issue, passed explicitly rather than taken
@@ -163,16 +160,15 @@ final class Invoicing
         return $this->invoices->issue(
             $tenantId,
             $productId,
-            // The platform issues this one: it sells the subscription to the
-            // organisation, under the product's own supplier identity read
-            // above. So it takes a number from the platform's series, not
-            // from the organisation's (2026-09-25).
-            null,
+            // Null for the platform's own sale to the organisation, so the
+            // number comes from the platform's series (ADR-054) — and the
+            // organisation's when what is billed is a seat it sold.
+            $parties->issuerTenantId,
             $subscription->id,
             [$line],
-            $supplier,
-            $profile->snapshot(),
-            SupplierIdentity::jurisdictionOf($supplier),
+            $parties->from,
+            $parties->to,
+            $parties->jurisdiction,
             $subscription->currentPeriodStart,
             $subscription->currentPeriodEnd,
             self::PAYMENT_TERMS,
