@@ -18,7 +18,7 @@ et **ce que chaque action change** une fois faite.
 
 ## Ce que « 100 % » veut dire ici
 
-Le contrat déclare **220 opérations**. Chacune apparaît dans ce document,
+Le contrat déclare **221 opérations**. Chacune apparaît dans ce document,
 attribuée à qui peut l'atteindre. Pas un échantillon, pas les principales :
 toutes, y compris les sept que personne n'atteint à la main et les quatre qu'une
 machine seule appelle.
@@ -656,15 +656,15 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
   ─────────────────────────────────────────────────
   surface locataire                              125
 
-  PLATFORM_ADMIN                                  77
+  PLATFORM_ADMIN                                  78
   publiques, sans compte                           7
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          220
+  total                                          221
 ```
 
-Dont **107 lectures** et **113 écritures**. Chaque écriture a sa ligne dans les
+Dont **108 lectures** et **113 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 
