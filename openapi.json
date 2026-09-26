@@ -948,7 +948,8 @@
           "subscriber",
           "terms",
           "ended_at",
-          "owner_user_id"
+          "owner_user_id",
+          "pending"
         ],
         "properties": {
           "id": {
@@ -1045,6 +1046,67 @@
             ],
             "format": "uuid",
             "description": "Who activated it (2026-09-19): the person a seat is for, or the administrator who bought the organisation’s; null for one a job started. The owner manages the subscription’s people."
+          },
+          "pending": {
+            "description": "A move to another offer waiting for the end of the paid period, or null when none is waiting (spec §4). Never set at the same time as `cancel_at_period_end`: a subscription has one ending, and the cancellation is it.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PendingChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "PendingChange": {
+        "type": "object",
+        "description": "A change of offer that has not happened yet. Choosing a **lower-ranked** plan changes nothing on the day it is chosen — the customer keeps, entire, the plan they have already paid for — so the choice is recorded as an intention and renewal applies it. Withdrawn with `DELETE /api/v1/subscription/pending`, which is not optional: a future change nobody can undo is a cancellation in disguise.",
+        "required": [
+          "offer_id",
+          "offer_version_id",
+          "code",
+          "name",
+          "plan",
+          "effective_at",
+          "requested_at",
+          "requested_by"
+        ],
+        "properties": {
+          "offer_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "offer_version_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/Plan"
+          },
+          "effective_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The subscription's `current_period_end` at the moment the change was asked for: what the customer has paid for."
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requested_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Who asked. Null for a change a job scheduled, and null once the person's account is gone — the history keeps the answer regardless."
           }
         }
       },
@@ -15639,7 +15701,134 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "No subscription to change, or the offer is not on sale.",
+            "description": "No subscription to change, the offer is not on sale, or `COMMITMENT_OUTLASTS_TERM` — the offer runs for less time than the commitment already agreed, which would leave the commitment with no subscription under it. A move to a **lower-ranked** plan is not refused: it is scheduled for the end of the paid period, and the answer carries `pending`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/subscription/pending": {
+      "post": {
+        "tags": [
+          "Subscription"
+        ],
+        "operationId": "scheduleOfferChange",
+        "summary": "Schedule a move to a lower plan",
+        "description": "Nothing changes today. The subscription keeps the plan it has paid for until `current_period_end`, and moves to this offer then — because the service is owed until the end of the paid period, exactly as it is for a cancellation. Refuses `NOT_A_DOWNGRADE` for a move that is not down: going up is immediate. Which move it is comes from the plans' ranks, never their names (§13).",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "offer_id"
+                ],
+                "properties": {
+                  "offer_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The subscription, unchanged except that it now carries `pending`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`NOT_A_DOWNGRADE` for a move that is not down, `ALREADY_ON_OFFER`, `SUBSCRIPTION_ENDING` when a cancellation is already due — a subscription has one ending — or `NO_PERIOD_END` for a CUSTOM billing period, which has no date to defer to.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Subscription"
+        ],
+        "operationId": "cancelScheduledChange",
+        "summary": "Undo a scheduled change of plan",
+        "description": "Nothing had happened yet, so this restores nothing — it removes the intention and records that it was removed. Obligatory rather than convenient: a future change that cannot be withdrawn is a cancellation in disguise, and somebody with twenty days of the higher plan in front of them changes their mind.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The subscription, with `pending` back to null.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`NO_PENDING_CHANGE` — nothing was waiting.",
             "content": {
               "application/json": {
                 "schema": {

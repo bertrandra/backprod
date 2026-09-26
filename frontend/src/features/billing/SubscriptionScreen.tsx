@@ -3,11 +3,13 @@ import { useState } from 'react';
 import { can } from '@/app/access/access';
 import { useOffers } from '@/queries/catalogue';
 import {
+  useCancelScheduledChange,
   useCancelSubscription,
   useChangeOffer,
   useEntitlements,
   useResumeSubscription,
   useSchedule,
+  useScheduleOfferChange,
   useSubscription,
   type CancellationDecision,
   type Entitlement,
@@ -65,6 +67,8 @@ export function SubscriptionScreen() {
   const entitlements = useEntitlements();
   const offers = useOffers();
   const changeOffer = useChangeOffer();
+  const scheduleChange = useScheduleOfferChange();
+  const cancelScheduled = useCancelScheduledChange();
   const cancel = useCancelSubscription();
   const resume = useResumeSubscription();
 
@@ -140,6 +144,17 @@ export function SubscriptionScreen() {
 
   const terms = current.terms;
 
+  // A move down that has not happened yet (spec §4). Read, never derived: the
+  // date is the server's and so is the plan it names.
+  const pending = current.pending ?? null;
+
+  // Which of the two acts the chosen offer is, by **rank** and never by a
+  // plan's name (§13, and `gate:plans` in PHP). Up is immediate; down waits
+  // for the end of the period the customer has paid for.
+  const chosen = (offers.data ?? []).find((offer) => offer.id === offerId) ?? null;
+  const goesDown = chosen !== null && chosen.plan.rank < current.offer.plan.rank;
+  const move = goesDown ? scheduleChange : changeOffer;
+
   return (
     <div className="max-w-3xl space-y-8">
       <PageHeader
@@ -196,6 +211,16 @@ export function SubscriptionScreen() {
         </dl>
       </section>
 
+      {pending !== null && (
+        <PendingChange
+          pending={pending}
+          mayManage={mayManageOrganisation}
+          pendingRequest={cancelScheduled.isPending}
+          error={cancelScheduled.error}
+          onCancel={() => cancelScheduled.mutate()}
+        />
+      )}
+
       <section className="space-y-3 border-t border-line pt-6">
         <h2 className="text-xl font-semibold">{t("Entitlements")}</h2>
 
@@ -246,7 +271,7 @@ export function SubscriptionScreen() {
           <section className="space-y-3 border-t border-line pt-6">
             <h2 className="text-xl font-semibold">{t("Change offer")}</h2>
 
-            {changeOffer.error !== null && <ErrorSurface error={changeOffer.error} />}
+            {move.error !== null && <ErrorSurface error={move.error} />}
 
             <div className="flex max-w-md flex-wrap items-end gap-2">
               <Field id="offer" label={t("Offer")}>
@@ -268,12 +293,25 @@ export function SubscriptionScreen() {
               </Field>
               <Button
                 type="button"
-                pending={changeOffer.isPending}
+                pending={move.isPending}
                 disabled={offerId === ''}
-                onClick={() => changeOffer.mutate(offerId, { onSuccess: () => setOfferId('') })}
+                data-testid="change-offer"
+                data-deferred={goesDown ? 'true' : 'false'}
+                onClick={() => move.mutate(offerId, { onSuccess: () => setOfferId('') })}
               >
-                {t("Change")}</Button>
+                {goesDown ? t("Move down to this plan") : t("Change")}</Button>
             </div>
+
+            {/* Said before the click, not discovered after it. A move down
+                changes nothing today, and that is what the customer is
+                paying for. */}
+            {goesDown && (
+              <p data-testid="deferred-notice" className="max-w-md text-xs text-muted">
+                {current.current_period_end === null
+                  ? t("A lower plan takes effect at the end of the period you have paid for.")
+                  : t("A lower plan takes effect on {date}, at the end of the period you have paid for. Until then nothing changes.", { date: new Date(current.current_period_end).toLocaleDateString(currentLocale()) })}
+              </p>
+            )}
           </section>
 
           <section className="space-y-3 border-t border-line pt-6">
@@ -467,6 +505,66 @@ function YourSeat({
           )}
           <p className="text-xs text-muted">
             {t("The cancellation policy decides when it ends; what it decided is shown once asked.")}</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * A change of plan that has not happened yet (spec §4).
+ *
+ * Two things, and neither is optional. The **sentence**, because a customer
+ * who chose a cheaper plan and saw nothing change would reasonably think the
+ * choice was lost; and the **button**, because a future change that cannot be
+ * undone is a cancellation in disguise — somebody with twenty days of the
+ * higher plan in front of them changes their mind, and §4.2 calls withdrawing
+ * it a retention feature before a technical one.
+ *
+ * The date and the plan are the server's answer. Nothing here derives when
+ * the change lands from `current_period_end`: that would be a second answer
+ * to a question the response already carries, and the two would disagree the
+ * moment a period moved.
+ */
+function PendingChange({
+  pending,
+  mayManage,
+  pendingRequest,
+  error,
+  onCancel,
+}: {
+  pending: NonNullable<Subscription['pending']>;
+  mayManage: boolean;
+  pendingRequest: boolean;
+  error: unknown;
+  onCancel: () => void;
+}) {
+  return (
+    <section
+      data-testid="pending-change"
+      data-plan={pending.plan.code}
+      className="space-y-3 rounded-card border border-line bg-surface p-4 shadow-raise"
+    >
+      <p className="text-sm font-medium">
+        {t("You will move to the {plan} plan on {date}.", {
+          plan: pending.plan.name,
+          date: new Date(pending.effective_at).toLocaleDateString(currentLocale()),
+        })}
+      </p>
+      <p className="text-xs text-muted">
+        {t("Until then you keep the plan you are on, entire — it is paid for until that date.")}</p>
+
+      {mayManage && (
+        <div className="space-y-2">
+          {error !== null && error !== undefined && <ErrorSurface error={error} />}
+          <Button
+            type="button"
+            variant="secondary"
+            pending={pendingRequest}
+            data-testid="cancel-pending-change"
+            onClick={onCancel}
+          >
+            {t("Cancel the change")}</Button>
         </div>
       )}
     </section>

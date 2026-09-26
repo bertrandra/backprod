@@ -165,6 +165,11 @@ final class Subscriptions
      * question that reads a plan's name. The answer is recorded on the
      * event, so a later report does not have to recompute it against ranks
      * that may since have moved.
+     *
+     * The terms move with it: the subscription re-snapshots what the new
+     * version sells, because until 2026-09-27 it kept the conditions of the
+     * offer it had left (spec §1c). The commitment is the exception, and the
+     * reason is on {@see Subscription::commitmentAfterMovingTo()}.
      */
     public function changeOffer(
         string $tenantId,
@@ -182,12 +187,161 @@ final class Subscriptions
             );
         }
 
+        self::refuseIfTheCommitmentOutlastsTheTerm($subscription, $offer);
+
+        $direction = self::directionBetween($subscription->offer->plan->rank, $offer->plan->rank);
+
+        // A move down is not refused here and sent elsewhere: it is the same
+        // act, and it goes to the same implementation. The defect being
+        // fixed is that *choosing a lower plan took effect at once*, and it
+        // would still be a defect through this door. The answer carries the
+        // pending fields, so nothing about it is silent — the caller can see
+        // that the offer did not move and when it will.
+        if ($direction === self::DOWNGRADE) {
+            return $this->defer($subscription, $offer, $actorUserId);
+        }
+
         return $this->subscriptions->changeOffer(
             $subscription,
             $offer,
-            self::directionBetween($subscription->offer->plan->rank, $offer->plan->rank),
+            $direction,
             $actorUserId,
         );
+    }
+
+    /**
+     * Asks for a move to a lower plan at the end of the paid period
+     * (spec §4).
+     *
+     * The explicit door, for a catalogue that offers *"descendre à ce
+     * plan"* as a different button from *"passer à ce plan"* — and it
+     * refuses anything that is not a move down rather than quietly doing
+     * something else. Going up is immediate and will be priced; scheduling
+     * it would give a customer a plan they are not paying for yet.
+     */
+    public function scheduleChange(
+        string $tenantId,
+        string $productId,
+        string $offerId,
+        ?string $actorUserId,
+    ): Subscription {
+        $subscription = $this->requireCurrent($tenantId, $productId);
+        $offer = $this->sellable($productId, $offerId);
+
+        if ($offer->version->id === $subscription->offer->version->id) {
+            throw new ConflictException(
+                'ALREADY_ON_OFFER',
+                'This tenant is already on those terms.',
+            );
+        }
+
+        if (self::directionBetween($subscription->offer->plan->rank, $offer->plan->rank) !== self::DOWNGRADE) {
+            throw new ConflictException(
+                'NOT_A_DOWNGRADE',
+                'Only a move to a lower-ranked plan is deferred; this one takes effect immediately.',
+            );
+        }
+
+        return $this->defer($subscription, $offer, $actorUserId);
+    }
+
+    /**
+     * Withdraws a change that has not happened yet (spec §4.2).
+     *
+     * **Obligatory, not a nicety.** A future change a customer cannot undo
+     * is a cancellation in disguise, and somebody with twenty days of the
+     * higher plan left in front of them changes their mind often enough
+     * that this is a retention feature before it is a technical one.
+     */
+    public function cancelScheduledChange(
+        string $tenantId,
+        string $productId,
+        ?string $actorUserId,
+    ): Subscription {
+        $subscription = $this->requireCurrent($tenantId, $productId);
+
+        if ($subscription->pending === null) {
+            throw new ConflictException(
+                'NO_PENDING_CHANGE',
+                'No change is waiting on this subscription.',
+            );
+        }
+
+        return $this->subscriptions->cancelScheduledChange($subscription, $actorUserId);
+    }
+
+    /**
+     * Writes the intention, once the refusals are past.
+     *
+     * The date is `current_period_end` and nothing else: the customer has
+     * paid until then, and any earlier date would take back service they
+     * bought — which is the whole defect this replaces.
+     */
+    private function defer(
+        Subscription $subscription,
+        SubscribedOffer $offer,
+        ?string $actorUserId,
+    ): Subscription {
+        // One ending, and the cancellation is it (§2.2). A subscription due
+        // to stop has nothing left to become, so the customer withdraws the
+        // cancellation first and then chooses a plan — rather than the
+        // platform deciding for them which of the two they meant.
+        if ($subscription->cancelAtPeriodEnd) {
+            throw new ConflictException(
+                'SUBSCRIPTION_ENDING',
+                'This subscription is already due to end; resume it before scheduling a change of plan.',
+                ['cancel_effective_at' => $subscription->cancelEffectiveAt?->format(DATE_ATOM)],
+            );
+        }
+
+        $effectiveAt = $subscription->currentPeriodEnd;
+
+        if ($effectiveAt === null) {
+            // A CUSTOM billing period has no end, so there is no date to
+            // defer to. Guessing one would move a customer off a plan on a
+            // day nobody agreed — the same refusal `periodEndFrom` makes
+            // rather than inventing a month.
+            throw new ConflictException(
+                'NO_PERIOD_END',
+                'This subscription has no period end, so a change cannot be deferred to one.',
+            );
+        }
+
+        return $this->subscriptions->scheduleChange($subscription, $offer, $effectiveAt, $actorUserId);
+    }
+
+    /**
+     * A surviving commitment must fit inside the term it is served under.
+     *
+     * The database says so — `commitment_months <= term_months` — and it says
+     * so for a reason: a subscription sold to run six months cannot carry a
+     * twelve-month commitment, because there would be six months of
+     * commitment with no subscription under them.
+     *
+     * Since the commitment survives a change of plan and the term does not
+     * (§3.3), the two can arrive at that contradiction. The answer is to
+     * refuse, in words, rather than to let the CHECK refuse in SQL: neither
+     * silently shortening the commitment nor silently lengthening the term is
+     * something a customer agreed to, and both would be the platform deciding
+     * a commercial question by itself.
+     */
+    private static function refuseIfTheCommitmentOutlastsTheTerm(
+        Subscription $subscription,
+        SubscribedOffer $offer,
+    ): void {
+        $terms = $offer->version->terms;
+        $commitment = $subscription->commitmentAfterMovingTo($terms, new DateTimeImmutable());
+
+        if ($terms->termMonths !== null && $commitment->months > $terms->termMonths) {
+            throw new ConflictException(
+                'COMMITMENT_OUTLASTS_TERM',
+                'This offer runs for less time than the commitment already agreed, which would leave the commitment with no subscription under it.',
+                [
+                    'commitment_months' => $commitment->months,
+                    'term_months' => $terms->termMonths,
+                ],
+            );
+        }
     }
 
     /**
@@ -356,7 +510,14 @@ final class Subscriptions
     }
 
     /**
-     * Rolls a subscription into its next period.
+     * Rolls a subscription into its next period, in the order §4.3 sets:
+     *
+     * ```text
+     * 1. a cancellation is due      → it ends, and nothing else
+     * 2. a change is waiting        → it moves onto it, period reset,
+     *                                 terms re-snapshotted, grants exchanged
+     * 3. otherwise                  → the same offer, one period further on
+     * ```
      *
      * No endpoint reaches this: renewal is something time does, and the job
      * that notices arrives with M7. It exists now so the behaviour is
@@ -379,6 +540,26 @@ final class Subscriptions
                 'CANCELLATION_DUE',
                 'This subscription is due to end and cannot be renewed.',
                 ['cancel_effective_at' => $subscription->cancelEffectiveAt?->format(DATE_ATOM)],
+            );
+        }
+
+        // Second, and only second: a change the customer asked for at the
+        // end of this period (spec §4.3). The order is the point — a
+        // cancellation already due ends the subscription and there is
+        // nothing to move onto, which is why it is asked first and why the
+        // database refuses to hold both at once.
+        //
+        // The clock decides here too. A change dated further out is not due
+        // yet and must not be dragged forward, exactly as a cancellation
+        // deferred to a commitment ten months away does not stop next
+        // month's renewal.
+        if ($subscription->pending !== null && $subscription->pending->isDueBy($from)) {
+            return $this->subscriptions->applyPendingChange(
+                $subscription,
+                self::directionBetween(
+                    $subscription->offer->plan->rank,
+                    $subscription->pending->plan->rank,
+                ),
             );
         }
 

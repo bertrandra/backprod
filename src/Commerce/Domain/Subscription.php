@@ -49,6 +49,13 @@ final class Subscription
         public readonly ?DateTimeImmutable $cancelEffectiveAt = null,
         /** Who activated it (2026-09-19): the person a seat is for, or the administrator who bought the organisation's. */
         public readonly ?string $ownerUserId = null,
+        /**
+         * A move to another offer, waiting for the end of the paid period
+         * (2026-09-27, spec §4). Null when none is waiting — and never set
+         * at the same time as `cancelAtPeriodEnd`, which the database
+         * refuses: a subscription has one ending.
+         */
+        public readonly ?PendingChange $pending = null,
     ) {
     }
 
@@ -66,6 +73,36 @@ final class Subscription
         }
 
         return $moment < $this->commitmentEndsAt;
+    }
+
+    /**
+     * The commitment this subscription carries once it moves to other terms.
+     *
+     * **This is the exception to the rule written beside it.** Everything
+     * else a subscription snapshots — the term, the cancellation policy, the
+     * renewal, the early-termination rule, the notice — is re-copied from the
+     * new offer version when the plan changes, because the subscription must
+     * describe the offer it is on and not the one it left (spec §1c, §3.2).
+     * The commitment is not, and deliberately:
+     *
+     * **A change of plan is not a new contract.** A customer committed for
+     * twenty-four months who moves up a tier stays committed until *their
+     * original date*; they do not re-commit for another twenty-four without
+     * having said so. That is the same sentence §13.1 writes about renewal —
+     * "the commitment does not silently re-arm" — applied to the one other
+     * moment the terms are rewritten.
+     *
+     * And it cuts both ways: **the new offer's commitment applies only if it
+     * ends later.** Taking the arriving offer's commitment whenever it is
+     * shorter would let a customer walk out of two years by moving to a plan
+     * sold without one, which is the same mistake in the other direction.
+     */
+    public function commitmentAfterMovingTo(SubscriptionTerms $offered, DateTimeImmutable $at): Commitment
+    {
+        $held = new Commitment($this->terms->commitmentMonths, $this->commitmentEndsAt);
+        $arriving = Commitment::sold($offered, $at);
+
+        return $arriving->endsLaterThan($held) ? $arriving : $held;
     }
 
     /**
