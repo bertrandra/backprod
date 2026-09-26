@@ -14,6 +14,7 @@ use App\Tax\Domain\CustomerTaxProfile;
 use App\Tax\Domain\RegimeDecision;
 use App\Tax\Domain\SupplierTaxSettings;
 use App\Tax\Domain\SupplyType;
+use App\Tax\Domain\TaxableSale;
 use App\Tax\Domain\TaxCalculation;
 use App\Tax\Domain\TaxIdentification;
 use App\Tax\Domain\TaxRate;
@@ -80,6 +81,24 @@ final class Taxation
         private readonly ProductRegistry $products,
         private readonly Notifications $notifications,
     ) {
+    }
+
+    /**
+     * The profile as the tenant actually stated it, or null (2026-09-26).
+     *
+     * {@see profileFor} below invents an unknown-B2C default, which is the
+     * right answer about a *customer*: nothing is known, so nothing is
+     * claimed. It is the wrong answer about a **supplier**, and since
+     * ADR-055 an organisation is one. "Not stated" would become "not a
+     * taxable person", and a French company selling a seat would invoice its
+     * colleague without VAT because nobody had opened the tax screen.
+     *
+     * So the sale asks this one and refuses when it is null. Fail closed:
+     * absence of a statement is not a statement.
+     */
+    public function declaredProfileFor(string $tenantId): ?CustomerTaxProfile
+    {
+        return $this->tax->findProfile($tenantId);
     }
 
     public function profileFor(string $tenantId): CustomerTaxProfile
@@ -228,8 +247,42 @@ final class Taxation
         ?string $supplyType,
         ?DateTimeImmutable $on,
     ): TaxCalculation {
-        $profile = $this->profileFor($tenantId);
-        $supplier = $this->supplierFor($productId);
+        return $this->calculateSale(
+            $this->platformSelling($tenantId, $productId),
+            $amountMinorUnits,
+            $currency,
+            $supplyType,
+            $on,
+        );
+    }
+
+    /**
+     * The platform selling to an organisation — the pair this service assumed
+     * until 2026-09-26, named now that it is one pair of two (ADR-055).
+     */
+    public function platformSelling(string $tenantId, string $productId): TaxableSale
+    {
+        return new TaxableSale($this->supplierFor($productId), $this->profileFor($tenantId), null);
+    }
+
+    /**
+     * The same decision, between parties the caller has resolved.
+     *
+     * Which is every caller that raises a document, since a seat is sold by
+     * the organisation and not by the platform. `calculate()` above is this
+     * one with the pair filled in, so there is still a single code path from
+     * `/tax/calculate` to an invoice line — the property §25.3 wants, now
+     * stated as an argument instead of assumed.
+     */
+    public function calculateSale(
+        TaxableSale $sale,
+        int $amountMinorUnits,
+        string $currency,
+        ?string $supplyType,
+        ?DateTimeImmutable $on,
+    ): TaxCalculation {
+        $profile = $sale->customer;
+        $supplier = $sale->supplier;
         $moment = $on ?? new DateTimeImmutable();
         $supply = $supplyType ?? $supplier->defaultSupplyType;
 
@@ -282,8 +335,22 @@ final class Taxation
         array $lines,
         ?DateTimeImmutable $on,
     ): array {
-        $profile = $this->profileFor($tenantId);
-        $supplier = $this->supplierFor($productId);
+        return $this->factsForSale($this->platformSelling($tenantId, $productId), $lines, $on);
+    }
+
+    /**
+     * The same facts, between parties the caller has resolved (2026-09-26).
+     *
+     * @param list<InvoiceLine> $lines
+     * @return list<TaxCalculation>
+     */
+    public function factsForSale(
+        TaxableSale $sale,
+        array $lines,
+        ?DateTimeImmutable $on,
+    ): array {
+        $profile = $sale->customer;
+        $supplier = $sale->supplier;
         $moment = $on ?? new DateTimeImmutable();
 
         $decision = $this->rule->decide($supplier, $profile, $supplier->defaultSupplyType);
@@ -336,6 +403,17 @@ final class Taxation
     }
 
     /**
+     * The facts one invoice produced (2026-09-26), so a credit note can
+     * reverse exactly them.
+     *
+     * @return list<VatTransaction>
+     */
+    public function factsOfInvoice(string $invoiceId): array
+    {
+        return $this->tax->transactionsOfInvoice($invoiceId);
+    }
+
+    /**
      * Writes the fiscal facts of a document.
      *
      * **Must be called inside the caller's transaction**, and opens none of
@@ -343,12 +421,18 @@ final class Taxation
      * declare, and a VAT transaction with no invoice declares something never
      * billed. Neither is observable if both are written together.
      *
+     * `$issuerTenantId` is whose return they belong in (2026-09-26): the
+     * organisation that charged the VAT, or null for the platform. The same
+     * value the document's number came from, so a fact cannot be filed in one
+     * party's return while the invoice was raised by the other.
+     *
      * @param list<TaxCalculation> $calculations
      * @return list<VatTransaction>
      */
     public function recordFor(
         string $tenantId,
         string $productId,
+        ?string $issuerTenantId,
         ?string $invoiceId,
         ?string $creditNoteId,
         string $supplyType,
@@ -358,6 +442,7 @@ final class Taxation
         return $this->tax->recordTransactions(
             $tenantId,
             $productId,
+            $issuerTenantId,
             $invoiceId,
             $creditNoteId,
             $supplyType,

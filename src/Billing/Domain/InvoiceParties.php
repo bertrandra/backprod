@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Billing\Domain;
 
+use App\Tax\Domain\TaxableSale;
+
 /**
  * Who sells, who buys, and under whose VAT regime — resolved once
  * (2026-09-25).
@@ -30,6 +32,16 @@ final class InvoiceParties
         public readonly array $to,
         /** The country whose VAT is charged: the supplier's. */
         public readonly string $jurisdiction,
+        /**
+         * The same two parties as {@see TaxRule} needs them (2026-09-26).
+         *
+         * Here, and not resolved again by the tax service, because that is
+         * the whole point of this object: the supplier block, the number's
+         * series and the VAT regime came from three different answers to
+         * "who is selling" for one day, and the invoice said the
+         * organisation while the regime said the platform.
+         */
+        public readonly TaxableSale $sale,
     ) {
     }
 }

@@ -35,6 +35,25 @@ final class CustomerTaxProfile
     }
 
     /**
+     * The person a seat is sold to (2026-09-26).
+     *
+     * A colleague buying a seat from their own organisation is a consumer of
+     * it: a private individual, not a taxable person acting as such, with no
+     * VAT number of their own to reverse-charge against. Their country is the
+     * organisation's, which is where the sale happens — they are a member of
+     * it, and the platform records no private address for anybody (§26).
+     *
+     * `tenantId` stays the organisation's, because that is what a
+     * `CustomerTaxProfile` is keyed on and what the fiscal fact is filed
+     * under: the organisation owes the VAT it charged, and this object is a
+     * *description* of the buyer, not a row about them.
+     */
+    public static function forSeatHolder(string $tenantId, string $countryCode): self
+    {
+        return new self($tenantId, self::B2C, strtoupper($countryCode), false, [], null);
+    }
+
+    /**
      * A B2B customer whose VAT number has actually been verified.
      *
      * The two halves are separate on purpose. Being a business is a status;

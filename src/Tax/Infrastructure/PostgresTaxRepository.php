@@ -222,6 +222,7 @@ final class PostgresTaxRepository implements TaxRepository
     public function recordTransactions(
         string $tenantId,
         string $productId,
+        ?string $issuerTenantId,
         ?string $invoiceId,
         ?string $creditNoteId,
         string $supplyType,
@@ -237,12 +238,12 @@ final class PostgresTaxRepository implements TaxRepository
             $row = $this->connection->fetchAssociative(
                 <<<'SQL'
                 INSERT INTO vat_transactions
-                    (invoice_id, credit_note_id, tenant_id, product_id, country,
+                    (invoice_id, credit_note_id, tenant_id, product_id, issuer_tenant_id, country,
                      customer_tax_number, customer_tax_status, supply_type,
                      taxable_base, vat_rate, vat_amount, currency,
                      vat_regime, rule_id, reverse_charge, transaction_date)
                 VALUES
-                    (:invoiceId, :creditNoteId, :tenantId, :productId, :country,
+                    (:invoiceId, :creditNoteId, :tenantId, :productId, CAST(:issuerTenantId AS uuid), :country,
                      :taxNumber, :taxStatus, :supplyType,
                      :base, :rate, :vat, :currency,
                      :regime, :ruleId, :reverseCharge, :date)
@@ -253,6 +254,7 @@ final class PostgresTaxRepository implements TaxRepository
                     'creditNoteId' => $creditNoteId,
                     'tenantId' => $tenantId,
                     'productId' => $productId,
+                    'issuerTenantId' => $issuerTenantId,
                     'country' => $calculation->countryOfTaxation,
                     'taxNumber' => $calculation->customerTaxNumber,
                     'taxStatus' => $calculation->customerTaxStatus,
@@ -281,6 +283,24 @@ final class PostgresTaxRepository implements TaxRepository
     /**
      * @return list<VatTransaction>
      */
+    public function transactionsOfInvoice(string $invoiceId): array
+    {
+        if (!Uuid::isValid($invoiceId)) {
+            return [];
+        }
+
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT ' . self::TRANSACTION_COLUMNS . <<<'SQL'
+                  FROM vat_transactions
+                 WHERE invoice_id = CAST(:invoiceId AS uuid)
+                 ORDER BY created_at, id
+                SQL,
+            ['invoiceId' => $invoiceId],
+        );
+
+        return array_map(self::toTransaction(...), $rows);
+    }
+
     public function transactionsFor(
         string $tenantId,
         ?string $productCode,
@@ -436,6 +456,11 @@ final class PostgresTaxRepository implements TaxRepository
                    count(*) AS entries
               FROM vat_transactions
              WHERE country = :jurisdiction
+               -- The platform's own return, and nobody else's (2026-09-26).
+               -- Without this line the VAT an organisation charged its own
+               -- staff on a seat it sold (ADR-055) is summed in here, and a
+               -- closed period would file it permanently.
+               AND issuer_tenant_id IS NULL
                AND transaction_date >= :startsOn
                AND transaction_date < (CAST(:endsOn AS DATE) + INTERVAL '1 day')
              GROUP BY vat_regime, vat_rate, currency

@@ -102,9 +102,10 @@ final class ChargeOnEarlyTermination implements EarlyTerminationCharge
         // is supposed to describe.
         $now = new DateTimeImmutable();
 
-        $calculation = $this->taxation->calculate(
-            $subscription->tenantId,
-            $subscription->productId,
+        // Between the parties resolved above (2026-09-26). Whoever sold the
+        // thing bills for ending it, and is taxed as the seller of it.
+        $calculation = $this->taxation->calculateSale(
+            $parties->sale,
             $version->priceMinorUnits,
             $version->currency,
             null,
@@ -128,14 +129,9 @@ final class ChargeOnEarlyTermination implements EarlyTerminationCharge
         // Derived from the line just built rather than recomputed from a
         // total: two lines of three cents at 20% charge two cents, and 20% of
         // six cents is one. The document is the fact.
-        $facts = $this->taxation->factsFor(
-            $subscription->tenantId,
-            $subscription->productId,
-            [$line],
-            $now,
-        );
+        $facts = $this->taxation->factsForSale($parties->sale, [$line], $now);
 
-        $supplyType = $this->taxation->defaultSupplyType($subscription->productId);
+        $supplyType = $parties->sale->supplier->defaultSupplyType;
 
         $invoice = $this->invoices->applyIssue(
             $subscription->tenantId,
@@ -156,10 +152,11 @@ final class ChargeOnEarlyTermination implements EarlyTerminationCharge
             $actorUserId,
             // Still inside the cancellation's transaction, so the release,
             // the invoice and its fiscal fact commit together or not at all.
-            function (Invoice $issued) use ($subscription, $supplyType, $now, $facts): void {
+            function (Invoice $issued) use ($subscription, $parties, $supplyType, $now, $facts): void {
                 $this->taxation->recordFor(
                     $subscription->tenantId,
                     $subscription->productId,
+                    $parties->issuerTenantId,
                     $issued->id,
                     null,
                     $supplyType,

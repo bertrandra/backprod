@@ -96,6 +96,7 @@ final class PostgresCreditNoteRepository implements CreditNoteRepository
         array $customer,
         ?string $reason,
         ?string $actorUserId,
+        ?callable $alsoRecord = null,
     ): CreditNote {
         if ($lines === []) {
             throw new RuntimeException('A credit note needs at least one line.');
@@ -108,6 +109,7 @@ final class PostgresCreditNoteRepository implements CreditNoteRepository
             $customer,
             $reason,
             $actorUserId,
+            $alsoRecord,
         ): CreditNote {
             $currency = $lines[0]->net->currency;
             $net = Money::zero($currency);
@@ -214,6 +216,14 @@ final class PostgresCreditNoteRepository implements CreditNoteRepository
 
             if ($issued === null) {
                 throw new RuntimeException('The credit note vanished during the transaction that created it.');
+            }
+
+            // Last, and still inside: the reversing fiscal fact needs the
+            // document's id, and a credit note that committed without it
+            // would leave the declaration claiming VAT on an undone sale
+            // (2026-09-26).
+            if ($alsoRecord !== null) {
+                $alsoRecord($issued);
             }
 
             return $issued;

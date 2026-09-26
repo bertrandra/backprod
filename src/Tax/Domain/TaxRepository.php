@@ -64,6 +64,7 @@ interface TaxRepository
     public function recordTransactions(
         string $tenantId,
         string $productId,
+        ?string $issuerTenantId,
         ?string $invoiceId,
         ?string $creditNoteId,
         string $supplyType,
@@ -89,6 +90,21 @@ interface TaxRepository
         int $limit,
         int $offset,
     ): array;
+
+    /**
+     * The fiscal facts one invoice produced, in the order they were written
+     * (2026-09-26).
+     *
+     * Read so a credit note can reverse them exactly — same rate, same
+     * regime, same rule, same country, negated. §25.3 forbids recomputing
+     * historical VAT with today's rates, and a correction recomputed from the
+     * customer's profile as it is *now* would do exactly that: a customer
+     * whose VAT number was verified after the invoice went out would have
+     * 20% charged and 0% credited back.
+     *
+     * @return list<VatTransaction>
+     */
+    public function transactionsOfInvoice(string $invoiceId): array;
 
     public function countTransactionsFor(
         string $tenantId,

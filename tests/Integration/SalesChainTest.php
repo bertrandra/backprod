@@ -321,11 +321,42 @@ final class SalesChainTest extends DatabaseApiTestCase
         self::assertSame('CANCELLED', $this->statusOf('orders', $orderId));
     }
 
-    public function testFulfilmentIsRefusedWithoutABillingProfile(): void
+    /**
+     * An organisation with no billing profile cannot sell a seat, and is told
+     * so **before the order exists** (2026-09-26).
+     *
+     * It used to be told at fulfilment, which was already the right refusal
+     * in the right transaction — nothing was written. What moved it earlier
+     * is that a seat is now priced under the regime it will be invoiced
+     * under, and the organisation's own profile is what decides that regime
+     * (ADR-055). Asking one question instead of two means the answer cannot
+     * differ between them, and an order that could never be fulfilled is one
+     * less thing in a customer's list.
+     */
+    public function testAnOrderIsRefusedWithoutABillingProfile(): void
     {
         $this->connection->executeStatement('DELETE FROM billing_profiles');
 
+        $response = $this->place();
+
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame('BILLING_PROFILE_REQUIRED', $this->errorOf($response)['code'] ?? null);
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM orders'));
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM subscriptions'));
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM invoices'));
+    }
+
+    /**
+     * And the same refusal still guards fulfilment, which is the one that
+     * matters: a profile deleted between the order and the invoice must not
+     * produce a document with nobody on it.
+     */
+    public function testFulfilmentIsRefusedWithoutABillingProfile(): void
+    {
         $orderId = $this->orderedId();
+
+        $this->connection->executeStatement('DELETE FROM billing_profiles');
+
         $response = $this->fulfil($orderId);
 
         self::assertSame(409, $response->getStatusCode());

@@ -6,6 +6,7 @@ namespace App\Sales\Service;
 
 use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\Money;
+use App\Billing\Service\WhoSellsAndWhoBuys;
 use App\Commerce\Domain\SubscribedOffer;
 use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\SubscriptionRepository;
@@ -70,6 +71,7 @@ final class Sales
         private readonly Taxation $taxation,
         private readonly OrderFulfilment $fulfilment,
         private readonly SubscriptionRepository $subscriptions,
+        private readonly WhoSellsAndWhoBuys $parties,
     ) {
     }
 
@@ -126,15 +128,30 @@ final class Sales
 
         $this->refuseWhileSeated($tenantId, $productId, $actorUserId);
 
+        $subscriber = Subscriber::user($actorUserId);
+
+        // Priced under the regime the invoice will be issued under
+        // (2026-09-26): the organisation selling a seat to one of its own
+        // people, not the platform selling to the organisation. The two
+        // disagreeing is not a rounding difference — it is `TAX_TERMS_CHANGED`
+        // at fulfilment, an order nobody can pay, raised the moment a tenant
+        // and the platform are in different countries.
+        //
+        // It also moves the refusals forward. An organisation with no billing
+        // profile, or one that has not said which country it sells from, is
+        // told so before an order exists rather than when its invoice is
+        // raised — and an order is cheaper to not create than a document is
+        // to not issue.
+        $parties = $this->parties->forSale($tenantId, $productId, $subscriber);
+
         $line = InvoiceLine::of(
             1,
             $offer->lineDescription(),
             1,
             Money::of($offer->version->priceMinorUnits, $offer->version->currency),
             Money::zero($offer->version->currency),
-            $this->taxation->calculate(
-                $tenantId,
-                $productId,
+            $this->taxation->calculateSale(
+                $parties->sale,
                 $offer->version->priceMinorUnits,
                 $offer->version->currency,
                 null,
@@ -150,7 +167,7 @@ final class Sales
             $offer->version->id,
             [$line],
             $actorUserId,
-            Subscriber::user($actorUserId),
+            $subscriber,
         );
     }
 

@@ -130,6 +130,31 @@ final class FiscalChainTest extends DatabaseApiTestCase
         self::assertFalse($calculation['reverse_charge']);
     }
 
+    /**
+     * Only a business is a taxable person, and saying otherwise is a 400.
+     *
+     * The database has always refused it (`customer_tax_profiles_taxable_is_b2b`)
+     * and nothing above the database did, so `{"customer_kind": "B2C",
+     * "taxable_person": true}` — a plausible mis-tick on the tax screen —
+     * came back 500 with an unhandled driver exception behind it
+     * (2026-09-26). Refused rather than corrected: which half the caller
+     * meant is not knowable, and saving the other one would answer 200 to a
+     * request that was not carried out.
+     */
+    public function testAConsumerCannotAlsoBeATaxablePerson(): void
+    {
+        $response = $this->request(
+            'PUT',
+            '/api/v1/tax/profile',
+            $this->headers(),
+            $this->json(['customer_kind' => 'B2C', 'country_code' => 'FR', 'taxable_person' => true]),
+        );
+
+        self::assertSame(400, $response->getStatusCode());
+        self::assertSame('VALIDATION_FAILED', $this->errorOf($response)['code'] ?? null);
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM customer_tax_profiles'));
+    }
+
     public function testViesBeingUnreachableGrantsNothing(): void
     {
         // Ends in 0: the stub reports the service unreachable.

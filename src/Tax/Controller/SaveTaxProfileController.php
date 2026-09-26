@@ -56,6 +56,26 @@ final class SaveTaxProfileController implements RouteHandler
             );
         }
 
+        $taxable = $body->optionalBool('taxable_person');
+
+        // Only a business is a taxable person, and the database says so with
+        // a CHECK (`customer_tax_profiles_taxable_is_b2b`). Until 2026-09-26
+        // nothing said it *here*, so `{"customer_kind": "B2C",
+        // "taxable_person": true}` reached PostgreSQL and came back a 500 —
+        // an unhandled driver exception on ordinary input, which is a bug
+        // whichever way the constraint is worded.
+        //
+        // Refused rather than quietly corrected: which half the caller meant
+        // is not knowable, and saving the other one would answer 200 to a
+        // request the platform did not carry out.
+        if ($taxable === true && $kind !== CustomerTaxProfile::B2B) {
+            throw new BadRequestException(
+                'VALIDATION_FAILED',
+                'The request body is not valid.',
+                ['field' => 'taxable_person', 'requirement' => 'only a B2B customer is a taxable person'],
+            );
+        }
+
         $profile = $this->taxation->saveProfile(
             $context->tenantId,
             $context->productId,
@@ -64,7 +84,7 @@ final class SaveTaxProfileController implements RouteHandler
             $context->userId,
             $kind,
             $country,
-            $body->optionalBool('taxable_person'),
+            $taxable,
             $body->optionalNullableString('vat_number', 20),
             [],
         );

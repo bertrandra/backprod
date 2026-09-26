@@ -37,12 +37,50 @@ final class TaxRule
     public const MENTION_REVERSE_CHARGE = 'Autoliquidation — TVA due par le preneur.';
     public const MENTION_OUT_OF_SCOPE = 'Opération non soumise à la TVA de l\'Union.';
 
+    /**
+     * A supplier who is not registered for VAT charges none (2026-09-26).
+     *
+     * The French wording of the small-business scheme, because that is the
+     * deployment this platform is written for; like the two above it is a
+     * default and its statutory wording is configuration (risk R7).
+     */
+    public const MENTION_NOT_REGISTERED = 'TVA non applicable, article 293 B du CGI.';
+
     public function decide(
         SupplierTaxSettings $supplier,
         CustomerTaxProfile $customer,
         string $supplyType,
     ): RegimeDecision {
         $supplierCountry = strtoupper($supplier->countryCode);
+
+        // **Whether the supplier charges VAT at all comes first** (2026-09-26),
+        // because nothing below it can be right if they do not. A company
+        // under the small-business threshold invoices without VAT whoever it
+        // sells to, in its own country or another, business or consumer.
+        //
+        // This branch exists because the platform stopped being the only
+        // supplier: an organisation selling a seat to one of its own people
+        // is one too (ADR-055), and most of them are small companies. Asked
+        // of the platform it changes nothing — `vatRegistered` defaults to
+        // true, which is what its configuration has always meant.
+        //
+        // EXEMPT and not OUT_OF_SCOPE, and the difference is not cosmetic:
+        // out of scope is what an export outside the Union is, and putting
+        // both under one word would merge two unrelated reasons in the same
+        // line of a VAT return.
+        if (!$supplier->vatRegistered) {
+            return new RegimeDecision(
+                'supplier.not_registered',
+                VatRegime::EXEMPT,
+                $supplierCountry,
+                false,
+                self::MENTION_NOT_REGISTERED,
+                [
+                    'The supplier is not registered for VAT.',
+                    'No VAT is charged, whoever the customer is and wherever they are.',
+                ],
+            );
+        }
 
         // The place of taxation is a computed, retained value — never the
         // supplier's country by default (§25.3). With no customer country

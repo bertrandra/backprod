@@ -8,6 +8,10 @@ use App\Billing\Domain\BillingProfileRepository;
 use App\Billing\Domain\InvoiceParties;
 use App\Commerce\Domain\Subscriber;
 use App\Shared\Exceptions\ConflictException;
+use App\Tax\Domain\CustomerTaxProfile;
+use App\Tax\Domain\SupplierTaxSettings;
+use App\Tax\Domain\TaxableSale;
+use App\Tax\Service\Taxation;
 use App\User\Domain\UserRepository;
 
 /**
@@ -36,6 +40,22 @@ use App\User\Domain\UserRepository;
  * on, and a seat sold by a company that had not said where it trades filed
  * its VAT in the platform's country. Both are gone: the organisation says
  * where it sells from, or it does not sell.
+ *
+ * **And the VAT regime is part of the same answer** (2026-09-26). It was not
+ * for a day, and that day is the reason this paragraph exists: the document
+ * named the organisation and the person while `Taxation` went on deciding
+ * between the product's supplier settings and the tenant's customer profile.
+ * A platform in IE, a French tenant with a verified VAT number, and a seat
+ * sold in France to a French colleague came out `REVERSE_CHARGE` at 0% — an
+ * immutable fiscal fact, filed in the platform's own return.
+ *
+ * So `forSale` returns the pair {@see TaxableSale} as well, and nothing
+ * downstream resolves it again. For a seat the supplier is the organisation:
+ * its country from its billing profile, whether it charges VAT at all from
+ * its tax profile's `taxablePerson`, never registered for the one-stop shop,
+ * and the customer is the person as a consumer. A company under the
+ * small-business threshold therefore invoices its colleague with no VAT and
+ * the mention that says why, which is what such a company must do.
  */
 final class WhoSellsAndWhoBuys
 {
@@ -43,6 +63,7 @@ final class WhoSellsAndWhoBuys
         private readonly BillingProfileRepository $profiles,
         private readonly SupplierIdentity $supplier,
         private readonly UserRepository $users,
+        private readonly Taxation $taxation,
     ) {
     }
 
@@ -77,6 +98,7 @@ final class WhoSellsAndWhoBuys
                 $supplier,
                 $organisation,
                 SupplierIdentity::jurisdictionOf($supplier),
+                $this->taxation->platformSelling($tenantId, $productId),
             );
         }
 
@@ -92,11 +114,54 @@ final class WhoSellsAndWhoBuys
             );
         }
 
+        // The organisation's own fiscal position, not the product's. Whether
+        // it charges VAT is `taxablePerson` — the one fact §25.3 says cannot
+        // be inferred from anything else — read from the profile it keeps for
+        // its own purchases, because a company's VAT status is one status.
+        //
+        // **Registered unless the organisation has said it is not.** The
+        // same default the platform's own configuration carries, and for the
+        // same reason: charging VAT is the ordinary case and a company below
+        // the small-business threshold is the exception that states itself.
+        //
+        // The alternative — refusing until somebody has opened the tax
+        // screen — was written first and thrown away. It kills the flow the
+        // storefront exists for: a stranger signs up, a tenant is created,
+        // and they buy in the same minute (ADR-041). There is no moment in
+        // that minute to fill in a fiscal profile, and a purchase that
+        // refused would be the last thing they tried.
+        //
+        // It fails in the recoverable direction. VAT charged by a company
+        // that owed none is corrected by a credit note, which since today
+        // reverses the fiscal fact with it; VAT not charged by a company that
+        // owed it is a debt found at the declaration, with nothing on the
+        // customer's side to collect it from.
+        //
+        // `profileFor` is deliberately not used: its unknown-B2C default
+        // answers `taxablePerson = false`, which is the right answer about a
+        // customer nobody knows and the opposite of the one wanted here.
+        //
+        // What is supplied and what it costs stay the product's: a seat is
+        // the same service, resold, at the price the offer set.
+        $product = $this->taxation->supplierFor($productId);
+        $fiscal = $this->taxation->declaredProfileFor($tenantId);
+        $registered = $fiscal === null || $fiscal->taxablePerson;
+
         return new InvoiceParties(
             $tenantId,
             $organisation,
             $this->customer($subscriber, $organisation),
             $profile->countryCode,
+            new TaxableSale(
+                SupplierTaxSettings::forOrganisation(
+                    $profile->countryCode,
+                    $registered,
+                    $product->defaultSupplyType,
+                    $product->currency,
+                ),
+                CustomerTaxProfile::forSeatHolder($tenantId, $profile->countryCode),
+                $tenantId,
+            ),
         );
     }
 

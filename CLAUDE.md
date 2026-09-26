@@ -639,6 +639,38 @@ exists to prevent: the demonstration's Initech raised one invoice and it came
 out `2026-000005`. A credit note takes its number from the series of the
 invoice it corrects, never a fresh decision.
 
+**The regime is decided between the parties the document names** (ADR-057).
+Not between the product's supplier settings and the tenant's profile, which
+is the pair the tax engine resolved by itself until 2026-09-26 — and for a
+day the invoice said *Acme (FR) → Ada* while the regime said *the platform
+(IE) → Acme, verified*, so a domestic 20% sale went out reverse-charged at
+0%. `WhoSellsAndWhoBuys` now answers the fiscal pair too (`TaxableSale`), and
+nothing downstream resolves it again.
+
+A seat is therefore a **domestic** supply: the organisation in its own
+country, the person as a consumer in the same one. Reverse charge is a
+cross-border mechanism and cannot arise on one.
+
+A supplier who is **not registered for VAT** charges none — `EXEMPT` with the
+small-business mention, decided before anything else, because most companies
+selling a seat to one colleague are small. `EXEMPT` and not `OUT_OF_SCOPE`,
+which is what a sale outside the Union is; one word for two reasons merges
+two lines of a return. Silence is registered: refusing until somebody opens
+the tax screen kills sign-up-and-buy, and charging wrongly is the recoverable
+direction now that a credit note undoes the fact.
+
+**A fiscal fact names its issuer too**, and the platform's report reads
+`issuer_tenant_id IS NULL`. Without that filter the VAT an organisation
+charged its own staff is summed into the platform's return and frozen by the
+first period close.
+
+**A credit note writes the reversal.** `vat_transactions.credit_note_id`
+existed from the first fiscal migration and nothing ever filled it, so a fully
+credited invoice stayed declared. The reversal is the invoice's own facts with
+the two amounts negated — rule, regime, country, rate and the customer's
+number copied unchanged, never recomputed — dated the day of the correction,
+because a correction belongs to the period it is made in.
+
 The backend produces and retains fiscal data, and exports it. It is not an
 accounting package: no chart of accounts, no general ledger, no filing with
 the tax authority.
