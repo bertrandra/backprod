@@ -279,6 +279,7 @@ final class PostgresPaymentRepository implements PaymentRepository
         Money $amount,
         string $reason,
         ?string $actorUserId,
+        ?callable $alsoRecord = null,
     ): Refund {
         return $this->connection->transactional(function () use (
             $payment,
@@ -286,6 +287,7 @@ final class PostgresPaymentRepository implements PaymentRepository
             $amount,
             $reason,
             $actorUserId,
+            $alsoRecord,
         ): Refund {
             $id = $this->connection->fetchOne(
                 <<<'SQL'
@@ -340,7 +342,17 @@ final class PostgresPaymentRepository implements PaymentRepository
                 throw new RuntimeException('The refund vanished during the transaction that created it.');
             }
 
-            return self::toRefund($row);
+            $recorded = self::toRefund($row);
+
+            // Last, and still inside: the credit note this refund carries
+            // (2026-09-26). Money back with no document leaves the invoice's
+            // VAT declared on a sale that was undone, and the period close
+            // would freeze it.
+            if ($alsoRecord !== null) {
+                $alsoRecord($recorded);
+            }
+
+            return $recorded;
         });
     }
 

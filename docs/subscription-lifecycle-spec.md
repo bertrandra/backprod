@@ -486,6 +486,16 @@ remboursement total reste ce qu'il est.
 *À livrer avant l'étape 4, et elle vaut d'être livrée même si le prorata
 attend.*
 
+> **Livrée** le 26 septembre 2026, ADR-058. Le document est **décidé avant
+> que le prestataire soit sollicité** — un refus ne coûte alors rien, et
+> l'argent parti ne revient pas — et **écrit sur la transaction du
+> remboursement**. L'avoir partiel se borne à un seul taux et décline
+> `CREDIT_NOTE_MULTIPLE_RATES` au-delà ; il ne se demande pas en nommant un
+> montant, et rien ne se crédite deux fois (`CREDIT_EXCEEDS_INVOICE`). Le
+> montant remboursé est le **brut exact** de l'avoir : la base est reprise au
+> taux **enregistré** par la facture et la TVA est le **reste**, jamais un
+> second arrondi.
+
 **Étape 4 — l'upgrade avec prorata.** Le calcul dans le domaine (unités
 mineures entières), la facture par la chaîne normale, le remboursement du non
 consommé sur la carte avec son avoir (étape 3 bis), l'ancre réinitialisée, et

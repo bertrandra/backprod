@@ -8,6 +8,7 @@ use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Domain\InvoiceStatus;
 use App\Billing\Domain\Money;
+use App\Billing\Service\CreditNotes;
 use App\Payment\Domain\Payment;
 use App\Payment\Domain\PaymentRepository;
 use App\Payment\Domain\PaymentStatus;
@@ -29,6 +30,7 @@ final class Payments
         private readonly PaymentRepository $payments,
         private readonly InvoiceRepository $invoices,
         private readonly PaymentProviders $providers,
+        private readonly CreditNotes $creditNotes,
     ) {
     }
 
@@ -141,11 +143,32 @@ final class Payments
     }
 
     /**
-     * Asks the provider to return money.
+     * Asks the provider to return money, and raises the credit note that
+     * makes it legal.
      *
      * The refund is recorded as PENDING and settles when the provider says
      * so, through the same webhook everything else arrives by. Marking it
      * settled here would be this platform telling itself money moved.
+     *
+     * **The document is not conditional on that settlement**, and the order
+     * of the three steps below is the whole of the reasoning:
+     *
+     * ```text
+     * plan the credit note   refusable, and costs nothing when refused
+     * ask the provider       cannot be taken back
+     * write both, together   one transaction, or neither
+     * ```
+     *
+     * Planning first is what makes a refusal — a multi-rate invoice, an
+     * invoice already credited — a refusal rather than money gone with
+     * nothing to declare it. Writing both together is the rule the
+     * early-termination charge follows for the same reason: a release with
+     * the buy-out unbilled is revenue given away, and a refund with no
+     * credit note is VAT declared on a sale that was undone (ADR-057).
+     *
+     * A chargeback is deliberately not this. It arrives as a webhook, it is
+     * imposed rather than granted, and §25 says correcting the document is a
+     * decision somebody makes.
      */
     public function refund(
         string $tenantId,
@@ -171,6 +194,11 @@ final class Payments
 
         $this->assertRefundable($payment, $amount);
 
+        // Before the provider is asked, because the provider cannot be
+        // unasked.
+        $invoice = $this->requireInvoice($tenantId, $productId, $payment->invoiceId);
+        $plan = $this->creditNotes->planFor($invoice, $amount);
+
         $provider = $this->providers->named($payment->provider);
 
         return $this->payments->recordRefund(
@@ -179,6 +207,13 @@ final class Payments
             $amount,
             $reason,
             $actorUserId,
+            function () use ($plan, $reason, $actorUserId): void {
+                $this->creditNotes->applyPlan(
+                    $plan,
+                    sprintf('Refund of payment (%s).', strtolower($reason)),
+                    $actorUserId,
+                );
+            },
         );
     }
 

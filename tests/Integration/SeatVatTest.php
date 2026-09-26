@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Payment\Infrastructure\StubPaymentProvider;
+use App\Payment\Service\PaymentProviders;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
@@ -45,6 +47,9 @@ final class SeatVatTest extends DatabaseApiTestCase
     /** 29.00 EUR, the offer's price throughout. */
     private const PRICE = 2_900;
 
+    /** A known signing secret, so the test can produce the webhook a provider would. */
+    private const SECRET = 'test-signing-secret';
+
     private string $product = '';
     private string $tenant = '';
     private string $ada = '';
@@ -70,6 +75,7 @@ final class SeatVatTest extends DatabaseApiTestCase
             ProductRepository::class => new InMemoryProductRepository([
                 new Product($this->product, 'atlas', 'Atlas', true),
             ]),
+            PaymentProviders::class => new PaymentProviders([new StubPaymentProvider(self::SECRET)]),
             TenantMembershipRepository::class => new InMemoryTenantMembershipRepository([
                 new TenantMembership(
                     $this->tenant,
@@ -81,6 +87,7 @@ final class SeatVatTest extends DatabaseApiTestCase
                         'billing.read', 'billing.manage', 'billing.pay',
                         'sales.read', 'sales.manage',
                         'subscription.read', 'subscription.manage',
+                        'payments.read', 'payments.manage',
                     ],
                 ),
             ]),
@@ -242,7 +249,114 @@ final class SeatVatTest extends DatabaseApiTestCase
         self::assertSame(0, is_numeric($net) ? (int) $net : null);
     }
 
+    /**
+     * And so does a refund, which is the same hole from the money side
+     * (2026-09-26).
+     *
+     * `Payments::refund` returned money and wrote no document at all, so the
+     * fiscal fact stayed declared while the money had gone. Here the whole
+     * chain is real — Acme sells Ada a seat, Ada pays it, part of it comes
+     * back — so the document, its number, its series and its reversal are
+     * all the organisation's, not the platform's.
+     */
+    public function testARefundOnASeatCreditsInTheOrganisationsOwnSeries(): void
+    {
+        $invoice = $this->buyASeat();
+        $invoiceId = $invoice['id'];
+        self::assertIsString($invoiceId);
+
+        $this->collect($invoiceId);
+
+        $paymentId = $this->id('SELECT id FROM payments');
+        $refund = $this->request(
+            'POST',
+            '/api/v1/billing/payments/' . $paymentId . '/refund',
+            $this->headers(),
+            $this->json(['amount_minor_units' => 1_160]),
+        );
+
+        self::assertSame(202, $refund->getStatusCode(), (string) $refund->getBody());
+
+        $note = $this->connection->fetchAssociative(
+            'SELECT id, number, issuer_tenant_id, net_minor_units, vat_minor_units, gross_minor_units'
+            . ' FROM credit_notes',
+        );
+
+        self::assertIsArray($note, 'The refund carries its credit note.');
+
+        // 11.60 back at 20%: 9.67 + 1.93, and the two sum to the money.
+        self::assertSame(967, Row::integer($note, 'net_minor_units'));
+        self::assertSame(193, Row::integer($note, 'vat_minor_units'));
+        self::assertSame(1_160, Row::integer($note, 'gross_minor_units'));
+
+        // Acme's own first correction, in Acme's series (ADR-054).
+        self::assertSame($this->tenant, Row::nullableString($note, 'issuer_tenant_id'));
+        self::assertSame('AV' . date('Y') . '-000001', Row::string($note, 'number'));
+
+        $reversal = $this->connection->fetchAssociative(
+            'SELECT taxable_base, vat_amount, vat_rate, vat_regime, rule_id, country, issuer_tenant_id'
+            . ' FROM vat_transactions WHERE credit_note_id = :note',
+            ['note' => Row::string($note, 'id')],
+        );
+
+        self::assertIsArray($reversal, 'And the reversing fiscal fact.');
+        self::assertSame(-967, Row::integer($reversal, 'taxable_base'));
+        self::assertSame(-193, Row::integer($reversal, 'vat_amount'));
+        // Copied from the invoice's own fact, never recomputed (ADR-057).
+        self::assertSame(2_000, Row::integer($reversal, 'vat_rate'));
+        self::assertSame('STANDARD', Row::string($reversal, 'vat_regime'));
+        self::assertSame('FR', Row::string($reversal, 'country'));
+        self::assertSame($this->tenant, Row::nullableString($reversal, 'issuer_tenant_id'));
+
+        // 5.80 charged, 1.93 given back, and none of either is the
+        // platform's to declare.
+        self::assertSame(387, $this->sumOfVat());
+        self::assertSame(0, $this->platformTotals('FR')['total_vat'] ?? null);
+
+        // Most of the seat is still sold and still paid for.
+        self::assertSame('PAID', $this->id('SELECT status FROM invoices WHERE id = :id', ['id' => $invoiceId]));
+    }
+
     // --- Helpers ---------------------------------------------------------------
+
+    /**
+     * Pays an invoice the way a customer does: start the payment, then let
+     * the provider's signed webhook say it collected.
+     */
+    private function collect(string $invoiceId): void
+    {
+        $started = $this->request(
+            'POST',
+            '/api/v1/billing/invoices/' . $invoiceId . '/payments',
+            $this->headers(),
+        );
+
+        self::assertSame(201, $started->getStatusCode(), (string) $started->getBody());
+
+        $reference = $this->id('SELECT provider_payment_id FROM payments');
+        $body = $this->json(['id' => 'evt_ok', 'type' => 'payment.succeeded', 'payment_id' => $reference]);
+
+        $delivered = $this->request(
+            'POST',
+            '/api/v1/webhooks/payments/stub',
+            [StubPaymentProvider::SIGNATURE_HEADER => (new StubPaymentProvider(self::SECRET))->sign($body)],
+            $body,
+        );
+
+        self::assertSame(200, $delivered->getStatusCode(), (string) $delivered->getBody());
+    }
+
+    private function sumOfVat(): int
+    {
+        $sum = $this->connection->fetchOne(
+            'SELECT coalesce(sum(vat_amount), 0) FROM vat_transactions WHERE tenant_id = :tenant',
+            ['tenant' => $this->tenant],
+        );
+
+        self::assertIsNumeric($sum);
+
+        return (int) $sum;
+    }
 
     /**
      * The whole chain a customer walks: order, invoice, and the invoice read

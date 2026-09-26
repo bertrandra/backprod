@@ -2536,6 +2536,29 @@ Règles structurelles :
   transaction rattachée à un avoir, comme une facture se corrige par un avoir
   et jamais par une réécriture.
 
+**Et un remboursement porte son avoir** (ADR-058, 2026-09-26). Rendre l'argent
+sans lever de document laisse le fait fiscal déclaré alors que l'argent est
+reparti, et la clôture de la période le gèle. L'avoir est donc **décidé avant
+que le prestataire soit sollicité** — un refus ne coûte alors rien, l'argent
+parti ne revient pas — et **écrit sur la transaction du remboursement**, comme
+le rachat d'engagement l'est sur celle de la résiliation.
+
+Un remboursement partiel demande un **avoir partiel**, et l'avoir ne se
+crédite qu'en totalité pour une raison qui tient toujours : la TVA devrait
+être ventilée entre les taux plutôt que copiée, et deviner produirait un
+document légal que personne n'a demandé. Donc l'avoir partiel se borne à une
+facture portant **un seul taux** et se **refuse** au-delà
+(`CREDIT_NOTE_MULTIPLE_RATES`) ; le remède d'une facture à plusieurs taux ne
+change pas — créditer en totalité et refacturer. Rien ne se crédite deux fois
+(`CREDIT_EXCEEDS_INVOICE`) : inverser deux fois la même TVA déclarerait une
+vente négative qui n'a jamais eu lieu.
+
+Le montant remboursé est le **brut exact** de l'avoir, à l'unité mineure près :
+la base est reprise au taux **enregistré par la facture** — jamais celui du
+jour — et la TVA est le **reste**, jamais un second arrondi qui laisserait un
+centime n'appartenant à personne. L'inverse est impossible : aucune base
+entière ne vérifie `base + TVA(base, 20 %) == 123`.
+
 `vat_regime` est un ensemble fermé :
 
 ```text

@@ -671,6 +671,34 @@ the two amounts negated — rule, regime, country, rate and the customer's
 number copied unchanged, never recomputed — dated the day of the correction,
 because a correction belongs to the period it is made in.
 
+**And a refund carries one** (ADR-058, 2026-09-26). `Payments::refund()` gave
+the money back and raised no document at all, so the fiscal fact stayed
+declared while the money had gone. Dormant while refunds are rare and
+systematic the moment a proration credit goes back on the card. The document
+is **planned before the provider is asked** — a refusal then costs nothing,
+and money already sent cannot be unsent — and **written on the refund's own
+transaction**, the same rule as the early-termination charge. A chargeback is
+deliberately not this: it is imposed rather than granted, and correcting the
+document stays a decision somebody makes.
+
+A partial refund needs a **partial** credit note, and `CreditNotes` credits in
+full for a reason it still holds: the VAT would have to be apportioned across
+rates rather than copied, and guessing produces a legal document nobody asked
+for. So a partial credit is allowed on an invoice carrying **one** VAT rate and
+**refused** — `CREDIT_NOTE_MULTIPLE_RATES` — on one carrying several, whose
+remedy is unchanged: credit in full and reissue. Nobody may ask for one by
+naming an amount; the amount comes from a refund, which is bounded by what was
+collected, and by what is not already credited
+(`CREDIT_EXCEEDS_INVOICE` — reversing the same VAT twice declares a negative
+sale that never happened).
+
+**The money is exact and the taxable base absorbs the rounding.** A partial
+credit is priced from money that has already moved, so its gross *is* the
+refund and its VAT is the **remainder** after the base is taken back out at the
+rate — never a second rounding, which leaves a cent belonging to neither.
+`credit_notes_gross_is_net_plus_vat` says the same thing. It cannot be done the
+other way round: no whole base satisfies `base + vatOn(base, 20%) == 123`.
+
 The backend produces and retains fiscal data, and exports it. It is not an
 accounting package: no chart of accounts, no general ledger, no filing with
 the tax authority.

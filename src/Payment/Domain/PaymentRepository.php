@@ -91,6 +91,17 @@ interface PaymentRepository
     /**
      * Records a refund this platform asked for. Settlement arrives later, by
      * webhook.
+     *
+     * `$alsoRecord` runs **inside** that transaction, after the refund row
+     * exists (2026-09-26) — the shape {@see \App\Billing\Domain\InvoiceRepository::issue}
+     * and {@see \App\Billing\Domain\CreditNoteRepository::issue} both have.
+     * It is how a refund carries its credit note: money going back and the
+     * document that makes it legal commit together or not at all, exactly as
+     * an early-termination charge is raised on the cancellation's own
+     * transaction. A refund with no credit note leaves the invoice's VAT
+     * declared while the money has gone.
+     *
+     * @param (callable(Refund): void)|null $alsoRecord
      */
     public function recordRefund(
         Payment $payment,
@@ -98,5 +109,6 @@ interface PaymentRepository
         Money $amount,
         string $reason,
         ?string $actorUserId,
+        ?callable $alsoRecord = null,
     ): Refund;
 }
