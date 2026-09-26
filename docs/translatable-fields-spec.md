@@ -51,7 +51,8 @@ move one of them into a database.
 
 **What this specification is about is the other kind: words an operator
 typed about their own business.** A feature's name, its description, an
-offer's name, and later a showcase block. They are not in the bundle
+offer's name, and every sentence of a product's showcase — all of them on the
+one desk since 2026-09-26 (§5.1). They are not in the bundle
 because they are not in the source: they appear when somebody creates an
 offer on a Wednesday afternoon, on one deployment and not another.
 
@@ -204,16 +205,18 @@ PATCH /api/v1/staff/offers/{offerId}           the name and its translations ✓
 PUT   /api/v1/product/capabilities             a product declares what it gates
                                                on, checked against the list   ✓
 GET   /api/v1/staff/translations               every sentence, every language,
-                                               across both tables   catalog.manage ✓
+                                               across three tables            ✓
+                                               catalog.manage │ products.manage
 ```
 
 `GET /api/v1/staff/translations` was added on 2026-09-26, and it is a **read
 only**. The console could already translate each of these rows one at a time,
 each behind the form that owns it; what no route could answer is the question
 somebody asks when a language is half finished — *what is missing in Italian?*
-— because the answer spans `features` and `offers`, which have nothing else in
-common. Writing still goes back through `PATCH /staff/features/{id}` and
-`PATCH /staff/catalogue/offers/{id}`, which already carry the permission, the
+— because the answer spans `features`, `offers` and `product_showcase`, which
+have nothing else in common. Writing still goes back through
+`PATCH /staff/features/{id}`, `PATCH /staff/catalogue/offers/{id}` and
+`PUT /staff/products/{id}/showcase`, which already carry the permission, the
 validation and the trail; a second way to write the same table is the drift
 the gates exist to prevent.
 
@@ -224,11 +227,90 @@ its purpose is to count what is missing across the whole set, which a page
 cannot do. What makes that affordable is that it grows with what the operator
 sells, never with their customers.
 
-The product showcase (§11 of `home-showcase-spec.md`) is deliberately not on
-it. Its bands are a JSON object per block whose fields differ by kind, its
-write replaces the whole story at once, and it answers to
-`staff.products.manage` — three differences, each of which has to be reasoned
-about rather than pattern-matched.
+### 5.1 The product showcase, and the three differences it brought
+
+The showcase (§11 of `home-showcase-spec.md`) was **left off the desk when it
+was built**, with the reasons written down: its bands are a JSON object per
+block whose fields differ by kind, its write replaces the whole story at once,
+and it answers to `staff.products.manage`. It joined on **2026-09-26**, because
+that copy is the marketing a stranger reads before buying anything — the most
+read text this platform holds — and a tally that ignored it said a language was
+finished while the shop window was still in English.
+
+Each difference is answered rather than flattened, and the answers are worth
+keeping because the next thing to join the desk will have differences of its
+own.
+
+**The shape comes from the data.** `ShowcaseBlock` is deliberately untyped
+about `content`, so that adding a band is four edits and none of them in a
+domain object (home-showcase-spec §6). The desk keeps that promise: a sentence
+is a **string** value in the stored object, whatever it is called. A sixth band
+appears on this screen the day somebody writes one.
+
+A value that is **not** a string — a list of steps, say — is not a sentence and
+is left out. Two reasons, the first of which decides it: `contentIn` substitutes
+a translated field only when it is a non-blank string, so a translation of a
+list is a box whose contents no reader would ever see, and the desk would be
+counting work that changes nothing. The second is that a band holding a
+structure holds it because the *band* means something by it; a translator is
+owed the sentences inside it, which is arranged by storing them as fields, not
+by handing somebody a JSON fragment in a text box.
+
+**A sentence is located by `(block, position, field)`**, written as a path —
+`HEADLINE.10.headline`. Not by the block's id, although the id is right there:
+`ProductShowcase::replace` deletes every row and inserts them again, so ids
+change on every save, while `product_showcase_ordered` makes the band and its
+position unique per product and stable across one.
+
+**The write is a read-modify-write, and the screen says so.** There is no route
+that writes one band. So a story's card on the desk holds the *sentences*, and
+at the moment it saves it re-reads the whole story from the operation that owns
+it, changes the one field, and sends all of it back. The desk's own rows carry
+no pictures, no positions and no fields that are not sentences, and a merge
+built from them would delete all three.
+
+Three consequences, each deliberate:
+
+- **one card per product, not per band.** Two cards of the same story would each
+  be built on a read the other had already invalidated, and saving one would
+  undo the other — on the same screen, both looking as though they had saved;
+- **the read is at write time, not at mount.** The desk is a screen somebody
+  leaves open while they work through a language, and it does not read four
+  products' stories to show a list nobody has asked to edit;
+- **a band that has gone is a refusal**, `SHOWCASE_SENTENCE_GONE`, not an
+  insertion. Re-creating it would resurrect a band the operator deleted, and
+  with no English in it, since this screen does not edit the English.
+
+That narrows the lost-update window and does not close it: between the read and
+the PUT a moment later, another operator saving the same story would be
+overwritten, and nothing in the contract refuses it — `writeProductStory`
+carries no version and takes no `If-Match`. Closing it properly is a
+precondition on that operation, which is a change to the operation that owns
+the rows and not something a second caller may invent. What makes the risk
+acceptable meanwhile is that the surface is `/staff/*`, whose whole audience is
+the handful of people who run the platform.
+
+**Two permissions, and the desk answers with whichever halves you hold.**
+
+```text
+catalog.manage only     features and offers        the answer before this change
+products.manage only    the stories                a read they were owed
+both                    everything, one tally      what PLATFORM_ADMIN holds
+neither                 403, naming catalog.manage
+```
+
+The answer is **filtered, never widened**. A row is on this desk in order to be
+filled: showing a catalogue administrator the stories would hand them draft
+marketing copy that `GET /staff/products/{id}/showcase` keeps behind
+`staff.products.manage`, and would put sentences in their tally that the server
+would refuse them. Widening either permission to make one query simpler would be
+the same mistake with the consequence hidden further away.
+
+One wrinkle predates this and is left alone: `renameFeature` requires
+`staff.features.manage` while the desk's feature boxes are shown to
+`staff.catalog.manage`. Today PLATFORM_ADMIN holds all three and nobody holds
+any, so nothing is broken; if those grants are ever split, that is the pair to
+look at.
 
 `POST /api/v1/staff/products/{id}/features` was in this table when it was
 written, and is not built: after step 3 a product's catalogue has no

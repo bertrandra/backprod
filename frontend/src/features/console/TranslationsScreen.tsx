@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 
+import { useTranslateStory } from '@/queries/showcase';
 import {
   useRenameFeature,
   useRenameStaffOffer,
@@ -45,11 +46,28 @@ import { currentLocale, LOCALE_NAMES, LOCALES, t, type LocaleCode } from '@/i18n
  * while sending no description would erase a description somebody translated
  * last week.
  *
- * The product showcase is not here. Its bands are a JSON object per block whose
- * fields differ by kind, its write replaces the whole story at once, and it
- * answers to `staff.products.manage` rather than the catalogue's permission —
- * three differences, each of which has to be reasoned about rather than
- * pattern-matched. It stays on the product's own Story screen.
+ * **The product showcase is here too** (2026-09-26), and it is the most read
+ * text this platform holds: the marketing copy a stranger reads before buying
+ * anything. It was left out when the desk was built, and a tally that left it
+ * out said a language was finished while the shop window was still in English.
+ * Its three differences from a catalogue row are each answered rather than
+ * flattened:
+ *
+ * - **its shape comes from the data.** A band's fields differ by kind and the
+ *   domain refuses to know all five, so the desk lists the *string* values of
+ *   the stored object, whatever they are called. A sixth band appears on this
+ *   screen without a line of it changing.
+ * - **its write replaces the whole story**, not one record's translation set.
+ *   So a story's card does not hold a story: it holds the *sentences*, and
+ *   {@link ShowcaseRecord} re-reads the story from the operation that owns it
+ *   at the moment it saves. The desk's own rows carry no pictures, no
+ *   positions and no fields that are not sentences, and a merge built from
+ *   them would delete all three.
+ * - **it answers to `staff.products.manage`**, not the catalogue's permission,
+ *   so the server sends a caller only the halves they may write and this screen
+ *   renders what it was given. There is nothing here that asks what somebody
+ *   holds: a row on the desk is a row the desk may write, which is what makes
+ *   the tally a number somebody can work through.
  */
 export function TranslationsScreen() {
   const texts = useTranslations();
@@ -166,32 +184,30 @@ export function TranslationsScreen() {
           title={sentences === 0 ? t("Nothing is named yet") : t("Nothing matches")}
           description={
             sentences === 0
-              ? t("A feature or an offer written on its own screen appears here the moment it exists.")
+              ? t("A feature, an offer or a band of a product's story appears here the moment somebody writes it on its own screen.")
               : t("No sentence contains that, in any language. Clear the search to see the rest.")
           }
         />
       ) : (
         <ul className="space-y-4" data-testid="translation-list">
-          {shown.map(({ record, sentences: showing }) =>
-            record.kind === 'feature' ? (
-              <FeatureRecord
-                // Keyed by the language too, so switching it remounts the card
-                // and drops what was typed. Kept, a French draft would show
-                // under a Spanish label and save as Spanish.
-                key={`feature:${record.id}:${locale}`}
-                record={record}
-                showing={showing}
-                locale={locale}
-              />
-            ) : (
-              <OfferRecord
-                key={`offer:${record.id}:${locale}`}
-                record={record}
-                showing={showing}
-                locale={locale}
-              />
-            ),
-          )}
+          {shown.map(({ record, sentences: showing }) => {
+            // Keyed by the language too, so switching it remounts the card and
+            // drops what was typed. Kept, a French draft would show under a
+            // Spanish label and save as Spanish.
+            const key = `${record.kind}:${record.id}:${locale}`;
+
+            if (record.kind === 'feature') {
+              return (
+                <FeatureRecord key={key} record={record} showing={showing} locale={locale} />
+              );
+            }
+
+            if (record.kind === 'offer') {
+              return <OfferRecord key={key} record={record} showing={showing} locale={locale} />;
+            }
+
+            return <ShowcaseRecord key={key} record={record} showing={showing} locale={locale} />;
+          })}
         </ul>
       )}
     </div>
@@ -283,9 +299,42 @@ function narrow(
   });
 }
 
-/** What the sentence's own box is labelled. */
+/**
+ * What the sentence's own box is labelled.
+ *
+ * A catalogue row has two fields and they are the application's words, so they
+ * are translated. A story's field is a **path** — `USE_CASE.20.before` — and
+ * every part of it is the platform's own vocabulary: the band kinds are an enum
+ * the migration constrains and the field names are what a band's component
+ * reads. Translating either would be inventing a second name for something a
+ * developer greps for, so the path is shown as it is, with the dots turned into
+ * something readable.
+ */
 function fieldLabel(field: string): string {
+  if (field.includes('.')) {
+    const parts = field.split('.');
+
+    return `${parts[0] ?? ''} ${parts[1] ?? ''} · ${parts.slice(2).join('.')}`;
+  }
+
   return field === 'description' ? t("Description") : t("Name");
+}
+
+/**
+ * What kind of thing a card is.
+ *
+ * The showcase card borrows the heading its own screen carries — *the product's
+ * page* — rather than inventing a synonym. A person who reads *Showcase* here
+ * and *The product's page* there has to work out whether they are the same
+ * thing, and an operator's vocabulary is the one place a screen must not be
+ * original.
+ */
+function kindLabel(kind: TranslatableText['kind']): string {
+  if (kind === 'feature') {
+    return t("Feature");
+  }
+
+  return kind === 'offer' ? t("Offer") : t("The product's page");
 }
 
 /** The chooser's value, back to a locale the rest of the screen can use. */
@@ -390,6 +439,73 @@ function OfferRecord({
 }
 
 /**
+ * A product's story: every sentence of every band, in one card.
+ *
+ * **One card per product and not per band**, although a band is what the
+ * sentences belong to, and that is this screen's answer to the showcase's
+ * second difference. `writeProductStory` replaces the story whole, so two cards
+ * of the same product would each be built on a read the other had already
+ * invalidated — saving one would undo the other, on the same screen, with both
+ * looking as though they had saved. One card means one write.
+ *
+ * **The card does not hold the story, and must not.** The desk's rows carry the
+ * sentences; the story also carries pictures, positions and fields that are not
+ * sentences, and a write built from these rows would delete every one of them.
+ * So {@link useTranslateStory} re-reads the story from the operation that owns
+ * it, at the moment of the write, and changes one field of one language of one
+ * band in what comes back. The window between that read and the write is
+ * documented where it lives, and a band that has gone in the meantime is a
+ * refusal rather than a band re-created from a translation.
+ */
+function ShowcaseRecord({
+  record,
+  showing,
+  locale,
+}: {
+  record: Grouped;
+  showing: readonly TranslatableText[];
+  locale: LocaleCode;
+}) {
+  const update = useTranslateStory(record.id);
+  const [draft, setDraft] = useState<Draft>({});
+
+  return (
+    <RecordCard
+      record={record}
+      showing={showing}
+      locale={locale}
+      draft={draft}
+      setDraft={setDraft}
+      pending={update.isPending}
+      error={update.error}
+      // Nothing to withhold: the English is not this screen's to send at all —
+      // it is read back from the story and passed through — so there is no
+      // required field here that could be missing.
+      disabled={false}
+      onSave={(next) =>
+        update.mutate(
+          { locale, values: written(next) },
+          { onSuccess: () => setDraft({}) },
+        )
+      }
+    />
+  );
+}
+
+/** A draft with the boxes nobody touched left out. */
+function written(draft: Draft): Record<string, string> {
+  const values: Record<string, string> = {};
+
+  for (const [path, value] of Object.entries(draft)) {
+    if (value !== undefined) {
+      values[path] = value;
+    }
+  }
+
+  return values;
+}
+
+/**
  * One record's card: what it is, and a box per sentence with the English above
  * it.
  *
@@ -426,9 +542,7 @@ function RecordCard({
       className="rounded-card border border-line bg-surface p-4 text-sm shadow-raise"
     >
       <div className="flex flex-wrap items-baseline gap-2">
-        <span className="font-medium">
-          {record.kind === 'feature' ? t("Feature") : t("Offer")}
-        </span>
+        <span className="font-medium">{kindLabel(record.kind)}</span>
         <code className="select-all text-xs text-muted">{record.code}</code>
         {record.product !== null && (
           <span

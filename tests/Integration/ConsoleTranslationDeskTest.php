@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Staff\Domain\StaffIdentity;
+use App\Staff\Domain\StaffPermission;
+use App\Staff\Domain\StaffRepository;
 use App\Tests\Support\FakeAuthProvider;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
@@ -15,8 +18,8 @@ use Psr\Http\Message\ResponseInterface;
  * The console could already translate each of these rows one at a time, each
  * behind the form that owns it. What no route could answer is the question
  * somebody asks when a language is half finished — *what is missing in
- * Italian?* — because the answer spans `features` and `offers`, two tables
- * with nothing else in common.
+ * Italian?* — because the answer spans `features`, `offers` and
+ * `product_showcase`, three tables with nothing else in common.
  *
  * **This is the operator's words and not the application's.** Field labels,
  * buttons and error wording live in the bundle's JSON catalogues, keyed by the
@@ -24,21 +27,32 @@ use Psr\Http\Message\ResponseInterface;
  * `docs/translatable-fields-spec.md` §1.5). They are not here, and this read is
  * not a reason to move them.
  *
- * A read, and only a read: writing goes back through `renameFeature` and
- * `renameStaffOffer`, which already carry the permission, the validation and
- * the trail. The tests below go through those, because a desk whose count is
- * right and whose write is unreachable is a desk that cannot finish anything.
+ * Since 2026-09-26 the **product showcase** is on it too — the marketing copy a
+ * stranger reads before buying anything, which is the most read text this
+ * platform holds and the one kind of operator sentence the first desk left out.
+ * A tally that ignores it says a language is finished while the shop window is
+ * still in English.
+ *
+ * A read, and only a read: writing goes back through `renameFeature`,
+ * `renameStaffOffer` and `writeProductStory`, which already carry the
+ * permission, the validation and the trail. The tests below go through those,
+ * because a desk whose count is right and whose write is unreachable is a desk
+ * that cannot finish anything.
  */
 #[CoversNothing]
 final class ConsoleTranslationDeskTest extends DatabaseApiTestCase
 {
+    private string $atlas;
+
+    private string $admin;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         // Two products, so an offer's code being unique only *within* one is
         // something the desk is measured against rather than assumed away.
-        $this->id("INSERT INTO products (code, name, active) VALUES ('atlas', 'Atlas', true) RETURNING id");
+        $this->atlas = $this->id("INSERT INTO products (code, name, active) VALUES ('atlas', 'Atlas', true) RETURNING id");
         $this->id("INSERT INTO products (code, name, active) VALUES ('orbit', 'Orbit', true) RETURNING id");
 
         $admin = $this->id(
@@ -47,6 +61,8 @@ final class ConsoleTranslationDeskTest extends DatabaseApiTestCase
         $support = $this->id(
             "INSERT INTO users (auth_subject, email) VALUES ('sub-sam', 'sam@platform.test') RETURNING id",
         );
+
+        $this->admin = $admin;
 
         $this->appoint($admin, 'PLATFORM_ADMIN');
         $this->appoint($support, 'SUPPORT_ADMIN');
@@ -223,7 +239,330 @@ final class ConsoleTranslationDeskTest extends DatabaseApiTestCase
         );
     }
 
+    // --- The product showcase (2026-09-26) -------------------------------------
+
+    public function testEveryStringFieldOfABandIsASentence(): void
+    {
+        $this->writeStory([
+            [
+                'block' => 'HEADLINE',
+                'content' => ['headline' => 'Draw a terrace', 'subline' => 'And know what it costs.'],
+            ],
+            [
+                'block' => 'QUESTION',
+                'position' => 20,
+                'content' => ['question' => 'Does it export?', 'answer' => 'DXF and PDF.'],
+            ],
+        ]);
+
+        $texts = $this->listIn($this->desk(), 'texts');
+
+        // A path per field and not a row per band: the field names are the
+        // band's own, derived from the stored object, so a sixth band arrives
+        // on this desk with nothing changed to make room for it. Ordered by
+        // name, which is the only order available to something that refuses to
+        // know the five shapes.
+        self::assertSame(
+            [
+                ['showcase', 'atlas', 'HEADLINE.10.headline'],
+                ['showcase', 'atlas', 'HEADLINE.10.subline'],
+                ['showcase', 'atlas', 'QUESTION.20.answer'],
+                ['showcase', 'atlas', 'QUESTION.20.question'],
+            ],
+            array_map(
+                static fn (array $text): array => [$text['kind'], $text['code'], $text['field']],
+                $texts,
+            ),
+        );
+
+        foreach ($texts as $text) {
+            // The **product's** id, because `writeProductStory` replaces the
+            // whole story: there is no route that takes a band's id, so one
+            // here would be an identifier nothing accepts. And no product
+            // badge: the story is the product's, and `code` already says which.
+            self::assertSame($this->atlas, $text['id'] ?? null);
+            self::assertArrayHasKey('product', $text);
+            self::assertNull($text['product']);
+        }
+    }
+
+    public function testAValueThatIsNotAStringIsNotASentence(): void
+    {
+        // Written straight into the table, because the endpoint refuses it:
+        // `ShowcaseBlocks` accepts strings only. What this proves is that the
+        // desk does not fall over — or offer a box — for a row a future band
+        // storing a list would produce, and that a translator is never handed a
+        // JSON fragment to translate.
+        $this->connection->executeStatement(
+            <<<'SQL'
+                INSERT INTO product_showcase (product_id, block, position, content)
+                VALUES (:product, 'STEPS', 10, CAST(:content AS jsonb))
+                SQL,
+            [
+                'product' => $this->atlas,
+                'content' => $this->json(['title' => 'Trace the outline', 'body' => ['one', 'two']]),
+            ],
+        );
+
+        // Nothing a reader would ever see either: a story resolves a translated
+        // field only when it is a non-blank string, so a translation of a list
+        // would be work that changes nothing on any screen.
+        self::assertSame(['STEPS.10.title'], array_map(
+            static fn (array $text): string => self::said($text, 'field'),
+            $this->listIn($this->desk(), 'texts'),
+        ));
+    }
+
+    public function testABandTranslatedInOneLanguageIsMissingInTheOther(): void
+    {
+        $this->writeStory([
+            [
+                'block' => 'HEADLINE',
+                'content' => ['headline' => 'Draw a terrace', 'subline' => 'And know what it costs.'],
+                // Italian on the headline and nowhere else: a page half
+                // translated is the ordinary state of one somebody is working
+                // through (home-showcase-spec §11.2).
+                'translations' => ['it' => ['headline' => 'Disegna una terrazza']],
+            ],
+        ]);
+
+        $texts = $this->byField($this->listIn($this->desk(), 'texts'));
+
+        self::assertSame(
+            ['it' => 'Disegna una terrazza'],
+            $texts['showcase:atlas:HEADLINE.10.headline']['translations'] ?? null,
+        );
+        // Not `['it' => '']`: a locale absent is a translation missing, which is
+        // the fact the tally counts. One sentence short in Italian, not none.
+        self::assertSame([], $texts['showcase:atlas:HEADLINE.10.subline']['translations'] ?? null);
+    }
+
+    public function testATranslationWrittenThroughTheStoryShowsOnTheDesk(): void
+    {
+        $this->writeStory([
+            ['block' => 'HEADLINE', 'content' => ['headline' => 'Draw a terrace']],
+        ]);
+
+        // The write that follows a save on the desk is this one, whole: every
+        // band, its content and all four languages. There is no route that
+        // writes one band, and there must not be.
+        $this->writeStory([
+            [
+                'block' => 'HEADLINE',
+                'content' => ['headline' => 'Draw a terrace'],
+                'translations' => ['it' => ['headline' => 'Disegna una terrazza']],
+            ],
+        ]);
+
+        $texts = $this->byField($this->listIn($this->desk(), 'texts'));
+
+        self::assertSame(
+            ['it' => 'Disegna una terrazza'],
+            $texts['showcase:atlas:HEADLINE.10.headline']['translations'] ?? null,
+        );
+    }
+
+    public function testASentenceDroppedFromTheEnglishIsStillListed(): void
+    {
+        $this->writeStory([
+            [
+                'block' => 'HEADLINE',
+                'content' => ['headline' => 'Draw a terrace', 'subline' => 'And know what it costs.'],
+                'translations' => [
+                    'fr' => ['headline' => 'Dessinez une terrasse', 'subline' => 'Et sachez ce qu’elle coûte.'],
+                ],
+            ],
+        ]);
+
+        // The English subline dropped while the French one stays.
+        $this->writeStory([
+            [
+                'block' => 'HEADLINE',
+                'content' => ['headline' => 'Draw a terrace'],
+                'translations' => [
+                    'fr' => ['headline' => 'Dessinez une terrasse', 'subline' => 'Et sachez ce qu’elle coûte.'],
+                ],
+            ],
+        ]);
+
+        $texts = $this->byField($this->listIn($this->desk(), 'texts'));
+
+        // Listed, with nothing above the box. A story resolves field by field,
+        // so that French subline is on a French reader's screen with no English
+        // it corresponds to — the same defect as a feature description the
+        // operator cleared, and worth seeing for the same reason.
+        self::assertSame('', $texts['showcase:atlas:HEADLINE.10.subline']['source'] ?? null);
+        self::assertSame(
+            ['fr' => 'Et sachez ce qu’elle coûte.'],
+            $texts['showcase:atlas:HEADLINE.10.subline']['translations'] ?? null,
+        );
+    }
+
+    public function testAnUnpublishedStoryIsOnTheDesk(): void
+    {
+        $this->writeStory([
+            ['block' => 'HEADLINE', 'content' => ['headline' => 'Draw a terrace']],
+        ]);
+
+        // Never published, and that is the point: a draft is the story most
+        // likely to be half translated, and a desk that waited for publication
+        // would hide the work while it was still work.
+        self::assertNull($this->connection->fetchOne(
+            'SELECT showcase_published_at FROM products WHERE id = :id',
+            ['id' => $this->atlas],
+        ));
+        self::assertSame(['HEADLINE.10.headline'], array_map(
+            static fn (array $text): string => self::said($text, 'field'),
+            $this->listIn($this->desk(), 'texts'),
+        ));
+    }
+
+    // --- Two permissions, and three combinations -------------------------------
+
+    public function testTheCatalogueWithoutTheProductsGetsTheCatalogueOnly(): void
+    {
+        $this->somethingOfEach();
+        $this->holding([StaffPermission::CATALOG_MANAGE]);
+
+        // Exactly the answer this desk gave before the showcase joined it. The
+        // stories are withheld rather than shown unwritable: the story read
+        // keeps drafts behind `staff.products.manage`, and a tally counting
+        // sentences somebody would be refused is a number they cannot work
+        // through.
+        self::assertSame(['feature', 'offer'], $this->kindsOnTheDesk());
+    }
+
+    public function testTheProductsWithoutTheCatalogueGetsTheStoriesOnly(): void
+    {
+        $this->somethingOfEach();
+        $this->holding([StaffPermission::PRODUCTS_MANAGE]);
+
+        // A read they are owed, and one the whole route refused until now:
+        // whoever writes a product's page is who the showcase has answered to
+        // since it was built (home-showcase-spec §11.1).
+        self::assertSame(['showcase'], $this->kindsOnTheDesk());
+    }
+
+    public function testHoldingBothCountsEverythingInOneTally(): void
+    {
+        $this->somethingOfEach();
+        $this->holding([StaffPermission::CATALOG_MANAGE, StaffPermission::PRODUCTS_MANAGE]);
+
+        // Which is what PLATFORM_ADMIN holds, and the whole point of the
+        // screen: one number for how finished a language is.
+        self::assertSame(['feature', 'offer', 'showcase'], $this->kindsOnTheDesk());
+    }
+
+    public function testNeitherIsRefused(): void
+    {
+        $this->somethingOfEach();
+        $this->holding([StaffPermission::TENANTS_READ]);
+
+        $refused = $this->desk();
+
+        self::assertSame(403, $refused->getStatusCode());
+
+        $error = $this->itemIn($refused, 'error');
+        $details = $error['details'] ?? null;
+
+        self::assertIsArray($details);
+        // Named, and named as one: `details.permission` holds a permission
+        // code, and two joined into a sentence would be a string no catalogue
+        // contains.
+        self::assertSame(StaffPermission::CATALOG_MANAGE, $details['permission'] ?? null);
+    }
+
     // --- Helpers ---------------------------------------------------------------
+
+    /**
+     * A feature, an offer and a story, so a filtered answer is visibly
+     * filtered.
+     */
+    private function somethingOfEach(): void
+    {
+        $this->createFeature(['code' => 'projects', 'name' => 'Projects', 'kind' => 'QUOTA', 'unit' => 'projects']);
+        $this->createOffer('atlas', 'pro-monthly', 'Pro, monthly');
+        $this->writeStory([
+            ['block' => 'HEADLINE', 'content' => ['headline' => 'Draw a terrace']],
+        ]);
+    }
+
+    /**
+     * Which kinds of sentence the desk answered, deduplicated and in order.
+     *
+     * @return list<string>
+     */
+    private function kindsOnTheDesk(): array
+    {
+        $kinds = [];
+
+        foreach ($this->listIn($this->desk(), 'texts') as $text) {
+            $kinds[self::said($text, 'kind')] = true;
+        }
+
+        return array_keys($kinds);
+    }
+
+    /**
+     * The platform administrator, holding exactly these permissions and no
+     * others, for the rest of this test.
+     *
+     * The repository is replaced rather than the grant revoked: the three
+     * permissions this desk is about are PLATFORM_ADMIN's and nobody else's, so
+     * there is no role to borrow that holds one and not the other — and
+     * `platform_role_permissions` is reference data the migrations write, which
+     * `TestDatabase::reset` deliberately leaves alone, so a revoked row would
+     * still be revoked in the next test. What is under test here is the
+     * controller's decision given a set of permissions; which role holds which
+     * is the migrations' business and `gate:roles`'.
+     *
+     * @param list<string> $permissions
+     */
+    private function holding(array $permissions): void
+    {
+        $this->override([
+            StaffRepository::class => new class ($this->admin, $permissions) implements StaffRepository {
+                /**
+                 * @param list<string> $permissions
+                 */
+                public function __construct(
+                    private readonly string $staff,
+                    private readonly array $permissions,
+                ) {
+                }
+
+                public function find(string $userId): ?StaffIdentity
+                {
+                    return $userId === $this->staff
+                        ? new StaffIdentity($userId, ['PLATFORM_ADMIN'], $this->permissions)
+                        : null;
+                }
+            },
+        ]);
+    }
+
+    /**
+     * A product's whole story, through the operation that owns it.
+     *
+     * PUT and not PATCH, and that is the difference the desk has to live with:
+     * this replaces every band, its content and all four of its languages, so
+     * a screen editing one sentence of it has to hold — or re-read — all of it.
+     *
+     * @param list<array<string, mixed>> $blocks
+     */
+    private function writeStory(array $blocks): ResponseInterface
+    {
+        $response = $this->request(
+            'PUT',
+            '/api/v1/staff/products/' . $this->atlas . '/showcase',
+            ['Authorization' => 'Bearer ola-token'],
+            $this->json(['blocks' => $blocks]),
+        );
+
+        self::assertSame(200, $response->getStatusCode(), (string) $response->getBody());
+
+        return $response;
+    }
 
     private function desk(string $token = 'ola-token'): ResponseInterface
     {

@@ -3644,17 +3644,19 @@ export interface paths {
         };
         /**
          * Everything the operator wrote, in every language it has
-         * @description One row per translatable **sentence** — a feature's name, a feature's description, an offer's name — with the English it is keyed by and whatever translations exist.
+         * @description One row per translatable **sentence** — a feature's name, a feature's description, an offer's name, and every string field of every band of every product's story — with the English it is keyed by and whatever translations exist.
          *
          *     The console could already edit these one at a time, each behind the form that owns its row. What it could not do is answer the question somebody asks when a language is half finished — *what is missing in Italian?* — because the answer spans tables that have nothing else in common (2026-09-26).
          *
          *     **This is the operator's words, not the application's.** Field labels, buttons, hints and error wording live in the bundle's JSON catalogues, keyed by the English and proved complete by `gate:i18n` (ADR-050, `docs/translatable-fields-spec.md` §1.5). They are not here, and this operation is not a reason to move them: the test that separates the two is whether the sentence would be identical on every deployment of this platform.
          *
-         *     **A read, and only a read.** Writing goes back through `renameFeature` and `renameStaffOffer`, which already carry the permission, the validation and the trail for those rows. A second way to write the same rows is the drift the gates exist to prevent.
+         *     **A read, and only a read.** Writing goes back through `renameFeature`, `renameStaffOffer` and `writeProductStory`, which already carry the permission, the validation and the trail for those rows. The last replaces a product's whole story, so a client editing one of its sentences re-reads the story, changes the one field and sends all of it back — which is a read-modify-write, and the reason the screen holds a story whole rather than a band. A second way to write the same rows is the drift the gates exist to prevent.
          *
          *     **Unpaginated, deliberately, unlike every other list here.** Its purpose is to count what is missing across the whole set, and a page cannot answer that — a screen totalling one page would report "nothing missing" while the next page was empty. It grows with what the operator sells rather than with their customers, which is the reason that trade is affordable.
          *
-         *     `staff.catalog.manage`: offers are the larger half of what is written here, and a name a customer is sold is what that permission governs. Somebody holding it without `staff.features.manage` still reads the feature rows — a feature's name appears in every tenant's catalogue, so there is nothing to withhold — and the screen offers them no edit they would be refused.
+         *     **Two permissions, and the answer holds whichever halves the caller may write.** `staff.catalog.manage` reads the features and the offers — a name a customer is sold is what that permission governs. `staff.products.manage` reads the stories, which is what the showcase has answered to since it was built (`docs/home-showcase-spec.md` §11.1). Holding one gives that half, holding both gives one tally over everything, and holding neither is a 403 naming `staff.catalog.manage`. The answer is filtered rather than widened because a row is on this desk in order to be filled: draft marketing copy shown to somebody who cannot write it would be a disclosure the story read refuses, and a tally counting work they would be refused.
+         *
+         *     Somebody holding `staff.catalog.manage` without `staff.features.manage` still reads the feature rows — a feature's name appears in every tenant's catalogue, so there is nothing to withhold.
          */
         get: operations["listTranslations"];
         put?: never;
@@ -4818,25 +4820,39 @@ export interface components {
              */
             default_product: string | null;
         };
-        /** @description One sentence the operator wrote about their own business, with every translation it has (2026-09-26). A row per *field*, not per record: a feature carries a name and a description, and a feature whose name is translated and whose description is not is one sentence missing, not none. */
+        /** @description One sentence the operator wrote about their own business, with every translation it has (2026-09-26). A row per *field*, not per record: a feature carries a name and a description, a band of a product's story carries as many sentences as it has fields, and one whose name is translated and whose description is not is one sentence missing, not none. */
         TranslatableText: {
             /**
-             * @description Which table the sentence belongs to, and so which operation writes it: `renameFeature` or `renameStaffOffer`.
+             * @description Which table the sentence belongs to, and so which operation writes it: `renameFeature`, `renameStaffOffer` or `writeProductStory`. The last is not like the other two: it replaces a product's **whole story** — every band, its content, its translations — so a client editing one sentence of it must re-read the story, change the one field and send all of it back.
              * @enum {string}
              */
-            kind: "feature" | "offer";
+            kind: "feature" | "offer" | "showcase";
             /**
              * Format: uuid
-             * @description The row, for the write that follows.
+             * @description What the write that follows addresses, which is not always the row the sentence is stored on: a feature's id, an offer's id, and for a `showcase` sentence the **product's** id, because no route writes one band.
              */
             id: string;
-            /** @description The code a person recognises it by. Shown because two offers can be called the same thing in English and the code is what tells them apart. */
+            /** @description The code a person recognises it by — a feature's code, an offer's code, the product's code for a story. Shown because two offers can be called the same thing in English and the code is what tells them apart. */
             code: string;
-            /** @enum {string} */
-            field: "name" | "description";
-            /** @description The product whose catalogue an offer belongs to; null for a feature, which is the platform's own vocabulary (ADR-052). Needed for two reasons: `renameStaffOffer` requires it, because a staff route resolves no product of its own, and an offer's code is unique only within a product — two offers really can both be `pro-monthly`. */
+            /**
+             * @description The field within the record. `name` or `description` on a catalogue row. On a `showcase` sentence it is a path into the story — the band, its position and the band's own field, `HEADLINE.10.headline` — because the record is the whole story and a bare `headline` would name one of several bands.
+             *
+             *     **Not an enum**, and deliberately: `product_showcase.content` is a JSON object whose fields differ by band kind, and the domain refuses to know all five so that adding a sixth band changes nothing in it (`docs/home-showcase-spec.md` §6). A list here would be that same knowledge, in the contract, where it would go stale without failing anything.
+             *
+             *     The band and its position rather than the block's id: writing a story deletes every row and inserts them again, so ids change on every save while `(block, position)` is unique per product and does not.
+             */
+            field: string;
+            /**
+             * @description The product whose catalogue an offer belongs to; null for a feature, which is the platform's own vocabulary (ADR-052). Needed for two reasons: `renameStaffOffer` requires it, because a staff route resolves no product of its own, and an offer's code is unique only within a product — two offers really can both be `pro-monthly`.
+             *
+             *     Null for a `showcase` sentence too, and not because a story has no product: the story **is** the product's, so `code` already names it and `id` is its id.
+             */
             product: string | null;
-            /** @description The English, which is the key and stays on the row it belongs to (`docs/translatable-fields-spec.md` §2). A description the operator never wrote is not a sentence waiting for a translator, so it is not listed at all — but this is empty rather than absent where the English was *cleared* while a language still said something: `renameFeature` takes `description: null` and leaves the translations alone. Hiding that row would hide the inconsistency, and would also hand the screen a translation set with a language missing, which the next write would delete. */
+            /**
+             * @description The English, which is the key and stays on the row it belongs to (`docs/translatable-fields-spec.md` §2). A description the operator never wrote is not a sentence waiting for a translator, so it is not listed at all — but this is empty rather than absent where the English was *cleared* while a language still said something: `renameFeature` takes `description: null` and leaves the translations alone. Hiding that row would hide the inconsistency, and would also hand the screen a translation set with a language missing, which the next write would delete.
+             *
+             *     The same happens on a band: a subline dropped from the English while the French one stays is a sentence a French reader still sees, because a story resolves field by field.
+             */
             source: string;
             /** @description By locale, and **only what is written**. A locale absent is a translation missing, which is the fact the screen counts — filling the gaps with empty strings here would make every sentence look translated into five languages. */
             translations: {
