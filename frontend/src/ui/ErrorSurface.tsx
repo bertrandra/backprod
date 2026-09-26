@@ -83,6 +83,16 @@ const WORDING: Record<string, { title: string; hint?: string }> = {
     title: 'You already hold a live seat on this product',
     hint: 'Change it from the subscription screen rather than buying a second one.',
   },
+  // Minted by the client, like NETWORK_UNREACHABLE above and for the same
+  // reason: the failure is real and the server never saw it. Translating one
+  // sentence of a product's story means sending the whole story back, so the
+  // desk re-reads it first — and if the band that sentence belongs to has gone
+  // since, it refuses instead of writing. Recreating it would resurrect a band
+  // somebody deleted, with no English in it.
+  SHOWCASE_SENTENCE_GONE: {
+    title: 'That band is no longer on the page',
+    hint: "Somebody changed this product's story while this screen was open. Nothing was saved, and reloading shows what the page says now.",
+  },
 };
 
 function detailLines(details: Readonly<Record<string, unknown>>): readonly string[] {

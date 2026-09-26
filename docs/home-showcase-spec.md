@@ -297,6 +297,17 @@ current language and offers the others behind the language button at the
 end of the field (`ui/TranslatedField`); nothing here invents a second
 translation UI.
 
+**Every sentence of a story is also on the translation desk** (2026-09-26,
+translatable-fields-spec §5.1): one language, every sentence across features,
+offers and showcases, and one tally saying what a language is still missing.
+That is a second *screen* and not a second translation mechanism — it saves
+through `PUT /staff/products/{id}/showcase`, this section's own write, because
+a second way to write these rows is the drift the gates exist to prevent. What
+that write costs a caller is written there: it replaces the story whole, so the
+desk re-reads the story from `GET /staff/products/{id}/showcase` at the moment
+it saves and sends all of it back, and a band that has gone in the meantime is
+refused rather than re-created.
+
 This is operator data, not an application sentence: it never enters
 `frontend/src/i18n/catalogues/` and `gate:i18n` has no opinion about it
 (that spec, §1.5).
