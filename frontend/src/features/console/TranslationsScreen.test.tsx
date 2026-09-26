@@ -97,7 +97,7 @@ describe('the desk', () => {
     renderAtRoute(<TranslationsScreen />, clientFor(), ROUTE);
     await shown();
 
-    const chooser = screen.getByTestId('translation-locale') as HTMLSelectElement;
+    const chooser = screen.getByTestId<HTMLSelectElement>('translation-locale');
 
     expect(chooser.value).not.toBe('en');
     // English is not even offered: correcting it is a rename, not a translation.
@@ -281,7 +281,7 @@ describe('saving', () => {
     renderAtRoute(<TranslationsScreen />, clientFor(), ROUTE);
     await shown();
 
-    const save = screen.getByTestId('save-offer-pro-monthly') as HTMLButtonElement;
+    const save = screen.getByTestId<HTMLButtonElement>('save-offer-pro-monthly');
 
     expect(save.disabled).toBe(true);
 
@@ -306,7 +306,7 @@ describe('saving', () => {
     // correct on screen and wrong to every customer.
     await waitFor(() =>
       expect(
-        (screen.getByTestId('translation-offer-pro-monthly-name') as HTMLInputElement).value,
+        screen.getByTestId<HTMLInputElement>('translation-offer-pro-monthly-name').value,
       ).toBe(''),
     );
   });
