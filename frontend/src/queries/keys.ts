@@ -114,7 +114,12 @@ export const keys = {
     // What everybody in the organisation holds (2026-09-25). Its own key, not
     // under `current`: a different question, a different permission, and
     // invalidating one has no business emptying the other.
+    //
+    // The prefix is what mutations invalidate, so every page goes at once —
+    // a seat cancelled on page one changes the total that page two shows.
     organisation: ['subscription', 'organisation'] as const,
+    organisationPage: (limit: number, offset: number) =>
+      ['subscription', 'organisation', limit, offset] as const,
   },
   billing: {
     invoiceLists: ['billing', 'invoices'] as const,

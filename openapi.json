@@ -14966,24 +14966,33 @@
         ],
         "operationId": "listOrganisationSubscriptions",
         "summary": "Who in this organisation is subscribed to what",
-        "description": "Every subscription its people hold on this product, live or not, newest first — with the holder, the offer and how many of the places the offer sells are taken.\n\n**The administrator's read** (`tenant.manage` — a USER holds `subscription.manage`, for the people on their own seat), and the counterpart of `showSubscription`, which answers for the caller. Since the tenant surface sells seats only (ADR-055) an organisation's subscriptions belong to its people one by one, and nothing else shows them together: the administrator does not buy, they administer, and they cannot administer what they cannot see.\n\n**Places count the holder.** Whoever bought a subscription is one of the people it covers, exactly as `addSubscriptionPerson` counts them. `places_sold` is null for an offer that sells an unlimited number, and 1 for an offer that sells no `users` feature at all — a holder's subscription is their own unless it says otherwise.",
+        "description": "Every subscription its people hold on this product, live or not, the living first and then newest first — with the holder, the offer and how many of the places the offer sells are taken.\n\n**The administrator's read** (`tenant.manage` — a USER holds `subscription.manage`, for the people on their own seat), and the counterpart of `showSubscription`, which answers for the caller. Since the tenant surface sells seats only (ADR-055) an organisation's subscriptions belong to its people one by one, and nothing else shows them together: the administrator does not buy, they administer, and they cannot administer what they cannot see.\n\n**Places count the holder.** Whoever bought a subscription is one of the people it covers, exactly as `addSubscriptionPerson` counts them. `places_sold` is null for an offer that sells an unlimited number, and 1 for an offer that sells no `users` feature at all — a holder's subscription is their own unless it says otherwise.\n\n**Paged, like every other list here.** Every cancelled seat stays for ever, so this one grows with the organisation and cannot answer with all of it. The living come first from the query rather than from the client: a page sorted after it arrived would put page two's live seats below page one's dead ones.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
           },
           {
             "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
           }
         ],
         "responses": {
           "200": {
-            "description": "The organisation's subscriptions.",
+            "description": "A page of the organisation's subscriptions, the living first.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "required": [
-                    "subscriptions"
+                    "subscriptions",
+                    "total",
+                    "limit",
+                    "offset"
                   ],
                   "properties": {
                     "subscriptions": {
@@ -14991,6 +15000,15 @@
                       "items": {
                         "$ref": "#/components/schemas/HeldSubscription"
                       }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "type": "integer"
                     }
                   }
                 }

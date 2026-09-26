@@ -2306,11 +2306,13 @@ export interface paths {
         };
         /**
          * Who in this organisation is subscribed to what
-         * @description Every subscription its people hold on this product, live or not, newest first — with the holder, the offer and how many of the places the offer sells are taken.
+         * @description Every subscription its people hold on this product, live or not, the living first and then newest first — with the holder, the offer and how many of the places the offer sells are taken.
          *
          *     **The administrator's read** (`tenant.manage` — a USER holds `subscription.manage`, for the people on their own seat), and the counterpart of `showSubscription`, which answers for the caller. Since the tenant surface sells seats only (ADR-055) an organisation's subscriptions belong to its people one by one, and nothing else shows them together: the administrator does not buy, they administer, and they cannot administer what they cannot see.
          *
          *     **Places count the holder.** Whoever bought a subscription is one of the people it covers, exactly as `addSubscriptionPerson` counts them. `places_sold` is null for an offer that sells an unlimited number, and 1 for an offer that sells no `users` feature at all — a holder's subscription is their own unless it says otherwise.
+         *
+         *     **Paged, like every other list here.** Every cancelled seat stays for ever, so this one grows with the organisation and cannot answer with all of it. The living come first from the query rather than from the client: a page sorted after it arrived would put page two's live seats below page one's dead ones.
          */
         get: operations["listOrganisationSubscriptions"];
         put?: never;
@@ -11131,7 +11133,12 @@ export interface operations {
     };
     listOrganisationSubscriptions: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description How many to return. */
+                limit?: components["parameters"]["Limit"];
+                /** @description How many to skip. */
+                offset?: components["parameters"]["Offset"];
+            };
             header: {
                 /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
                 "X-Product": components["parameters"]["ProductHeader"];
@@ -11143,7 +11150,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The organisation's subscriptions. */
+            /** @description A page of the organisation's subscriptions, the living first. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11151,6 +11158,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         subscriptions: components["schemas"]["HeldSubscription"][];
+                        total: number;
+                        limit: number;
+                        offset: number;
                     };
                 };
             };

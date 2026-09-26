@@ -32,10 +32,16 @@ import { billingPeriod } from '@/ui/period';
  * says so instead of rendering a price it does not have.
  *
  * **One way out of this screen, and it sells a seat** (2026-09-25). Buying is
- * gated on `billing.pay`, which both tenant roles hold since 2026-09-18 — a
- * USER buys for themselves; issuing, crediting and refunding stay
- * `billing.manage` / `payments.manage`. Somebody who may only read the
- * catalogue sees prices and no button.
+ * gated on `billing.pay`, which since 2026-09-25 is the **USER's alone**: an
+ * administrator administers, and was being offered *Buy for yourself* on every
+ * offer in the catalogue until the operator asked what it was doing there
+ * (ADR-055 §2b). Issuing, crediting and refunding stay `billing.manage` /
+ * `payments.manage`, and recording money that arrived is `billing.manage` too.
+ * Somebody who may only read the catalogue sees prices and no button.
+ *
+ * This paragraph said "which both tenant roles hold" for a day after the
+ * migration that stopped it being true — which is how the next person
+ * debugging a missing button gets sent to look somewhere else.
  *
  * Two other ways out stood here until today, and both sold to the
  * *organisation*: a quote (`sales.manage`) and "Buy for the organisation"

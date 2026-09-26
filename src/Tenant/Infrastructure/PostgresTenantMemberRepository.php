@@ -120,19 +120,28 @@ final class PostgresTenantMemberRepository implements TenantMemberRepository
         });
     }
 
-    public function removeMember(string $tenantId, string $productId, string $userId): void
+    public function removeMember(string $tenantId, string $productId, string $userId, ?callable $alsoApply = null): void
     {
-        // Every product's row, and the role rows go with them through
-        // ON DELETE CASCADE. Removing somebody from the organisation in one
-        // product while leaving them a member in another is not a thing an
-        // administrator asked for.
-        $this->connection->executeStatement(
-            <<<'SQL'
-                DELETE FROM tenant_members
-                WHERE tenant_id = :tenantId AND user_id = :userId
-                SQL,
-            ['tenantId' => $tenantId, 'userId' => $userId],
-        );
+        $this->connection->transactional(function () use ($tenantId, $userId, $alsoApply): void {
+            // Every product's row, and the role rows go with them through
+            // ON DELETE CASCADE. Removing somebody from the organisation in
+            // one product while leaving them a member in another is not a
+            // thing an administrator asked for.
+            $this->connection->executeStatement(
+                <<<'SQL'
+                    DELETE FROM tenant_members
+                    WHERE tenant_id = :tenantId AND user_id = :userId
+                    SQL,
+                ['tenantId' => $tenantId, 'userId' => $userId],
+            );
+
+            // And whatever else leaving does, in the same transaction
+            // (2026-09-26): a membership gone with its places still taken is
+            // a state nothing can then correct.
+            if ($alsoApply !== null) {
+                $alsoApply();
+            }
+        });
     }
 
     public function knownRoleCodes(): array

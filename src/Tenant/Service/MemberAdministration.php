@@ -123,8 +123,6 @@ final class MemberAdministration
             $this->assertNotTheLastAdministrator($tenantId, $productId);
         }
 
-        $this->members->removeMember($tenantId, $productId, $userId);
-
         // And their place on anything the organisation bought (2026-09-26).
         // Nothing did this until today: `subscription_members` cascades from
         // `users` and from `subscriptions` and from nothing else, so somebody
@@ -133,9 +131,18 @@ final class MemberAdministration
         // it, and the owner met `PEOPLE_QUOTA_REACHED` trying to seat their
         // replacement.
         //
-        // After the membership, not before: if removing the member fails, no
-        // place has been freed for a person who is still there.
-        $this->places->release($tenantId, $userId);
+        // Inside the removal's own transaction, and after the rows are gone.
+        // The two were separate statements for a few hours, which left a
+        // failure between them unrecoverable: the membership is gone, so the
+        // removal that would free the place answers MEMBER_NOT_FOUND.
+        $this->members->removeMember(
+            $tenantId,
+            $productId,
+            $userId,
+            function () use ($tenantId, $userId): void {
+                $this->places->release($tenantId, $userId);
+            },
+        );
 
         $this->events->publishForTenant(ProductEventType::MEMBER_REMOVED, $tenantId, ['member' => ['user_id' => $userId]]);
     }
