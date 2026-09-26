@@ -94,7 +94,14 @@ export function useRemoveMember() {
         throw toApiError(response.status, error);
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.members.all }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: keys.members.all });
+      // Leaving the organisation gives up the places it was paying for
+      // (2026-09-26), so the register's `places_used` has moved. Invalidated
+      // rather than adjusted: the count is the server's, and a number
+      // decremented here would be wrong the moment somebody else changed it.
+      await queryClient.invalidateQueries({ queryKey: keys.subscription.organisation });
+    },
   });
 }
 

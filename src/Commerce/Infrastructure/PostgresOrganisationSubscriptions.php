@@ -37,7 +37,21 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
     {
     }
 
-    public function of(string $tenantId, string $productId): array
+    public function countOf(string $tenantId, string $productId): int
+    {
+        if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
+            return 0;
+        }
+
+        $total = $this->connection->fetchOne(
+            'SELECT count(*) FROM subscriptions WHERE tenant_id = :tenantId AND product_id = :productId',
+            ['tenantId' => $tenantId, 'productId' => $productId],
+        );
+
+        return is_numeric($total) ? (int) $total : 0;
+    }
+
+    public function of(string $tenantId, string $productId, int $limit, int $offset): array
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return [];
@@ -78,12 +92,21 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
                   ) g ON true
                  WHERE s.tenant_id = :tenantId
                    AND s.product_id = :productId
-                 ORDER BY s.started_at DESC, s.id
+                 -- Living first, decided here rather than by the screen
+                 -- (2026-09-26): the same clock `isLiveAt` uses, so a page
+                 -- boundary cannot put a live seat below a cancelled one.
+                 ORDER BY (s.status = 'ACTIVE'
+                             AND (s.current_period_end IS NULL OR s.current_period_end > now())) DESC,
+                          s.started_at DESC,
+                          s.id
+                 LIMIT :limit OFFSET :offset
                 SQL,
             [
                 'tenantId' => $tenantId,
                 'productId' => $productId,
                 'usersFeature' => Places::USERS_FEATURE,
+                'limit' => $limit,
+                'offset' => $offset,
             ],
         );
 

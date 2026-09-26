@@ -67,9 +67,17 @@ final class InMemoryTenantMemberRepository implements TenantMemberRepository
         );
     }
 
-    public function removeMember(string $tenantId, string $productId, string $userId): void
+    public function removeMember(string $tenantId, string $productId, string $userId, ?callable $alsoApply = null): void
     {
         unset($this->members[$userId]);
+
+        // There is no transaction to be inside, but the callback has to run:
+        // it is how leaving gives up the places the organisation was paying
+        // for, and a double that skipped it would let a unit test pass while
+        // the behaviour never happened.
+        if ($alsoApply !== null) {
+            $alsoApply();
+        }
     }
 
     public function knownRoleCodes(): array

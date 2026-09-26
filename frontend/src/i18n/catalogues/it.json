@@ -48,7 +48,7 @@
   "(you)": "(tu)",
   "{code} — permanent": "{code} — permanente",
   "{count} {feature}": "{count} {feature}",
-  "{count} live": "{count} in corso",
+  "{count} live of {total}": "{count} attivi su {total}",
   "{count} month": "{count} mese",
   "{count} month of commitment would still be owed.": "{count} mese di impegno sarebbe ancora dovuto.",
   "{count} months": "{count} mesi",

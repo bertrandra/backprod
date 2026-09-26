@@ -29,11 +29,17 @@ import { t } from '@/i18n';
  * Gating on it would have shown every member the whole register, which is
  * what opening this screen as a demonstration administrator said out loud.
  *
- * **Nothing here is derived locally.** `live` and `places_used` are the
- * server's answers: a screen working "live" out of `current_period_end` would
- * disagree with the server a second later, and one counting places itself
- * would be describing a quota the server does not enforce. The only thing this
- * file decides is the order — living first — because that is presentation.
+ * **Nothing here is derived locally**, and since 2026-09-26 that includes the
+ * order. `live` and `places_used` are the server's answers: a screen working
+ * "live" out of `current_period_end` would disagree with the server a second
+ * later, and one counting places itself would be describing a quota the
+ * server does not enforce.
+ *
+ * The living came first from this file for a day, which was fine until the
+ * list was paged — and it had to be paged, because every cancelled seat stays
+ * for ever and this one grows with the organisation. A page sorted after it
+ * arrives puts page two's live seats below page one's dead ones, so the
+ * ordering moved into the query where the clock already is.
  */
 export function OrganisationSubscriptionsScreen() {
   const { data: session, isPending: askingWho } = useSession();
@@ -68,10 +74,11 @@ export function OrganisationSubscriptionsScreen() {
     return <ErrorSurface error={held.error} onRetry={() => void held.refetch()} />;
   }
 
-  // Living first, each group newest first — which is the order the server
-  // already sent them in, so this is a stable partition and not a re-sort.
-  const rows = [...held.data.filter((one) => one.live), ...held.data.filter((one) => !one.live)];
-  const living = held.data.filter((one) => one.live).length;
+  // As the server sent them: living first, then newest first. Not re-sorted
+  // here — one page sorted locally would put page two's live seats under page
+  // one's dead ones.
+  const rows = held.data.subscriptions;
+  const living = rows.filter((one) => one.live).length;
 
   if (rows.length === 0) {
     return (
@@ -89,7 +96,7 @@ export function OrganisationSubscriptionsScreen() {
     <div className="space-y-6">
       <PageHeader
         title={t("Subscriptions")}
-        meta={t("{count} live", { count: living })}
+        meta={t("{count} live of {total}", { count: living, total: held.data.total })}
         description={t("What each person in this organisation holds on this product, and how many of the places their offer sells are taken. Buying is theirs; this is the record of it.")}
       />
 

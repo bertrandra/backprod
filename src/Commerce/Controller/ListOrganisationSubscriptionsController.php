@@ -7,6 +7,7 @@ namespace App\Commerce\Controller;
 use App\Commerce\Domain\HeldSubscription;
 use App\Commerce\Domain\OrganisationSubscriptions;
 use App\Shared\Context\RequestContextReader;
+use App\Shared\Http\PageRequest;
 use App\Shared\Http\RouteHandler;
 use DateTimeImmutable;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -40,9 +41,19 @@ use Psr\Http\Message\ServerRequestInterface;
  *
  * The clock is read once, here, and `live` is derived from it — never left to
  * a screen, which would answer differently a second later.
+ *
+ * **Paged, like every other list on the platform** (2026-09-26). It was not
+ * for a day, and it was the only one: every cancelled seat stays for ever, so
+ * an organisation of two hundred people renewing yearly would eventually be
+ * sent thousands of rows in one response. The living come first from the
+ * query, not from the screen, because a screen sorting its own page would put
+ * page two's live seats below page one's dead ones.
  */
 final class ListOrganisationSubscriptionsController implements RouteHandler
 {
+    public const DEFAULT_LIMIT = 50;
+    public const MAX_LIMIT = 200;
+
     public function __construct(private readonly OrganisationSubscriptions $held)
     {
     }
@@ -51,6 +62,10 @@ final class ListOrganisationSubscriptionsController implements RouteHandler
     {
         $context = RequestContextReader::from($request);
         $context->requirePermission('tenant.manage');
+
+        $query = $request->getQueryParams();
+        $limit = PageRequest::bounded($query, 'limit', self::DEFAULT_LIMIT, 1, self::MAX_LIMIT);
+        $offset = PageRequest::bounded($query, 'offset', 0, 0, PHP_INT_MAX);
 
         $now = new DateTimeImmutable();
 
@@ -74,8 +89,11 @@ final class ListOrganisationSubscriptionsController implements RouteHandler
                     'places_sold' => $one->placesSold,
                     'places_used' => $one->placesUsed,
                 ],
-                $this->held->of($context->tenantId, $context->productId),
+                $this->held->of($context->tenantId, $context->productId, $limit, $offset),
             ),
+            'total' => $this->held->countOf($context->tenantId, $context->productId),
+            'limit' => $limit,
+            'offset' => $offset,
         ], 200);
     }
 }

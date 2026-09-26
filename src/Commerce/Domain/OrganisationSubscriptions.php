@@ -20,16 +20,26 @@ namespace App\Commerce\Domain;
 interface OrganisationSubscriptions
 {
     /**
-     * Every subscription on this product in this organisation, live or not,
-     * newest first.
+     * A page of this organisation's subscriptions on this product, live or
+     * not — **the living first**, then newest first.
      *
      * Not only the live ones. "Who is subscribed to what" is a present-tense
      * question, but since the tenant surface sells seats only (ADR-055) the
      * organisation's own `/subscription` history is empty for good — so this
-     * is the only place a past seat can be seen at all. Each row carries its
-     * status and the screen sorts the living to the top.
+     * is the only place a past seat can be seen at all.
+     *
+     * **Ordered in SQL, and that is why it can be paged** (2026-09-26). This
+     * answered with everything and let the screen sort the living to the top,
+     * which was fine for a demonstration and wrong for a customer: every
+     * cancelled seat stays for ever, so an organisation of two hundred people
+     * renewing yearly would eventually be sent thousands of rows in one
+     * response. Sorting locally is also what makes paging impossible — page
+     * two's live rows would render below page one's dead ones.
      *
      * @return list<HeldSubscription>
      */
-    public function of(string $tenantId, string $productId): array;
+    public function of(string $tenantId, string $productId, int $limit, int $offset): array;
+
+    /** How many there are in total, for the page the caller is on. */
+    public function countOf(string $tenantId, string $productId): int;
 }

@@ -176,6 +176,74 @@ final class OrganisationSubscriptionsTest extends DatabaseApiTestCase
     }
 
     /**
+     * Paged, and the living come first from the query (2026-09-26).
+     *
+     * This answered with everything for a day, which was the only unpaged
+     * list on the platform — and every cancelled seat stays for ever, so it
+     * grows with the organisation. The order had to move with it: a page
+     * sorted after it arrives puts page two's live seats below page one's
+     * dead ones.
+     */
+    public function testThePageIsBoundedAndTheLivingComeFirst(): void
+    {
+        $offer = $this->offer('pro', 'Pro', 2900, usersLimit: 3);
+
+        $dead = $this->subscribe($offer, $this->holder);
+        $this->connection->executeStatement(
+            "UPDATE subscriptions SET status = 'CANCELLED', ended_at = now(),"
+            . " current_period_start = now() - interval '31 days',"
+            . " current_period_end = now() - interval '1 day' WHERE id = :id",
+            ['id' => $dead],
+        );
+
+        $live = $this->subscribe($offer, $this->colleague);
+
+        $first = $this->page(1, 0);
+
+        self::assertCount(1, $first['subscriptions']);
+        self::assertSame($live, $first['subscriptions'][0]['id'] ?? null, 'The living one, not the newest.');
+        self::assertSame(2, $first['total']);
+        self::assertSame(1, $first['limit']);
+        self::assertSame(0, $first['offset']);
+
+        $second = $this->page(1, 1);
+
+        self::assertCount(1, $second['subscriptions']);
+        self::assertSame($dead, $second['subscriptions'][0]['id'] ?? null);
+        self::assertSame(2, $second['total'], 'The total is the whole register, not the page.');
+    }
+
+    /**
+     * @return array{subscriptions: list<array<string, mixed>>, total: int, limit: int, offset: int}
+     */
+    private function page(int $limit, int $offset): array
+    {
+        $response = $this->request(
+            'GET',
+            sprintf('/api/v1/organisation/subscriptions?limit=%d&offset=%d', $limit, $offset),
+            $this->headersFor('ada-token'),
+        );
+
+        self::assertSame(200, $response->getStatusCode(), (string) $response->getBody());
+
+        $body = $this->decode($response);
+
+        $rows = $body['subscriptions'] ?? null;
+        self::assertIsArray($rows);
+        self::assertIsInt($body['total'] ?? null);
+        self::assertIsInt($body['limit'] ?? null);
+        self::assertIsInt($body['offset'] ?? null);
+
+        /** @var list<array<string, mixed>> $rows */
+        return [
+            'subscriptions' => $rows,
+            'total' => $body['total'],
+            'limit' => $body['limit'],
+            'offset' => $body['offset'],
+        ];
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     private function read(): array

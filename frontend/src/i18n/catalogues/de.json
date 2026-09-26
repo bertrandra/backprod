@@ -48,7 +48,7 @@
   "(you)": "(Sie)",
   "{code} — permanent": "{code} — dauerhaft",
   "{count} {feature}": "{count} {feature}",
-  "{count} live": "{count} aktiv",
+  "{count} live of {total}": "{count} von {total} aktiv",
   "{count} month": "{count} Monat",
   "{count} month of commitment would still be owed.": "{count} Monat Bindung wäre weiterhin geschuldet.",
   "{count} months": "{count} Monate",

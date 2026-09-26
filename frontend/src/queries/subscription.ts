@@ -29,6 +29,12 @@ export type CancellationDecision = Schemas['CancellationDecision'];
 export type Entitlement = Schemas['Entitlement'];
 export type HeldSubscription = Schemas['HeldSubscription'];
 
+/** One page of the organisation's register, with the total behind it. */
+export type HeldSubscriptionPage = {
+  readonly subscriptions: readonly HeldSubscription[];
+  readonly total: number;
+};
+
 /**
  * What everybody in the organisation holds (2026-09-25).
  *
@@ -37,31 +43,43 @@ export type HeldSubscription = Schemas['HeldSubscription'];
  * subscriptions belong to its people one by one — an administrator does not
  * buy, they administer, and nothing else shows the set together.
  *
- * `enabled` is asked at the call site on `subscription.manage`, because a
- * member holding only the read would get a 403 for a question they never put.
+ * `enabled` is asked at the call site on **`tenant.manage`**, which is the
+ * administrator's and nobody else's. This said `subscription.manage` for a
+ * day, which is the word that reads right and is not: a USER holds it too,
+ * because managing the people on a seat is what a seat holder does with their
+ * own. Gating on it showed every member the whole register, and the docblock
+ * went on recommending it after the screen was fixed (2026-09-26).
+ *
+ * **Paged**, because every cancelled seat stays for ever and this list grows
+ * with the organisation. The living come first from the server, so a page is
+ * never re-sorted here: sorting one page locally would put page two's live
+ * seats below page one's dead ones.
  *
  * `live` and `places_used` are the server's answers, never recomputed here.
  * A screen deriving "live" from `current_period_end` would disagree with the
  * server a second later, and one counting places itself would be describing a
  * quota the server does not enforce.
  */
-export function useOrganisationSubscriptions(enabled = true) {
+export function useOrganisationSubscriptions(enabled = true, limit = 50, offset = 0) {
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.subscription.organisation,
+    queryKey: keys.subscription.organisationPage(limit, offset),
     enabled,
-    queryFn: async (): Promise<HeldSubscription[]> => {
-      const { data, error, response } = await client.GET(
-        '/api/v1/organisation/subscriptions',
-        ambientParams(sessionSnapshot),
-      );
+    queryFn: async (): Promise<HeldSubscriptionPage> => {
+      const { data, error, response } = await client.GET('/api/v1/organisation/subscriptions', {
+        ...ambientParams(sessionSnapshot),
+        params: {
+          ...ambientParams(sessionSnapshot).params,
+          query: { limit, offset },
+        },
+      });
 
       if (error !== undefined || data === undefined) {
         throw toApiError(response.status, error);
       }
 
-      return data.subscriptions;
+      return { subscriptions: data.subscriptions, total: data.total };
     },
   });
 }
@@ -135,6 +153,21 @@ export function useEntitlements() {
   });
 }
 
+/**
+ * A change to who a subscription covers, and the one other thing that shows
+ * it (2026-09-26): the administrator's register, whose `places_used` is the
+ * same number counted server-side.
+ */
+async function refreshPeople(
+  queryClient: ReturnType<typeof useQueryClient>,
+  seat: boolean,
+): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: keys.subscription.people(seat) }),
+    queryClient.invalidateQueries({ queryKey: keys.subscription.organisation }),
+  ]);
+}
+
 /** Everything a change to the subscription may have altered. */
 async function refreshSubscription(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -149,6 +182,11 @@ async function refreshSubscription(
     queryClient.invalidateQueries({ queryKey: keys.billing.invoiceLists }),
     // And the menu's empty-hiding entries may now have something (2026-09-19).
     queryClient.invalidateQueries({ queryKey: keys.navigation.mine }),
+    // And the administrator's register, which shows this subscription among
+    // everybody else's (2026-09-26). Nothing invalidated it for a day, so an
+    // administrator who cancelled their own seat and opened the register saw
+    // it still live for as long as the default staleness lasted.
+    queryClient.invalidateQueries({ queryKey: keys.subscription.organisation }),
   ]);
 }
 
@@ -249,7 +287,7 @@ export function useAddPerson(seat: boolean) {
 
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.subscription.people(seat) }),
+    onSuccess: () => refreshPeople(queryClient, seat),
   });
 }
 
@@ -268,7 +306,7 @@ export function useRemovePerson(seat: boolean) {
         throw toApiError(response.status, error);
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.subscription.people(seat) }),
+    onSuccess: () => refreshPeople(queryClient, seat),
   });
 }
 

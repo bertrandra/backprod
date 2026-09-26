@@ -53,7 +53,9 @@ function clientFor(subscriptions: unknown[], session: Record<string, unknown> = 
 function stubsFor(subscriptions: unknown[], session: Record<string, unknown> = ADMIN): Stubs {
   return {
     'GET /api/v1/me': { data: session },
-    'GET /api/v1/organisation/subscriptions': { data: { subscriptions } },
+    'GET /api/v1/organisation/subscriptions': {
+      data: { subscriptions, total: subscriptions.length, limit: 50, offset: 0 },
+    },
   };
 }
 
@@ -115,7 +117,16 @@ describe('who holds what', () => {
     expect(document.querySelector('[data-subscription="s-1"]')?.getAttribute('data-live')).toBe('false');
   });
 
-  it('puts the living first without re-sorting within them', async () => {
+  /**
+   * The order is the server's, and the screen does not touch it (2026-09-26).
+   *
+   * This asserted the opposite for a day — that the screen sorted the living
+   * to the top — which was fine until the list was paged. A page sorted after
+   * it arrives puts page two's live seats below page one's dead ones, so the
+   * ordering moved into the query. The fixture arrives deliberately "wrong"
+   * to prove nothing here reorders it.
+   */
+  it('renders the page in the order the server sent it', async () => {
     renderWith(
       <OrganisationSubscriptionsScreen />,
       clientFor([
@@ -131,7 +142,22 @@ describe('who holds what', () => {
       Array.from(document.querySelectorAll('[data-subscription]')).map((row) =>
         row.getAttribute('data-subscription'),
       ),
-    ).toEqual(['s-first', 's-second', 's-dead']);
+    ).toEqual(['s-dead', 's-first', 's-second']);
+  });
+
+  /**
+   * And the page asks for one, which is the whole point of paging it: every
+   * cancelled seat stays for ever, so this list grows with the organisation.
+   */
+  it('asks for a bounded page and says how many there are in all', async () => {
+    const { client, requests } = recordingClient(stubsFor([held()]));
+    renderWith(<OrganisationSubscriptionsScreen />, client);
+
+    await waitFor(() => expect(screen.getByText('Bo')).toBeTruthy());
+
+    const asked = requests.find((request) => request.path === '/api/v1/organisation/subscriptions');
+    expect(asked?.query).toEqual({ limit: 50, offset: 0 });
+    expect(screen.getByText(/1 live of 1/)).toBeTruthy();
   });
 
   it('says nobody rather than attributing a subscription with no holder', async () => {
