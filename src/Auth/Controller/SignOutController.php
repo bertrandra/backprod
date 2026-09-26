@@ -38,7 +38,7 @@ final class SignOutController implements RouteHandler
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
-        $this->sessions->signOut(RefreshCookie::read($request));
+        $this->sessions->signOut(RefreshCookie::presented($request));
 
         return RefreshCookie::clear(new EmptyResponse(204), $request, $this->cookieDomain);
     }

@@ -74,11 +74,67 @@ final class RefreshCookie
         return ltrim($domain, '.');
     }
 
-    public static function read(ServerRequestInterface $request): string
+    /**
+     * Every `backprod_refresh` the browser sent, in the order it sent them.
+     *
+     * **There can be two, and that is the whole reason this reads the raw
+     * header** (2026-09-26). A cookie's identity is name *and domain* and
+     * path: a host-only `backprod_refresh` and a `Domain=example.org` one are
+     * two different cookies, so the day an operator sets
+     * `AUTH_COOKIE_DOMAIN` the browser does not replace the first — it keeps
+     * both and sends both, and it goes on doing so until each is expired by
+     * a `Set-Cookie` that matches it exactly.
+     *
+     * `getCookieParams()` cannot see that. Diactoros parses the header into
+     * `[$name => $value]`, so of two cookies with one name **one is silently
+     * dropped** and which one depends on the order the browser chose. When
+     * the survivor is the stale host-only twin, its token is already spent,
+     * `Sessions::refresh()` reads that as theft and revokes every session
+     * for the account — on every attempt, so the account stays stuck. The
+     * operator's own deployment is how this was found.
+     *
+     * So the plural is the honest signature, and the caller decides what to
+     * do with more than one. {@see Sessions::refresh()} does: a live token
+     * among them wins, and only when none is live does a spent one mean what
+     * it usually means.
+     *
+     * @return list<string> possibly empty, never containing an empty string
+     */
+    public static function presented(ServerRequestInterface $request): array
     {
-        $value = $request->getCookieParams()[self::NAME] ?? null;
+        $found = [];
 
-        return is_string($value) ? $value : '';
+        foreach (explode(';', $request->getHeaderLine('Cookie')) as $pair) {
+            $at = strpos($pair, '=');
+
+            if ($at === false) {
+                continue;
+            }
+
+            if (trim(substr($pair, 0, $at)) !== self::NAME) {
+                continue;
+            }
+
+            $value = rawurldecode(trim(substr($pair, $at + 1), " \t\""));
+
+            if ($value !== '') {
+                $found[] = $value;
+            }
+        }
+
+        // The parsed parameters as a fallback, for a caller that built the
+        // request without a `Cookie` header — every test that says
+        // `withCookieParams()` does exactly that, and so does any SAPI that
+        // hands PHP `$_COOKIE` and no header.
+        if ($found === []) {
+            $value = $request->getCookieParams()[self::NAME] ?? null;
+
+            if (is_string($value) && $value !== '') {
+                $found[] = $value;
+            }
+        }
+
+        return $found;
     }
 
     public static function set(
@@ -88,10 +144,42 @@ final class RefreshCookie
         int $lifetimeSeconds,
         string $domain = '',
     ): ResponseInterface {
-        return $response->withAddedHeader(
-            'Set-Cookie',
-            self::build($request, $token, $lifetimeSeconds, $domain),
+        return self::withoutTheTwin(
+            $response->withAddedHeader(
+                'Set-Cookie',
+                self::build($request, $token, $lifetimeSeconds, $domain),
+            ),
+            $request,
+            $domain,
         );
+    }
+
+    /**
+     * Expires the host-only cookie this one does not replace (2026-09-26).
+     *
+     * A `Set-Cookie` matches an existing cookie on name, domain and path.
+     * Adding a `Domain` therefore does not overwrite the host-only cookie of
+     * the same name — it creates a second one, and the browser sends both
+     * from then on. Sending one of each is how the pair ends: this one has no
+     * `Domain`, so it matches the host-only twin and empties it.
+     *
+     * Only when a domain is configured. Without one, the cookie being written
+     * *is* the host-only cookie, and the twin that might exist is a
+     * `Domain=` one whose domain this code does not know — nothing can be
+     * written to match it, which is worth knowing rather than pretending
+     * otherwise. Unsetting `AUTH_COOKIE_DOMAIN` after using it leaves a
+     * cookie only the browser can clear.
+     */
+    private static function withoutTheTwin(
+        ResponseInterface $response,
+        ServerRequestInterface $request,
+        string $domain,
+    ): ResponseInterface {
+        if ($domain === '') {
+            return $response;
+        }
+
+        return $response->withAddedHeader('Set-Cookie', self::build($request, '', 0, ''));
     }
 
     /**
@@ -107,7 +195,11 @@ final class RefreshCookie
         ServerRequestInterface $request,
         string $domain = '',
     ): ResponseInterface {
-        return $response->withAddedHeader('Set-Cookie', self::build($request, '', 0, $domain));
+        return self::withoutTheTwin(
+            $response->withAddedHeader('Set-Cookie', self::build($request, '', 0, $domain)),
+            $request,
+            $domain,
+        );
     }
 
     private static function build(
