@@ -49,8 +49,13 @@ export function Whose({
 
   const address = (email ?? null) !== null && email !== name ? email : null;
 
+  // An address is a person's even where the name is absent — the invoice
+  // screen renders exactly that, because a seat's customer *is* the person and
+  // their name already stands above as the document's legal name.
+  const whose = name !== null || address !== null ? 'person' : 'organisation';
+
   return (
-    <p data-testid={testId} data-whose={name !== null ? 'person' : 'organisation'} className={className}>
+    <p data-testid={testId} data-whose={whose} className={className}>
       {name !== null && <span className="text-ink">{name}</span>}
       {name !== null && address !== null && ' · '}
       {address}
