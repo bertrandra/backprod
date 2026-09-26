@@ -145,32 +145,54 @@ absence de transaction ».
 **Les conditions sont ré-instantanéisées** au moment du changement — le défaut
 §1(c).
 
-### 3.3 Les deux décisions que le tableau de départ ne tranche pas
+### 3.3 Les deux décisions, tranchées
 
-**L'engagement.** `commitment_ends_at` a été calculé depuis le démarrage
-d'origine. Réinitialiser l'ancre ne doit ni le ré-armer en silence ni le
-raccourcir : « le renouvellement ne ré-arme pas l'engagement en silence »
-(§13.1), et un upgrade n'est pas un nouveau contrat.
+**L'engagement survit inchangé** (tranché 2026-09-26). Réinitialiser l'ancre
+de facturation ne le ré-arme pas et ne le raccourcit pas : un upgrade n'est
+pas un nouveau contrat, et « le renouvellement ne ré-arme pas l'engagement en
+silence » (§13.1) vaut ici pour la même raison. Un client engagé 24 mois qui
+monte en gamme reste engagé jusqu'à **sa date d'origine** ; il ne se ré-engage
+pas pour 24 mois sans l'avoir dit.
 
-> **Proposition :** l'engagement survit inchangé, et celui de la nouvelle
-> offre ne s'applique que s'il finit **plus tard**. Un client engagé 24 mois
-> qui monte en gamme reste engagé jusqu'à sa date d'origine ; il ne se
-> ré-engage pas pour 24 mois de plus sans l'avoir dit.
-> **À confirmer** — c'est une règle commerciale, pas technique.
+L'engagement de la nouvelle offre ne s'applique que s'il finit **plus tard** —
+sinon monter en gamme raccourcirait un engagement, ce qui est la même faute
+dans l'autre sens.
 
-**La TVA du crédit.** Un crédit de prorata **n'est pas un avoir**. Un avoir
-défait un document et écrit la transaction de TVA inverse (ADR-057) ; ici on
-tarife un document neuf, net de ce qui n'a pas été consommé. Deux montages :
+`commitment_months` et `commitment_ends_at` sont donc les deux seules
+conditions que la ré-instantanéisation du §3.2 **ne recopie pas**. Il faut
+l'écrire là où le code le fait, parce que c'est une exception à une règle
+juste à côté.
 
-| | Ce que ça donne | Coût |
+**Le crédit revient sur la carte** (tranché 2026-09-26). La valeur non
+consommée n'est pas déduite d'un document : elle est **remboursée au moyen de
+paiement**, une ligne dans `refunds` contre le paiement d'origine. C'est le
+plus lisible pour le client — sa carte voit le crédit — et cela évite la
+facture à ligne négative.
+
+> **Ce que cette réponse ne tranche pas, et qu'il faut trancher avec elle.**
+> Un remboursement est un mouvement d'argent, pas un document. Et
+> `Payments::refund` **n'écrit aucun avoir** : la transaction de TVA du
+> document d'origine reste déclarée alors que l'argent est reparti. Constaté
+> en lisant le code, indépendamment de cette spécification — sauf qu'ici cela
+> cesse d'être un défaut dormant : **chaque upgrade y passerait**.
+
+Le remboursement doit donc porter son document. Deux formes, et le code
+n'en permet qu'une aujourd'hui :
+
+| | Ce que ça donne | Ce que ça demande |
 |---|---|---|
-| **(a) une ligne négative** sur la facture d'upgrade | ce que fait Stripe ; un seul document | une facture avec une ligne négative, à vérifier vis-à-vis du §25 et du PDP |
-| **(b) un avoir** sur l'ancienne facture **+** une facture pleine | strictement conforme à ADR-057 : le fait fiscal d'origine est défait, le neuf est écrit | deux documents, deux numéros, à chaque upgrade |
+| **avoir partiel** sur la facture d'origine, du montant non consommé | un document, un remboursement, une TVA inverse du bon montant | `CreditNotes::issue()` **ne crédite qu'en totalité**, et refuse le partiel exprès : « la TVA doit être ventilée entre les taux plutôt que copiée, et deviner produirait un document légal que personne n'a demandé » |
+| **avoir total** puis refacturation | n'utilise que l'existant | trois documents par upgrade, dont une facture des jours consommés que le client n'a jamais demandée |
 
-> **(b) est recommandé** : il ne demande aucune règle fiscale nouvelle, et
-> `CreditNotes` sait déjà négocier les faits de TVA d'une facture. Le coût est
-> deux numéros par upgrade, ce qui est le prix de la conformité.
-> **À confirmer par l'exploitant.**
+> **Recommandé : l'avoir partiel, borné à un seul taux.** La ventilation que
+> `CreditNotes` refuse de deviner n'existe pas dans le cas qui nous occupe —
+> un siège, un plan, un taux — et un avoir partiel sur une facture qui en
+> porte plusieurs se refuse, plutôt que de se deviner. La règle que le code
+> pose reste intacte : on ne ventile pas au jugé ; on décline quand il
+> faudrait le faire.
+>
+> C'est une **étape préalable** au prorata et non un détail d'implémentation :
+> voir §8, étape 3 bis.
 
 ### 3.4 Le piège n° 1 — les upgrades successifs
 
@@ -248,10 +270,18 @@ couvre plus. Le refus reste `SUBSCRIPTION_REQUIRED` — mais l'écran doit dire
 *pourquoi*, sans quoi l'utilisateur ira demander une place à un collègue alors
 que c'est sa carte qu'il faut changer.
 
-> **Décision demandée :** accès **restreint** (lecture seule) ou **suspendu**
-> ? Le tableau de départ dit « restreint ou suspendu ». Suspendu est plus
-> simple et plus dur ; restreint demande de décider ce qui reste, ce qui est
-> une question par produit.
+**L'accès est suspendu** (tranché 2026-09-26). Pas restreint : pas de lecture
+seule, pas de demi-mesure. `requireSubscription()` refuse, et le produit est
+fermé jusqu'au paiement.
+
+C'est la réponse simple et c'est la dure, et les deux se tiennent : « restreint »
+aurait demandé de décider **ce qui reste** ouvert, produit par produit — une
+question sans réponse générale, qu'il aurait fallu reposer à chaque nouveau
+produit, et à laquelle un oubli répond « ouvert ».
+
+Ce qui est suspendu, ce sont les **droits**, jamais les documents : le client
+garde l'accès à ses factures et à ses paiements, sans quoi on lui fermerait la
+porte de l'écran où il vient régler. La suspension porte sur l'atelier.
 
 ### 5.2 Le recouvrement
 
@@ -259,12 +289,27 @@ Les relances passent par la file M7 — **jamais dans la requête HTTP**. Chaque
 tentative est un paiement à part entière : « une nouvelle tentative, jamais la
 même relancée ».
 
-Les avis sont des **notifications** (§27.1), pas des messages. Et la mise en
-demeure a un **effet juridique**, donc on conserve le corps rendu, pour la
-raison qu'une facture garde son instantané.
+**La relance est une notification, délivrée par courriel** (tranché
+2026-09-26) — au sens de §27.1 et pas au sens courant : un événement, une
+intention d'informer quelqu'un, et une **livraison par canal** avec son propre
+sort. Jamais un message (§12.3) : une conversation a des participants, un
+ordre et une réponse ; une relance est à sens unique, et la mettre dans un fil
+de support y mettrait du bruit système.
 
-Un calendrier de relance (J+1, J+3, J+7, puis fin) est une valeur de
-configuration du produit, pas une constante dans le code.
+Ce que cela apporte gratuitement : la livraison est écrite **avant** l'envoi,
+donc « les a-t-on prévenus ? » a une réponse même quand la réponse est non.
+
+Et la **mise en demeure a un effet juridique**, donc on conserve le corps
+rendu plutôt que la seule charge utile — pour la raison qu'une facture garde
+son instantané.
+
+**Le calendrier est réglé sur le produit** (tranché 2026-09-26), pas dans le
+code. `product_configuration` le porte comme elle porte l'identité de
+facturation : une constante obligerait à un déploiement pour changer un délai
+commercial, et deux produits n'ont aucune raison de relancer au même rythme.
+
+Une valeur par défaut raisonnable (J+1, J+3, J+7, puis fin) sert de départ, et
+le fait qu'elle soit un défaut plutôt qu'une règle est ce qui compte.
 
 ---
 
@@ -315,13 +360,17 @@ ni de vérification sur `rank` (seulement `plans_code_unique` sur
 `directionBetween()`, et la démonstration se sème depuis `DemoWorld.php` —
 **donc aucune migration**, une renumérotation de constantes.
 
-> **Ce qui reste à confirmer** est l'ordre entre *Freemium* et *Lecture*. Le
-> tableau ci-dessus met le gratuit sous le payant, ce qui fait de
-> Freemium → Lecture un upgrade facturé au prorata et de Lecture → Freemium un
-> downgrade différé. C'est cohérent, mais *Lecture* se vend 5,00 € et ne
-> stocke rien : si la descente de Lecture vers Freemium ne doit rien coûter ni
-> rien attendre, ces deux-là sont au même niveau commercial et c'est une autre
-> conversation.
+**L'ordre est confirmé** (2026-09-26) : le gratuit sous le payant.
+Freemium → Lecture est donc un **upgrade**, immédiat et facturé au prorata —
+qui ne coûte rien de plus que le premier mois de Lecture, puisqu'il n'y a
+aucune valeur non consommée à créditer sur un plan à 0. Et Lecture → Freemium
+est un **downgrade différé** : le client garde Lecture jusqu'au bout de ce
+qu'il a payé, puis retombe sur le gratuit.
+
+> Une conséquence à voir venir : descendre vers le freemium n'est possible que
+> pour qui n'y a jamais eu droit (§6.4). Pour tous les autres, descendre de
+> Lecture, c'est résilier. Le catalogue doit le dire à cet endroit-là plutôt
+> que de laisser découvrir un `FREEMIUM_ALREADY_USED` au moment du clic.
 
 ### 6.3 Pas de renouvellement, et pas de facture
 
@@ -425,16 +474,32 @@ downgrade ne coexistent pas.
 crédit, le net, la date. Se teste sans rien facturer, et l'écran peut être
 écrit dessus avant que l'étape 4 n'existe.
 
+**Étape 3 bis — un remboursement porte son avoir.** Aujourd'hui
+`Payments::refund` rend l'argent et n'écrit aucun avoir : le fait fiscal reste
+déclaré alors que l'argent est reparti. C'est un défaut vivant, indépendant de
+cette spécification — et le prorata le rendrait systématique, puisque le
+crédit revient sur la carte (§3.3). Donc : l'avoir partiel, borné à un seul
+taux de TVA, refusé sur une facture qui en porte plusieurs. Tests : un
+remboursement écrit la transaction de TVA inverse du bon montant ; une facture
+à deux taux refuse le partiel plutôt que de ventiler au jugé ; un
+remboursement total reste ce qu'il est.
+*À livrer avant l'étape 4, et elle vaut d'être livrée même si le prorata
+attend.*
+
 **Étape 4 — l'upgrade avec prorata.** Le calcul dans le domaine (unités
-mineures entières), la facture par la chaîne normale, l'ancre réinitialisée,
-l'engagement traité selon la décision §3.3. Tests : upgrades successifs
+mineures entières), la facture par la chaîne normale, le remboursement du non
+consommé sur la carte avec son avoir (étape 3 bis), l'ancre réinitialisée, et
+l'engagement **recopié tel quel** — la seule condition que la
+ré-instantanéisation ne reprend pas (§3.3). Tests : upgrades successifs
 (1er/5/10) ; rien à payer ne lève aucun document ; l'engagement ne se ré-arme
-pas ; la TVA suit le montage retenu.
+ni ne se raccourcit ; le crédit arrive sur le moyen de paiement.
 
 **Étape 5 — `PAST_DUE` et le recouvrement.** Le statut, l'effet sur
 `requireSubscription()`, la file de relance, les notifications, la bannière.
-Tests : un impayé suspend ; le refus se distingue de « votre organisation ne
-vous couvre pas » ; une relance est une nouvelle tentative.
+Tests : un impayé suspend l'atelier et laisse les documents lisibles ; le
+refus se distingue de « votre organisation ne vous couvre pas » ; une relance
+est une nouvelle tentative ; le calendrier vient de la configuration du
+produit et non d'une constante.
 
 **Étape 6 — le freemium.** La renumérotation des rangs (10, puis de 10 en
 10), l'unicité à vie du §6.4 — colonne et index, jamais une vérification
@@ -450,15 +515,41 @@ toujours d'en reprendre un.
 
 ---
 
-## 9. Questions ouvertes pour l'exploitant
+## 9. Les décisions de l'exploitant
 
-1. **L'engagement survit-il à un upgrade** sans se ré-armer ? (§3.3)
-2. **Le crédit de prorata** : ligne négative, ou avoir + facture pleine ?
-   (§3.3)
-3. **`PAST_DUE`** : accès restreint ou suspendu ? (§5.1)
-4. **L'ordre entre Freemium et Lecture** : le gratuit sous le payant, ou les
-   deux au même niveau commercial ? La renumérotation est tranchée — 10, puis
-   de 10 en 10. (§6.2)
-5. Le **calendrier de relance** (J+1 / J+3 / J+7 ?) (§5.2)
+Toutes tranchées le 26 septembre 2026. Aucune n'était technique ; toutes
+changent le code, et chacune est écrite là où le code la lira.
 
-Aucune n'est technique ; toutes changent le code.
+| | Décision | Où |
+|---|---|---|
+| L'engagement à l'upgrade | **survit inchangé**, ne se ré-arme ni ne se raccourcit | §3.3 |
+| Le crédit de prorata | **remboursé sur la carte**, une ligne dans `refunds` | §3.3 |
+| `PAST_DUE` | **accès suspendu**, pas restreint | §5.1 |
+| La relance | **notification + courriel**, calendrier réglé **sur le produit** | §5.2 |
+| Les rangs | le plus petit vaut **10**, puis de 10 en 10 | §6.2 |
+| Freemium / Lecture | le **gratuit sous le payant** | §6.2 |
+| Le freemium | **une seule fois**, y compris terminé | §6.4 |
+
+### Ce que ces réponses ont fait apparaître
+
+Deux choses, toutes deux dans le code d'aujourd'hui et aucune inventée par
+cette spécification :
+
+**Un remboursement n'écrit aucun avoir.** Le fait fiscal reste déclaré alors
+que l'argent est reparti. Dormant tant que les remboursements sont rares ;
+systématique dès que le crédit de prorata passe par la carte. D'où l'étape
+3 bis, qui vaut d'être livrée même si le prorata attend.
+
+**`CreditNotes` ne crédite qu'en totalité**, et refuse le partiel exprès — la
+TVA devrait être ventilée entre les taux et deviner produirait un document
+légal que personne n'a demandé. La recommandation ne contourne pas cette
+règle : elle la garde, et décline le partiel sur une facture à plusieurs taux
+au lieu de ventiler au jugé.
+
+### Ce qui reste, et qui n'est plus une question de cadrage
+
+La portée de l'unicité du freemium est écrite **par produit**
+(`product_id`, souscripteur) : goûter Plan n'a jamais rien dit de Boreas. Si
+« une seule fois par compte » voulait dire *un seul freemium sur toute la
+plateforme, tous produits confondus*, c'est l'index du §6.4 qui change, et lui
+seul.
