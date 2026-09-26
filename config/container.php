@@ -51,6 +51,7 @@ use App\Commerce\Domain\OfferLineDetails;
 use App\Commerce\Domain\OrganisationSubscriptions;
 use App\Commerce\Domain\StorefrontListing;
 use App\Commerce\Domain\StorefrontSettings;
+use App\Commerce\Domain\SubscriptionPlaces;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Infrastructure\PostgresCatalogueAdministration;
 use App\Commerce\Infrastructure\PostgresCatalogueRepository;
@@ -390,6 +391,9 @@ return static function (array $overrides = []): ContainerInterface {
         OfferAuthoringRepository::class => autowire(PostgresOfferAuthoringRepository::class),
         OfferLineDetails::class => autowire(PostgresOfferLineDetails::class),
         SubscriptionRepository::class => autowire(PostgresSubscriptionRepository::class),
+        // The same adapter behind the narrow port the tenant module uses when
+        // somebody leaves (2026-09-26). One implementation, two questions.
+        SubscriptionPlaces::class => autowire(PostgresSubscriptionRepository::class),
         // A read model of its own (2026-09-25): the organisation screen joins
         // holders and grants, which is not the write side's business.
         OrganisationSubscriptions::class => autowire(PostgresOrganisationSubscriptions::class),

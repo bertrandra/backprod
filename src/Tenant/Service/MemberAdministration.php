@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tenant\Service;
 
+use App\Commerce\Domain\SubscriptionPlaces;
 use App\Shared\Exceptions\BadRequestException;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
@@ -30,6 +31,7 @@ final class MemberAdministration
 
     public function __construct(
         private readonly TenantMemberRepository $members,
+        private readonly SubscriptionPlaces $places,
         private readonly UserRepository $users,
         private readonly ProductEvents $events,
     ) {
@@ -122,6 +124,19 @@ final class MemberAdministration
         }
 
         $this->members->removeMember($tenantId, $productId, $userId);
+
+        // And their place on anything the organisation bought (2026-09-26).
+        // Nothing did this until today: `subscription_members` cascades from
+        // `users` and from `subscriptions` and from nothing else, so somebody
+        // who had left went on occupying a place their organisation was
+        // paying for — the register read 3 of 3 with a departed colleague in
+        // it, and the owner met `PEOPLE_QUOTA_REACHED` trying to seat their
+        // replacement.
+        //
+        // After the membership, not before: if removing the member fails, no
+        // place has been freed for a person who is still there.
+        $this->places->release($tenantId, $userId);
+
         $this->events->publishForTenant(ProductEventType::MEMBER_REMOVED, $tenantId, ['member' => ['user_id' => $userId]]);
     }
 

@@ -15,6 +15,7 @@ use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionEvent;
 use App\Commerce\Domain\SubscriptionMember;
+use App\Commerce\Domain\SubscriptionPlaces;
 use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Domain\SubscriptionTerms;
 use App\Shared\Database\Row;
@@ -38,7 +39,7 @@ use stdClass;
  * and never rewritten — so discarding a derived row loses nothing that
  * non-negotiable #18 asks to be kept.
  */
-final class PostgresSubscriptionRepository implements SubscriptionRepository
+final class PostgresSubscriptionRepository implements SubscriptionRepository, SubscriptionPlaces
 {
     private const COLUMNS = <<<'SQL'
         s.id, s.tenant_id, s.product_id, s.offer_version_id, s.status,
@@ -768,6 +769,27 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository
         $this->connection->executeStatement(
             'DELETE FROM subscription_members WHERE subscription_id = :id AND user_id = :user',
             ['id' => $subscriptionId, 'user' => $userId],
+        );
+    }
+
+    public function release(string $tenantId, string $userId): int
+    {
+        if (!Uuid::isValid($tenantId) || !Uuid::isValid($userId)) {
+            return 0;
+        }
+
+        // Every subscription of the tenant, live or not. A cancelled one
+        // holds no places anybody is counting, and leaving the row behind
+        // would keep a departed colleague's name on a list somebody reads.
+        return (int) $this->connection->executeStatement(
+            <<<'SQL'
+                DELETE FROM subscription_members m
+                 USING subscriptions s
+                 WHERE m.subscription_id = s.id
+                   AND s.tenant_id = CAST(:tenantId AS uuid)
+                   AND m.user_id = CAST(:userId AS uuid)
+                SQL,
+            ['tenantId' => $tenantId, 'userId' => $userId],
         );
     }
 

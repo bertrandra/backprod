@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Entitlement\Domain\EntitlementRepository;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
@@ -264,6 +265,36 @@ final class GrantedEntitlementTest extends DatabaseApiTestCase
         // organisation may use the product, and it names no people because a
         // trial has none to name.
         self::assertSame(200, $this->projects()->getStatusCode());
+    }
+
+    /**
+     * "Every member" is every *member* (2026-09-26).
+     *
+     * A trial names no people, so what stands in for the list is membership
+     * of the tenant — and that is checked where the question is answered,
+     * not left to the caller. For a day it was not: the branch read only
+     * (tenant, product), so `covers()` said yes about anybody at all while a
+     * trial was live.
+     *
+     * Nothing exploited it, because the only caller is the request context
+     * and it has resolved a membership before it asks. Asked directly, as
+     * here, the old code answered yes about Ola — who is platform staff and
+     * no member of Acme. A method whose name is a question about a person
+     * must not answer a different question.
+     */
+    public function testATrialCoversTheOrganisationsMembersAndNobodyElse(): void
+    {
+        $this->grant([
+            'plan' => 'pro',
+            'covers_people' => true,
+            'features' => [['code' => 'exports', 'limit' => 5]],
+        ]);
+
+        $entitlements = $this->container()->get(EntitlementRepository::class);
+        self::assertInstanceOf(EntitlementRepository::class, $entitlements);
+
+        self::assertTrue($entitlements->covers($this->tenant, $this->atlas, $this->ada));
+        self::assertFalse($entitlements->covers($this->tenant, $this->atlas, $this->ola));
     }
 
     /**
