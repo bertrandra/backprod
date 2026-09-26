@@ -141,7 +141,13 @@ final class JoiningTest extends DatabaseApiTestCase
 
         // And a root of their own now: the shell puts the address under it.
         $products = $this->decode($this->request('GET', '/api/v1/products', ['Authorization' => 'Bearer ' . $stranger]));
-        self::assertSame([['tenant' => 'acme', 'name' => 'Acme Ltd']], $products['memberships'] ?? null);
+        // `default_product` rides along since 2026-09-26: the shell needs to
+        // know which product the organisation opens on before it has one to
+        // ask anything else with, and this is the read that can answer.
+        self::assertSame(
+            [['tenant' => 'acme', 'name' => 'Acme Ltd', 'default_product' => null]],
+            $products['memberships'] ?? null,
+        );
         self::assertSame([], $products['pending_memberships'] ?? null);
 
         // Both products, in one decision (ADR-047), and still a USER.

@@ -4757,6 +4757,12 @@ export interface components {
             join_policy: "OPEN" | "INVITATION" | "DOMAIN" | "APPROVAL";
             /** @description Email domains, lower-case, without `@`. Consulted only under `DOMAIN`, and required non-empty to switch to it. */
             join_domains: string[];
+            /**
+             * @description The code of the product this organisation opens on when neither the address nor the person says otherwise (2026-09-26). Always one of the products it holds, which the database enforces; null means it has no answer and the deployment's own default decides.
+             *
+             *     A courtesy and never an authority: it settles where a screen opens and nothing about what anybody may reach there. The order is `?product=`, then what the browser remembers, then the person's own default, then this.
+             */
+            default_product: string | null;
         };
         /** @description A tenant as the platform sees it: the tenant, and the products it holds (ADR-047). `products` is the platform’s answer — which products it has assigned this tenant, through the console — so it lives on the staff shape and not on the `Tenant` a tenant reads about itself. */
         StaffTenant: components["schemas"]["Tenant"] & {
@@ -8992,6 +8998,8 @@ export interface operations {
                             /** @description The organisation’s slug — the word its URL root is made of. */
                             tenant: string;
                             name: string;
+                            /** @description The code of the product that organisation opens on (2026-09-26), or null. Per organisation, because a person can belong to several — and here rather than on `showCurrentTenant`, which needs `X-Product` and so cannot be the thing that answers which product. */
+                            default_product: string | null;
                         }[];
                     };
                 };
@@ -12131,6 +12139,8 @@ export interface operations {
                     join_policy?: "OPEN" | "INVITATION" | "DOMAIN" | "APPROVAL";
                     /** @description Replaces the list. */
                     join_domains?: string[];
+                    /** @description The code of the product this organisation opens on, or null to clear it (2026-09-26). Absent leaves it alone; `null` is a decision and clears it. A code naming a product this organisation does not hold is refused 400 — the database's answer read back, rather than a check two administrators could race through. */
+                    default_product?: string | null;
                 };
             };
         };

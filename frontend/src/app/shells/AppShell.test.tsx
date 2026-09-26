@@ -148,6 +148,63 @@ describe('the landing address, signed in', () => {
     await waitFor(() => expect(location()).toBe('/projects'));
   });
 
+  /**
+   * The organisation's answer, for somebody who has not given their own
+   * (2026-09-26).
+   *
+   * Below the person's and above the bundle's constant, which was the only
+   * answer there was: a deployment that leads with Plan opened on Atlas until
+   * somebody rebuilt it, and an administrator could do nothing about it.
+   */
+  it('opens in the organisation\'s product when the person has chosen none', async () => {
+    const { location } = renderAtRoute(
+      <AppShell />,
+      stubs({
+        products: [ATLAS, BOREAS],
+        default: null,
+        memberships: [{ tenant: 'acme', name: 'Acme Ltd', default_product: 'boreas' }],
+      }),
+      { path: '/' },
+    );
+
+    await waitFor(() => expect(useSessionStore.getState().productCode).toBe('boreas'));
+    await waitFor(() => expect(location()).toBe('/projects'));
+  });
+
+  it('never lets the organisation\'s answer override the person\'s own', async () => {
+    const { location } = renderAtRoute(
+      <AppShell />,
+      stubs({
+        products: [ATLAS, BOREAS],
+        default: 'atlas',
+        memberships: [{ tenant: 'acme', name: 'Acme Ltd', default_product: 'boreas' }],
+      }),
+      { path: '/' },
+    );
+
+    await waitFor(() => expect(location()).toBe('/projects'));
+    // Theirs, not the organisation's: an administrator answers for whoever
+    // has not answered, and never over one who has.
+    expect(useSessionStore.getState().productCode).toBe('atlas');
+  });
+
+  it('ignores an organisation\'s answer naming a product this person does not hold', async () => {
+    const { location } = renderAtRoute(
+      <AppShell />,
+      stubs({
+        products: [ATLAS],
+        default: null,
+        // Boreas was unassigned some other way, or this person lost it: a
+        // stale default is ignored, never obeyed.
+        memberships: [{ tenant: 'acme', name: 'Acme Ltd', default_product: 'boreas' }],
+      }),
+      { path: '/', product: 'atlas' },
+    );
+
+    await waitFor(() => expect(location()).toBe('/projects'));
+    expect(useSessionStore.getState().productCode).toBe('atlas');
+  });
+
   it('keeps the product the address names over the person\'s own', async () => {
     // The address is what the browser holds, not the router's memory.
     vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, search: '?product=atlas' });

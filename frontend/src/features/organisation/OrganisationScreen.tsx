@@ -10,6 +10,7 @@ import {
   useUpdateOrganisation,
   type JoinPolicy,
 } from '@/queries/organisation';
+import { useMyProducts } from '@/queries/catalogue';
 import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
@@ -68,7 +69,12 @@ export function OrganisationScreen() {
   const organisation = useOrganisation();
   const rename = useRenameOrganisation();
   const joining = useUpdateOrganisation();
+  const opening = useUpdateOrganisation();
   const usage = useTenantUsage();
+  // What this organisation may choose between: the products it holds, which
+  // is what `GET /products` answers for the person asking — and a member of
+  // one organisation holds exactly what it holds.
+  const held = useMyProducts();
 
   const mayManage = can(session.data, 'tenant.manage');
 
@@ -194,6 +200,47 @@ export function OrganisationScreen() {
               {t("Save")}</Button>
           )}
         </form>
+      </section>
+
+      {/* Which product this organisation opens on (2026-09-26). A courtesy
+          and never an authority: it decides where a screen opens and nothing
+          about what anybody may reach there — the API refuses regardless.
+
+          Until today the only answer was `VITE_DEFAULT_PRODUCT`, compiled
+          into the bundle, so a deployment that leads with Plan showed Atlas
+          and the only remedy was to rebuild. */}
+      <section className="space-y-4" data-testid="default-product">
+        <h2 className="text-xl font-semibold">{t("Opening product")}</h2>
+        <p className="text-sm text-muted">
+          {t("Which product this organisation opens on for somebody who has not chosen one of their own. A person's own choice, on their profile, always wins over this — and an address naming a product wins over both.")}
+        </p>
+
+        <Field id="org-default-product" label={t("Product")}>
+          <select
+            id="org-default-product"
+            data-testid="default-product-select"
+            className={inputClass(false)}
+            disabled={!mayManage || opening.isPending || held.isPending}
+            value={organisation.data?.default_product ?? ''}
+            onChange={(event) => {
+              // Saved on change rather than behind a button: one control, and
+              // a Save beside it would be the only one on this screen that
+              // guarded a single select.
+              opening.mutate({ default_product: event.target.value === '' ? null : event.target.value });
+            }}
+          >
+            {/* Not a product, and said so: an organisation with no answer
+                lets the deployment's own default decide. */}
+            <option value="">{t("No preference")}</option>
+            {(held.data?.products ?? []).map((product) => (
+              <option key={product.code} value={product.code}>
+                {product.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        {opening.error !== null && <ErrorSurface error={opening.error} />}
       </section>
 
       <section className="space-y-3">

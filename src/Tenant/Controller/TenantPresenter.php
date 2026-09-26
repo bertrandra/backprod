@@ -23,7 +23,7 @@ final class TenantPresenter
     /**
      * @param array{policy: string, domains: list<string>} $joining how people arrive by themselves (2026-09-17)
      *
-     * @return array{tenant: array{id: string, name: string, slug: string, may_author_offers: bool, join_policy: string, join_domains: list<string>}}
+     * @return array{tenant: array{id: string, name: string, slug: string, may_author_offers: bool, join_policy: string, join_domains: list<string>, default_product: string|null}}
      */
     public static function one(Tenant $tenant, array $joining): array
     {
@@ -35,6 +35,10 @@ final class TenantPresenter
                 'may_author_offers' => $tenant->mayAuthorOffers,
                 'join_policy' => $joining['policy'],
                 'join_domains' => $joining['domains'],
+                // Which product the organisation opens on (2026-09-26). A
+                // code, because that is the word `?product=`, the switcher
+                // and `X-Product` all speak.
+                'default_product' => $tenant->defaultProductCode,
             ],
         ];
     }

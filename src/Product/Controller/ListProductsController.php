@@ -44,7 +44,16 @@ final class ListProductsController implements RouteHandler
             // sign-in — a member of Acme who signed in at the bare host
             // belongs at `/acme/`, and the slug is what the root is made of.
             'memberships' => array_map(
-                static fn (array $membership): array => ['tenant' => $membership['slug'], 'name' => $membership['name']],
+                static fn (array $membership): array => [
+                    'tenant' => $membership['slug'],
+                    'name' => $membership['name'],
+                    // Which product that organisation opens on (2026-09-26),
+                    // per organisation because a person can belong to
+                    // several. Here rather than from `/organisation`, which
+                    // needs `X-Product` — and this *is* the answer to which
+                    // product, so it cannot be behind one.
+                    'default_product' => $membership['default_product'] ?? null,
+                ],
                 $this->requests->memberOf($identity->userId),
             ),
             // The organisations this person asked to join and is waiting on

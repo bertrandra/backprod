@@ -47,7 +47,38 @@ final class InMemoryTenantRepository implements TenantRepository
         $tenant = $this->byId[$tenantId] ?? null;
 
         if ($tenant !== null) {
-            $this->byId[$tenantId] = new Tenant($tenant->id, $name, $tenant->slug, $tenant->mayAuthorOffers);
+            $this->byId[$tenantId] = new Tenant(
+                $tenant->id,
+                $name,
+                $tenant->slug,
+                $tenant->mayAuthorOffers,
+                $tenant->defaultProductCode,
+            );
         }
+    }
+
+    /**
+     * Accepts whatever it is given, unlike the database, which refuses a
+     * product the tenant does not hold: this double knows nothing about
+     * assignments, and pretending to would be a second rule to keep in step
+     * with the real one.
+     */
+    public function chooseDefaultProduct(string $tenantId, ?string $productCode): bool
+    {
+        $tenant = $this->byId[$tenantId] ?? null;
+
+        if ($tenant === null) {
+            return false;
+        }
+
+        $this->byId[$tenantId] = new Tenant(
+            $tenant->id,
+            $tenant->name,
+            $tenant->slug,
+            $tenant->mayAuthorOffers,
+            $productCode,
+        );
+
+        return true;
     }
 }
