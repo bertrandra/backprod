@@ -35,6 +35,19 @@ final class Sessions
     public const REFRESH_LIFETIME = 2_592_000;
 
     /**
+     * Ten seconds in which a token that has just been rotated away is still
+     * answered (2026-09-26).
+     *
+     * The length is the flight time of one HTTP request and no more, because
+     * that is the whole of what it has to cover: two tabs that both called
+     * `/auth/refresh` before either answer came back. It is also exactly how
+     * much longer a stolen token stays useful, which is why it is counted in
+     * seconds and not in minutes. {@see refresh()} for what it forgives and
+     * what it does not.
+     */
+    public const REFRESH_GRACE = 10;
+
+    /**
      * A hash of nothing, for the timing of a miss.
      *
      * When no account matches, `password_verify` still runs — against this. A
@@ -353,7 +366,9 @@ final class Sessions
     }
 
     /**
-     * Exchanges a refresh token for a new pair, and treats reuse as theft.
+     * Exchanges a refresh token for a new pair, and treats reuse as theft —
+     * except in the {@see REFRESH_GRACE} seconds after a rotation, where it
+     * is one browser's second tab and not a second holder.
      *
      * @throws UnauthenticatedException when the token is unknown, spent or expired
      */
@@ -420,6 +435,92 @@ final class Sessions
             }
         }
 
+        /**
+         * **A token rotated away a moment ago is a client racing itself**
+         * (2026-09-26).
+         *
+         * The refresh cookie is one cookie for the whole deployment —
+         * `AUTH_COOKIE_DOMAIN` widens it across `raillard.org`, which is what
+         * makes the platform and the product beside it one sign-in (ADR-051
+         * §3). So two tabs are two callers holding *the same* credential.
+         * They wake from sleep together, or load together, and both call
+         * `/auth/refresh`: one rotates, and the other's request is already on
+         * the wire carrying the token that just died. Read as theft, that
+         * revoked the family and signed both tabs out — "déjà connecté à la
+         * plateforme et j'arrive sur la page de login dans plan", which is
+         * how the operator found it. No care in the frontend can avoid it:
+         * by the time the first answer exists the second request has been
+         * sent.
+         *
+         * So the immediate past of a live chain is forgiven, for as long as
+         * a request can be in flight. Two conditions, both load-bearing:
+         *
+         * - the token was **replaced**, and the chain it was replaced into
+         *   still ends in a live token. That is what a rotation leaves
+         *   behind and what nothing else does: `signOut()` and
+         *   `resetPassword()` revoke with no successor, so what they ended
+         *   stays ended and the theft path below still answers for it;
+         * - it was rotated away **within {@see REFRESH_GRACE}**. Nothing else
+         *   distinguishes this from a stolen copy — the bytes are the same,
+         *   the account is the same — so the window is the entire margin
+         *   being given away, and it is ten seconds.
+         *
+         * **The chain is handed over, never forked.** The call issues a
+         * token and revokes the chain's live end *in favour of it*, so the
+         * family still has exactly one live token when this returns. The
+         * obvious alternative — issue beside what is already there, since
+         * both callers are legitimate — is the one thing that must not
+         * happen: two live tokens descended from one would make a spent
+         * token stop being evidence, because it would no longer be true that
+         * at most one credential of a family may be in flight. Reuse
+         * detection is the only thing standing between a stolen cookie and a
+         * month of access, and a fork is how it stops meaning anything.
+         *
+         * Nothing is lost by revoking a token a tab may be holding: the
+         * cookie is shared, so what any tab presents next is whatever was
+         * written last — either the live end, or a token this same path
+         * forgives once more.
+         *
+         * The revocation is a **claim**: of two graced calls racing each
+         * other, the repository tells exactly one that it is the one that
+         * ended the chain's live end. The loser refuses its own request
+         * rather than leave its token behind as a second live end, and
+         * refusing costs a reload against a cookie that is still good, where
+         * forking would cost the meaning of every revocation after it.
+         */
+        foreach ($known as $one) {
+            if (!$one->revoked) {
+                continue;
+            }
+
+            $end = $this->refreshTokens->liveEndOfChainAfter($one->id, self::REFRESH_GRACE);
+
+            if ($end === null) {
+                continue;
+            }
+
+            [$session, $issuedId] = $this->start($one->userId, $one->authSubject, $one->email, $productCode);
+
+            if (!$this->refreshTokens->revoke($end, $issuedId)) {
+                // Somebody else took the chain between the question and the
+                // answer. Undo the token nobody will ever hold, and refuse.
+                $this->refreshTokens->revoke($issuedId, null);
+
+                $this->logger->info('Two refreshes raced for the same chain; the later one was refused', [
+                    'user_id' => $one->userId,
+                ]);
+
+                throw new UnauthenticatedException();
+            }
+
+            $this->logger->info('A refresh token was presented just after being rotated; read as a race, not a theft', [
+                'user_id' => $one->userId,
+                'grace_seconds' => self::REFRESH_GRACE,
+            ]);
+
+            return $session;
+        }
+
         foreach ($known as $one) {
             if (!$one->revoked) {
                 continue;
@@ -427,14 +528,23 @@ final class Sessions
 
             /**
              * A token that was already exchanged is being presented again,
-             * and nothing live came with it.
+             * nothing live came with it, and it is not the recent past of a
+             * live chain either.
              *
              * Either the legitimate client replayed one — which its own
-             * rotation makes unlikely — or somebody else has a copy. The two
-             * are indistinguishable from here, and the costs are not
-             * symmetric: signing the real person out is an inconvenience, and
-             * leaving a thief with a live session is not. So the whole family
-             * goes.
+             * rotation makes unlikely, and which the grace above has already
+             * excused for as long as a request can take — or somebody else
+             * has a copy. The two are indistinguishable from here, and the
+             * costs are not symmetric: signing the real person out is an
+             * inconvenience, and leaving a thief with a live session is not.
+             * So the whole family goes.
+             *
+             * **Including a token nobody replaced.** A sign-out or a
+             * password reset ends a credential deliberately, and presenting
+             * one afterwards is not a race: there was no rotation to race
+             * with, and no in-flight request can have been carrying it in
+             * good faith. It is a copy that outlived the moment it was
+             * ended, which is the case this rule was written for.
              */
             $revoked = $this->refreshTokens->revokeAllFor($one->userId);
 

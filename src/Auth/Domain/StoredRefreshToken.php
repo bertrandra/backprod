@@ -11,7 +11,9 @@ namespace App\Auth\Domain;
  * the service. An expired token is somebody who left the tab open too long. A
  * *revoked* one being presented is somebody using a credential that was already
  * exchanged — either a replay or a theft — and the answer to that is to revoke
- * the whole family rather than to shrug and refuse one request.
+ * the whole family rather than to shrug and refuse one request. Unless it was
+ * exchanged seconds ago, which is one browser's two tabs racing each other and
+ * not two holders: `Sessions::REFRESH_GRACE`, and the chain says which.
  */
 final class StoredRefreshToken
 {

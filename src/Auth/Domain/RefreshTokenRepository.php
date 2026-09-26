@@ -28,7 +28,31 @@ interface RefreshTokenRepository
      */
     public function find(#[SensitiveParameter] string $tokenHash): ?StoredRefreshToken;
 
-    public function revoke(string $id, ?string $replacedBy): void;
+    /**
+     * Ends one token, and says whether this call is what ended it.
+     *
+     * The boolean is what makes a revocation a *claim* rather than a request:
+     * a token is revoked once, so of two callers racing to end the same one
+     * exactly one is told true. Refreshing needs that to hand a chain over
+     * without forking it.
+     *
+     * @return bool false when the token was already spent, and this call
+     *              changed nothing
+     */
+    public function revoke(string $id, ?string $replacedBy): bool;
+
+    /**
+     * The live token at the end of the chain this one was rotated into, when
+     * it was rotated away less than `$withinSeconds` ago.
+     *
+     * Null for everything else: a token nobody replaced, a chain whose end is
+     * spent or expired, and — the case this exists to bound — a token rotated
+     * away longer ago than that. Why there is a window at all is the calling
+     * service's decision; the window is *compared* here because the database
+     * owns the clock that wrote `revoked_at`, as it owns the one that decides
+     * whether a token has expired.
+     */
+    public function liveEndOfChainAfter(string $rotatedId, int $withinSeconds): ?string;
 
     /** @return int how many live tokens were revoked */
     public function revokeAllFor(string $userId): int;

@@ -10,6 +10,50 @@ the routes, the cookie, rotation of the refresh token, the 32-character floor,
 the 503 — is unchanged, and so is the secret: nothing new is generated or stored,
 so a rotation is still an edit to `.env` (`AUTH_SIGNING_SECRET_PREVIOUS` keeps
 the old key verifying for an hour).
+
+**Amended 2026-09-26: reuse is theft, except for ten seconds after the
+rotation that caused it.** "Rotation, with reuse treated as theft" below was
+written for one client holding one cookie, and that stopped being true the day
+`AUTH_COOKIE_DOMAIN` widened the refresh cookie across `raillard.org` to
+deliver ADR-051 §3's single sign-on. One cookie now serves every tab on every
+host of the deployment, so the platform and the product beside it are two
+callers holding the *same* credential. They wake from sleep together, or load
+together, and both call `POST /api/v1/auth/refresh`: the first rotates the
+token, and the second's request is already on the wire carrying the one that
+has just died. The absolute rule read that as a replay and revoked every
+session for the account, so both tabs landed on the sign-in page — *"déjà
+connecté à la plateforme et j'arrive sur la page de login dans plan, et retour
+vers plateforme me demande de m'authentifier"*, which is how the operator found
+it. Nothing in the frontend can prevent it: by the time there is an answer to
+serialise against, the second request has been sent. (This is a *second* cause
+of that symptom. The first — a host-only cookie and a domain-wide one both
+being sent, one of them long spent — is a leftover of the same configuration
+change and is handled separately, by preferring whichever presented token is
+still live.)
+
+What distinguishes the racing client from the thief is the clock and the
+chain, and nothing else: the two present the same bytes for the same account.
+So `Sessions::refresh()` forgives a revoked token when it was **replaced**, the
+chain it was replaced into **still ends in a live token**, and the rotation
+happened **less than `Sessions::REFRESH_GRACE` — ten seconds — ago**. That
+length is the flight time of one HTTP request, because that is the whole of
+what has to be covered, and it is also exactly how much longer a stolen token
+stays useful. A token nobody replaced is refused as before and still revokes
+the family: a sign-out or a password reset ends a credential deliberately, so
+there was no rotation for anything to race with, and what is being presented
+is a copy that outlived the moment it was ended.
+
+The forgiven call **hands the chain over rather than forking it**: it issues a
+token and revokes the chain's live end in favour of it, so the family still has
+exactly one live token when the call returns. Letting both callers keep a token
+— the obvious reading of "they are both legitimate" — is the one thing that
+must not happen, because a family with two live ends is a family in which a
+spent token proves nothing, and reuse detection is the only thing between a
+stolen cookie and thirty days of access. The revocation is therefore a claim
+and not a request: `RefreshTokenRepository::revoke()` reports whether this call
+is the one that ended the token, and of two simultaneous graced calls the loser
+refuses its own request instead of leaving a second live end behind. What that
+costs is one reload against a cookie that is still good.
 **Supersedes:** the issuance half of
 [ADR-014](ADR-014-jwt-verification.md) — verification is
 unchanged, and an external provider remains supported

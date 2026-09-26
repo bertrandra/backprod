@@ -721,6 +721,17 @@ A refresh rotates the token and revokes the one it was given. Presenting a spent
 one revokes every session for that account: replay and theft are indistinguishable
 from the server, and their costs are not (ADR-038).
 
+**Except in the ten seconds after the rotation that spent it**, where they *are*
+distinguishable, because the cookie is shared across the hosts and two tabs
+refreshing at once both send whatever the jar held when their request left
+(2026-09-26). Inside that window a spent token whose chain still ends in a live
+one is a race: the caller is given a new pair and the chain's live end is
+revoked **in favour of it**, so the family still has exactly one live token. It
+is never issued *beside* the live one — two live tokens descended from one would
+make a spent token stop being evidence, and reuse detection is the whole defence.
+A token ended with no successor, by a sign-out or a password reset, raced with
+nothing and still sweeps the account.
+
 Every request needs a product: pass `ambientParams(sessionSnapshot)` as the
 call's init. The contract declares `X-Product` required, so a call that omits it
 does not compile — which is the point (ADR-037). The bearer token is different:
