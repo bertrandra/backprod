@@ -69,12 +69,17 @@ final class PostgresRefreshTokenRepository implements RefreshTokenRepository
         );
     }
 
-    public function revoke(string $id, ?string $replacedBy): void
+    public function revoke(string $id, ?string $replacedBy): bool
     {
         // `revoked_at IS NULL` in the WHERE, so revoking twice cannot move the
         // date: the first revocation is when this token stopped being usable, and
         // a later write would erase that fact.
-        $this->connection->executeStatement(
+        //
+        // The row count is the answer to "was it me?". Two transactions that
+        // aim at the same live token serialise on its row lock, and the
+        // second re-reads it revoked and updates nothing — so the count is
+        // one for exactly one of them, however simultaneous they were.
+        $ended = $this->connection->executeStatement(
             <<<'SQL'
                 UPDATE auth_refresh_tokens
                 SET revoked_at = now(),
@@ -84,6 +89,44 @@ final class PostgresRefreshTokenRepository implements RefreshTokenRepository
                 SQL,
             ['id' => $id, 'replaced_by' => $replacedBy],
         );
+
+        return (int) $ended === 1;
+    }
+
+    public function liveEndOfChainAfter(string $rotatedId, int $withinSeconds): ?string
+    {
+        // Forwards along `replaced_by`, which every rotation writes: the row
+        // presented, then what replaced it, then what replaced that. The walk
+        // terminates because each link is a row issued after the one pointing
+        // at it, and it is short because the root must have been rotated away
+        // seconds ago — a chain cannot grow more links than there were
+        // refreshes inside the window.
+        //
+        // Both clocks are the database's: how long ago the root was revoked,
+        // and whether the end has expired.
+        $end = $this->connection->fetchOne(
+            <<<'SQL'
+                WITH RECURSIVE chain AS (
+                    SELECT id, replaced_by, revoked_at, expires_at
+                    FROM auth_refresh_tokens
+                    WHERE id = :id
+                      AND revoked_at IS NOT NULL
+                      AND revoked_at > now() - make_interval(secs => :within)
+                    UNION ALL
+                    SELECT t.id, t.replaced_by, t.revoked_at, t.expires_at
+                    FROM auth_refresh_tokens t
+                    JOIN chain c ON t.id = c.replaced_by
+                )
+                SELECT id
+                FROM chain
+                WHERE revoked_at IS NULL
+                  AND expires_at > now()
+                LIMIT 1
+                SQL,
+            ['id' => $rotatedId, 'within' => $withinSeconds],
+        );
+
+        return is_string($end) ? $end : null;
     }
 
     public function revokeAllFor(string $userId): int

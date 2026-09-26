@@ -10,6 +10,7 @@ use App\Auth\Domain\LocalTokens;
 use App\Auth\Domain\TokenIssuer;
 use App\Auth\Infrastructure\LocalJwtAuthProvider;
 use App\Auth\Infrastructure\LocalJwtTokenIssuer;
+use App\Auth\Service\Sessions;
 use App\Shared\Logging\ErrorLogLogger;
 use Laminas\Diactoros\Response\EmptyResponse;
 use Laminas\Diactoros\ServerRequest;
@@ -298,7 +299,16 @@ final class SignInTest extends DatabaseApiTestCase
         self::assertSame(401, $this->request('POST', '/api/v1/auth/refresh')->getStatusCode());
     }
 
-    public function testReusingASpentRefreshTokenRevokesEverySessionForThatAccount(): void
+    /**
+     * A token rotated away long enough ago is a copy in somebody's hands.
+     *
+     * The rotation is aged past {@see Sessions::REFRESH_GRACE} rather than
+     * waited out: a test that slept would be a test that takes ten seconds
+     * to say what one `UPDATE` says exactly. What the clock decides is the
+     * whole of the difference between this test and the race below, so it is
+     * the clock this test moves.
+     */
+    public function testReusingASpentRefreshTokenOutsideTheGraceRevokesEverySessionForThatAccount(): void
     {
         $first = $this->cookieFrom($this->signIn());
         $second = $this->cookieFrom($this->request(
@@ -306,6 +316,15 @@ final class SignInTest extends DatabaseApiTestCase
             '/api/v1/auth/refresh',
             cookies: [RefreshCookie::NAME => $first],
         ));
+
+        // Seconds, not minutes: a window that covered a coffee break would
+        // be a stolen cookie working for the length of one.
+        self::assertLessThan(60, Sessions::REFRESH_GRACE);
+
+        $this->connection->executeStatement(
+            'UPDATE auth_refresh_tokens SET revoked_at = now() - make_interval(secs => :age) WHERE token_hash = :hash',
+            ['age' => Sessions::REFRESH_GRACE + 60, 'hash' => hash('sha256', $first)],
+        );
 
         // A third party presenting the token the real client already exchanged.
         $replay = $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $first]);
@@ -319,6 +338,111 @@ final class SignInTest extends DatabaseApiTestCase
         $afterReplay = $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $second]);
 
         self::assertSame(401, $afterReplay->getStatusCode());
+    }
+
+    /**
+     * Two tabs, one cookie, both refreshing — and both stay signed in
+     * (2026-09-26).
+     *
+     * `AUTH_COOKIE_DOMAIN` makes the refresh cookie one credential for the
+     * platform and the product beside it, so two tabs waking from sleep both
+     * call `/auth/refresh` holding the same token. One rotates; the other's
+     * request was already on the wire. Read as theft, that revoked the
+     * family and put both tabs on the sign-in page — the operator's own
+     * report.
+     *
+     * The race is made by presenting the same token twice, second call after
+     * the first has rotated it. That is what the server sees, to the byte;
+     * threads and sleeps would add nothing but flakiness.
+     */
+    public function testTwoTabsRefreshingWithTheSameCookieBothStaySignedIn(): void
+    {
+        $shared = $this->cookieFrom($this->signIn());
+
+        $firstTab = $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $shared]);
+
+        self::assertSame(200, $firstTab->getStatusCode());
+
+        $secondTab = $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $shared]);
+
+        self::assertSame(200, $secondTab->getStatusCode(), (string) $secondTab->getBody());
+        self::assertIsString($this->decode($secondTab)['access_token'] ?? null);
+
+        // And the account kept its sessions rather than being swept: what
+        // the second tab was handed refreshes again, and so does what the
+        // first tab was handed, which is the cookie a browser may well still
+        // be carrying when the two answers arrive out of order.
+        foreach ([$secondTab, $firstTab] as $answer) {
+            self::assertSame(
+                200,
+                $this->request(
+                    'POST',
+                    '/api/v1/auth/refresh',
+                    cookies: [RefreshCookie::NAME => $this->cookieFrom($answer)],
+                )->getStatusCode(),
+            );
+        }
+    }
+
+    /**
+     * The forgiven refresh continues the chain; it does not fork it.
+     *
+     * Letting both callers through by issuing *beside* the token that is
+     * already live is the easy reading of the fix and the wrong one: a
+     * family with two live ends is a family in which a spent token proves
+     * nothing, and reuse detection is the only thing between a stolen cookie
+     * and thirty days of access. So the graced call revokes the chain's live
+     * end in favour of what it issues, and one live token is left.
+     */
+    public function testTheForgivenRefreshLeavesOneLiveTokenInTheFamily(): void
+    {
+        $shared = $this->cookieFrom($this->signIn());
+
+        $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $shared]);
+        $graced = $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $shared]);
+
+        self::assertSame(200, $graced->getStatusCode(), (string) $graced->getBody());
+
+        $live = $this->connection->fetchFirstColumn(
+            'SELECT token_hash FROM auth_refresh_tokens WHERE user_id = :id AND revoked_at IS NULL',
+            ['id' => $this->userId],
+        );
+
+        // One, and it is the one the forgiven call handed back — so the two
+        // tokens issued in the race are one chain and not two.
+        self::assertSame([hash('sha256', $this->cookieFrom($graced))], $live);
+    }
+
+    /**
+     * A token nobody replaced is not a race, whatever the clock says.
+     *
+     * Signing out ends a credential on purpose, and there is no rotation for
+     * an in-flight request to have raced with. Presented again — immediately,
+     * so the grace window is not what refuses it — it is a copy that outlived
+     * the moment it was ended, and the family goes as it always did.
+     */
+    public function testATokenEndedWithNoSuccessorIsNoRaceAndStillRevokesTheFamily(): void
+    {
+        $signedOut = $this->cookieFrom($this->signIn());
+        $elsewhere = $this->cookieFrom($this->signIn());
+
+        self::assertSame(
+            204,
+            $this->request('POST', '/api/v1/auth/sign-out', cookies: [RefreshCookie::NAME => $signedOut])->getStatusCode(),
+        );
+
+        self::assertSame(
+            401,
+            $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $signedOut])->getStatusCode(),
+        );
+
+        // The other session is gone too: that is the sweep, and it is the
+        // assertion that fails if a revoked token is ever forgiven for being
+        // recent alone.
+        self::assertSame(
+            401,
+            $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $elsewhere])->getStatusCode(),
+        );
     }
 
     /**
