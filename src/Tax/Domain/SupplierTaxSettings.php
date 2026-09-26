@@ -25,7 +25,45 @@ final class SupplierTaxSettings
         public readonly bool $ossRegistered,
         public readonly string $defaultSupplyType,
         public readonly string $currency,
+        /**
+         * Whether this supplier is registered for VAT at all (2026-09-26).
+         *
+         * True for the platform, and configured — a platform selling
+         * subscriptions is registered, and a deployment where it is not says
+         * so rather than being guessed at. It exists because the platform is
+         * no longer the only supplier: an organisation selling a seat to one
+         * of its own people is one too, and a company under the
+         * small-business threshold charges no VAT on anything it sells.
+         *
+         * Not the same fact as `ossRegistered`, which is about *where* a
+         * cross-border consumer sale is taxed by somebody who charges VAT.
+         */
+        public readonly bool $vatRegistered = true,
     ) {
+    }
+
+    /**
+     * An organisation selling a seat to one of its own people (2026-09-26).
+     *
+     * Its country comes from its billing profile, because that is the address
+     * the document is issued from, and whether it charges VAT from its tax
+     * profile's `taxablePerson` — the one fact §25.3 says cannot be inferred.
+     *
+     * **Never registered for the one-stop shop.** OSS is for selling to
+     * consumers in other member states; the people an organisation seats are
+     * its own members, and a deployment where that stops being true needs the
+     * fact configured rather than assumed here.
+     *
+     * The supply and the currency are the product's: it is the same service,
+     * resold, and what it costs is what the offer priced.
+     */
+    public static function forOrganisation(
+        string $countryCode,
+        bool $vatRegistered,
+        string $defaultSupplyType,
+        string $currency,
+    ): self {
+        return new self(strtoupper($countryCode), false, $defaultSupplyType, strtoupper($currency), $vatRegistered);
     }
 
     /**
@@ -54,7 +92,16 @@ final class SupplierTaxSettings
             ? strtoupper($currency)
             : 'EUR';
 
-        return new self($country, ($tax['oss_registered'] ?? false) === true, $supply, $currency);
+        // Registered unless the configuration says otherwise. The platform
+        // has been invoicing with VAT since M6, so absent means what it has
+        // always meant; only an explicit `false` changes it.
+        return new self(
+            $country,
+            ($tax['oss_registered'] ?? false) === true,
+            $supply,
+            $currency,
+            ($tax['vat_registered'] ?? true) !== false,
+        );
     }
 
     /**
@@ -74,6 +121,7 @@ final class SupplierTaxSettings
             'oss_registered' => $this->ossRegistered,
             'supply_type' => $this->defaultSupplyType,
             'currency' => $this->currency,
+            'vat_registered' => $this->vatRegistered,
         ];
     }
 }

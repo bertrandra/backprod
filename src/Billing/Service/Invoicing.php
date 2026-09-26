@@ -130,9 +130,8 @@ final class Invoicing
         // §25.3: the rate comes from a *motivated* decision — who the
         // customer is, whether their number was verified, what is supplied
         // and where it is taxed — never from a country code alone.
-        $calculation = $this->taxation->calculate(
-            $tenantId,
-            $productId,
+        $calculation = $this->taxation->calculateSale(
+            $parties->sale,
             $version->priceMinorUnits,
             $version->currency,
             null,
@@ -153,9 +152,9 @@ final class Invoicing
         // built it. They agree here by construction, and routing both paths
         // through the same helper keeps that true if a second line is ever
         // added.
-        $facts = $this->taxation->factsFor($tenantId, $productId, [$line], $issuedAt);
+        $facts = $this->taxation->factsForSale($parties->sale, [$line], $issuedAt);
 
-        $supplyType = $this->taxation->defaultSupplyType($productId);
+        $supplyType = $parties->sale->supplier->defaultSupplyType;
 
         return $this->invoices->issue(
             $tenantId,
@@ -178,6 +177,7 @@ final class Invoicing
             function (Invoice $invoice) use (
                 $tenantId,
                 $productId,
+                $parties,
                 $supplyType,
                 $issuedAt,
                 $facts,
@@ -185,6 +185,7 @@ final class Invoicing
                 $this->taxation->recordFor(
                     $tenantId,
                     $productId,
+                    $parties->issuerTenantId,
                     $invoice->id,
                     null,
                     $supplyType,

@@ -27,9 +27,17 @@ interface CreditNoteRepository
      * both states an auditor would ask about and neither is recoverable by
      * looking at the other.
      *
-     * @param list<InvoiceLine>    $lines
-     * @param array<string, mixed> $supplier
-     * @param array<string, mixed> $customer
+     * `$alsoRecord` runs **inside** that transaction, after the document
+     * exists and before it commits (2026-09-26) — the same shape `issue()` on
+     * {@see InvoiceRepository} has, and for the same reason. It is how the
+     * reversing fiscal fact of §25.3 is written atomically with the credit
+     * note that produced it: a credit note with no VAT transaction leaves the
+     * declaration claiming tax on a sale that was undone.
+     *
+     * @param list<InvoiceLine>       $lines
+     * @param array<string, mixed>    $supplier
+     * @param array<string, mixed>    $customer
+     * @param (callable(CreditNote): void)|null $alsoRecord
      */
     public function issue(
         Invoice $invoice,
@@ -38,5 +46,6 @@ interface CreditNoteRepository
         array $customer,
         ?string $reason,
         ?string $actorUserId,
+        ?callable $alsoRecord = null,
     ): CreditNote;
 }

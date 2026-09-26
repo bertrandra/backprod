@@ -67,14 +67,14 @@ final class InvoiceThenSubscribe implements OrderFulfilment
         // construction. If the two no longer agree, this throws, and it
         // throws **before** anything is issued: numbering is gapless, so a
         // document raised in error cannot be deleted.
-        $facts = $this->taxation->factsFor(
-            $order->tenantId,
-            $order->productId,
-            $order->lines,
-            $now,
-        );
+        //
+        // Between **the parties resolved above**, never re-resolved
+        // (2026-09-26). Asking `factsFor($tenantId, $productId)` decided the
+        // regime for the platform selling to the organisation, while the
+        // document said the organisation selling to a person.
+        $facts = $this->taxation->factsForSale($parties->sale, $order->lines, $now);
 
-        $supplyType = $this->taxation->defaultSupplyType($order->productId);
+        $supplyType = $parties->sale->supplier->defaultSupplyType;
 
         $invoice = $this->invoices->applyIssue(
             $order->tenantId,
@@ -94,10 +94,11 @@ final class InvoiceThenSubscribe implements OrderFulfilment
             // Still inside the transaction this method was called in, so the
             // invoice, the fiscal fact, the subscription and the completed
             // order all commit together or none of them do.
-            function (Invoice $issued) use ($order, $supplyType, $now, $facts): void {
+            function (Invoice $issued) use ($order, $parties, $supplyType, $now, $facts): void {
                 $this->taxation->recordFor(
                     $order->tenantId,
                     $order->productId,
+                    $parties->issuerTenantId,
                     $issued->id,
                     null,
                     $supplyType,
