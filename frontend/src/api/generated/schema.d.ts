@@ -5044,6 +5044,22 @@ export interface components {
             offer_version?: number;
             price_minor_units?: number;
             currency?: string;
+            /** @description Which product this subscription is on. The platform is multi-product and this list was not saying which (2026-09-26). */
+            product_code?: string;
+            /**
+             * @description Who contracted (§13.1). `USER` is a seat, which since ADR-055 is everything the tenant surface sells — so a console naming only the organisation described the world as it was before that: three seats in one tenant looked like three identical rows.
+             * @enum {string}
+             */
+            subscriber_kind?: "TENANT" | "USER";
+            /**
+             * Format: uuid
+             * @description Who bought it. Null only for a row from before ownership was recorded.
+             */
+            owner_user_id?: string | null;
+            /** @description That person's display name; null once erased (§26) or never given. */
+            holder_name?: string | null;
+            /** @description That person's address; null once erased (§26). */
+            holder_email?: string | null;
         };
         AdminInvoice: {
             /** Format: uuid */
@@ -5060,6 +5076,19 @@ export interface components {
             issued_at?: string | null;
             due_at?: string | null;
             paid_at?: string | null;
+            /** @description Which product was billed. The platform is multi-product and this list was not saying which (2026-09-26). */
+            product_code?: string;
+            /** @description The legal name in the document's own supplier block, read from the snapshot it keeps and never from a live row (§25): that is what the customer received, and a name changed since must not change the invoice. For a seat it is the organisation's (ADR-055). */
+            supplier_name?: string | null;
+            /** @description The legal name in the document's customer block, from the same snapshot. For a seat it is one person — which is the fact this list could not show before. */
+            customer_name?: string | null;
+            /** @description The address the document was made out to, from the snapshot. */
+            customer_email?: string | null;
+            /**
+             * Format: uuid
+             * @description Whose gapless series the number came from (ADR-054). Null is the platform's own; a tenant id means that organisation raised it, which is what a seat's invoice looks like.
+             */
+            issuer_tenant_id?: string | null;
         };
         AdminJob: {
             /** Format: uuid */

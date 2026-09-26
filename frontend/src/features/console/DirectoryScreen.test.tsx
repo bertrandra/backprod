@@ -204,6 +204,146 @@ describe('a draft invoice', () => {
   });
 });
 
+/**
+ * Who holds what, in the console (2026-09-26).
+ *
+ * This list named the organisation and nothing else, which described the world
+ * as it was before ADR-055: since then everything the tenant surface sells is
+ * a **seat held by one person**, so three seats in Acme read as three
+ * identical rows and the operator could not tell whose was whose.
+ */
+describe('a subscription in the console', () => {
+  const seat = {
+    id: '55555555-5555-4555-8555-555555555555',
+    tenant_id: TENANT.id,
+    tenant_name: 'Acme Ltd',
+    product_code: 'plan',
+    status: 'ACTIVE',
+    subscriber_kind: 'USER',
+    owner_user_id: '66666666-6666-4666-8666-666666666666',
+    holder_name: 'Ada Lovelace',
+    holder_email: 'ada@acme.test',
+    offer_code: 'pro-monthly',
+    offer_version: 1,
+    price_minor_units: 2900,
+    currency: 'EUR',
+    started_at: '2026-09-01T00:00:00Z',
+    current_period_end: '2026-10-01T00:00:00Z',
+    cancel_at_period_end: false,
+    term_ends_at: null,
+    commitment_ends_at: null,
+  };
+
+  it('names the person who holds the seat, beside the organisation', async () => {
+    renderAtRoute(
+      <DirectoryScreen />,
+      clientFor({ 'GET /api/v1/admin/subscriptions': page('subscriptions', [seat]) }),
+      at('subscriptions'),
+    );
+
+    await waitFor(() => expect(screen.getByText('Acme Ltd')).toBeTruthy());
+
+    expect(document.querySelector('[data-holder="person"]')?.textContent).toContain('Ada Lovelace');
+    // And which product, because the platform is multi-product and this said
+    // only the offer code.
+    expect(screen.getByText(/plan · pro-monthly/)).toBeTruthy();
+  });
+
+  it('falls back to the address when the person has no display name', async () => {
+    renderAtRoute(
+      <DirectoryScreen />,
+      clientFor({
+        'GET /api/v1/admin/subscriptions': page('subscriptions', [{ ...seat, holder_name: null }]),
+      }),
+      at('subscriptions'),
+    );
+
+    await waitFor(() =>
+      expect(document.querySelector('[data-holder="person"]')?.textContent).toContain('ada@acme.test'),
+    );
+  });
+
+  it('says the organisation for a subscription that names nobody', async () => {
+    renderAtRoute(
+      <DirectoryScreen />,
+      clientFor({
+        'GET /api/v1/admin/subscriptions': page('subscriptions', [
+          { ...seat, subscriber_kind: 'TENANT', owner_user_id: null, holder_name: null, holder_email: null },
+        ]),
+      }),
+      at('subscriptions'),
+    );
+
+    // Said, not borrowed: naming Acme as the holder of Acme's own
+    // subscription would read as a person called Acme.
+    await waitFor(() => expect(document.querySelector('[data-holder="tenant"]')).not.toBeNull());
+    expect(document.querySelector('[data-holder="person"]')).toBeNull();
+  });
+
+  it('says nobody rather than attributing a row with no owner recorded', async () => {
+    renderAtRoute(
+      <DirectoryScreen />,
+      clientFor({
+        'GET /api/v1/admin/subscriptions': page('subscriptions', [
+          { ...seat, owner_user_id: null, holder_name: null, holder_email: null },
+        ]),
+      }),
+      at('subscriptions'),
+    );
+
+    await waitFor(() => expect(document.querySelector('[data-holder="unrecorded"]')).not.toBeNull());
+  });
+});
+
+/**
+ * An invoice a tenant issued names two parties that are not the tenant's row
+ * (ADR-054, ADR-055) — Acme sold the seat, one person bought it.
+ */
+describe('an invoice in the console', () => {
+  const issuedByAcme = {
+    ...INVOICE,
+    number: '2026-000001',
+    status: 'PAID',
+    product_code: 'plan',
+    issuer_tenant_id: TENANT.id,
+    supplier_name: 'Acme Ltd',
+    customer_name: 'Ada Lovelace',
+    customer_email: 'ada@acme.test',
+  };
+
+  it('shows the supplier and the customer the document carries', async () => {
+    renderAtRoute(
+      <DirectoryScreen />,
+      clientFor({ 'GET /api/v1/admin/invoices': page('invoices', [issuedByAcme]) }),
+      at('invoices'),
+    );
+
+    await waitFor(() => expect(document.querySelector('[data-parties]')).not.toBeNull());
+
+    const parties = document.querySelector('[data-parties]')?.textContent ?? '';
+
+    expect(parties).toContain('Acme Ltd');
+    expect(parties).toContain('Ada Lovelace');
+  });
+
+  it('says nothing extra on the platform\'s own invoice', async () => {
+    renderAtRoute(
+      <DirectoryScreen />,
+      clientFor({
+        'GET /api/v1/admin/invoices': page('invoices', [
+          { ...issuedByAcme, issuer_tenant_id: null, supplier_name: 'Atlas SAS', customer_name: 'Acme Ltd' },
+        ]),
+      }),
+      at('invoices'),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('invoice-number')).toBeTruthy());
+    // The customer is the organisation, whose name is already on the row:
+    // repeating it would be noise on every line.
+    expect(document.querySelector('[data-parties]')).toBeNull();
+  });
+});
+
 describe('the counts', () => {
   it('are the counted total, not the length of the page', async () => {
     renderAtRoute(
