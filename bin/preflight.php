@@ -109,6 +109,29 @@ $capabilities = [
         . 'none. Generate one with: ' . "php -r 'echo bin2hex(random_bytes(32)), PHP_EOL;'",
     ),
     new Capability(
+        'Single sign-on across hosts',
+        // **Both halves, because either one alone does nothing** (2026-09-26).
+        // The cookie has to be willing to travel to the sibling host, and the
+        // browser has to be willing to attach it to a cross-origin call. Miss
+        // one and the symptom is identical to missing the other: a sign-in
+        // form on a product this person is already signed in for. Reporting
+        // them separately sends an operator round the loop twice.
+        configured('AUTH_COOKIE_DOMAIN') && configured('CORS_ALLOWED_ORIGINS'),
+        'Single sign-on to a product beside the platform (ADR-051 §3) needs two lines and has '
+        . (configured('AUTH_COOKIE_DOMAIN') || configured('CORS_ALLOWED_ORIGINS') ? 'one' : 'neither')
+        . '. AUTH_COOKIE_DOMAIN widens the refresh cookie to the registrable domain — without it the '
+        . 'cookie is host-only, returned to exactly the host that set it and to no sibling subdomain, '
+        . 'whatever SameSite says. CORS_ALLOWED_ORIGINS lists the product\'s origin — without it the '
+        . 'browser will not attach the cookie to the product\'s call at all. Either one missing gives '
+        . 'the same symptom: somebody who has just bought a seat is asked for their password on the '
+        . 'way to the thing they bought, and the way back can ask again. The cookie domain also makes '
+        . 'an apex and a www host one session rather than two, which is worth having on its own. It '
+        . 'widens a credential\'s reach — every host under the domain can receive the token, on '
+        . '/api/v1/auth only, over Secure, unreadable by script — so a deployment hosting anything '
+        . 'it does not trust on a subdomain must not set it. A single-host deployment with nothing '
+        . 'beside it needs none of this.',
+    ),
+    new Capability(
         'Taking money',
         // Stripe needs all three of its keys (config/container.php says why);
         // the stub is a provider too, for a demo or the test suite.
@@ -142,6 +165,14 @@ $capabilities = [
 $databaseNotes = [];
 $migrationsPending = null;
 
+/**
+ * Products that live on their own host and therefore need both halves set,
+ * by code with the address they answer on.
+ *
+ * @var array<string, string>
+ */
+$sideloaded = [];
+
 if (configured('DATABASE_DSN')) {
     try {
         $containerFactory = require __DIR__ . '/../config/container.php';
@@ -167,6 +198,26 @@ if (configured('DATABASE_DSN')) {
         $databaseNotes[] = $migrationsPending === 0
             ? 'schema up to date'
             : sprintf('%d migration(s) not applied', $migrationsPending);
+
+        // A product deployed beside the platform, without both halves of the
+        // setting, is not a capability that is merely absent: it is single
+        // sign-on that cannot work for a product this deployment is actually
+        // offering. The capability above says what the two lines do; this says
+        // that something here needs them, and what to write.
+        if (!configured('AUTH_COOKIE_DOMAIN') || !configured('CORS_ALLOWED_ORIGINS')) {
+            $beside = $connection->fetchAllAssociative(
+                "SELECT code, app_url FROM products WHERE active AND coalesce(app_url, '') <> '' ORDER BY code",
+            );
+
+            foreach ($beside as $row) {
+                $code = $row['code'] ?? null;
+                $url = $row['app_url'] ?? null;
+
+                if (is_string($code) && is_string($url)) {
+                    $sideloaded[$code] = $url;
+                }
+            }
+        }
     } catch (Throwable $failure) {
         // The message, not the trace: a DSN can carry a password and a stack
         // trace in a deploy log is how it escapes (§31).
@@ -196,6 +247,45 @@ foreach ($capabilities as $capability) {
 
 if ($databaseNotes !== []) {
     printf("\n  database: %s\n", implode(', ', $databaseNotes));
+}
+
+if ($sideloaded !== []) {
+    $origins = [];
+    $domains = [];
+
+    foreach ($sideloaded as $url) {
+        $host = parse_url($url, PHP_URL_HOST);
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+
+        if (!is_string($host) || $host === '') {
+            continue;
+        }
+
+        $origins[(is_string($scheme) && $scheme !== '' ? $scheme : 'https') . '://' . $host] = true;
+
+        // The registrable domain, as far as a deployment can know it without a
+        // public-suffix list: the last two labels. `plan.raillard.org` gives
+        // `raillard.org`, which is the answer here; a host under a two-part
+        // suffix like `co.uk` would need the operator's eye, which is why this
+        // is printed as a suggestion and not written anywhere.
+        $labels = explode('.', $host);
+        $domains[count($labels) >= 2 ? implode('.', array_slice($labels, -2)) : $host] = true;
+    }
+
+    printf(
+        "\n  WARNING: %s %s on %s, and single sign-on is not configured for %s.\n"
+        . "  Somebody signed in here who opens %s is shown a sign-in form, and the way\n"
+        . "  back can ask again. Both of these lines are needed in .env:\n\n"
+        . "    AUTH_COOKIE_DOMAIN=%s\n"
+        . "    CORS_ALLOWED_ORIGINS=%s\n",
+        implode(', ', array_keys($sideloaded)),
+        count($sideloaded) === 1 ? 'answers' : 'answer',
+        implode(', ', array_keys($origins)),
+        count($sideloaded) === 1 ? 'it' : 'them',
+        count($sideloaded) === 1 ? 'it' : 'any of them',
+        implode(' or ', array_keys($domains)),
+        implode(',', array_keys($origins)),
+    );
 }
 
 // A production-shaped deployment on a sandbox key is legitimate — a demo,
