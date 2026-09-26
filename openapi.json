@@ -3984,6 +3984,114 @@
           }
         }
       },
+      "AdminPayment": {
+        "type": "object",
+        "description": "One attempt to collect one invoice, seen from the platform. The money is integer minor units with its currency beside it, here as everywhere \u2014 nothing on this row is added to anything else.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_name": {
+            "type": "string"
+          },
+          "product_code": {
+            "type": "string",
+            "description": "Which product was being paid for. The platform is multi-product, and a payments list that did not say which would be four lists in one."
+          },
+          "invoice_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoice_number": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The invoice's legal number, and **null while that invoice is a draft** \u2014 never a placeholder, because a number comes from a gapless sequence at issue and a stand-in is how a hole enters one."
+          },
+          "customer_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The legal name in the invoice's customer block, read from the snapshot the document keeps and never from a live row (\u00a725): that is who was charged, and a name changed since must not change the paper. For a seat it is one person, not the organisation (ADR-055)."
+          },
+          "customer_email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The address that invoice was made out to, from the same snapshot."
+          },
+          "subscription_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The subscription this collection is against, where there is one. A one-off sale has none."
+          },
+          "status": {
+            "type": "string"
+          },
+          "amount_minor_units": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string",
+            "description": "The PSP's name, as the adapter reports it (\u00a724)."
+          },
+          "provider_payment_id": {
+            "type": "string",
+            "description": "The provider's own handle. Reconciling this platform against a PSP dashboard is something finance teams actually do, and hiding the handle makes it a support ticket. It is not an instrument: no card data exists anywhere in this platform."
+          },
+          "method": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A label \u2014 CARD, SEPA_DEBIT, TRANSFER, APPLE_PAY, GOOGLE_PAY, OTHER \u2014 and never an instrument."
+          },
+          "failure_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "failure_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "succeeded_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "failed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "Skin": {
         "type": "object",
         "description": "How a tenant wants this product to look. Every field is present and null when unset, rather than absent — a client reading this to decide how to render needs one shape, and null means \"use the product's defaults\".\n\nKept per (tenant, product): §12.1 lets one tenant use several products, and a company white-labelling two of them has no reason to want the same shade in both.",
@@ -5708,6 +5816,92 @@
                       }
                     }
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/payments": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "listAdminPayments",
+        "summary": "Every attempt to collect, across tenants",
+        "description": "`/admin/invoices` answers what was owed; this answers whether it arrived, which is the question an operator actually asks about a customer.\n\nA payment's own row names no person — it names an invoice — so the document's parties come from the **snapshot the invoice keeps** (\u00a725): who they were when it was raised, never who they are now. `invoice_number` is null while that invoice is a draft, and no placeholder is put there: a number comes from a gapless sequence at issue, and inventing one is how a hole enters it.\n\nRequires `admin.finance.read`.",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "One customer."
+          },
+          {
+            "name": "product_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "One product \u2014 the console's product picker, when a tenant holds several (ADR-047)."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "PENDING, AUTHORIZED, SUCCEEDED, FAILED, CANCELLED, REFUNDED, PARTIALLY_REFUNDED, CHARGEBACK."
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryLimit"
+          },
+          {
+            "$ref": "#/components/parameters/DirectoryOffset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DirectoryEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "payments": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AdminPayment"
+                          }
+                        }
+                      },
+                      "required": [
+                        "payments"
+                      ]
+                    }
+                  ]
                 }
               }
             }

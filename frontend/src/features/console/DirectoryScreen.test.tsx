@@ -62,12 +62,36 @@ const page = (key: string, rows: unknown[]) => ({
   data: { [key]: rows, total: rows.length, limit: 25, offset: 0 },
 });
 
+const PAYMENT = {
+  id: '77777777-7777-4777-8777-777777777777',
+  tenant_id: TENANT.id,
+  tenant_name: 'Acme Ltd',
+  product_code: 'plan',
+  invoice_id: INVOICE.id,
+  invoice_number: '2026-000004',
+  customer_name: 'Ada Lovelace',
+  customer_email: 'ada@acme.test',
+  subscription_id: null,
+  status: 'SUCCEEDED',
+  amount_minor_units: 3480,
+  currency: 'EUR',
+  provider: 'stripe',
+  provider_payment_id: 'pi_1',
+  method: 'CARD',
+  failure_code: null,
+  failure_reason: null,
+  succeeded_at: '2026-09-20T10:00:00Z',
+  failed_at: null,
+  created_at: '2026-09-20T09:59:00Z',
+};
+
 function clientFor(extra: Stubs = {}) {
   return stubClient({
     'GET /api/v1/admin/tenants': page('tenants', [TENANT]),
     'GET /api/v1/admin/users': page('users', [PRESENT, ERASED]),
     'GET /api/v1/admin/invoices': page('invoices', [INVOICE]),
     'GET /api/v1/admin/subscriptions': page('subscriptions', []),
+    'GET /api/v1/admin/payments': page('payments', [PAYMENT]),
     ...extra,
   });
 }
@@ -341,6 +365,119 @@ describe('an invoice in the console', () => {
     // The customer is the organisation, whose name is already on the row:
     // repeating it would be noise on every line.
     expect(document.querySelector('[data-parties]')).toBeNull();
+  });
+});
+
+/**
+ * Whether the money arrived (2026-09-26).
+ *
+ * The console could read every invoice ever raised and not one payment against
+ * one of them, so *"did this customer actually pay?"* had no screen. These
+ * tests are about what the row **says**: an amount with no name and no
+ * document beside it is the same row twelve times over.
+ */
+describe('a payment in the console', () => {
+  it('asks the platform-wide payments endpoint, paged, with the status typed', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/admin/payments': page('payments', [PAYMENT]),
+    });
+
+    renderAtRoute(<DirectoryScreen />, client, at('payments'));
+
+    await waitFor(() => expect(screen.getByTestId('payment-invoice-number')).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'FAILED' } });
+
+    // What the request *does*, not what a constant holds: the path the
+    // contract declares, and a bounded page — a payments list grows faster
+    // than any other admin list.
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (r) =>
+            r.path === '/api/v1/admin/payments' &&
+            (r.query as { status?: string } | undefined)?.status === 'FAILED' &&
+            typeof (r.query as { limit?: number } | undefined)?.limit === 'number',
+        ),
+      ).toBe(true),
+    );
+    // And nowhere else: a hand-written path would compose something like
+    // /api/v1/api/v1/admin/payments and still look right in a constant.
+    expect(requests.every((r) => r.path === '/api/v1/admin/payments')).toBe(true);
+  });
+
+  it('names the invoice it collects and the customer that document carries', async () => {
+    renderAtRoute(<DirectoryScreen />, clientFor(), at('payments'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('payment-invoice-number').textContent).toBe('2026-000004'),
+    );
+
+    // From the invoice's snapshot, so a seat's payment names the person and
+    // not the organisation — the organisation is on the row once, above.
+    const whose = screen.getByTestId('payment-customer');
+
+    expect(whose.getAttribute('data-whose')).toBe('person');
+    expect(whose.textContent).toContain('Ada Lovelace');
+    // Minor units all the way to the screen, converted only in Money.
+    expect(document.querySelector('[data-minor-units="3480"]')).not.toBeNull();
+  });
+
+  it('says the invoice has no number while it is still a draft', async () => {
+    renderAtRoute(
+      <DirectoryScreen />,
+      clientFor({
+        'GET /api/v1/admin/payments': page('payments', [
+          { ...PAYMENT, invoice_number: null, status: 'PENDING', succeeded_at: null },
+        ]),
+      }),
+      at('payments'),
+    );
+
+    // Not a placeholder: a number comes from a gapless sequence at issue, and
+    // a stand-in is how a hole enters one.
+    await waitFor(() =>
+      expect(screen.getByTestId('payment-invoice-number').textContent).toBe('no number yet'),
+    );
+    expect(document.querySelector('[data-settlement="open"]')).not.toBeNull();
+  });
+
+  it('tells a refusal from a receipt', async () => {
+    renderAtRoute(
+      <DirectoryScreen />,
+      clientFor({
+        'GET /api/v1/admin/payments': page('payments', [
+          {
+            ...PAYMENT,
+            status: 'FAILED',
+            succeeded_at: null,
+            failed_at: '2026-09-21T08:00:00Z',
+            failure_code: 'card_declined',
+            failure_reason: 'The card was declined.',
+          },
+        ]),
+      }),
+      at('payments'),
+    );
+
+    await waitFor(() => expect(document.querySelector('[data-settlement="failed"]')).not.toBeNull());
+    // One timestamp labelled "date" would report a refusal and a receipt
+    // identically, which is the distinction somebody came to this screen for.
+    expect(document.querySelector('[data-settlement="succeeded"]')).toBeNull();
+    expect(document.querySelector('[data-payment-status="FAILED"]')?.textContent).toContain(
+      'The card was declined.',
+    );
+  });
+
+  it('is reachable by a link, like every other listing', async () => {
+    const view = renderAtRoute(<DirectoryScreen />, clientFor(), at());
+
+    await waitFor(() => expect(screen.getByText('Acme Ltd')).toBeTruthy());
+
+    fireEvent.click(document.querySelector('[data-tab="payments"]') as HTMLElement);
+
+    await waitFor(() => expect(view.location()).toContain('tab=payments'));
+    await waitFor(() => expect(screen.getByTestId('payment-invoice-number')).toBeTruthy());
   });
 });
 

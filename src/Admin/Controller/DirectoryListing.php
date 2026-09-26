@@ -8,12 +8,12 @@ use App\Admin\Domain\DirectoryPage;
 use App\Shared\Http\PageRequest;
 
 /**
- * The bounds and the envelope the five operational listings share.
+ * The bounds and the envelope the six operational listings share.
  *
  * A helper rather than a base class, because every controller in this
  * platform is final and holds its own dependency — the shape `AdminRoute` and
  * `StaffRoute` already use. What is shared here is a page limit and a
- * response shape, and five copies of those would be five places for one of
+ * response shape, and six copies of those would be six places for one of
  * them to drift.
  */
 final class DirectoryListing
