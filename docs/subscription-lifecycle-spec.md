@@ -292,11 +292,36 @@ les rangs**. Un freemium au rang 10 :
   de Lecture à Freemium serait compté comme un **upgrade**, donc facturé avec
   un prorata.
 
-> **Le freemium doit porter le rang le plus bas.** `rank = 1` le place sous
-> tout le reste sans renuméroter quoi que ce soit.
-> **À confirmer** : « séquence 10 » voulait peut-être dire « le dixième dans
-> la liste », auquel cas le rang reste 1 et c'est l'ordre d'affichage qui est
-> en cause.
+**La convention de la démonstration est : le plus petit rang vaut 10, et les
+rangs montent de 10 en 10.** Le freemium étant le plan le plus bas, il prend
+donc **10**, et le reste monte d'un cran :
+
+```text
+avant                          après
+  lecture   5                    freemium  10     nouveau
+  starter  10                    lecture   20
+  pro      20                    starter   30
+  scale    30                    pro       40
+                                 scale     50
+```
+
+*Lecture* était déjà hors convention à 5 — c'est un plan en lecture seule
+ajouté après les trois autres, glissé sous `starter` faute de place. La
+renumérotation lui en donne une.
+
+**Rien ne s'y oppose en base** : `plans` ne porte aucune contrainte d'unicité
+ni de vérification sur `rank` (seulement `plans_code_unique` sur
+`(product_id, code)`). Le rang n'est qu'un ordre, lu par
+`directionBetween()`, et la démonstration se sème depuis `DemoWorld.php` —
+**donc aucune migration**, une renumérotation de constantes.
+
+> **Ce qui reste à confirmer** est l'ordre entre *Freemium* et *Lecture*. Le
+> tableau ci-dessus met le gratuit sous le payant, ce qui fait de
+> Freemium → Lecture un upgrade facturé au prorata et de Lecture → Freemium un
+> downgrade différé. C'est cohérent, mais *Lecture* se vend 5,00 € et ne
+> stocke rien : si la descente de Lecture vers Freemium ne doit rien coûter ni
+> rien attendre, ces deux-là sont au même niveau commercial et c'est une autre
+> conversation.
 
 ### 6.3 Pas de renouvellement, et pas de facture
 
@@ -390,7 +415,7 @@ pas ; la TVA suit le montage retenu.
 Tests : un impayé suspend ; le refus se distingue de « votre organisation ne
 vous couvre pas » ; une relance est une nouvelle tentative.
 
-**Étape 6 — le freemium.** Le rang, la valeur de `renewal`, le chemin de
+**Étape 6 — le freemium.** La renumérotation des rangs (10, puis de 10 en 10), la valeur de `renewal`, le chemin de
 souscription sans facture, l'unicité du §6.4, et le plan dans la
 démonstration (1 utilisateur, 1 projet, 5 jours) avec sa vérification dans
 `DemoFixtures::verify`.
@@ -408,7 +433,9 @@ démonstration (1 utilisateur, 1 projet, 5 jours) avec sa vérification dans
 2. **Le crédit de prorata** : ligne négative, ou avoir + facture pleine ?
    (§3.3)
 3. **`PAST_DUE`** : accès restreint ou suspendu ? (§5.1)
-4. **Le rang du freemium** : 1, ou renumérotation de tous les plans ? (§6.2)
+4. **L'ordre entre Freemium et Lecture** : le gratuit sous le payant, ou les
+   deux au même niveau commercial ? La renumérotation est tranchée — 10, puis
+   de 10 en 10. (§6.2)
 5. **« Qu'un abonnement freemium »** : une seule fois par compte, ou le
    freemium ne se suffit pas ? (§6.4)
 6. Le **calendrier de relance** (J+1 / J+3 / J+7 ?) (§5.2)
