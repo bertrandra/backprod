@@ -190,6 +190,43 @@ async function refreshSubscription(
   ]);
 }
 
+/**
+ * Taking a product's free period (spec §6).
+ *
+ * **Not a checkout**, and the difference is not a detail of routing: nothing is
+ * outstanding, so nothing is raised — no order, no invoice, no payment. A €0
+ * invoice would be a permanent hole in a gapless legal series.
+ *
+ * Nothing optimistic, and for once not because money moves: it creates a
+ * subscription, and the date it ends on is the server's — the product decides
+ * how many days it gives away, and a screen that counted five of them here
+ * would be inventing a term.
+ *
+ * It can be taken **once ever**, expired ones included, and the refusal is
+ * `FREEMIUM_ALREADY_USED`. The catalogue should say so before offering the
+ * button; hiding is courtesy and the API decides regardless.
+ */
+export function useStartFreemium() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (offerId: string): Promise<Subscription> => {
+      const { data, error, response } = await client.POST('/api/v1/subscription/freemium', {
+        ...ambientParams(sessionSnapshot),
+        body: { offer_id: offerId },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    onSuccess: () => refreshSubscription(queryClient),
+  });
+}
+
 export function useChangeOffer() {
   const client = useApiClient();
   const queryClient = useQueryClient();

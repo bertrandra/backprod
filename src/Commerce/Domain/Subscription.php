@@ -56,6 +56,17 @@ final class Subscription
          * refuses: a subscription has one ending.
          */
         public readonly ?PendingChange $pending = null,
+        /**
+         * Whether this was taken out on a freemium offer (2026-09-27,
+         * spec §6.4) — snapshotted at subscription, like the terms, and never
+         * recomputed from the offer version, which says what that plan is
+         * today rather than what was sold.
+         *
+         * It stays true after a move up to a paid plan: the right to a free
+         * period has been used, and `subscriptions_one_freemium_ever` is what
+         * holds somebody to that, whatever the status of the row since.
+         */
+        public readonly bool $isFreemium = false,
     ) {
     }
 

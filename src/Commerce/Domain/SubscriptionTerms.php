@@ -60,6 +60,21 @@ final class SubscriptionTerms
     }
 
     /**
+     * Whether the subscription stops when its period is up instead of rolling
+     * into another one (spec §6.3).
+     *
+     * `AUTO_RENEW` and `ENDS_AT_TERM` have both been on the offer version and
+     * on the subscription since §13.1, and until 2026-09-27 nothing read the
+     * second: renewal rolled the period forward whatever it said. Asked here,
+     * as a question about the terms, rather than compared as a string at the
+     * one call site that needs it — the next one would compare it differently.
+     */
+    public function endsAtTerm(): bool
+    {
+        return $this->renewal === self::ENDS_AT_TERM;
+    }
+
+    /**
      * When the commitment ends, counted from the start.
      *
      * Null when there is none — and the database refuses a commitment date

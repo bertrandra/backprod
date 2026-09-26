@@ -523,6 +523,26 @@ et le plan dans la démonstration (1 utilisateur, 1 projet, 5 jours) avec sa
 vérification dans `DemoFixtures::verify`. Test : un freemium terminé interdit
 toujours d'en reprendre un.
 
+> **Livrée** le 27 septembre 2026, ADR-059. Le freemium a **sa propre porte**
+> (`POST /api/v1/subscription/freemium`, `billing.pay`) parce qu'il ne lève
+> aucun document, et `Sales::order` refuse la même offre de l'autre côté
+> (`FREEMIUM_IS_NOT_SOLD`) : une porte, pas une et demie. On le reconnaît à
+> ses **propriétés** — `OfferVersion::isFreemium()` = prix 0 **et**
+> `ENDS_AT_TERM` — jamais au code d'un plan. `renewal` existait déjà et rien
+> ne le lisait : `Subscriptions::renew()` a désormais une troisième étape, et
+> elle vaut pour tout contrat à durée déterminée, pas seulement pour le
+> gratuit. La durée est dans la **configuration du produit**
+> (`{"days": 5}`), pas une constante : `term_months` ne sait pas dire cinq
+> jours et un opérateur doit pouvoir changer la sienne. `is_freemium` survit
+> à une montée en gamme — le droit a été consommé — donc **pas de CHECK**
+> reliant la colonne à `renewal`, qui refuserait justement cette montée.
+>
+> Deux choses restent hors de cette étape : l'écran catalogue (§7), donc le
+> refus se découvre encore au clic ; et le changement d'offre d'un **siège**,
+> que `change-offer` ne sait pas atteindre — il résout l'abonnement de
+> l'organisation — ce qui rend Freemium → Lecture (§6.2) inatteignable
+> aujourd'hui. C'est un manque antérieur, et il appartient aux étapes 3 et 4.
+
 **Étape 7 — l'écran catalogue**, une fois que 2, 3 et 4 répondent.
 
 > L'ordre n'est pas négociable entre 1 et 4 : prorater des conditions qui

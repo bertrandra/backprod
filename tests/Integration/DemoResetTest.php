@@ -94,16 +94,25 @@ final class DemoResetTest extends DatabaseApiTestCase
         self::assertSame(5, $this->rowCount('SELECT count(*) FROM products'));
         self::assertSame(count(DemoWorld::PEOPLE), $this->rowCount('SELECT count(*) FROM users'));
         // Every subscription is a seat (2026-09-25): one person bought it,
-        // for themselves. The two counts are deliberately the same number
-        // asked two ways — the second is what would notice an organisation
-        // subscription creeping back in.
+        // for themselves — or, since 2026-09-27, took the free period, which
+        // is a seat too and the only one nobody paid for. The two counts are
+        // deliberately the same number asked two ways — the second is what
+        // would notice an organisation subscription creeping back in.
+        $held = count(DemoWorld::SEATS) + count(DemoWorld::FREEMIUM);
+
         self::assertSame(
-            count(DemoWorld::SEATS),
+            $held,
             $this->rowCount("SELECT count(*) FROM subscriptions WHERE status = 'ACTIVE'"),
         );
         self::assertSame(
-            count(DemoWorld::SEATS),
+            $held,
             $this->rowCount("SELECT count(*) FROM subscriptions WHERE subscriber_kind = 'USER' AND status = 'ACTIVE'"),
+        );
+        // And exactly one of them is free, raising no document at all (§6.3):
+        // the invoices counted above are the sold seats' and nobody else's.
+        self::assertSame(
+            count(DemoWorld::FREEMIUM),
+            $this->rowCount('SELECT count(*) FROM subscriptions WHERE is_freemium'),
         );
         // And each was sold: an order, fulfilled, and an invoice that was
         // paid. A seeder that went back to activating them directly would
@@ -120,7 +129,10 @@ final class DemoResetTest extends DatabaseApiTestCase
         // each was counted against a quota the offer actually grants and
         // stored under a schema version the product declared.
         self::assertSame(count(DemoWorld::PROJECTS), $this->rowCount('SELECT count(*) FROM projects'));
-        self::assertSame(3, $this->rowCount("SELECT count(*) FROM projects p JOIN products pr ON pr.id = p.product_id WHERE pr.code = 'plan'"));
+        self::assertSame(
+            count(array_filter(DemoWorld::PROJECTS, static fn (array $draft): bool => $draft['product'] === 'plan')),
+            $this->rowCount("SELECT count(*) FROM projects p JOIN products pr ON pr.id = p.product_id WHERE pr.code = 'plan'"),
+        );
         self::assertSame('https://plan.raillard.org', $this->connection->fetchOne("SELECT app_url FROM products WHERE code = 'plan'"));
         // Where a member's screens open when no address says (2026-09-23):
         // the product beside the platform, for everybody who holds it — and
@@ -186,7 +198,7 @@ final class DemoResetTest extends DatabaseApiTestCase
             SQL,
         ));
         self::assertSame(
-            count(DemoWorld::SEATS),
+            count(DemoWorld::SEATS) + count(DemoWorld::FREEMIUM),
             $this->rowCount("SELECT count(*) FROM subscriptions WHERE status = 'ACTIVE'"),
             'a declined order must not have started a seat',
         );

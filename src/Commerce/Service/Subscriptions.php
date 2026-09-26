@@ -14,6 +14,7 @@ use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionEvent;
 use App\Commerce\Domain\SubscriptionRepository;
+use App\Commerce\Domain\SubscriptionTerms;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\NotFoundException;
 use DateTimeImmutable;
@@ -516,8 +517,23 @@ final class Subscriptions
      * 1. a cancellation is due      → it ends, and nothing else
      * 2. a change is waiting        → it moves onto it, period reset,
      *                                 terms re-snapshotted, grants exchanged
-     * 3. otherwise                  → the same offer, one period further on
+     * 3. it ends at its term        → EXPIRED; nothing renews it
+     * 4. otherwise                  → the same offer, one period further on
      * ```
+     *
+     * The third step arrived with the freemium (2026-09-27, spec §6.3) and is
+     * not only the freemium's: `ENDS_AT_TERM` has been sellable on an offer
+     * version since §13.1 and nothing read it, so a subscription sold as
+     * ending at its term renewed itself for ever. A freemium makes that
+     * expensive rather than merely wrong — five free days retaken every five
+     * days is a product given away.
+     *
+     * **It comes after the waiting change, and that order is a decision.** A
+     * pending change is something the customer asked for *since* they
+     * subscribed, and the date was shown to them; expiring instead would throw
+     * away an instruction and answer with the older fact. "Does not renew"
+     * means this offer does not roll into another period of itself — not that
+     * the subscription may not become the thing its holder chose.
      *
      * No endpoint reaches this: renewal is something time does, and the job
      * that notices arrives with M7. It exists now so the behaviour is
@@ -561,6 +577,17 @@ final class Subscriptions
                     $subscription->pending->plan->rank,
                 ),
             );
+        }
+
+        // Third: an offer that was sold as ending at its term ends there
+        // (spec §6.3). Asked of the **terms the subscription snapshotted**,
+        // never of the offer version as it stands today — the version may have
+        // been re-termed since, and what a customer agreed to is what they
+        // agreed to. It is a property and not a plan's name, which is §13's
+        // rule and what `gate:plans` holds in PHP: the freemium is recognised
+        // here by not renewing, not by being called one.
+        if ($subscription->terms->endsAtTerm()) {
+            return $this->subscriptions->expire($subscription, SubscriptionTerms::ENDS_AT_TERM);
         }
 
         return $this->subscriptions->renew(

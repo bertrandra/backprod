@@ -18,7 +18,7 @@ et **ce que chaque action change** une fois faite.
 
 ## Ce que « 100 % » veut dire ici
 
-Le contrat déclare **221 opérations**. Chacune apparaît dans ce document,
+Le contrat déclare **224 opérations**. Chacune apparaît dans ce document,
 attribuée à qui peut l'atteindre. Pas un échantillon, pas les principales :
 toutes, y compris les sept que personne n'atteint à la main et les quatre qu'une
 machine seule appelle.
@@ -55,7 +55,7 @@ filtre oublié une élévation de privilège.
 | Il facture | non | **oui** — c'est son organisation qui émet | non, sauf les ventes de la plateforme |
 | Il travaille dans le produit | oui, si un abonnement le couvre | oui, aux mêmes conditions | non |
 | Permissions | 21 | 30 | 19 (dont 5 côté `admin.*`) |
-| Opérations atteignables | 6 propres + 67 partagées + 16 sans permission + 2 par capacité = **91** | 34 propres + 67 partagées + 16 sans permission + 2 par capacité = **119** | **76** |
+| Opérations atteignables | 7 propres + 69 partagées + 16 sans permission + 2 par capacité = **94** | 34 propres + 69 partagées + 16 sans permission + 2 par capacité = **121** | **76** |
 
 Les 10 permissions que l'administrateur a en plus sont `billing.manage`,
 `catalog.manage`, `jobs.manage`, `members.manage`, `payments.manage`,
@@ -134,7 +134,7 @@ Ce qui apparaît dans ce menu vient de `/me/permissions`, `/me/entitlements` et
 `/me/navigation`. Masquer n'est qu'une politesse : **l'API refuse de toute
 façon**, et le frontend n'est jamais l'autorité.
 
-### 4. Choisir et acheter — les six opérations qui n'appartiennent qu'à lui
+### 4. Choisir et acheter — les sept opérations qui n'appartiennent qu'à lui
 
 C'est ici que le modèle se voit. La surface locataire **ne vend qu'un siège** :
 un abonnement qui appartient à une personne (ADR-055). Il n'y a pas de bouton
@@ -151,6 +151,25 @@ Ce qu'il lit avant de choisir, sous `catalog.read` — `listPlans`,
 **rang**, qui est le seul ordre qui existe. Rien ici ne sait que Pro vaut mieux
 que Starter, et rien ici ne doit le savoir : une montée en gamme est une
 comparaison de deux entiers, jamais de deux mots.
+
+Et il peut **essayer avant d'acheter** (spéc. §6, 2026-09-27). Le plan le plus
+bas de l'échelle est un freemium : prix 0, `ENDS_AT_TERM`, cinq jours dans la
+démonstration, un utilisateur et un projet. `startFreemium` le démarre, et c'est
+la seule acquisition qui ne passe pas par la caisse — il n'y a ni commande, ni
+facture, ni paiement, parce qu'il n'y a rien à encaisser. Ce n'est pas une
+faveur faite au chemin normal : la numérotation est sans trou, donc une facture
+à 0 € serait l'enregistrement permanent et ineffaçable d'une transaction qui n'a
+pas eu lieu, au milieu d'une série que lit une administration fiscale.
+
+Il y a droit **une fois, et une fois pour toutes** — index unique sans filtre de
+statut, jamais une vérification applicative : sans cette règle, cinq jours
+gratuits se reprennent tous les cinq jours et le produit est gratuit pour
+toujours par récurrence. Le fait est recopié sur l'abonnement (`is_freemium`),
+comme les conditions, et il y reste après une montée en gamme : le droit a été
+consommé, pas annulé. Ce qu'on reconnaît d'un freemium, ce sont ses
+**propriétés** — gratuit, et fini quand sa période l'est — jamais le nom de son
+plan : une offre gratuite qui *se reconduit* est un palier gratuit, qu'on tient
+des années, et elle s'achète comme les autres.
 
 ### 5. Couvrir des collègues
 
@@ -207,6 +226,7 @@ décision commerciale, et la prendre en silence serait la prendre.
 |---|---|---|
 | `placeOrder` | `/catalogue` | Crée une commande `PENDING` **au nom de l'acheteur**, tarifée sous le régime de TVA sous lequel elle sera facturée. Refuse `SEAT_ALREADY_ACTIVE` s'il tient déjà un siège vivant sur ce produit, et `BILLING_PROFILE_REQUIRED` si l'organisation n'a pas dit d'où elle vend. Rien n'est facturé. |
 | `openCheckoutSession` | `/catalogue` | Commande **et** facture en un geste, et ouvre un paiement chez le prestataire. Le `client_secret` est rendu une fois et jamais récupérable (ADR-034). La facture porte un numéro légal dès cet instant. |
+| `startFreemium` | `/catalogue` | Démarre **son** siège sur une offre à 0 qui ne se reconduit pas (spéc. §6) : aucune commande, aucune facture, aucun paiement — rien à payer ne lève aucun document, et une facture à 0 € serait un trou permanent dans une série sans trou. La durée vient de la configuration du produit, jamais du corps de la requête. Refuse `NOT_A_FREEMIUM_OFFER` pour une offre vendue ou qui se reconduit, `FREEMIUM_NOT_OFFERED` pour un produit qui n'a pas dit combien de jours il donne, et `FREEMIUM_ALREADY_USED` pour un compte qui a déjà eu le sien — **quel qu'en soit le sort**, un freemium expiré il y a six mois interdit toujours d'en reprendre un. L'offre inverse est refusée elle aussi : `openCheckoutSession` décline un freemium avec `FREEMIUM_IS_NOT_SOLD`. |
 | `showCheckoutSession` | `/checkout/{id}` | Rien. La page d'état sur laquelle un rechargement retombe — sans le secret. |
 | `cancelCheckoutSession` | `/checkout/{id}` | Annule la facture (`ISSUED` → `CANCELLED`, **numéro conservé**) puis abandonne la commande. Les deux ensemble ou aucun. |
 | `startPayment` | `/invoices/{id}` | Ouvre une tentative de paiement chez le prestataire contre une facture. Aucune donnée de carte ne touche PostgreSQL (§24). |
@@ -650,23 +670,23 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
 
 ```text
                                           opérations
-  atteignables par un USER seul                    6    billing.pay
+  atteignables par un USER seul                    7    billing.pay
   atteignables par un TENANT_ADMIN seul           34
-  partagées par les deux                          67
+  partagées par les deux                          69
   sans permission, tout membre                    16
   par capacité (gis.access)                        2
   ─────────────────────────────────────────────────
-  surface locataire                              125
+  surface locataire                              128
 
   PLATFORM_ADMIN                                  78
   publiques, sans compte                           7
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          221
+  total                                          224
 ```
 
-Dont **108 lectures** et **113 écritures**. Chaque écriture a sa ligne dans les
+Dont **108 lectures** et **116 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

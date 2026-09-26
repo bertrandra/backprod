@@ -6,6 +6,7 @@ namespace App\Demo\Service;
 
 use App\Billing\Domain\Invoice;
 use App\Billing\Service\Invoicing;
+use App\Commerce\Service\Freemium;
 use App\Commerce\Service\SubscriptionPeople;
 use App\Commerce\Service\Subscriptions;
 use App\Demo\Domain\DemoFixtures;
@@ -69,6 +70,7 @@ final class DemoSeeder
     public function __construct(
         private readonly DemoFixtures $fixtures,
         private readonly Subscriptions $subscriptions,
+        private readonly Freemium $freemium,
         private readonly Invoicing $invoicing,
         private readonly ProjectWorkspace $workspace,
         private readonly SubscriptionPeople $people,
@@ -227,6 +229,28 @@ final class DemoSeeder
             );
         }
 
+        // The free period (2026-09-27, spec §6), through the only door it has.
+        //
+        // Not `Sales::order` and not `openCheckoutSession`: the price is zero,
+        // so there is no order, no invoice and no payment — and numbering being
+        // gapless, the €0 invoice that chain would raise is a permanent,
+        // unremovable record of no transaction. `Sales::order` refuses this
+        // offer outright for that reason, so a seeder that tried it would not
+        // get a wrong world, it would get no world.
+        //
+        // Before the projects below, because the one this person makes is
+        // counted against the quota the free period sells.
+        $freemium = [];
+
+        foreach (DemoWorld::FREEMIUM as $trying) {
+            $freemium[] = $this->freemium->take(
+                $structure->tenant($trying['tenant']),
+                $structure->product($trying['product']),
+                $structure->offer($trying['product'], $trying['offer']),
+                $structure->user($trying['holder']),
+            );
+        }
+
         // The people each holder has put on their seat (2026-09-25), added
         // through the same service a customer uses — so the `users` quota is
         // enforced here rather than described, and a demonstration world
@@ -333,6 +357,29 @@ final class DemoSeeder
                     $structure->product($unpaid['product']),
                     $structure->user($unpaid['buyer']),
                 ) !== null,
+            ) === [],
+            // The free period belongs to the person trying it (2026-09-27), and
+            // it says so on the row rather than by a join to the offer: what is
+            // remembered is what was sold, because the offer may be repriced
+            // tomorrow and this account has still had its one (§6.4).
+            'the free period is held by the person who took it, and says it is one' => count($freemium) === count(DemoWorld::FREEMIUM)
+                && array_filter(
+                    array_keys($freemium),
+                    static fn (int $i): bool => !$freemium[$i]->isFreemium
+                        || $freemium[$i]->ownerUserId !== $structure->user(DemoWorld::FREEMIUM[$i]['holder'])
+                        || $freemium[$i]->subscriber->userId !== $structure->user(DemoWorld::FREEMIUM[$i]['holder']),
+                ) === [],
+            // And it covers them, which is the whole of it: five free days that
+            // opened no workspace would be a card on a page. Asked through the
+            // port the platform itself asks, so a world that seeded is a world
+            // somebody could have used.
+            'the free period covers its holder' => array_filter(
+                DemoWorld::FREEMIUM,
+                fn (array $trying): bool => !$this->entitlements->covers(
+                    $structure->tenant($trying['tenant']),
+                    $structure->product($trying['product']),
+                    $structure->user($trying['holder']),
+                ),
             ) === [],
             // The rule the whole demonstration now turns on (2026-09-25):
             // whoever made a project was covered by a subscription at the
