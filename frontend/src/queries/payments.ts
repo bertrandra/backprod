@@ -30,6 +30,17 @@ import { toApiError } from './session';
  */
 
 export type Payment = Schemas['Payment'];
+
+/**
+ * A payment with the document it collects, and who that document names
+ * (2026-09-26).
+ *
+ * A type of its own because the contract has one: `startPayment` and
+ * `retryPayment` answer a plain `Payment` — the attempt they just created, to
+ * a page that already knows the invoice — so a null `invoice_number` here
+ * means *that invoice has no number yet* and never *nobody looked*.
+ */
+export type CollectedPayment = Schemas['CollectedPayment'];
 export type Refund = Schemas['Refund'];
 
 /** The status a retry exists for. */

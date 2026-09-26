@@ -5342,6 +5342,21 @@ export interface components {
             /** @description The class of the last failure — `TIMEOUT`, `UNREACHABLE`, `HTTP_500`, `NO_ENDPOINT` — never a message. */
             last_error: string | null;
         };
+        /**
+         * @description A payment, with the document it collects and who that document names (2026-09-26).
+         *
+         *     A schema of its own rather than three more properties on `Payment`, and deliberately: `startPayment` and `retryPayment` answer the attempt they have just created, to a page that already knows the invoice, and widening `Payment` would have made `invoice_number: null` mean either *there is no number yet* or *nobody looked*. Here it means only the first.
+         *
+         *     The facts are the **invoice's**, read from its snapshot, so they say who the customer was when the document was raised (§25) rather than who they are now.
+         */
+        CollectedPayment: components["schemas"]["Payment"] & {
+            /** @description The legal number of the invoice being collected — null while that invoice is still a draft, and never a placeholder. A number comes from a gapless sequence at issue, and inventing one is how a hole enters it. */
+            invoice_number: string | null;
+            /** @description Who the invoice was raised to, as it was snapshotted: the person for a seat, the organisation otherwise. Here because an administrator sees every payment the organisation has, and until this the rows did not say which colleague each one belonged to — twelve identical amounts read as twelve identical rows. */
+            customer_name: string | null;
+            /** @description The address on the document — the person's for a seat, the billing address otherwise. Null where the snapshot carries neither. */
+            customer_email: string | null;
+        };
         /** @description What the page needs to *use* a `client_secret` (ADR-048): which provider, the key that loads its own component, and whether any of this moves real money. Null when there is no payment to make (a free offer) or when the provider has no page-side part (the stub). `publishable_key` is designed by the provider to sit in a page and is not a secret — it belongs in the contract rather than in a build variable, which would freeze one deployment’s key into a bundle another deployment reuses. */
         PaymentProviderClient: {
             /**
@@ -6771,7 +6786,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        payments: components["schemas"]["Payment"][];
+                        payments: components["schemas"]["CollectedPayment"][];
                         total: number;
                         limit: number;
                         offset: number;
@@ -6800,13 +6815,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The payment. */
+            /** @description The payment, with the document it collects and who that document names. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Payment"];
+                    "application/json": components["schemas"]["CollectedPayment"];
                 };
             };
             401: components["responses"]["Unauthenticated"];
@@ -10956,7 +10971,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        payments: components["schemas"]["Payment"][];
+                        payments: components["schemas"]["CollectedPayment"][];
                     };
                 };
             };

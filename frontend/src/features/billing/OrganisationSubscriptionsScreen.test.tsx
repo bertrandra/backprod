@@ -56,6 +56,8 @@ function stubsFor(subscriptions: unknown[], session: Record<string, unknown> = A
     'GET /api/v1/organisation/subscriptions': {
       data: { subscriptions, total: subscriptions.length, limit: 50, offset: 0 },
     },
+    // Which organisation's register this is (2026-09-26).
+    'GET /api/v1/tenants/current': { data: { tenant: { id: 't-1', name: 'Acme' } } },
   };
 }
 
@@ -191,5 +193,21 @@ describe('whose screen it is', () => {
 
     await waitFor(() => expect(screen.getByText(/administrator's view/i)).toBeTruthy());
     expect(screen.getByText(/Subscription screen/i)).toBeTruthy();
+  });
+});
+
+describe('the register says whose it is', () => {
+  it('names the organisation beside the count', async () => {
+    // Somebody belonging to two of them is one switcher click from reading
+    // the other one's people with nothing on the page to say so.
+    renderWith(<OrganisationSubscriptionsScreen />, clientFor([held()]));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('organisation-name').textContent).toContain('Acme'),
+    );
+
+    // The count is still there: the organisation was added to it, not
+    // substituted for it.
+    expect(screen.getByTestId('organisation-name').textContent).toContain('1 live');
   });
 });

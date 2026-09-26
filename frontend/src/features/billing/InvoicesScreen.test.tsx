@@ -186,3 +186,57 @@ describe('someone who may only read', () => {
     expect(screen.queryByRole('button', { name: /issue an invoice/i })).toBeNull();
   });
 });
+
+/**
+ * Whose each one is (2026-09-26).
+ *
+ * `billing.manage` shows an administrator every invoice the organisation has,
+ * and until this the rows carried an amount, a status and a number and nothing
+ * that told one colleague's from another's.
+ */
+describe('the row says who it is for', () => {
+  it('names the person a seat was sold to, and the organisation that sold it', async () => {
+    render(
+      clientFor([
+        invoice({
+          number: '2026-000004',
+          customer: {
+            legal_name: 'Ada Lovelace',
+            person: { name: 'Ada Lovelace', email: 'ada@acme.test' },
+            organisation: 'Acme',
+          },
+        }),
+      ]),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('invoice-for')).toBeTruthy());
+
+    const whose = screen.getByTestId('invoice-for');
+
+    expect(whose.textContent).toContain('Ada Lovelace');
+    expect(whose.textContent).toContain('ada@acme.test');
+    expect(whose.textContent).toContain('Acme');
+  });
+
+  it('reads the snapshot and never a live row', async () => {
+    // The party is who they were when the document was raised, which is the
+    // whole reason it was copied (§25). Nothing on this screen asks the
+    // server who the tenant is called today.
+    const client = clientFor([invoice({ customer: { legal_name: 'Acme, as it was then' } })]);
+
+    render(client);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('invoice-for').textContent).toContain('Acme, as it was then'),
+    );
+  });
+
+  it('says nobody is recorded rather than drawing a dash', async () => {
+    render(clientFor([invoice()]));
+
+    await waitFor(() => expect(screen.getByTestId('invoice-for')).toBeTruthy());
+
+    // A dash reads as a name that failed to load.
+    expect(screen.getByTestId('invoice-for').getAttribute('data-whose')).toBe('unrecorded');
+  });
+});

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Staff\Controller;
 
 use App\Payment\Controller\PaymentPresenter;
+use App\Payment\Domain\CollectedInvoices;
 use App\Shared\Http\RouteHandler;
 use App\Staff\Domain\StaffPermission;
 use App\Staff\Service\TenantReads;
@@ -21,8 +22,10 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 final class ListTenantPaymentsController implements RouteHandler
 {
-    public function __construct(private readonly TenantReads $reads)
-    {
+    public function __construct(
+        private readonly TenantReads $reads,
+        private readonly CollectedInvoices $collected,
+    ) {
     }
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
@@ -38,6 +41,11 @@ final class ListTenantPaymentsController implements RouteHandler
             StaffRoute::motive($request),
         );
 
-        return new JsonResponse(['payments' => PaymentPresenter::many($rows)], 200);
+        // The same extra read the customer's own screen makes (2026-09-26):
+        // the console sees what the customer sees, no more and no less, and
+        // "whose payment is this?" is the question a support call opens with.
+        $collected = $this->collected->of(PaymentPresenter::invoicesOf($rows));
+
+        return new JsonResponse(['payments' => PaymentPresenter::many($rows, $collected)], 200);
     }
 }

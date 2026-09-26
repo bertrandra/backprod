@@ -112,6 +112,90 @@ final class OwnDocumentsTest extends DatabaseApiTestCase
         self::assertSame([$seat['id']], $this->idsOf($this->get('bob-token', '/api/v1/sales/orders'), 'orders'));
     }
 
+    /**
+     * Whose each payment is (2026-09-26).
+     *
+     * `billing.manage` shows an administrator every payment the organisation
+     * has, and until this none of the rows said which colleague each one
+     * belonged to: twelve identical amounts were twelve identical rows. The
+     * facts are the invoice's — its number, and the customer it was raised to
+     * — read from the snapshot, so they say who that was when the document
+     * was raised (§25) rather than who they are now.
+     */
+    public function testEveryPaymentNamesTheDocumentItCollectsAndWhoItWasRaisedTo(): void
+    {
+        $company = $this->sessionOf($this->open('alice-token'));
+        $this->pay($company, 'evt_company');
+        $seat = $this->sessionOf($this->open('bob-token', seat: true));
+        $this->pay($seat, 'evt_seat');
+
+        $payments = $this->rowsOf($this->get('alice-token', '/api/v1/billing/payments'), 'payments');
+
+        self::assertCount(2, $payments);
+
+        foreach ($payments as $payment) {
+            self::assertArrayHasKey('invoice_number', $payment);
+            self::assertArrayHasKey('customer_name', $payment);
+            self::assertArrayHasKey('customer_email', $payment);
+
+            // A legal number, because these invoices were issued. Not a
+            // placeholder anywhere: a draft's is null and stays null.
+            self::assertIsString($payment['invoice_number']);
+            self::assertNotSame('', $payment['invoice_number']);
+        }
+
+        $names = [];
+
+        foreach ($payments as $payment) {
+            self::assertIsString($payment['customer_name']);
+            $names[] = $payment['customer_name'];
+        }
+
+        // Two colleagues, two different answers — which is the whole point: a
+        // list where every row said the same thing would not have been worth
+        // the read.
+        self::assertCount(2, array_unique($names));
+
+        // And each one is the **snapshot's**, not a live row's. Compared
+        // against what the document actually holds rather than against a
+        // literal, because the rule being tested is *where the name comes
+        // from*: resolving a current name onto a past document would show a
+        // customer who has since renamed themselves under a name their paper
+        // copy does not carry.
+        foreach ($payments as $payment) {
+            self::assertIsString($payment['invoice_id']);
+
+            self::assertSame(
+                $this->connection->fetchOne(
+                    "SELECT customer_snapshot->>'legal_name' FROM invoices WHERE id = :id",
+                    ['id' => $payment['invoice_id']],
+                ),
+                $payment['customer_name'],
+            );
+        }
+    }
+
+    public function testAPaymentOfItsOwnCarriesTheSameFacts(): void
+    {
+        $seat = $this->sessionOf($this->open('bob-token', seat: true));
+        $this->pay($seat, 'evt_seat');
+
+        self::assertIsString($seat['payment_id']);
+
+        $payment = $this->decode($this->get('bob-token', '/api/v1/billing/payments/' . $seat['payment_id']));
+
+        // The next question after "did it go through?" is "whose was this?",
+        // and the one-payment read has to answer it too.
+        self::assertSame(
+            $this->connection->fetchOne(
+                "SELECT customer_snapshot->>'billing_email' FROM invoices WHERE id = :id",
+                ['id' => $seat['invoice_id']],
+            ),
+            $payment['customer_email'] ?? null,
+        );
+        self::assertIsString($payment['invoice_number'] ?? null);
+    }
+
     public function testSomebodyElsesDocumentIsNotThereForAMember(): void
     {
         $company = $this->sessionOf($this->open('alice-token'));
@@ -185,6 +269,31 @@ final class OwnDocumentsTest extends DatabaseApiTestCase
     private function get(string $token, string $path): ResponseInterface
     {
         return $this->request('GET', $path, $this->headers($token));
+    }
+
+    /**
+     * The rows on a page, for the assertions that are about what is on them
+     * rather than about which ones are there.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function rowsOf(ResponseInterface $response, string $key): array
+    {
+        self::assertSame(200, $response->getStatusCode());
+
+        $rows = $this->decode($response)[$key] ?? null;
+
+        self::assertIsArray($rows);
+
+        $page = [];
+
+        foreach ($rows as $row) {
+            self::assertIsArray($row);
+            /** @var array<string, mixed> $row */
+            $page[] = $row;
+        }
+
+        return $page;
     }
 
     /**

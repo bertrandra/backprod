@@ -4313,6 +4313,45 @@
           "last_error": { "type": "string", "nullable": true, "description": "The class of the last failure — `TIMEOUT`, `UNREACHABLE`, `HTTP_500`, `NO_ENDPOINT` — never a message." }
         }
       },
+      "CollectedPayment": {
+        "description": "A payment, with the document it collects and who that document names (2026-09-26).\n\nA schema of its own rather than three more properties on `Payment`, and deliberately: `startPayment` and `retryPayment` answer the attempt they have just created, to a page that already knows the invoice, and widening `Payment` would have made `invoice_number: null` mean either *there is no number yet* or *nobody looked*. Here it means only the first.\n\nThe facts are the **invoice's**, read from its snapshot, so they say who the customer was when the document was raised (§25) rather than who they are now.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Payment"
+          },
+          {
+            "type": "object",
+            "required": [
+              "invoice_number",
+              "customer_name",
+              "customer_email"
+            ],
+            "properties": {
+              "invoice_number": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The legal number of the invoice being collected — null while that invoice is still a draft, and never a placeholder. A number comes from a gapless sequence at issue, and inventing one is how a hole enters it."
+              },
+              "customer_name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Who the invoice was raised to, as it was snapshotted: the person for a seat, the organisation otherwise. Here because an administrator sees every payment the organisation has, and until this the rows did not say which colleague each one belonged to — twelve identical amounts read as twelve identical rows."
+              },
+              "customer_email": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The address on the document — the person's for a seat, the billing address otherwise. Null where the snapshot carries neither."
+              }
+            }
+          }
+        ]
+      },
       "PaymentProviderClient": {
         "type": [
           "object",
@@ -7188,7 +7227,7 @@
                     "payments": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/Payment"
+                        "$ref": "#/components/schemas/CollectedPayment"
                       }
                     },
                     "total": {
@@ -7247,11 +7286,11 @@
         ],
         "responses": {
           "200": {
-            "description": "The payment.",
+            "description": "The payment, with the document it collects and who that document names.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Payment"
+                  "$ref": "#/components/schemas/CollectedPayment"
                 }
               }
             }
@@ -14659,7 +14698,7 @@
                     "payments": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/Payment"
+                        "$ref": "#/components/schemas/CollectedPayment"
                       }
                     }
                   }

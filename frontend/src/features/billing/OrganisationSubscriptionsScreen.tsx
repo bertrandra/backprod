@@ -1,4 +1,5 @@
 import { can } from '@/app/access/access';
+import { useOrganisation } from '@/queries/organisation';
 import { useSession } from '@/queries/session';
 import { useOrganisationSubscriptions, type HeldSubscription } from '@/queries/subscription';
 import { EmptyState } from '@/ui/EmptyState';
@@ -45,6 +46,9 @@ export function OrganisationSubscriptionsScreen() {
   const { data: session, isPending: askingWho } = useSession();
   const mayManage = can(session, 'tenant.manage');
   const held = useOrganisationSubscriptions(mayManage);
+  // Which organisation this register belongs to (2026-09-26). Read, not
+  // assumed, and only where it is allowed: `tenant.read` is every member's.
+  const organisation = useOrganisation(can(session, 'tenant.read'));
 
   // Until the session has answered, nobody is told whose screen this is. A
   // permission read as absent while it is merely unread told the
@@ -96,7 +100,15 @@ export function OrganisationSubscriptionsScreen() {
     <div className="space-y-6">
       <PageHeader
         title={t("Subscriptions")}
-        meta={t("{count} live of {total}", { count: living, total: held.data.total })}
+        // Which organisation's register this is (2026-09-26). Somebody who
+        // belongs to two of them is one switcher click from reading the other
+        // one's people with nothing on the page to say so.
+        meta={
+          <span data-testid="organisation-name">
+            {organisation.data?.name !== undefined && `${organisation.data.name} · `}
+            {t("{count} live of {total}", { count: living, total: held.data.total })}
+          </span>
+        }
         description={t("What each person in this organisation holds on this product, and how many of the places their offer sells are taken. Buying is theirs; this is the record of it.")}
       />
 
