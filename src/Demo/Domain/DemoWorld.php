@@ -23,6 +23,14 @@ namespace App\Demo\Domain;
  * operator's own since 2026-09-19, so the mails the platform sends — a
  * reset link, an invitation — land somewhere real.
  *
+ * **And money in it** (2026-09-26): two of the five seats are collected
+ * through the payment chain rather than recorded as transfers, one of them
+ * after an attempt the card refused, and one order is left owing with its
+ * only attempt declined. Until then the world held five invoices and no
+ * payment at all, so `/payments` was permanently empty in the one place the
+ * platform is shown to people — and a screen that is always empty reads as a
+ * feature that does not work.
+ *
  * `docs/demo-world.html` is the human-readable copy of this file; when one
  * changes, so does the other. The rows are written by {@see DemoFixtures}
  * and the invariants run by the seeder in `App\Demo\Service`.
@@ -609,15 +617,75 @@ final class DemoWorld
      * be read as a restriction by the product — which Plan does, and says
      * so where it reads it.
      *
-     * @var list<array{tenant: string, product: string, offer: string, holder: string}>
+     * **How each one was collected** (2026-09-26). `card` means the money
+     * came in through the payment chain — an attempt started, the provider's
+     * word applied, the invoice settled by that — rather than by the
+     * administrator recording a transfer that arrived outside the platform.
+     * Both paths are real and both are demonstrated, because a deployment
+     * has both. `declined` is a first attempt that failed before the one
+     * that went through: it stays FAILED for ever, because it is the record
+     * of what happened, and the Payments screen shows it beside the attempt
+     * that succeeded — which is the story that screen is written to tell.
+     *
+     * @var list<array{tenant: string, product: string, offer: string, holder: string, card?: bool, declined?: array{code: string, reason: string}}>
      */
     public const SEATS = [
-        ['tenant' => 'acme', 'product' => 'plan', 'offer' => 'pro-monthly', 'holder' => 'acme-user1'],
+        [
+            'tenant' => 'acme', 'product' => 'plan', 'offer' => 'pro-monthly', 'holder' => 'acme-user1',
+            'card' => true,
+            'declined' => ['code' => 'insufficient_funds', 'reason' => 'The card has insufficient funds.'],
+        ],
         ['tenant' => 'acme', 'product' => 'atlas', 'offer' => 'pro-monthly', 'holder' => 'acme-user1'],
         ['tenant' => 'acme', 'product' => 'plan', 'offer' => 'lecture-monthly', 'holder' => 'acme-user4'],
-        ['tenant' => 'globex', 'product' => 'boreas', 'offer' => 'starter-monthly', 'holder' => 'globex-user1'],
+        // Collected by card as well, so the console's cross-tenant view of
+        // payments has more than one organisation in it.
+        ['tenant' => 'globex', 'product' => 'boreas', 'offer' => 'starter-monthly', 'holder' => 'globex-user1', 'card' => true],
         ['tenant' => 'initech', 'product' => 'plan', 'offer' => 'starter-monthly', 'holder' => 'initech-user1'],
     ];
+
+    /**
+     * The seat somebody ordered and whose card was refused (2026-09-26).
+     *
+     * A failed payment on an invoice that has since been paid is a failed
+     * payment nobody can do anything with: the Payments screen offers *Try
+     * again*, and a retry against a settled invoice is refused
+     * (`INVOICE_NOT_PAYABLE`) — a button that answers with an error banner
+     * in front of an audience. So the world also holds a debt: an order
+     * fulfilled, its invoice ISSUED and owed, one attempt FAILED, and the
+     * seat therefore not started. That is the state a retry exists for, and
+     * it is a state every deployment has.
+     *
+     * It is deliberately **not** a seat: `SEATS` is what the world sold, and
+     * this one is not sold until it is paid for. `globex-user2` is the
+     * colleague Starter does not cover — so the same person the world
+     * already uses to show a quota refusing is the one who tried to buy
+     * their way out of it.
+     *
+     * @var list<array{tenant: string, product: string, offer: string, buyer: string, failure: array{code: string, reason: string}}>
+     */
+    public const DECLINED_ORDERS = [
+        [
+            'tenant' => 'globex', 'product' => 'atlas', 'offer' => 'pro-monthly', 'buyer' => 'globex-user2',
+            'failure' => ['code' => 'card_declined', 'reason' => 'The card was declined by the issuing bank.'],
+        ],
+    ];
+
+    /**
+     * The provider name every demonstration payment carries.
+     *
+     * The stub's, and that is the honest answer: nothing in a seeded world
+     * moved money, and `StubPaymentProvider` exists so a row it produced can
+     * never be mistaken for a row a real provider produced. The seeder does
+     * not *call* a provider — a deployment configured with Stripe would
+     * otherwise have its demonstration create payment intents at a PSP, and
+     * one configured with none could not seed at all — so it plays the part
+     * and writes what an adapter would have handed back.
+     *
+     * Named here rather than imported, because the fixtures and this
+     * definition are the domain and the stub is infrastructure;
+     * `DemoWorldTest` holds the two to each other.
+     */
+    public const PAYMENT_PROVIDER = 'stub';
 
     /**
      * Who each holder has put on their seat (2026-09-25) — added through

@@ -16,10 +16,12 @@ use RuntimeException;
  * have written them.
  *
  * Plain SQL, which is what the integration tests do too, for structure with
- * no invariant behind it. Two things are deliberately *not* here: a
- * subscription and an invoice, which `App\Demo\Service\DemoSeeder` takes
- * through `Subscriptions` and `Invoicing` so the invoice number comes from
- * the gapless sequence and the activation writes its event.
+ * no invariant behind it. What is deliberately *not* here is anything that
+ * moves money: a subscription, an invoice and, since 2026-09-26, a payment.
+ * `App\Demo\Service\DemoSeeder` takes those through `Subscriptions`,
+ * `Invoicing` and `DemoCollection`, so the invoice number comes from the
+ * gapless sequence, the activation writes its event, and a collected payment
+ * settles its document in the transaction that recorded it.
  */
 final class PostgresDemoFixtures implements DemoFixtures
 {
@@ -259,6 +261,64 @@ final class PostgresDemoFixtures implements DemoFixtures
             // draft and useless in a demonstration.
             'its story is published, and no other product pretends to have one' => 1 === $this->count(
                 'SELECT count(*) FROM products WHERE showcase_published_at IS NOT NULL',
+            ),
+            // The money (2026-09-26). Counted rather than spot-checked, for
+            // the reason the catalogue's translations are: an invoice seeded
+            // without the payment that collected it still renders — as a
+            // paid document — so nothing on screen would say this had
+            // quietly stopped working. What it leaves is a `/payments`
+            // screen that is empty in a demonstration, which reads as a
+            // feature that does not work.
+            'money was collected, and one attempt went through' => 0 < $this->count(
+                "SELECT count(*) FROM payments WHERE status = 'SUCCEEDED'",
+            ),
+            // And one that did not, because the screen renders a failure
+            // differently and offers to try again: a world with no failed
+            // attempt demonstrates half the screen.
+            'an attempt failed, and says both what and why' => 0 < $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM payments
+                WHERE status = 'FAILED' AND failure_code IS NOT NULL AND failure_reason IS NOT NULL
+                SQL,
+            ),
+            // The retry has something to act on. A failed attempt on an
+            // invoice that has since been paid cannot be retried at all —
+            // `Payments::start` refuses anything but an ISSUED invoice — so
+            // a world where every failure sits on a settled document offers
+            // a button that can only answer with an error.
+            'a failed attempt is owed against an invoice that can still be paid' => 0 < $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM payments p
+                JOIN invoices i ON i.id = p.invoice_id
+                WHERE p.status = 'FAILED' AND i.status = 'ISSUED'
+                SQL,
+            ),
+            // More than one organisation, so the console's cross-tenant
+            // views have something to show as well.
+            'more than one organisation has been paid' => 1 < $this->count(
+                "SELECT count(DISTINCT tenant_id) FROM payments WHERE status = 'SUCCEEDED'",
+            ),
+            // And the one that would be noticed on stage: a payment that
+            // collects an amount its invoice never asked for. The amount is
+            // the document's, in minor units and in its currency, because
+            // nothing anywhere in this platform names one twice.
+            'every payment collects exactly what its invoice asks' => 0 === $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM payments p
+                JOIN invoices i ON i.id = p.invoice_id
+                WHERE p.amount_minor_units <> i.gross_minor_units OR p.currency <> i.currency
+                SQL,
+            ),
+            // A paid invoice that was collected by card is settled *by* its
+            // payment, so a successful attempt against a document still
+            // saying it is owed would mean the settlement did not happen —
+            // money in and a customer still being chased for it.
+            'every attempt that went through settled the document it collected' => 0 === $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM payments p
+                JOIN invoices i ON i.id = p.invoice_id
+                WHERE p.status = 'SUCCEEDED' AND i.status <> 'PAID'
+                SQL,
             ),
         ];
     }

@@ -6,6 +6,7 @@ namespace App\Tests\Unit;
 
 use App\Commerce\Service\SubscriptionPeople;
 use App\Demo\Domain\DemoWorld;
+use App\Payment\Infrastructure\StubPaymentProvider;
 use App\Project\Service\ProjectWorkspace;
 use App\Project\Service\SchemaVersionPolicy;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -30,6 +31,21 @@ final class DemoWorldTest extends TestCase
         self::assertArrayHasKey(ProjectWorkspace::QUOTA, DemoWorld::FEATURES);
         self::assertArrayHasKey(SubscriptionPeople::USERS_FEATURE, DemoWorld::FEATURES);
         self::assertSame(SchemaVersionPolicy::CONFIGURATION_KEY, DemoWorld::SCHEMA_VERSIONS_KEY);
+    }
+
+    /**
+     * The demonstration's payments are the stub's, and say so (2026-09-26).
+     *
+     * A seeded world moves no money, and `StubPaymentProvider` exists so a
+     * row it produced can never be mistaken for a row a real provider
+     * produced. The name is written in the domain because the fixtures may
+     * not read infrastructure, which leaves exactly one way for the two to
+     * drift — a demonstration payment claiming a provider that never saw it
+     * — and this is where they are held together.
+     */
+    public function testEveryDemonstrationPaymentNamesTheProviderThatDidNotTakeIt(): void
+    {
+        self::assertSame(StubPaymentProvider::NAME, DemoWorld::PAYMENT_PROVIDER);
     }
 
     public function testEverybodyWithAMembershipCanOpenOnTheDefaultProduct(): void
@@ -73,6 +89,25 @@ final class DemoWorldTest extends TestCase
         foreach (DemoWorld::SEATS as $seat) {
             self::assertContains($seat['product'], DemoWorld::TENANTS[$seat['tenant']]['holds'], 'a seat on a product the tenant does not hold');
             self::assertContains($seat['tenant'], DemoWorld::PEOPLE[$seat['holder']]['tenants'], "{$seat['holder']} holds a seat outside their organisation");
+        }
+
+        foreach (DemoWorld::DECLINED_ORDERS as $unpaid) {
+            self::assertContains($unpaid['product'], DemoWorld::TENANTS[$unpaid['tenant']]['holds'], 'an order on a product the tenant does not hold');
+            self::assertContains($unpaid['tenant'], DemoWorld::PEOPLE[$unpaid['buyer']]['tenants'], "{$unpaid['buyer']} ordered outside their organisation");
+
+            // And it is not one of the seats: `SEATS` is what the world
+            // sold, and a seat nobody paid for was not sold. Placing the
+            // same person's second order on a product they already hold a
+            // live seat on would be refused anyway — `SEAT_ALREADY_ACTIVE`,
+            // which is the right refusal reached the slow way.
+            self::assertNotContains(
+                $unpaid['tenant'] . '/' . $unpaid['product'] . '/' . $unpaid['buyer'],
+                array_map(
+                    static fn (array $seat): string => $seat['tenant'] . '/' . $seat['product'] . '/' . $seat['holder'],
+                    DemoWorld::SEATS,
+                ),
+                "{$unpaid['buyer']} already holds the seat their card was refused for",
+            );
         }
 
         foreach (DemoWorld::SUBSCRIPTION_PEOPLE as $covered) {
