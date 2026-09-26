@@ -13,6 +13,7 @@ import {
   type Entitlement,
   type Subscription,
 } from '@/queries/subscription';
+import { useOrganisation } from '@/queries/organisation';
 import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
@@ -21,6 +22,7 @@ import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
+import { Whose } from '@/ui/Whose';
 
 import { SubscriptionPeople } from './SubscriptionPeople';
 import { currentLocale, t } from '@/i18n';
@@ -54,6 +56,10 @@ import { billingPeriod } from '@/ui/period';
  */
 export function SubscriptionScreen() {
   const { data: session } = useSession();
+  // Which organisation this answer is about (2026-09-26). `tenant.read` is
+  // every member's, and the read is gated on it rather than assumed: a screen
+  // that asked anyway would spend a refused request per visit.
+  const organisation = useOrganisation(can(session, 'tenant.read'));
   const subscription = useSubscription();
   const schedule = useSchedule();
   const entitlements = useEntitlements();
@@ -109,6 +115,7 @@ export function SubscriptionScreen() {
     return (
       <div className="max-w-3xl space-y-6">
         <h1 className="text-2xl font-semibold">{t("Subscription")}</h1>
+        <Held organisation={organisation.data?.name ?? null} session={session ?? null} />
         {ownSeat}
         <EmptyState
           title={
@@ -139,6 +146,8 @@ export function SubscriptionScreen() {
         title={t("Subscription")}
         description={<>{current.offer.name} · {current.offer.plan.name}{seat !== null && ' — the organisation\'s'}</>}
       />
+
+      <Held organisation={organisation.data?.name ?? null} session={session ?? null} />
 
       {ownSeat}
 
@@ -340,6 +349,40 @@ export function SubscriptionScreen() {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Whose answer this is: the person asking, and the organisation they are
+ * asking in (2026-09-26).
+ *
+ * Both, and neither is obvious from the rest of the screen. A seat is bought
+ * by one person and cancelled by them alone, so "whose seat is this?" has an
+ * answer and the screen never gave it; and somebody who belongs to two
+ * organisations is one switcher click from reading the other one's
+ * subscription with nothing on the page to say so.
+ *
+ * Read rather than derived: the name is the session's and the organisation is
+ * the server's answer to `/tenants/current`. Absent while either is still
+ * being asked, and absent rather than guessed if the organisation read is
+ * refused — a name invented here would be a second answer to a question that
+ * already has one.
+ */
+function Held({
+  organisation,
+  session,
+}: {
+  organisation: string | null;
+  session: { displayName: string | null; email: string | null } | null;
+}) {
+  return (
+    <Whose
+      name={session?.displayName ?? session?.email ?? null}
+      email={session?.email ?? null}
+      organisation={organisation}
+      testId="subscription-whose"
+      className="text-xs text-muted"
+    />
   );
 }
 

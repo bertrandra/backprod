@@ -85,6 +85,9 @@ function stubsFor(
     },
     'GET /api/v1/entitlements': { data: { entitlements: [] } },
     'GET /api/v1/offers': { data: { offers: [] } },
+    // Which organisation this answer is about (2026-09-26). Read rather than
+    // assumed, and gated on `tenant.read`.
+    'GET /api/v1/tenants/current': { data: { tenant: { id: 't-1', name: 'Acme' } } },
     ...extra,
   };
 }
@@ -345,5 +348,55 @@ describe('someone who may only read', () => {
     await waitFor(() => expect(screen.getByTestId('periodicity')).toBeTruthy());
     expect(screen.queryByRole('button', { name: /cancel…/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /^change$/i })).toBeNull();
+  });
+});
+
+/**
+ * Whose answer this is (2026-09-26).
+ *
+ * A seat is bought by one person and given up by them alone, so "whose seat is
+ * this?" has an answer the screen did not give. And somebody belonging to two
+ * organisations is one switcher click from reading the other one's
+ * subscription with nothing on the page to say so.
+ */
+describe('the screen says who is asking and where', () => {
+  it('names the person and the organisation', async () => {
+    renderWith(<SubscriptionScreen />, clientFor());
+
+    await waitFor(() =>
+      expect(screen.getByTestId('subscription-whose').textContent).toContain('Acme'),
+    );
+
+    expect(screen.getByTestId('subscription-whose').textContent).toContain('Ada');
+  });
+
+  it('says it on the empty screen too, where there is nothing else to go on', async () => {
+    renderWith(<SubscriptionScreen />, clientFor({}, null));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('subscription-whose').textContent).toContain('Acme'),
+    );
+  });
+
+  it('leaves the organisation out rather than guessing when the read is refused', async () => {
+    renderWith(
+      <SubscriptionScreen />,
+      stubClient(
+        stubsFor({
+          'GET /api/v1/tenants/current': {
+            status: 403,
+            error: { error: { code: 'PERMISSION_DENIED', message: 'no', details: {}, request_id: 'r' } },
+          },
+        }),
+      ),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('subscription-whose')).toBeTruthy());
+
+    // The person is the session's and is still said; the organisation is the
+    // server's answer and there is none, so nothing stands in for it. A name
+    // invented here would be a second answer to a question that has one.
+    expect(screen.getByTestId('subscription-whose').textContent).toContain('Ada');
+    expect(screen.getByTestId('subscription-whose').textContent).not.toContain('Acme');
   });
 });
