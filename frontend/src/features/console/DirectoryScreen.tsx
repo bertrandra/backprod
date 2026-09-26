@@ -254,11 +254,21 @@ function Subscriptions({ status }: { status: string }) {
           >
             <div className="flex flex-wrap items-baseline gap-2">
               <span className="font-medium">{subscription.tenant_name}</span>
+              {/* Who holds it (2026-09-26). Since ADR-055 every subscription
+                  the tenant surface sells is a seat held by one person, and
+                  this list named only the organisation — so three seats in
+                  one tenant read as three identical rows and the operator
+                  could not tell whose was whose. */}
+              <Holder
+                kind={subscription.subscriber_kind}
+                name={subscription.holder_name}
+                email={subscription.holder_email}
+              />
               <span className="rounded bg-well px-1.5 py-0.5 text-xs">
                 {subscription.status}
               </span>
               <span className="text-xs text-subtle">
-                {subscription.offer_code} v{subscription.offer_version}
+                {subscription.product_code} · {subscription.offer_code} v{subscription.offer_version}
               </span>
               <span className="ml-auto">
                 <Amount
@@ -328,6 +338,16 @@ function Invoices({ status }: { status: string }) {
                 {invoice.status}
               </span>
               <span className="text-xs text-subtle">{invoice.tenant_name}</span>
+              {/* Who the document names, from the snapshots it keeps (§25).
+                  For a seat these are not the tenant: Acme sold it, one
+                  person bought it — which is the fact this list could not
+                  show until today. */}
+              <Parties
+                supplier={invoice.supplier_name}
+                customer={invoice.customer_name}
+                issuedByTenant={invoice.issuer_tenant_id !== null && invoice.issuer_tenant_id !== undefined}
+              />
+              <span className="text-xs text-subtle">{invoice.product_code}</span>
               <span className="ml-auto font-medium">
                 <Amount
                   money={{
@@ -361,5 +381,69 @@ function Invoices({ status }: { status: string }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * Who holds a subscription (2026-09-26).
+ *
+ * A seat names a person; the organisation's own subscription names nobody,
+ * and says so rather than borrowing the tenant's name — naming Acme as the
+ * holder of Acme's own subscription would read as a person called Acme.
+ */
+function Holder({
+  kind,
+  name,
+  email,
+}: {
+  kind: string | undefined;
+  name: string | null | undefined;
+  email: string | null | undefined;
+}) {
+  if (kind !== 'USER') {
+    return (
+      <span data-holder="tenant" className="text-xs text-subtle">
+        {t("the organisation")}</span>
+    );
+  }
+
+  const who = name ?? email ?? null;
+
+  return (
+    <span data-holder={who === null ? 'unrecorded' : 'person'} className="text-xs">
+      {/* An arrow, because the direction is the information: the
+          organisation sold this seat to that person. */}
+      <span className="text-subtle">{'→ '}</span>
+      {who ?? t("nobody recorded")}
+    </span>
+  );
+}
+
+/**
+ * The supplier and the customer a document carries, when they differ from the
+ * organisation it belongs to.
+ *
+ * Shown only when the invoice was raised by a tenant: the platform's own
+ * invoices are addressed to the organisation, whose name is already on the
+ * row, and repeating it would be noise on every line.
+ */
+function Parties({
+  supplier,
+  customer,
+  issuedByTenant,
+}: {
+  supplier: string | null | undefined;
+  customer: string | null | undefined;
+  issuedByTenant: boolean;
+}) {
+  if (!issuedByTenant || customer === null || customer === undefined) {
+    return null;
+  }
+
+  return (
+    <span data-parties="tenant-issued" className="text-xs">
+      <span className="text-subtle">{supplier ?? t("the organisation")}{' → '}</span>
+      {customer}
+    </span>
   );
 }

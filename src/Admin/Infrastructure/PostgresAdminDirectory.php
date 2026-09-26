@@ -104,15 +104,29 @@ final class PostgresAdminDirectory implements AdminDirectory
 
         return $this->page(
             <<<SQL
-                SELECT s.id, s.tenant_id, t.name AS tenant_name, s.product_id, s.status,
+                SELECT s.id, s.tenant_id, t.name AS tenant_name, s.product_id, p.code AS product_code,
+                       s.status,
                        s.started_at, s.current_period_end, s.cancel_at_period_end,
                        s.term_ends_at, s.commitment_ends_at,
                        o.code AS offer_code, ov.version AS offer_version,
-                       ov.price_minor_units, ov.currency
+                       ov.price_minor_units, ov.currency,
+                       -- Who contracted, and who (2026-09-26). Since ADR-055
+                       -- every subscription the tenant surface sells is a
+                       -- seat held by one person, and a console that named
+                       -- only the organisation was describing the world as it
+                       -- was before that: three seats in Acme looked like
+                       -- three identical rows.
+                       s.subscriber_kind, s.owner_user_id,
+                       hu.display_name AS holder_name, hu.email AS holder_email
                   FROM subscriptions s
                   JOIN tenants t ON t.id = s.tenant_id
+                  JOIN products p ON p.id = s.product_id
                   JOIN offer_versions ov ON ov.id = s.offer_version_id
                   JOIN offers o ON o.id = ov.offer_id
+                  -- LEFT: a row from before ownership was recorded has no
+                  -- owner, and dropping it would hide a subscription rather
+                  -- than show it unattributed.
+                  LEFT JOIN users hu ON hu.id = s.owner_user_id
                  WHERE {$where}
                  ORDER BY s.started_at DESC, s.id
                 SQL,
@@ -132,11 +146,24 @@ final class PostgresAdminDirectory implements AdminDirectory
 
         return $this->page(
             <<<SQL
-                SELECT i.id, i.number, i.tenant_id, t.name AS tenant_name, i.status,
+                SELECT i.id, i.number, i.tenant_id, t.name AS tenant_name,
+                       i.product_id, p.code AS product_code, i.status,
                        i.currency, i.net_minor_units, i.vat_minor_units, i.gross_minor_units,
-                       i.issued_at, i.due_at, i.paid_at
+                       i.issued_at, i.due_at, i.paid_at,
+                       -- Who the document names, read from the snapshots it
+                       -- keeps rather than from a live row (§25): that is what
+                       -- the customer received, and a name changed since must
+                       -- not change the invoice. For a seat these differ from
+                       -- the tenant — Acme sold it, Ada bought it (ADR-055).
+                       i.supplier_snapshot->>'legal_name' AS supplier_name,
+                       i.customer_snapshot->>'legal_name' AS customer_name,
+                       i.customer_snapshot->>'billing_email' AS customer_email,
+                       -- Whose gapless series the number came from (ADR-054);
+                       -- null is the platform's own.
+                       i.issuer_tenant_id
                   FROM invoices i
                   JOIN tenants t ON t.id = i.tenant_id
+                  JOIN products p ON p.id = i.product_id
                  WHERE {$where}
                  ORDER BY i.issued_at DESC NULLS LAST, i.id
                 SQL,

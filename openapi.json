@@ -3732,6 +3732,40 @@
           },
           "currency": {
             "type": "string"
+          },
+          "product_code": {
+            "type": "string",
+            "description": "Which product this subscription is on. The platform is multi-product and this list was not saying which (2026-09-26)."
+          },
+          "subscriber_kind": {
+            "type": "string",
+            "enum": [
+              "TENANT",
+              "USER"
+            ],
+            "description": "Who contracted (§13.1). `USER` is a seat, which since ADR-055 is everything the tenant surface sells — so a console naming only the organisation described the world as it was before that: three seats in one tenant looked like three identical rows."
+          },
+          "owner_user_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Who bought it. Null only for a row from before ownership was recorded."
+          },
+          "holder_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "That person's display name; null once erased (§26) or never given."
+          },
+          "holder_email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "That person's address; null once erased (§26)."
           }
         }
       },
@@ -3787,6 +3821,39 @@
               "string",
               "null"
             ]
+          },
+          "product_code": {
+            "type": "string",
+            "description": "Which product was billed. The platform is multi-product and this list was not saying which (2026-09-26)."
+          },
+          "supplier_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The legal name in the document's own supplier block, read from the snapshot it keeps and never from a live row (§25): that is what the customer received, and a name changed since must not change the invoice. For a seat it is the organisation's (ADR-055)."
+          },
+          "customer_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The legal name in the document's customer block, from the same snapshot. For a seat it is one person — which is the fact this list could not show before."
+          },
+          "customer_email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The address the document was made out to, from the snapshot."
+          },
+          "issuer_tenant_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Whose gapless series the number came from (ADR-054). Null is the platform's own; a tenant id means that organisation raised it, which is what a seat's invoice looks like."
           }
         }
       },
