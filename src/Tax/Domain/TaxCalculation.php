@@ -54,6 +54,30 @@ final class TaxCalculation
     }
 
     /**
+     * The taxable base inside a gross amount — the inverse of {@see vatOn},
+     * for the one case where the money is known and the base is not.
+     *
+     * That case is a partial credit note (2026-09-26). It is priced from
+     * money that has **already moved**: a card has been credited a gross
+     * figure, and the document has to say exactly that figure or it
+     * describes a different movement than the one that happened.
+     *
+     * So the rounding falls here, on the base, and the VAT is whatever is
+     * left over — never a second rounding of its own. Computing both
+     * independently leaves a cent belonging to neither, and the database
+     * says the same thing in its own words:
+     * `credit_notes_gross_is_net_plus_vat`.
+     *
+     * Integer arithmetic, half up, like everything else that touches money.
+     */
+    public static function baseOfGross(int $gross, int $basisPoints): int
+    {
+        $divisor = 10_000 + $basisPoints;
+
+        return intdiv($gross * 10_000 + intdiv($divisor, 2), $divisor);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array

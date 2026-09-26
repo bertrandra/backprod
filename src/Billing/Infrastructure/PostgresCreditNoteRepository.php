@@ -89,6 +89,23 @@ final class PostgresCreditNoteRepository implements CreditNoteRepository
         return $this->hydrateAll($rows)[0] ?? null;
     }
 
+    public function creditedOn(string $invoiceId): int
+    {
+        if (!Uuid::isValid($invoiceId)) {
+            return 0;
+        }
+
+        $credited = $this->connection->fetchOne(
+            'SELECT coalesce(sum(gross_minor_units), 0) FROM credit_notes WHERE invoice_id = :invoice',
+            ['invoice' => $invoiceId],
+        );
+
+        // sum() over a bigint comes back from PDO as a string, count(*) as an
+        // int. Asking for one and getting the other is how this module has
+        // been caught before.
+        return is_numeric($credited) ? (int) $credited : 0;
+    }
+
     public function issue(
         Invoice $invoice,
         array $lines,
@@ -96,138 +113,158 @@ final class PostgresCreditNoteRepository implements CreditNoteRepository
         array $customer,
         ?string $reason,
         ?string $actorUserId,
+        bool $closesTheInvoice = true,
         ?callable $alsoRecord = null,
     ): CreditNote {
-        if ($lines === []) {
-            throw new RuntimeException('A credit note needs at least one line.');
-        }
-
-        return $this->connection->transactional(function () use (
+        return $this->connection->transactional(fn (): CreditNote => $this->applyIssue(
             $invoice,
             $lines,
             $supplier,
             $customer,
             $reason,
             $actorUserId,
+            $closesTheInvoice,
             $alsoRecord,
-        ): CreditNote {
-            $currency = $lines[0]->net->currency;
-            $net = Money::zero($currency);
-            $vat = Money::zero($currency);
+        ));
+    }
 
-            foreach ($lines as $line) {
-                $net = $net->plus($line->net);
-                $vat = $vat->plus($line->vat);
-            }
+    public function applyIssue(
+        Invoice $invoice,
+        array $lines,
+        array $supplier,
+        array $customer,
+        ?string $reason,
+        ?string $actorUserId,
+        bool $closesTheInvoice = true,
+        ?callable $alsoRecord = null,
+    ): CreditNote {
+        if ($lines === []) {
+            throw new RuntimeException('A credit note needs at least one line.');
+        }
 
-            // The issuer of the invoice, never a fresh decision: a credit note
-            // corrects one company's document, so it belongs in that company's
-            // series (2026-09-25). Deciding again here could put the
-            // correction in the platform's series and leave the invoice's own
-            // with a correction it never records.
-            $number = DocumentNumbering::next(
-                $this->connection,
-                DocumentNumbering::CREDIT_NOTE,
-                $invoice->issuerTenantId,
-            );
+        $currency = $lines[0]->net->currency;
+        $net = Money::zero($currency);
+        $vat = Money::zero($currency);
 
-            $id = $this->connection->fetchOne(
-                <<<'SQL'
-                    INSERT INTO credit_notes
-                        (tenant_id, product_id, issuer_tenant_id, invoice_id, number, reason, currency,
-                         net_minor_units, vat_minor_units, gross_minor_units,
-                         issued_at, supplier_snapshot, customer_snapshot)
-                    VALUES (:tenantId, :productId, CAST(:issuerTenantId AS uuid), :invoice, :number, :reason, :currency,
-                            :net, :vat, :gross, now(),
-                            CAST(:supplier AS jsonb), CAST(:customer AS jsonb))
-                    RETURNING id
-                    SQL,
-                [
-                    'tenantId' => $invoice->tenantId,
-                    'productId' => $invoice->productId,
-                    'issuerTenantId' => $invoice->issuerTenantId,
-                    'invoice' => $invoice->id,
-                    'number' => $number,
-                    'reason' => $reason,
-                    'currency' => $currency,
-                    'net' => $net->minorUnits,
-                    'vat' => $vat->minorUnits,
-                    'gross' => $net->plus($vat)->minorUnits,
-                    'supplier' => self::encode($supplier),
-                    'customer' => self::encode($customer),
-                ],
-            );
+        foreach ($lines as $line) {
+            $net = $net->plus($line->net);
+            $vat = $vat->plus($line->vat);
+        }
 
-            if (!is_string($id)) {
-                throw new RuntimeException('Failed to issue a credit note.');
-            }
+        // The issuer of the invoice, never a fresh decision: a credit note
+        // corrects one company's document, so it belongs in that company's
+        // series (2026-09-25). Deciding again here could put the
+        // correction in the platform's series and leave the invoice's own
+        // with a correction it never records.
+        $number = DocumentNumbering::next(
+            $this->connection,
+            DocumentNumbering::CREDIT_NOTE,
+            $invoice->issuerTenantId,
+        );
 
-            foreach ($lines as $line) {
-                $this->connection->executeStatement(
-                    <<<'SQL'
-                        INSERT INTO credit_note_lines
-                            (credit_note_id, position, description, quantity, unit_price_minor_units,
-                             discount_minor_units, net_minor_units, vat_rate_basis_points,
-                             vat_minor_units, gross_minor_units)
-                        VALUES (:note, :position, :description, :quantity, :unitPrice,
-                                :discount, :net, :rate, :vat, :gross)
-                        SQL,
-                    [
-                        'note' => $id,
-                        'position' => $line->position,
-                        'description' => $line->description,
-                        'quantity' => $line->quantity,
-                        'unitPrice' => $line->unitPrice->minorUnits,
-                        'discount' => $line->discount->minorUnits,
-                        'net' => $line->net->minorUnits,
-                        'rate' => $line->vatRateBasisPoints,
-                        'vat' => $line->vat->minorUnits,
-                        'gross' => $line->gross->minorUnits,
-                    ],
-                );
-            }
+        $id = $this->connection->fetchOne(
+            <<<'SQL'
+                INSERT INTO credit_notes
+                    (tenant_id, product_id, issuer_tenant_id, invoice_id, number, reason, currency,
+                     net_minor_units, vat_minor_units, gross_minor_units,
+                     issued_at, supplier_snapshot, customer_snapshot)
+                VALUES (:tenantId, :productId, CAST(:issuerTenantId AS uuid), :invoice, :number, :reason, :currency,
+                        :net, :vat, :gross, now(),
+                        CAST(:supplier AS jsonb), CAST(:customer AS jsonb))
+                RETURNING id
+                SQL,
+            [
+                'tenantId' => $invoice->tenantId,
+                'productId' => $invoice->productId,
+                'issuerTenantId' => $invoice->issuerTenantId,
+                'invoice' => $invoice->id,
+                'number' => $number,
+                'reason' => $reason,
+                'currency' => $currency,
+                'net' => $net->minorUnits,
+                'vat' => $vat->minorUnits,
+                'gross' => $net->plus($vat)->minorUnits,
+                'supplier' => self::encode($supplier),
+                'customer' => self::encode($customer),
+            ],
+        );
 
+        if (!is_string($id)) {
+            throw new RuntimeException('Failed to issue a credit note.');
+        }
+
+        foreach ($lines as $line) {
             $this->connection->executeStatement(
                 <<<'SQL'
-                    INSERT INTO financial_events
-                        (tenant_id, product_id, type, invoice_id, subscription_id,
-                         amount_minor_units, currency, actor_user_id, detail)
-                    VALUES (:tenantId, :productId, 'CREDIT_NOTE_ISSUED', :invoice, :subscription,
-                            :amount, :currency, :actor, CAST(:detail AS jsonb))
+                    INSERT INTO credit_note_lines
+                        (credit_note_id, position, description, quantity, unit_price_minor_units,
+                         discount_minor_units, net_minor_units, vat_rate_basis_points,
+                         vat_minor_units, gross_minor_units)
+                    VALUES (:note, :position, :description, :quantity, :unitPrice,
+                            :discount, :net, :rate, :vat, :gross)
                     SQL,
                 [
-                    'tenantId' => $invoice->tenantId,
-                    'productId' => $invoice->productId,
-                    'invoice' => $invoice->id,
-                    'subscription' => $invoice->subscriptionId,
-                    'amount' => $net->plus($vat)->minorUnits,
-                    'currency' => $currency,
-                    'actor' => $actorUserId,
-                    'detail' => self::encode(['number' => $number]),
+                    'note' => $id,
+                    'position' => $line->position,
+                    'description' => $line->description,
+                    'quantity' => $line->quantity,
+                    'unitPrice' => $line->unitPrice->minorUnits,
+                    'discount' => $line->discount->minorUnits,
+                    'net' => $line->net->minorUnits,
+                    'rate' => $line->vatRateBasisPoints,
+                    'vat' => $line->vat->minorUnits,
+                    'gross' => $line->gross->minorUnits,
                 ],
             );
+        }
 
-            // In the same transaction, and through the participating variant
-            // so nothing nests: a credit note whose invoice still reads as
-            // owed is a state nobody could explain.
+        $this->connection->executeStatement(
+            <<<'SQL'
+                INSERT INTO financial_events
+                    (tenant_id, product_id, type, invoice_id, subscription_id,
+                     amount_minor_units, currency, actor_user_id, detail)
+                VALUES (:tenantId, :productId, 'CREDIT_NOTE_ISSUED', :invoice, :subscription,
+                        :amount, :currency, :actor, CAST(:detail AS jsonb))
+                SQL,
+            [
+                'tenantId' => $invoice->tenantId,
+                'productId' => $invoice->productId,
+                'invoice' => $invoice->id,
+                'subscription' => $invoice->subscriptionId,
+                'amount' => $net->plus($vat)->minorUnits,
+                'currency' => $currency,
+                'actor' => $actorUserId,
+                'detail' => self::encode(['number' => $number]),
+            ],
+        );
+
+        // In the same transaction, and through the participating variant
+        // so nothing nests: a credit note whose invoice still reads as
+        // owed is a state nobody could explain.
+        //
+        // Unless this credit leaves part of the invoice standing
+        // (2026-09-26). A tenth of a document credited back is not an
+        // undone document, and CREDITED would say the rest was never
+        // owed.
+        if ($closesTheInvoice) {
             $this->invoices->applyTransition($invoice, InvoiceStatus::CREDITED, $actorUserId);
+        }
 
-            $issued = $this->find($invoice->tenantId, $invoice->productId, $id);
+        $issued = $this->find($invoice->tenantId, $invoice->productId, $id);
 
-            if ($issued === null) {
-                throw new RuntimeException('The credit note vanished during the transaction that created it.');
-            }
+        if ($issued === null) {
+            throw new RuntimeException('The credit note vanished during the transaction that created it.');
+        }
 
-            // Last, and still inside: the reversing fiscal fact needs the
-            // document's id, and a credit note that committed without it
-            // would leave the declaration claiming VAT on an undone sale
-            // (2026-09-26).
-            if ($alsoRecord !== null) {
-                $alsoRecord($issued);
-            }
+        // Last, and still inside: the reversing fiscal fact needs the
+        // document's id, and a credit note that committed without it
+        // would leave the declaration claiming VAT on an undone sale
+        // (2026-09-26).
+        if ($alsoRecord !== null) {
+            $alsoRecord($issued);
+        }
 
-            return $issued;
-        });
+        return $issued;
     }
 
     /**
