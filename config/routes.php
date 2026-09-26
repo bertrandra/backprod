@@ -35,6 +35,7 @@ use App\Checkout\Controller\OpenCheckoutSessionController;
 use App\Checkout\Controller\RetryPaymentController;
 use App\Checkout\Controller\ShowCheckoutSessionController;
 use App\Commerce\Controller\AddPersonController;
+use App\Commerce\Controller\CancelScheduledChangeController;
 use App\Commerce\Controller\CancelSubscriptionController;
 use App\Commerce\Controller\ChangeOfferController;
 use App\Commerce\Controller\CreateOfferController;
@@ -53,6 +54,7 @@ use App\Commerce\Controller\PublicTenantController;
 use App\Commerce\Controller\PublishOfferVersionController;
 use App\Commerce\Controller\RemovePersonController;
 use App\Commerce\Controller\ResumeSubscriptionController;
+use App\Commerce\Controller\ScheduleOfferChangeController;
 use App\Commerce\Controller\ShowOfferController;
 use App\Commerce\Controller\ShowScheduleController;
 use App\Commerce\Controller\ShowSubscriptionController;
@@ -355,6 +357,13 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/organisation/subscriptions', ListOrganisationSubscriptionsController::class);
     $routes->addRoute('POST', '/api/v1/subscription/change-offer', ChangeOfferController::class);
     $routes->addRoute('POST', '/api/v1/subscription/cancel', CancelSubscriptionController::class);
+
+    // A move **down** waits for the end of the period the customer paid for
+    // (spec §4): one resource for the intention, written and withdrawn. The
+    // withdrawal is not optional — a future change nobody can undo is a
+    // cancellation in disguise.
+    $routes->addRoute('POST', '/api/v1/subscription/pending', ScheduleOfferChangeController::class);
+    $routes->addRoute('DELETE', '/api/v1/subscription/pending', CancelScheduledChangeController::class);
 
     // What a customer asks before they cancel: until when is it paid, until
     // when am I committed, and when may I leave (§13.1). No side effect, and

@@ -221,7 +221,9 @@ ceux qui savent atteindre l'endpoint.
 | Action | Ce que ça change |
 |---|---|
 | `showSubscription`, `showSchedule`, `listEntitlements` | Rien. Ce qu'il tient, jusqu'à quand, et ce que ça ouvre. |
-| `changeOffer` | Déplace l'abonnement vivant sur d'autres conditions **en gardant sa période**. Le prorata est de la facturation et n'est pas fait ici. |
+| `changeOffer` | Déplace l'abonnement vivant sur d'autres conditions **en gardant sa période**, et **ré-instantanéise les conditions** depuis la nouvelle version d'offre — sauf l'engagement, qui survit inchangé : un changement de plan n'est pas un nouveau contrat. Un passage vers un plan de **rang inférieur** n'est pas appliqué tout de suite : il est programmé, comme ci-dessous. Le prorata est de la facturation et n'est pas fait ici. |
+| `scheduleOfferChange` | Programme la descente vers un plan de rang inférieur à la **fin de la période payée**. Ne touche aucun droit : le client garde entier le plan qu'il a payé. Refuse `NOT_A_DOWNGRADE` pour un passage vers le haut, qui est immédiat, et `SUBSCRIPTION_ENDING` quand une résiliation est déjà due — un abonnement n'a qu'une fin. |
+| `cancelScheduledChange` | Retire le changement programmé. **Obligatoire et non un confort** : un changement futur qu'on ne peut pas défaire est une résiliation déguisée. |
 | `cancelSubscription` | Enregistre une **décision** — identifiant de règle, effet, date d'effet, mois dus, motifs — jamais un `cancelled: true`. Sous engagement, la demande est refusée ou différée selon la politique de l'offre, et un rachat éventuel est facturé **sur la transaction de la résiliation**. |
 | `resumeSubscription` | Retire une résiliation programmée, tant que l'abonnement est encore vivant. |
 | `listSubscriptionPeople` | Rien. Qui son abonnement couvre, en plus de lui. |

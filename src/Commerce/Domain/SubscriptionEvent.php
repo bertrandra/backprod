@@ -28,6 +28,19 @@ final class SubscriptionEvent
     public const RENEWED = 'RENEWED';
     public const EXPIRED = 'EXPIRED';
 
+    /**
+     * A move to a lower plan, asked for and waiting for the end of the paid
+     * period (2026-09-27, spec §4) — and the same move withdrawn before it
+     * arrived, which is a retention act before it is a technical one.
+     *
+     * Both are recorded, including the withdrawal: "I asked to go down to
+     * Starter" against "we have no record of it" needs an arbiter, exactly
+     * as a cancellation request does. When the change is finally applied the
+     * event is an ordinary `OFFER_CHANGED` — because that is what happened.
+     */
+    public const CHANGE_SCHEDULED = 'CHANGE_SCHEDULED';
+    public const CHANGE_CANCELLED = 'CHANGE_CANCELLED';
+
     public function __construct(
         public readonly string $id,
         public readonly string $type,

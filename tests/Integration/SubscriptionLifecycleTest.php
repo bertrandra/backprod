@@ -48,6 +48,15 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
     private string $proOffer = '';
     private string $projectsFeature = '';
 
+    /** A higher plan that sells terms unlike anything the others sell. */
+    private string $termsOffer = '';
+
+    /** A two-year commitment, on the same rank as `pro`. */
+    private string $longCommitmentOffer = '';
+
+    /** A higher plan sold for six months only — shorter than that commitment. */
+    private string $shortTermOffer = '';
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -72,6 +81,47 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         $this->grant($proVersion, $this->projectsFeature, 50);
         $this->grant($proVersion, $advanced, null);
         $this->publish($proVersion);
+
+        // Three offers that exist to make the terms visible. Every condition
+        // below differs from what `free` and `pro` sell, so a subscription
+        // still carrying the old ones cannot pass by coincidence.
+        $scale = $this->seedPlan('SCALE', 30);
+
+        $this->termsOffer = $this->seedOffer($scale, 'scale-terms');
+        $termsVersion = $this->seedVersion(
+            $this->termsOffer,
+            9900,
+            'MONTHLY',
+            termMonths: 24,
+            commitmentMonths: 12,
+            cancellationPolicy: 'AT_COMMITMENT_END',
+            renewal: 'ENDS_AT_TERM',
+            earlyTermination: 'CHARGE_REMAINING',
+            noticeDays: 30,
+        );
+        $this->grant($termsVersion, $this->projectsFeature, 500);
+        $this->publish($termsVersion);
+
+        $this->longCommitmentOffer = $this->seedOffer($pro, 'pro-committed');
+        $longVersion = $this->seedVersion(
+            $this->longCommitmentOffer,
+            2400,
+            'MONTHLY',
+            commitmentMonths: 24,
+        );
+        $this->grant($longVersion, $this->projectsFeature, 50);
+        $this->publish($longVersion);
+
+        $this->shortTermOffer = $this->seedOffer($scale, 'scale-six-months');
+        $shortVersion = $this->seedVersion(
+            $this->shortTermOffer,
+            9900,
+            'MONTHLY',
+            termMonths: 6,
+            commitmentMonths: 6,
+        );
+        $this->grant($shortVersion, $this->projectsFeature, 500);
+        $this->publish($shortVersion);
     }
 
     // --- Activation ---------------------------------------------------------
@@ -255,22 +305,10 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         self::assertSame(Subscriptions::UPGRADE, $latest->detail->direction ?? null);
     }
 
-    public function testADowngradeTakesTheExtraGrantsAway(): void
-    {
-        $this->subscribeToPro();
-
-        $this->subscriptions()->changeOffer($this->tenant, $this->product, $this->freeOffer, $this->user);
-
-        self::assertSame(
-            ['max_projects'],
-            $this->entitlements()->capabilitiesFor($this->tenant, $this->product),
-            'the boolean capability the pro offer granted is gone',
-        );
-        self::assertSame(3, $this->limitFor('max_projects'));
-
-        $latest = $this->subscriptions()->events($this->tenant, $this->product)[0];
-        self::assertSame(Subscriptions::DOWNGRADE, $latest->detail->direction ?? null);
-    }
+    // A downgrade used to take the extra grants away on the spot. It no
+    // longer does, and that is the point of spec §4 — what it does instead is
+    // `testADowngradeIsScheduledAndTakesNothingAway`, and what happens when
+    // the date arrives is `testRenewalAppliesTheChangeThatHasComeDue`.
 
     /**
      * A change keeps the period the tenant already paid for. Prorating money
@@ -278,11 +316,11 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
      */
     public function testAChangeDoesNotMoveThePeriod(): void
     {
-        $before = $this->subscribeToPro();
+        $before = $this->subscribeToFree();
         $after = $this->subscriptions()->changeOffer(
             $this->tenant,
             $this->product,
-            $this->freeOffer,
+            $this->proOffer,
             $this->user,
         );
 
@@ -290,6 +328,345 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             $before->currentPeriodEnd?->format(DATE_ATOM),
             $after->currentPeriodEnd?->format(DATE_ATOM),
         );
+    }
+
+    // --- The deferred downgrade (spec §4) ------------------------------------
+
+    /**
+     * The defect: a downgrade applied at once and took back what the
+     * customer had paid for. Somebody on Pro until the 31st who chose the
+     * cheaper plan on the 3rd lost Pro on the 3rd.
+     *
+     * So the choice writes an intention and **touches nothing**: not the
+     * offer, not the period, and above all not one entitlement.
+     */
+    public function testADowngradeIsScheduledAndTakesNothingAway(): void
+    {
+        $before = $this->subscribeToPro();
+
+        $after = $this->subscriptions()->changeOffer(
+            $this->tenant,
+            $this->product,
+            $this->freeOffer,
+            $this->user,
+        );
+
+        // Still on Pro, still with Pro's grants, still until the same date.
+        self::assertSame('pro', $after->offer->code);
+        self::assertSame(50, $this->limitFor('max_projects'));
+        self::assertContains('advanced_3d', $this->entitlements()->capabilitiesFor($this->tenant, $this->product));
+        self::assertSame(
+            $before->currentPeriodEnd?->format(DATE_ATOM),
+            $after->currentPeriodEnd?->format(DATE_ATOM),
+        );
+
+        // And the intention is on the row, dated to the end of what was paid
+        // for — never earlier, which is the whole rule.
+        self::assertNotNull($after->pending);
+        self::assertSame('free', $after->pending->offerCode);
+        self::assertSame(
+            $before->currentPeriodEnd?->format(DATE_ATOM),
+            $after->pending->effectiveAt->format(DATE_ATOM),
+        );
+        self::assertSame($this->user, $after->pending->requestedBy);
+
+        $latest = $this->subscriptions()->events($this->tenant, $this->product)[0];
+        self::assertSame(SubscriptionEvent::CHANGE_SCHEDULED, $latest->type);
+    }
+
+    /**
+     * The explicit door, and the refusal that keeps it honest: going up is
+     * immediate, so scheduling it would hand somebody a plan they are not
+     * paying for yet.
+     */
+    public function testSchedulingAMoveThatIsNotDownIsRefused(): void
+    {
+        $this->subscribeToFree();
+
+        $error = $this->refusal(fn (): Subscription => $this->subscriptions()->scheduleChange(
+            $this->tenant,
+            $this->product,
+            $this->proOffer,
+            $this->user,
+        ));
+
+        self::assertSame(409, $error->statusCode());
+        self::assertSame('NOT_A_DOWNGRADE', $error->errorCode());
+    }
+
+    /**
+     * Renewal applies it, in §4.3's order. The period resets, the terms are
+     * re-snapshotted from the arriving version, the grants are exchanged and
+     * the intention is gone.
+     */
+    public function testRenewalAppliesTheChangeThatHasComeDue(): void
+    {
+        $this->subscribeToPro();
+        $this->subscriptions()->scheduleChange($this->tenant, $this->product, $this->freeOffer, $this->user);
+
+        $applied = $this->renewAtTheBoundary();
+
+        self::assertSame('free', $applied->offer->code);
+        self::assertNull($applied->pending, 'the intention is spent, not kept');
+        self::assertSame(3, $this->limitFor('max_projects'));
+        self::assertSame(
+            ['max_projects'],
+            $this->entitlements()->capabilitiesFor($this->tenant, $this->product),
+            'the boolean capability the pro offer granted is gone, now that the period it was paid for has passed',
+        );
+
+        // The new period starts where the old one ended, so applying it late
+        // costs the customer nothing.
+        self::assertNotNull($applied->currentPeriodEnd);
+        self::assertGreaterThan($applied->currentPeriodStart, $applied->currentPeriodEnd);
+
+        $latest = $this->subscriptions()->events($this->tenant, $this->product)[0];
+        self::assertSame(SubscriptionEvent::OFFER_CHANGED, $latest->type);
+        self::assertSame(Subscriptions::DOWNGRADE, $latest->detail->direction ?? null);
+        self::assertSame('AT_RENEWAL', $latest->detail->applied ?? null);
+    }
+
+    /**
+     * A change dated further out is not dragged forward. The clock decides,
+     * exactly as it does for a cancellation deferred to a commitment ten
+     * months away.
+     */
+    public function testRenewalLeavesAChangeThatIsNotDueYetAlone(): void
+    {
+        $this->subscribeToPro();
+        $this->subscriptions()->scheduleChange($this->tenant, $this->product, $this->freeOffer, $this->user);
+
+        // The period ends tomorrow; the change is a month out, because
+        // somebody moved the boundary after it was asked for.
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE subscriptions
+                   SET current_period_end = now() + interval '1 day',
+                       pending_effective_at = now() + interval '1 month'
+                 WHERE tenant_id = :tenant
+                SQL,
+            ['tenant' => $this->tenant],
+        );
+
+        $renewed = $this->subscriptions()->renew($this->tenant, $this->product);
+
+        self::assertSame('pro', $renewed->offer->code, 'renewed on the same offer');
+        self::assertNotNull($renewed->pending, 'and the change is still waiting');
+    }
+
+    /**
+     * §4.2, and the piece that is not optional: a future change that cannot
+     * be undone is a cancellation in disguise.
+     */
+    public function testAScheduledChangeIsWithdrawnAndRecorded(): void
+    {
+        $this->subscribeToPro();
+        $this->subscriptions()->scheduleChange($this->tenant, $this->product, $this->freeOffer, $this->user);
+
+        $kept = $this->subscriptions()->cancelScheduledChange($this->tenant, $this->product, $this->user);
+
+        self::assertNull($kept->pending);
+        self::assertSame('pro', $kept->offer->code);
+
+        $latest = $this->subscriptions()->events($this->tenant, $this->product)[0];
+        self::assertSame(SubscriptionEvent::CHANGE_CANCELLED, $latest->type);
+
+        // Renewal now reconducts the same offer: there is nothing left to
+        // apply.
+        $renewed = $this->renewAtTheBoundary();
+        self::assertSame('pro', $renewed->offer->code);
+    }
+
+    public function testWithdrawingAChangeThatIsNotScheduledIsRefused(): void
+    {
+        $this->subscribeToPro();
+
+        $error = $this->refusal(
+            fn (): Subscription => $this->subscriptions()->cancelScheduledChange(
+                $this->tenant,
+                $this->product,
+                $this->user,
+            ),
+        );
+
+        self::assertSame(409, $error->statusCode());
+        self::assertSame('NO_PENDING_CHANGE', $error->errorCode());
+    }
+
+    /**
+     * §2.2: a subscription has **one** ending. Cancelling clears a pending
+     * change, and a subscription already ending refuses one — so the two
+     * indicators are never both set, which is what the database also
+     * refuses.
+     */
+    public function testACancellationAndAPendingChangeDoNotCoexist(): void
+    {
+        $this->subscribeToPro();
+        $this->subscriptions()->scheduleChange($this->tenant, $this->product, $this->freeOffer, $this->user);
+
+        // Cancelling wins: the subscription is ending, so there is nothing
+        // left for it to become.
+        $cancelled = $this->subscriptions()->cancel($this->tenant, $this->product, false, $this->user)['subscription'];
+
+        self::assertTrue($cancelled->cancelAtPeriodEnd);
+        self::assertNull($cancelled->pending);
+
+        // And the other way round is refused rather than silently deciding
+        // which of the two the customer meant.
+        $error = $this->refusal(fn (): Subscription => $this->subscriptions()->scheduleChange(
+            $this->tenant,
+            $this->product,
+            $this->freeOffer,
+            $this->user,
+        ));
+
+        self::assertSame(409, $error->statusCode());
+        self::assertSame('SUBSCRIPTION_ENDING', $error->errorCode());
+    }
+
+    /**
+     * The invariant in the database, not only in the service: a row carrying
+     * both endings is refused whatever wrote it.
+     */
+    public function testTheDatabaseRefusesBothEndingsOnOneRow(): void
+    {
+        $subscription = $this->subscribeToPro();
+
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE subscriptions
+                   SET cancel_at_period_end = true, cancel_effective_at = now() + interval '1 month'
+                 WHERE id = :id
+                SQL,
+            ['id' => $subscription->id],
+        );
+
+        $this->expectException(DriverException::class);
+
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE subscriptions
+                   SET pending_offer_version_id = offer_version_id,
+                       pending_effective_at = now() + interval '1 month',
+                       pending_requested_at = now()
+                 WHERE id = :id
+                SQL,
+            ['id' => $subscription->id],
+        );
+    }
+
+    // --- The terms follow the offer (spec §1c, §3.2) -------------------------
+
+    /**
+     * The defect this fixes: `changeOffer` wrote `offer_version_id` and
+     * nothing else, so the subscription pointed at the new version while
+     * still carrying the conditions of the one it had left. The old
+     * cancellation policy decided how to leave the new plan, the old notice
+     * applied, and the old renewal rule decided what happened at the term.
+     */
+    public function testAChangeOfOfferRe_SnapshotsTheTermsOfTheNewVersion(): void
+    {
+        $before = $this->subscribeToFree();
+
+        // What `free` sells, so the assertions below cannot be reading it.
+        self::assertSame('ANYTIME', $before->terms->cancellationPolicy);
+        self::assertSame('AUTO_RENEW', $before->terms->renewal);
+        self::assertSame(0, $before->terms->noticeDays);
+        self::assertNull($before->termEndsAt);
+
+        $after = $this->subscriptions()->changeOffer(
+            $this->tenant,
+            $this->product,
+            $this->termsOffer,
+            $this->user,
+        );
+
+        self::assertSame(24, $after->terms->termMonths);
+        self::assertSame('AT_COMMITMENT_END', $after->terms->cancellationPolicy);
+        self::assertSame('ENDS_AT_TERM', $after->terms->renewal);
+        self::assertSame('CHARGE_REMAINING', $after->terms->earlyTermination);
+        self::assertSame(30, $after->terms->noticeDays);
+
+        // The dates the clock will be asked about, not just the numbers: a
+        // term of 24 months with no date is a term nothing ever reaches.
+        self::assertNotNull($after->termEndsAt);
+        self::assertEqualsWithDelta(
+            (new DateTimeImmutable('+24 months'))->getTimestamp(),
+            $after->termEndsAt->getTimestamp(),
+            120,
+        );
+
+        // Nothing was committed before, so the arriving commitment ends
+        // later than none at all and therefore applies.
+        self::assertSame(12, $after->terms->commitmentMonths);
+        self::assertNotNull($after->commitmentEndsAt);
+    }
+
+    /**
+     * §3.3, and the whole subtlety: **a change of plan is not a new
+     * contract.** Somebody committed for two years who moves up a tier stays
+     * committed until their original date — the move neither re-arms the
+     * commitment for another two years nor shortens it to the twelve months
+     * the new offer happens to sell.
+     */
+    public function testACommittedSubscriptionKeepsItsOwnCommitmentAcrossAChange(): void
+    {
+        $committed = $this->subscriptions()->subscribe(
+            $this->tenant,
+            $this->product,
+            $this->longCommitmentOffer,
+            $this->user,
+        );
+
+        self::assertSame(24, $committed->terms->commitmentMonths);
+        $agreed = $committed->commitmentEndsAt;
+        self::assertNotNull($agreed);
+
+        $after = $this->subscriptions()->changeOffer(
+            $this->tenant,
+            $this->product,
+            $this->termsOffer,
+            $this->user,
+        );
+
+        // The date the customer agreed to, to the microsecond. Not the
+        // arriving offer's twelve months, which would end sooner, and not a
+        // fresh twenty-four, which would end later.
+        self::assertSame(24, $after->terms->commitmentMonths);
+        self::assertSame($agreed->format(DATE_ATOM), $after->commitmentEndsAt?->format(DATE_ATOM));
+
+        // And everything that is not the commitment did move.
+        self::assertSame('AT_COMMITMENT_END', $after->terms->cancellationPolicy);
+        self::assertSame(30, $after->terms->noticeDays);
+    }
+
+    /**
+     * The contradiction the two rules can produce, refused in words rather
+     * than by a CHECK constraint: a subscription sold to run six months
+     * cannot carry the two-year commitment that survives into it.
+     */
+    public function testAnOfferShorterThanTheSurvivingCommitmentIsRefused(): void
+    {
+        $this->subscriptions()->subscribe(
+            $this->tenant,
+            $this->product,
+            $this->longCommitmentOffer,
+            $this->user,
+        );
+
+        $error = $this->refusal(fn (): Subscription => $this->subscriptions()->changeOffer(
+            $this->tenant,
+            $this->product,
+            $this->shortTermOffer,
+            $this->user,
+        ));
+
+        self::assertSame(409, $error->statusCode());
+        self::assertSame('COMMITMENT_OUTLASTS_TERM', $error->errorCode());
+
+        // And nothing moved: the subscription is still the one it was.
+        $unchanged = $this->subscriptions()->current($this->tenant, $this->product);
+        self::assertSame('pro-committed', $unchanged?->offer->code);
     }
 
     /**
@@ -450,6 +827,19 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         return $this->subscriptions()->subscribe($this->tenant, $this->product, $this->freeOffer, $this->user);
     }
 
+    /**
+     * Renewal, asked the way the M7 job will ask it.
+     *
+     * Nothing to move: renewal reads the period's own end as the moment it
+     * is renewing *to*, and a pending change dated to that same end is
+     * therefore due. That is also why applying it an hour late costs the
+     * customer nothing.
+     */
+    private function renewAtTheBoundary(): Subscription
+    {
+        return $this->subscriptions()->renew($this->tenant, $this->product);
+    }
+
     private function subscriptions(): Subscriptions
     {
         return new Subscriptions(
@@ -606,16 +996,44 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         );
     }
 
-    private function seedVersion(string $offerId, int $price, string $period): string
-    {
+    /**
+     * A version, with the §13.1 terms it sells.
+     *
+     * The defaults are what every offer sold before §13.1 amounts to —
+     * open-ended, uncommitted, cancellable whenever — so the tests that do
+     * not care about terms read as they did.
+     */
+    private function seedVersion(
+        string $offerId,
+        int $price,
+        string $period,
+        ?int $termMonths = null,
+        int $commitmentMonths = 0,
+        string $cancellationPolicy = 'ANYTIME',
+        string $renewal = 'AUTO_RENEW',
+        string $earlyTermination = 'FORBIDDEN',
+        int $noticeDays = 0,
+    ): string {
         return $this->id(
             <<<'SQL'
                 INSERT INTO offer_versions
-                    (offer_id, version, status, billing_period, price_minor_units, currency, valid_from)
-                VALUES (:offer, 1, 'DRAFT', :period, :price, 'EUR', now() - interval '1 day')
+                    (offer_id, version, status, billing_period, price_minor_units, currency, valid_from,
+                     term_months, commitment_months, cancellation_policy, renewal, early_termination, notice_days)
+                VALUES (:offer, 1, 'DRAFT', :period, :price, 'EUR', now() - interval '1 day',
+                        :termMonths, :commitmentMonths, :policy, :renewal, :earlyTermination, :noticeDays)
                 RETURNING id
                 SQL,
-            ['offer' => $offerId, 'period' => $period, 'price' => $price],
+            [
+                'offer' => $offerId,
+                'period' => $period,
+                'price' => $price,
+                'termMonths' => $termMonths,
+                'commitmentMonths' => $commitmentMonths,
+                'policy' => $cancellationPolicy,
+                'renewal' => $renewal,
+                'earlyTermination' => $earlyTermination,
+                'noticeDays' => $noticeDays,
+            ],
         );
     }
 

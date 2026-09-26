@@ -458,9 +458,14 @@ Chacune laisse `composer run gates` et `npm run build` au vert, et se livre
 seule.
 
 **Étape 1 — corriger l'instantané des conditions.** `changeOffer` recopie
-`term_months`, `commitment_months`, `cancellation_policy`, `renewal`,
-`early_termination`, `notice_days` depuis la nouvelle version. Test : changer
-d'offre puis lire les conditions et constater qu'elles décrivent la nouvelle.
+`term_months`, `term_ends_at`, `cancellation_policy`, `renewal`,
+`early_termination`, `notice_days` depuis la nouvelle version — **et pas
+`commitment_months` ni `commitment_ends_at`**, qui survivent inchangés (§3.3).
+Cette ligne listait l'engagement parmi les conditions recopiées et
+contredisait §3.3 ; c'est §3.3 qui a raison, parce que c'est là que la règle
+est raisonnée. Test : changer d'offre puis lire les conditions et constater
+qu'elles décrivent la nouvelle, et que l'engagement est toujours celui
+d'origine.
 *Indépendant de tout le reste, et c'est un défaut vivant.*
 
 **Étape 2 — le downgrade différé.** Migration (quatre colonnes + la

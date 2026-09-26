@@ -310,6 +310,66 @@ export function useRemovePerson(seat: boolean) {
   });
 }
 
+/**
+ * Asking to move **down** a plan, at the end of the paid period (spec §4).
+ *
+ * The separate mutation is the separate promise: `useChangeOffer` moves the
+ * subscription now, this one records that it will move later. Which of the two
+ * a screen calls is decided by comparing the plans' **ranks** — never their
+ * names, which is §13's rule and what `gate:plans` forbids in PHP.
+ *
+ * Nothing optimistic. It creates nothing binding today, but it is the
+ * subscription the whole billing chain reads, and the date it takes effect on
+ * is the server's answer rather than a subtraction here.
+ */
+export function useScheduleOfferChange() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (offerId: string): Promise<Subscription> => {
+      const { data, error, response } = await client.POST('/api/v1/subscription/pending', {
+        ...ambientParams(sessionSnapshot),
+        body: { offer_id: offerId },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    onSuccess: () => refreshSubscription(queryClient),
+  });
+}
+
+/**
+ * Undoing it, which is not optional (spec §4.2).
+ *
+ * A future change a customer cannot withdraw is a cancellation in disguise, so
+ * the button exists wherever the pending change is shown.
+ */
+export function useCancelScheduledChange() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (): Promise<Subscription> => {
+      const { data, error, response } = await client.DELETE(
+        '/api/v1/subscription/pending',
+        ambientParams(sessionSnapshot),
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    onSuccess: () => refreshSubscription(queryClient),
+  });
+}
+
 export function useResumeSubscription() {
   const client = useApiClient();
   const queryClient = useQueryClient();

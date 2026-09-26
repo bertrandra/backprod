@@ -127,6 +127,12 @@ interface SubscriptionRepository
      * Prorating the difference is billing, and billing is M6. What happens
      * here is the change of what the tenant may use, recorded with both ends
      * so the move is auditable.
+     *
+     * Implementations must **re-snapshot the terms** from the new version
+     * (spec §1c): a subscription pointing at one offer while carrying the
+     * conditions of another is bound by an agreement it is no longer on. The
+     * commitment is the one exception — see
+     * {@see Subscription::commitmentAfterMovingTo()}.
      */
     public function changeOffer(
         Subscription $subscription,
@@ -134,6 +140,45 @@ interface SubscriptionRepository
         string $direction,
         ?string $actorUserId,
     ): Subscription;
+
+    /**
+     * Records a move to another offer that takes effect later (spec §4).
+     *
+     * Implementations must change **nothing else**: not the offer version,
+     * not the entitlements, not the period. The whole point of deferring a
+     * downgrade is that the customer keeps, entire, the plan they have paid
+     * for until `$effectiveAt`.
+     */
+    public function scheduleChange(
+        Subscription $subscription,
+        SubscribedOffer $offer,
+        DateTimeImmutable $effectiveAt,
+        ?string $actorUserId,
+    ): Subscription;
+
+    /**
+     * Withdraws a scheduled change, leaving the subscription as it was.
+     *
+     * Not optional, and not a convenience: a future change nobody can undo
+     * is a cancellation in disguise (spec §4.2). The withdrawn destination
+     * is recorded on the event, because the columns that held it are
+     * cleared.
+     */
+    public function cancelScheduledChange(Subscription $subscription, ?string $actorUserId): Subscription;
+
+    /**
+     * Applies a change that has come due, at renewal (spec §4.3).
+     *
+     * The offer moves, the terms are re-snapshotted from the arriving
+     * version, the period is reset from the end of the one just finished
+     * and the entitlements are exchanged — all on one transaction, as every
+     * other transition here is.
+     *
+     * $direction is the caller's, computed from the plan ranks, because the
+     * word that goes in the audit trail is an application decision and this
+     * layer must not reach for it.
+     */
+    public function applyPendingChange(Subscription $subscription, string $direction): Subscription;
 
     /**
      * Withdraws a scheduled cancellation. Only meaningful while the

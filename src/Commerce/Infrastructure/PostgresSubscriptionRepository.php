@@ -8,6 +8,7 @@ use App\Commerce\Domain\CancellationDecision;
 use App\Commerce\Domain\Feature;
 use App\Commerce\Domain\OfferGrant;
 use App\Commerce\Domain\OfferVersion;
+use App\Commerce\Domain\PendingChange;
 use App\Commerce\Domain\Plan;
 use App\Commerce\Domain\RenewalNotice;
 use App\Commerce\Domain\SubscribedOffer;
@@ -49,20 +50,35 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         s.term_months, s.term_ends_at, s.commitment_months, s.commitment_ends_at,
         s.cancellation_policy, s.renewal, s.early_termination, s.notice_days,
         s.cancel_effective_at, s.owner_user_id,
+        s.pending_offer_version_id, s.pending_effective_at,
+        s.pending_requested_at, s.pending_requested_by,
         o.id AS offer_id, o.code AS offer_code, o.name AS offer_name,
         pl.id AS plan_id, pl.code AS plan_code, pl.name AS plan_name, pl.rank AS plan_rank,
         v.version, v.status AS version_status, v.billing_period,
         v.price_minor_units, v.currency, v.valid_from, v.valid_until,
         v.term_months AS version_term_months, v.commitment_months AS version_commitment_months,
         v.cancellation_policy AS version_cancellation_policy, v.renewal AS version_renewal,
-        v.early_termination AS version_early_termination, v.notice_days AS version_notice_days
+        v.early_termination AS version_early_termination, v.notice_days AS version_notice_days,
+        po.id AS pending_offer_id, po.code AS pending_offer_code, po.name AS pending_offer_name,
+        ppl.id AS pending_plan_id, ppl.code AS pending_plan_code,
+        ppl.name AS pending_plan_name, ppl.rank AS pending_plan_rank
         SQL;
 
+    /**
+     * The pending offer joins on the **left**: a subscription with no change
+     * waiting is the ordinary case, and an inner join would return none of
+     * them. The version it points at cannot have gone — the foreign key is
+     * RESTRICT — so the three pending columns are present together or absent
+     * together, which is what the CHECK enforces and what hydration reads.
+     */
     private const FROM = <<<'SQL'
         FROM subscriptions s
         JOIN offer_versions v ON v.id = s.offer_version_id
         JOIN offers o ON o.id = v.offer_id
         JOIN plans pl ON pl.id = o.plan_id
+        LEFT JOIN offer_versions pv ON pv.id = s.pending_offer_version_id
+        LEFT JOIN offers po ON po.id = pv.offer_id
+        LEFT JOIN plans ppl ON ppl.id = po.plan_id
         SQL;
 
     public function __construct(private readonly Connection $connection)
@@ -198,10 +214,20 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                 $this->connection->executeStatement(
                     <<<'SQL'
                         UPDATE subscriptions
-                           SET offer_version_id = :versionId, updated_at = now()
+                           SET offer_version_id = :versionId,
+                               term_months = :termMonths,
+                               term_ends_at = :termEndsAt,
+                               commitment_months = :commitmentMonths,
+                               commitment_ends_at = :commitmentEndsAt,
+                               cancellation_policy = :cancellationPolicy,
+                               renewal = :renewal,
+                               early_termination = :earlyTermination,
+                               notice_days = :noticeDays,
+                               updated_at = now()
                          WHERE id = :id
                         SQL,
-                    ['versionId' => $offer->version->id, 'id' => $subscription->id],
+                    self::reSnapshot($subscription, $offer, new DateTimeImmutable())
+                        + ['id' => $subscription->id],
                 );
 
                 $this->record(
@@ -228,6 +254,279 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                 return $this->requireActive($subscription->tenantId, $subscription->productId);
             },
         );
+    }
+
+    /**
+     * The terms a subscription carries once it has moved to another offer
+     * version (spec §1c, §3.2) — as values, exactly as `applyActivate` copies
+     * them when the subscription is first taken out.
+     *
+     * Until 2026-09-27 a change of offer wrote `offer_version_id` and nothing
+     * else, so the subscription pointed at the new version while still
+     * carrying the **conditions of the offer it had left**: the old
+     * commitment bound the new plan, the old cancellation policy decided how
+     * to leave it, and the old notice applied. A snapshot that is not
+     * retaken is not a snapshot of anything.
+     *
+     * The term is counted from the moment of the change, not from
+     * `started_at`: the new version sells *its* number of months and the
+     * customer is buying them now. Counting from the start would hand
+     * somebody a twelve-month term with seven months already spent.
+     *
+     * **`commitment_months` and `commitment_ends_at` are the exception**, and
+     * the reasoning is on {@see Subscription::commitmentAfterMovingTo()}
+     * because that is where the decision is made: a change of plan is not a
+     * new contract, so the commitment neither re-arms nor shortens, and the
+     * arriving offer's applies only if it ends later.
+     *
+     * @return array<string, scalar|null>
+     */
+    private static function reSnapshot(
+        Subscription $subscription,
+        SubscribedOffer $offer,
+        DateTimeImmutable $at,
+    ): array {
+        $terms = $offer->version->terms;
+        $commitment = $subscription->commitmentAfterMovingTo($terms, $at);
+
+        return [
+            'versionId' => $offer->version->id,
+            'termMonths' => $terms->termMonths,
+            'termEndsAt' => self::moment($terms->termEndsFrom($at)),
+            'commitmentMonths' => $commitment->months,
+            'commitmentEndsAt' => self::moment($commitment->endsAt),
+            'cancellationPolicy' => $terms->cancellationPolicy,
+            'renewal' => $terms->renewal,
+            'earlyTermination' => $terms->earlyTermination,
+            'noticeDays' => $terms->noticeDays,
+        ];
+    }
+
+    public function scheduleChange(
+        Subscription $subscription,
+        SubscribedOffer $offer,
+        DateTimeImmutable $effectiveAt,
+        ?string $actorUserId,
+    ): Subscription {
+        return $this->connection->transactional(
+            function () use ($subscription, $offer, $effectiveAt, $actorUserId): Subscription {
+                // Four columns and nothing else. **No entitlement moves**,
+                // and that is the whole point of the deferral: the customer
+                // keeps the plan they paid for, entire, until the date they
+                // paid it to.
+                $this->connection->executeStatement(
+                    <<<'SQL'
+                        UPDATE subscriptions
+                           SET pending_offer_version_id = :versionId,
+                               pending_effective_at = :effectiveAt,
+                               pending_requested_at = now(),
+                               pending_requested_by = :actor,
+                               updated_at = now()
+                         WHERE id = :id
+                        SQL,
+                    [
+                        'versionId' => $offer->version->id,
+                        'effectiveAt' => self::moment($effectiveAt),
+                        'actor' => $actorUserId,
+                        'id' => $subscription->id,
+                    ],
+                );
+
+                $this->record(
+                    $subscription->id,
+                    SubscriptionEvent::CHANGE_SCHEDULED,
+                    $subscription->offer->version->id,
+                    $offer->version->id,
+                    $actorUserId,
+                    ['effective_at' => $effectiveAt->format(DATE_ATOM)],
+                );
+
+                return $this->requireById($subscription->id, 'scheduled');
+            },
+        );
+    }
+
+    public function cancelScheduledChange(Subscription $subscription, ?string $actorUserId): Subscription
+    {
+        return $this->connection->transactional(
+            function () use ($subscription, $actorUserId): Subscription {
+                $this->connection->executeStatement(
+                    <<<'SQL'
+                        UPDATE subscriptions
+                           SET pending_offer_version_id = NULL,
+                               pending_effective_at = NULL,
+                               pending_requested_at = NULL,
+                               pending_requested_by = NULL,
+                               updated_at = now()
+                         WHERE id = :id
+                        SQL,
+                    ['id' => $subscription->id],
+                );
+
+                // The withdrawn destination travels on the event, because
+                // the columns that held it are now NULL and "what did I
+                // cancel?" has to stay answerable.
+                $this->record(
+                    $subscription->id,
+                    SubscriptionEvent::CHANGE_CANCELLED,
+                    $subscription->pending?->offerVersionId,
+                    $subscription->offer->version->id,
+                    $actorUserId,
+                    [],
+                );
+
+                return $this->requireById($subscription->id, 'unscheduled');
+            },
+        );
+    }
+
+    /**
+     * Applies a change that has come due (spec §4.3), at renewal.
+     *
+     * Everything a change of offer does, plus the period: the arriving
+     * version's grants replace the leaving one's, the terms are
+     * re-snapshotted from it, and the period is reset from the end of the
+     * one that has just finished — not from `now()`, for the reason
+     * {@see self::renew()} gives, which is that applying it an hour late
+     * must not cost the customer an hour.
+     *
+     * The arriving version is read **by id**, not through the catalogue: it
+     * may have been withdrawn from sale between the request and the date,
+     * and the customer was promised that plan regardless. A withdrawn offer
+     * still entitles the people already on it (that is the rule the
+     * catalogue's own gate is written around), and this is the same rule one
+     * moment earlier.
+     *
+     * One event, `OFFER_CHANGED`, because one thing happened: the
+     * subscription moved to the offer it was going to move to. The detail
+     * says it arrived by schedule rather than by somebody clicking.
+     */
+    public function applyPendingChange(Subscription $subscription, string $direction): Subscription
+    {
+        $pending = $subscription->pending;
+
+        if ($pending === null) {
+            throw new RuntimeException('There is no pending change to apply.');
+        }
+
+        $offer = $this->offerOfVersion($pending->offerVersionId);
+        $from = $subscription->currentPeriodEnd ?? new DateTimeImmutable();
+        $periodEnd = $offer->version->periodEndFrom($from);
+
+        return $this->connection->transactional(
+            function () use ($subscription, $offer, $periodEnd, $pending, $direction): Subscription {
+                $this->connection->executeStatement(
+                    <<<'SQL'
+                        UPDATE subscriptions
+                           SET offer_version_id = :versionId,
+                               term_months = :termMonths,
+                               term_ends_at = :termEndsAt,
+                               commitment_months = :commitmentMonths,
+                               commitment_ends_at = :commitmentEndsAt,
+                               cancellation_policy = :cancellationPolicy,
+                               renewal = :renewal,
+                               early_termination = :earlyTermination,
+                               notice_days = :noticeDays,
+                               current_period_start = coalesce(current_period_end, now()),
+                               current_period_end = :periodEnd,
+                               pending_offer_version_id = NULL,
+                               pending_effective_at = NULL,
+                               pending_requested_at = NULL,
+                               pending_requested_by = NULL,
+                               updated_at = now()
+                         WHERE id = :id
+                        SQL,
+                    self::reSnapshot($subscription, $offer, new DateTimeImmutable())
+                        + ['periodEnd' => self::moment($periodEnd), 'id' => $subscription->id],
+                );
+
+                $this->record(
+                    $subscription->id,
+                    SubscriptionEvent::OFFER_CHANGED,
+                    $subscription->offer->version->id,
+                    $offer->version->id,
+                    // Nobody did this now: the person who asked is on the
+                    // CHANGE_SCHEDULED event, and what applied it is the
+                    // clock.
+                    null,
+                    [
+                        'direction' => $direction,
+                        'applied' => 'AT_RENEWAL',
+                        'requested_at' => $pending->requestedAt->format(DATE_ATOM),
+                    ],
+                );
+
+                $this->revokeEntitlements($subscription->id);
+                $this->grantEntitlements(
+                    $subscription->id,
+                    $subscription->tenantId,
+                    $subscription->productId,
+                    $offer,
+                    $periodEnd,
+                );
+
+                return $this->requireById($subscription->id, 'changed');
+            },
+        );
+    }
+
+    /**
+     * One offer version by id, with its grants and the terms it sells.
+     *
+     * Deliberately not the catalogue's `offerOnSale`: this answers "what was
+     * promised", and an offer withdrawn since the promise was made is still
+     * what was promised.
+     */
+    private function offerOfVersion(string $versionId): SubscribedOffer
+    {
+        $row = $this->connection->fetchAssociative(
+            <<<'SQL'
+                SELECT o.id AS offer_id, o.code AS offer_code, o.name AS offer_name,
+                       pl.id AS plan_id, pl.code AS plan_code, pl.name AS plan_name, pl.rank AS plan_rank,
+                       v.id AS offer_version_id, v.version, v.status AS version_status,
+                       v.billing_period, v.price_minor_units, v.currency,
+                       v.valid_from, v.valid_until,
+                       v.term_months AS version_term_months,
+                       v.commitment_months AS version_commitment_months,
+                       v.cancellation_policy AS version_cancellation_policy,
+                       v.renewal AS version_renewal,
+                       v.early_termination AS version_early_termination,
+                       v.notice_days AS version_notice_days
+                  FROM offer_versions v
+                  JOIN offers o ON o.id = v.offer_id
+                  JOIN plans pl ON pl.id = o.plan_id
+                 WHERE v.id = :id
+                SQL,
+            ['id' => $versionId],
+        );
+
+        if ($row === false) {
+            throw new RuntimeException('The offer version a subscription was moving to has vanished.');
+        }
+
+        return new SubscribedOffer(
+            Row::string($row, 'offer_id'),
+            Row::string($row, 'offer_code'),
+            Row::string($row, 'offer_name'),
+            new Plan(
+                Row::string($row, 'plan_id'),
+                Row::string($row, 'plan_code'),
+                Row::string($row, 'plan_name'),
+                Row::integer($row, 'plan_rank'),
+            ),
+            $this->toVersion($row),
+        );
+    }
+
+    private function requireById(string $subscriptionId, string $what): Subscription
+    {
+        $subscription = $this->findById($subscriptionId);
+
+        if ($subscription === null) {
+            throw new RuntimeException(sprintf('The subscription vanished while being %s.', $what));
+        }
+
+        return $subscription;
     }
 
     public function resume(Subscription $subscription, ?string $actorUserId): Subscription
@@ -584,6 +883,10 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                                cancel_effective_at = NULL,
                                cancelled_at = coalesce(cancelled_at, now()),
                                ended_at = coalesce(ended_at, now()),
+                               pending_offer_version_id = NULL,
+                               pending_effective_at = NULL,
+                               pending_requested_at = NULL,
+                               pending_requested_by = NULL,
                                updated_at = now()
                          WHERE id = :id
                         SQL,
@@ -598,12 +901,23 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     // Still live, and still owed, until the date the customer
                     // was given. Storing that date is what makes the promise
                     // checkable later.
+                    //
+                    // A pending change goes with it, and that is §2.2's
+                    // answer to which of two endings wins: a subscription
+                    // that is ending has nothing left to become. The
+                    // database refuses to hold both, so clearing it here is
+                    // what keeps the CHECK unreachable from the application
+                    // rather than something a caller has to remember.
                     $this->connection->executeStatement(
                         <<<'SQL'
                         UPDATE subscriptions
                            SET cancel_at_period_end = true,
                                cancel_effective_at = :effectiveAt,
                                cancelled_at = coalesce(cancelled_at, now()),
+                               pending_offer_version_id = NULL,
+                               pending_effective_at = NULL,
+                               pending_requested_at = NULL,
+                               pending_requested_by = NULL,
                                updated_at = now()
                          WHERE id = :id
                         SQL,
@@ -663,27 +977,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
      */
     private function toSubscription(array $row): Subscription
     {
-        $versionId = Row::string($row, 'offer_version_id');
-
-        $version = new OfferVersion(
-            $versionId,
-            Row::integer($row, 'version'),
-            Row::string($row, 'version_status'),
-            Row::string($row, 'billing_period'),
-            Row::integer($row, 'price_minor_units'),
-            Row::string($row, 'currency'),
-            Row::timestamp($row, 'valid_from'),
-            Row::nullableTimestamp($row, 'valid_until'),
-            $this->grantsOf($versionId),
-            new SubscriptionTerms(
-                Row::nullableInteger($row, 'version_term_months'),
-                Row::integer($row, 'version_commitment_months'),
-                Row::string($row, 'version_cancellation_policy'),
-                Row::string($row, 'version_renewal'),
-                Row::string($row, 'version_early_termination'),
-                Row::integer($row, 'version_notice_days'),
-            ),
-        );
+        $version = $this->toVersion($row);
 
         return new Subscription(
             Row::string($row, 'id'),
@@ -724,6 +1018,67 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
             Row::nullableTimestamp($row, 'commitment_ends_at'),
             Row::nullableTimestamp($row, 'cancel_effective_at'),
             Row::nullableString($row, 'owner_user_id'),
+            self::toPendingChange($row),
+        );
+    }
+
+    /**
+     * The offer version a row carries, with its grants and the terms it
+     * sells. Shared by the subscription's own version and by the one a
+     * pending change is moving to, so the two cannot drift.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function toVersion(array $row): OfferVersion
+    {
+        $versionId = Row::string($row, 'offer_version_id');
+
+        return new OfferVersion(
+            $versionId,
+            Row::integer($row, 'version'),
+            Row::string($row, 'version_status'),
+            Row::string($row, 'billing_period'),
+            Row::integer($row, 'price_minor_units'),
+            Row::string($row, 'currency'),
+            Row::timestamp($row, 'valid_from'),
+            Row::nullableTimestamp($row, 'valid_until'),
+            $this->grantsOf($versionId),
+            new SubscriptionTerms(
+                Row::nullableInteger($row, 'version_term_months'),
+                Row::integer($row, 'version_commitment_months'),
+                Row::string($row, 'version_cancellation_policy'),
+                Row::string($row, 'version_renewal'),
+                Row::string($row, 'version_early_termination'),
+                Row::integer($row, 'version_notice_days'),
+            ),
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private static function toPendingChange(array $row): ?PendingChange
+    {
+        $versionId = Row::nullableString($row, 'pending_offer_version_id');
+
+        if ($versionId === null) {
+            return null;
+        }
+
+        return new PendingChange(
+            $versionId,
+            Row::string($row, 'pending_offer_id'),
+            Row::string($row, 'pending_offer_code'),
+            Row::string($row, 'pending_offer_name'),
+            new Plan(
+                Row::string($row, 'pending_plan_id'),
+                Row::string($row, 'pending_plan_code'),
+                Row::string($row, 'pending_plan_name'),
+                Row::integer($row, 'pending_plan_rank'),
+            ),
+            Row::timestamp($row, 'pending_effective_at'),
+            Row::timestamp($row, 'pending_requested_at'),
+            Row::nullableString($row, 'pending_requested_by'),
         );
     }
 

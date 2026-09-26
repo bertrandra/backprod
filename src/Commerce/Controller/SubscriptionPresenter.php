@@ -63,6 +63,34 @@ final class SubscriptionPresenter
                 'notice_days' => $subscription->terms->noticeDays,
             ],
             'ended_at' => self::nullableMoment($subscription->endedAt),
+            // A move that has not happened yet (spec §4). Null is the
+            // ordinary case; when it is not null the screen has everything
+            // it needs to say "you will move to Starter on 31 March" and to
+            // offer the button that undoes it.
+            'pending' => self::pending($subscription),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function pending(Subscription $subscription): ?array
+    {
+        $pending = $subscription->pending;
+
+        if ($pending === null) {
+            return null;
+        }
+
+        return [
+            'offer_id' => $pending->offerId,
+            'offer_version_id' => $pending->offerVersionId,
+            'code' => $pending->offerCode,
+            'name' => $pending->offerName,
+            'plan' => CataloguePresenter::plan($pending->plan),
+            'effective_at' => self::moment($pending->effectiveAt),
+            'requested_at' => self::moment($pending->requestedAt),
+            'requested_by' => $pending->requestedBy,
         ];
     }
 

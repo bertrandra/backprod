@@ -570,10 +570,12 @@
         "/subscription"
       ],
       "operations": [
+        "cancelScheduledChange",
         "cancelSubscription",
         "changeOffer",
         "listEntitlements",
         "resumeSubscription",
+        "scheduleOfferChange",
         "showSchedule",
         "listSubscriptionPeople",
         "addSubscriptionPerson",

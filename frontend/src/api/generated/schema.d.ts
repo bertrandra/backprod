@@ -2413,6 +2413,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/subscription/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Schedule a move to a lower plan
+         * @description Nothing changes today. The subscription keeps the plan it has paid for until `current_period_end`, and moves to this offer then — because the service is owed until the end of the paid period, exactly as it is for a cancellation. Refuses `NOT_A_DOWNGRADE` for a move that is not down: going up is immediate. Which move it is comes from the plans' ranks, never their names (§13).
+         */
+        post: operations["scheduleOfferChange"];
+        /**
+         * Undo a scheduled change of plan
+         * @description Nothing had happened yet, so this restores nothing — it removes the intention and records that it was removed. Obligatory rather than convenient: a future change that cannot be withdrawn is a cancellation in disguise, and somebody with twenty days of the higher plan in front of them changes their mind.
+         */
+        delete: operations["cancelScheduledChange"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/subscription/resume": {
         parameters: {
             query?: never;
@@ -4239,6 +4263,30 @@ export interface components {
              * @description Who activated it (2026-09-19): the person a seat is for, or the administrator who bought the organisation’s; null for one a job started. The owner manages the subscription’s people.
              */
             owner_user_id: string | null;
+            /** @description A move to another offer waiting for the end of the paid period, or null when none is waiting (spec §4). Never set at the same time as `cancel_at_period_end`: a subscription has one ending, and the cancellation is it. */
+            pending: components["schemas"]["PendingChange"] | null;
+        };
+        /** @description A change of offer that has not happened yet. Choosing a **lower-ranked** plan changes nothing on the day it is chosen — the customer keeps, entire, the plan they have already paid for — so the choice is recorded as an intention and renewal applies it. Withdrawn with `DELETE /api/v1/subscription/pending`, which is not optional: a future change nobody can undo is a cancellation in disguise. */
+        PendingChange: {
+            /** Format: uuid */
+            offer_id: string;
+            /** Format: uuid */
+            offer_version_id: string;
+            code: string;
+            name: string;
+            plan: components["schemas"]["Plan"];
+            /**
+             * Format: date-time
+             * @description The subscription's `current_period_end` at the moment the change was asked for: what the customer has paid for.
+             */
+            effective_at: string;
+            /** Format: date-time */
+            requested_at: string;
+            /**
+             * Format: uuid
+             * @description Who asked. Null for a change a job scheduled, and null once the person's account is gone — the history keeps the answer regardless.
+             */
+            requested_by: string | null;
         };
         /** @description Why the answer is what it is. What a customer needs is not `cancelled: true` but *when* it takes effect and which rule decided that (§13.1) — so the rule's id travels with the decision and the reasons are in plain words. */
         CancellationDecision: {
@@ -11521,7 +11569,92 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description No subscription to change, or the offer is not on sale. */
+            /** @description No subscription to change, the offer is not on sale, or `COMMITMENT_OUTLASTS_TERM` — the offer runs for less time than the commitment already agreed, which would leave the commitment with no subscription under it. A move to a **lower-ranked** plan is not refused: it is scheduled for the end of the paid period, and the answer carries `pending`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    scheduleOfferChange: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    offer_id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The subscription, unchanged except that it now carries `pending`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description `NOT_A_DOWNGRADE` for a move that is not down, `ALREADY_ON_OFFER`, `SUBSCRIPTION_ENDING` when a cancellation is already due — a subscription has one ending — or `NO_PERIOD_END` for a CUSTOM billing period, which has no date to defer to. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    cancelScheduledChange: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The subscription, with `pending` back to null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description `NO_PENDING_CHANGE` — nothing was waiting. */
             409: {
                 headers: {
                     [name: string]: unknown;

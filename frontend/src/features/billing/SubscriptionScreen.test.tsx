@@ -267,6 +267,121 @@ describe('a seat of one\'s own (§13.1)', () => {
   });
 });
 
+/**
+ * Spec §4: a move to a **lower** plan changes nothing today.
+ *
+ * Two things are asserted, and both matter. That the screen sends the
+ * *deferring* operation when the chosen plan ranks lower — decided by rank and
+ * never by a plan's name, which is §13's rule in the frontend — and that the
+ * button undoing it exists, because a future change nobody can undo is a
+ * cancellation in disguise (§4.2).
+ */
+describe('a change of plan that waits (spec §4)', () => {
+  const CHEAPER = {
+    id: 'off-2',
+    code: 'starter-monthly',
+    name: 'Starter monthly',
+    plan: { id: 'p-0', code: 'STARTER', name: 'Starter', rank: 10 },
+    version: null,
+  };
+
+  const DEARER = {
+    id: 'off-3',
+    code: 'scale-monthly',
+    name: 'Scale monthly',
+    plan: { id: 'p-2', code: 'SCALE', name: 'Scale', rank: 30 },
+    version: null,
+  };
+
+  const PENDING = {
+    offer_id: 'off-2',
+    offer_version_id: 'ver-2',
+    code: 'starter-monthly',
+    name: 'Starter monthly',
+    plan: CHEAPER.plan,
+    effective_at: '2026-04-01T00:00:00Z',
+    requested_at: '2026-03-03T09:00:00Z',
+    requested_by: 'u-1',
+  };
+
+  it('sends the deferring operation for a lower rank, and the immediate one for a higher', async () => {
+    const { client, requests } = recordingClient(
+      stubsFor({
+        'GET /api/v1/offers': { data: { offers: [CHEAPER, DEARER] } },
+        'POST /api/v1/subscription/pending': { data: subscription({ pending: PENDING }) },
+        'POST /api/v1/subscription/change-offer': { data: subscription({ offer: { ...subscription().offer, ...DEARER } }) },
+      }),
+    );
+
+    renderWith(<SubscriptionScreen />, client);
+
+    await waitFor(() => expect(screen.getByLabelText(/^offer$/i)).toBeTruthy());
+
+    // Rank 10 against the current 20: down, so it waits — and the screen says
+    // so before the click rather than after it.
+    fireEvent.change(screen.getByLabelText(/^offer$/i), { target: { value: 'off-2' } });
+    expect(screen.getByTestId('change-offer').getAttribute('data-deferred')).toBe('true');
+    expect(screen.getByTestId('deferred-notice').textContent).toMatch(/end of the period you have paid for/i);
+
+    fireEvent.click(screen.getByTestId('change-offer'));
+
+    await waitFor(() =>
+      expect(requests.filter((request) => request.path === '/api/v1/subscription/pending')).toHaveLength(1),
+    );
+    expect(requests.filter((request) => request.path === '/api/v1/subscription/change-offer')).toHaveLength(0);
+
+    // Rank 30: up, and up is immediate.
+    fireEvent.change(screen.getByLabelText(/^offer$/i), { target: { value: 'off-3' } });
+    expect(screen.getByTestId('change-offer').getAttribute('data-deferred')).toBe('false');
+    expect(screen.queryByTestId('deferred-notice')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('change-offer'));
+
+    await waitFor(() =>
+      expect(requests.filter((request) => request.path === '/api/v1/subscription/change-offer')).toHaveLength(1),
+    );
+  });
+
+  it('says which plan it will move to and when, and offers to undo it', async () => {
+    const { client, requests } = recordingClient(
+      stubsFor(
+        { 'DELETE /api/v1/subscription/pending': { data: subscription({ pending: null }) } },
+        subscription({ pending: PENDING }),
+      ),
+    );
+
+    renderWith(<SubscriptionScreen />, client);
+
+    const waiting = await waitFor(() => screen.getByTestId('pending-change'));
+
+    // The plan the server named, and the server's date — never a date this
+    // screen worked out from the period.
+    expect(waiting.getAttribute('data-plan')).toBe('STARTER');
+    expect(waiting.textContent).toContain('Starter');
+    expect(waiting.textContent).toMatch(/keep the plan you are on/i);
+
+    fireEvent.click(screen.getByTestId('cancel-pending-change'));
+
+    await waitFor(() =>
+      expect(
+        requests.filter((request) => request.method === 'DELETE' && request.path === '/api/v1/subscription/pending'),
+      ).toHaveLength(1),
+    );
+  });
+
+  it('shows the waiting change to a member, without the button that undoes it', async () => {
+    renderWith(
+      <SubscriptionScreen />,
+      stubClient(stubsFor({}, subscription({ pending: PENDING }), { session: MEMBER })),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('pending-change')).toBeTruthy());
+    // Hiding is courtesy; the API is the authority. What a member must not be
+    // shown is a control that binds the organisation.
+    expect(screen.queryByTestId('cancel-pending-change')).toBeNull();
+  });
+});
+
 describe('the people a subscription covers (2026-09-19)', () => {
   const PEOPLE = {
     subscription_id: 'sub-1',
