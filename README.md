@@ -9,12 +9,15 @@ See [`CLAUDE.md`](CLAUDE.md) for the rules that govern changes here, and
 decisions behind them. For who may do what —
 the two identities, the six roles and the 50 permissions between them —
 see [`docs/identities-and-permissions.md`](docs/identities-and-permissions.md).
-For what each of the three roles **lives through**, and what every one of the
-219 operations changes once done,
+For what each of the three roles **lives through**, and what every operation
+in the contract changes once done,
 see [`docs/three-roles-end-to-end.md`](docs/three-roles-end-to-end.md) —
 recounted both ways by `composer run gate:roles`, and readable as a
 [web page](https://claude.ai/artifact/FzNeUwduBBSxdjfoPKCy5t) (private: a
 dated copy of that document, so the repository wins where they disagree).
+The count itself is not written down here: it was `219` for as long as it took
+one endpoint to land, and a number that goes stale in a commit is a number to
+look up. `php tools/count-role-coverage.php` prints it.
 Stripe is the payment provider, built from
 [`docs/stripe-payments.md`](docs/stripe-payments.md) and recorded in
 [ADR-048](docs/adr/ADR-048-stripe-is-the-first-real-provider-and-the-page-talks-to-it.md).
