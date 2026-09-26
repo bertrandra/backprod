@@ -70,6 +70,7 @@
             "@gate:screens",
             "@gate:permissions",
             "@gate:money",
+            "@gate:roles",
             "@test"
         ],
         "migrate": "doctrine-migrations migrate --no-interaction --allow-no-migration",
@@ -85,6 +86,7 @@
         "gate:screens": "@php tools/prove-screens-call-their-operations.php",
         "gate:permissions": "@php tools/prove-frontend-permissions-exist.php",
         "gate:money": "@php tools/prove-money-is-never-optimistic.php",
+        "gate:roles": "@php tools/prove-roles-cover-the-api.php",
         "gate:ci": "@php tools/prove-ci-runs-every-gate.php",
         "dist": "bin/build-dist.sh",
         "dist:verify": "bin/verify-dist.sh dist/bundle"
@@ -100,6 +102,7 @@
         "gate:products": "Prove no code branches on product identity (§12.1)",
         "gate:plans": "Prove no code branches on a plan or tier name (§13)",
         "gate:money": "Prove no mutation that moves money writes to the cache before the server answers (U6)",
+        "gate:roles": "Prove docs/three-roles-end-to-end.md accounts for every operation, both ways",
         "gate:screens": "Prove every screen area has a route and calls every operation it claims (U9) \u2014 the check ui-spec.md \u00a77 could not make until a frontend existed",
         "gate:ci": "Prove CI runs every gate in this chain \u2014 gate:screens was chained and never added to the workflow, so it ran in CI zero times",
         "dist": "Build the deployable bundle (docs/deploying-to-siteground.md). Needs SUPABASE_URL and SUPABASE_ANON_KEY",
