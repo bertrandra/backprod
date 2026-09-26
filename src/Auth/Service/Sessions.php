@@ -357,46 +357,97 @@ final class Sessions
      *
      * @throws UnauthenticatedException when the token is unknown, spent or expired
      */
-    public function refresh(#[SensitiveParameter] string $rawToken, ?string $productCode = null): Session
+    /**
+     * @param list<string> $presented every `backprod_refresh` the browser sent
+     */
+    public function refresh(#[SensitiveParameter] array $presented, ?string $productCode = null): Session
     {
-        $stored = $this->refreshTokens->find($this->hash($rawToken));
+        $known = [];
 
-        if ($stored === null) {
+        foreach ($presented as $rawToken) {
+            $found = $this->refreshTokens->find($this->hash($rawToken));
+
+            if ($found !== null) {
+                $known[] = $found;
+            }
+        }
+
+        if ($known === []) {
             throw new UnauthenticatedException();
         }
 
-        if ($stored->revoked) {
+        /**
+         * **A live token wins, whatever else came with it** (2026-09-26).
+         *
+         * Normally there is one, and this is the single-token path with a
+         * loop around it. There are two the day an operator sets
+         * `AUTH_COOKIE_DOMAIN`: the browser keeps the host-only cookie it
+         * already had *and* the new domain one, and sends both
+         * ({@see RefreshCookie::presented()}). The host-only one holds a
+         * token that was legitimately rotated away, so reading it as theft
+         * revoked every session for the account — and did so again on the
+         * next attempt, and the next. The accounts did not recover; the
+         * operator's did not.
+         *
+         * Taking the live one costs nothing in detection. A thief presents
+         * the token they stole and no other, so a spent token alone still
+         * means what it has always meant. What changes is only the case
+         * where the browser is demonstrably holding a live credential of its
+         * own: then the spent one beside it is a leftover, not evidence.
+         */
+        foreach ($known as $one) {
+            if (!$one->revoked && !$one->expired) {
+                if (count($known) > 1) {
+                    // Worth saying out loud: it means a browser is still
+                    // carrying a cookie this deployment can no longer replace
+                    // in place, and somebody should know the transition is
+                    // happening rather than discover it in a year.
+                    $this->logger->info('A second refresh cookie was presented and ignored', [
+                        'user_id' => $one->userId,
+                        'presented' => count($known),
+                    ]);
+                }
+
+                [$session, $issuedId] = $this->start($one->userId, $one->authSubject, $one->email, $productCode);
+
+                // Revoked *after* the replacement exists, and pointing at it.
+                // The chain is then reconstructable from any link, which is
+                // what makes the reuse below investigable rather than merely
+                // refused.
+                $this->refreshTokens->revoke($one->id, $issuedId);
+
+                return $session;
+            }
+        }
+
+        foreach ($known as $one) {
+            if (!$one->revoked) {
+                continue;
+            }
+
             /**
-             * A token that was already exchanged is being presented again.
+             * A token that was already exchanged is being presented again,
+             * and nothing live came with it.
              *
-             * Either the legitimate client replayed one — which its own rotation
-             * makes unlikely — or somebody else has a copy. The two are
-             * indistinguishable from here, and the costs are not symmetric:
-             * signing the real person out is an inconvenience, and leaving a
-             * thief with a live session is not. So the whole family goes.
+             * Either the legitimate client replayed one — which its own
+             * rotation makes unlikely — or somebody else has a copy. The two
+             * are indistinguishable from here, and the costs are not
+             * symmetric: signing the real person out is an inconvenience, and
+             * leaving a thief with a live session is not. So the whole family
+             * goes.
              */
-            $revoked = $this->refreshTokens->revokeAllFor($stored->userId);
+            $revoked = $this->refreshTokens->revokeAllFor($one->userId);
 
             $this->logger->warning('Refresh token reused; revoked every session for the account', [
-                'user_id' => $stored->userId,
+                'user_id' => $one->userId,
                 'revoked' => $revoked,
             ]);
 
             throw new UnauthenticatedException();
         }
 
-        if ($stored->expired) {
-            throw new UnauthenticatedException();
-        }
-
-        [$session, $issuedId] = $this->start($stored->userId, $stored->authSubject, $stored->email, $productCode);
-
-        // Revoked *after* the replacement exists, and pointing at it. The chain is
-        // then reconstructable from any link, which is what makes the reuse above
-        // investigable rather than merely refused.
-        $this->refreshTokens->revoke($stored->id, $issuedId);
-
-        return $session;
+        // Known, none live, none revoked: they have merely expired.
+        throw new UnauthenticatedException();
     }
 
     /**
@@ -407,16 +458,24 @@ final class Sessions
      * outcome than the request they asked for. Unknown token, spent token, no
      * token: all of them end with them signed out.
      */
-    public function signOut(#[SensitiveParameter] string $rawToken): void
+    /**
+     * @param list<string> $presented every `backprod_refresh` the browser sent
+     */
+    public function signOut(#[SensitiveParameter] array $presented): void
     {
-        if ($rawToken === '') {
-            return;
-        }
+        // All of them, not the one that survived parsing (2026-09-26). A
+        // browser holding both a host-only cookie and a domain one holds two
+        // live tokens, and ending one of them is not a sign-out.
+        foreach ($presented as $rawToken) {
+            if ($rawToken === '') {
+                continue;
+            }
 
-        $stored = $this->refreshTokens->find($this->hash($rawToken));
+            $stored = $this->refreshTokens->find($this->hash($rawToken));
 
-        if ($stored !== null && !$stored->revoked) {
-            $this->refreshTokens->revoke($stored->id, null);
+            if ($stored !== null && !$stored->revoked) {
+                $this->refreshTokens->revoke($stored->id, null);
+            }
         }
     }
 

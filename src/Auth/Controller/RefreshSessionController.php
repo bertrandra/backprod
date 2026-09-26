@@ -40,9 +40,9 @@ final class RefreshSessionController implements RouteHandler
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
-        $presented = RefreshCookie::read($request);
+        $presented = RefreshCookie::presented($request);
 
-        if ($presented === '') {
+        if ($presented === []) {
             throw new UnauthenticatedException();
         }
 

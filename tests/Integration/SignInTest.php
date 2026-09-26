@@ -321,6 +321,145 @@ final class SignInTest extends DatabaseApiTestCase
         self::assertSame(401, $afterReplay->getStatusCode());
     }
 
+    /**
+     * Two cookies, one spent — and the account survives (2026-09-26).
+     *
+     * The day an operator sets `AUTH_COOKIE_DOMAIN`, the browser does not
+     * replace the host-only cookie it already had: name, domain and path are
+     * a cookie's identity, so it keeps both and sends both. The host-only one
+     * holds a token that was legitimately rotated away.
+     *
+     * Read as theft, that revoked every session for the account — and again
+     * on the next attempt, so the account never recovered. Nobody could sign
+     * in for more than one request. This is that case, and it must pass.
+     */
+    public function testASpentCookieBesideALiveOneIsALeftoverAndNotTheft(): void
+    {
+        $spent = $this->cookieFrom($this->signIn());
+        $live = $this->cookieFrom($this->request(
+            'POST',
+            '/api/v1/auth/refresh',
+            cookies: [RefreshCookie::NAME => $spent],
+        ));
+
+        // What the browser actually sends while both cookies exist: one
+        // header, the name twice. `getCookieParams()` cannot represent this,
+        // which is why RefreshCookie reads the header itself.
+        $both = $this->request('POST', '/api/v1/auth/refresh', [
+            'Cookie' => sprintf('%s=%s; %s=%s', RefreshCookie::NAME, $spent, RefreshCookie::NAME, $live),
+        ]);
+
+        self::assertSame(200, $both->getStatusCode(), (string) $both->getBody());
+
+        // And the account is intact: the token just issued still works, which
+        // it would not if the spent one had triggered the family revocation.
+        $after = $this->request(
+            'POST',
+            '/api/v1/auth/refresh',
+            cookies: [RefreshCookie::NAME => $this->cookieFrom($both)],
+        );
+
+        self::assertSame(200, $after->getStatusCode());
+    }
+
+    /**
+     * The order the browser chose must not decide the outcome.
+     *
+     * Whichever of the two comes first in the header, the live one is the one
+     * used — the old code took whichever survived parsing, and that was the
+     * difference between a working deployment and a locked account.
+     */
+    public function testTheOrderOfTheTwoCookiesDoesNotMatter(): void
+    {
+        $spent = $this->cookieFrom($this->signIn());
+        $live = $this->cookieFrom($this->request(
+            'POST',
+            '/api/v1/auth/refresh',
+            cookies: [RefreshCookie::NAME => $spent],
+        ));
+
+        $liveFirst = $this->request('POST', '/api/v1/auth/refresh', [
+            'Cookie' => sprintf('%s=%s; %s=%s', RefreshCookie::NAME, $live, RefreshCookie::NAME, $spent),
+        ]);
+
+        self::assertSame(200, $liveFirst->getStatusCode(), (string) $liveFirst->getBody());
+    }
+
+    /**
+     * Widening the cookie expires the host-only one it cannot replace.
+     *
+     * Without this the pair never ends: the browser carries the stale twin
+     * until it expires on its own, and every request presents both. The
+     * second `Set-Cookie` has no `Domain`, so it matches the host-only cookie
+     * exactly, which is the only thing that can empty it.
+     */
+    public function testSettingAWidenedCookieAlsoExpiresTheHostOnlyTwin(): void
+    {
+        $response = RefreshCookie::set(
+            new EmptyResponse(204),
+            self::aRequest(),
+            'a-token',
+            3600,
+            RefreshCookie::domainFrom('raillard.org'),
+        );
+
+        $headers = $response->getHeader('Set-Cookie');
+
+        self::assertCount(2, $headers, 'One cookie to set, one twin to expire.');
+        self::assertStringContainsString('Domain=raillard.org', $headers[0]);
+        self::assertStringNotContainsString('Domain=', $headers[1]);
+        self::assertStringContainsString('Max-Age=0', $headers[1]);
+        self::assertStringContainsString('Path=' . RefreshCookie::PATH, $headers[1]);
+    }
+
+    /** And clearing does the same, or a sign-out leaves one of the two behind. */
+    public function testClearingAWidenedCookieAlsoExpiresTheHostOnlyTwin(): void
+    {
+        $headers = RefreshCookie::clear(
+            new EmptyResponse(204),
+            self::aRequest(),
+            RefreshCookie::domainFrom('raillard.org'),
+        )->getHeader('Set-Cookie');
+
+        self::assertCount(2, $headers);
+        self::assertStringContainsString('Domain=raillard.org', $headers[0]);
+        self::assertStringNotContainsString('Domain=', $headers[1]);
+    }
+
+    /** With no domain configured, nothing extra is written: there is no twin. */
+    public function testAHostOnlyCookieWritesOneHeader(): void
+    {
+        $headers = RefreshCookie::set(new EmptyResponse(204), self::aRequest(), 'a-token', 3600)
+            ->getHeader('Set-Cookie');
+
+        self::assertCount(1, $headers);
+    }
+
+    /**
+     * Signing out ends every token the browser presented, not the one that
+     * survived parsing (2026-09-26). Ending one of two is not a sign-out.
+     */
+    public function testSigningOutRevokesEveryTokenPresented(): void
+    {
+        $first = $this->cookieFrom($this->signIn());
+        $second = $this->cookieFrom($this->signIn());
+
+        self::assertNotSame($first, $second);
+
+        $out = $this->request('POST', '/api/v1/auth/sign-out', [
+            'Cookie' => sprintf('%s=%s; %s=%s', RefreshCookie::NAME, $first, RefreshCookie::NAME, $second),
+        ]);
+
+        self::assertSame(204, $out->getStatusCode());
+
+        foreach ([$first, $second] as $dead) {
+            self::assertSame(
+                401,
+                $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $dead])->getStatusCode(),
+            );
+        }
+    }
+
     public function testSigningOutRevokesTheTokenAndClearsTheCookie(): void
     {
         $cookie = $this->cookieFrom($this->signIn());
