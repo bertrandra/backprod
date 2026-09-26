@@ -40,7 +40,7 @@ final class ShowPaymentController implements RouteHandler
             $context->documentsOf(),
         );
 
-        $collected = $this->collected->of([$payment->invoiceId]);
+        $collected = $this->collected->of($context->tenantId, [$payment->invoiceId]);
 
         return new JsonResponse(
             PaymentPresenter::one($payment, $collected[$payment->invoiceId] ?? null) + [

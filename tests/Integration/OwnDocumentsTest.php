@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
+use App\Payment\Domain\CollectedInvoices;
 use App\Payment\Infrastructure\StubPaymentProvider;
 use App\Payment\Service\PaymentProviders;
 use App\Product\Domain\Product;
@@ -173,6 +174,39 @@ final class OwnDocumentsTest extends DatabaseApiTestCase
                 $payment['customer_name'],
             );
         }
+    }
+
+    /**
+     * And the desk that reads those documents is scoped to a tenant.
+     *
+     * The ids reaching it come from payments already scoped to one, so a read
+     * by id alone answers correctly — today. Tenant isolation is a security
+     * boundary, and a boundary defended only by every caller happening to be
+     * careful is not defended: what it would cost is one customer's name on
+     * another customer's screen. So the port takes the tenant, and this hands
+     * it somebody else's invoice to prove it answers nothing.
+     */
+    public function testTheCollectedDocumentsOfAnotherTenantAreNotThere(): void
+    {
+        $seat = $this->sessionOf($this->open('bob-token', seat: true));
+        $this->pay($seat, 'evt_seat');
+
+        self::assertIsString($seat['invoice_id']);
+
+        $collected = $this->container()->get(CollectedInvoices::class);
+
+        self::assertInstanceOf(CollectedInvoices::class, $collected);
+
+        // The tenant that owns it: the document is there.
+        self::assertArrayHasKey(
+            $seat['invoice_id'],
+            $collected->of($this->tenant, [$seat['invoice_id']]),
+        );
+
+        // Any other: nothing, rather than the customer's name.
+        $stranger = $this->id("INSERT INTO tenants (name, slug) VALUES ('Globex', 'globex') RETURNING id");
+
+        self::assertSame([], $collected->of($stranger, [$seat['invoice_id']]));
     }
 
     public function testAPaymentOfItsOwnCarriesTheSameFacts(): void

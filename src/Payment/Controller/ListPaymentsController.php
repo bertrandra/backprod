@@ -44,7 +44,7 @@ final class ListPaymentsController implements RouteHandler
         // is. An administrator sees every payment the organisation has, and
         // twelve identical amounts with no name on them are twelve identical
         // rows.
-        $collected = $this->collected->of(PaymentPresenter::invoicesOf($page['payments']));
+        $collected = $this->collected->of($context->tenantId, PaymentPresenter::invoicesOf($page['payments']));
 
         return new JsonResponse([
             'payments' => PaymentPresenter::many($page['payments'], $collected),

@@ -33,10 +33,11 @@ final class ListTenantPaymentsController implements RouteHandler
         $context = StaffRoute::permitted($request, StaffPermission::TENANTS_READ);
 
         $product = $request->getQueryParams()['product'] ?? null;
+        $tenantId = StaffRoute::id($request, 'tenantId');
 
         $rows = $this->reads->payments(
             $context->identity,
-            StaffRoute::id($request, 'tenantId'),
+            $tenantId,
             is_string($product) && trim($product) !== '' ? strtolower(trim($product)) : null,
             StaffRoute::motive($request),
         );
@@ -44,7 +45,13 @@ final class ListTenantPaymentsController implements RouteHandler
         // The same extra read the customer's own screen makes (2026-09-26):
         // the console sees what the customer sees, no more and no less, and
         // "whose payment is this?" is the question a support call opens with.
-        $collected = $this->collected->of(PaymentPresenter::invoicesOf($rows));
+        //
+        // The tenant here is the **path's**, which is the one the permission
+        // was checked against and the one the access log names. A staff route
+        // is authorized by the platform role and never by the parameter, so
+        // reading these documents under any other tenant would be reading
+        // outside what was authorized and recorded.
+        $collected = $this->collected->of($tenantId, PaymentPresenter::invoicesOf($rows));
 
         return new JsonResponse(['payments' => PaymentPresenter::many($rows, $collected)], 200);
     }

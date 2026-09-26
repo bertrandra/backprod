@@ -33,11 +33,11 @@ final class PostgresCollectedInvoices implements CollectedInvoices
     {
     }
 
-    public function of(array $invoiceIds): array
+    public function of(string $tenantId, array $invoiceIds): array
     {
         $ids = array_values(array_unique(array_filter($invoiceIds, Uuid::isValid(...))));
 
-        if ($ids === []) {
+        if ($ids === [] || !Uuid::isValid($tenantId)) {
             return [];
         }
 
@@ -51,9 +51,9 @@ final class PostgresCollectedInvoices implements CollectedInvoices
                            customer_snapshot->>'billing_email'
                        ) AS customer_email
                   FROM invoices
-                 WHERE id IN (:ids)
+                 WHERE tenant_id = :tenantId AND id IN (:ids)
                 SQL,
-            ['ids' => $ids],
+            ['tenantId' => $tenantId, 'ids' => $ids],
             ['ids' => ArrayParameterType::STRING],
         );
 
