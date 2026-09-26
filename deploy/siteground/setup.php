@@ -307,6 +307,36 @@ function setupForm(): string
  * roles, the password — so this page never carries a copy that could drift.
  *
  */
+/**
+ * The host this installer was reached on, as a cookie Domain — or empty.
+ *
+ * Empty for a loopback address, an IP, or a single-label host: none of them
+ * can carry a `Domain` a browser will accept, and host-only is the right and
+ * only answer there.
+ *
+ * The port is dropped, because a cookie's Domain has none: a cookie is shared
+ * across ports of the same host, which is one of the few places the web does
+ * not treat a port as part of identity.
+ */
+function cookieDomainFor(string $rawHost): string
+{
+    $host = strtolower(trim($rawHost));
+    $host = (string) preg_replace('/:\d+$/', '', $host);
+
+    if ($host === '' || $host === 'localhost' || !str_contains($host, '.')) {
+        return '';
+    }
+
+    // An address, not a name. `Domain=203.0.113.4` is rejected by every
+    // browser, and writing it would turn a missing capability into a broken
+    // sign-in.
+    if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
+        return '';
+    }
+
+    return preg_match('/^[a-z0-9.-]+$/', $host) === 1 ? $host : '';
+}
+
 function accountsTable(SeededWorld $world, string $host): string
 {
     $rows = '';
@@ -411,6 +441,7 @@ function handleSetup(): void
     // saying https would produce links that do not work.
     $scheme = (($_SERVER['HTTPS'] ?? '') !== '' && ($_SERVER['HTTPS'] ?? '') !== 'off') ? 'https' : 'http';
     $appUrl = $scheme . '://' . (is_string($_SERVER['HTTP_HOST'] ?? null) ? $_SERVER['HTTP_HOST'] : 'localhost');
+    $cookieDomain = cookieDomainFor(is_string($_SERVER['HTTP_HOST'] ?? null) ? $_SERVER['HTTP_HOST'] : '');
 
     $env = 'DATABASE_DSN=postgresql://' . rawurlencode(field($_POST, 'db_user')) . ':' . rawurlencode(is_string($_POST['db_pass'] ?? null) ? $_POST['db_pass'] : '')
         . '@' . field($_POST, 'db_host') . ':' . (field($_POST, 'db_port') !== '' ? field($_POST, 'db_port') : '5432')
@@ -427,7 +458,30 @@ function handleSetup(): void
         // request arrived on — which is the one moment the platform can know
         // it without guessing. It is what the links in its emails are built
         // from, and it is a plain line in .env anybody can correct afterwards.
-        . 'APP_URL=' . $appUrl . "\n";
+        . 'APP_URL=' . $appUrl . "\n"
+        // One sign-in across this domain and its subdomains (ADR-051 §3).
+        // Written here rather than left to the operator, because the
+        // alternative was found the way these are always found: somebody who
+        // had just bought a seat was asked for their password on the way to
+        // the product they had bought, and nothing in the deployment said
+        // why. A cookie with no Domain is host-only — returned to exactly
+        // the host that set it and to no sibling subdomain, whatever
+        // SameSite says.
+        //
+        // **The host itself, not a domain guessed from it.** Trimming
+        // `plan.example.org` to `example.org` would be right here and wrong
+        // under a two-part suffix: `Domain=co.uk` is a public suffix, the
+        // browser discards the cookie outright, and sign-in stops working
+        // altogether — a worse failure than the one being fixed. A host can
+        // always set a cookie for itself, so this is never invalid. An
+        // installation reached on `www.` therefore covers `www.*` only, and
+        // the result page says so, with the line to correct.
+        . 'AUTH_COOKIE_DOMAIN=' . $cookieDomain . "\n"
+        // The other half: without the product's origin here, the browser
+        // will not attach that cookie to the product's call at all. Empty
+        // now — no product beside the platform is registered yet — and the
+        // line is written so there is somewhere obvious to add one.
+        . "CORS_ALLOWED_ORIGINS=\n";
 
     if (file_put_contents(ENV_PATH, $env) === false) {
         fail(500, 'Could not write backprod-app/.env. Check backprod-app/ is writable.');
@@ -530,6 +584,20 @@ function handleSetup(): void
         . 'reads it can administer this deployment until you do. Use the form below, sign in with the new one, '
         . 'and appoint colleagues from Console → Staff rather than in SQL.</p>'
         . resetPasswordForm()
+        . ($cookieDomain === ''
+            ? '<p class="hint">This deployment was reached on a host that cannot carry a cookie domain, so '
+              . 'the session cookie is host-only. Single sign-on to a product on another host needs '
+              . '<code>AUTH_COOKIE_DOMAIN</code> in <code>backprod-app/.env</code>.</p>'
+            : '<p class="hint"><strong>The session cookie is set for <code>' . htmlspecialchars($cookieDomain)
+              . '</code> and its subdomains</strong> (<code>AUTH_COOKIE_DOMAIN</code> in '
+              . '<code>backprod-app/.env</code>), so one sign-in serves this platform and a product deployed '
+              . 'beside it. Every host under that name can receive the refresh token — on <code>/api/v1/auth</code> '
+              . 'only, over HTTPS, unreadable by script. <strong>Remove that line if you host anything here you '
+              . 'do not control.</strong> If you reached this page on <code>www.</code>, the line covers '
+              . '<code>www.</code> and its subdomains only: shorten it to the bare domain to cover the apex too. '
+              . 'When you register a product on another host, add its origin to <code>CORS_ALLOWED_ORIGINS</code> '
+              . 'beside it, or the browser will not send that cookie on its calls. '
+              . '<code>php backprod-app/bin/preflight.php</code> prints both lines with the right values.</p>')
         . '<p><strong>Then delete <code>public_html/' . htmlspecialchars(basename(__FILE__)) . '</code>.</strong> '
         . 'It cannot run full setup again — <code>backprod-app/var/.setup-complete</code> refuses that on its '
         . 'own — but it is still reachable by anybody who guesses the URL, and it has nothing left to do but '
