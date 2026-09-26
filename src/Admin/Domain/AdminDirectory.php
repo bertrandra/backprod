@@ -52,6 +52,21 @@ interface AdminDirectory
     public function invoices(?string $tenantId, ?string $productId, ?string $status, int $limit, int $offset): DirectoryPage;
 
     /**
+     * Every attempt to collect, across tenants.
+     *
+     * The listing beside `invoices()`, and the one the platform did not have:
+     * an operator could read every document ever raised and not one payment
+     * against it, so "did this customer actually pay?" had no answer here.
+     *
+     * A payment's own row names no person — it names an invoice — so the
+     * parties come from the document's **snapshot** (§25), like everything
+     * else that reports on a raised invoice.
+     *
+     * @return DirectoryPage<array<string, mixed>>
+     */
+    public function payments(?string $tenantId, ?string $productId, ?string $status, int $limit, int $offset): DirectoryPage;
+
+    /**
      * @return DirectoryPage<array<string, mixed>>
      */
     public function jobs(?string $status, ?string $type, int $limit, int $offset): DirectoryPage;

@@ -2,8 +2,10 @@ import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import { useViewState } from '@/app/frame/viewState';
+import type { AdminPayment } from '@/queries/admin';
 import {
   useAdminInvoices,
+  useAdminPayments,
   useAdminSubscriptions,
   useAdminTenants,
   useAdminUsers,
@@ -14,12 +16,13 @@ import { Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
+import { Whose } from '@/ui/Whose';
 import { currentLocale, t } from '@/i18n';
 
 /**
- * `console.admin.directory` — tenants, users, subscriptions, invoices.
+ * `console.admin.directory` — tenants, users, subscriptions, invoices, payments.
  *
- * Four listings under one screen, and **the tab is in the URL** (ui-spec.md
+ * Five listings under one screen, and **the tab is in the URL** (ui-spec.md
  * §4.3) so "look at this customer's invoices" is a link rather than a set of
  * instructions.
  *
@@ -35,7 +38,7 @@ import { currentLocale, t } from '@/i18n';
  * email. Somebody searching for a name they remember and finding nothing should
  * know why.
  */
-const TABS = ['tenants', 'users', 'subscriptions', 'invoices'] as const;
+const TABS = ['tenants', 'users', 'subscriptions', 'invoices', 'payments'] as const;
 type Tab = (typeof TABS)[number];
 
 function isTab(value: string | undefined): value is Tab {
@@ -58,7 +61,7 @@ export function DirectoryScreen() {
     <div className="space-y-6">
       <PageHeader
         title={t("Directory")}
-        description={t("Every tenant, person, subscription and invoice on the platform. Counts are counted, not inferred from a short page.")}
+        description={t("Every tenant, person, subscription, invoice and payment on the platform. Counts are counted, not inferred from a short page.")}
       />
 
       <nav className="flex flex-wrap gap-1 border-b border-line">
@@ -105,6 +108,7 @@ export function DirectoryScreen() {
       {current === 'users' && <Users search={filter} />}
       {current === 'subscriptions' && <Subscriptions status={filter} />}
       {current === 'invoices' && <Invoices status={filter} />}
+      {current === 'payments' && <Payments status={filter} />}
     </div>
   );
 }
@@ -381,6 +385,118 @@ function Invoices({ status }: { status: string }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * Whether the money arrived (2026-09-26).
+ *
+ * The listing beside Invoices, and the one the platform did not have: the
+ * operator could read every document ever raised and not one payment against
+ * one of them, so *"did this customer actually pay?"* had no screen.
+ *
+ * Every string on a row is the server's. The invoice's number and its
+ * customer come from the **snapshot the document keeps** (§25) — who the
+ * parties were when it was raised — and the number stays absent while that
+ * invoice is a draft, because a gapless sequence allocates one at issue and a
+ * placeholder is how a hole enters it.
+ */
+function Payments({ status }: { status: string }) {
+  const list = useAdminPayments(status);
+
+  if (list.isPending) {
+    return <SkeletonRows rows={6} />;
+  }
+
+  if (list.error !== null) {
+    return <ErrorSurface error={list.error} onRetry={() => void list.refetch()} />;
+  }
+
+  const rows = list.data.payments;
+
+  if (rows.length === 0) {
+    return <EmptyState title={t("No payments")} description={t("Nothing matches that status.")} />;
+  }
+
+  return (
+    <div className="space-y-3">
+      <Count shown={rows.length} total={list.data.total} />
+      <ul className="space-y-2">
+        {rows.map((payment) => (
+          <li
+            key={payment.id ?? ''}
+            data-directory-row={payment.id ?? ''}
+            data-payment-status={payment.status}
+            className="rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
+          >
+            <div className="flex flex-wrap items-baseline gap-2">
+              {/* The document this collects. A draft has no legal number and
+                  none is invented. */}
+              <code data-testid="payment-invoice-number" className="text-xs">
+                {payment.invoice_number ?? t("no number yet")}
+              </code>
+              <span className="rounded bg-well px-1.5 py-0.5 text-xs">{payment.status}</span>
+              <span className="text-xs text-subtle">{payment.tenant_name}</span>
+              <span className="text-xs text-subtle">{payment.product_code}</span>
+              <span className="ml-auto font-medium">
+                <Amount
+                  money={{
+                    minor_units: payment.amount_minor_units ?? 0,
+                    currency: payment.currency ?? 'EUR',
+                  }}
+                />
+              </span>
+            </div>
+
+            {/* Whose it is, in the words the invoice carries. The same
+                component the tenant's own lists use — a third way to render a
+                person is a third way for one of them to be wrong. The
+                organisation is not repeated: its name is already on the row
+                above. */}
+            <Whose
+              testId="payment-customer"
+              name={payment.customer_name ?? null}
+              email={payment.customer_email ?? null}
+            />
+
+            <p className="mt-1 text-xs text-muted">
+              {payment.provider}
+              {payment.method !== null && payment.method !== undefined && ` · ${payment.method}`}
+              {' · '}
+              <Settled payment={payment} />
+              {payment.failure_reason !== null &&
+                payment.failure_reason !== undefined &&
+                ` · ${payment.failure_reason}`}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * When it settled, when it failed, or that neither has happened yet.
+ *
+ * Three different facts and three different words. A single timestamp
+ * labelled "date" would report a refusal and a receipt identically, which is
+ * the one distinction somebody reading this screen came for.
+ */
+function Settled({ payment }: { payment: AdminPayment }) {
+  const date = (value: string) => new Date(value).toLocaleDateString(currentLocale());
+
+  if (payment.succeeded_at !== null && payment.succeeded_at !== undefined) {
+    return <span data-settlement="succeeded">{t("settled {value}", { value: date(payment.succeeded_at) })}</span>;
+  }
+
+  if (payment.failed_at !== null && payment.failed_at !== undefined) {
+    return <span data-settlement="failed">{t("failed {value}", { value: date(payment.failed_at) })}</span>;
+  }
+
+  return (
+    <span data-settlement="open">
+      {t("started {value}", { value: payment.created_at === undefined ? '' : date(payment.created_at) })}
+    </span>
   );
 }
 

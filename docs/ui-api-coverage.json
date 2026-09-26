@@ -206,11 +206,13 @@
     },
     "console.admin.directory": {
       "authority": "platform",
+      "$comment": "The cross-tenant view, and since 2026-09-26 it finally answers the other half of a bill. listAdminInvoices says what was owed; listAdminPayments says whether it arrived — the operator could read every document ever raised and not one payment against one of them, so \"did this customer actually pay?\" had no screen. The payments rows name the customer out of the invoice's own snapshot (§25) and leave the number null while that invoice is a draft, for the reason a gapless sequence exists.",
       "routes": [
         "/console/directory"
       ],
       "operations": [
         "listAdminInvoices",
+        "listAdminPayments",
         "listAdminSubscriptions",
         "listAdminTenants",
         "listAdminUsers"

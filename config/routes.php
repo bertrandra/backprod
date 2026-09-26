@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Admin\Controller\EraseUserController;
 use App\Admin\Controller\ListAdminInvoicesController;
 use App\Admin\Controller\ListAdminJobsController;
+use App\Admin\Controller\ListAdminPaymentsController;
 use App\Admin\Controller\ListAdminSubscriptionsController;
 use App\Admin\Controller\ListAdminTenantsController;
 use App\Admin\Controller\ListAdminUsersController;
@@ -797,6 +798,9 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/admin/users', ListAdminUsersController::class);
     $routes->addRoute('GET', '/api/v1/admin/subscriptions', ListAdminSubscriptionsController::class);
     $routes->addRoute('GET', '/api/v1/admin/invoices', ListAdminInvoicesController::class);
+    // What was owed, and then whether it arrived. The platform could read
+    // every invoice ever raised and not one payment against one of them.
+    $routes->addRoute('GET', '/api/v1/admin/payments', ListAdminPaymentsController::class);
     $routes->addRoute('GET', '/api/v1/admin/jobs', ListAdminJobsController::class);
 
     // Support: the platform's side of §12.3. Only SUPPORT threads are

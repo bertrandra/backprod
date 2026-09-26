@@ -11,7 +11,7 @@ use Doctrine\DBAL\Connection;
 /**
  * The operational listings, read straight.
  *
- * Two decisions run through all five.
+ * Two decisions run through all six.
  *
  * **The counts are subqueries, not joins.** A tenant with three
  * subscriptions and two unpaid invoices would come back six times from a
@@ -168,6 +168,60 @@ final class PostgresAdminDirectory implements AdminDirectory
                  ORDER BY i.issued_at DESC NULLS LAST, i.id
                 SQL,
             "SELECT count(*) FROM invoices i WHERE {$where}",
+            $parameters,
+            $limit,
+            $offset,
+        );
+    }
+
+    public function payments(?string $tenantId, ?string $productId, ?string $status, int $limit, int $offset): DirectoryPage
+    {
+        $where = '(CAST(:tenantId AS uuid) IS NULL OR pay.tenant_id = CAST(:tenantId AS uuid))'
+            . ' AND (CAST(:productId AS uuid) IS NULL OR pay.product_id = CAST(:productId AS uuid))'
+            . ' AND (CAST(:status AS text) IS NULL OR pay.status = CAST(:status AS text))';
+        $parameters = ['tenantId' => $tenantId, 'productId' => $productId, 'status' => $status];
+
+        // One statement for the page, as everywhere here: the invoice each
+        // attempt collects is a join and never a read per row.
+        //
+        // `invoices` is an inner join because `payments.invoice_id` is NOT
+        // NULL and RESTRICT — a payment that cannot say what it settled is an
+        // unexplained movement of money, and the schema does not allow one.
+        return $this->page(
+            <<<SQL
+                SELECT pay.id, pay.tenant_id, t.name AS tenant_name,
+                       pay.product_id, p.code AS product_code,
+                       pay.invoice_id,
+                       -- Null while that invoice is a draft, and left null: a
+                       -- number comes from a gapless sequence at issue, and a
+                       -- placeholder is how a hole enters one.
+                       i.number AS invoice_number,
+                       -- Who was charged, out of the document's own snapshot
+                       -- and never out of a live row (§25) — that is what the
+                       -- customer received. For a seat it is one person and
+                       -- not the organisation (ADR-055), which is precisely
+                       -- the fact a payments list has to show.
+                       i.customer_snapshot->>'legal_name' AS customer_name,
+                       coalesce(
+                           i.customer_snapshot->'person'->>'email',
+                           i.customer_snapshot->>'billing_email'
+                       ) AS customer_email,
+                       pay.subscription_id, pay.status,
+                       pay.amount_minor_units, pay.currency,
+                       -- The provider's own handle: reconciling against a PSP
+                       -- dashboard is a thing finance teams do. Never an
+                       -- instrument — §24 keeps all of that outside.
+                       pay.provider, pay.provider_payment_id, pay.method,
+                       pay.failure_code, pay.failure_reason,
+                       pay.succeeded_at, pay.failed_at, pay.created_at
+                  FROM payments pay
+                  JOIN tenants t ON t.id = pay.tenant_id
+                  JOIN products p ON p.id = pay.product_id
+                  JOIN invoices i ON i.id = pay.invoice_id
+                 WHERE {$where}
+                 ORDER BY pay.created_at DESC, pay.id
+                SQL,
+            "SELECT count(*) FROM payments pay WHERE {$where}",
             $parameters,
             $limit,
             $offset,

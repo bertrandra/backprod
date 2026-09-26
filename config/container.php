@@ -409,7 +409,7 @@ return static function (array $overrides = []): ContainerInterface {
         AuditReader::class => autowire(PostgresAuditLog::class),
         AuditTrail::class => autowire(),
 
-        // The five operational listings of §7's /admin block. Read-only, and
+        // The six operational listings of §7's /admin block. Read-only, and
         // deliberately its own port: the dashboard aggregates, this
         // enumerates, and one interface doing both would tempt a caller to
         // page through every invoice to compute a total the aggregates

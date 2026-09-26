@@ -123,6 +123,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every attempt to collect, across tenants
+         * @description `/admin/invoices` answers what was owed; this answers whether it arrived, which is the question an operator actually asks about a customer.
+         *
+         *     A payment's own row names no person — it names an invoice — so the document's parties come from the **snapshot the invoice keeps** (§25): who they were when it was raised, never who they are now. `invoice_number` is null while that invoice is a draft, and no placeholder is put there: a number comes from a gapless sequence at issue, and inventing one is how a hole enters it.
+         *
+         *     Requires `admin.finance.read`.
+         */
+        get: operations["listAdminPayments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/queue": {
         parameters: {
             query?: never;
@@ -5163,6 +5187,46 @@ export interface components {
             /** Format: date-time */
             created_at?: string;
         };
+        /** @description One attempt to collect one invoice, seen from the platform. The money is integer minor units with its currency beside it, here as everywhere — nothing on this row is added to anything else. */
+        AdminPayment: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            tenant_id?: string;
+            tenant_name?: string;
+            /** @description Which product was being paid for. The platform is multi-product, and a payments list that did not say which would be four lists in one. */
+            product_code?: string;
+            /** Format: uuid */
+            invoice_id?: string;
+            /** @description The invoice's legal number, and **null while that invoice is a draft** — never a placeholder, because a number comes from a gapless sequence at issue and a stand-in is how a hole enters one. */
+            invoice_number?: string | null;
+            /** @description The legal name in the invoice's customer block, read from the snapshot the document keeps and never from a live row (§25): that is who was charged, and a name changed since must not change the paper. For a seat it is one person, not the organisation (ADR-055). */
+            customer_name?: string | null;
+            /** @description The address that invoice was made out to, from the same snapshot. */
+            customer_email?: string | null;
+            /**
+             * Format: uuid
+             * @description The subscription this collection is against, where there is one. A one-off sale has none.
+             */
+            subscription_id?: string | null;
+            status?: string;
+            amount_minor_units?: number;
+            currency?: string;
+            /** @description The PSP's name, as the adapter reports it (§24). */
+            provider?: string;
+            /** @description The provider's own handle. Reconciling this platform against a PSP dashboard is something finance teams actually do, and hiding the handle makes it a support ticket. It is not an instrument: no card data exists anywhere in this platform. */
+            provider_payment_id?: string;
+            /** @description A label — CARD, SEPA_DEBIT, TRANSFER, APPLE_PAY, GOOGLE_PAY, OTHER — and never an instrument. */
+            method?: string | null;
+            failure_code?: string | null;
+            failure_reason?: string | null;
+            /** Format: date-time */
+            succeeded_at?: string | null;
+            /** Format: date-time */
+            failed_at?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+        };
         /**
          * @description How a tenant wants this product to look. Every field is present and null when unset, rather than absent — a client reading this to decide how to render needs one shape, and null means "use the product's defaults".
          *
@@ -5906,6 +5970,42 @@ export interface operations {
                         renewal: {
                             [key: string]: unknown;
                         }[];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listAdminPayments: {
+        parameters: {
+            query?: {
+                /** @description One customer. */
+                tenant_id?: string;
+                /** @description One product — the console's product picker, when a tenant holds several (ADR-047). */
+                product_id?: string;
+                /** @description PENDING, AUTHORIZED, SUCCEEDED, FAILED, CANCELLED, REFUNDED, PARTIALLY_REFUNDED, CHARGEBACK. */
+                status?: string;
+                /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
+                limit?: components["parameters"]["DirectoryLimit"];
+                offset?: components["parameters"]["DirectoryOffset"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryEnvelope"] & {
+                        payments: components["schemas"]["AdminPayment"][];
                     };
                 };
             };

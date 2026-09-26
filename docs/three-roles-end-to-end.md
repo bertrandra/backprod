@@ -601,6 +601,7 @@ clients.
 |---|---|---|
 | `listAudit` | `admin.audit.read` | Rien. |
 | `showMetrics`, `listAdminSubscriptions`, `listAdminInvoices` | `admin.finance.read` | Rien. Les chiffres, tous tenants confondus. |
+| `listAdminPayments` | `admin.finance.read` | Rien. L'autre moitié d'une facture : ce qui était dû se lisait déjà, ce qui est arrivé nulle part. Le client de chaque ligne vient de l'**instantané** de la facture (§25), et son numéro reste nul tant qu'elle est un brouillon. |
 | `listAdminTenants`, `listAdminUsers` | `admin.directory.read` | Rien. L'annuaire. |
 | `showQueue`, `listAdminJobs` | `admin.health.read` | Rien. La santé de la file. |
 | `eraseUser` | `admin.privacy.erase` | **Efface une personne** (§26) : nom et adresse vidés, les lignes qui la nomment conservées. Ce que la loi impose de garder — les factures — reste. La seule opération vraiment destructive de la console. |

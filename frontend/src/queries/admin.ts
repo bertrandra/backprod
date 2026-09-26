@@ -26,6 +26,7 @@ export type AdminTenant = Schemas['AdminTenant'];
 export type AdminUser = Schemas['AdminUser'];
 export type AdminSubscription = Schemas['AdminSubscription'];
 export type AdminInvoice = Schemas['AdminInvoice'];
+export type AdminPayment = Schemas['AdminPayment'];
 export type AdminJob = Schemas['AdminJob'];
 export type AuditEntry = Schemas['AuditEntry'];
 
@@ -200,6 +201,37 @@ export function useAdminInvoices(status: string, limit = 25, offset = 0) {
     queryKey: keys.admin.directory('invoices', status, limit, offset),
     queryFn: async () => {
       const { data, error, response } = await client.GET('/api/v1/admin/invoices', {
+        params: { query: { limit, offset, ...(status === '' ? {} : { status }) } },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+  });
+}
+
+/**
+ * The other half of a bill (2026-09-26).
+ *
+ * `useAdminInvoices` says what was owed; this says whether it arrived. The
+ * platform could read every document ever raised and not one payment against
+ * one of them, so *"did this customer actually pay?"* had no screen at all.
+ *
+ * Each row carries the invoice's own number and customer, which the server
+ * reads from the **snapshot the document keeps** — who the parties were when
+ * it was raised, never who they are now. Nothing here recomputes one, and
+ * nothing adds two amounts.
+ */
+export function useAdminPayments(status: string, limit = 25, offset = 0) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.admin.directory('payments', status, limit, offset),
+    queryFn: async () => {
+      const { data, error, response } = await client.GET('/api/v1/admin/payments', {
         params: { query: { limit, offset, ...(status === '' ? {} : { status }) } },
       });
 
