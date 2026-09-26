@@ -194,6 +194,16 @@
         "renameFeature"
       ]
     },
+    "console.admin.translations": {
+      "authority": "platform",
+      "$comment": "Everything the operator wrote, in every language it has (2026-09-26). The console could already translate these one at a time — a feature on the Features screen, an offer on the Catalogue — each behind the form that owns its row. What no screen could answer is the question somebody asks when a language is half finished: what is missing in Italian? That answer spans tables with nothing else in common, so it needs a read that does too. This is the *operator's* words and not the application's: labels, buttons and error wording live in the bundle's JSON catalogues, keyed by the English and proved complete by gate:i18n (ADR-050, docs/translatable-fields-spec.md §1.5), and this screen is not a reason to move them. It reads listTranslations and writes through renameFeature and renameStaffOffer, which are claimed by the screens that own those rows: one operation, one owner, and no second way to write the same table.",
+      "routes": [
+        "/console/translations"
+      ],
+      "operations": [
+        "listTranslations"
+      ]
+    },
     "console.admin.directory": {
       "authority": "platform",
       "routes": [

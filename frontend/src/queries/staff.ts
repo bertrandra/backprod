@@ -1501,6 +1501,10 @@ function useCatalogueWrite<TVariables, TData>(
         // A plan, an offer or a publication moves the setup chain, and the
         // chain's only value is being current.
         queryClient.invalidateQueries({ queryKey: keys.staff.readiness(productCode) }),
+        // The translation desk counts what is missing across every product
+        // (2026-09-26). An offer renamed here is a sentence it has to re-read,
+        // whichever screen the rename was made from.
+        queryClient.invalidateQueries({ queryKey: keys.staff.translations }),
       ]);
     },
   });
@@ -1583,6 +1587,45 @@ export function usePlatformFeatures(enabled = true) {
   });
 }
 
+/** One translatable sentence, as the desk reads it. */
+export type TranslatableText = Schemas['TranslatableText'];
+
+/**
+ * Everything the operator wrote, in every language it has (2026-09-26).
+ *
+ * One row per *sentence* — a feature's name, a feature's description, an
+ * offer's name — and not per record, because "twelve missing in Italian" has
+ * to mean twelve boxes to fill. A feature whose name is translated and whose
+ * description is not is one sentence missing, not none.
+ *
+ * **Unpaginated, and the one list here that is.** Its purpose is to count what
+ * is missing across the whole set, and a page cannot answer that: a screen
+ * totalling one page would report nothing missing while the next page was
+ * empty. What makes the trade affordable is that it grows with what the
+ * operator sells, never with their customers.
+ *
+ * The language the desk shows is a choice made over this one answer, not a
+ * second request — so switching language costs nothing and the counts stay
+ * consistent with what is on screen.
+ */
+export function useTranslations(enabled = true) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.translations,
+    enabled,
+    queryFn: async () => {
+      const { data, error, response } = await client.GET('/api/v1/staff/translations');
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.texts;
+    },
+  });
+}
+
 /**
  * Every write on the list invalidates the list, and every product's
  * catalogue with it.
@@ -1603,6 +1646,9 @@ function useFeatureListWrite<TVariables, TData>(mutationFn: (variables: TVariabl
         queryClient.invalidateQueries({ queryKey: keys.staff.features }),
         queryClient.invalidateQueries({ queryKey: ['staff', 'catalogue'] }),
         queryClient.invalidateQueries({ queryKey: keys.catalogue.features }),
+        // Both of a feature's sentences are on the translation desk, so a
+        // rename made anywhere is one it has to re-read (2026-09-26).
+        queryClient.invalidateQueries({ queryKey: keys.staff.translations }),
       ]);
     },
   });

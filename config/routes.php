@@ -157,6 +157,7 @@ use App\Staff\Controller\ListTenantPaymentsController;
 use App\Staff\Controller\ListTenantProjectsController;
 use App\Staff\Controller\ListTenantQuotesController;
 use App\Staff\Controller\ListTenantsController;
+use App\Staff\Controller\ListTranslationsController;
 use App\Staff\Controller\ListWebhookDeliveriesController;
 use App\Staff\Controller\PostSupportMessageController;
 use App\Staff\Controller\PublishStaffOfferVersionController;
@@ -698,6 +699,11 @@ return static function (RouteCollector $routes): void {
     // `/staff/catalogue`, which is a *product's* price list and takes
     // `?product=`: a feature is a word the platform and a product's code have
     // agreed on, and `max_projects` existed once per product until this moved.
+    // Everything the operator wrote, in every language it has (2026-09-26).
+    // A read across the translated tables, because "what is missing in
+    // Italian?" is a question no one of them can answer; the writes stay on
+    // the operations that own each row.
+    $routes->addRoute('GET', '/api/v1/staff/translations', ListTranslationsController::class);
     $routes->addRoute('GET', '/api/v1/staff/features', ListPlatformFeaturesController::class);
     $routes->addRoute('POST', '/api/v1/staff/features', CreateFeatureController::class);
     $routes->addRoute('PATCH', '/api/v1/staff/features/{featureId}', RenameFeatureController::class);

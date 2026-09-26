@@ -205,6 +205,19 @@ export const keys = {
      */
     features: ['staff', 'features'] as const,
     /**
+     * Everything the operator wrote, in every language it has (2026-09-26).
+     *
+     * No arguments, and none to add: the read is unpaginated because its
+     * purpose is to count what is missing across the whole set, and the
+     * language the desk is showing is a choice the screen makes over the same
+     * answer rather than a different request.
+     *
+     * Invalidated by every write that touches a translated row — a feature
+     * renamed on the Features screen, an offer renamed in a Catalogue — or the
+     * desk would keep reporting a gap somebody just filled.
+     */
+    translations: ['staff', 'translations'] as const,
+    /**
      * What one product needs configured before it can take money: the identity
      * its invoices name, and the supplier's own fiscal position.
      */

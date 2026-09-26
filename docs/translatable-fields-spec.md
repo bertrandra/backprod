@@ -203,7 +203,32 @@ POST  /api/v1/staff/products/{id}/features     pick a code from the list
 PATCH /api/v1/staff/offers/{offerId}           the name and its translations ✓
 PUT   /api/v1/product/capabilities             a product declares what it gates
                                                on, checked against the list   ✓
+GET   /api/v1/staff/translations               every sentence, every language,
+                                               across both tables   catalog.manage ✓
 ```
+
+`GET /api/v1/staff/translations` was added on 2026-09-26, and it is a **read
+only**. The console could already translate each of these rows one at a time,
+each behind the form that owns it; what no route could answer is the question
+somebody asks when a language is half finished — *what is missing in Italian?*
+— because the answer spans `features` and `offers`, which have nothing else in
+common. Writing still goes back through `PATCH /staff/features/{id}` and
+`PATCH /staff/catalogue/offers/{id}`, which already carry the permission, the
+validation and the trail; a second way to write the same table is the drift
+the gates exist to prevent.
+
+It answers a row per **field** rather than per record — a feature carries a
+name and a description — because "twelve missing in Italian" has to mean
+twelve boxes to fill. And it is **unpaginated**, alone among the lists here:
+its purpose is to count what is missing across the whole set, which a page
+cannot do. What makes that affordable is that it grows with what the operator
+sells, never with their customers.
+
+The product showcase (§11 of `home-showcase-spec.md`) is deliberately not on
+it. Its bands are a JSON object per block whose fields differ by kind, its
+write replaces the whole story at once, and it answers to
+`staff.products.manage` — three differences, each of which has to be reasoned
+about rather than pattern-matched.
 
 `POST /api/v1/staff/products/{id}/features` was in this table when it was
 written, and is not built: after step 3 a product's catalogue has no

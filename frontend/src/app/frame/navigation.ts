@@ -140,6 +140,18 @@ export const APP_NAV: readonly NavSection[] = [
         scope: 'platform',
         permission: 'staff.catalog.manage',
       },
+      // After both, because it translates what both wrote: one desk across
+      // every feature name, feature description and offer name (2026-09-26).
+      // The Features screen and the Catalogue each translate their own rows
+      // already; what neither can answer is "what is missing in Italian?",
+      // because that question spans them.
+      //
+      // `staff.catalog.manage`, not `staff.features.manage`: offers are the
+      // larger half of what is written here and a name a customer is sold is
+      // what that permission governs. It reads the feature rows too — a
+      // feature's name is in every tenant's catalogue, so there is nothing to
+      // withhold — and offers no edit the server would refuse.
+      { id: 'translations', label: 'Translations', to: '/console/translations', scope: 'platform', permission: 'staff.catalog.manage' },
       // What a stranger sees. `staff.catalog.manage` rather than `catalog.manage`,
       // which ADR-040 lets the platform lend to a tenant — a tenant authoring its
       // own offers must not decide what the public page advertises.

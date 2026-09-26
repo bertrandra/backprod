@@ -168,6 +168,7 @@ use App\Staff\Domain\TenantDirectory;
 use App\Staff\Domain\TenantGrants;
 use App\Staff\Domain\TenantMembers;
 use App\Staff\Domain\TenantProducts;
+use App\Staff\Domain\TranslationDesk;
 use App\Staff\Infrastructure\PostgresStaffAccessLog;
 use App\Staff\Infrastructure\PostgresStaffRepository;
 use App\Staff\Infrastructure\PostgresStaffRoster;
@@ -175,6 +176,7 @@ use App\Staff\Infrastructure\PostgresTenantDirectory;
 use App\Staff\Infrastructure\PostgresTenantGrants;
 use App\Staff\Infrastructure\PostgresTenantMembers;
 use App\Staff\Infrastructure\PostgresTenantProducts;
+use App\Staff\Infrastructure\PostgresTranslationDesk;
 use App\Storage\Domain\AssetRepository;
 use App\Storage\Domain\StorageProvider;
 use App\Storage\Infrastructure\LocalStorageProvider;
@@ -651,6 +653,7 @@ return static function (array $overrides = []): ContainerInterface {
         StaffAccessLog::class => autowire(PostgresStaffAccessLog::class),
         TenantDirectory::class => autowire(PostgresTenantDirectory::class),
         TenantProducts::class => autowire(PostgresTenantProducts::class),
+        TranslationDesk::class => autowire(PostgresTranslationDesk::class),
         TenantGrants::class => autowire(PostgresTenantGrants::class),
         TenantMembers::class => autowire(PostgresTenantMembers::class),
         // The demonstration world's rows. One seeder behind the command line,

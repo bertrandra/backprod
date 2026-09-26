@@ -45,6 +45,7 @@ import { StaffProfileScreen } from '@/features/console/StaffProfileScreen';
 import { MenusScreen } from '@/features/console/MenusScreen';
 import { MetricsScreen } from '@/features/console/MetricsScreen';
 import { FeaturesScreen } from '@/features/console/FeaturesScreen';
+import { TranslationsScreen } from '@/features/console/TranslationsScreen';
 import { ProductsScreen } from '@/features/console/ProductsScreen';
 import { QueueScreen } from '@/features/console/QueueScreen';
 import { ReadinessScreen } from '@/features/console/ReadinessScreen';
@@ -128,6 +129,7 @@ const PLATFORM_SCREEN_ROUTES: readonly { path: string; component: () => React.JS
   { path: '/console/directory', component: DirectoryScreen },
   { path: '/console/products', component: ProductsScreen },
   { path: '/console/features', component: FeaturesScreen },
+  { path: '/console/translations', component: TranslationsScreen },
   { path: '/console/catalogue', component: ConsoleCatalogueScreen },
   { path: '/console/invoicing', component: InvoicingScreen },
   { path: '/console/menus', component: MenusScreen },

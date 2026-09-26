@@ -555,6 +555,7 @@ construire son menu) et `updateStaffProfile` (son nom affiché et sa langue).
 | `listPlatformFeatures` | Rien. La liste est **celle de la plateforme**, pas d'un produit : `max_projects` ne peut pas vouloir dire une chose ici et une autre ailleurs. |
 | `createFeature` | Ajoute un mot au vocabulaire commun. |
 | `renameFeature` | Le renomme, ou le **retire** (`active = false`). Une fonctionnalité ne se supprime jamais : des versions d'offres et des droits vivants la nomment. Retirée, aucune nouvelle offre ne peut l'accorder et tous ceux qui l'ont gardent ce qu'ils ont acheté. |
+| `listTranslations` | Rien. **Tout ce que l'exploitant a écrit**, dans toutes les langues où il l'a écrit : nom et description de chaque fonctionnalité, nom de chaque offre, avec l'anglais qui leur sert de clé. Les écrans d'origine traduisent déjà ligne par ligne ; ce que personne ne pouvait répondre, c'est « qu'est-ce qui manque en italien ? », parce que la réponse traverse des tables qui n'ont rien d'autre en commun. Ce n'est pas le vocabulaire de l'application — libellés, boutons, messages d'erreur vivent dans les catalogues JSON du bundle (ADR-050) et n'ont rien à voir avec ceci. Non paginée, exprès : une page ne peut pas compter ce qui manque. |
 | `showStaffCatalogue` | Rien. |
 | `createPlan`, `updatePlan` | Un plan et son rang. Le rang est le seul ordre qui existe : une montée en gamme est une comparaison de deux entiers, jamais de deux mots. |
 | `createStaffOffer`, `renameStaffOffer` | Une offre. |
