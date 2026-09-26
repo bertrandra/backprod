@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Demo\Service;
 
+use App\Billing\Domain\Invoice;
 use App\Billing\Service\Invoicing;
 use App\Commerce\Service\SubscriptionPeople;
 use App\Commerce\Service\Subscriptions;
@@ -11,6 +12,8 @@ use App\Demo\Domain\DemoFixtures;
 use App\Demo\Domain\DemoWorld;
 use App\Demo\Domain\SeededWorld;
 use App\Entitlement\Domain\EntitlementRepository;
+use App\Payment\Domain\Payment;
+use App\Payment\Domain\PaymentStatus;
 use App\Project\Service\ProjectWorkspace;
 use App\Sales\Service\Sales;
 use App\Shared\Exceptions\ConflictException;
@@ -45,6 +48,15 @@ use App\Shared\Exceptions\ConflictException;
  * paid is what activates the seat, so the whole chain is exercised and nothing
  * in the demonstration world is a shortcut.
  *
+ * **And some of it is collected** (2026-09-26). Two of the five seats are paid
+ * through the payment chain rather than recorded as a transfer — one of them
+ * after an attempt the card refused — and one order is left owing, its only
+ * attempt declined, because that is the state the Payments screen's *Try
+ * again* exists for and a retry against a settled invoice is refused. The
+ * world had five invoices and no payment at all until today, which made
+ * `/payments` permanently empty in the one place the platform is shown to
+ * people. See {@see DemoCollection}.
+ *
  * **Seeding and verifying in one pass.** The result carries every check, and
  * a caller that finds one failed has a world worse than none: somebody would
  * demonstrate it.
@@ -62,6 +74,7 @@ final class DemoSeeder
         private readonly SubscriptionPeople $people,
         private readonly EntitlementRepository $entitlements,
         private readonly Sales $sales,
+        private readonly DemoCollection $collection,
     ) {
     }
 
@@ -161,7 +174,7 @@ final class DemoSeeder
 
             // Paying it completes the order, which activates the seat: the
             // subscription exists because the money did, and not before.
-            $invoices[] = $this->invoicing->markPaid($tenant, $product, $order->invoiceId, $collector);
+            $invoices[] = $this->collect($seat, $tenant, $product, $order->invoiceId, $buyer, $collector);
 
             $started = $this->subscriptions->seatOf($tenant, $product, $buyer);
 
@@ -174,6 +187,44 @@ final class DemoSeeder
             }
 
             $subscriptions[] = $started;
+        }
+
+        // The debt (2026-09-26), after every seat so the numbers already in
+        // each issuer's series are the ones the world sold.
+        //
+        // An order fulfilled, its invoice issued and owed, one attempt the
+        // card refused, and no seat. It is what the Payments screen's *Try
+        // again* is for: a retry against an invoice that has since been paid
+        // is refused, so a world where every failure sits on a settled
+        // document offers a button that can only answer with an error.
+        $declined = [];
+
+        foreach (DemoWorld::DECLINED_ORDERS as $unpaid) {
+            $tenant = $structure->tenant($unpaid['tenant']);
+            $product = $structure->product($unpaid['product']);
+            $buyer = $structure->user($unpaid['buyer']);
+
+            $order = $this->sales->fulfil(
+                $tenant,
+                $product,
+                $this->sales->order($tenant, $product, $structure->offer($unpaid['product'], $unpaid['offer']), $buyer)->id,
+                $buyer,
+            );
+
+            if ($order->invoiceId === null) {
+                throw new ConflictException(
+                    'DEMO_ORDER_RAISED_NO_INVOICE',
+                    'A demonstration seat was fulfilled without an invoice, which no priced offer can do.',
+                    ['tenant' => $unpaid['tenant'], 'product' => $unpaid['product'], 'offer' => $unpaid['offer']],
+                );
+            }
+
+            $declined[] = $this->collection->declined(
+                $this->invoicing->show($tenant, $product, $order->invoiceId),
+                $buyer,
+                $unpaid['failure']['code'],
+                $unpaid['failure']['reason'],
+            );
         }
 
         // The people each holder has put on their seat (2026-09-25), added
@@ -263,6 +314,26 @@ final class DemoSeeder
                     || ($invoices[$i]->customer['billing_email'] ?? null)
                         !== DemoWorld::email(DemoWorld::SEATS[$i]['holder']),
             ) === [],
+            // The money that did not arrive (2026-09-26). A failed payment
+            // with no reason on it is a row the screen renders as a blank
+            // apology, and the retry it offers has to have a debt to act
+            // against — so the attempt is FAILED, it says why, and the seat
+            // it would have started does not exist.
+            'the attempt the card refused is recorded, with its reason' => count($declined) === count(DemoWorld::DECLINED_ORDERS)
+                && array_filter(
+                    $declined,
+                    static fn (Payment $attempt): bool => $attempt->status !== PaymentStatus::FAILED
+                        || $attempt->failureCode === null
+                        || $attempt->failureReason === null,
+                ) === [],
+            'an order whose payment failed started no seat' => array_filter(
+                DemoWorld::DECLINED_ORDERS,
+                fn (array $unpaid): bool => $this->subscriptions->seatOf(
+                    $structure->tenant($unpaid['tenant']),
+                    $structure->product($unpaid['product']),
+                    $structure->user($unpaid['buyer']),
+                ) !== null,
+            ) === [],
             // The rule the whole demonstration now turns on (2026-09-25):
             // whoever made a project was covered by a subscription at the
             // time. Asked through the port the platform itself asks, so a
@@ -303,5 +374,51 @@ final class DemoSeeder
         ] + $this->fixtures->verify($structure);
 
         return new SeededWorld($structure, $subscriptions, $invoices, $checks);
+    }
+
+    /**
+     * How a seat's money arrived.
+     *
+     * Two paths, both real, and a deployment has both: a transfer that
+     * landed outside the platform and which the organisation's administrator
+     * records, or a card the buyer put in — which goes through the payment
+     * chain and settles the invoice by succeeding, rather than being marked
+     * settled by anybody.
+     *
+     * The invoice is re-read afterwards for the same reason: the payment is
+     * what settled it, so the document the checks read must be the one the
+     * payment left behind, not the one that existed before it.
+     *
+     * @param array{tenant: string, product: string, offer: string, holder: string, card?: bool, declined?: array{code: string, reason: string}} $seat
+     */
+    private function collect(
+        array $seat,
+        string $tenant,
+        string $product,
+        string $invoiceId,
+        string $buyer,
+        string $collector,
+    ): Invoice {
+        if (($seat['card'] ?? false) === false) {
+            return $this->invoicing->markPaid($tenant, $product, $invoiceId, $collector);
+        }
+
+        $declined = $seat['declined'] ?? null;
+
+        if ($declined !== null) {
+            // The attempt that failed comes first and stays failed for ever:
+            // it is the record of what happened, and the screen shows it
+            // beside the one that went through.
+            $this->collection->declined(
+                $this->invoicing->show($tenant, $product, $invoiceId),
+                $buyer,
+                $declined['code'],
+                $declined['reason'],
+            );
+        }
+
+        $this->collection->collected($this->invoicing->show($tenant, $product, $invoiceId), $buyer);
+
+        return $this->invoicing->show($tenant, $product, $invoiceId);
     }
 }
