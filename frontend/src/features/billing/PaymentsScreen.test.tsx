@@ -51,6 +51,12 @@ function payment(overrides: Record<string, unknown> = {}) {
     succeeded_at: null,
     failed_at: '2026-01-01T10:00:00Z',
     created_at: '2026-01-01T09:59:00Z',
+    // The document this attempt collects, and who it was raised to
+    // (2026-09-26). Read from the invoice's snapshot, so it names who the
+    // customer was when the document was raised.
+    invoice_number: '2026-000004',
+    customer_name: 'Ada Lovelace',
+    customer_email: 'ada@acme.test',
     ...overrides,
   };
 }
@@ -95,6 +101,52 @@ describe('a failed payment', () => {
     expect(screen.getByTestId('payment-details').textContent).toContain('card via stripe');
     expect(screen.getByTestId('payment-details').querySelector('a')?.getAttribute('href')).toContain('inv-1');
     expect(screen.getByTestId('payment-details').textContent).toContain('pi_1');
+  });
+
+  it('names the document and the colleague it was raised to', async () => {
+    // `billing.manage` shows an administrator every payment the organisation
+    // has, and until 2026-09-26 no row said whose it was — twelve identical
+    // amounts read as twelve identical rows.
+    renderAtRoute(<PaymentsScreen />, clientFor([payment()]), { path: '/payments' });
+
+    await waitFor(() => expect(screen.getByTestId('payment-whose-pay-1')).toBeTruthy());
+
+    const whose = screen.getByTestId('payment-whose-pay-1');
+
+    expect(whose.textContent).toContain('Ada Lovelace');
+    expect(whose.textContent).toContain('ada@acme.test');
+    // The legal number, in the link: a person reconciling against paper is
+    // looking for that string and not for the word "invoice".
+    expect(screen.getByTestId('payment-details').textContent).toContain('2026-000004');
+  });
+
+  it('says "the invoice" while it has no number, and never a placeholder', async () => {
+    renderAtRoute(
+      <PaymentsScreen />,
+      clientFor([payment({ invoice_number: null })]),
+      { path: '/payments' },
+    );
+
+    await waitFor(() => expect(screen.getByTestId('payment-details')).toBeTruthy());
+
+    // A number comes from a gapless sequence at issue. Inventing one — even
+    // "pending" in the shape of one — is how a hole enters it.
+    expect(screen.getByTestId('payment-details').textContent).toContain('the invoice');
+    expect(screen.getByTestId('payment-details').textContent).not.toContain('2026-');
+  });
+
+  it('says nobody is recorded rather than drawing a dash', async () => {
+    renderAtRoute(
+      <PaymentsScreen />,
+      clientFor([payment({ customer_name: null, customer_email: null })]),
+      { path: '/payments' },
+    );
+
+    await waitFor(() => expect(screen.getByTestId('payment-whose-pay-1')).toBeTruthy());
+
+    // A dash reads as a name that failed to load. "Nobody recorded" is a fact
+    // about the document.
+    expect(screen.getByTestId('payment-whose-pay-1').getAttribute('data-whose')).toBe('unrecorded');
   });
 
   it('offers a retry that says it is a new attempt', async () => {

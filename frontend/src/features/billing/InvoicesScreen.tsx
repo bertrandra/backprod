@@ -12,6 +12,8 @@ import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
+import { partyName, partyOrganisation, partyPerson } from '@/ui/party';
+import { Whose } from '@/ui/Whose';
 import { currentLocale, t } from '@/i18n';
 
 /**
@@ -87,6 +89,19 @@ export function InvoicesScreen() {
                   {lineOfferLabel(invoice.lines)}
                 </p>
               )}
+
+              {/* Whose it is (2026-09-26). An administrator sees every invoice
+                  the organisation has, and until this the rows did not say
+                  which colleague each one belonged to — twelve identical
+                  amounts read as twelve identical rows. From the snapshot, so
+                  it says who they were when it was raised (§25). */}
+              <Whose
+                name={partyName(invoice.customer) ?? partyPerson(invoice.customer)?.name ?? null}
+                email={partyPerson(invoice.customer)?.email ?? null}
+                organisation={partyOrganisation(invoice.customer)}
+                testId="invoice-for"
+                className="mt-1 text-xs text-muted"
+              />
 
               <p className="mt-1 text-xs text-muted">
                 {t("net")}{' '}<Amount money={invoice.net} /> {t("· VAT")}{' '}<Amount money={invoice.vat} />

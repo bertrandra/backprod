@@ -20,6 +20,8 @@ import { Amount, formatVatRate } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
 import { Table, TBody, Td, Th, THead, TR } from '@/ui/Table';
+import { partyName, partyOrganisation, partyPerson } from '@/ui/party';
+import { Whose } from '@/ui/Whose';
 
 import { InvoiceNumber, statusTone } from './InvoicesScreen';
 import { currentLocale, t } from '@/i18n';
@@ -338,7 +340,7 @@ function Party({
   return (
     <div data-testid={testId}>
       <p className="text-xs uppercase tracking-wide text-subtle">{label}</p>
-      <p className="font-medium">{text('legal_name') ?? '—'}</p>
+      <p className="font-medium">{partyName(party) ?? '—'}</p>
       {/* A seat's invoice is the organisation's, for one of its people
           (§13.1): the person it is for, as recorded when it was issued. */}
       <Person party={party} />
@@ -361,31 +363,26 @@ function Party({
 }
 
 function Person({ party }: { party: Record<string, unknown> }) {
-  const person = party.person;
+  const person = partyPerson(party);
+  const organisation = partyOrganisation(party);
 
-  if (typeof person !== 'object' || person === null) {
-    return null;
-  }
-
-  const record = person as Record<string, unknown>;
-  const name = typeof record.name === 'string' ? record.name : null;
-  const email = typeof record.email === 'string' ? record.email : null;
-
-  if (name === null && email === null) {
+  // No person, no line: `organisation` only ever travels beside one, because
+  // it is the seller of a seat and a seat is sold to somebody.
+  if (person === null) {
     return null;
   }
 
   // Since 2026-09-19 the person *is* the customer of a seat's invoice —
-  // their name stands as `legal_name` above — and the organisation they
-  // belong to is named beside them, sold to by that organisation.
-  const organisation = typeof party.organisation === 'string' ? party.organisation : null;
-
+  // their name stands as `legal_name` above, so only the address goes here —
+  // and the organisation they belong to is named beside them, sold to by
+  // that organisation.
   return (
-    <p data-testid="customer-person" className="text-xs text-muted">
-      {email !== null && name !== email ? email : null}
-      {email !== null && name !== email && organisation !== null ? ' · ' : null}
-      {organisation !== null ? t("a member of {organisation}", { organisation: organisation }) : null}
-    </p>
+    <Whose
+      name={null}
+      email={person?.email ?? null}
+      organisation={organisation}
+      testId="customer-person"
+    />
   );
 }
 

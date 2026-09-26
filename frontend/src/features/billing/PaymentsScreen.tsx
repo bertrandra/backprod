@@ -22,6 +22,7 @@ import { When } from '@/ui/When';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
+import { Whose } from '@/ui/Whose';
 import { t } from '@/i18n';
 
 /**
@@ -137,7 +138,12 @@ export function PaymentsScreen() {
                   <dt className="text-subtle">{t("For")}</dt>
                   <dd>
                     <Link to="/invoices/$invoiceId" params={{ invoiceId: payment.invoice_id }} className="underline decoration-dotted">
-                      {t("the invoice")}</Link>
+                      {/* The document's own number where it has one, and
+                          "the invoice" while it is still a draft. Never a
+                          placeholder: a number comes from a gapless sequence
+                          at issue, and inventing one is how a hole enters it. */}
+                      {payment.invoice_number ?? t("the invoice")}
+                    </Link>
                     {payment.subscription_id !== null && (
                       <>
                         {' · '}
@@ -145,6 +151,23 @@ export function PaymentsScreen() {
                           {t("the subscription")}</Link>
                       </>
                     )}
+                  </dd>
+                </div>
+                {/* Whose it is (2026-09-26). `billing.manage` shows an
+                    administrator every payment the organisation has, and
+                    until this none of the rows said which colleague each one
+                    belonged to — twelve identical amounts read as twelve
+                    identical rows. From the invoice's snapshot, so it names
+                    who they were when the document was raised (§25). */}
+                <div className="flex gap-2 sm:col-span-2">
+                  <dt className="text-subtle">{t("Whose")}</dt>
+                  <dd>
+                    <Whose
+                      name={payment.customer_name}
+                      email={payment.customer_email}
+                      testId={`payment-whose-${payment.id}`}
+                      className="text-xs text-muted"
+                    />
                   </dd>
                 </div>
                 <div className="flex gap-2 sm:col-span-2">

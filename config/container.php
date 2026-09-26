@@ -106,8 +106,10 @@ use App\Notification\Service\DispatchNotifications;
 use App\Notification\Service\MailTester;
 use App\Notification\Service\MailWording;
 use App\Notification\Service\Notifications;
+use App\Payment\Domain\CollectedInvoices;
 use App\Payment\Domain\PaymentRepository;
 use App\Payment\Domain\PaymentSettlement;
+use App\Payment\Infrastructure\PostgresCollectedInvoices;
 use App\Payment\Infrastructure\PostgresPaymentRepository;
 use App\Payment\Infrastructure\Stripe\StripePaymentProvider;
 use App\Payment\Infrastructure\StubPaymentProvider;
@@ -434,6 +436,10 @@ return static function (array $overrides = []): ContainerInterface {
         ),
         CreditNoteRepository::class => autowire(PostgresCreditNoteRepository::class),
         PaymentRepository::class => autowire(PostgresPaymentRepository::class),
+        // The documents a page of payments collects, beside the attempts
+        // themselves (2026-09-26): a port of its own, because the customer's
+        // name is not one of a payment's facts.
+        CollectedInvoices::class => autowire(PostgresCollectedInvoices::class),
         PaymentSettlement::class => autowire(InvoiceSettlement::class),
         SalesRepository::class => autowire(PostgresSalesRepository::class),
         OrderFulfilment::class => autowire(InvoiceThenSubscribe::class),

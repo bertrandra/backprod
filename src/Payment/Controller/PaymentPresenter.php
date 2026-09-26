@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Payment\Controller;
 
 use App\Billing\Domain\Money;
+use App\Payment\Domain\Collected;
 use App\Payment\Domain\Payment;
 use App\Payment\Domain\PaymentStatus;
 use App\Payment\Domain\Refund;
@@ -42,13 +43,30 @@ final class PaymentPresenter
     }
 
     /**
+     * @param Collected|null $collected what the payment collects, and who that
+     *                                  document names (2026-09-26) — null
+     *                                  where the invoice has since been
+     *                                  removed, which nothing in this platform
+     *                                  does but which a read must survive
+     *
      * @return array<string, mixed>
      */
-    public static function one(Payment $payment): array
+    public static function one(Payment $payment, ?Collected $collected = null): array
     {
         return [
             'id' => $payment->id,
             'invoice_id' => $payment->invoiceId,
+            // The document and its customer, beside the attempt to collect it
+            // (2026-09-26). An administrator sees every payment the
+            // organisation has, and without these a list of twelve identical
+            // amounts was a list of twelve identical rows.
+            //
+            // Null rather than absent, and null rather than a placeholder: an
+            // invoice still in draft has no number, and inventing one is how a
+            // hole enters a sequence that must not have one.
+            'invoice_number' => $collected?->number,
+            'customer_name' => $collected?->customerName,
+            'customer_email' => $collected?->customerEmail,
             'subscription_id' => $payment->subscriptionId,
             'provider' => $payment->provider,
             'provider_payment_id' => $payment->providerPaymentId,
@@ -66,13 +84,35 @@ final class PaymentPresenter
     }
 
     /**
-     * @param list<Payment> $payments
+     * @param list<Payment>            $payments
+     * @param array<string, Collected> $collected by invoice id, for the whole
+     *                                            page at once — one extra read
+     *                                            for twenty-five rows, never
+     *                                            twenty-five
      *
      * @return list<array<string, mixed>>
      */
-    public static function many(array $payments): array
+    public static function many(array $payments, array $collected = []): array
     {
-        return array_map(self::one(...), $payments);
+        return array_map(
+            static fn (Payment $payment): array => self::one($payment, $collected[$payment->invoiceId] ?? null),
+            $payments,
+        );
+    }
+
+    /**
+     * The invoice ids a page of payments collects, for one read of them.
+     *
+     * @param list<Payment> $payments
+     *
+     * @return list<string>
+     */
+    public static function invoicesOf(array $payments): array
+    {
+        return array_values(array_unique(array_map(
+            static fn (Payment $payment): string => $payment->invoiceId,
+            $payments,
+        )));
     }
 
     /**
