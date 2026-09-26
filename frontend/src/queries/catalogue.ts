@@ -131,6 +131,19 @@ export function useProducts(enabled = true) {
  */
 export type PendingMembership = { readonly tenant: string; readonly name: string };
 
+/**
+ * An organisation this person is a live member of, and the product it opens
+ * on (2026-09-26).
+ *
+ * `default_product` rides here and not on `/organisation`, which needs
+ * `X-Product` — and this is the read that answers *which* product, so it
+ * cannot be behind one. Per organisation, because a person can belong to
+ * several and each names its own.
+ */
+export type Membership = PendingMembership & {
+  readonly default_product?: string | null;
+};
+
 export function useMyProducts(enabled = true) {
   const client = useApiClient();
 
@@ -142,7 +155,7 @@ export function useMyProducts(enabled = true) {
       readonly products: readonly Product[];
       readonly default: string | null;
       /** The organisations this person belongs to, by slug (2026-09-18): where their root is. */
-      readonly memberships: readonly PendingMembership[];
+      readonly memberships: readonly Membership[];
       /** Where this person asked to join and is still waiting (2026-09-17). */
       readonly pending: readonly PendingMembership[];
     }> => {

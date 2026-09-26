@@ -14,10 +14,16 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
- * PATCH /api/v1/tenants/current — rename the tenant.
+ * PATCH /api/v1/tenants/current — rename the tenant, set how people join,
+ * and name the product it opens on.
  *
  * The slug is not writable: it may already appear in stored references, so
  * renaming is a display change rather than a change of identity.
+ *
+ * `default_product` is a **code**, and `null` clears it (2026-09-26). It is
+ * the administrator's answer for everybody who has not given their own, and
+ * it never overrides one who has — a person's profile default and an address
+ * naming a product both win over it.
  */
 final class UpdateCurrentTenantController implements RouteHandler
 {
@@ -40,6 +46,17 @@ final class UpdateCurrentTenantController implements RouteHandler
         $tenant = $body->has('name')
             ? $this->tenants->rename($context->tenantId, $body->requiredString('name', 120))
             : $this->tenants->current($context->tenantId);
+
+        // After the rename, and with `has()` rather than a null check: an
+        // absent field leaves the default alone, and an explicit `null`
+        // clears it. Those are two different requests and a nullable read
+        // alone cannot tell them apart.
+        if ($body->has('default_product')) {
+            $tenant = $this->tenants->chooseDefaultProduct(
+                $context->tenantId,
+                $body->optionalNullableString('default_product', 64),
+            );
+        }
 
         $current = $this->joining->policy($context->tenantId);
         $joining = $body->has('join_policy') || $body->has('join_domains')

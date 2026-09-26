@@ -48,9 +48,14 @@ final class PostgresJoinRequests implements JoinRequests
 
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
-                SELECT DISTINCT t.id, t.slug, t.name
+                SELECT DISTINCT t.id, t.slug, t.name, p.code AS default_product
                   FROM tenant_members tm
                   JOIN tenants t ON t.id = tm.tenant_id
+                  -- Which product this organisation opens on (2026-09-26).
+                  -- Here rather than from `/organisation`, which needs a
+                  -- product to be asked at all — and this is the answer to
+                  -- "which product", so it cannot require one.
+                  LEFT JOIN products p ON p.id = t.default_product_id
                  WHERE tm.user_id = :user AND tm.status = 'ACTIVE'
                  ORDER BY t.name
                 SQL,
@@ -61,6 +66,7 @@ final class PostgresJoinRequests implements JoinRequests
             'tenant_id' => Row::string($row, 'id'),
             'slug' => Row::string($row, 'slug'),
             'name' => Row::string($row, 'name'),
+            'default_product' => Row::nullableString($row, 'default_product'),
         ], $rows);
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tenant\Service;
 
+use App\Shared\Exceptions\BadRequestException;
 use App\Shared\Exceptions\NotFoundException;
 use App\Tenant\Domain\Tenant;
 use App\Tenant\Domain\TenantRepository;
@@ -37,6 +38,34 @@ final class TenantProfile
         // rather than silently updating nothing and reporting success.
         $this->current($tenantId);
         $this->tenants->rename($tenantId, $name);
+
+        return $this->current($tenantId);
+    }
+
+    /**
+     * Names the product this organisation opens on, or clears it
+     * (2026-09-26).
+     *
+     * A courtesy, never an authority: it decides where a screen opens and
+     * nothing about what anybody may reach there. Somebody who has chosen a
+     * product on their own profile keeps it, and an address naming one wins
+     * over both.
+     *
+     * @throws BadRequestException when the code names no product this tenant
+     *                             holds — which is the database's answer,
+     *                             read back rather than guessed at
+     */
+    public function chooseDefaultProduct(string $tenantId, ?string $productCode): Tenant
+    {
+        $this->current($tenantId);
+
+        if (!$this->tenants->chooseDefaultProduct($tenantId, $productCode)) {
+            throw new BadRequestException(
+                'VALIDATION_FAILED',
+                'The request body is not valid.',
+                ['field' => 'default_product', 'requirement' => 'must be a product this organisation holds'],
+            );
+        }
 
         return $this->current($tenantId);
     }

@@ -28,7 +28,10 @@ interface JoinRequests
      * belongs at `/acme/`. The counterpart of {@see pendingFor}, and read the
      * same way: distinct organisations, whatever the products.
      *
-     * @return list<array{tenant_id: string, slug: string, name: string}>
+     * Each one carries the product it opens on (2026-09-26), because the
+     * shell needs that answer before it has a product to ask anything with.
+     *
+     * @return list<array{tenant_id: string, slug: string, name: string, default_product: string|null}>
      */
     public function memberOf(string $userId): array;
 

@@ -155,6 +155,24 @@ final class PostgresTenantProducts implements TenantProducts
                 );
             }
 
+            // And the organisation's opening product, if it was this one
+            // (2026-09-26). In the same transaction and before the row goes,
+            // so a default cannot outlive the assignment it depended on.
+            //
+            // Here rather than through a composite foreign key to
+            // `tenant_products`, which would say it once and enforce it
+            // always — and would make `tenants` and `tenant_products`
+            // reference each other. A cycle in the schema costs more than
+            // this statement does; the migration says why.
+            $this->connection->executeStatement(
+                <<<'SQL'
+                    UPDATE tenants
+                       SET default_product_id = NULL, updated_at = now()
+                     WHERE id = :tenant AND default_product_id = :product
+                    SQL,
+                ['tenant' => $tenantId, 'product' => $productId],
+            );
+
             // Memberships in the product, and their roles, go by cascade.
             $this->connection->executeStatement(
                 'DELETE FROM tenant_products WHERE tenant_id = :tenant AND product_id = :product',

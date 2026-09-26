@@ -20,8 +20,15 @@ import { hasLanded, markLanded, useSessionStore } from '@/state/session';
  *    navigation, because the router's basepath is fixed when the page boots.
  *    Where they already stand under a root that is theirs, nothing moves.
  * 2. **The product.** The person's own default — the product they signed up
- *    for, or chose on their profile — unless the address names one, which is
- *    somebody saying which they mean now.
+ *    for, or chose on their profile — and failing that **their
+ *    organisation's** (2026-09-26), which its administrator set. Unless the
+ *    address names one, which is somebody saying which they mean now.
+ *
+ *    The order is the point: an administrator answers for everybody who has
+ *    not answered for themselves, and never over one who has. Below both sits
+ *    the bundle's `VITE_DEFAULT_PRODUCT`, which is the only answer there was
+ *    until today — a constant compiled in, so a deployment leading with Plan
+ *    showed Atlas until somebody rebuilt it.
  * 3. **Their first screen**, once. The first entry of their own menu: their
  *    work for a member, the console's setup for platform staff — on
  *    arrival only, so a deliberate return to `/` stays on the story.
@@ -93,16 +100,20 @@ export function useLanding(atLanding: boolean, sections: readonly NavSection[] =
       }
     }
 
-    // 2. The product: theirs, unless the address says otherwise.
+    // 2. The product: theirs, then their organisation's, unless the address
+    // says otherwise. `??` and not `||`, so an organisation that has cleared
+    // its answer is a null and not an empty string standing in for one.
     const named = new URLSearchParams(window.location.search).get('product');
+    const organisation = known.memberships.find((membership) => membership.tenant === (root.replace(/^\//, '') || defaultSlug));
+    const wanted = preferred ?? organisation?.default_product ?? null;
 
     if (
       named === null &&
-      preferred !== null &&
-      preferred !== productCode &&
-      products.some((product) => product.code === preferred)
+      wanted !== null &&
+      wanted !== productCode &&
+      products.some((product) => product.code === wanted)
     ) {
-      chooseProduct(preferred);
+      chooseProduct(wanted);
 
       return;
     }

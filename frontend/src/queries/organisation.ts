@@ -68,6 +68,13 @@ export type OrganisationChange = {
   readonly name?: string;
   readonly join_policy?: JoinPolicy;
   readonly join_domains?: readonly string[];
+  /**
+   * Which product the organisation opens on (2026-09-26): a product code, or
+   * `null` to clear it. Absent leaves it alone — which is why it is typed
+   * `string | null` and read with `in`, not `=== undefined`: an explicit null
+   * is a decision and has to travel.
+   */
+  readonly default_product?: string | null;
 };
 
 export function useUpdateOrganisation() {
@@ -82,6 +89,9 @@ export function useUpdateOrganisation() {
           ...(change.name === undefined ? {} : { name: change.name }),
           ...(change.join_policy === undefined ? {} : { join_policy: change.join_policy }),
           ...(change.join_domains === undefined ? {} : { join_domains: [...change.join_domains] }),
+          // `in`, not a null check: clearing the default is sending null, and
+          // a check that treated null as "not asked" would make it unclearable.
+          ...('default_product' in change ? { default_product: change.default_product } : {}),
         },
       });
 
@@ -91,11 +101,14 @@ export function useUpdateOrganisation() {
 
       return data.tenant;
     },
-    onSuccess: (tenant) => {
+    onSuccess: async (tenant) => {
       // Written straight into the cache rather than refetched: the API answered
       // with the row it wrote, so asking again would be a round trip to learn
       // what we were just told.
       queryClient.setQueryData(keys.organisation.current, tenant);
+      // But the product a landing opens on rides on `GET /products`, which is
+      // a different read and has just been made wrong (2026-09-26).
+      await queryClient.invalidateQueries({ queryKey: keys.catalogue.myProducts });
     },
   });
 }

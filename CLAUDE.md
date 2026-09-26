@@ -744,6 +744,24 @@ numbers for one parcel with nothing to say which is right. Shaping a payload to
 the contract's format (closing a GeoJSON ring, mapping a tap to a coordinate) is
 presentation, not calculation.
 
+**Which product a screen opens on is four answers, in order** (2026-09-26):
+
+```text
+?product=                      an address saying which one is meant now
+localStorage                   what this browser last used
+the person's own default       users.default_product_id, on their profile
+the organisation's             tenants.default_product_id, its administrator's
+VITE_DEFAULT_PRODUCT           the bundle's constant, last
+```
+
+The organisation's is new, and the constant is why: it is compiled in, so a
+deployment that leads with Plan opened on Atlas until somebody rebuilt it, and
+an administrator could do nothing about it. It is a **courtesy and never an
+authority** — it settles where a screen opens and nothing about what anybody
+may reach there — and it never overrides a person who has answered for
+themselves. A code naming a product the organisation does not hold is refused
+on write, cleared when the product is unassigned, and ignored on read.
+
 **Gate on a capability when the plan decides, on a permission when the role
 does.** `isEntitled('gis.access')`, not `can(...)`: geometry touches no tenant
 data, so there is no question of what a role may do with it. The two refusals
