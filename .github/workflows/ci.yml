@@ -235,6 +235,13 @@ jobs:
       - name: No mutation that moves money is optimistic
         run: composer run gate:money
 
+      # The roles document claims 100% coverage, which is true the day it is
+      # written and false a fortnight later unless something recounts. Both
+      # ways, like gate:ui: an operation in no role's chapter fails the build,
+      # and so does a chapter describing an operation the contract has dropped.
+      - name: Every operation belongs to a role
+        run: composer run gate:roles
+
       # The time bound lives here, on the step, rather than in Composer's
       # 300-second default for the subprocesses it spawns. That default is
       # sized for downloading packages, and when the suite crossed it the job
