@@ -7,8 +7,14 @@ products; `product_id` is a first-class request context alongside `tenant_id`.
 See [`CLAUDE.md`](CLAUDE.md) for the rules that govern changes here, and
 [`docs/architecture-v2.md`](docs/architecture-v2.md) for the architecture
 decisions behind them. For who may do what —
-the two identities, the six roles and the 48 permissions between them —
+the two identities, the six roles and the 50 permissions between them —
 see [`docs/identities-and-permissions.md`](docs/identities-and-permissions.md).
+For what each of the three roles **lives through**, and what every one of the
+219 operations changes once done,
+see [`docs/three-roles-end-to-end.md`](docs/three-roles-end-to-end.md) —
+recounted both ways by `composer run gate:roles`, and readable as a
+[web page](https://claude.ai/artifact/FzNeUwduBBSxdjfoPKCy5t) (private: a
+dated copy of that document, so the repository wins where they disagree).
 Stripe is the payment provider, built from
 [`docs/stripe-payments.md`](docs/stripe-payments.md) and recorded in
 [ADR-048](docs/adr/ADR-048-stripe-is-the-first-real-provider-and-the-page-talks-to-it.md).
@@ -65,7 +71,13 @@ Individually:
 | `composer run gate:products` | That no code branches on product identity (§12.1) |
 | `composer run gate:plans` | That no code branches on a plan or tier name (§13) |
 | `composer run gate:entitlements` | That no controller decides an entitlement question itself (§13, R4) |
-| `composer run gate:openapi` | That `openapi.json` and the router describe the same API — all 116 operations, both directions |
+| `composer run gate:openapi` | That `openapi.json` and the router describe the same API — all 219 operations, both directions |
+| `composer run gate:ui` | That every operation is reachable in the UI, or has a written reason not to be |
+| `composer run gate:screens` | That every screen area has a route and calls every operation it claims |
+| `composer run gate:permissions` | That the frontend gates on permissions and capabilities the platform defines |
+| `composer run gate:money` | That no mutation carrying money writes to the cache before the server answers |
+| `composer run gate:roles` | That `docs/three-roles-end-to-end.md` accounts for every operation, both directions |
+| `composer run gate:ci` | That CI runs every gate in this chain, and nothing else |
 | `composer run test` | PHPUnit |
 
 `composer run cs:fix` applies formatting fixes.
