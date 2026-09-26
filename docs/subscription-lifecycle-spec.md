@@ -341,22 +341,43 @@ souscription sans terme. **La seconde est recommandée** — elle n'ajoute aucun
 colonne et le freemium devient un abonnement d'une seule période qui ne se
 reconduit pas.
 
-### 6.4 La phrase à lever
+### 6.4 Le freemium se prend **une seule fois**, jamais deux
 
-> *« Je ne peux pas avoir qu'un abonnement freemium pas de renouvellement
-> possible »*
+Tranché (2026-09-26) : un compte a droit au freemium **une fois**, et une
+fois pour toutes. Sans cette règle, cinq jours de gratuit se reprennent tous
+les cinq jours et le produit est gratuit pour toujours par récurrence.
 
-Deux lectures, et elles ne donnent pas le même code :
+**Une fois pour toutes veut dire y compris terminé.** L'index qui l'impose ne
+filtre donc **pas** sur le statut — c'est ce qui le distingue de
+`subscriptions_one_active_per_scope`, qui ne regarde que les vivants. Un
+freemium `EXPIRED` il y a six mois interdit toujours d'en reprendre un.
 
-1. **« Je ne peux avoir *qu'un seul* abonnement freemium »** — un compte n'a
-   droit au freemium qu'une fois, jamais deux (sinon on le reprend tous les
-   cinq jours indéfiniment). Se fait par un index unique partiel sur
-   (`subscriber`, plan freemium), y compris sur les abonnements terminés.
-2. **« Je ne peux pas n'avoir *que* du freemium »** — le freemium ne se
-   suffit pas, il faut basculer sur du payant.
+```sql
+-- Le fait est recopié sur l'abonnement à la souscription, comme les
+-- conditions (§13.1) : jamais une jointure vers la version d'offre, qui
+-- dit ce que le plan est *aujourd'hui* et non ce qui a été vendu.
+ALTER TABLE subscriptions ADD COLUMN is_freemium boolean NOT NULL DEFAULT false;
 
-La lecture **1** est la plus probable et c'est un vrai garde-fou : sans elle,
-le freemium est gratuit pour toujours par récurrence. **À confirmer.**
+CREATE UNIQUE INDEX subscriptions_one_freemium_ever
+    ON subscriptions (product_id, coalesce(subscriber_user_id, tenant_id))
+ WHERE is_freemium;
+```
+
+`coalesce` porte les deux genres de souscripteur : la surface locataire ne
+vend que des sièges (ADR-055), mais `TENANT` reste une colonne et porte les
+lignes qu'un déploiement a déjà.
+
+**Un index et pas une vérification applicative** — la même raison qu'à
+§13.1 : deux souscriptions simultanées passent à travers un `SELECT` puis
+`INSERT`, et pas à travers un index.
+
+**Par produit**, parce qu'un abonnement nomme toujours un produit : goûter
+Plan n'a jamais rien dit de Boreas.
+
+L'écran doit le dire avant le refus. Le catalogue n'offre pas *Souscrire* sur
+le freemium à quelqu'un qui l'a déjà eu, et le serveur refuse quand même —
+`FREEMIUM_ALREADY_USED`, avec sa formulation dans `ErrorSurface` — parce que
+masquer est une politesse et l'API décide.
 
 ---
 
@@ -415,10 +436,12 @@ pas ; la TVA suit le montage retenu.
 Tests : un impayé suspend ; le refus se distingue de « votre organisation ne
 vous couvre pas » ; une relance est une nouvelle tentative.
 
-**Étape 6 — le freemium.** La renumérotation des rangs (10, puis de 10 en 10), la valeur de `renewal`, le chemin de
-souscription sans facture, l'unicité du §6.4, et le plan dans la
-démonstration (1 utilisateur, 1 projet, 5 jours) avec sa vérification dans
-`DemoFixtures::verify`.
+**Étape 6 — le freemium.** La renumérotation des rangs (10, puis de 10 en
+10), l'unicité à vie du §6.4 — colonne et index, jamais une vérification
+applicative — la valeur de `renewal`, le chemin de souscription sans facture,
+et le plan dans la démonstration (1 utilisateur, 1 projet, 5 jours) avec sa
+vérification dans `DemoFixtures::verify`. Test : un freemium terminé interdit
+toujours d'en reprendre un.
 
 **Étape 7 — l'écran catalogue**, une fois que 2, 3 et 4 répondent.
 
@@ -436,8 +459,6 @@ démonstration (1 utilisateur, 1 projet, 5 jours) avec sa vérification dans
 4. **L'ordre entre Freemium et Lecture** : le gratuit sous le payant, ou les
    deux au même niveau commercial ? La renumérotation est tranchée — 10, puis
    de 10 en 10. (§6.2)
-5. **« Qu'un abonnement freemium »** : une seule fois par compte, ou le
-   freemium ne se suffit pas ? (§6.4)
-6. Le **calendrier de relance** (J+1 / J+3 / J+7 ?) (§5.2)
+5. Le **calendrier de relance** (J+1 / J+3 / J+7 ?) (§5.2)
 
 Aucune n'est technique ; toutes changent le code.
