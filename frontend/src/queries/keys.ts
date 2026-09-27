@@ -108,7 +108,13 @@ export const keys = {
   },
   subscription: {
     current: ['subscription', 'current'] as const,
+    // The prefix every change invalidates, and the two answers under it: the
+    // organisation's schedule and the caller's own seat's. One key for both
+    // would have served whichever was asked for first — a catalogue showing
+    // the tenant's cancellation decision beside a seat's Résilier, which is
+    // the wrong document about the wrong subscription.
     schedule: ['subscription', 'schedule'] as const,
+    scheduleFor: (seat: boolean) => ['subscription', 'schedule', seat ? 'seat' : 'tenant'] as const,
     entitlements: ['subscription', 'entitlements'] as const,
     people: (seat: boolean) => ['subscription', 'people', seat ? 'seat' : 'tenant'] as const,
     // What changing to one offer would cost (spec §7). Keyed on the offer,

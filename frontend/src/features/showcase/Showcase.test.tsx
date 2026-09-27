@@ -26,6 +26,18 @@ const OFFER = {
     price: { minor_units: 3900, currency: 'EUR' },
     valid_from: '2026-01-01T00:00:00Z',
     valid_until: null,
+    // Not the free period, and what it commits to (2026-09-27). Both are the
+    // contract's, so a fixture that left them out would be a shop window
+    // describing an offer no server can send.
+    freemium: false,
+    terms: {
+      term_months: null,
+      commitment_months: 0,
+      cancellation_policy: 'ANYTIME' as const,
+      renewal: 'AUTO_RENEW' as const,
+      early_termination: 'FREE' as const,
+      notice_days: 0,
+    },
     grants: [],
   },
 };

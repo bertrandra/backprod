@@ -115,16 +115,20 @@ export function useSubscription(enabled = true) {
  * a frontend working it out from `current_period_end` would produce a second
  * answer that disagrees at every commitment boundary.
  */
-export function useSchedule() {
+export function useSchedule(seat = false, enabled = true) {
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.subscription.schedule,
+    queryKey: keys.subscription.scheduleFor(seat),
+    enabled,
     queryFn: async () => {
-      const { data, error, response } = await client.GET(
-        '/api/v1/subscription/schedule',
-        ambientParams(sessionSnapshot),
-      );
+      const ambient = ambientParams(sessionSnapshot);
+      const { data, error, response } = await client.GET('/api/v1/subscription/schedule', {
+        // A GET has no body, so whose subscription it is travels in the query —
+        // a flag and never an id, the shape `cancelScheduledChange` uses and
+        // the shape the endpoint this one predicts uses.
+        params: { ...ambient.params, query: seat ? { seat: '1' } : {} },
+      });
 
       if (error !== undefined || data === undefined) {
         throw toApiError(response.status, error);

@@ -104,7 +104,7 @@
     },
     "commerce.catalogue": {
       "authority": "tenant",
-      "$comment": "What a product sells, and the one acquisition that happens here rather than through the checkout: startFreemium (spec §6). A free period raises no order, no invoice and no payment — nothing is outstanding, so nothing is raised — and the button for it is on the card that advertises it, beside Souscrire. Everything with a price goes to commerce.checkout.",
+      "$comment": "What a product sells, and the one acquisition that happens here rather than through the checkout: startFreemium (spec §6). A free period raises no order, no invoice and no payment — nothing is outstanding, so nothing is raised — and the button for it is on the card that advertises it, beside Souscrire. Everything with a price goes to commerce.checkout. Since étape 7 (spec §7) the rows also *change* what is already held — previewOfferChange, changeOffer, scheduleOfferChange, cancelScheduledChange, showSchedule and cancelSubscription — and those stay claimed by tenant.subscription, which is where they are the subject rather than an offer's consequence: an operation has one home in this map, and gate:screens checks that the frontend calls it, not from which screen.",
       "routes": [
         "/",
         "/catalogue"

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commerce\Controller;
 
+use App\Commerce\Service\Freemium;
 use App\Commerce\Service\Subscriptions;
 use App\Shared\Context\RequestContextReader;
 use App\Shared\Http\RouteHandler;
@@ -28,8 +29,10 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 final class ShowSubscriptionController implements RouteHandler
 {
-    public function __construct(private readonly Subscriptions $subscriptions)
-    {
+    public function __construct(
+        private readonly Subscriptions $subscriptions,
+        private readonly Freemium $freemium,
+    ) {
     }
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
@@ -73,6 +76,19 @@ final class ShowSubscriptionController implements RouteHandler
             // what the catalogue offers to buy depends on both. Always
             // theirs, so never withheld.
             'seat' => $seat === null ? null : SubscriptionPresenter::one($seat),
+            // Whether the caller's one free period is spent (spec §6.4). The
+            // caller's own fact, like `seat` and never withheld, and here
+            // rather than on the offer because it is a property of the person
+            // and not of what is on sale.
+            //
+            // The catalogue needs it *before* a click: §6.4 says a free period
+            // is given once and once for all, so the button must not be
+            // offered to somebody who has had one — and the row that would
+            // otherwise mislead worst is the move *down* to it, which for that
+            // person is a cancellation rather than a change of plan. Hiding is
+            // courtesy; `subscriptions_one_freemium_ever` is the authority and
+            // this read agrees with it by construction.
+            'freemium_used' => $this->freemium->alreadyTaken($context->productId, $context->userId),
             // The organisation's commercial record — what it was on before,
             // and every change anybody made. That is an administrator's
             // question; a member it covers is concerned by what entitles

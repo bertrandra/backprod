@@ -38,6 +38,19 @@ const OFFER = {
     price: { minor_units: 2900, currency: 'EUR' },
     valid_from: '2026-01-01T00:00:00Z',
     valid_until: null,
+    // The platform's answer to "is this the free period" (spec §6) and what
+    // subscribing on it commits to (§7): both are required by the contract and
+    // both are read by the catalogue, so a fixture without them describes a
+    // server that cannot exist.
+    freemium: false,
+    terms: {
+      term_months: null,
+      commitment_months: 0,
+      cancellation_policy: 'ANYTIME',
+      renewal: 'AUTO_RENEW',
+      early_termination: 'FREE',
+      notice_days: 0,
+    },
     grants: [],
   },
 };

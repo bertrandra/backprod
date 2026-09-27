@@ -159,7 +159,9 @@ final class CataloguePresenter
         // ones their own browser happens to be set to.
         return array_merge(self::version($version), [
             'status' => $version->status,
-            'terms' => self::terms($version->terms),
+            // `terms` was repeated here until the sale view gained it
+            // (2026-09-27). One copy, from `version()`, because two would drift
+            // the day one of them learns about a new condition.
             // The same grants as the sale view, plus the feature *id* of each.
             //
             // ADR-033 freezes a published version, so changing what an offer
@@ -222,6 +224,31 @@ final class CataloguePresenter
             // subscription period, which §12 keeps deliberately separate.
             'valid_from' => self::moment($version->validFrom),
             'valid_until' => $version->validUntil === null ? null : self::moment($version->validUntil),
+            // Whether this version is the free period (spec §6), answered by
+            // the domain rather than derived by whoever reads it.
+            //
+            // The catalogue has to tell a free period from a priced offer to
+            // know which door to send somebody to — `startFreemium` raises no
+            // document, `openCheckoutSession` refuses this offer outright — and
+            // there are exactly two wrong ways for a client to work that out.
+            // By a plan's code is §13's forbidden comparison. By the
+            // properties (`price == 0 && renewal == ENDS_AT_TERM`) is a
+            // business rule copied into the frontend, where §4 does not let one
+            // live, and `renewal` is not even in this schema. So it is said
+            // here, once, by {@see OfferVersion::isFreemium()} — the same
+            // method the door itself asks.
+            'freemium' => $version->isFreemium(),
+            // What subscribing on this version commits to, on the **sale**
+            // view and not only the authoring one (2026-09-27, spec §7).
+            //
+            // The catalogue's first row says price, period *and commitment*
+            // before the button, and there was no way to say the third: a
+            // client cannot derive how long somebody agrees to stay from how
+            // often they pay, which is precisely the conflation
+            // non-negotiable #23 exists to forbid. It is the same snapshot the
+            // subscription takes when it is taken out (§13.1), so what a buyer
+            // reads here is what they will be held to.
+            'terms' => self::terms($version->terms),
             'grants' => array_map(
                 static fn (OfferGrant $grant): array => self::grant($grant, $locale),
                 $version->grants,
