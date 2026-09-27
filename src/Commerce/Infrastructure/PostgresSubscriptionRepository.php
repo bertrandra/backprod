@@ -523,6 +523,11 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                                notice_days = :noticeDays,
                                current_period_start = coalesce(current_period_end, now()),
                                current_period_end = :periodEnd,
+                               -- Only ever set, never cleared (ADR-059). A free
+                               -- period reached by a scheduled change spends the
+                               -- right exactly as the door does, and the move up
+                               -- out of it later does not hand the right back.
+                               is_freemium = is_freemium OR :arrivingIsFree,
                                pending_offer_version_id = NULL,
                                pending_effective_at = NULL,
                                pending_requested_at = NULL,
@@ -531,7 +536,14 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                          WHERE id = :id
                         SQL,
                     self::reSnapshot($subscription, $offer, new DateTimeImmutable())
-                        + ['periodEnd' => self::moment($periodEnd), 'id' => $subscription->id],
+                        + [
+                            'periodEnd' => self::moment($periodEnd),
+                            'arrivingIsFree' => $offer->version->isFreemium(),
+                            'id' => $subscription->id,
+                        ],
+                    // Typed, because PDO hands an untyped `false` to
+                    // PostgreSQL as an empty string and the column refuses it.
+                    ['arrivingIsFree' => ParameterType::BOOLEAN],
                 );
 
                 $this->record(

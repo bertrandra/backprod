@@ -47,3 +47,27 @@ export const test = base.extend({
 });
 
 export { expect } from '@playwright/test';
+
+/**
+ * A latch a route handler can wait on, so a test decides when a read lands.
+ *
+ * Every transient state — a skeleton, a busy region, a frame painted while its
+ * data is still outstanding — lasts exactly as long as the request behind it.
+ * Stubbing that request with a `setTimeout` makes the state last a fixed number
+ * of milliseconds of **wall clock**, and then the assertion is racing the
+ * machine: the application's own start-up stretches under load while the sleep
+ * does not, so the window closes before the page is ready to be looked at. That
+ * is a test that fails on a busy laptop and passes in CI, which is the shape of
+ * a test people learn to ignore.
+ *
+ * Held open instead, the window is unbounded and the assertion is about the
+ * application rather than about how fast this machine happens to be today.
+ */
+export function heldOpen(): { held: Promise<void>; release: () => void } {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  return { held, release };
+}

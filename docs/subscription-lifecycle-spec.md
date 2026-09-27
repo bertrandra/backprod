@@ -598,10 +598,19 @@ toujours d'en reprendre un.
 > `Sales::order()` la refuse, `Freemium::take()` rencontre l'index — donc cinq
 > jours dépensés se reprenaient en changeant de plan, `is_freemium` restant
 > faux. Refusée désormais à l'endroit partagé, donc l'aperçu le dit avant le
-> clic et l'acte après. Ce qui reste : une descente vers le freemium **autorisée**
-> (pour qui n'y a jamais eu droit) ne pose toujours pas `is_freemium` quand le
-> renouvellement l'applique, si bien que ce chemin-là consomme le droit sans
-> l'enregistrer.
+> clic et l'acte après.
+>
+> **Et le reste a suivi** (2026-09-27) : une descente vers le freemium
+> *autorisée* — pour qui n'y a jamais eu droit — ne posait pas `is_freemium`
+> quand le renouvellement l'appliquait, si bien que ce chemin consommait le
+> droit sans l'enregistrer et qu'on pouvait reprendre sa « première » période
+> gratuite ensuite. `applyPendingChange` le pose désormais, en
+> `is_freemium OR :arrivingIsFree` : **jamais effacé, seulement posé** — une
+> montée hors du gratuit ne rend pas le droit (ADR-059) et une descente dessus
+> le dépense (§6.4), et le OR dit les deux d'un coup. Le prédicat est
+> `OfferVersion::isFreemium()` et jamais un prix nul : un plan gratuit qui se
+> reconduit n'est pas une période gratuite, et le marquer dépenserait un droit
+> que son titulaire n'a pas pris.
 >
 > La vue de vente porte aussi `terms` : « prix, période, engagement » demandait
 > l'engagement, et il n'était que dans la vue d'édition.

@@ -1,6 +1,6 @@
-import type { Page } from '@playwright/test';
+import type { Page, Request } from '@playwright/test';
 
-import { expect, stubSession, test } from './support/app';
+import { expect, heldOpen, stubSession, test } from './support/app';
 
 /**
  * What the application does when the API is not there, and how fast it is when
@@ -50,8 +50,19 @@ const INVOICE = {
   gross: { minor_units: 3480, currency: 'EUR' },
 };
 
-/** Every read answered, optionally after a delay, and countable. */
-async function online(page: Page, latencyMs = 0) {
+/**
+ * Every read answered, optionally after a delay or a latch, and countable.
+ *
+ * `hold` is asked, per request, for something to wait on before answering it —
+ * `undefined` to answer at once. A latch rather than a delay is what lets a test
+ * assert on a state that only exists while a request is outstanding without
+ * betting on how long the rest of the page takes to get there (`heldOpen`).
+ */
+async function online(
+  page: Page,
+  latencyMs = 0,
+  hold?: (request: Request) => Promise<void> | undefined,
+) {
   const state = { requests: 0 };
 
   await page.route(/\/api\/v1\//, async (route) => {
@@ -60,6 +71,8 @@ async function online(page: Page, latencyMs = 0) {
     if (latencyMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, latencyMs));
     }
+
+    await hold?.(route.request());
 
     return route.fulfill({
       json: {
@@ -232,35 +245,69 @@ test.describe('performance budgets', () => {
   /**
    * Every route must paint its frame before its data arrives.
    *
-   * The API is stubbed at 800ms. A screen that renders its shell first is
-   * readable well inside that; a screen that waits for everything shows nothing
-   * until the last query lands, which is the failure this measures. The budget
-   * is the frame, not the content.
+   * A screen that renders its shell first is readable while it waits; a screen
+   * that waits for everything shows nothing until the last query lands, which is
+   * the failure this measures.
+   *
+   * **Asserted as an order, not as a duration.** This used to stub the API at
+   * 800ms, time the navigation with `Date.now()` and require the frame inside
+   * 3s. That number measured the machine rather than the application: it
+   * contained the browser's cold start, the bundle's download and its parse —
+   * all of which stretch when something else is running on the same laptop,
+   * while the stub's 800ms did not stretch with them. Measured serially on a
+   * quiet machine the frame was in the DOM 0.7–1.3s after navigation start and
+   * the screen's first read left within a few milliseconds of it, so first paint
+   * had every bit of headroom the budget claimed to check — and the assertion
+   * still failed at 4.3s and 5.9s beside a compile. A budget that fails for a
+   * reason it cannot name is a budget people learn to skip, and a test only ever
+   * skipped locally is one that no longer defends anything locally.
+   *
+   * So the screen's own reads are **held open for the whole test** and never
+   * answered. The frame must appear anyway, and say something while it waits. A
+   * screen that blocked on its data could not pass this at any speed, and a
+   * screen that does not cannot fail it on a slow one.
    */
   const ROUTES = ['/invoices', '/projects', '/jobs', '/orders', '/subscription'] as const;
 
+  /**
+   * What the frame itself needs: the session, the product, the menu.
+   *
+   * Named as one set rather than per route, because that is exactly the claim —
+   * the frame depends on the bootstrap and on nothing else. Adding a screen's
+   * query here to make a test pass would empty the list of meaning, which is why
+   * it sits in the open rather than beside each route.
+   */
+  const BOOTSTRAP = /^\/api\/v1\/(auth\/refresh|me|me\/navigation|staff\/me|products)$/;
+
   for (const route of ROUTES) {
     test(`${route} paints its frame before its data`, async ({ page }) => {
-      await online(page, 800);
+      const { held, release } = heldOpen();
 
-      const started = Date.now();
+      await online(page, 0, (request) =>
+        BOOTSTRAP.test(new URL(request.url()).pathname) ? undefined : held,
+      );
+
       await page.goto(`${route}?product=atlas`);
 
       // Region A and the navigation are the frame. They depend on the session,
-      // which is one request — not on the screen's own queries.
-      await expect(page.locator('[data-region="context-bar"]')).toBeVisible();
-      await expect(page.locator('[data-region="view-body"]')).toBeVisible();
-
-      const framePainted = Date.now() - started;
-
-      // One round trip of headroom, not five. A screen that serialised its
-      // queries would blow through this.
-      expect(framePainted).toBeLessThan(3_000);
+      // which is the bootstrap above — not on the screen's own queries, every
+      // one of which is still in flight here and will stay there until the end
+      // of this test.
+      //
+      // The timeout is deliberately far above anything this takes: it detects a
+      // frame that never comes, it is not a budget. The assertion is that the
+      // frame is here while the data is not.
+      await expect(page.locator('[data-region="context-bar"]')).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator('[data-region="view-body"]')).toBeVisible({ timeout: 20_000 });
 
       // And the body says something while it waits, rather than being blank.
       const body = await page.locator('[data-region="view-body"]').textContent();
 
       expect((body ?? '').trim().length).toBeGreaterThan(0);
+
+      // Let the held reads land before the page closes, so no route handler is
+      // still suspended when Playwright tears the context down.
+      release();
     });
   }
 
