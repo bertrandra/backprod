@@ -37,6 +37,20 @@ use Psr\Http\Server\RequestHandlerInterface;
 final class RateLimitMiddleware implements MiddlewareInterface
 {
     /**
+     * Keeping a session alive, which is not knocking on the door (ADR-062).
+     *
+     * These two are public because the credential is a cookie rather than a
+     * bearer token, and they were counted with the storefront and the
+     * password form — sixty a minute per address. Every tab of every person
+     * behind one office NAT refreshes on its own clock, so the count ran out,
+     * the refresh answered 429, and a browser that read that as "signed out"
+     * signed people out. Nothing here can be guessed: the only credential
+     * either accepts is 256 bits from the CSPRNG. So they have a bucket of
+     * their own, at the allowance a signed-in caller gets.
+     */
+    private const SESSION_PATHS = ['/api/v1/auth/refresh', '/api/v1/auth/sign-out'];
+
+    /**
      * @param list<string> $trustedProxies addresses whose X-Forwarded-For may
      *                                     be believed; empty means none
      */
@@ -53,11 +67,12 @@ final class RateLimitMiddleware implements MiddlewareInterface
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $path = $request->getUri()->getPath();
-        $public = $this->policy->for($path) === RoutePolicy::PUBLIC;
+        $session = in_array($path, self::SESSION_PATHS, true);
+        $public = !$session && $this->policy->for($path) === RoutePolicy::PUBLIC;
         $limit = $public ? $this->publicLimit : $this->limit;
 
         $decision = $this->limiter->hit(
-            $this->bucketFor($request, $public),
+            $this->bucketFor($request, $session ? 'session' : ($public ? 'public' : 'default')),
             $this->windowSeconds,
             $limit,
         );
@@ -81,12 +96,8 @@ final class RateLimitMiddleware implements MiddlewareInterface
      * application — which is the outage the limit was supposed to prevent,
      * arriving by a different route.
      */
-    private function bucketFor(ServerRequestInterface $request, bool $public): string
+    private function bucketFor(ServerRequestInterface $request, string $rule): string
     {
-        return sprintf(
-            '%s|%s',
-            ClientAddress::of($request, $this->trustedProxies),
-            $public ? 'public' : 'default',
-        );
+        return sprintf('%s|%s', ClientAddress::of($request, $this->trustedProxies), $rule);
     }
 }

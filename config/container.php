@@ -19,6 +19,7 @@ use App\Auth\Domain\AuthProvider;
 use App\Auth\Domain\LocalCredentialRepository;
 use App\Auth\Domain\LocalTokens;
 use App\Auth\Domain\PublicKeys;
+use App\Auth\Domain\RefreshRotation;
 use App\Auth\Domain\RefreshTokenRepository;
 use App\Auth\Domain\TokenIssuer;
 use App\Auth\Infrastructure\LocalJwtAuthProvider;
@@ -785,7 +786,16 @@ return static function (array $overrides = []): ContainerInterface {
         // let anybody who can reach the API decide where a confirmation link
         // points.
         Sessions::class => autowire(Sessions::class)
-            ->constructorParameter('appUrl', $env('APP_URL')),
+            ->constructorParameter('appUrl', $env('APP_URL'))
+            ->constructorParameter('rotation', get(RefreshRotation::class))
+            ->constructorParameter('maxSessionAge', (int) $env('AUTH_SESSION_MAX_AGE', (string) Sessions::MAX_SESSION_AGE)),
+
+        // What a refresh token is replaced by (ADR-062): derived from the
+        // secret the access tokens are signed with, and the one before it
+        // during a rotation, so there is no second secret to forget.
+        RefreshRotation::class => factory(
+            static fn (): RefreshRotation => new RefreshRotation($env('AUTH_SIGNING_SECRET'), $env('AUTH_SIGNING_SECRET_PREVIOUS')),
+        ),
 
         // Where the refresh cookie belongs (2026-09-24). Empty is host-only,
         // which is what a deployment on one host wants; a registrable domain

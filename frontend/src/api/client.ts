@@ -1,6 +1,15 @@
 import createClient, { type Middleware } from 'openapi-fetch';
 
 import type { components, paths } from './generated/schema';
+import {
+  browserEnvironment,
+  classify,
+  registerRenewal,
+  renewalFor,
+  type Renewal,
+  type RenewalEnvironment,
+  SessionRenewal,
+} from './renewal';
 
 /**
  * The only module in this application that reaches the API.
@@ -151,19 +160,55 @@ export function offlineMiddleware(): Middleware {
 }
 
 /**
+ * How this client asks `/auth/refresh`, as a {@link Renewal}.
+ *
+ * Carries `X-Product` when a product is chosen, so the renewed token names it
+ * (ADR-051 milestone E) — renewing without it quietly turned a product's token
+ * back into the platform's alone after the first hour.
+ */
+function askToRefresh(
+  context: ApiContext,
+  baseUrl: string,
+  send: (request: Request) => Promise<Response>,
+): () => Promise<Renewal> {
+  return async () => {
+    const product = context.product();
+    const headers = new Headers();
+
+    if (product !== null && product !== '') {
+      headers.set(PRODUCT_HEADER, product);
+    }
+
+    let answer: Response;
+
+    try {
+      answer = await send(new Request(`${baseUrl}/api/v1/auth/refresh`, { method: 'POST', credentials: 'include', headers }));
+    } catch {
+      return { kind: 'unavailable' };
+    }
+
+    // A 429 or a proxy's error page has no JSON in it, and is still an answer.
+    const body: unknown = await answer.json().catch(() => null);
+
+    return classify(answer.status, body);
+  };
+}
+
+/**
  * A session that lapsed while nobody was looking (2026-09-19).
  *
  * The lifecycle hook renews the token a minute before it expires — while
  * the tab is awake. A laptop closed for the night wakes with a timer that
  * never fired and a token an hour dead, and the first screen to ask
- * anything was answered 401 and said "you are signed out" while the store
- * still said signed in; nothing led to the form. So the transport handles
- * it where it happens: a 401 on a request that carried a bearer token asks
- * `/auth/refresh` **once** — every concurrent 401 joins the same attempt,
- * because a second refresh with a cookie the first just rotated is what
- * ADR-038 treats as theft — and, renewed, sends the same request again with
- * the new token. Refused, it tells the context the session is over, and the
- * gate shows the sign-in form on its own.
+ * anything is answered 401. So the transport handles it where it happens: a
+ * 401 on a request that carried a bearer token renews through the one
+ * {@link SessionRenewal} this client has — shared with every concurrent 401,
+ * with the lifecycle hook, and under a lock with every other tab (ADR-062) —
+ * and, renewed, sends the same request again with the new token.
+ *
+ * **Only a refusal ends the session.** Rate-limited, failing or unreachable,
+ * the original 401 goes back to the screen and the session stays: the cookie
+ * is as good as it was, and the next attempt may well succeed.
  *
  * The auth routes themselves are left alone: a 401 from them *is* the
  * answer, and renewing on a failed sign-in would loop.
@@ -172,43 +217,9 @@ export function renewalMiddleware(
   context: ApiContext,
   baseUrl: string,
   send: (request: Request) => Promise<Response>,
+  renewal: SessionRenewal = new SessionRenewal(askToRefresh(context, baseUrl, send)),
 ): Middleware {
   const bodies = new Map<string, Request>();
-  let renewing: Promise<string | null> | null = null;
-
-  const renew = (): Promise<string | null> => {
-    renewing ??= (async () => {
-      try {
-        const answer = await send(new Request(`${baseUrl}/api/v1/auth/refresh`, { method: 'POST', credentials: 'include' }));
-
-        if (!answer.ok) {
-          context.expired?.();
-
-          return null;
-        }
-
-        const grant = (await answer.json()) as { access_token?: unknown; expires_in?: unknown };
-
-        if (typeof grant.access_token !== 'string' || typeof grant.expires_in !== 'number') {
-          context.expired?.();
-
-          return null;
-        }
-
-        context.renewed?.({ accessToken: grant.access_token, expiresIn: grant.expires_in });
-
-        return grant.access_token;
-      } catch {
-        // Unreachable is not expired: the offline middleware says so, and
-        // the session stays until the server actually refuses it.
-        return null;
-      } finally {
-        renewing = null;
-      }
-    })();
-
-    return renewing;
-  };
 
   return {
     onRequest({ id, request }) {
@@ -227,14 +238,22 @@ export function renewalMiddleware(
         return undefined;
       }
 
-      const token = await renew();
+      const outcome = await renewal.renew();
 
-      if (token === null) {
+      if (outcome.kind === 'refused') {
+        context.expired?.();
+
         return undefined;
       }
 
+      if (outcome.kind === 'unavailable') {
+        return undefined;
+      }
+
+      context.renewed?.(outcome.grant);
+
       const again = new Request(original, { headers: new Headers(original.headers) });
-      again.headers.set('Authorization', `Bearer ${token}`);
+      again.headers.set('Authorization', `Bearer ${outcome.grant.accessToken}`);
 
       return send(again);
     },
@@ -342,6 +361,11 @@ export interface ClientOptions {
    * was wrong in production.
    */
   readonly fetch?: (request: Request) => Promise<Response>;
+  /**
+   * The cross-tab lock and channel. The browser's by default; a test passes
+   * `{}` for a renewal confined to one client.
+   */
+  readonly environment?: RenewalEnvironment;
 }
 
 /**
@@ -363,12 +387,18 @@ export interface ClientOptions {
  */
 export const DEFAULT_BASE_URL = '';
 
-export function createApiClient({ baseUrl = DEFAULT_BASE_URL, context, fetch }: ClientOptions) {
+export function createApiClient({ baseUrl = DEFAULT_BASE_URL, context, fetch, environment }: ClientOptions) {
   const client = createClient<paths>(fetch === undefined ? { baseUrl } : { baseUrl, fetch });
+  const send = fetch ?? ((request: Request) => globalThis.fetch(request));
+
+  // One door for renewing the session, shared by the middleware below and
+  // the lifecycle hook, and locked across tabs (ADR-062).
+  const renewal = new SessionRenewal(askToRefresh(context, baseUrl, send), environment ?? browserEnvironment());
+  registerRenewal(client, renewal);
 
   client.use(contextMiddleware(context));
   // A lapsed session is renewed once and the request sent again (2026-09-19).
-  client.use(renewalMiddleware(context, baseUrl, fetch ?? ((request) => globalThis.fetch(request))));
+  client.use(renewalMiddleware(context, baseUrl, send, renewal));
   // After the context middleware, so a request that was built correctly and
   // then failed to travel is the case this handles.
   client.use(offlineMiddleware());
@@ -377,3 +407,21 @@ export function createApiClient({ baseUrl = DEFAULT_BASE_URL, context, fetch }: 
 }
 
 export type ApiClient = ReturnType<typeof createApiClient>;
+
+/**
+ * The one {@link SessionRenewal} this client renews through (ADR-062): the
+ * instance its own middleware uses, so the lifecycle hook, the 401 retry and
+ * a sign-out all go through the same door. A client that was not built here —
+ * a test's stub — gets one that asks through its own `POST`, created once.
+ */
+export function renewalOf(client: ApiClient): SessionRenewal {
+  return renewalFor(
+    client,
+    () =>
+      new SessionRenewal(async () => {
+        const { data, response } = await client.POST('/api/v1/auth/refresh', {});
+
+        return classify(response.status, data);
+      }),
+  );
+}

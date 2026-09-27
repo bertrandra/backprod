@@ -1,6 +1,7 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
-import type { ApiClient, Schemas } from '@/api/client';
+import { renewalOf } from '@/api/client';
 import { useApiClient } from '@/app/providers/ApiProvider';
 import { useSessionStore } from '@/state/session';
 
@@ -14,69 +15,70 @@ import { useSessionStore } from '@/state/session';
 const RENEW_MARGIN_MS = 60_000;
 
 /**
- * What a resume answers: the session, or nothing. Named from the contract so
- * the map below has a type to hold, and the generic on `POST` is not lost to
- * `any` through `ReturnType`.
+ * How long to wait before asking again when the server could not answer —
+ * rate-limited, failing or unreachable (ADR-062). Growing, and capped, so a
+ * long outage is not met with a request a second from every open tab.
  */
-type Resumed = { readonly data?: Schemas['Session'] };
+const RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000];
 
-function askToResume(client: ApiClient): Promise<Resumed> {
-  return client.POST('/api/v1/auth/refresh', {});
+function retryDelay(attempt: number): number {
+  return RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)] ?? 60_000;
 }
 
 /**
- * The resume in flight, one per client.
+ * Keeps a signed-in session signed in, recovers one across a reload, and keeps
+ * every tab of this browser in step (ADR-062).
  *
- * React's StrictMode mounts, unmounts and mounts again in development, so the
- * effect below runs twice with nothing on screen in between — and "cancel the
- * first, start a second" is exactly wrong here. Both requests would carry the
- * same cookie: the server rotates it on the first and, on the second, sees a
- * token already spent, which ADR-038 treats as theft and answers by revoking
- * every session the account has. The first sign-in in development would be
- * undone by the page that performed it. So a second run *joins* the request
- * already in flight rather than sending its own, and the entry is cleared
- * once the answer is in — after which a new restore is a new question.
+ * **Every renewal goes through one door** — `renewalOf(client)`, the same
+ * instance the request middleware retries 401s through — which runs one
+ * refresh at a time across every tab and tells the others what happened. React's
+ * StrictMode double mount, two tabs restored together, a timer and a 401 firing
+ * in the same second after sleep: each used to be its own request with the same
+ * cookie, and each is now one.
  *
- * Keyed by client rather than a module-wide singleton so two providers (the
- * tests hand every render its own) never share an answer.
- */
-const resuming = new WeakMap<ApiClient, Promise<Resumed>>();
-
-function resume(client: ApiClient): Promise<Resumed> {
-  const inFlight = resuming.get(client);
-
-  if (inFlight !== undefined) {
-    return inFlight;
-  }
-
-  const request = askToResume(client).finally(() => {
-    resuming.delete(client);
-  });
-
-  resuming.set(client, request);
-
-  return request;
-}
-
-/**
- * Keeps a signed-in session signed in, and recovers one across a reload.
- *
- * **This hook no longer knows whether there is anything to recover**, and that is
- * the U12 change. It used to read a refresh token out of `localStorage` and decide;
- * now it simply asks `/api/v1/auth/refresh`, and the browser attaches an
- * `HttpOnly` cookie that this code cannot see. A 401 means "not signed in", which
- * is an answer rather than a guess — and one that cannot be wrong because storage
- * was cleared, blocked, or read from the wrong key.
- *
- * Two effects, because they answer different questions. The first runs once: is
- * there a session to resume? The second runs whenever the token changes: when
- * should this one be renewed?
+ * **Only a refusal signs anybody out.** Rate-limited, failing or unreachable,
+ * the session is kept and asked about again shortly. On a reload that means
+ * `unreachable` rather than the sign-in form: the cookie may be fine, and
+ * asking somebody to sign in because their Wi-Fi was slow to wake throws away
+ * a session that was.
  */
 export function useSessionLifecycle(): void {
   const client = useApiClient();
+  const queryClient = useQueryClient();
   const status = useSessionStore((state) => state.status);
   const expiresAt = useSessionStore((state) => state.expiresAt);
 
+  // What other tabs did. A renewed token is taken as this tab's own — the
+  // cookie behind it is shared anyway — and an ended session ends here too,
+  // cache and all, so nothing belonging to it is left on screen.
+  useEffect(
+    () =>
+      renewalOf(client).subscribe((message) => {
+        const current = useSessionStore.getState().status;
+
+        if (message.kind === 'renewed') {
+          // Not into a tab that is signed out: it may be half-way through
+          // creating an account, and swapping the page from under it would
+          // lose the checkout that follows. It resumes on its next load.
+          if (current !== 'anonymous') {
+            useSessionStore.getState().signIn({
+              accessToken: message.accessToken,
+              expiresIn: Math.max(0, Math.floor((message.expiresAt - Date.now()) / 1000)),
+            });
+          }
+
+          return;
+        }
+
+        if (current === 'signed-in') {
+          useSessionStore.getState().forget();
+          queryClient.clear();
+        }
+      }),
+    [client, queryClient],
+  );
+
+  // Is there a session to resume? Asked on load, and again from `unreachable`.
   useEffect(() => {
     if (status !== 'restoring') {
       return;
@@ -85,26 +87,20 @@ export function useSessionLifecycle(): void {
     let cancelled = false;
 
     void (async () => {
-      const { data } = await resume(client);
+      const outcome = await renewalOf(client).renew();
 
       if (cancelled) {
         return;
       }
 
-      if (data === undefined) {
-        // Any failure lands on the sign-in form, and that is right for all of
-        // them: no cookie, a revoked one, or a provider that cannot be reached.
-        // Waiting inside a blank page fixes none of those, and a form at least
-        // says something.
+      if (outcome.kind === 'renewed') {
+        useSessionStore.getState().signIn(outcome.grant);
+      } else if (outcome.kind === 'refused') {
+        // No cookie, or one the server has ended: the honest answer is the form.
         useSessionStore.getState().forget();
-
-        return;
+      } else {
+        useSessionStore.getState().unreachable();
       }
-
-      useSessionStore.getState().signIn({
-        accessToken: data.access_token,
-        expiresIn: data.expires_in,
-      });
     })();
 
     return () => {
@@ -112,36 +108,63 @@ export function useSessionLifecycle(): void {
     };
   }, [status, client]);
 
+  // Unreachable: ask again after a while, and at once when the browser says
+  // the network is back.
+  useEffect(() => {
+    if (status !== 'unreachable') {
+      return;
+    }
+
+    const retry = () => useSessionStore.getState().retryRestore();
+    const timer = setTimeout(retry, retryDelay(0));
+
+    window.addEventListener('online', retry);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('online', retry);
+    };
+  }, [status]);
+
+  // When should this token be renewed?
   useEffect(() => {
     if (status !== 'signed-in' || expiresAt === null) {
       return;
     }
 
-    // Never negative: a token that arrives already inside the margin is renewed
-    // immediately rather than scheduled in the past.
-    const delay = Math.max(expiresAt - Date.now() - RENEW_MARGIN_MS, 0);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
-    const timer = setTimeout(() => {
+    const attempt = (failures: number) => {
       void (async () => {
-        const { data } = await client.POST('/api/v1/auth/refresh', {});
+        const outcome = await renewalOf(client).renew();
 
-        if (data === undefined) {
-          // One attempt. Retrying against a server that has refused the cookie is
-          // noise, and the honest outcome is the sign-in form.
-          useSessionStore.getState().forget();
-
+        if (cancelled) {
           return;
         }
 
-        useSessionStore.getState().signIn({
-          accessToken: data.access_token,
-          expiresIn: data.expires_in,
-        });
+        if (outcome.kind === 'renewed') {
+          // A new `expiresAt`, which re-runs this effect and schedules the next.
+          useSessionStore.getState().signIn(outcome.grant);
+        } else if (outcome.kind === 'refused') {
+          useSessionStore.getState().forget();
+          queryClient.clear();
+        } else {
+          // The session stands. Requests made meanwhile may be answered 401
+          // once the access token lapses; the middleware asks through the same
+          // door, and whichever attempt succeeds first renews every tab.
+          timer = setTimeout(() => attempt(failures + 1), retryDelay(failures));
+        }
       })();
-    }, delay);
+    };
+
+    // Never negative: a token that arrives already inside the margin is renewed
+    // immediately rather than scheduled in the past.
+    timer = setTimeout(() => attempt(0), Math.max(expiresAt - Date.now() - RENEW_MARGIN_MS, 0));
 
     return () => {
+      cancelled = true;
       clearTimeout(timer);
     };
-  }, [status, expiresAt, client]);
+  }, [status, expiresAt, client, queryClient]);
 }

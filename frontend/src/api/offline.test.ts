@@ -6,6 +6,8 @@ import { toApiError } from '@/queries/session';
 describe('a request that never arrives', () => {
   it('becomes a 503 carrying the §10.4 envelope', async () => {
     const client = createApiClient({
+      // No lock and no channel: a renewal confined to this client.
+      environment: {},
       // An absolute base, because this test builds a real Request and jsdom has
       // no origin to resolve a relative path against.
       baseUrl: 'https://api.test',

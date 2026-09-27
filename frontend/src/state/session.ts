@@ -19,8 +19,13 @@ import { create } from 'zustand';
  * have a refresh token and are two hundred milliseconds from having an access
  * token" — and showing a sign-in form to somebody who is already signed in is
  * the second one rendered as the first. `restoring` is the difference.
+ *
+ * And a fourth (ADR-062): **`unreachable`** — a reload that could not ask the
+ * server at all. The cookie may be perfectly good; the network is not. Showing
+ * the sign-in form for that was the second one rendered as the first again,
+ * and signing in from it would have thrown away a session that was fine.
  */
-export type SessionStatus = 'restoring' | 'anonymous' | 'signed-in';
+export type SessionStatus = 'restoring' | 'anonymous' | 'signed-in' | 'unreachable';
 
 /** What a successful exchange gives this browser to work with. */
 export interface Grant {
@@ -72,6 +77,10 @@ interface SessionState {
    * change, and it is the same state change either way.
    */
   forget: () => void;
+  /** A restore that could not reach the server: nothing decided, nothing forgotten. */
+  unreachable: () => void;
+  /** Ask again — from `unreachable`, when the network may be back. */
+  retryRestore: () => void;
   chooseProduct: (code: string) => void;
 }
 
@@ -232,6 +241,12 @@ export const useSessionStore = create<SessionState>((set) => ({
     remember(null);
     forgetLanding();
     set({ token: null, productCode: null, expiresAt: null, status: 'anonymous' });
+  },
+  unreachable: () => {
+    set({ status: 'unreachable' });
+  },
+  retryRestore: () => {
+    set((state) => (state.status === 'unreachable' ? { status: 'restoring' } : {}));
   },
   chooseProduct: (productCode) => {
     remember(productCode);

@@ -7,25 +7,49 @@ namespace App\Auth\Infrastructure;
 use App\Auth\Domain\RefreshTokenRepository;
 use App\Auth\Domain\StoredRefreshToken;
 use App\Shared\Database\Row;
+use App\Shared\Database\Uuid;
 use Doctrine\DBAL\Connection;
 use SensitiveParameter;
 
 final class PostgresRefreshTokenRepository implements RefreshTokenRepository
 {
+    /**
+     * Everything the service asks of a row, computed by the clock that wrote
+     * it. Comparing in PHP would compare the database's timestamps against
+     * the web server's idea of now.
+     */
+    private const COLUMNS = <<<'SQL'
+        SELECT t.id,
+               t.user_id,
+               t.token_hash,
+               t.family_id,
+               t.replaced_by,
+               u.auth_subject,
+               u.email,
+               (t.revoked_at IS NOT NULL) AS revoked,
+               (t.expires_at <= now()) AS expired,
+               CAST(floor(extract(epoch FROM now() - t.revoked_at)) AS integer) AS revoked_seconds_ago,
+               CAST(floor(extract(epoch FROM now() - t.family_started_at)) AS integer) AS family_age_seconds,
+               CAST(floor(extract(epoch FROM t.expires_at - now())) AS integer) AS expires_in_seconds
+          FROM auth_refresh_tokens t
+          JOIN users u ON u.id = t.user_id
+        SQL;
+
     public function __construct(private readonly Connection $connection)
     {
     }
 
-    public function issue(string $userId, #[SensitiveParameter] string $tokenHash, int $lifetimeSeconds): string
+    public function start(string $userId, #[SensitiveParameter] string $tokenHash, int $lifetimeSeconds): string
     {
-        // `now()` and the interval are computed by the database, so the lifetime
-        // is measured against the one clock every row in this table was written
-        // by. A web server whose clock has drifted would otherwise issue tokens
-        // that expire at times unrelated to each other.
+        // Its own family: `family_id` is the id this row is given, which
+        // needs the id before the insert — so it is generated here, by the
+        // database, in the same statement.
         $id = $this->connection->fetchOne(
             <<<'SQL'
-                INSERT INTO auth_refresh_tokens (user_id, token_hash, expires_at)
-                VALUES (:user_id, :token_hash, now() + make_interval(secs => :lifetime))
+                WITH new AS (SELECT gen_random_uuid() AS id)
+                INSERT INTO auth_refresh_tokens (id, user_id, token_hash, expires_at, family_id, family_started_at)
+                SELECT new.id, :user_id, :token_hash, now() + make_interval(secs => :lifetime), new.id, now()
+                  FROM new
                 RETURNING id
                 SQL,
             ['user_id' => $userId, 'token_hash' => $tokenHash, 'lifetime' => $lifetimeSeconds],
@@ -36,28 +60,125 @@ final class PostgresRefreshTokenRepository implements RefreshTokenRepository
 
     public function find(#[SensitiveParameter] string $tokenHash): ?StoredRefreshToken
     {
-        // `revoked` and `expired` are computed here, by the same clock that wrote
-        // `expires_at`. Comparing in PHP would compare the database's timestamp
-        // against the web server's idea of now.
         $row = $this->connection->fetchAssociative(
-            <<<'SQL'
-                SELECT t.id,
-                       t.user_id,
-                       u.auth_subject,
-                       u.email,
-                       (t.revoked_at IS NOT NULL) AS revoked,
-                       (t.expires_at <= now()) AS expired
-                FROM auth_refresh_tokens t
-                JOIN users u ON u.id = t.user_id
-                WHERE t.token_hash = :token_hash
-                  AND u.erased_at IS NULL
-                SQL,
+            self::COLUMNS . ' WHERE t.token_hash = :token_hash AND u.erased_at IS NULL',
             ['token_hash' => $tokenHash],
         );
 
-        if ($row === false) {
+        return $row === false ? null : self::hydrate($row);
+    }
+
+    public function findById(string $id): ?StoredRefreshToken
+    {
+        if (!Uuid::isValid($id)) {
             return null;
         }
+
+        $row = $this->connection->fetchAssociative(
+            self::COLUMNS . ' WHERE t.id = :id AND u.erased_at IS NULL',
+            ['id' => $id],
+        );
+
+        return $row === false ? null : self::hydrate($row);
+    }
+
+    public function rotate(string $id, #[SensitiveParameter] string $successorHash, int $lifetimeSeconds, int $maxAgeSeconds): ?string
+    {
+        return $this->connection->transactional(function () use ($id, $successorHash, $lifetimeSeconds, $maxAgeSeconds): ?string {
+            // The row lock is the whole of the concurrency story. A second
+            // caller waits here, then reads the token already rotated and
+            // returns the replacement the first one wrote.
+            $row = $this->connection->fetchAssociative(
+                <<<'SQL'
+                    SELECT (revoked_at IS NULL) AS live,
+                           (expires_at > now()) AS unexpired,
+                           (family_started_at + make_interval(secs => :max_age) > now()) AS young,
+                           replaced_by
+                      FROM auth_refresh_tokens
+                     WHERE id = :id
+                       FOR UPDATE
+                    SQL,
+                ['id' => $id, 'max_age' => $maxAgeSeconds],
+            );
+
+            if ($row === false) {
+                return null;
+            }
+
+            if (!(bool) $row['live']) {
+                return Row::nullableString($row, 'replaced_by');
+            }
+
+            if (!(bool) $row['unexpired'] || !(bool) $row['young']) {
+                return null;
+            }
+
+            // Capped by the sign-in's age, so the replacement cannot outlive
+            // the session it continues. `young` above guarantees the cap is in
+            // the future, which the table's `expires_after_issue` requires.
+            $successor = $this->connection->fetchOne(
+                <<<'SQL'
+                    INSERT INTO auth_refresh_tokens (user_id, token_hash, expires_at, family_id, family_started_at)
+                    SELECT user_id, :hash,
+                           least(now() + make_interval(secs => :lifetime),
+                                 family_started_at + make_interval(secs => :max_age)),
+                           family_id, family_started_at
+                      FROM auth_refresh_tokens
+                     WHERE id = :id
+                    RETURNING id
+                    SQL,
+                ['id' => $id, 'hash' => $successorHash, 'lifetime' => $lifetimeSeconds, 'max_age' => $maxAgeSeconds],
+            );
+
+            if (!is_string($successor)) {
+                throw new \RuntimeException('Could not rotate a refresh token.');
+            }
+
+            $this->connection->executeStatement(
+                'UPDATE auth_refresh_tokens SET revoked_at = now(), replaced_by = :successor WHERE id = :id',
+                ['id' => $id, 'successor' => $successor],
+            );
+
+            return $successor;
+        });
+    }
+
+    public function revokeFamily(string $familyId): int
+    {
+        if (!Uuid::isValid($familyId)) {
+            return 0;
+        }
+
+        // `revoked_at IS NULL` in the WHERE, so revoking twice cannot move a
+        // date: the first revocation is when a token stopped being usable.
+        return (int) $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE auth_refresh_tokens
+                   SET revoked_at = now()
+                 WHERE family_id = :family
+                   AND revoked_at IS NULL
+                SQL,
+            ['family' => $familyId],
+        );
+    }
+
+    public function revokeAllFor(string $userId): int
+    {
+        return (int) $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE auth_refresh_tokens
+                   SET revoked_at = now()
+                 WHERE user_id = :user_id
+                   AND revoked_at IS NULL
+                SQL,
+            ['user_id' => $userId],
+        );
+    }
+
+    /** @param array<string, mixed> $row */
+    private static function hydrate(array $row): StoredRefreshToken
+    {
+        $revokedAgo = $row['revoked_seconds_ago'] ?? null;
 
         return new StoredRefreshToken(
             Row::string($row, 'id'),
@@ -66,79 +187,12 @@ final class PostgresRefreshTokenRepository implements RefreshTokenRepository
             Row::nullableString($row, 'email'),
             (bool) ($row['revoked'] ?? false),
             (bool) ($row['expired'] ?? true),
-        );
-    }
-
-    public function revoke(string $id, ?string $replacedBy): bool
-    {
-        // `revoked_at IS NULL` in the WHERE, so revoking twice cannot move the
-        // date: the first revocation is when this token stopped being usable, and
-        // a later write would erase that fact.
-        //
-        // The row count is the answer to "was it me?". Two transactions that
-        // aim at the same live token serialise on its row lock, and the
-        // second re-reads it revoked and updates nothing — so the count is
-        // one for exactly one of them, however simultaneous they were.
-        $ended = $this->connection->executeStatement(
-            <<<'SQL'
-                UPDATE auth_refresh_tokens
-                SET revoked_at = now(),
-                    replaced_by = :replaced_by
-                WHERE id = :id
-                  AND revoked_at IS NULL
-                SQL,
-            ['id' => $id, 'replaced_by' => $replacedBy],
-        );
-
-        return (int) $ended === 1;
-    }
-
-    public function liveEndOfChainAfter(string $rotatedId, int $withinSeconds): ?string
-    {
-        // Forwards along `replaced_by`, which every rotation writes: the row
-        // presented, then what replaced it, then what replaced that. The walk
-        // terminates because each link is a row issued after the one pointing
-        // at it, and it is short because the root must have been rotated away
-        // seconds ago — a chain cannot grow more links than there were
-        // refreshes inside the window.
-        //
-        // Both clocks are the database's: how long ago the root was revoked,
-        // and whether the end has expired.
-        $end = $this->connection->fetchOne(
-            <<<'SQL'
-                WITH RECURSIVE chain AS (
-                    SELECT id, replaced_by, revoked_at, expires_at
-                    FROM auth_refresh_tokens
-                    WHERE id = :id
-                      AND revoked_at IS NOT NULL
-                      AND revoked_at > now() - make_interval(secs => :within)
-                    UNION ALL
-                    SELECT t.id, t.replaced_by, t.revoked_at, t.expires_at
-                    FROM auth_refresh_tokens t
-                    JOIN chain c ON t.id = c.replaced_by
-                )
-                SELECT id
-                FROM chain
-                WHERE revoked_at IS NULL
-                  AND expires_at > now()
-                LIMIT 1
-                SQL,
-            ['id' => $rotatedId, 'within' => $withinSeconds],
-        );
-
-        return is_string($end) ? $end : null;
-    }
-
-    public function revokeAllFor(string $userId): int
-    {
-        return (int) $this->connection->executeStatement(
-            <<<'SQL'
-                UPDATE auth_refresh_tokens
-                SET revoked_at = now()
-                WHERE user_id = :user_id
-                  AND revoked_at IS NULL
-                SQL,
-            ['user_id' => $userId],
+            Row::string($row, 'family_id'),
+            Row::nullableString($row, 'replaced_by'),
+            is_numeric($revokedAgo) ? (int) $revokedAgo : null,
+            is_numeric($row['family_age_seconds'] ?? null) ? (int) $row['family_age_seconds'] : 0,
+            is_numeric($row['expires_in_seconds'] ?? null) ? (int) $row['expires_in_seconds'] : 0,
+            Row::string($row, 'token_hash'),
         );
     }
 }

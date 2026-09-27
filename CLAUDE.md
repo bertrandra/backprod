@@ -773,20 +773,30 @@ store has a credential in it. `SignInGate` renders instead of the router when th
 is no session, so no screen ever mounts unauthenticated, and a reload resumes by
 asking `/auth/refresh` rather than by reading storage.
 
-A refresh rotates the token and revokes the one it was given. Presenting a spent
-one revokes every session for that account: replay and theft are indistinguishable
-from the server, and their costs are not (ADR-038).
+**A refresh rotates the token into a replacement derived from it** —
+`HMAC(key, token)`, the key derived from `AUTH_SIGNING_SECRET` (ADR-062). The same
+token presented again gets **the same** replacement for as long as that
+replacement has not been used. That is what makes rotation safe with one cookie
+shared by every tab and by the product beside the platform: two tabs at once,
+answers arriving out of order, a lid closed mid-request — all end with the
+browser holding the token the server holds, because there was only one to hold.
+The server cannot create two live tokens from one. Never replace a derived
+successor with random bytes; that is how the browser and the server came to
+disagree and signed people out (2026-09-27).
 
-**Except in the ten seconds after the rotation that spent it**, where they *are*
-distinguishable, because the cookie is shared across the hosts and two tabs
-refreshing at once both send whatever the jar held when their request left
-(2026-09-26). Inside that window a spent token whose chain still ends in a live
-one is a race: the caller is given a new pair and the chain's live end is
-revoked **in favour of it**, so the family still has exactly one live token. It
-is never issued *beside* the live one — two live tokens descended from one would
-make a spent token stop being evidence, and reuse detection is the whole defence.
-A token ended with no successor, by a sign-out or a password reset, raced with
-nothing and still sweeps the account.
+**Theft is a replacement that has been used, presented from before it** — only
+a second holder can do that. It revokes that **sign-in** (`family_id`), not the
+account: a glitch on one device must not sign somebody out of all of them. A
+password reset still ends every sign-in. A sign-in ends at `AUTH_SESSION_MAX_AGE`
+(90 days) however active, and a replacement never outlives it.
+
+**In the frontend, a refresh goes through one door**: `renewalOf(client)`
+(`api/renewal.ts`), shared by the restore, the renewal timer and the 401 retry,
+locked across tabs with a Web Lock and announced to them over a
+BroadcastChannel. **Only a 401 from `/auth/refresh` signs anybody out.** A 429, a
+5xx or no answer at all keeps the session and asks again: on a reload that is the
+`unreachable` state, never the sign-in form. `/auth/refresh` and `/auth/sign-out`
+have their own rate-limit bucket, at the signed-in allowance.
 
 Every request needs a product: pass `ambientParams(sessionSnapshot)` as the
 call's init. The contract declares `X-Product` required, so a call that omits it
