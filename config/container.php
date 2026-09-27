@@ -45,6 +45,8 @@ use App\Billing\Infrastructure\PostgresInvoiceDocumentRepository;
 use App\Billing\Infrastructure\PostgresInvoiceRepository;
 use App\Commerce\Domain\CatalogueAdministration;
 use App\Commerce\Domain\CatalogueRepository;
+use App\Commerce\Domain\ChangeCharge;
+use App\Commerce\Domain\ChangeCredit;
 use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\OfferAuthoringRepository;
 use App\Commerce\Domain\OfferLineDetails;
@@ -113,6 +115,7 @@ use App\Payment\Infrastructure\PostgresCollectedInvoices;
 use App\Payment\Infrastructure\PostgresPaymentRepository;
 use App\Payment\Infrastructure\Stripe\StripePaymentProvider;
 use App\Payment\Infrastructure\StubPaymentProvider;
+use App\Payment\Service\CreditTheUnconsumedPeriod;
 use App\Payment\Service\InvoiceSettlement;
 use App\Payment\Service\PaymentProviders;
 use App\Privacy\Domain\ErasureRepository;
@@ -148,6 +151,7 @@ use App\Sales\Domain\OrderFulfilment;
 use App\Sales\Domain\SalesRepository;
 use App\Sales\Infrastructure\PostgresSalesRepository;
 use App\Sales\Service\ChargeOnEarlyTermination;
+use App\Sales\Service\ChargeOnOfferChange;
 use App\Sales\Service\CompleteOrderOnPayment;
 use App\Sales\Service\InvoiceThenSubscribe;
 use App\Shared\Context\RequestContextMiddleware;
@@ -448,6 +452,16 @@ return static function (array $overrides = []): ContainerInterface {
         // numbered, taxed document. Bound here rather than called directly so
         // subscriptions never learn how an invoice is made.
         EarlyTerminationCharge::class => autowire(ChargeOnEarlyTermination::class),
+
+        // Moving up a plan, and the two halves of what that costs (spec §3).
+        // Both are ports for the same reason the one above is: subscriptions
+        // must not learn how an invoice is made, nor how money goes back.
+        //
+        // The charge is a sale, so it lives in the sales layer beside the other
+        // documents a subscription's lifecycle raises. The credit is a refund
+        // with its credit note (ADR-058), so it lives where refunds do.
+        ChangeCharge::class => autowire(ChargeOnOfferChange::class),
+        ChangeCredit::class => autowire(CreditTheUnconsumedPeriod::class),
 
         // The far side of the payment gate. Both ways an invoice can reach
         // PAID — a provider's webhook, an operator reconciling a transfer —

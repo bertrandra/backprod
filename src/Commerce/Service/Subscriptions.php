@@ -8,7 +8,11 @@ use App\Audit\Domain\AuditLog;
 use App\Audit\Domain\AuditRecord;
 use App\Commerce\Domain\CancellationDecision;
 use App\Commerce\Domain\CancellationPolicy;
+use App\Commerce\Domain\ChangeCharge;
+use App\Commerce\Domain\ChangeCredit;
+use App\Commerce\Domain\ChangeDecision;
 use App\Commerce\Domain\EarlyTerminationCharge;
+use App\Commerce\Domain\ProrationPolicy;
 use App\Commerce\Domain\SubscribedOffer;
 use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
@@ -39,6 +43,9 @@ final class Subscriptions
         private readonly CancellationPolicy $policy,
         private readonly EarlyTerminationCharge $charges,
         private readonly AuditLog $audit,
+        private readonly ProrationPolicy $proration,
+        private readonly ChangeCredit $credit,
+        private readonly ChangeCharge $newPeriod,
     ) {
     }
 
@@ -171,23 +178,48 @@ final class Subscriptions
      * version sells, because until 2026-09-27 it kept the conditions of the
      * offer it had left (spec §1c). The commitment is the exception, and the
      * reason is on {@see Subscription::commitmentAfterMovingTo()}.
+     *
+     * **And it is no longer free** (2026-09-27, spec §3). A move up used to
+     * change the entitlements and charge nothing at all: somebody on a €5 plan
+     * moved to a €39 one and was given the rest of the month, then billed the
+     * new price at renewal. That was not a proration computed wrongly, it was
+     * no billing whatever. What happens now is on {@see self::moveUpNow()}, and
+     * what it would cost is answerable beforehand through
+     * {@see self::previewChange()}.
+     *
+     * **Whose subscription is a flag and never an id** (2026-09-27). `$seat`
+     * names the caller's own seat rather than the organisation's subscription,
+     * exactly as {@see self::cancel()} does — and for the same reason §13.1
+     * gives: the only two subscribers are the tenant and the caller, and both
+     * come from the context, so there is no id to supply and nothing to check
+     * one against.
+     *
+     * It was not optional to add. The tenant surface sells seats and nothing
+     * else (ADR-055), so `subscriber_kind = TENANT` is a row no customer can
+     * create any more — and `findActive()` answers for that kind alone. Every
+     * change operation therefore reached a subscription nobody could own: this
+     * one, the deferred downgrade of étape 2 and the preview of étape 3 all
+     * found `NO_SUBSCRIPTION` for every real customer. The proration would have
+     * been built onto a door that does not open.
+     *
+     * @return array{
+     *     subscription: Subscription,
+     *     decision: ChangeDecision,
+     *     charge_invoice_id: string|null,
+     *     credit_refund_id: string|null,
+     * }
      */
     public function changeOffer(
         string $tenantId,
         string $productId,
         string $offerId,
         ?string $actorUserId,
-    ): Subscription {
-        $subscription = $this->requireCurrent($tenantId, $productId);
+        bool $seat = false,
+    ): array {
+        $subscription = $this->subscriptionFor($tenantId, $productId, $actorUserId, $seat);
         $offer = $this->sellable($productId, $offerId);
 
-        if ($offer->version->id === $subscription->offer->version->id) {
-            throw new ConflictException(
-                'ALREADY_ON_OFFER',
-                'This tenant is already on those terms.',
-            );
-        }
-
+        self::refuseIfAlreadyOnTheOffer($subscription, $offer);
         self::refuseIfTheCommitmentOutlastsTheTerm($subscription, $offer);
 
         $direction = self::directionBetween($subscription->offer->plan->rank, $offer->plan->rank);
@@ -199,15 +231,224 @@ final class Subscriptions
         // pending fields, so nothing about it is silent — the caller can see
         // that the offer did not move and when it will.
         if ($direction === self::DOWNGRADE) {
-            return $this->defer($subscription, $offer, $actorUserId);
+            return [
+                'subscription' => $this->defer($subscription, $offer, $actorUserId),
+                'decision' => $this->proration->deferred($subscription, $offer, $direction, new DateTimeImmutable()),
+                'charge_invoice_id' => null,
+                'credit_refund_id' => null,
+            ];
         }
 
-        return $this->subscriptions->changeOffer(
+        return $this->moveUpNow($subscription, $offer, $direction, $actorUserId);
+    }
+
+    /**
+     * What changing to another offer would do, without doing it (spec §7).
+     *
+     * The same object `changeOffer` acts on, which is the whole point:
+     * `showSchedule` and `cancelSubscription` share one `CancellationPolicy`
+     * so the preview of leaving cannot disagree with leaving, and this is that
+     * arrangement for a change of plan. A catalogue screen quoting a figure it
+     * worked out for itself would be quoting a number the server never agreed
+     * to.
+     *
+     * It answers for **both directions**. A move down costs nothing and takes
+     * effect later, and saying so before the click is what stops a customer
+     * discovering it afterwards — §7's table needs an answer for every row,
+     * not only the priced one.
+     *
+     * Read-only: nothing here writes, no document is raised and no number is
+     * allocated.
+     *
+     * `$seat` names the caller's own seat, as it does on every other operation
+     * here — and it is the one that matters, because a seat is the only
+     * subscription the tenant surface can sell (ADR-055).
+     *
+     * @return array{subscription: Subscription, decision: ChangeDecision}
+     */
+    public function previewChange(
+        string $tenantId,
+        string $productId,
+        string $offerId,
+        ?string $actorUserId = null,
+        bool $seat = false,
+    ): array {
+        $subscription = $this->subscriptionFor($tenantId, $productId, $actorUserId, $seat);
+        $offer = $this->sellable($productId, $offerId);
+
+        self::refuseIfAlreadyOnTheOffer($subscription, $offer);
+
+        // The same refusal the act makes, and made here for the same reason it
+        // is made there: the two rules of §3.3 can contradict the database's
+        // own CHECK, and a preview that answered "€12.40 today" for a change
+        // that will be refused is worse than no preview.
+        self::refuseIfTheCommitmentOutlastsTheTerm($subscription, $offer);
+
+        $direction = self::directionBetween($subscription->offer->plan->rank, $offer->plan->rank);
+
+        return [
+            'subscription' => $subscription,
+            'decision' => $this->decide($subscription, $offer, $direction, new DateTimeImmutable()),
+        ];
+    }
+
+    /**
+     * The one calculation, asked by the preview and by the act.
+     *
+     * A move down is deferred and free; anything else happens now and is
+     * priced — including a lateral move, because what decides whether there is
+     * a period to cut short is that the change is *immediate*, not which way
+     * the rank went.
+     */
+    private function decide(
+        Subscription $subscription,
+        SubscribedOffer $offer,
+        string $direction,
+        DateTimeImmutable $now,
+    ): ChangeDecision {
+        if ($direction === self::DOWNGRADE) {
+            return $this->proration->deferred($subscription, $offer, $direction, $now);
+        }
+
+        return $this->proration->immediate(
+            $subscription,
+            $offer,
+            $direction,
+            $this->credit->collectedFor($subscription),
+            $this->newPeriod->quote($subscription, $offer, $now),
+            $now,
+        );
+    }
+
+    /**
+     * A move that takes effect now, with its money (spec §3).
+     *
+     * ```text
+     * 1. work out the credit and the charge   refusable, writes nothing
+     * 2. give the credit back                 refund + credit note (ADR-058)
+     * 3. move the plan and invoice the period one transaction
+     * ```
+     *
+     * **The credit goes back before the plan moves, and that order is a
+     * decision.** ADR-058's own rule is that whatever can be refused must be
+     * refused before money is irreversible; here the refusable half *is* the
+     * credit — a multi-rate invoice cannot be part-credited — so it goes first
+     * and a refusal costs the customer nothing but an error message.
+     *
+     * Which leaves the question of a crash between 2 and 3, and the two
+     * answers are not equally bad. Credit-then-fail leaves the customer
+     * refunded for a period they still hold, said by a refund and a credit
+     * note that name the amount and the invoice — and retrying the change then
+     * finds nothing left to credit and simply charges the new period, which is
+     * the outcome that was wanted. Change-then-fail would leave them on the
+     * new plan with the old period's value owed to them and nothing but an
+     * event mentioning it, and no retry recovers that. A documented credit is
+     * better than an undocumented debt.
+     *
+     * **Nothing outstanding raises no document at all.** A charge of zero
+     * raises no invoice: numbering is gapless, so a €0 invoice is the
+     * permanent, unremovable record of no transaction.
+     *
+     * The commitment is not touched — {@see Subscription::commitmentAfterMovingTo()}
+     * holds that rule and the anchor reset does not reach it.
+     *
+     * @return array{
+     *     subscription: Subscription,
+     *     decision: ChangeDecision,
+     *     charge_invoice_id: string|null,
+     *     credit_refund_id: string|null,
+     * }
+     */
+    private function moveUpNow(
+        Subscription $subscription,
+        SubscribedOffer $offer,
+        string $direction,
+        ?string $actorUserId,
+    ): array {
+        // One moment for the whole move: the credit's share of the old period,
+        // the new anchor and the invoice's period all read the same clock, or
+        // they describe two different instants.
+        $now = new DateTimeImmutable();
+
+        $collected = $this->credit->collectedFor($subscription);
+
+        $decision = $this->proration->immediate(
+            $subscription,
+            $offer,
+            $direction,
+            $collected,
+            $this->newPeriod->quote($subscription, $offer, $now),
+            $now,
+        );
+
+        if (!$decision->accepted) {
+            throw new ConflictException(
+                'CHANGE_NOT_PERMITTED',
+                'This change of offer cannot be priced on these terms.',
+                $decision->toArray(),
+            );
+        }
+
+        $refundId = $decision->creditMinorUnits > 0
+            ? $this->credit->giveBack($subscription, $collected, $decision->creditMinorUnits, $actorUserId)
+            : null;
+
+        /** @var string|null $chargeInvoiceId assigned by reference inside the transaction */
+        $chargeInvoiceId = null;
+
+        $alsoBill = function (Subscription $moved) use (&$chargeInvoiceId, $decision, $offer, $now, $actorUserId): void {
+            if ($decision->chargeMinorUnits <= 0) {
+                return;
+            }
+
+            $chargeInvoiceId = $this->newPeriod->applyCharge(
+                $moved,
+                $offer,
+                $now,
+                $decision->newPeriodEnd,
+                $actorUserId,
+            );
+        };
+
+        $moved = $this->subscriptions->changeOffer(
             $subscription,
             $offer,
             $direction,
             $actorUserId,
+            // The anchor resets: the period the customer has just been
+            // credited for is over, and a new one starts today. That reset is
+            // also what makes a chain of upgrades need no credit balance
+            // (§3.4).
+            $now,
+            $decision->newPeriodEnd,
+            // The decision travels onto the event, credit and charge included,
+            // so "what was this move priced at?" is answerable from the
+            // subscription's own history rather than by re-deriving it against
+            // a clock that has moved on.
+            $decision->toArray() + ['credit_refund_id' => $refundId],
+            $alsoBill,
         );
+
+        return [
+            'subscription' => $moved,
+            'decision' => $decision,
+            'charge_invoice_id' => $chargeInvoiceId,
+            'credit_refund_id' => $refundId,
+        ];
+    }
+
+    /**
+     * Moving to the version already held is nothing, and saying so is kinder
+     * than a no-op that looks like success.
+     */
+    private static function refuseIfAlreadyOnTheOffer(Subscription $subscription, SubscribedOffer $offer): void
+    {
+        if ($offer->version->id === $subscription->offer->version->id) {
+            throw new ConflictException(
+                'ALREADY_ON_OFFER',
+                'This tenant is already on those terms.',
+            );
+        }
     }
 
     /**
@@ -225,16 +466,12 @@ final class Subscriptions
         string $productId,
         string $offerId,
         ?string $actorUserId,
+        bool $seat = false,
     ): Subscription {
-        $subscription = $this->requireCurrent($tenantId, $productId);
+        $subscription = $this->subscriptionFor($tenantId, $productId, $actorUserId, $seat);
         $offer = $this->sellable($productId, $offerId);
 
-        if ($offer->version->id === $subscription->offer->version->id) {
-            throw new ConflictException(
-                'ALREADY_ON_OFFER',
-                'This tenant is already on those terms.',
-            );
-        }
+        self::refuseIfAlreadyOnTheOffer($subscription, $offer);
 
         if (self::directionBetween($subscription->offer->plan->rank, $offer->plan->rank) !== self::DOWNGRADE) {
             throw new ConflictException(
@@ -258,8 +495,9 @@ final class Subscriptions
         string $tenantId,
         string $productId,
         ?string $actorUserId,
+        bool $seat = false,
     ): Subscription {
-        $subscription = $this->requireCurrent($tenantId, $productId);
+        $subscription = $this->subscriptionFor($tenantId, $productId, $actorUserId, $seat);
 
         if ($subscription->pending === null) {
             throw new ConflictException(

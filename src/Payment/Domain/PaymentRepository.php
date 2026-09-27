@@ -39,6 +39,28 @@ interface PaymentRepository
     public function latestForInvoice(string $tenantId, string $productId, string $invoiceId): ?Payment;
 
     /**
+     * The most recent **settled** payment against an invoice of a subscription
+     * (2026-09-27).
+     *
+     * What a proration credit is a share of: the money that actually bought
+     * the period now being cut short (spec §3.3). Settled and not merely
+     * started, because an authorization nobody collected is not money to give
+     * back.
+     *
+     * Asked through the invoice rather than through `payments.subscription_id`,
+     * and the reason is a real one: a seat's first invoice is raised *before*
+     * the subscription exists — the money is what starts it — so that payment
+     * carries no subscription id and only the invoice is ever linked back. A
+     * query on the column would silently miss the very first period of every
+     * subscription bought through the sales chain.
+     */
+    public function latestSettledForSubscription(
+        string $tenantId,
+        string $productId,
+        string $subscriptionId,
+    ): ?Payment;
+
+    /**
      * How many attempts an invoice has already had, settled or not.
      *
      * Used to build a provider reference that names the attempt rather than

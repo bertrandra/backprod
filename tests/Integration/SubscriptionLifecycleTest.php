@@ -10,6 +10,7 @@ use App\Commerce\Domain\CancellationPolicy;
 use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\Offer;
 use App\Commerce\Domain\OfferVersion;
+use App\Commerce\Domain\ProrationPolicy;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionEvent;
 use App\Commerce\Infrastructure\OfferVersionLoader;
@@ -20,6 +21,8 @@ use App\Commerce\Service\Catalogue;
 use App\Commerce\Service\Subscriptions;
 use App\Shared\Database\Row;
 use App\Shared\Exceptions\HttpException;
+use App\Tests\Support\NothingWasCollected;
+use App\Tests\Support\RecordingChangeCharge;
 use DateTimeImmutable;
 use Doctrine\DBAL\Exception\DriverException;
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -57,9 +60,19 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
     /** A higher plan sold for six months only — shorter than that commitment. */
     private string $shortTermOffer = '';
 
+    /** A plan ranked below `free`, so moving *up* to `free` costs nothing. */
+    private string $belowFreeOffer = '';
+
+    private RecordingChangeCharge $charge;
+
+    private NothingWasCollected $credit;
+
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->charge = new RecordingChangeCharge();
+        $this->credit = new NothingWasCollected();
 
         $this->product = $this->seedProduct('atlas');
         $this->tenant = $this->seedTenant('acme');
@@ -122,6 +135,16 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         );
         $this->grant($shortVersion, $this->projectsFeature, 500);
         $this->publish($shortVersion);
+
+        // A rank **below** `free`, which is priced at nothing: the pair that
+        // makes "a move up that costs nothing raises no document" reachable
+        // through the priced path rather than through a special case. It is
+        // also the shape the freemium plan will have.
+        $entry = $this->seedPlan('ENTRY', 5);
+        $this->belowFreeOffer = $this->seedOffer($entry, 'entry');
+        $entryVersion = $this->seedVersion($this->belowFreeOffer, 100, 'MONTHLY');
+        $this->grant($entryVersion, $this->projectsFeature, 1);
+        $this->publish($entryVersion);
     }
 
     // --- Activation ---------------------------------------------------------
@@ -289,12 +312,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         $this->subscribeToFree();
         self::assertSame(3, $this->limitFor('max_projects'));
 
-        $upgraded = $this->subscriptions()->changeOffer(
-            $this->tenant,
-            $this->product,
-            $this->proOffer,
-            $this->user,
-        );
+        $upgraded = $this->changeTo($this->proOffer);
 
         self::assertSame('pro', $upgraded->offer->code);
         self::assertSame(50, $this->limitFor('max_projects'));
@@ -311,23 +329,115 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
     // the date arrives is `testRenewalAppliesTheChangeThatHasComeDue`.
 
     /**
-     * A change keeps the period the tenant already paid for. Prorating money
-     * is billing, and billing is M6.
+     * A move up **resets the billing anchor** (2026-09-27, spec §3).
+     *
+     * This asserted the opposite until today — "a change keeps the period the
+     * tenant already paid for, prorating money is billing and billing is M6" —
+     * and that was right while an upgrade was free. It is not any more: the
+     * unconsumed part of the old period has gone back to the customer, so the
+     * old period is over, and the new one starts now and runs for the arriving
+     * offer's own billing period.
+     *
+     * It is also what makes a chain of upgrades need no credit balance (§3.4):
+     * the next one prorates the period this one opened.
      */
-    public function testAChangeDoesNotMoveThePeriod(): void
+    public function testAMoveUpRestartsThePeriodFromTheMomentOfTheChange(): void
     {
-        $before = $this->subscribeToFree();
-        $after = $this->subscriptions()->changeOffer(
-            $this->tenant,
-            $this->product,
-            $this->proOffer,
-            $this->user,
+        $this->subscribeToFree();
+
+        // Ten days into a thirty-day period, which is where an upgrade
+        // actually happens. Backdated in SQL rather than waited for, and it is
+        // also what makes the assertion below about the *change* rather than
+        // about two clocks agreeing to the microsecond.
+        $this->putThePeriodMidFlight();
+
+        $after = $this->changeTo($this->proOffer);
+
+        self::assertNotNull($after->currentPeriodEnd);
+
+        // The old period is over: the new one starts now, not ten days ago.
+        self::assertEqualsWithDelta(time(), $after->currentPeriodStart->getTimestamp(), 300);
+
+        // And it runs a whole month from there — the arriving offer's own
+        // billing period, not what was left of the old one.
+        self::assertEqualsWithDelta(
+            (new DateTimeImmutable('+1 month'))->getTimestamp(),
+            $after->currentPeriodEnd->getTimestamp(),
+            300,
         );
 
+        // The entitlements follow the new period rather than lapsing with the
+        // one that has just been credited back.
         self::assertSame(
-            $before->currentPeriodEnd?->format(DATE_ATOM),
-            $after->currentPeriodEnd?->format(DATE_ATOM),
+            $after->currentPeriodEnd->format(DATE_ATOM),
+            $this->entitlementEnd()?->format(DATE_ATOM),
         );
+    }
+
+    /**
+     * Successive moves up chain **by construction** (spec §3.4).
+     *
+     * Each one opens a period and the next one is billed for the period *it*
+     * opens, which is the whole reason the anchor resets: without it the
+     * platform would have to carry a credit balance, and a balance is an object
+     * somebody has to expire, refund and declare.
+     *
+     * What the arithmetic does to the credit is
+     * {@see \App\Tests\Unit\ProrationPolicyTest}, where three dates can be
+     * stated exactly. What this asserts is the property that makes it work —
+     * every move bills its own period, and none of the three gets a free ride,
+     * which is §1(b)'s defect.
+     */
+    public function testEveryMoveUpBillsThePeriodItOpens(): void
+    {
+        $this->subscribeToFree();
+        $this->putThePeriodMidFlight();
+
+        $second = $this->changeTo($this->proOffer);
+        $this->putThePeriodMidFlight();
+        $third = $this->changeTo($this->termsOffer);
+
+        self::assertCount(2, $this->charge->charged);
+
+        // Each document's period is the one its own change opened.
+        self::assertSame(
+            [
+                $second->currentPeriodStart->format(DATE_ATOM),
+                $third->currentPeriodStart->format(DATE_ATOM),
+            ],
+            array_column($this->charge->charged, 'periodStart'),
+        );
+        self::assertSame(
+            [
+                $second->currentPeriodEnd?->format(DATE_ATOM),
+                $third->currentPeriodEnd?->format(DATE_ATOM),
+            ],
+            array_column($this->charge->charged, 'periodEnd'),
+        );
+    }
+
+    /**
+     * **Nothing outstanding raises no document at all.**
+     *
+     * `free` is priced at zero, so moving onto it from a plan of lower rank
+     * would charge nothing — and a €0 invoice is not a cheap invoice, it is the
+     * permanent, unremovable record of no transaction, because numbering is
+     * gapless.
+     *
+     * Reached by rank rather than by price: `free` sits on rank 10 and the
+     * offer moved from is below it, so this is a move *up* to something that
+     * costs nothing. Which is exactly the freemium shape the catalogue will
+     * sell, and the reason the rule has to hold on the priced path rather than
+     * on a special case.
+     */
+    public function testAMoveUpThatCostsNothingRaisesNoInvoice(): void
+    {
+        $this->subscriptions()->subscribe($this->tenant, $this->product, $this->belowFreeOffer, $this->user);
+
+        $after = $this->changeTo($this->freeOffer);
+
+        self::assertSame('free', $after->offer->code);
+        self::assertSame([], $this->charge->charged);
     }
 
     // --- The deferred downgrade (spec §4) ------------------------------------
@@ -344,12 +454,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
     {
         $before = $this->subscribeToPro();
 
-        $after = $this->subscriptions()->changeOffer(
-            $this->tenant,
-            $this->product,
-            $this->freeOffer,
-            $this->user,
-        );
+        $after = $this->changeTo($this->freeOffer);
 
         // Still on Pro, still with Pro's grants, still until the same date.
         self::assertSame('pro', $after->offer->code);
@@ -574,12 +679,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         self::assertSame(0, $before->terms->noticeDays);
         self::assertNull($before->termEndsAt);
 
-        $after = $this->subscriptions()->changeOffer(
-            $this->tenant,
-            $this->product,
-            $this->termsOffer,
-            $this->user,
-        );
+        $after = $this->changeTo($this->termsOffer);
 
         self::assertSame(24, $after->terms->termMonths);
         self::assertSame('AT_COMMITMENT_END', $after->terms->cancellationPolicy);
@@ -622,12 +722,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         $agreed = $committed->commitmentEndsAt;
         self::assertNotNull($agreed);
 
-        $after = $this->subscriptions()->changeOffer(
-            $this->tenant,
-            $this->product,
-            $this->termsOffer,
-            $this->user,
-        );
+        $after = $this->changeTo($this->termsOffer);
 
         // The date the customer agreed to, to the microsecond. Not the
         // arriving offer's twelve months, which would end sooner, and not a
@@ -654,12 +749,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             $this->user,
         );
 
-        $error = $this->refusal(fn (): Subscription => $this->subscriptions()->changeOffer(
-            $this->tenant,
-            $this->product,
-            $this->shortTermOffer,
-            $this->user,
-        ));
+        $error = $this->refusal(fn (): Subscription => $this->changeTo($this->shortTermOffer));
 
         self::assertSame(409, $error->statusCode());
         self::assertSame('COMMITMENT_OUTLASTS_TERM', $error->errorCode());
@@ -686,7 +776,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             ['tenant' => $this->tenant, 'product' => $this->product, 'feature' => $this->projectsFeature],
         );
 
-        $this->subscriptions()->changeOffer($this->tenant, $this->product, $this->proOffer, $this->user);
+        $this->changeTo($this->proOffer);
 
         // The override outranks both grants: most generous wins.
         self::assertSame(500, $this->limitFor('max_projects'));
@@ -840,6 +930,41 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         return $this->subscriptions()->renew($this->tenant, $this->product);
     }
 
+    /**
+     * A change of offer, unwrapped.
+     *
+     * The service answers with the decision and the documents beside the
+     * subscription, as cancelling does — because a move up now costs something
+     * (spec §3) and a caller that could not see what needs no reading of the
+     * database to find out. Most of this file is about what *moved*, so it asks
+     * for that and the two tests about the money ask for the rest.
+     */
+    /**
+     * Ten days into a thirty-day period, which is where an upgrade actually
+     * happens.
+     *
+     * Written in SQL because the alternative is waiting, and because a period
+     * that starts and is changed in the same second would let a test pass on
+     * two clocks agreeing rather than on the anchor having moved.
+     */
+    private function putThePeriodMidFlight(): void
+    {
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE subscriptions
+                   SET current_period_start = now() - interval '10 days',
+                       current_period_end = now() + interval '20 days'
+                 WHERE tenant_id = :tenant AND product_id = :product
+                SQL,
+            ['tenant' => $this->tenant, 'product' => $this->product],
+        );
+    }
+
+    private function changeTo(string $offerId): Subscription
+    {
+        return $this->subscriptions()->changeOffer($this->tenant, $this->product, $offerId, $this->user)['subscription'];
+    }
+
     private function subscriptions(): Subscriptions
     {
         return new Subscriptions(
@@ -863,6 +988,15 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             // is not recorded is one nobody can be held to (§30), and a
             // double here would only prove the double writes nothing.
             new PostgresAuditLog($this->connection),
+            // The real arithmetic. It is the subject of two tests here and
+            // the thing every other one has to not disturb, so a double would
+            // be measuring the double.
+            new ProrationPolicy(),
+            // Nothing in this file is ever paid for — no billing profile, no
+            // invoice, no payment — so nothing may be credited, and the double
+            // says so rather than inventing money.
+            $this->credit,
+            $this->charge,
         );
     }
 

@@ -31,11 +31,16 @@ final class ScheduleOfferChangeController implements RouteHandler
         $context = RequestContextReader::from($request);
         $context->requirePermission('subscription.manage');
 
+        $body = JsonBody::of($request);
+
         $subscription = $this->subscriptions->scheduleChange(
             $context->tenantId,
             $context->productId,
-            JsonBody::of($request)->requiredString('offer_id', 64),
+            $body->requiredString('offer_id', 64),
             $context->userId,
+            // A flag and never an id (§13.1), and the seat is the kind a
+            // customer can actually hold (ADR-055).
+            $body->optionalBool('seat'),
         );
 
         return new JsonResponse(SubscriptionPresenter::one($subscription), 200);

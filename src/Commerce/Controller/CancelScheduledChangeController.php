@@ -34,6 +34,11 @@ final class CancelScheduledChangeController implements RouteHandler
             $context->tenantId,
             $context->productId,
             $context->userId,
+            // `?seat=1` withdraws the change on the caller's own seat rather
+            // than on the organisation's subscription. A DELETE has no body, so
+            // it travels in the query — the same shape `showSchedule` uses, and
+            // still a flag rather than an id (§13.1).
+            ($request->getQueryParams()['seat'] ?? null) !== null,
         );
 
         return new JsonResponse(SubscriptionPresenter::one($subscription), 200);

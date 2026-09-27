@@ -9,6 +9,7 @@ use App\Auth\Domain\AuthProvider;
 use App\Commerce\Domain\CancellationDecision;
 use App\Commerce\Domain\CancellationPolicy;
 use App\Commerce\Domain\EarlyTerminationCharge;
+use App\Commerce\Domain\ProrationPolicy;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionEvent;
 use App\Commerce\Infrastructure\OfferVersionLoader;
@@ -23,6 +24,8 @@ use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
+use App\Tests\Support\NothingWasCollected;
+use App\Tests\Support\RecordingChangeCharge;
 use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
@@ -310,14 +313,23 @@ final class FreemiumTest extends DatabaseApiTestCase
      */
     public function testMovingUpOutOfItDoesNotGiveBackTheRightToAnother(): void
     {
-        // Through the service rather than the endpoint, because `change-offer`
-        // is addressed to the organisation's subscription and a free period is
-        // a seat — see the note in the report. What is being tested is the
-        // column and the absence of a constraint on it, which is the same
-        // either way.
-        $this->subscriptions()->subscribe($this->tenant, $this->product, $this->freemiumOffer, $this->user);
+        // Through the real door, which is what gives the free period its
+        // `current_period_end` (§6.3) — and a period with an end is exactly
+        // what the proration needs to measure against. Taking it out with
+        // `subscribe()` instead leaves that end null on `CUSTOM` terms, and
+        // the move up is then refused as unpriceable, which says nothing
+        // about the column this test is for.
+        self::assertSame(201, $this->take()->getStatusCode());
 
-        $moved = $this->subscriptions()->changeOffer($this->tenant, $this->product, $this->pricedOffer, $this->user);
+        // `seat: true`, because a free period is a seat and `change-offer`
+        // without the flag addresses the organisation's subscription.
+        ['subscription' => $moved] = $this->subscriptions()->changeOffer(
+            $this->tenant,
+            $this->product,
+            $this->pricedOffer,
+            $this->user,
+            seat: true,
+        );
 
         // The terms are re-snapshotted from the arriving version, so it renews
         // now — and the row still remembers that this account's free period is
@@ -524,6 +536,13 @@ final class FreemiumTest extends DatabaseApiTestCase
                 }
             },
             new PostgresAuditLog($this->connection),
+            // The real arithmetic: a free period leaving for a paid plan is
+            // priced by it (§6.2), and a double would measure the double.
+            new ProrationPolicy(),
+            // A free period collected nothing, so there is never anything to
+            // give back. The doubles say so rather than inventing money.
+            new NothingWasCollected(),
+            new RecordingChangeCharge(),
         );
     }
 

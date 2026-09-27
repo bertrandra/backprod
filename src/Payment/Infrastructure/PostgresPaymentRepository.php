@@ -125,6 +125,40 @@ final class PostgresPaymentRepository implements PaymentRepository
         return $row === false ? null : self::toPayment($row);
     }
 
+    public function latestSettledForSubscription(
+        string $tenantId,
+        string $productId,
+        string $subscriptionId,
+    ): ?Payment {
+        if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId) || !Uuid::isValid($subscriptionId)) {
+            return null;
+        }
+
+        // Through `invoices.subscription_id`, never `payments.subscription_id`
+        // — the reason is on the interface, and it is that a seat's first
+        // payment predates the subscription it starts.
+        //
+        // `PARTIALLY_REFUNDED` counts as settled, exactly as
+        // {@see PaymentStatus::isSettled()} says: some of that money is still
+        // ours, and how much is what the caller goes on to bound the credit
+        // by. Excluding it would treat a period one euro of which came back
+        // as a period nobody paid for.
+        $row = $this->connection->fetchAssociative(
+            'SELECT ' . self::COLUMNS . <<<'SQL'
+                 FROM payments
+                WHERE tenant_id = :tenantId
+                  AND product_id = :productId
+                  AND status IN ('SUCCEEDED', 'PARTIALLY_REFUNDED')
+                  AND invoice_id IN (SELECT id FROM invoices WHERE subscription_id = :subscriptionId)
+                ORDER BY succeeded_at DESC NULLS LAST, created_at DESC, id DESC
+                LIMIT 1
+                SQL,
+            ['tenantId' => $tenantId, 'productId' => $productId, 'subscriptionId' => $subscriptionId],
+        );
+
+        return $row === false ? null : self::toPayment($row);
+    }
+
     public function attemptsForInvoice(string $invoiceId): int
     {
         if (!Uuid::isValid($invoiceId)) {

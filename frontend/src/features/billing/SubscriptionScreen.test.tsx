@@ -38,6 +38,43 @@ const DECISION = {
   reasons: ['A twelve-month commitment was agreed and nine months remain.'],
 };
 
+/**
+ * What the server says a move up would do (spec §3, §7).
+ *
+ * **The net deliberately does not follow from the other two.** 11 880 less
+ * 2 320 is 9 560, and this fixture says 9 000 — because a screen that worked
+ * the net out for itself would produce 9 560 and a fixture where the two
+ * agreed would not notice. The net is the *server's* answer, because "never add
+ * two amounts in the frontend; every total on screen is the server's" (§4,
+ * §25), and this is how that is proved rather than trusted.
+ */
+const CHANGE_UP = {
+  accepted: true,
+  rule_id: 'change.prorated_now',
+  direction: 'UPGRADE',
+  effect: 'IMMEDIATE',
+  effective_at: '2026-03-11T00:00:00Z',
+  currency: 'EUR',
+  credit_minor_units: 2320,
+  charge_minor_units: 11880,
+  net_minor_units: 9000,
+  new_period_end: '2026-04-11T00:00:00Z',
+  commitment_ends_at: '2026-12-31T23:59:59Z',
+  reasons: ['The new plan applies at once, and the billing period restarts today.'],
+};
+
+const CHANGE_DOWN = {
+  ...CHANGE_UP,
+  rule_id: 'change.deferred_to_period_end',
+  direction: 'DOWNGRADE',
+  effect: 'AT_PERIOD_END',
+  effective_at: '2026-04-01T00:00:00Z',
+  credit_minor_units: 0,
+  charge_minor_units: 0,
+  net_minor_units: 0,
+  reasons: ['A lower plan takes effect at the end of the period already paid for.'],
+};
+
 function subscription(overrides: Record<string, unknown> = {}) {
   return {
     id: 'sub-1',
@@ -308,6 +345,7 @@ describe('a change of plan that waits (spec §4)', () => {
     const { client, requests } = recordingClient(
       stubsFor({
         'GET /api/v1/offers': { data: { offers: [CHEAPER, DEARER] } },
+        'POST /api/v1/subscription/preview-change': { data: { subscription: subscription(), if_changed_now: CHANGE_DOWN } },
         'POST /api/v1/subscription/pending': { data: subscription({ pending: PENDING }) },
         'POST /api/v1/subscription/change-offer': { data: subscription({ offer: { ...subscription().offer, ...DEARER } }) },
       }),
@@ -318,10 +356,13 @@ describe('a change of plan that waits (spec §4)', () => {
     await waitFor(() => expect(screen.getByLabelText(/^offer$/i)).toBeTruthy());
 
     // Rank 10 against the current 20: down, so it waits — and the screen says
-    // so before the click rather than after it.
+    // so before the click rather than after it, from the server's own preview.
     fireEvent.change(screen.getByLabelText(/^offer$/i), { target: { value: 'off-2' } });
     expect(screen.getByTestId('change-offer').getAttribute('data-deferred')).toBe('true');
-    expect(screen.getByTestId('deferred-notice').textContent).toMatch(/end of the period you have paid for/i);
+    await waitFor(() =>
+      expect(screen.getByTestId('change-decision').getAttribute('data-effect')).toBe('AT_PERIOD_END'),
+    );
+    expect(screen.getByTestId('change-effect').textContent).toMatch(/end of the period you have paid for/i);
 
     fireEvent.click(screen.getByTestId('change-offer'));
 
@@ -333,13 +374,94 @@ describe('a change of plan that waits (spec §4)', () => {
     // Rank 30: up, and up is immediate.
     fireEvent.change(screen.getByLabelText(/^offer$/i), { target: { value: 'off-3' } });
     expect(screen.getByTestId('change-offer').getAttribute('data-deferred')).toBe('false');
-    expect(screen.queryByTestId('deferred-notice')).toBeNull();
 
     fireEvent.click(screen.getByTestId('change-offer'));
 
     await waitFor(() =>
       expect(requests.filter((request) => request.path === '/api/v1/subscription/change-offer')).toHaveLength(1),
     );
+  });
+
+  /**
+   * The preview is the **server's** answer, read and never derived (spec §7).
+   *
+   * The net the fixture gives is 9 000, and 11 880 − 2 320 is 9 560: a component
+   * that subtracted the credit from the charge itself would show the second
+   * number, and this assertion is what says it shows the first. Money arithmetic
+   * in a screen is a second answer to a question that already has one, and §4
+   * forbids it outright.
+   *
+   * The minor units are asserted rather than the rendered string, because that
+   * is the authoritative value and it does not depend on the runtime's locale
+   * data.
+   */
+  it('shows the credit, the new period and the net from the server, and derives none of them', async () => {
+    const { client, requests } = recordingClient(
+      stubsFor({
+        'GET /api/v1/offers': { data: { offers: [CHEAPER, DEARER] } },
+        'POST /api/v1/subscription/preview-change': { data: { subscription: subscription(), if_changed_now: CHANGE_UP } },
+      }),
+    );
+
+    renderWith(<SubscriptionScreen />, client);
+
+    await waitFor(() => expect(screen.getByLabelText(/^offer$/i)).toBeTruthy());
+    fireEvent.change(screen.getByLabelText(/^offer$/i), { target: { value: 'off-3' } });
+
+    const decision = await waitFor(() => screen.getByTestId('change-decision'));
+
+    expect(decision.getAttribute('data-rule')).toBe('change.prorated_now');
+    expect(decision.getAttribute('data-direction')).toBe('UPGRADE');
+    expect(screen.getByTestId('change-credit').querySelector('[data-minor-units]')?.getAttribute('data-minor-units')).toBe('2320');
+    expect(screen.getByTestId('change-charge').querySelector('[data-minor-units]')?.getAttribute('data-minor-units')).toBe('11880');
+    expect(screen.getByTestId('change-net').querySelector('[data-minor-units]')?.getAttribute('data-minor-units')).toBe('9000');
+
+    // And the offer it asked about is the one that was chosen, in the body —
+    // there is no other way to ask, and no hand-written URL anywhere. `seat` is
+    // false here because this section acts on the organisation's subscription;
+    // it is a flag rather than an id either way (§13.1).
+    const asked = requests.filter((request) => request.path === '/api/v1/subscription/preview-change');
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.body).toEqual({ offer_id: 'off-3', seat: false });
+  });
+
+  /**
+   * A move the server cannot price says so rather than showing zeroes. A zero
+   * credit and an unpriceable change are different answers, and only one of them
+   * means "this costs you nothing".
+   */
+  it('says a change cannot be priced rather than showing it as free', async () => {
+    const client = stubClient(
+      stubsFor({
+        'GET /api/v1/offers': { data: { offers: [CHEAPER, DEARER] } },
+        'POST /api/v1/subscription/preview-change': {
+          data: {
+            subscription: subscription(),
+            if_changed_now: {
+              ...CHANGE_UP,
+              accepted: false,
+              rule_id: 'change.period_not_priceable',
+              effect: null,
+              effective_at: null,
+              credit_minor_units: 0,
+              charge_minor_units: 0,
+              net_minor_units: 0,
+              new_period_end: null,
+              reasons: ['These terms have no computable period end.'],
+            },
+          },
+        },
+      }),
+    );
+
+    renderWith(<SubscriptionScreen />, client);
+
+    await waitFor(() => expect(screen.getByLabelText(/^offer$/i)).toBeTruthy());
+    fireEvent.change(screen.getByLabelText(/^offer$/i), { target: { value: 'off-3' } });
+
+    await waitFor(() => expect(screen.getByTestId('change-refused')).toBeTruthy());
+    expect(screen.queryByTestId('change-net')).toBeNull();
+    expect(screen.getByText(/no computable period end/i)).toBeTruthy();
   });
 
   it('says which plan it will move to and when, and offers to undo it', async () => {

@@ -81,6 +81,11 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
                         'catalog.read',
                         'projects.read',
                         'projects.write',
+                        // A move up raises a document since 2026-09-27
+                        // (spec §3), so the organisation needs an identity to
+                        // put on it — which it sets through these two.
+                        'billing.manage',
+                        'tax.manage',
                     ],
                 ),
             ]),
@@ -211,9 +216,16 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
      * And the way out of it is commercial: upgrading raises the limit, and
      * the very next request succeeds. Nothing about the project endpoint
      * changed.
+     *
+     * What did change is that the upgrade is now **priced** (2026-09-27, spec
+     * §3), so the organisation has to have said who it is before a document can
+     * be raised against it — which is why this scenario now sets a billing
+     * identity first. The refusal without one is
+     * {@see self::testAPricedMoveUpNeedsSomebodyToInvoice()}.
      */
     public function testUpgradingClearsTheQuota(): void
     {
+        $this->beInvoiceable();
         $this->subscribeTo($this->freeOffer);
         $this->createProject('One');
         $this->createProject('Two');
@@ -228,6 +240,196 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
         self::assertSame(200, $changed->getStatusCode());
 
         self::assertSame(201, $this->createProject('Three')->getStatusCode());
+
+        // And the move said what it cost, rather than answering "changed:
+        // true". Nothing was collected for the free period, so there is
+        // nothing to credit and the whole new period is payable.
+        $change = $this->decode($changed)['change'] ?? null;
+        self::assertIsArray($change);
+        self::assertSame('UPGRADE', $change['direction'] ?? null);
+        self::assertSame(0, $change['credit_minor_units'] ?? null);
+        self::assertSame(3_480, $change['charge_minor_units'] ?? null, '€29.00 plus 20% French VAT');
+        self::assertSame(3_480, $change['net_minor_units'] ?? null);
+        self::assertIsString($change['charge_invoice_id'] ?? null);
+        self::assertNull($change['credit_refund_id'] ?? null);
+    }
+
+    /**
+     * A priced move up needs somebody to invoice (2026-09-27).
+     *
+     * The same refusal placing an order makes, for the same reason: numbering
+     * is gapless, so a document raised against nobody cannot be deleted
+     * afterwards. And it is refused **before anything moves** — the
+     * subscription is still on the plan it was, which is what makes this a
+     * refusal rather than a half-finished upgrade.
+     */
+    public function testAPricedMoveUpNeedsSomebodyToInvoice(): void
+    {
+        $this->subscribeTo($this->freeOffer);
+
+        $refused = $this->request(
+            'POST',
+            '/api/v1/subscription/change-offer',
+            $this->headers(),
+            $this->json(['offer_id' => $this->proOffer]),
+        );
+
+        self::assertSame(409, $refused->getStatusCode());
+        self::assertSame('BILLING_PROFILE_REQUIRED', $this->errorOf($refused)['code'] ?? null);
+
+        self::assertSame('free', $this->currentOfferCode());
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM invoices'));
+    }
+
+    /**
+     * The preview, which is the same calculation with nothing written
+     * (spec §7).
+     *
+     * Both directions, because §7's table has a row for each: a move up says
+     * what is payable today, a move down says the date it takes effect and
+     * that it costs nothing. And the preview writes no document — the
+     * assertion below is what says so.
+     */
+    public function testThePreviewAnswersBothDirectionsAndWritesNothing(): void
+    {
+        $this->beInvoiceable();
+        $this->subscribeTo($this->freeOffer);
+
+        $up = $this->decode($this->preview($this->proOffer))['if_changed_now'] ?? null;
+        self::assertIsArray($up);
+        self::assertTrue($up['accepted'] ?? null);
+        self::assertSame('UPGRADE', $up['direction'] ?? null);
+        self::assertSame('IMMEDIATE', $up['effect'] ?? null);
+        self::assertSame(3_480, $up['charge_minor_units'] ?? null);
+        self::assertSame(0, $up['credit_minor_units'] ?? null);
+        self::assertSame(3_480, $up['net_minor_units'] ?? null);
+        self::assertIsString($up['new_period_end'] ?? null);
+        self::assertSame('change.prorated_now', $up['rule_id'] ?? null);
+
+        // Now the other way round, from the dearer plan.
+        $this->request(
+            'POST',
+            '/api/v1/subscription/change-offer',
+            $this->headers(),
+            $this->json(['offer_id' => $this->proOffer]),
+        );
+
+        $down = $this->decode($this->preview($this->freeOffer))['if_changed_now'] ?? null;
+        self::assertIsArray($down);
+        self::assertTrue($down['accepted'] ?? null);
+        self::assertSame('DOWNGRADE', $down['direction'] ?? null);
+        self::assertSame('AT_PERIOD_END', $down['effect'] ?? null);
+        self::assertSame(0, $down['charge_minor_units'] ?? null);
+        self::assertSame(0, $down['credit_minor_units'] ?? null);
+        self::assertSame('change.deferred_to_period_end', $down['rule_id'] ?? null);
+        // The date is the end of the period already paid for, which is the
+        // subscription's own and not a subtraction anywhere.
+        self::assertSame($this->currentPeriodEnd(), $down['effective_at'] ?? null);
+
+        // One invoice — the upgrade's. Two previews raised none, which is the
+        // property that lets a catalogue screen ask about every offer it shows.
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM invoices'));
+        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM credit_notes'));
+    }
+
+    /**
+     * And the preview cannot disagree with the act, because it is the same
+     * calculation: the refusal a change would meet is the refusal the preview
+     * reports.
+     */
+    public function testThePreviewRefusesWhatTheChangeWouldRefuse(): void
+    {
+        $this->beInvoiceable();
+        $this->subscribeTo($this->proOffer);
+
+        $refused = $this->preview($this->proOffer);
+
+        self::assertSame(409, $refused->getStatusCode());
+        self::assertSame('ALREADY_ON_OFFER', $this->errorOf($refused)['code'] ?? null);
+    }
+
+    private function preview(string $offerId): ResponseInterface
+    {
+        return $this->request(
+            'POST',
+            '/api/v1/subscription/preview-change',
+            $this->headers(),
+            $this->json(['offer_id' => $offerId]),
+        );
+    }
+
+    /**
+     * Who the organisation is, fiscally and on a document.
+     *
+     * The three answers a priced move up needs: the product's own billing
+     * identity, the organisation's legal identity, and its fiscal position.
+     * Set through the endpoints that own them rather than in SQL, so the
+     * fixture cannot describe a state the platform would not let a customer
+     * reach.
+     */
+    private function beInvoiceable(): void
+    {
+        $supplier = json_encode(['legal_name' => 'Atlas SAS', 'vat_number' => 'FR12345678901', 'country_code' => 'FR']);
+        self::assertIsString($supplier);
+
+        $this->connection->executeStatement(
+            <<<'SQL'
+                INSERT INTO product_configuration (product_id, key, value) VALUES
+                    (:product, 'billing_supplier', CAST(:supplier AS jsonb)),
+                    (:product, 'tax', CAST('{"country": "FR", "oss_registered": true}' AS jsonb))
+                SQL,
+            ['product' => $this->product, 'supplier' => $supplier],
+        );
+
+        self::assertSame(200, $this->request(
+            'PUT',
+            '/api/v1/billing/profile',
+            $this->headers(),
+            $this->json(['legal_name' => 'Acme SARL', 'country_code' => 'FR', 'city' => 'Paris']),
+        )->getStatusCode());
+
+        self::assertSame(200, $this->request(
+            'PUT',
+            '/api/v1/tax/profile',
+            $this->headers(),
+            $this->json(['customer_kind' => 'B2C', 'country_code' => 'FR']),
+        )->getStatusCode());
+    }
+
+    private function rowsMatching(string $sql): int
+    {
+        $count = $this->connection->fetchOne($sql);
+
+        return is_numeric($count) ? (int) $count : 0;
+    }
+
+    /**
+     * The read every assertion about "did it move?" goes through.
+     *
+     * @return array<mixed>
+     */
+    private function currentSubscription(): array
+    {
+        $subscription = $this->decode(
+            $this->request('GET', '/api/v1/subscription', $this->headers()),
+        )['subscription'] ?? null;
+
+        self::assertIsArray($subscription);
+
+        return $subscription;
+    }
+
+    private function currentOfferCode(): mixed
+    {
+        $offer = $this->currentSubscription()['offer'] ?? null;
+        self::assertIsArray($offer);
+
+        return $offer['code'] ?? null;
+    }
+
+    private function currentPeriodEnd(): mixed
+    {
+        return $this->currentSubscription()['current_period_end'] ?? null;
     }
 
     /**
