@@ -293,8 +293,8 @@ final class GrantedEntitlementTest extends DatabaseApiTestCase
         $entitlements = $this->container()->get(EntitlementRepository::class);
         self::assertInstanceOf(EntitlementRepository::class, $entitlements);
 
-        self::assertTrue($entitlements->covers($this->tenant, $this->atlas, $this->ada));
-        self::assertFalse($entitlements->covers($this->tenant, $this->atlas, $this->ola));
+        self::assertTrue($entitlements->coverageFor($this->tenant, $this->atlas, $this->ada)->covers());
+        self::assertFalse($entitlements->coverageFor($this->tenant, $this->atlas, $this->ola)->covers());
     }
 
     /**

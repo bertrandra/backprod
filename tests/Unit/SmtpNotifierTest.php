@@ -123,7 +123,19 @@ final class SmtpNotifierTest extends TestCase
 
         // The catalogue says what is customised, per language.
         $catalogue = $wording->catalogue('fr');
-        self::assertSame(['account.password_reset', 'account.invitation', 'account.password_changed', 'account.email_verification'], array_column($catalogue, 'type'));
+        self::assertSame(
+            [
+                'account.password_reset',
+                'account.invitation',
+                'account.password_changed',
+                'account.email_verification',
+                // The formal demand (spec §5.2, 2026-09-27). Editable like the
+                // others, and the one in this list with legal effect — so what
+                // an administrator wrote is what is kept as sent.
+                'subscription.payment_overdue',
+            ],
+            array_column($catalogue, 'type'),
+        );
         self::assertTrue($catalogue[1]['customised']);
         self::assertFalse($catalogue[0]['customised']);
         self::assertSame(['link', 'email'], $catalogue[0]['placeholders']);

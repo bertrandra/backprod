@@ -53,11 +53,18 @@ final class Subscriptions
     {
         $subscription = $this->subscriptions->findActive($tenantId, $productId);
 
-        // Live means live: a subscription whose period ended is reported as
-        // no subscription, not as an active one with a date in the past. The
-        // status column may not have caught up, and the caller should not
-        // have to know that.
-        return $subscription !== null && $subscription->isLiveAt(new DateTimeImmutable())
+        // Held, not live: a subscription whose period ended is reported as no
+        // subscription, because the status column may not have caught up and
+        // the caller should not have to know that — but one suspended for
+        // non-payment is reported, because it is still the subscription this
+        // tenant has (2026-09-27, spec §5.1). Answering null for it would show
+        // "no subscription" to somebody who owes for one, offer them a fresh
+        // purchase instead of the invoice, and let the sale through as far as
+        // the unique index.
+        //
+        // What it *entitles* is a different question, and `isLiveAt()` — which
+        // every entitlement query asks — answers no.
+        return $subscription !== null && $subscription->isHeldAt(new DateTimeImmutable())
             ? $subscription
             : null;
     }

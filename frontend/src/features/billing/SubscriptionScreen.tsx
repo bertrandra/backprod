@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import { can } from '@/app/access/access';
@@ -22,7 +23,7 @@ import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
-import { pill, type Tone } from '@/ui/tone';
+import { notice, pill, type Tone } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
 import { Whose } from '@/ui/Whose';
 
@@ -94,6 +95,20 @@ export function SubscriptionScreen() {
   const current = subscription.data.subscription;
   const seat = subscription.data.seat ?? null;
 
+  // The banner of spec §2.2, for whichever contract is suspended — built here
+  // rather than inside either branch below, because a seat can be in arrears
+  // while the organisation has no subscription at all, and that is precisely
+  // where the holder needs telling: without it the screen shows them an empty
+  // state and invites them to buy what they already own.
+  const arrears = (
+    <>
+      {seat !== null && seat.status === 'PAST_DUE' && <PaymentFailed subscription={seat} scope="seat" />}
+      {current !== null && current.status === 'PAST_DUE' && (
+        <PaymentFailed subscription={current} scope="organisation" />
+      )}
+    </>
+  );
+
   const ownSeat = seat === null ? null : (
     <YourSeat
       seat={seat}
@@ -121,6 +136,7 @@ export function SubscriptionScreen() {
       <div className="max-w-3xl space-y-6">
         <h1 className="text-2xl font-semibold">{t("Subscription")}</h1>
         <Held organisation={organisation.data?.name ?? null} session={session ?? null} />
+        {arrears}
         {ownSeat}
         <EmptyState
           title={
@@ -164,6 +180,8 @@ export function SubscriptionScreen() {
       />
 
       <Held organisation={organisation.data?.name ?? null} session={session ?? null} />
+
+      {arrears}
 
       {ownSeat}
 
@@ -646,9 +664,69 @@ function statusTone(status: string): Tone {
       return 'success';
     case 'CANCELLED':
       return 'neutral';
+    // Not `warning`, which is "waiting on somebody or something" (`ui/tone`).
+    // A suspension is not a wait: the product is shut, and the tone says which
+    // of the two this is before the words are read.
+    case 'PAST_DUE':
+      return 'danger';
     default:
       return 'warning';
   }
+}
+
+/**
+ * The red banner of spec §2.2 — *“Payment failed.”* — with the way to pay.
+ *
+ * Shown for whichever subscription is suspended, the organisation's or the
+ * caller's own seat, and once for each: they are two contracts and either can
+ * be in arrears on its own.
+ *
+ * **Everything in it is read, nothing is derived.** `past_due_since` and
+ * `past_due_invoice_id` are the server's answers and there is no arithmetic
+ * here: a screen that decided what "overdue" means from a date would disagree
+ * with the server the moment a product changed its schedule, and the schedule
+ * is the product's (spec §5.2). The status decides whether this appears, and
+ * the status is the server's too.
+ *
+ * **It links to the invoice and never to a plan.** The refusal a suspended
+ * customer meets is answered by paying, not by buying — so the one action
+ * offered is the document. Nothing here is gated on a permission: the invoices
+ * a member may reach are already narrowed to their own (`documentsOf()`), and
+ * the invoice screen refuses regardless. Hiding the link would only hide the
+ * remedy from the person who needs it.
+ */
+function PaymentFailed({ subscription, scope }: { subscription: Subscription; scope: 'seat' | 'organisation' }) {
+  const since = subscription.past_due_since;
+  const invoiceId = subscription.past_due_invoice_id;
+  const whose = scope === 'seat' ? t("Your seat") : t("Your organisation’s subscription");
+
+  return (
+    <section data-testid={`past-due-${scope}`} className={notice('danger')}>
+      <h2 className="text-base font-semibold">{t("Payment failed")}</h2>
+      <p className="mt-1">
+        {since === null
+          ? t("{whose} is suspended because an invoice for it has not been paid.", { whose })
+          : t("{whose} has been suspended since {since} because an invoice for it has not been paid.", {
+              whose,
+              since: new Date(since).toLocaleDateString(currentLocale()),
+            })}
+      </p>
+      <p className="mt-1">
+        {t("Your invoices and payments are still available, so you can settle it from here. Access returns as soon as the payment is confirmed.")}
+      </p>
+      {invoiceId !== null && (
+        <p className="mt-2 text-xs">
+          <Link
+            to="/invoices/$invoiceId"
+            params={{ invoiceId }}
+            className="underline decoration-dotted"
+            data-testid="past-due-invoice"
+          >
+            {t("Pay the invoice")}</Link>
+        </p>
+      )}
+    </section>
+  );
 }
 
 /**

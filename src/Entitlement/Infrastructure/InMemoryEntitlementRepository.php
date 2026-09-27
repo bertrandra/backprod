@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Entitlement\Infrastructure;
 
+use App\Entitlement\Domain\Coverage;
 use App\Entitlement\Domain\Entitlement;
 use App\Entitlement\Domain\EntitlementRepository;
 
@@ -85,9 +86,17 @@ final class InMemoryEntitlementRepository implements EntitlementRepository
      *
      * Who is on which subscription is a real column, and the tests about it
      * run against PostgreSQL (`SubscriptionCoverageTest`).
+     *
+     * It never answers `IN_ARREARS` (2026-09-27), and that is the honest
+     * answer rather than a gap: arrears is a subscription's status, this
+     * double holds no subscription, and inventing the third answer here would
+     * let a pipeline test pass while the real query had no arrears branch at
+     * all. `PastDueTest` runs against PostgreSQL for exactly that reason.
      */
-    public function covers(string $tenantId, string $productId, string $userId): bool
+    public function coverageFor(string $tenantId, string $productId, string $userId): Coverage
     {
-        return $this->entitlementsFor($tenantId, $productId, $userId) !== [];
+        return $this->entitlementsFor($tenantId, $productId, $userId) === []
+            ? Coverage::NONE
+            : Coverage::COVERED;
     }
 }

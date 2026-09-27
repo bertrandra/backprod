@@ -135,13 +135,14 @@ final class RequestContextMiddleware implements MiddlewareInterface
             // catalogue answered in the reader's language would otherwise
             // ask for the same row again on every request.
             $user->locale,
-            // Whether a subscription covers this person (2026-09-25). A
-            // second query on the hot path, and it earns its place: it is
-            // the question "may they reach the product's work at all", and
-            // neither the capabilities above nor the permissions beside them
-            // answer it — a read-only seat holds no workspace quota, and a
-            // tenant-wide override holds every capability and covers nobody.
-            $this->entitlements->covers($membership->tenantId, $product->id, $user->id),
+            // Whether a subscription covers this person (2026-09-25), and
+            // when it does not, why not (2026-09-27). A second query on the
+            // hot path, and it earns its place: it is the question "may they
+            // reach the product's work at all", and neither the capabilities
+            // above nor the permissions beside them answer it — a read-only
+            // seat holds no workspace quota, and a tenant-wide override holds
+            // every capability and covers nobody.
+            $this->entitlements->coverageFor($membership->tenantId, $product->id, $user->id),
         );
 
         return $handler->handle($request->withAttribute(RequestContext::ATTRIBUTE, $context));

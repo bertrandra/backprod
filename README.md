@@ -724,6 +724,14 @@ changes what a lapsed quote or subscription *means*: acceptance and
 entitlement resolution have asked the clock since M5 and M6. They make the
 status column agree with the clock, which is what listings read.
 
+`subscription.dunning` is not one of those (ADR-060). It *changes* things: a
+subscription with an invoice unpaid past the day the **product's** schedule
+allows goes `PAST_DUE` — suspended, documents still readable — and each step of
+that schedule raises one formal demand and starts one fresh payment attempt.
+Exactly once per step, by the notifications dedup index rather than by a check
+two overlapping passes would both pass. It never cancels: ending a contract is a
+decision (§13.1), not something cron takes.
+
 ## Assets
 
 Large files live outside PostgreSQL (non-negotiable #9,

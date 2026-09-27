@@ -43,6 +43,7 @@ use App\Billing\Infrastructure\PostgresBillingProfileRepository;
 use App\Billing\Infrastructure\PostgresCreditNoteRepository;
 use App\Billing\Infrastructure\PostgresInvoiceDocumentRepository;
 use App\Billing\Infrastructure\PostgresInvoiceRepository;
+use App\Billing\Service\EverythingWaitingOnAPaidInvoice;
 use App\Commerce\Domain\CatalogueAdministration;
 use App\Commerce\Domain\CatalogueRepository;
 use App\Commerce\Domain\ChangeCharge;
@@ -64,6 +65,7 @@ use App\Commerce\Infrastructure\PostgresOrganisationSubscriptions;
 use App\Commerce\Infrastructure\PostgresStorefrontListing;
 use App\Commerce\Infrastructure\PostgresStorefrontSettings;
 use App\Commerce\Infrastructure\PostgresSubscriptionRepository;
+use App\Commerce\Service\ClearArrearsOnPayment;
 use App\Demo\Domain\DemoFixtures;
 use App\Demo\Domain\DemoPage;
 use App\Demo\Infrastructure\PostgresDemoFixtures;
@@ -83,6 +85,7 @@ use App\Geometry\Domain\GeoProvider;
 use App\Geometry\Infrastructure\PostgresGeoProvider;
 use App\Job\Domain\JobRepository;
 use App\Job\Infrastructure\PostgresJobRepository;
+use App\Job\Service\CollectOverdueInvoices;
 use App\Job\Service\ExpireQuotes;
 use App\Job\Service\ExpireSubscriptions;
 use App\Job\Service\JobHandlers;
@@ -467,7 +470,19 @@ return static function (array $overrides = []): ContainerInterface {
         // PAID — a provider's webhook, an operator reconciling a transfer —
         // fire this, so a sale is released by the money arriving rather than
         // by which route it arrived through.
-        InvoicePaid::class => autowire(CompleteOrderOnPayment::class),
+        //
+        // Two things wait on it since 2026-09-27: the order completes, and a
+        // subscription suspended for non-payment reopens (spec §5.1). A
+        // composite rather than a chain, so neither module learns what the
+        // other is — which is what the port is for. The order is released
+        // first, because a suspension is lifted on a subscription that already
+        // exists and an order is what makes one exist.
+        InvoicePaid::class => factory(
+            static fn (
+                CompleteOrderOnPayment $orders,
+                ClearArrearsOnPayment $arrears,
+            ): InvoicePaid => new EverythingWaitingOnAPaidInvoice([$orders, $arrears]),
+        ),
         TransmissionRepository::class => autowire(PostgresTransmissionRepository::class),
         TransmissionEffect::class => autowire(InvoiceTransmissionEffect::class),
 
@@ -597,10 +612,11 @@ return static function (array $overrides = []): ContainerInterface {
                 DispatchNotifications $notify,
                 RollUpFinancials $rollup,
                 SendRenewalNotices $renewalNotices,
+                CollectOverdueInvoices $dunning,
                 SweepRateLimits $rateLimits,
                 DeliverWebhooks $webhooks,
             ): JobHandlers => new JobHandlers(
-                [$quotes, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $rateLimits, $webhooks],
+                [$quotes, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $dunning, $rateLimits, $webhooks],
             ),
         ),
 

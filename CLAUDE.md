@@ -403,6 +403,34 @@ refused. So a grant carries `covers_people`, false unless chosen, and a
 covering grant reaches every member of the tenant, which is what "this
 organisation may try this product" means.
 
+**And an unpaid invoice suspends coverage, in its own words** (ADR-060,
+2026-09-27). A subscription with an invoice still unpaid past the day the
+*product's* schedule allows goes `PAST_DUE`, and `PAST_DUE` covers nobody:
+suspended, not restricted — no read-only tier, because "restricted" would mean
+deciding what stays open product by product, and an oversight there answers
+"open". What is suspended is the **workshop**; the documents stay reachable, or
+the door shut would be the one the customer came to pay at.
+
+The refusal is `SUBSCRIPTION_PAST_DUE` and never `SUBSCRIPTION_REQUIRED`. That
+one is answered by a colleague; this one by a card. Collapsed into one, the
+holder of a seat goes and asks for a place they already hold while the invoice
+stays unpaid. So `EntitlementRepository` answers `Coverage` — `COVERED`,
+`IN_ARREARS`, `NONE` — rather than a boolean, and the most generous wins: a live
+seat is not shut by what the organisation owes.
+
+`status` and not a flag: `isLiveAt()` reads `status === ACTIVE`, so the fourth
+status suspended every entitlement query at once. The price is that the scope
+indexes have to widen to `('ACTIVE', 'PAST_DUE')` — being in arrears is not an
+exit and must not free the place.
+
+The chase is a job (`subscription.dunning`), never an HTTP request; its schedule
+is `product_configuration`, never a constant, and its first step is also the
+grace, because every invoice here is payable on receipt and declaring arrears at
+the due second would suspend a customer mid-payment. Each step is one notice
+(legal effect, rendered body kept) and one **new** payment attempt, claimed by
+the dedup index rather than by a check. A pass never cancels: resiliation is a
+decision, not something cron does.
+
 A subscription **always names a tenant and a product**, even when the
 subscriber is a person — the tenant is the isolation context, the subscriber
 is the contracting party. A `USER` subscriber must be a member of that tenant.

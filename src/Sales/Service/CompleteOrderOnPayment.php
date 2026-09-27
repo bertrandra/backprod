@@ -89,12 +89,21 @@ final class CompleteOrderOnPayment implements InvoicePaid
         $this->sales->applyCompleteOrder($order, $this->fulfilment, null);
     }
 
-    /** The person's own live seat on the product, if they hold one (§13.1). */
+    /**
+     * The seat this person already holds on the product, if any (§13.1).
+     *
+     * A seat suspended for non-payment counts as held (2026-09-27): the two
+     * partial unique indexes are written `status IN ('ACTIVE', 'PAST_DUE')`, so
+     * treating a suspended seat as absent would let this method release the
+     * order, hit the index, and throw a unique violation inside the
+     * transaction that is recording the money — the very failure the hold
+     * below exists to avoid.
+     */
     private function liveSeat(string $tenantId, string $productId, string $userId): ?Subscription
     {
-        foreach ($this->subscriptions->liveFor($tenantId, $productId, $userId) as $live) {
-            if ($live->subscriber->isSeat() && $live->status === 'ACTIVE') {
-                return $live;
+        foreach ($this->subscriptions->liveFor($tenantId, $productId, $userId) as $held) {
+            if ($held->subscriber->isSeat()) {
+                return $held;
             }
         }
 

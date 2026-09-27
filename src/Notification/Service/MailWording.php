@@ -69,6 +69,21 @@ final class MailWording
             'body' => "Thanks for signing up. Open this link to confirm this address is yours:\n{link}\n\n"
                 . 'If you did not sign up, ignore this mail.',
         ],
+        // A formal demand (spec §5.2, 2026-09-27), and the one mail here that
+        // carries legal effect — so the rendered body is kept as it went out,
+        // for the reason an invoice keeps its snapshot. It says what is owed,
+        // since when, and that access is suspended until it is paid: a chase
+        // that did not say the product was shut would leave somebody
+        // diagnosing a fault instead of paying an invoice.
+        'subscription.payment_overdue' => [
+            'about' => 'An invoice for a subscription is unpaid past its due date, so access is suspended until it is settled. Sent on each step of the product’s collection schedule, and kept as sent because it is a formal demand.',
+            'placeholders' => ['invoice_number', 'due_on', 'days_overdue'],
+            'subject' => 'Payment failed — your access is suspended',
+            'body' => "Invoice {invoice_number} was due on {due_on} and is still unpaid, {days_overdue} days later.\n\n"
+                . 'Access to the product is suspended until it is settled. Your invoices and payments are still '
+                . "available, so you can pay from the subscription screen.\n\n"
+                . 'If you have already paid, nothing further is needed: access returns as soon as the payment is confirmed.',
+        ],
     ];
 
     /**
@@ -104,6 +119,13 @@ final class MailWording
                 'body' => "Merci de votre inscription. Ouvrez ce lien pour confirmer que cette adresse est bien la vôtre :\n{link}\n\n"
                     . 'Si vous ne vous êtes pas inscrit, ignorez ce message.',
             ],
+            'subscription.payment_overdue' => [
+                'subject' => 'Échec de paiement — votre accès est suspendu',
+                'body' => "La facture {invoice_number} était due le {due_on} et reste impayée, {days_overdue} jours plus tard.\n\n"
+                    . "L'accès au produit est suspendu jusqu'à son règlement. Vos factures et vos paiements restent "
+                    . "consultables : vous pouvez payer depuis l'écran d'abonnement.\n\n"
+                    . "Si vous avez déjà payé, il n'y a rien à faire : l'accès revient dès que le paiement est confirmé.",
+            ],
         ],
         'es' => [
             'account.password_reset' => [
@@ -128,6 +150,13 @@ final class MailWording
                 'subject' => 'Confirme su dirección de correo',
                 'body' => "Gracias por registrarse. Abra este enlace para confirmar que esta dirección es suya:\n{link}\n\n"
                     . 'Si no se registró, ignore este mensaje.',
+            ],
+            'subscription.payment_overdue' => [
+                'subject' => 'Pago fallido: su acceso está suspendido',
+                'body' => "La factura {invoice_number} vencía el {due_on} y sigue sin pagar, {days_overdue} días después.\n\n"
+                    . 'El acceso al producto está suspendido hasta que se liquide. Sus facturas y sus pagos siguen '
+                    . "disponibles: puede pagar desde la pantalla de suscripción.\n\n"
+                    . 'Si ya ha pagado, no hace falta nada más: el acceso vuelve en cuanto se confirme el pago.',
             ],
         ],
         'de' => [
@@ -154,6 +183,13 @@ final class MailWording
                 'body' => "Danke für Ihre Registrierung. Öffnen Sie diesen Link, um zu bestätigen, dass diese Adresse Ihnen gehört:\n{link}\n\n"
                     . 'Falls Sie sich nicht registriert haben, ignorieren Sie diese Mail.',
             ],
+            'subscription.payment_overdue' => [
+                'subject' => 'Zahlung fehlgeschlagen – Ihr Zugang ist gesperrt',
+                'body' => "Die Rechnung {invoice_number} war am {due_on} fällig und ist {days_overdue} Tage später noch offen.\n\n"
+                    . 'Der Zugang zum Produkt ist gesperrt, bis sie bezahlt ist. Ihre Rechnungen und Zahlungen bleiben '
+                    . "einsehbar: Sie können über den Abonnement-Bildschirm bezahlen.\n\n"
+                    . 'Falls Sie bereits bezahlt haben, ist nichts weiter zu tun: der Zugang kommt zurück, sobald die Zahlung bestätigt ist.',
+            ],
         ],
         'it' => [
             'account.password_reset' => [
@@ -178,6 +214,13 @@ final class MailWording
                 'subject' => 'Conferma il tuo indirizzo e-mail',
                 'body' => "Grazie per esserti registrato. Apri questo link per confermare che questo indirizzo è tuo:\n{link}\n\n"
                     . 'Se non ti sei registrato, ignora questo messaggio.',
+            ],
+            'subscription.payment_overdue' => [
+                'subject' => 'Pagamento non riuscito: il tuo accesso è sospeso',
+                'body' => "La fattura {invoice_number} era dovuta il {due_on} e risulta ancora non pagata, {days_overdue} giorni dopo.\n\n"
+                    . "L'accesso al prodotto è sospeso fino al saldo. Le tue fatture e i tuoi pagamenti restano "
+                    . "consultabili: puoi pagare dalla schermata dell'abbonamento.\n\n"
+                    . "Se hai già pagato non serve altro: l'accesso torna appena il pagamento è confermato.",
             ],
         ],
     ];

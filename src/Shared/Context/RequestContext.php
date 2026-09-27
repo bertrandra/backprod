@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Shared\Context;
 
+use App\Entitlement\Domain\Coverage;
 use App\Shared\Exceptions\ForbiddenException;
 
 /**
@@ -49,20 +50,19 @@ final class RequestContext
          */
         public readonly string $locale = 'en',
         /**
-         * Whether the caller is one of the people a subscription covers for
-         * this product (2026-09-25): its owner, or somebody the owner added
-         * within the number their offer sells (§13.1).
+         * Whether a subscription covers the caller for this product
+         * (2026-09-25), and when it does not, **why not** (2026-09-27).
          *
          * Beside the capabilities rather than derived from them, because
          * they answer different questions and the shortcuts are wrong in
-         * both directions — see `EntitlementRepository::covers()`.
+         * both directions — see `EntitlementRepository::coverageFor()`.
          *
-         * Defaults to true so that a context built by hand in a test is not
-         * silently locked out of everything; the middleware always resolves
-         * it, and the middleware is the only thing that builds one for a
-         * real request.
+         * Defaults to covered so that a context built by hand in a test is
+         * not silently locked out of everything; the middleware always
+         * resolves it, and the middleware is the only thing that builds one
+         * for a real request.
          */
-        public readonly bool $subscribed = true,
+        public readonly Coverage $coverage = Coverage::COVERED,
     ) {
     }
 
@@ -129,11 +129,27 @@ final class RequestContext
      * being sold — and never in place of a permission. Both still hold: the
      * role says what a member may do with the work, this says whether the
      * work is theirs to reach at all.
+     *
+     * **And since 2026-09-27 it refuses in two words, not one** (spec §5.1).
+     * A subscription suspended for non-payment covers nobody either, and the
+     * two refusals are answered by two different people: `SUBSCRIPTION_REQUIRED`
+     * by a colleague giving somebody a place, `SUBSCRIPTION_PAST_DUE` by a
+     * card. Told the first when the second is true, the holder of a seat goes
+     * and asks for a seat they already hold, and the invoice stays unpaid while
+     * they wait.
+     *
+     * What is suspended is this — reaching the work — and never the documents.
+     * `/invoices` and `/payments` are gated on a permission and not on
+     * coverage, which is deliberate: shutting the door of the screen the
+     * customer came to pay at would make the suspension unrecoverable from
+     * inside the product.
      */
     public function requireSubscription(): void
     {
-        if (!$this->subscribed) {
-            throw ForbiddenException::subscriptionRequired();
-        }
+        match ($this->coverage) {
+            Coverage::COVERED => null,
+            Coverage::IN_ARREARS => throw ForbiddenException::subscriptionPastDue(),
+            Coverage::NONE => throw ForbiddenException::subscriptionRequired(),
+        };
     }
 }
