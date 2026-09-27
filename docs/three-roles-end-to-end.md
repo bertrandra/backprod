@@ -55,7 +55,7 @@ filtre oublié une élévation de privilège.
 | Il facture | non | **oui** — c'est son organisation qui émet | non, sauf les ventes de la plateforme |
 | Il travaille dans le produit | oui, si un abonnement le couvre | oui, aux mêmes conditions | non |
 | Permissions | 21 | 30 | 19 (dont 5 côté `admin.*`) |
-| Opérations atteignables | 7 propres + 69 partagées + 16 sans permission + 2 par capacité = **94** | 34 propres + 69 partagées + 16 sans permission + 2 par capacité = **121** | **76** |
+| Opérations atteignables | 7 propres + 70 partagées + 16 sans permission + 2 par capacité = **95** | 34 propres + 70 partagées + 16 sans permission + 2 par capacité = **122** | **78** |
 
 Les 10 permissions que l'administrateur a en plus sont `billing.manage`,
 `catalog.manage`, `jobs.manage`, `members.manage`, `payments.manage`,
