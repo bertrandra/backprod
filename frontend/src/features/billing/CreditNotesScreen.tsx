@@ -1,5 +1,11 @@
 import { Link } from '@tanstack/react-router';
+import { useState } from 'react';
+
+import { can } from '@/app/access/access';
+import { ListFilterBar, PersonLine } from '@/features/billing/ListFilterBar';
 import { useCreditNotes } from '@/queries/billing';
+import { isFiltered, type ListFilter } from '@/queries/listFilter';
+import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { LineOfferSummary } from '@/ui/LineOffer';
@@ -23,7 +29,12 @@ import { currentLocale, t } from '@/i18n';
  * it exists to prevent.
  */
 export function CreditNotesScreen() {
-  const creditNotes = useCreditNotes();
+  const { data: session } = useSession();
+  // A credit note has no status of its own — it is issued, and that is all —
+  // so the only filter is whom it concerns, and that is the administrator's.
+  const [filter, setFilter] = useState<ListFilter>({});
+  const creditNotes = useCreditNotes(25, 0, filter);
+  const mayChoosePerson = can(session, 'billing.manage') && can(session, 'members.read');
 
   if (creditNotes.isPending) {
     return <SkeletonRows rows={6} />;
@@ -43,11 +54,17 @@ export function CreditNotesScreen() {
       <p className="text-sm text-muted">
         {t("A credit note corrects an invoice that is already final. Its number comes from its own sequence, and the invoice it corrects keeps its own number and totals.")}</p>
 
+      <ListFilterBar value={filter} onChange={setFilter} people={mayChoosePerson} testId="credit-note-filters" />
+
       {creditNotes.data.credit_notes.length === 0 ? (
-        <EmptyState
-          title={t("No credit notes")}
-          description={t("One is issued from an invoice that needs correcting.")}
-        />
+        isFiltered(filter) ? (
+          <EmptyState title={t("Nothing matches this filter")} description={t("Choose another person or status, or clear the filter.")} />
+        ) : (
+          <EmptyState
+            title={t("No credit notes")}
+            description={t("One is issued from an invoice that needs correcting.")}
+          />
+        )
       ) : (
         <ul className="space-y-2">
           {creditNotes.data.credit_notes.map((note) => (
@@ -83,6 +100,8 @@ export function CreditNotesScreen() {
                   {t("the invoice")}</Link>
                 {note.reason !== null && ` — ${note.reason}`}
               </p>
+
+              <PersonLine person={note.person} testId="credit-note-person" />
 
               {note.lines.length > 0 && (
                 <ul className="mt-2 space-y-1 border-t border-line pt-2 text-xs">

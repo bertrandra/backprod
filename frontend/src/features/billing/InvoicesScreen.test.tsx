@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { renderAtRoute, SESSION, stubClient, type Stub } from '@/test-utils';
+import { recordingClient, renderAtRoute, SESSION, stubClient, type Stub } from '@/test-utils';
 
 import { InvoicesScreen } from './InvoicesScreen';
 
@@ -26,6 +26,8 @@ function invoice(overrides: Record<string, unknown> = {}) {
     status: 'DRAFT',
     final: false,
     subscription_id: null,
+    // Whom it concerns (2026-09-27): the server's answer, on every list row.
+    person: { user_id: 'u-ada', name: 'Ada Lovelace', email: 'ada@acme.test' },
     net: { minor_units: 2900, currency: 'EUR' },
     vat: { minor_units: 580, currency: 'EUR' },
     gross: { minor_units: 3480, currency: 'EUR' },
@@ -238,5 +240,98 @@ describe('the row says who it is for', () => {
 
     // A dash reads as a name that failed to load.
     expect(screen.getByTestId('invoice-for').getAttribute('data-whose')).toBe('unrecorded');
+  });
+});
+
+/**
+ * The filter above the list, and the person on every row (2026-09-27).
+ *
+ * The filter is the **server's**: choosing a person asks again with
+ * `person=`, never narrows the page already held — a page narrowed in
+ * JavaScript is one page of the answer, and its total would lie.
+ */
+describe('the filter above the list', () => {
+  const ADMIN = { ...BILLER, permissions: [...BILLER.permissions, 'members.read'] };
+  const MEMBERS = {
+    data: {
+      members: [
+        { user_id: 'u-ada', email: 'ada@acme.test', display_name: 'Ada Lovelace', roles: ['USER'], status: 'ACTIVE' },
+        { user_id: 'u-bo', email: 'bo@acme.test', display_name: null, roles: ['TENANT_ADMIN'], status: 'ACTIVE' },
+      ],
+    },
+  };
+
+  it('names the member each invoice concerns, or the organisation', async () => {
+    render(clientFor([invoice(), invoice({ id: 'inv-2', person: null })]));
+
+    await waitFor(() => expect(screen.getAllByTestId('invoice-person')).toHaveLength(2));
+    const [ada, organisation] = screen.getAllByTestId('invoice-person');
+    expect(ada?.textContent).toContain('Ada Lovelace');
+    expect(ada?.getAttribute('data-person')).toBe('u-ada');
+    expect(organisation?.getAttribute('data-person')).toBe('organisation');
+  });
+
+  it('asks the server again for one person and one status', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/me': { data: ADMIN },
+      'GET /api/v1/billing/invoices': listing([invoice()]),
+      'GET /api/v1/tenants/current/members': MEMBERS,
+    });
+    render(client);
+
+    await waitFor(() => expect(screen.getByTestId('filter-person')).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole('option', { name: 'bo@acme.test' })).toBeTruthy());
+
+    fireEvent.change(screen.getByTestId('filter-person'), { target: { value: 'u-bo' } });
+    fireEvent.change(screen.getByTestId('filter-status'), { target: { value: 'PAID' } });
+
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (request) =>
+            request.path === '/api/v1/billing/invoices' &&
+            (request.query as { person?: string; status?: string }).person === 'u-bo' &&
+            (request.query as { person?: string; status?: string }).status === 'PAID',
+        ),
+      ).toBe(true),
+    );
+
+    // "Everybody" is the absence of the parameter, not a value of it.
+    fireEvent.change(screen.getByTestId('filter-person'), { target: { value: '' } });
+    await waitFor(() => {
+      const last = requests.filter((request) => request.path === '/api/v1/billing/invoices').at(-1);
+      expect(last?.query).toEqual({ limit: 25, offset: 0, status: 'PAID' });
+    });
+  });
+
+  it('offers every status the contract has, CREDITED included', async () => {
+    render(clientFor([invoice()]));
+
+    await waitFor(() => expect(screen.getByTestId('filter-status')).toBeTruthy());
+    const offered = Array.from(screen.getByTestId('filter-status').querySelectorAll('option')).map((option) => option.value);
+    expect(offered).toEqual(['', 'DRAFT', 'ISSUED', 'READY_FOR_EINVOICE', 'SUBMITTED', 'ACCEPTED', 'REJECTED', 'PAID', 'CANCELLED', 'CREDITED']);
+  });
+
+  it('gives a member no one to choose: their list is already theirs', async () => {
+    const reader = { ...SESSION, permissions: [...SESSION.permissions, 'billing.read', 'members.read'] };
+    render(
+      stubClient({
+        'GET /api/v1/me': { data: reader },
+        'GET /api/v1/billing/invoices': listing([invoice()]),
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('filter-status')).toBeTruthy());
+    expect(screen.queryByTestId('filter-person')).toBeNull();
+  });
+
+  it("says an empty page is the filter's, and keeps the filter on screen", async () => {
+    render(clientFor([]));
+
+    await waitFor(() => expect(screen.getByTestId('filter-status')).toBeTruthy());
+    fireEvent.change(screen.getByTestId('filter-status'), { target: { value: 'REJECTED' } });
+
+    await waitFor(() => expect(screen.getByText('Nothing matches this filter')).toBeTruthy());
+    expect(screen.getByTestId('invoice-filters')).toBeTruthy();
   });
 });

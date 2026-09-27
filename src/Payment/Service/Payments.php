@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Payment\Service;
 
+use App\Billing\Domain\DocumentPeople;
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Domain\InvoiceStatus;
@@ -31,17 +32,32 @@ final class Payments
         private readonly InvoiceRepository $invoices,
         private readonly PaymentProviders $providers,
         private readonly CreditNotes $creditNotes,
+        private readonly DocumentPeople $people,
     ) {
     }
 
     /**
-     * @return array{payments: list<Payment>, total: int, limit: int, offset: int}
+     * A page of them — the caller's own when `$ownedBy` is set, one person's
+     * when `$person` is — and whom each concerns (2026-09-27), so the list
+     * can name the person beside every document.
+     *
+     * @return array{payments: list<Payment>, people: array<string, array{user_id: string, name: string|null, email: string|null}>, total: int, limit: int, offset: int}
      */
-    public function list(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
-    {
+    public function list(
+        string $tenantId,
+        string $productId,
+        int $limit,
+        int $offset,
+        ?string $ownedBy = null,
+        ?string $person = null,
+        ?string $status = null,
+    ): array {
+        $page = $this->payments->listForTenant($tenantId, $productId, $limit, $offset, $ownedBy, $person, $status);
+
         return [
-            'payments' => $this->payments->listForTenant($tenantId, $productId, $limit, $offset, $ownedBy),
-            'total' => $this->payments->countForTenant($tenantId, $productId, $ownedBy),
+            'payments' => $page,
+            'people' => $this->people->ofPayments($tenantId, array_map(static fn ($document): string => $document->id, $page)),
+            'total' => $this->payments->countForTenant($tenantId, $productId, $ownedBy, $person, $status),
             'limit' => $limit,
             'offset' => $offset,
         ];

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Billing\Controller;
 
+use App\Billing\Domain\InvoiceStatus;
 use App\Billing\Service\Invoicing;
+use App\Shared\Http\ListFilter;
 use App\Shared\Http\PageRequest;
 use App\Shared\Http\RouteHandler;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -38,10 +40,12 @@ final class ListInvoicesController implements RouteHandler
             PageRequest::bounded($query, 'limit', self::DEFAULT_LIMIT, 1, self::MAX_LIMIT),
             PageRequest::bounded($query, 'offset', 0, 0, PHP_INT_MAX),
             $context->documentsOf(),
+            ListFilter::person($query),
+            ListFilter::status($query, InvoiceStatus::all()),
         );
 
         return new JsonResponse([
-            'invoices' => InvoicePresenter::many($page['invoices']),
+            'invoices' => InvoicePresenter::many($page['invoices'], $page['people']),
             'total' => $page['total'],
             'limit' => $page['limit'],
             'offset' => $page['offset'],

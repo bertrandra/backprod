@@ -57,13 +57,39 @@ final class InvoicePresenter
     }
 
     /**
-     * @param list<Invoice> $invoices
+     * @param list<Invoice>                                                          $invoices
+     * @param array<string, array{user_id: string, name: string|null, email: string|null}> $people   by document id
+     *
+     * A list row is the document plus whom it concerns (`ListedInvoice`,
+     * 2026-09-27). Only a list carries `person`: the reads of one document
+     * answer to the page that already knows it.
      *
      * @return list<array<string, mixed>>
      */
-    public static function many(array $invoices): array
+    public static function many(array $invoices, array $people = []): array
     {
-        return array_map(self::one(...), $invoices);
+        return array_map(
+            static fn (Invoice $invoice): array => self::one($invoice) + ['person' => self::person($people[$invoice->id] ?? null)],
+            $invoices,
+        );
+    }
+
+    /**
+     * The person a document concerns, in one shape for every list that
+     * names one — invoices, credit notes and payments (2026-09-27).
+     *
+     * Null is an answer, not a gap: it is the organisation's own document,
+     * bought by nobody in particular.
+     *
+     * @param array{user_id: string, name: string|null, email: string|null}|null $person
+     *
+     * @return array{user_id: string, name: string|null, email: string|null}|null
+     */
+    public static function person(?array $person): ?array
+    {
+        return $person === null
+            ? null
+            : ['user_id' => $person['user_id'], 'name' => $person['name'], 'email' => $person['email']];
     }
 
     /**

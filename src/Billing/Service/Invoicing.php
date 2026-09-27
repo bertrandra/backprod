@@ -6,6 +6,7 @@ namespace App\Billing\Service;
 
 use App\Billing\Domain\BillingProfile;
 use App\Billing\Domain\BillingProfileRepository;
+use App\Billing\Domain\DocumentPeople;
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\InvoicePaid;
@@ -47,17 +48,32 @@ final class Invoicing
         private readonly Subscriptions $subscriptions,
         private readonly Taxation $taxation,
         private readonly WhoSellsAndWhoBuys $parties,
+        private readonly DocumentPeople $people,
     ) {
     }
 
     /**
-     * @return array{invoices: list<Invoice>, total: int, limit: int, offset: int}
+     * A page of them — the caller's own when `$ownedBy` is set, one person's
+     * when `$person` is — and whom each concerns (2026-09-27), so the list
+     * can name the person beside every document.
+     *
+     * @return array{invoices: list<Invoice>, people: array<string, array{user_id: string, name: string|null, email: string|null}>, total: int, limit: int, offset: int}
      */
-    public function list(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
-    {
+    public function list(
+        string $tenantId,
+        string $productId,
+        int $limit,
+        int $offset,
+        ?string $ownedBy = null,
+        ?string $person = null,
+        ?string $status = null,
+    ): array {
+        $page = $this->invoices->listForTenant($tenantId, $productId, $limit, $offset, $ownedBy, $person, $status);
+
         return [
-            'invoices' => $this->invoices->listForTenant($tenantId, $productId, $limit, $offset, $ownedBy),
-            'total' => $this->invoices->countForTenant($tenantId, $productId, $ownedBy),
+            'invoices' => $page,
+            'people' => $this->people->ofInvoices($tenantId, array_map(static fn ($document): string => $document->id, $page)),
+            'total' => $this->invoices->countForTenant($tenantId, $productId, $ownedBy, $person, $status),
             'limit' => $limit,
             'offset' => $offset,
         ];

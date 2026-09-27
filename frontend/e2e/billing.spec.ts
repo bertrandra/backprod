@@ -41,6 +41,8 @@ function invoice(overrides: Record<string, unknown> = {}) {
     status: 'ISSUED',
     final: true,
     subscription_id: null,
+    // Whom it concerns (2026-09-27): the organisation's own here.
+    person: null,
     issued_at: '2026-01-01T10:00:00Z',
     due_at: '2026-01-31T10:00:00Z',
     paid_at: null,
@@ -98,6 +100,8 @@ async function billing(page: Page, session: Record<string, unknown> = SESSION) {
             id: 'pay-1',
             invoice_id: INVOICE_ID,
             subscription_id: null,
+            // Whom it concerns (2026-09-27): the organisation's own here.
+            person: null,
             provider: 'stripe',
             provider_payment_id: 'pi_1',
             status: 'FAILED',

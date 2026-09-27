@@ -1,10 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { ambientParams, type Schemas } from '@/api/client';
 import { useApiClient } from '@/app/providers/ApiProvider';
 import { sessionSnapshot } from '@/state/session';
 
 import { keys } from './keys';
+import { everyValue, filterQuery, type ListFilter } from './listFilter';
 import { toApiError } from './session';
 
 /**
@@ -30,6 +31,14 @@ export type CancellationDecision = Schemas['CancellationDecision'];
 export type ChangeDecision = Schemas['ChangeDecision'];
 export type Entitlement = Schemas['Entitlement'];
 export type HeldSubscription = Schemas['HeldSubscription'];
+
+/** Every subscription status the contract has, for the register's filter. */
+export const SUBSCRIPTION_STATUSES = everyValue<HeldSubscription['status']>({
+  ACTIVE: true,
+  PAST_DUE: true,
+  CANCELLED: true,
+  EXPIRED: true,
+});
 
 /** One page of the organisation's register, with the total behind it. */
 export type HeldSubscriptionPage = {
@@ -62,18 +71,20 @@ export type HeldSubscriptionPage = {
  * server a second later, and one counting places itself would be describing a
  * quota the server does not enforce.
  */
-export function useOrganisationSubscriptions(enabled = true, limit = 50, offset = 0) {
+export function useOrganisationSubscriptions(enabled = true, limit = 50, offset = 0, filter: ListFilter<HeldSubscription['status']> = {}) {
+  const narrowed = filterQuery(filter);
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.subscription.organisationPage(limit, offset),
+    queryKey: keys.subscription.organisationPage(limit, offset, narrowed),
+    placeholderData: keepPreviousData,
     enabled,
     queryFn: async (): Promise<HeldSubscriptionPage> => {
       const { data, error, response } = await client.GET('/api/v1/organisation/subscriptions', {
         ...ambientParams(sessionSnapshot),
         params: {
           ...ambientParams(sessionSnapshot).params,
-          query: { limit, offset },
+          query: { limit, offset, ...narrowed },
         },
       });
 

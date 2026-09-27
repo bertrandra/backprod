@@ -77,7 +77,7 @@ final class OwnDocumentsTest extends DatabaseApiTestCase
                     $this->admin,
                     $this->product,
                     ['TENANT_ADMIN'],
-                    ['billing.read', 'billing.manage', 'billing.pay', 'payments.read', 'sales.read', 'sales.manage', 'subscription.read'],
+                    ['billing.read', 'billing.manage', 'billing.pay', 'payments.read', 'payments.manage', 'sales.read', 'sales.manage', 'subscription.read'],
                 ),
                 // What the migrations give a USER, without `billing.manage`.
                 new TenantMembership(
@@ -283,6 +283,110 @@ final class OwnDocumentsTest extends DatabaseApiTestCase
         self::assertSame(200, $this->get('bob-token', '/api/v1/billing/payments/' . $seat['payment_id'])->getStatusCode());
         self::assertSame(200, $this->get('bob-token', '/api/v1/sales/orders/' . $seat['id'])->getStatusCode());
         self::assertSame('COMPLETED', $this->sessionOf($this->get('bob-token', '/api/v1/checkout/sessions/' . $seat['id']))['status'] ?? null);
+    }
+
+    /**
+     * Every row names the person it concerns, and the administrator can
+     * narrow the list to one of them, or to one status (2026-09-27).
+     */
+    public function testEveryListNamesItsPersonAndFiltersByPersonAndStatus(): void
+    {
+        $company = $this->sessionOf($this->open('alice-token'));
+        $this->pay($company, 'evt_company');
+        $seat = $this->sessionOf($this->open('bob-token', seat: true));
+        $this->pay($seat, 'evt_seat');
+
+        self::assertIsString($seat['payment_id']);
+
+        // A partial refund raises a credit note, so the third list has a row.
+        $refund = $this->request(
+            'POST',
+            '/api/v1/billing/payments/' . $seat['payment_id'] . '/refund',
+            $this->headers('alice-token'),
+            $this->json(['amount_minor_units' => 100]),
+        );
+        self::assertSame(202, $refund->getStatusCode(), (string) $refund->getBody());
+
+        foreach (['invoices' => 'invoices', 'payments' => 'payments', 'credit-notes' => 'credit_notes'] as $path => $key) {
+            foreach ($this->rowsOf($this->get('alice-token', '/api/v1/billing/' . $path), $key) as $row) {
+                self::assertIsArray($row['person'] ?? null, $path . ' names a person on every row');
+                self::assertContains($row['person']['user_id'] ?? null, [$this->admin, $this->member]);
+            }
+
+            // Narrowed to Bob: his documents, with the count agreeing.
+            $bobs = $this->rowsOf($this->get('alice-token', '/api/v1/billing/' . $path . '?person=' . $this->member), $key);
+            self::assertNotSame([], $bobs, $path);
+
+            foreach ($bobs as $row) {
+                self::assertIsArray($row['person'] ?? null);
+                self::assertSame($this->member, $row['person']['user_id'] ?? null);
+                self::assertSame($this->connection->fetchOne('SELECT email FROM users WHERE id = :id', ['id' => $this->member]), $row['person']['email'] ?? null);
+            }
+        }
+
+        // A status narrows too, and a status nothing is in answers nothing.
+        self::assertCount(2, $this->idsOf($this->get('alice-token', '/api/v1/billing/invoices?status=PAID'), 'invoices'));
+        self::assertSame([], $this->idsOf($this->get('alice-token', '/api/v1/billing/invoices?status=DRAFT'), 'invoices'));
+        $status = $this->connection->fetchOne('SELECT status FROM payments WHERE id = :id', ['id' => $seat['payment_id']]);
+        self::assertIsString($status);
+        self::assertSame([$seat['payment_id']], $this->idsOf(
+            $this->get('alice-token', '/api/v1/billing/payments?status=' . $status . '&person=' . $this->member),
+            'payments',
+        ));
+
+        // A malformed filter is refused, never silently ignored.
+        foreach (['/api/v1/billing/invoices?person=bob', '/api/v1/billing/invoices?status=LOST', '/api/v1/billing/payments?status=CHARGED_BACK'] as $path) {
+            self::assertSame(400, $this->get('alice-token', $path)->getStatusCode(), $path);
+        }
+    }
+
+    /**
+     * A filter narrows; it never widens. A member naming a colleague gets an
+     * empty page, not the colleague's documents.
+     */
+    public function testAMemberNamingAColleagueGetsNothing(): void
+    {
+        $company = $this->sessionOf($this->open('alice-token'));
+        $this->pay($company, 'evt_company');
+
+        self::assertSame([], $this->idsOf($this->get('bob-token', '/api/v1/billing/invoices?person=' . $this->admin), 'invoices'));
+        self::assertSame([], $this->idsOf($this->get('bob-token', '/api/v1/billing/payments?person=' . $this->admin), 'payments'));
+    }
+
+    /**
+     * A document raised against a member's subscription is theirs even when
+     * no order raised it — an upgrade, a buy-out, a renewal (2026-09-27).
+     *
+     * The rule used to follow the order only, so those were in the
+     * administrator's list and missing from the member's own.
+     */
+    public function testAMemberSeesAnInvoiceOfTheirSubscriptionThatNoOrderRaised(): void
+    {
+        $seat = $this->sessionOf($this->open('bob-token', seat: true));
+        $this->pay($seat, 'evt_seat');
+
+        // What a renewal looks like to the rule: an invoice on the member's
+        // subscription, and no order pointing at it. A draft, so no legal
+        // number is taken for a test.
+        $subscription = $this->connection->fetchOne(
+            'SELECT subscription_id FROM invoices WHERE id = :id',
+            ['id' => $seat['invoice_id'] ?? null],
+        );
+        self::assertIsString($subscription);
+        $renewal = $this->id(
+            "INSERT INTO invoices (tenant_id, product_id, subscription_id, currency, status)
+             VALUES (:tenant, :product, :subscription, 'EUR', 'DRAFT') RETURNING id",
+            ['tenant' => $this->tenant, 'product' => $this->product, 'subscription' => $subscription],
+        );
+
+        $mine = $this->idsOf($this->get('bob-token', '/api/v1/billing/invoices'), 'invoices');
+        $expected = [$seat['invoice_id'] ?? null, $renewal];
+        sort($mine);
+        sort($expected);
+        self::assertSame($expected, $mine);
+
+        // And it names him on the administrator's list.
+        self::assertCount(2, $this->rowsOf($this->get('alice-token', '/api/v1/billing/invoices?person=' . $this->member), 'invoices'));
     }
 
     // --- Helpers ------------------------------------------------------------

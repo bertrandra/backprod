@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Payment\Controller;
 
+use App\Billing\Controller\InvoicePresenter;
 use App\Billing\Domain\Money;
 use App\Payment\Domain\Collected;
 use App\Payment\Domain\Payment;
@@ -89,13 +90,15 @@ final class PaymentPresenter
      *                                            page at once — one extra read
      *                                            for twenty-five rows, never
      *                                            twenty-five
+     * @param array<string, array{user_id: string, name: string|null, email: string|null}> $people by payment id
      *
      * @return list<array<string, mixed>>
      */
-    public static function many(array $payments, array $collected = []): array
+    public static function many(array $payments, array $collected = [], array $people = []): array
     {
         return array_map(
-            static fn (Payment $payment): array => self::one($payment, $collected[$payment->invoiceId] ?? null),
+            static fn (Payment $payment): array => self::one($payment, $collected[$payment->invoiceId] ?? null)
+                + ['person' => InvoicePresenter::person($people[$payment->id] ?? null)],
             $payments,
         );
     }

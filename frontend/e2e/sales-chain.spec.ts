@@ -86,6 +86,8 @@ function invoice(state: Chain) {
     status: state.paid ? 'PAID' : 'ISSUED',
     final: true,
     subscription_id: null,
+    // Whom it concerns (2026-09-27): the organisation's own here.
+    person: null,
     issued_at: '2026-01-02T10:00:00Z',
     due_at: '2026-02-01T10:00:00Z',
     paid_at: state.paid ? '2026-01-03T10:00:00Z' : null,
@@ -105,6 +107,8 @@ function payment(state: Chain) {
     id: PAYMENT_ID,
     invoice_id: INVOICE_ID,
     subscription_id: null,
+    // Whom it concerns (2026-09-27): the organisation's own here.
+    person: null,
     provider: 'stripe',
     provider_payment_id: 'pi_1',
     status: state.paid ? 'SUCCEEDED' : 'FAILED',

@@ -4,7 +4,10 @@ import { useState } from 'react';
 import { PaymentElementPanel } from '@/features/commerce/payment/PaymentElementPanel';
 
 import { can } from '@/app/access/access';
+import { ListFilterBar, PersonLine } from '@/features/billing/ListFilterBar';
+import { isFiltered, type ListFilter } from '@/queries/listFilter';
 import {
+  PAYMENT_STATUSES,
   isRefundable,
   isRetryable,
   usePayments,
@@ -47,7 +50,8 @@ const REFUND_REASONS = ['DUPLICATE', 'FRAUDULENT', 'REQUESTED_BY_CUSTOMER', 'ERR
 
 export function PaymentsScreen() {
   const { data: session } = useSession();
-  const payments = usePayments();
+  const [filter, setFilter] = useState<ListFilter<Payment['status']>>({});
+  const payments = usePayments(25, 0, filter);
   const retry = useRetryPayment();
   const refund = useRefundPayment();
 
@@ -60,6 +64,9 @@ export function PaymentsScreen() {
   const mayManage = can(session, 'payments.manage');
   // Retrying a failed payment is paying (2026-09-18); refunding is not.
   const mayPay = can(session, 'billing.pay');
+  // An administrator's list holds everybody's payments; a member's only
+  // their own, so only the first has somebody to choose (2026-09-27).
+  const mayChoosePerson = can(session, 'billing.manage') && can(session, 'members.read');
 
   if (payments.isPending) {
     return <SkeletonRows rows={6} />;
@@ -79,11 +86,23 @@ export function PaymentsScreen() {
       {retry.error !== null && <ErrorSurface error={retry.error} />}
       {refund.error !== null && <ErrorSurface error={refund.error} />}
 
+      <ListFilterBar
+        value={filter}
+        onChange={setFilter}
+        people={mayChoosePerson}
+        statuses={PAYMENT_STATUSES}
+        testId="payment-filters"
+      />
+
       {payments.data.payments.length === 0 ? (
-        <EmptyState
-          title={t("No payments")}
-          description={t("A payment is taken against an invoice, or by a checkout.")}
-        />
+        isFiltered(filter) ? (
+          <EmptyState title={t("Nothing matches this filter")} description={t("Choose another person or status, or clear the filter.")} />
+        ) : (
+          <EmptyState
+            title={t("No payments")}
+            description={t("A payment is taken against an invoice, or by a checkout.")}
+          />
+        )
       ) : (
         <ul className="space-y-2">
           {payments.data.payments.map((payment) => (
@@ -168,6 +187,7 @@ export function PaymentsScreen() {
                       testId={`payment-whose-${payment.id}`}
                       className="text-xs text-muted"
                     />
+                    <PersonLine person={payment.person} testId="payment-person" />
                   </dd>
                 </div>
                 <div className="flex gap-2 sm:col-span-2">
@@ -304,10 +324,18 @@ function statusTone(status: Payment['status']): Tone {
       return 'success';
     case 'FAILED':
       return 'danger';
+    // A chargeback is money taken back by the card's bank — a loss, not a
+    // settlement. It was written `CHARGED_BACK` here, after the contract,
+    // while the server has always sent `CHARGEBACK`, so this arm never ran
+    // (2026-09-27). The contract now says what the server sends.
+    case 'CHARGEBACK':
+      return 'danger';
     case 'REFUNDED':
-    case 'CHARGED_BACK':
+    case 'PARTIALLY_REFUNDED':
+    case 'CANCELLED':
       return 'neutral';
-    default:
+    case 'PENDING':
+    case 'AUTHORIZED':
       return 'warning';
   }
 }

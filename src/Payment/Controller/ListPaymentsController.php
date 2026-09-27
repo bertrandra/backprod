@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Payment\Controller;
 
 use App\Payment\Domain\CollectedInvoices;
+use App\Payment\Domain\PaymentStatus;
 use App\Payment\Service\Payments;
+use App\Shared\Http\ListFilter;
 use App\Shared\Http\PageRequest;
 use App\Shared\Http\RouteHandler;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -37,6 +39,8 @@ final class ListPaymentsController implements RouteHandler
             PageRequest::bounded($query, 'limit', self::DEFAULT_LIMIT, 1, self::MAX_LIMIT),
             PageRequest::bounded($query, 'offset', 0, 0, PHP_INT_MAX),
             $context->documentsOf(),
+            ListFilter::person($query),
+            ListFilter::status($query, PaymentStatus::all()),
         );
 
         // One extra read for the whole page, never one per row (2026-09-26):
@@ -47,7 +51,7 @@ final class ListPaymentsController implements RouteHandler
         $collected = $this->collected->of($context->tenantId, PaymentPresenter::invoicesOf($page['payments']));
 
         return new JsonResponse([
-            'payments' => PaymentPresenter::many($page['payments'], $collected),
+            'payments' => PaymentPresenter::many($page['payments'], $collected, $page['people']),
             'total' => $page['total'],
             'limit' => $page['limit'],
             'offset' => $page['offset'],

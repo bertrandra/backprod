@@ -1,10 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { ambientParams, type Schemas } from '@/api/client';
 import { useApiClient } from '@/app/providers/ApiProvider';
 import { sessionSnapshot } from '@/state/session';
 
 import { keys } from './keys';
+import { everyValue, filterQuery, type ListFilter } from './listFilter';
 import { toApiError } from './session';
 
 /**
@@ -33,18 +34,38 @@ import { toApiError } from './session';
 
 export type Invoice = Schemas['Invoice'];
 export type CreditNote = Schemas['CreditNote'];
+/** A row of the lists: the document, and whom it concerns (2026-09-27). */
+export type ListedInvoice = Schemas['ListedInvoice'];
+export type ListedCreditNote = Schemas['ListedCreditNote'];
+
+/** Every invoice status the contract has, for the list's filter. */
+export const INVOICE_STATUSES = everyValue<Invoice['status']>({
+  DRAFT: true,
+  ISSUED: true,
+  READY_FOR_EINVOICE: true,
+  SUBMITTED: true,
+  ACCEPTED: true,
+  REJECTED: true,
+  PAID: true,
+  CANCELLED: true,
+  CREDITED: true,
+});
 export type BillingProfile = Schemas['BillingProfile'];
 
-export function useInvoices(limit = 25, offset = 0) {
+export function useInvoices(limit = 25, offset = 0, filter: ListFilter<Invoice['status']> = {}) {
+  const narrowed = filterQuery(filter);
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.billing.invoiceList(limit, offset),
+    queryKey: keys.billing.invoiceList(limit, offset, narrowed),
+    // The previous page stays on screen while a filter's answer arrives,
+    // so the bar above it does not vanish into a skeleton on every change.
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const ambient = ambientParams(sessionSnapshot);
 
       const { data, error, response } = await client.GET('/api/v1/billing/invoices', {
-        params: { ...ambient.params, query: { limit, offset } },
+        params: { ...ambient.params, query: { limit, offset, ...narrowed } },
       });
 
       if (error !== undefined || data === undefined) {
@@ -265,16 +286,20 @@ export function useIssueCreditNote(invoiceId: string) {
   });
 }
 
-export function useCreditNotes(limit = 25, offset = 0) {
+export function useCreditNotes(limit = 25, offset = 0, filter: ListFilter = {}) {
+  const narrowed = filterQuery(filter);
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.billing.creditNoteList(limit, offset),
+    queryKey: keys.billing.creditNoteList(limit, offset, narrowed),
+    // The previous page stays on screen while a filter's answer arrives,
+    // so the bar above it does not vanish into a skeleton on every change.
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const ambient = ambientParams(sessionSnapshot);
 
       const { data, error, response } = await client.GET('/api/v1/billing/credit-notes', {
-        params: { ...ambient.params, query: { limit, offset } },
+        params: { ...ambient.params, query: { limit, offset, ...narrowed } },
       });
 
       if (error !== undefined || data === undefined) {

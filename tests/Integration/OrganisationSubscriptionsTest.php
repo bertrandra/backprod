@@ -214,6 +214,57 @@ final class OrganisationSubscriptionsTest extends DatabaseApiTestCase
     }
 
     /**
+     * The filter above the register (2026-09-27): one holder, one status, or
+     * both — and the total follows the filter, not the whole register.
+     */
+    public function testTheRegisterFiltersByHolderAndStatus(): void
+    {
+        $offer = $this->offer('pro', 'Pro', 2900, usersLimit: 3);
+
+        $dead = $this->subscribe($offer, $this->holder);
+        $this->connection->executeStatement(
+            "UPDATE subscriptions SET status = 'CANCELLED', ended_at = now(),"
+            . " current_period_start = now() - interval '31 days',"
+            . " current_period_end = now() - interval '1 day' WHERE id = :id",
+            ['id' => $dead],
+        );
+        $live = $this->subscribe($offer, $this->colleague);
+
+        $bos = $this->filtered('person=' . $this->holder);
+        self::assertSame([$dead], array_column($bos['subscriptions'], 'id'));
+        self::assertSame(1, $bos['total']);
+
+        $active = $this->filtered('status=ACTIVE');
+        self::assertSame([$live], array_column($active['subscriptions'], 'id'));
+        self::assertSame(1, $active['total']);
+
+        self::assertSame(0, $this->filtered('status=ACTIVE&person=' . $this->holder)['total']);
+
+        foreach (['person=bo', 'status=GONE'] as $query) {
+            $response = $this->request('GET', '/api/v1/organisation/subscriptions?' . $query, $this->headersFor('ada-token'));
+            self::assertSame(400, $response->getStatusCode(), $query);
+        }
+    }
+
+    /**
+     * @return array{subscriptions: list<array<string, mixed>>, total: int}
+     */
+    private function filtered(string $query): array
+    {
+        $response = $this->request('GET', '/api/v1/organisation/subscriptions?' . $query, $this->headersFor('ada-token'));
+
+        self::assertSame(200, $response->getStatusCode(), (string) $response->getBody());
+
+        $body = $this->decode($response);
+        $rows = $body['subscriptions'] ?? null;
+        self::assertIsArray($rows);
+        self::assertIsInt($body['total'] ?? null);
+
+        /** @var list<array<string, mixed>> $rows */
+        return ['subscriptions' => $rows, 'total' => $body['total']];
+    }
+
+    /**
      * @return array{subscriptions: list<array<string, mixed>>, total: int, limit: int, offset: int}
      */
     private function page(int $limit, int $offset): array

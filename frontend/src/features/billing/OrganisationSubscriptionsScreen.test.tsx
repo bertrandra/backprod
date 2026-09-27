@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { recordingClient, renderWith, SESSION, stubClient, type Stubs } from '@/test-utils';
@@ -209,5 +209,30 @@ describe('the register says whose it is', () => {
     // The count is still there: the organisation was added to it, not
     // substituted for it.
     expect(screen.getByTestId('organisation-name').textContent).toContain('1 live');
+  });
+});
+
+describe('the filter above the register', () => {
+  it('narrows by holder and status on the server, and says when nothing matches', async () => {
+    const { client, requests } = recordingClient({
+      ...stubsFor([held()], { ...ADMIN, permissions: [...ADMIN.permissions, 'members.read'] }),
+      'GET /api/v1/tenants/current/members': {
+        data: { members: [{ user_id: 'u-2', email: 'bo@acme.test', display_name: 'Bo', roles: ['USER'], status: 'ACTIVE' }] },
+      },
+    });
+    renderWith(<OrganisationSubscriptionsScreen />, client);
+
+    await waitFor(() => expect(screen.getByRole('option', { name: 'Bo · bo@acme.test' })).toBeTruthy());
+
+    const offered = Array.from(screen.getByTestId('filter-status').querySelectorAll('option')).map((option) => option.value);
+    expect(offered).toEqual(['', 'ACTIVE', 'PAST_DUE', 'CANCELLED', 'EXPIRED']);
+
+    fireEvent.change(screen.getByTestId('filter-person'), { target: { value: 'u-2' } });
+    fireEvent.change(screen.getByTestId('filter-status'), { target: { value: 'PAST_DUE' } });
+
+    await waitFor(() => {
+      const last = requests.filter((request) => request.path === '/api/v1/organisation/subscriptions').at(-1);
+      expect(last?.query).toEqual({ limit: 50, offset: 0, person: 'u-2', status: 'PAST_DUE' });
+    });
   });
 });

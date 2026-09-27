@@ -37,28 +37,37 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
     {
     }
 
-    public function countOf(string $tenantId, string $productId): int
+    /**
+     * The filter above the list, in one place for the page and its count.
+     */
+    private const FILTER = <<<'SQL'
+        (CAST(:holder AS uuid) IS NULL OR s.owner_user_id = CAST(:holder AS uuid))
+                           AND (CAST(:status AS text) IS NULL OR s.status = CAST(:status AS text))
+        SQL;
+
+    public function countOf(string $tenantId, string $productId, ?string $holder = null, ?string $status = null): int
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return 0;
         }
 
         $total = $this->connection->fetchOne(
-            'SELECT count(*) FROM subscriptions WHERE tenant_id = :tenantId AND product_id = :productId',
-            ['tenantId' => $tenantId, 'productId' => $productId],
+            'SELECT count(*) FROM subscriptions s WHERE s.tenant_id = :tenantId AND s.product_id = :productId AND ' . self::FILTER,
+            ['tenantId' => $tenantId, 'productId' => $productId, 'holder' => $holder, 'status' => $status],
         );
 
         return is_numeric($total) ? (int) $total : 0;
     }
 
-    public function of(string $tenantId, string $productId, int $limit, int $offset): array
+    public function of(string $tenantId, string $productId, int $limit, int $offset, ?string $holder = null, ?string $status = null): array
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return [];
         }
 
+        $filter = self::FILTER;
         $rows = $this->connection->fetchAllAssociative(
-            <<<'SQL'
+            <<<SQL
                 SELECT s.id,
                        s.status,
                        s.subscriber_kind,
@@ -92,6 +101,7 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
                   ) g ON true
                  WHERE s.tenant_id = :tenantId
                    AND s.product_id = :productId
+                   AND {$filter}
                  -- Living first, decided here rather than by the screen
                  -- (2026-09-26): the same clock `isLiveAt` uses, so a page
                  -- boundary cannot put a live seat below a cancelled one.
@@ -107,6 +117,8 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
                 'usersFeature' => Places::USERS_FEATURE,
                 'limit' => $limit,
                 'offset' => $offset,
+                'holder' => $holder,
+                'status' => $status,
             ],
         );
 

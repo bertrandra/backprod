@@ -143,6 +143,70 @@
         },
         "description": "How many to skip."
       },
+      "PersonFilter": {
+        "name": "person",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "Only what concerns this person (2026-09-27): the member a document or a subscription is for. It narrows and never widens — applied beside the caller's own scope, so a member naming a colleague gets an empty page. Malformed is a 400, never ignored."
+      },
+      "InvoiceStatusFilter": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "DRAFT",
+            "ISSUED",
+            "READY_FOR_EINVOICE",
+            "SUBMITTED",
+            "ACCEPTED",
+            "REJECTED",
+            "PAID",
+            "CANCELLED",
+            "CREDITED"
+          ]
+        },
+        "description": "Only invoices in this state."
+      },
+      "PaymentStatusFilter": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "AUTHORIZED",
+            "SUCCEEDED",
+            "FAILED",
+            "CANCELLED",
+            "REFUNDED",
+            "PARTIALLY_REFUNDED",
+            "CHARGEBACK"
+          ]
+        },
+        "description": "Only payments in this state."
+      },
+      "SubscriptionStatusFilter": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "ACTIVE",
+            "PAST_DUE",
+            "CANCELLED",
+            "EXPIRED"
+          ]
+        },
+        "description": "Only subscriptions in this state."
+      },
       "DirectoryLimit": {
         "name": "limit",
         "in": "query",
@@ -869,7 +933,13 @@
           },
           "status": {
             "type": "string",
-            "description": "ACTIVE, CANCELLED, EXPIRED — the row's own state. Not the same question as `live`."
+            "enum": [
+              "ACTIVE",
+              "PAST_DUE",
+              "CANCELLED",
+              "EXPIRED"
+            ],
+            "description": "The row's own state. Not the same question as `live`: `PAST_DUE` is a subscription whose invoice went unpaid past the product's schedule (ADR-060)."
           },
           "subscriber_kind": {
             "type": "string",
@@ -1550,9 +1620,15 @@
             "enum": [
               "DRAFT",
               "ISSUED",
+              "READY_FOR_EINVOICE",
+              "SUBMITTED",
+              "ACCEPTED",
+              "REJECTED",
               "PAID",
-              "CANCELLED"
-            ]
+              "CANCELLED",
+              "CREDITED"
+            ],
+            "description": "Every state the invoice lifecycle has (§26). The contract listed four until 2026-09-27 while the code had nine, so an invoice in e-invoicing or credited arrived as a value the client's type said could not exist."
           },
           "final": {
             "type": "boolean",
@@ -1755,11 +1831,15 @@
             "type": "string",
             "enum": [
               "PENDING",
+              "AUTHORIZED",
               "SUCCEEDED",
               "FAILED",
+              "CANCELLED",
               "REFUNDED",
-              "CHARGED_BACK"
-            ]
+              "PARTIALLY_REFUNDED",
+              "CHARGEBACK"
+            ],
+            "description": "Every state a payment attempt has. `CHARGEBACK`, as the code has always written it: the contract said `CHARGED_BACK` until 2026-09-27, so a screen matching the contract's word never matched a disputed payment."
           },
           "settled": {
             "type": "boolean"
@@ -4618,6 +4698,75 @@
           "last_error": { "type": "string", "nullable": true, "description": "The class of the last failure — `TIMEOUT`, `UNREACHABLE`, `HTTP_500`, `NO_ENDPOINT` — never a message." }
         }
       },
+      "DocumentPerson": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "description": "The member a document or payment concerns (2026-09-27): the holder of the subscription it was raised against, or the person whose order raised it. Null is an answer — the organisation's own document, bought by nobody in particular. One rule for invoices, credit notes and payments, and the same one that decides what a member may see of their own.",
+        "required": [
+          "user_id",
+          "name",
+          "email"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null once the person was erased (§15); the document is kept, and so is the fact it was theirs."
+          }
+        }
+      },
+      "ListedInvoice": {
+        "description": "An invoice on a list, with whom it concerns (2026-09-27). A schema of its own for the reason `CollectedPayment` is one: the reads of one invoice answer to a page that already knows it.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Invoice"
+          },
+          {
+            "type": "object",
+            "required": [
+              "person"
+            ],
+            "properties": {
+              "person": {
+                "$ref": "#/components/schemas/DocumentPerson"
+              }
+            }
+          }
+        ]
+      },
+      "ListedCreditNote": {
+        "description": "A credit note on a list, with whom it concerns — the person of the invoice it corrects (2026-09-27).",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CreditNote"
+          },
+          {
+            "type": "object",
+            "required": [
+              "person"
+            ],
+            "properties": {
+              "person": {
+                "$ref": "#/components/schemas/DocumentPerson"
+              }
+            }
+          }
+        ]
+      },
       "CollectedPayment": {
         "description": "A payment, with the document it collects and who that document names (2026-09-26).\n\nA schema of its own rather than three more properties on `Payment`, and deliberately: `startPayment` and `retryPayment` answer the attempt they have just created, to a page that already knows the invoice, and widening `Payment` would have made `invoice_number: null` mean either *there is no number yet* or *nobody looked*. Here it means only the first.\n\nThe facts are the **invoice's**, read from its snapshot, so they say who the customer was when the document was raised (§25) rather than who they are now.",
         "allOf": [
@@ -4629,7 +4778,8 @@
             "required": [
               "invoice_number",
               "customer_name",
-              "customer_email"
+              "customer_email",
+              "person"
             ],
             "properties": {
               "invoice_number": {
@@ -4652,6 +4802,9 @@
                   "null"
                 ],
                 "description": "The address on the document — the person's for a seat, the billing address otherwise. Null where the snapshot carries neither."
+              },
+              "person": {
+                "$ref": "#/components/schemas/DocumentPerson"
               }
             }
           }
@@ -6831,6 +6984,9 @@
           },
           {
             "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "$ref": "#/components/parameters/PersonFilter"
           }
         ],
         "responses": {
@@ -6850,7 +7006,7 @@
                     "credit_notes": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/CreditNote"
+                        "$ref": "#/components/schemas/ListedCreditNote"
                       }
                     },
                     "total": {
@@ -6902,6 +7058,12 @@
           },
           {
             "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "$ref": "#/components/parameters/PersonFilter"
+          },
+          {
+            "$ref": "#/components/parameters/InvoiceStatusFilter"
           }
         ],
         "responses": {
@@ -6921,7 +7083,7 @@
                     "invoices": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/Invoice"
+                        "$ref": "#/components/schemas/ListedInvoice"
                       }
                     },
                     "total": {
@@ -7599,6 +7761,12 @@
           },
           {
             "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "$ref": "#/components/parameters/PersonFilter"
+          },
+          {
+            "$ref": "#/components/parameters/PaymentStatusFilter"
           }
         ],
         "responses": {
@@ -15581,6 +15749,12 @@
           },
           {
             "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "$ref": "#/components/parameters/PersonFilter"
+          },
+          {
+            "$ref": "#/components/parameters/SubscriptionStatusFilter"
           }
         ],
         "responses": {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Controller;
 
 use App\Billing\Service\CreditNotes;
+use App\Shared\Http\ListFilter;
 use App\Shared\Http\PageRequest;
 use App\Shared\Http\RouteHandler;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -34,10 +35,11 @@ final class ListCreditNotesController implements RouteHandler
             PageRequest::bounded($query, 'limit', self::DEFAULT_LIMIT, 1, self::MAX_LIMIT),
             PageRequest::bounded($query, 'offset', 0, 0, PHP_INT_MAX),
             $context->documentsOf(),
+            ListFilter::person($query),
         );
 
         return new JsonResponse([
-            'credit_notes' => CreditNotePresenter::many($page['credit_notes']),
+            'credit_notes' => CreditNotePresenter::many($page['credit_notes'], $page['people']),
             'total' => $page['total'],
             'limit' => $page['limit'],
             'offset' => $page['offset'],
