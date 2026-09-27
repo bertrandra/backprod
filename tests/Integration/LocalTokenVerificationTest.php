@@ -7,6 +7,7 @@ namespace App\Tests\Integration;
 use App\Auth\Domain\AuthProvider;
 use App\Auth\Domain\LocalTokens;
 use App\Auth\Domain\PublicKeys;
+use App\Auth\Domain\RefreshRotation;
 use App\Auth\Domain\TokenIssuer;
 use App\Auth\Infrastructure\LocalJwtAuthProvider;
 use App\Auth\Infrastructure\LocalJwtTokenIssuer;
@@ -155,6 +156,7 @@ final class LocalTokenVerificationTest extends DatabaseApiTestCase
             TokenIssuer::class => new LocalJwtTokenIssuer($secret, LocalTokens::DEFAULT_ISSUER, LocalTokens::DEFAULT_AUDIENCE),
             AuthProvider::class => new LocalJwtAuthProvider($secret, LocalTokens::DEFAULT_ISSUER, LocalTokens::DEFAULT_AUDIENCE, new ErrorLogLogger(), $previous),
             PublicKeys::class => new LocalSigningKeys($secret, $previous),
+            RefreshRotation::class => new RefreshRotation($secret, $previous),
         ]);
     }
 

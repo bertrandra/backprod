@@ -7,6 +7,7 @@ namespace App\Tests\Integration;
 use App\Auth\Controller\RefreshCookie;
 use App\Auth\Domain\AuthProvider;
 use App\Auth\Domain\LocalTokens;
+use App\Auth\Domain\RefreshRotation;
 use App\Auth\Domain\TokenIssuer;
 use App\Auth\Infrastructure\LocalJwtAuthProvider;
 use App\Auth\Infrastructure\LocalJwtTokenIssuer;
@@ -56,6 +57,7 @@ final class SignInTest extends DatabaseApiTestCase
                 LocalTokens::DEFAULT_AUDIENCE,
                 $logger,
             ),
+            RefreshRotation::class => new RefreshRotation(self::SECRET),
         ]);
 
         // A user, and the credential they prove themselves with. `auth_subject` is
@@ -299,129 +301,139 @@ final class SignInTest extends DatabaseApiTestCase
         self::assertSame(401, $this->request('POST', '/api/v1/auth/refresh')->getStatusCode());
     }
 
-    /**
-     * A token rotated away long enough ago is a copy in somebody's hands.
-     *
-     * The rotation is aged past {@see Sessions::REFRESH_GRACE} rather than
-     * waited out: a test that slept would be a test that takes ten seconds
-     * to say what one `UPDATE` says exactly. What the clock decides is the
-     * whole of the difference between this test and the race below, so it is
-     * the clock this test moves.
-     */
-    public function testReusingASpentRefreshTokenOutsideTheGraceRevokesEverySessionForThatAccount(): void
+    private function refresh(string $cookie): ResponseInterface
     {
-        $first = $this->cookieFrom($this->signIn());
-        $second = $this->cookieFrom($this->request(
-            'POST',
-            '/api/v1/auth/refresh',
-            cookies: [RefreshCookie::NAME => $first],
-        ));
+        return $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $cookie]);
+    }
 
-        // Seconds, not minutes: a window that covered a coffee break would
-        // be a stolen cookie working for the length of one.
-        self::assertLessThan(60, Sessions::REFRESH_GRACE);
+    /** @return list<string> the hashes of this account's live refresh tokens */
+    private function liveTokens(): array
+    {
+        return array_values(array_filter($this->connection->fetchFirstColumn(
+            'SELECT token_hash FROM auth_refresh_tokens WHERE user_id = :id AND revoked_at IS NULL',
+            ['id' => $this->userId],
+        ), 'is_string'));
+    }
 
+    /** Moves a rotation into the past: what a clock would do, in one statement. */
+    private function ageRotationOf(string $token, int $seconds): void
+    {
         $this->connection->executeStatement(
             'UPDATE auth_refresh_tokens SET revoked_at = now() - make_interval(secs => :age) WHERE token_hash = :hash',
-            ['age' => Sessions::REFRESH_GRACE + 60, 'hash' => hash('sha256', $first)],
+            ['age' => $seconds, 'hash' => hash('sha256', $token)],
         );
-
-        // A third party presenting the token the real client already exchanged.
-        $replay = $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $first]);
-
-        self::assertSame(401, $replay->getStatusCode());
-
-        // And the legitimate client's *current* token is dead too. That is the
-        // decision, not a side effect: the two cases are indistinguishable from
-        // here, and signing the real person out costs them a sign-in while leaving
-        // a thief signed in costs them everything.
-        $afterReplay = $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $second]);
-
-        self::assertSame(401, $afterReplay->getStatusCode());
     }
 
     /**
-     * Two tabs, one cookie, both refreshing — and both stay signed in
-     * (2026-09-26).
+     * Two tabs, one cookie, both refreshing — and both are handed the same
+     * token (ADR-062).
      *
      * `AUTH_COOKIE_DOMAIN` makes the refresh cookie one credential for the
      * platform and the product beside it, so two tabs waking from sleep both
-     * call `/auth/refresh` holding the same token. One rotates; the other's
-     * request was already on the wire. Read as theft, that revoked the
-     * family and put both tabs on the sign-in page — the operator's own
-     * report.
-     *
-     * The race is made by presenting the same token twice, second call after
-     * the first has rotated it. That is what the server sees, to the byte;
-     * threads and sleeps would add nothing but flakiness.
+     * call `/auth/refresh` holding the same token. The replacement is derived
+     * from the token, so the second is handed exactly what the first was —
+     * and the order the two answers reach the cookie jar cannot matter,
+     * because they carry the same value.
      */
-    public function testTwoTabsRefreshingWithTheSameCookieBothStaySignedIn(): void
+    public function testTwoTabsRefreshingWithTheSameCookieAreHandedTheSameToken(): void
     {
         $shared = $this->cookieFrom($this->signIn());
 
-        $firstTab = $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $shared]);
+        $firstTab = $this->refresh($shared);
+        $secondTab = $this->refresh($shared);
 
         self::assertSame(200, $firstTab->getStatusCode());
-
-        $secondTab = $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $shared]);
-
         self::assertSame(200, $secondTab->getStatusCode(), (string) $secondTab->getBody());
-        self::assertIsString($this->decode($secondTab)['access_token'] ?? null);
+        self::assertSame($this->cookieFrom($firstTab), $this->cookieFrom($secondTab));
 
-        // And the account kept its sessions rather than being swept: what
-        // the second tab was handed refreshes again, and so does what the
-        // first tab was handed, which is the cookie a browser may well still
-        // be carrying when the two answers arrive out of order.
-        foreach ([$secondTab, $firstTab] as $answer) {
-            self::assertSame(
-                200,
-                $this->request(
-                    'POST',
-                    '/api/v1/auth/refresh',
-                    cookies: [RefreshCookie::NAME => $this->cookieFrom($answer)],
-                )->getStatusCode(),
-            );
-        }
+        // One live token — the one both were handed. Nothing forked.
+        self::assertSame([hash('sha256', $this->cookieFrom($firstTab))], $this->liveTokens());
+        self::assertSame(200, $this->refresh($this->cookieFrom($secondTab))->getStatusCode());
     }
 
     /**
-     * The forgiven refresh continues the chain; it does not fork it.
+     * An answer that never arrived is answered again, however late
+     * (ADR-062).
      *
-     * Letting both callers through by issuing *beside* the token that is
-     * already live is the easy reading of the fix and the wrong one: a
-     * family with two live ends is a family in which a spent token proves
-     * nothing, and reuse detection is the only thing between a stolen cookie
-     * and thirty days of access. So the graced call revokes the chain's live
-     * end in favour of what it issues, and one live token is left.
+     * A lid closed while `/auth/refresh` was in flight, a reload that aborted
+     * it: the server rotated the token and the browser never stored the
+     * replacement. An hour later it presents the old one. Under random
+     * rotation that was theft, and the account was signed out everywhere;
+     * the replacement has never been used, so nobody but the holder of the
+     * old token can be asking, and it is handed over again.
      */
-    public function testTheForgivenRefreshLeavesOneLiveTokenInTheFamily(): void
+    public function testALostAnswerIsAnsweredAgainHoweverLate(): void
     {
-        $shared = $this->cookieFrom($this->signIn());
+        $first = $this->cookieFrom($this->signIn());
+        $lost = $this->cookieFrom($this->refresh($first));
 
-        $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $shared]);
-        $graced = $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $shared]);
+        $this->ageRotationOf($first, 3600);
 
-        self::assertSame(200, $graced->getStatusCode(), (string) $graced->getBody());
+        $again = $this->refresh($first);
 
-        $live = $this->connection->fetchFirstColumn(
-            'SELECT token_hash FROM auth_refresh_tokens WHERE user_id = :id AND revoked_at IS NULL',
-            ['id' => $this->userId],
-        );
-
-        // One, and it is the one the forgiven call handed back — so the two
-        // tokens issued in the race are one chain and not two.
-        self::assertSame([hash('sha256', $this->cookieFrom($graced))], $live);
+        self::assertSame(200, $again->getStatusCode(), (string) $again->getBody());
+        self::assertSame($lost, $this->cookieFrom($again));
+        self::assertSame([hash('sha256', $lost)], $this->liveTokens());
     }
 
     /**
-     * A token nobody replaced is not a race, whatever the clock says.
+     * A request that left before a rotation, arriving just after it, is
+     * followed to the live end of the chain (ADR-062, `RACE_WINDOW`).
      *
-     * Signing out ends a credential on purpose, and there is no rotation for
-     * an in-flight request to have raced with. Presented again — immediately,
-     * so the grace window is not what refuses it — it is a copy that outlived
-     * the moment it was ended, and the family goes as it always did.
+     * The case derivation alone does not cover: the replacement has already
+     * been used — by the product beside the platform, say, which shares the
+     * cookie but not the browser's lock — while a request carrying the token
+     * before it was on the wire.
      */
-    public function testATokenEndedWithNoSuccessorIsNoRaceAndStillRevokesTheFamily(): void
+    public function testARequestFromJustBeforeARotationIsFollowedToTheLiveEnd(): void
+    {
+        $first = $this->cookieFrom($this->signIn());
+        $second = $this->cookieFrom($this->refresh($first));
+        $third = $this->cookieFrom($this->refresh($second));
+
+        $late = $this->refresh($first);
+
+        self::assertSame(200, $late->getStatusCode(), (string) $late->getBody());
+        self::assertSame($third, $this->cookieFrom($late));
+        self::assertSame([hash('sha256', $third)], $this->liveTokens());
+    }
+
+    /**
+     * A token presented after its replacement was used, and not in a race,
+     * is a copy in somebody else's hands — and that sign-in ends, not the
+     * account (ADR-062).
+     *
+     * The browser that used the replacement stored it, and a cookie jar does
+     * not go backwards; only a second holder presents what came before. The
+     * family goes: the legitimate client's current token dies with it,
+     * because the two are indistinguishable from here. The person's *other*
+     * sign-in — another device — is not evidence of anything and stays.
+     */
+    public function testReplayingATokenWhoseReplacementWasUsedEndsThatSignInOnly(): void
+    {
+        $elsewhere = $this->cookieFrom($this->signIn());
+
+        $first = $this->cookieFrom($this->signIn());
+        $second = $this->cookieFrom($this->refresh($first));
+        $third = $this->cookieFrom($this->refresh($second));
+
+        $this->ageRotationOf($second, Sessions::RACE_WINDOW + 60);
+
+        self::assertSame(401, $this->refresh($first)->getStatusCode());
+
+        // The thief and the owner cannot be told apart, so the owner's
+        // current token goes too.
+        self::assertSame(401, $this->refresh($third)->getStatusCode());
+
+        // The other device was never involved.
+        self::assertSame(200, $this->refresh($elsewhere)->getStatusCode());
+    }
+
+    /**
+     * A signed-out sign-in stays out, and a copy presented afterwards opens
+     * nothing — without touching the person's other sign-ins.
+     */
+    public function testATokenEndedBySigningOutOpensNothingAndLeavesOtherSignInsAlone(): void
     {
         $signedOut = $this->cookieFrom($this->signIn());
         $elsewhere = $this->cookieFrom($this->signIn());
@@ -431,18 +443,80 @@ final class SignInTest extends DatabaseApiTestCase
             $this->request('POST', '/api/v1/auth/sign-out', cookies: [RefreshCookie::NAME => $signedOut])->getStatusCode(),
         );
 
-        self::assertSame(
-            401,
-            $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $signedOut])->getStatusCode(),
+        self::assertSame(401, $this->refresh($signedOut)->getStatusCode());
+        self::assertSame(200, $this->refresh($elsewhere)->getStatusCode());
+    }
+
+    /**
+     * Signing out ends the replacement the browser never received, too.
+     *
+     * A lost answer left a live token the browser does not hold; revoking
+     * only the token presented would leave that one as a way back in.
+     */
+    public function testSigningOutEndsTheWholeSignIn(): void
+    {
+        $first = $this->cookieFrom($this->signIn());
+        $unreceived = $this->cookieFrom($this->refresh($first));
+
+        $this->request('POST', '/api/v1/auth/sign-out', cookies: [RefreshCookie::NAME => $first]);
+
+        self::assertSame(401, $this->refresh($unreceived)->getStatusCode());
+        self::assertSame([], $this->liveTokens());
+    }
+
+    /**
+     * A session ends at its maximum age, however busy (ADR-062).
+     *
+     * Rotation used to grant thirty more days on every refresh, so a session
+     * in daily use — or a stolen one kept busy — never had to end.
+     */
+    public function testASignInEndsAtItsMaximumAgeWhateverItsActivity(): void
+    {
+        $cookie = $this->cookieFrom($this->signIn());
+
+        $this->connection->executeStatement(
+            'UPDATE auth_refresh_tokens SET family_started_at = now() - make_interval(secs => :age) WHERE user_id = :id',
+            ['age' => Sessions::MAX_SESSION_AGE + 1, 'id' => $this->userId],
         );
 
-        // The other session is gone too: that is the sweep, and it is the
-        // assertion that fails if a revoked token is ever forgiven for being
-        // recent alone.
-        self::assertSame(
-            401,
-            $this->request('POST', '/api/v1/auth/refresh', cookies: [RefreshCookie::NAME => $elsewhere])->getStatusCode(),
+        self::assertSame(401, $this->refresh($cookie)->getStatusCode());
+    }
+
+    /** And a replacement never outlives the sign-in it continues. */
+    public function testAReplacementExpiresNoLaterThanItsSignIn(): void
+    {
+        $cookie = $this->cookieFrom($this->signIn());
+
+        $this->connection->executeStatement(
+            'UPDATE auth_refresh_tokens SET family_started_at = now() - make_interval(secs => :age) WHERE user_id = :id',
+            ['age' => Sessions::MAX_SESSION_AGE - 3600, 'id' => $this->userId],
         );
+
+        $renewed = $this->refresh($cookie);
+
+        self::assertSame(200, $renewed->getStatusCode());
+        self::assertMatchesRegularExpression('/Max-Age=(\d+)/', $renewed->getHeaderLine('Set-Cookie'));
+        preg_match('/Max-Age=(\d+)/', $renewed->getHeaderLine('Set-Cookie'), $age);
+        self::assertLessThanOrEqual(3600, (int) ($age[1] ?? PHP_INT_MAX));
+    }
+
+    /**
+     * Rotating `AUTH_SIGNING_SECRET` does not strand a replacement computed
+     * under the old one, while the old one is kept as the previous secret.
+     */
+    public function testASecretRotationStillHandsOverAReplacementMadeBeforeIt(): void
+    {
+        $first = $this->cookieFrom($this->signIn());
+        $lost = $this->cookieFrom($this->refresh($first));
+
+        $this->override([
+            RefreshRotation::class => new RefreshRotation('a-new-signing-secret-after-rotation', self::SECRET),
+        ]);
+
+        $again = $this->refresh($first);
+
+        self::assertSame(200, $again->getStatusCode(), (string) $again->getBody());
+        self::assertSame($lost, $this->cookieFrom($again));
     }
 
     /**

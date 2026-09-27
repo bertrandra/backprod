@@ -7,8 +7,10 @@ namespace App\Auth\Service;
 use App\Auth\Domain\AccountRegistrar;
 use App\Auth\Domain\JoinDecision;
 use App\Auth\Domain\LocalCredentialRepository;
+use App\Auth\Domain\RefreshRotation;
 use App\Auth\Domain\RefreshTokenRepository;
 use App\Auth\Domain\RegisteredAccount;
+use App\Auth\Domain\StoredRefreshToken;
 use App\Auth\Domain\TokenIssuer;
 use App\Notification\Domain\Category;
 use App\Notification\Domain\Channel;
@@ -35,17 +37,34 @@ final class Sessions
     public const REFRESH_LIFETIME = 2_592_000;
 
     /**
-     * Ten seconds in which a token that has just been rotated away is still
-     * answered (2026-09-26).
+     * Ninety days, then sign in again, however busy the session (ADR-062).
      *
-     * The length is the flight time of one HTTP request and no more, because
-     * that is the whole of what it has to cover: two tabs that both called
-     * `/auth/refresh` before either answer came back. It is also exactly how
-     * much longer a stolen token stays useful, which is why it is counted in
-     * seconds and not in minutes. {@see refresh()} for what it forgives and
-     * what it does not.
+     * Rotation grants another {@see REFRESH_LIFETIME} on every refresh, so
+     * without a ceiling a session in daily use — or a stolen one kept busy —
+     * never has to end. `AUTH_SESSION_MAX_AGE` overrides it.
      */
-    public const REFRESH_GRACE = 10;
+    public const MAX_SESSION_AGE = 7_776_000;
+
+    /**
+     * Thirty seconds in which a token whose replacement has **already been
+     * used** is still read as a race rather than a theft (ADR-062).
+     *
+     * A replacement that has *not* been used is handed out again at any age —
+     * that is a lost answer, and derivation makes re-sending it safe. This
+     * window covers the one case derivation cannot: a request carrying the
+     * old token still in flight after another caller — typically the product
+     * beside the platform, which shares the cookie but not the browser's
+     * lock — has already rotated the new one. The caller is given the live
+     * end of the chain, which is recomputed rather than forked.
+     */
+    public const RACE_WINDOW = 30;
+
+    /** How far a race is followed along a chain before it is called something else. */
+    private const RACE_STEPS = 8;
+
+    /** What {@see exchange()} says when it has no token to give. */
+    private const STOLEN = 'stolen';
+    private const REFUSED = 'refused';
 
     /**
      * A hash of nothing, for the timing of a miss.
@@ -87,6 +106,9 @@ final class Sessions
          * where a guessed host would send people to somebody else's site.
          */
         private readonly string $appUrl = '',
+        /** What a refresh token is replaced by (ADR-062). */
+        private readonly RefreshRotation $rotation = new RefreshRotation(''),
+        private readonly int $maxSessionAge = self::MAX_SESSION_AGE,
     ) {
     }
 
@@ -366,14 +388,28 @@ final class Sessions
     }
 
     /**
-     * Exchanges a refresh token for a new pair, and treats reuse as theft —
-     * except in the {@see REFRESH_GRACE} seconds after a rotation, where it
-     * is one browser's second tab and not a second holder.
+     * Exchanges a refresh token for a new pair (ADR-062).
      *
-     * @throws UnauthenticatedException when the token is unknown, spent or expired
-     */
-    /**
+     * **The replacement is derived, so the answer is the same however often
+     * it is asked.** A live token is rotated into `HMAC(key, token)`; the
+     * same token presented again is handed that same replacement, for as
+     * long as the replacement has not been used. Two tabs refreshing at once,
+     * answers arriving in the other order, an answer lost to a closed lid or
+     * an aborted reload — every one of them ends with the browser holding the
+     * token the server holds, because there was only ever one to hold.
+     *
+     * **Theft is a replacement that has been used, presented from before
+     * it.** Only a second holder can do that: the browser that used the
+     * replacement stored it, and a cookie jar does not go backwards. The
+     * sign-in it came from is revoked — that family, not the account, so a
+     * glitch on one device does not sign the person out of all of them.
+     * Detection is one rotation later than it was: a thief who presents the
+     * stolen token before its owner refreshes is handed the same replacement,
+     * and the first of the two to use it makes the other a replayer.
+     *
      * @param list<string> $presented every `backprod_refresh` the browser sent
+     *
+     * @throws UnauthenticatedException when no presented token yields a session
      */
     public function refresh(#[SensitiveParameter] array $presented, ?string $productCode = null): Session
     {
@@ -383,199 +419,179 @@ final class Sessions
             $found = $this->refreshTokens->find($this->hash($rawToken));
 
             if ($found !== null) {
-                $known[] = $found;
+                $known[] = [$rawToken, $found];
             }
-        }
-
-        if ($known === []) {
-            throw new UnauthenticatedException();
         }
 
         /**
          * **A live token wins, whatever else came with it** (2026-09-26).
          *
-         * Normally there is one, and this is the single-token path with a
-         * loop around it. There are two the day an operator sets
-         * `AUTH_COOKIE_DOMAIN`: the browser keeps the host-only cookie it
-         * already had *and* the new domain one, and sends both
-         * ({@see RefreshCookie::presented()}). The host-only one holds a
-         * token that was legitimately rotated away, so reading it as theft
-         * revoked every session for the account — and did so again on the
-         * next attempt, and the next. The accounts did not recover; the
-         * operator's did not.
-         *
-         * Taking the live one costs nothing in detection. A thief presents
-         * the token they stole and no other, so a spent token alone still
-         * means what it has always meant. What changes is only the case
-         * where the browser is demonstrably holding a live credential of its
-         * own: then the spent one beside it is a leftover, not evidence.
+         * There are two cookies the day an operator sets `AUTH_COOKIE_DOMAIN`
+         * ({@see RefreshCookie::presented()}), and the host-only one holds a
+         * token legitimately rotated away. So the live ones are tried first,
+         * and a theft is acted on only when *nothing* presented yields a
+         * session: a thief presents the token they stole and no other.
          */
-        foreach ($known as $one) {
-            if (!$one->revoked && !$one->expired) {
+        usort($known, static fn (array $a, array $b): int => (int) $b[1]->usable() <=> (int) $a[1]->usable());
+
+        $stolen = [];
+
+        foreach ($known as [$rawToken, $token]) {
+            $outcome = $this->exchange($rawToken, $token);
+
+            if (is_array($outcome)) {
                 if (count($known) > 1) {
-                    // Worth saying out loud: it means a browser is still
-                    // carrying a cookie this deployment can no longer replace
-                    // in place, and somebody should know the transition is
-                    // happening rather than discover it in a year.
+                    // A browser still carrying a cookie this deployment can no
+                    // longer replace in place; worth knowing it is happening.
                     $this->logger->info('A second refresh cookie was presented and ignored', [
-                        'user_id' => $one->userId,
+                        'user_id' => $token->userId,
                         'presented' => count($known),
                     ]);
                 }
 
-                [$session, $issuedId] = $this->start($one->userId, $one->authSubject, $one->email, $productCode);
+                return $this->resumed($outcome[0], $outcome[1], $productCode);
+            }
 
-                // Revoked *after* the replacement exists, and pointing at it.
-                // The chain is then reconstructable from any link, which is
-                // what makes the reuse below investigable rather than merely
-                // refused.
-                $this->refreshTokens->revoke($one->id, $issuedId);
-
-                return $session;
+            if ($outcome === self::STOLEN) {
+                $stolen[$token->familyId] = $token->userId;
             }
         }
 
-        /**
-         * **A token rotated away a moment ago is a client racing itself**
-         * (2026-09-26).
-         *
-         * The refresh cookie is one cookie for the whole deployment —
-         * `AUTH_COOKIE_DOMAIN` widens it across `raillard.org`, which is what
-         * makes the platform and the product beside it one sign-in (ADR-051
-         * §3). So two tabs are two callers holding *the same* credential.
-         * They wake from sleep together, or load together, and both call
-         * `/auth/refresh`: one rotates, and the other's request is already on
-         * the wire carrying the token that just died. Read as theft, that
-         * revoked the family and signed both tabs out — "déjà connecté à la
-         * plateforme et j'arrive sur la page de login dans plan", which is
-         * how the operator found it. No care in the frontend can avoid it:
-         * by the time the first answer exists the second request has been
-         * sent.
-         *
-         * So the immediate past of a live chain is forgiven, for as long as
-         * a request can be in flight. Two conditions, both load-bearing:
-         *
-         * - the token was **replaced**, and the chain it was replaced into
-         *   still ends in a live token. That is what a rotation leaves
-         *   behind and what nothing else does: `signOut()` and
-         *   `resetPassword()` revoke with no successor, so what they ended
-         *   stays ended and the theft path below still answers for it;
-         * - it was rotated away **within {@see REFRESH_GRACE}**. Nothing else
-         *   distinguishes this from a stolen copy — the bytes are the same,
-         *   the account is the same — so the window is the entire margin
-         *   being given away, and it is ten seconds.
-         *
-         * **The chain is handed over, never forked.** The call issues a
-         * token and revokes the chain's live end *in favour of it*, so the
-         * family still has exactly one live token when this returns. The
-         * obvious alternative — issue beside what is already there, since
-         * both callers are legitimate — is the one thing that must not
-         * happen: two live tokens descended from one would make a spent
-         * token stop being evidence, because it would no longer be true that
-         * at most one credential of a family may be in flight. Reuse
-         * detection is the only thing standing between a stolen cookie and a
-         * month of access, and a fork is how it stops meaning anything.
-         *
-         * Nothing is lost by revoking a token a tab may be holding: the
-         * cookie is shared, so what any tab presents next is whatever was
-         * written last — either the live end, or a token this same path
-         * forgives once more.
-         *
-         * The revocation is a **claim**: of two graced calls racing each
-         * other, the repository tells exactly one that it is the one that
-         * ended the chain's live end. The loser refuses its own request
-         * rather than leave its token behind as a second live end, and
-         * refusing costs a reload against a cookie that is still good, where
-         * forking would cost the meaning of every revocation after it.
-         */
-        foreach ($known as $one) {
-            if (!$one->revoked) {
-                continue;
-            }
+        foreach ($stolen as $familyId => $userId) {
+            $revoked = $this->refreshTokens->revokeFamily($familyId);
 
-            $end = $this->refreshTokens->liveEndOfChainAfter($one->id, self::REFRESH_GRACE);
-
-            if ($end === null) {
-                continue;
-            }
-
-            [$session, $issuedId] = $this->start($one->userId, $one->authSubject, $one->email, $productCode);
-
-            if (!$this->refreshTokens->revoke($end, $issuedId)) {
-                // Somebody else took the chain between the question and the
-                // answer. Undo the token nobody will ever hold, and refuse.
-                $this->refreshTokens->revoke($issuedId, null);
-
-                $this->logger->info('Two refreshes raced for the same chain; the later one was refused', [
-                    'user_id' => $one->userId,
-                ]);
-
-                throw new UnauthenticatedException();
-            }
-
-            $this->logger->info('A refresh token was presented just after being rotated; read as a race, not a theft', [
-                'user_id' => $one->userId,
-                'grace_seconds' => self::REFRESH_GRACE,
-            ]);
-
-            return $session;
-        }
-
-        foreach ($known as $one) {
-            if (!$one->revoked) {
-                continue;
-            }
-
-            /**
-             * A token that was already exchanged is being presented again,
-             * nothing live came with it, and it is not the recent past of a
-             * live chain either.
-             *
-             * Either the legitimate client replayed one — which its own
-             * rotation makes unlikely, and which the grace above has already
-             * excused for as long as a request can take — or somebody else
-             * has a copy. The two are indistinguishable from here, and the
-             * costs are not symmetric: signing the real person out is an
-             * inconvenience, and leaving a thief with a live session is not.
-             * So the whole family goes.
-             *
-             * **Including a token nobody replaced.** A sign-out or a
-             * password reset ends a credential deliberately, and presenting
-             * one afterwards is not a race: there was no rotation to race
-             * with, and no in-flight request can have been carrying it in
-             * good faith. It is a copy that outlived the moment it was
-             * ended, which is the case this rule was written for.
-             */
-            $revoked = $this->refreshTokens->revokeAllFor($one->userId);
-
-            $this->logger->warning('Refresh token reused; revoked every session for the account', [
-                'user_id' => $one->userId,
+            $this->logger->warning('Refresh token reused after its replacement was used; revoked that sign-in', [
+                'user_id' => $userId,
+                'family_id' => $familyId,
                 'revoked' => $revoked,
             ]);
-
-            throw new UnauthenticatedException();
         }
 
-        // Known, none live, none revoked: they have merely expired.
         throw new UnauthenticatedException();
     }
 
     /**
-     * Ends one session.
+     * What one presented token is worth: the live token the browser should
+     * hold now — its row and its raw value, returned rather than remembered
+     * on the object, which serves more than one request — or a refusal and
+     * whether it is evidence of theft.
+     *
+     * No side effect on a refusal — the caller decides what a theft costs,
+     * once it knows nothing else presented succeeded.
+     *
+     * @return array{StoredRefreshToken, string}|string
+     */
+    private function exchange(#[SensitiveParameter] string $rawToken, StoredRefreshToken $token): array|string
+    {
+        if ($token->expired || $token->familyAgeSeconds >= $this->maxSessionAge) {
+            // Somebody who left a tab open too long, or a sign-in that has
+            // reached its age. Neither is anybody's fault.
+            return self::REFUSED;
+        }
+
+        if ($token->usable()) {
+            $successorRaw = $this->rotation->successorOf($rawToken);
+            $successorId = $this->refreshTokens->rotate(
+                $token->id,
+                $this->hash($successorRaw),
+                self::REFRESH_LIFETIME,
+                $this->maxSessionAge,
+            );
+
+            // Somebody may have rotated it between our read and the lock —
+            // the repository then answers the replacement they wrote, which
+            // is the one derived here, and the paths below hand it over.
+            return $successorId === null ? self::REFUSED : $this->handOver($rawToken, $successorId, 0);
+        }
+
+        if (!$token->rotated() || $token->replacedBy === null) {
+            // Ended on purpose — a sign-out, a password reset, a revoked
+            // sign-in — and not by a rotation. A copy presented afterwards
+            // outlived the moment it was ended; its sign-in goes (again).
+            return self::STOLEN;
+        }
+
+        return $this->handOver($rawToken, $token->replacedBy, 0);
+    }
+
+    /**
+     * Follows a rotation to the token the browser should hold now.
+     *
+     * - The replacement is live: it is handed out — again, if it already was.
+     *   This is the lost answer, and it has no time limit, because nobody but
+     *   the holder of the token it replaced can be asking.
+     * - The replacement has itself been rotated **within {@see RACE_WINDOW}**:
+     *   a request that left before the rotation, from a caller the browser's
+     *   lock does not cover. The chain is followed to its live end.
+     * - Rotated longer ago: somebody used the replacement and somebody else
+     *   is presenting what came before it. Theft.
+     *
+     * @return array{StoredRefreshToken, string}|string
+     */
+    private function handOver(#[SensitiveParameter] string $rawToken, string $successorId, int $step): array|string
+    {
+        $successor = $this->refreshTokens->findById($successorId);
+
+        if ($successor === null) {
+            return self::REFUSED;
+        }
+
+        $successorRaw = $this->rotation->successorMatching($rawToken, $successor->tokenHash);
+
+        if ($successorRaw === null) {
+            // Rotated before replacements were derived, or under a secret
+            // this deployment no longer holds. It cannot be handed out again,
+            // and nothing about that is suspicious: sign in again.
+            return self::REFUSED;
+        }
+
+        if ($successor->usable()) {
+            return [$successor, $successorRaw];
+        }
+
+        if ($successor->expired || $successor->familyAgeSeconds >= $this->maxSessionAge) {
+            return self::REFUSED;
+        }
+
+        if (!$successor->rotated() || $successor->replacedBy === null) {
+            // The sign-in was ended after this token was rotated. Nothing to
+            // hand over, and nothing to accuse anybody of.
+            return self::REFUSED;
+        }
+
+        if ($step < self::RACE_STEPS && ($successor->revokedSecondsAgo ?? PHP_INT_MAX) <= self::RACE_WINDOW) {
+            return $this->handOver($successorRaw, $successor->replacedBy, $step + 1);
+        }
+
+        return self::STOLEN;
+    }
+
+    /** A new access token beside the refresh token the browser now holds. */
+    private function resumed(StoredRefreshToken $token, #[SensitiveParameter] string $rawToken, ?string $productCode): Session
+    {
+        return new Session(
+            $this->issuer->issue($token->authSubject, $token->email, $this->audienceFor($productCode)),
+            $rawToken,
+            max(1, $token->expiresInSeconds),
+        );
+    }
+
+    /**
+     * Ends the sign-in each presented token belongs to.
      *
      * Never throws. A sign-out is somebody saying "I am done", and answering that
      * with an error because the token had already expired would be a worse
      * outcome than the request they asked for. Unknown token, spent token, no
      * token: all of them end with them signed out.
-     */
-    /**
+     *
+     * The whole sign-in rather than the one token (ADR-062): a replacement the
+     * browser never received is still a live token of this sign-in, and a
+     * sign-out that left it live would leave a way back in.
+     *
      * @param list<string> $presented every `backprod_refresh` the browser sent
      */
     public function signOut(#[SensitiveParameter] array $presented): void
     {
-        // All of them, not the one that survived parsing (2026-09-26). A
-        // browser holding both a host-only cookie and a domain one holds two
-        // live tokens, and ending one of them is not a sign-out.
         foreach ($presented as $rawToken) {
             if ($rawToken === '') {
                 continue;
@@ -583,8 +599,8 @@ final class Sessions
 
             $stored = $this->refreshTokens->find($this->hash($rawToken));
 
-            if ($stored !== null && !$stored->revoked) {
-                $this->refreshTokens->revoke($stored->id, null);
+            if ($stored !== null) {
+                $this->refreshTokens->revokeFamily($stored->familyId);
             }
         }
     }
@@ -605,7 +621,9 @@ final class Sessions
         // its SHA-256, and the database refuses anything that is not one.
         $raw = bin2hex(random_bytes(32));
 
-        $issuedId = $this->refreshTokens->issue($userId, $this->hash($raw), self::REFRESH_LIFETIME);
+        // A new sign-in, so a new family: everything rotated from this token
+        // belongs to it, and ending it ends them all.
+        $issuedId = $this->refreshTokens->start($userId, $this->hash($raw), self::REFRESH_LIFETIME);
 
         return [
             new Session($this->issuer->issue($authSubject, $email, $this->audienceFor($productCode)), $raw, self::REFRESH_LIFETIME),

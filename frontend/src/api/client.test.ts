@@ -164,6 +164,8 @@ describe('a lapsed session', () => {
     };
 
     const client = createApiClient({
+      // No lock and no channel: a renewal confined to this client.
+      environment: {},
       baseUrl: 'https://example.test',
       context,
       fetch: (request) => {
@@ -208,6 +210,40 @@ describe('a lapsed session', () => {
     expect(renewed).toEqual([]);
     expect(expired()).toBe(1);
     expect(seen.map((s) => s.url)).toEqual(['/api/v1/me', '/api/v1/auth/refresh']);
+  });
+
+  it('keeps the session when the refresh is rate-limited or failing — only a 401 ends it', async () => {
+    for (const status of [429, 502, 503]) {
+      const { client, renewed, expired } = harness(() => json({ error: { code: 'X' } }, status));
+
+      const { response } = await client.GET('/api/v1/me', { params: { header: { 'X-Product': 'atlas' } } });
+
+      expect(response.status).toBe(401);
+      expect(renewed).toEqual([]);
+      expect(expired()).toBe(0);
+    }
+  });
+
+  it('names the product it is renewing on, so the token names it too', async () => {
+    const products: (string | null)[] = [];
+    const client = createApiClient({
+      environment: {},
+      baseUrl: 'https://example.test',
+      context: { token: () => 'stale', product: () => 'plan' },
+      fetch: (request) => {
+        if (request.url.endsWith('/api/v1/auth/refresh')) {
+          products.push(request.headers.get('X-Product'));
+
+          return Promise.resolve(json({ access_token: 'fresh', token_type: 'Bearer', expires_in: 3600 }));
+        }
+
+        return Promise.resolve(json({ error: { code: 'UNAUTHENTICATED' } }, 401));
+      },
+    });
+
+    await client.GET('/api/v1/me', { params: { header: { 'X-Product': 'plan' } } });
+
+    expect(products).toEqual(['plan']);
   });
 
   it('shares one renewal between requests that fail together', async () => {
@@ -268,6 +304,8 @@ describe('the URL a request actually goes to', () => {
     let seen = '';
 
     const client = createApiClient({
+      // No lock and no channel: a renewal confined to this client.
+      environment: {},
       baseUrl,
       context: contextOf('t', 'atlas'),
       fetch: (request) => {

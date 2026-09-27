@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiProvider } from '@/app/providers/ApiProvider';
 import { useSessionStore } from '@/state/session';
-import { recordingClient, renderWith, stubClient } from '@/test-utils';
+import { recordingClient, renderWith, type Stub, stubClient } from '@/test-utils';
 
 import { SignInGate } from './SignInGate';
 
@@ -139,18 +139,58 @@ describe('a page load with no session', () => {
     // than inside a shell.
     expect(screen.queryByText('The application')).toBeNull();
   });
+});
 
-  it('shows the form when the server cannot be reached at all', async () => {
+/**
+ * An outage is not a sign-out (ADR-062). The cookie may be perfectly good;
+ * the form used to be shown anyway, and signing in from it threw away a
+ * session that was fine.
+ */
+describe('a page load that cannot reach the server', () => {
+  const DOWN = { status: 503, error: { error: { code: 'X', message: 'x', details: {}, request_id: 'r' } } };
+
+  it('says so, keeps the session undecided, and does not show the form', async () => {
     renderWith(
       <SignInGate>
         <p>The application</p>
       </SignInGate>,
-      stubClient({ [REFRESH]: { status: 503, error: { error: { code: 'X', message: 'x', details: {}, request_id: 'r' } } } }),
+      stubClient({ [REFRESH]: DOWN }),
     );
 
-    // Waiting inside a blank page would not fix an outage. A form the person can
-    // retry from at least says what is happening.
-    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeDefined();
+    expect(await screen.findByTestId('session-unreachable')).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull();
+    expect(useSessionStore.getState().status).toBe('unreachable');
+  });
+
+  it('treats a rate limit the same way', async () => {
+    renderWith(
+      <SignInGate>
+        <p>The application</p>
+      </SignInGate>,
+      stubClient({ [REFRESH]: { ...DOWN, status: 429 } }),
+    );
+
+    expect(await screen.findByTestId('session-unreachable')).toBeDefined();
+  });
+
+  it('resumes the session once the server answers again', async () => {
+    let answer: Stub = DOWN;
+    const client = stubClient({ [REFRESH]: () => answer });
+
+    renderWith(
+      <SignInGate>
+        <p>The application</p>
+      </SignInGate>,
+      client,
+    );
+
+    await screen.findByTestId('session-unreachable');
+
+    answer = { data: SESSION };
+    screen.getByRole('button', { name: 'Try again now' }).click();
+
+    await waitFor(() => expect(screen.getByText('The application')).toBeDefined());
+    expect(useSessionStore.getState().token).toBe('access');
   });
 });
 
@@ -200,6 +240,33 @@ describe('renewal', () => {
 
     expect(requests).toHaveLength(1);
     expect(requests[0]?.path).toBe('/api/v1/auth/refresh');
+  });
+
+  it('keeps the person signed in when the renewal cannot be answered, and asks again', async () => {
+    vi.useFakeTimers();
+
+    const { client, requests } = recordingClient({
+      [REFRESH]: { status: 503, error: { error: { code: 'X', message: 'x', details: {}, request_id: 'r' } } },
+    });
+
+    useSessionStore.setState({ token: 'access', status: 'signed-in', expiresAt: Date.now() + 90_000 });
+
+    renderWith(
+      <SignInGate>
+        <p>The application</p>
+      </SignInGate>,
+      client,
+    );
+
+    await vi.advanceTimersByTimeAsync(31_000);
+
+    expect(useSessionStore.getState().status).toBe('signed-in');
+    expect(requests).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(requests).toHaveLength(2);
+    expect(useSessionStore.getState().status).toBe('signed-in');
   });
 
   it('signs the person out when the renewal is refused', async () => {

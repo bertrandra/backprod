@@ -11,6 +11,11 @@ the 503 — is unchanged, and so is the secret: nothing new is generated or stor
 so a rotation is still an edit to `.env` (`AUTH_SIGNING_SECRET_PREVIOUS` keeps
 the old key verifying for an hour).
 
+**Superseded on rotation by ADR-062 (2026-09-27).** The ten-second grace
+below is gone: a replacement is now derived from the token it replaces, so
+the same token always gets the same replacement, and reuse is theft only once
+that replacement has been used. The amendment is kept as the record of why.
+
 **Amended 2026-09-26: reuse is theft, except for ten seconds after the
 rotation that caused it.** "Rotation, with reuse treated as theft" below was
 written for one client holding one cookie, and that stopped being true the day

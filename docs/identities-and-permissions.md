@@ -157,6 +157,17 @@ d'adhésion** d'Acme (`tenants.join_policy`) décide si l'appartenance est activ
 Une appartenance en attente **n'est pas une appartenance** : aucun contexte ne
 se résout, `/me` répond 403, et la coquille dit « en attente d'Acme ».
 
+**L'adresse doit être prouvée avant que l'appartenance ne vive** (ADR-061,
+proposé le 27 septembre 2026, pas encore implémenté). L'inscription reste
+libre — compte, mot de passe et session sont créés tout de suite — mais toute
+appartenance issue d'une inscription naît `UNCONFIRMED`, quelle que soit la
+politique. Le lien de confirmation (ou un lien de mot de passe, qui arrive à la
+même boîte) la tranche de nouveau selon la politique du moment : `ACTIVE` sous
+`OPEN` ou `DOMAIN`, `PENDING` sous `APPROVAL` — et c'est alors seulement que
+les administrateurs sont prévenus. Aujourd'hui, `OPEN` et `DOMAIN` rendent
+l'appartenance active sur l'adresse telle que tapée : sous `DOMAIN`,
+`nimporte-qui@acme.example` est membre d'Acme.
+
 Il n'existe toujours aucun type « B2C ». Un particulier est un `USER` du tenant
 à la racine duquel il s'est inscrit, et **il paie dans la foulée** : la
 politique d'adhésion par défaut est `OPEN` (membre immédiat) et `billing.pay`

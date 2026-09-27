@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace App\Auth\Domain;
 
 /**
- * A refresh token as the database knows it: by its hash, and whether it is spent.
+ * A refresh token as the database knows it: by its hash, where it sits in its
+ * sign-in, and whether it is spent (ADR-062).
  *
- * `revoked` and `expired` are kept apart because they mean different things to
- * the service. An expired token is somebody who left the tab open too long. A
- * *revoked* one being presented is somebody using a credential that was already
- * exchanged — either a replay or a theft — and the answer to that is to revoke
- * the whole family rather than to shrug and refuse one request. Unless it was
- * exchanged seconds ago, which is one browser's two tabs racing each other and
- * not two holders: `Sessions::REFRESH_GRACE`, and the chain says which.
+ * `revoked` and `replacedBy` together say which of three things a spent token
+ * is. Replaced: it was rotated, and whether presenting it again is a lost
+ * answer or a theft depends on whether its replacement has been used.
+ * Revoked with no replacement: somebody ended it on purpose — a sign-out, a
+ * password reset, a family revoked — and it opens nothing again. Expired: a
+ * tab left open too long, and nothing more.
+ *
+ * Ages and remaining lifetimes are the database's arithmetic, because the
+ * database's clock wrote every timestamp they are measured from.
  */
 final class StoredRefreshToken
 {
@@ -24,11 +27,27 @@ final class StoredRefreshToken
         public readonly ?string $email,
         public readonly bool $revoked,
         public readonly bool $expired,
+        public readonly string $familyId = '',
+        public readonly ?string $replacedBy = null,
+        /** Seconds since it was revoked; null while it is not. */
+        public readonly ?int $revokedSecondsAgo = null,
+        /** Seconds since the sign-in this token descends from. */
+        public readonly int $familyAgeSeconds = 0,
+        /** Seconds until it expires; zero or less once it has. */
+        public readonly int $expiresInSeconds = 0,
+        /** SHA-256 of the token — what a derived replacement is checked against. */
+        public readonly string $tokenHash = '',
     ) {
     }
 
     public function usable(): bool
     {
         return !$this->revoked && !$this->expired;
+    }
+
+    /** Spent by a rotation, rather than ended on purpose. */
+    public function rotated(): bool
+    {
+        return $this->revoked && $this->replacedBy !== null;
     }
 }

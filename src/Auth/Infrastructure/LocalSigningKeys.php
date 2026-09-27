@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Auth\Infrastructure;
 
+use App\Auth\Domain\LocalTokens;
 use App\Auth\Domain\PublicKeys;
 use Firebase\JWT\Key;
 use SensitiveParameter;
@@ -33,7 +34,7 @@ use SensitiveParameter;
 final class LocalSigningKeys implements PublicKeys, SigningKeySource
 {
     /** The shortest secret worth deriving from, in bytes: the same bar HS256 set. */
-    public const MINIMUM_SECRET_BYTES = 32;
+    public const MINIMUM_SECRET_BYTES = LocalTokens::MINIMUM_SECRET_BYTES;
 
     /** Domain separation for the derivation, so this secret used elsewhere yields something else. */
     private const CONTEXT = 'backprod.session-signing.v1';

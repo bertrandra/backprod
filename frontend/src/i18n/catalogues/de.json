@@ -1320,5 +1320,7 @@
   "Your seat": "Ihr Platz",
   "Your seat has started; what it entitles you to is yours now.": "Ihr Platz hat begonnen; was er Ihnen gewährt, gehört jetzt Ihnen.",
   "Your seat is yours alone. An offer from the catalogue, bought for the organisation, starts one for everyone.": "Ihr Platz gehört nur Ihnen. Ein Angebot aus dem Katalog, für die Organisation gekauft, startet eines für alle.",
-  "Your subscription is suspended for non-payment": "Ihr Abonnement ist wegen Nichtzahlung gesperrt"
+  "Your subscription is suspended for non-payment": "Ihr Abonnement ist wegen Nichtzahlung gesperrt",
+  "Cannot reach the server. Your session is kept, and we will try again shortly.": "Der Server ist nicht erreichbar. Ihre Sitzung bleibt erhalten; wir versuchen es gleich erneut.",
+  "Try again now": "Jetzt erneut versuchen"
 }

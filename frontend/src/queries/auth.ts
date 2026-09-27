@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import type { paths } from '@/api/client';
+import { renewalOf, type paths } from '@/api/client';
 import { useApiClient } from '@/app/providers/ApiProvider';
 import { withRoot } from '@/app/root';
 import { type LocaleCode } from '@/i18n';
@@ -271,6 +271,7 @@ export function useResetPassword() {
  */
 export function useSignOut() {
   const client = useApiClient();
+  const renewal = renewalOf(client);
   const queryClient = useQueryClient();
   const forget = useSessionStore((state) => state.forget);
 
@@ -289,6 +290,9 @@ export function useSignOut() {
       window.history.replaceState(null, '', withRoot(useSessionStore.getState().root, '/'));
       forget();
       queryClient.clear();
+      // Every other tab shared the cookie that was just revoked: tell them,
+      // rather than leave them working until their access token lapses.
+      renewal.ended();
     },
   });
 }

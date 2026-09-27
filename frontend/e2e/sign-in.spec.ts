@@ -354,6 +354,49 @@ test.describe('coming back later', () => {
     expect(asked[0]).toContain('/api/v1/auth/refresh');
   });
 
+  /**
+   * A browser restoring several tabs at once (ADR-062). Every tab shares one
+   * cookie; the Web Lock makes their refreshes take turns, and a tab that
+   * waited takes the answer another tab broadcast. Before, they raced, and
+   * the losers landed on the form.
+   */
+  test('several tabs restored together take turns, and every one resumes', async ({ context }) => {
+    let inFlight = 0;
+    let mostAtOnce = 0;
+    const pages = await Promise.all([context.newPage(), context.newPage(), context.newPage()]);
+
+    for (const page of pages) {
+      await stubApi(page);
+      await stubAuth(page, {});
+      await page.route('**/api/v1/auth/refresh', async (route) => {
+        inFlight += 1;
+        mostAtOnce = Math.max(mostAtOnce, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        inFlight -= 1;
+
+        return route.fulfill({ status: 200, json: SESSION });
+      });
+    }
+
+    await Promise.all(pages.map((page) => page.goto('/profile?product=atlas')));
+
+    for (const page of pages) {
+      await expect(page.getByRole('heading', { name: 'Your profile' })).toBeVisible();
+    }
+
+    expect(mostAtOnce).toBe(1);
+  });
+
+  test('a server that cannot answer keeps the session rather than asking for a password', async ({ page }) => {
+    await stubApi(page);
+    await stubAuth(page, { refresh: { status: 503, json: { error: { code: 'X', message: 'x', details: {}, request_id: 'r' } } } });
+
+    await page.goto('/profile?product=atlas');
+
+    await expect(page.getByTestId('session-unreachable')).toBeVisible();
+    await expect(page.getByLabel('Password', { exact: true })).toHaveCount(0);
+  });
+
   test('a session the server no longer honours lands on the form', async ({ page }) => {
     await stubApi(page);
     await stubAuth(page, {});

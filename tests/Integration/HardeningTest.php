@@ -127,6 +127,31 @@ final class HardeningTest extends DatabaseApiTestCase
         )->getStatusCode());
     }
 
+    /**
+     * Keeping a session alive is not knocking on the door (ADR-062).
+     *
+     * `/auth/refresh` was counted with the storefront and the password form,
+     * so an office whose people had spent the public allowance got 429 on
+     * refresh — which a browser read as "signed out". It has a bucket of its
+     * own now, at the signed-in allowance.
+     */
+    public function testRefreshingDoesNotSpendThePublicAllowance(): void
+    {
+        $this->spendTheAllowance();
+
+        self::assertSame(429, $this->health()->getStatusCode());
+
+        // No cookie, so the refresh is refused — but by authentication, which
+        // means the limiter let it through.
+        self::assertSame(401, $this->request(
+            'POST',
+            '/api/v1/auth/refresh',
+            [],
+            null,
+            ['REMOTE_ADDR' => '203.0.113.1'],
+        )->getStatusCode());
+    }
+
     // --- CORS ------------------------------------------------------------------
 
     public function testAnUnknownOriginGetsNoCorsHeadersAtAll(): void

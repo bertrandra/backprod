@@ -71,6 +71,25 @@ export function SignInGate({ children }: { children: ReactNode }) {
     );
   }
 
+  if (status === 'unreachable') {
+    // Not the form (ADR-062): the session may be perfectly good, and the
+    // person should not be asked to sign in because the network is not.
+    return (
+      <main className="mx-auto flex min-h-dvh max-w-sm flex-col items-center justify-center gap-3 p-4">
+        <p role="status" data-testid="session-unreachable" className="text-center text-sm text-muted">
+          {t("Cannot reach the server. Your session is kept, and we will try again shortly.")}
+        </p>
+        <button
+          type="button"
+          className="text-sm underline"
+          onClick={() => useSessionStore.getState().retryRestore()}
+        >
+          {t("Try again now")}
+        </button>
+      </main>
+    );
+  }
+
   if (status === 'signed-in') {
     return <>{children}</>;
   }

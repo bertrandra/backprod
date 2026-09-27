@@ -21,4 +21,11 @@ final class LocalTokens
 {
     public const DEFAULT_ISSUER = 'backprod';
     public const DEFAULT_AUDIENCE = 'backprod-api';
+
+    /**
+     * The shortest `AUTH_SIGNING_SECRET` anything is derived from. Here, in
+     * the domain, because the refresh rotation derives its key from the same
+     * secret and must refuse the same short ones the signer does.
+     */
+    public const MINIMUM_SECRET_BYTES = 32;
 }

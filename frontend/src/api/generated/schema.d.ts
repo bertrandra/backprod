@@ -296,7 +296,7 @@ export interface paths {
         put?: never;
         /**
          * Exchange the refresh cookie for a new session
-         * @description Takes no body: the credential is the `HttpOnly` cookie, which the browser attaches by itself. A body field would mean a script had read the token, which is what the cookie exists to prevent. The refresh token is rotated on every call, so presenting a spent one is evidence of a copy and revokes every session for the account. Sent with `X-Product` naming a live product, the new access token names that product in `aud` too (ADR-051 milestone E) — which is how single sign-on from the cookie yields a token the product’s server can verify as its own.
+         * @description Takes no body: the credential is the `HttpOnly` cookie, which the browser attaches by itself. A body field would mean a script had read the token, which is what the cookie exists to prevent. The refresh token is rotated on every call, into a replacement derived from it (ADR-062): the same token presented again is handed the same replacement for as long as that replacement has not been used, so two tabs, answers arriving out of order and an answer that never arrived all end with one token. A token presented after its replacement was used is evidence of a copy, and revokes that sign-in (not the account's others). Refused once the sign-in is older than `AUTH_SESSION_MAX_AGE`, 90 days by default, however active. Sent with `X-Product` naming a live product, the new access token names that product in `aud` too (ADR-051 milestone E) — which is how single sign-on from the cookie yields a token the product’s server can verify as its own.
          */
         post: operations["refreshSession"];
         delete?: never;
@@ -316,7 +316,7 @@ export interface paths {
         put?: never;
         /**
          * End this session
-         * @description Always 204. An unknown token, an expired one, or no cookie at all all end with the caller signed out, because that is what they asked for. The refresh token is revoked server-side as well as cleared from the browser: clearing the cookie alone would leave the credential valid for anybody holding a copy.
+         * @description Always 204. An unknown token, an expired one, or no cookie at all all end with the caller signed out, because that is what they asked for. The whole sign-in the refresh token belongs to is revoked server-side as well as cleared from the browser (ADR-062) — including a replacement the browser never received: clearing the cookie alone would leave the credential valid for anybody holding a copy.
          */
         post: operations["signOut"];
         delete?: never;
