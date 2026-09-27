@@ -64,6 +64,17 @@ final class InvoiceStatus
         self::CREDITED => [],
     ];
 
+    /**
+     * Every status there is — the keys of the transition table, so a status
+     * added to one is in the other (2026-09-27, for a list's filter).
+     *
+     * @return list<string>
+     */
+    public static function all(): array
+    {
+        return array_keys(self::ALLOWED);
+    }
+
     public static function permits(string $from, string $to): bool
     {
         return in_array($to, self::ALLOWED[$from] ?? [], true);

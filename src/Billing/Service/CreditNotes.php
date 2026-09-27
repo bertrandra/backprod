@@ -7,6 +7,7 @@ namespace App\Billing\Service;
 use App\Billing\Domain\CreditNote;
 use App\Billing\Domain\CreditNotePlan;
 use App\Billing\Domain\CreditNoteRepository;
+use App\Billing\Domain\DocumentPeople;
 use App\Billing\Domain\Invoice;
 use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\InvoiceRepository;
@@ -77,17 +78,32 @@ final class CreditNotes
         private readonly CreditNoteRepository $creditNotes,
         private readonly InvoiceRepository $invoices,
         private readonly Taxation $taxation,
+        private readonly DocumentPeople $people,
     ) {
     }
 
     /**
-     * @return array{credit_notes: list<CreditNote>, total: int, limit: int, offset: int}
+     * A page of them — the caller's own when `$ownedBy` is set, one person's
+     * when `$person` is — and whom each concerns (2026-09-27), so the list
+     * can name the person beside every document.
+     *
+     * @return array{credit_notes: list<CreditNote>, people: array<string, array{user_id: string, name: string|null, email: string|null}>, total: int, limit: int, offset: int}
      */
-    public function list(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
-    {
+    public function list(
+        string $tenantId,
+        string $productId,
+        int $limit,
+        int $offset,
+        ?string $ownedBy = null,
+        ?string $person = null,
+        ?string $status = null,
+    ): array {
+        $page = $this->creditNotes->listForTenant($tenantId, $productId, $limit, $offset, $ownedBy, $person, $status);
+
         return [
-            'credit_notes' => $this->creditNotes->listForTenant($tenantId, $productId, $limit, $offset, $ownedBy),
-            'total' => $this->creditNotes->countForTenant($tenantId, $productId, $ownedBy),
+            'credit_notes' => $page,
+            'people' => $this->people->ofCreditNotes($tenantId, array_map(static fn ($document): string => $document->id, $page)),
+            'total' => $this->creditNotes->countForTenant($tenantId, $productId, $ownedBy, $person, $status),
             'limit' => $limit,
             'offset' => $offset,
         ];

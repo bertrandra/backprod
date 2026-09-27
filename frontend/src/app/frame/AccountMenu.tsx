@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useSignOut } from '@/queries/auth';
 import { useSession } from '@/queries/session';
 import { useStaffIdentity } from '@/queries/staff';
+import { BuildStamp } from '@/ui/BuildStamp';
 import { touchTargetClass } from '@/ui/Field';
 import { cn } from '@/utils/cn';
 import { t } from '@/i18n';
@@ -149,6 +150,8 @@ export function AccountMenu() {
           >
             {signOut.isPending ? t("Signing out…") : t("Sign out")}
           </button>
+
+          <BuildStamp />
         </div>
       )}
     </div>

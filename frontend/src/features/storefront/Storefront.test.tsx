@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useSessionStore } from '@/state/session';
+import { BUILD } from '@/build';
 import { recordingClient, renderWith, stubClient, type Stubs } from '@/test-utils';
 
 import { Storefront } from './Storefront';
@@ -199,6 +200,7 @@ describe('the shop window', () => {
     // get in.
     await waitFor(() => expect(screen.getByText(/Nothing on sale yet/i)).toBeTruthy());
     expect(screen.queryByTestId('storefront-product')).toBeNull();
+    fireEvent.click(screen.getByTestId('visitor-menu'));
     expect(screen.getByTestId('sign-in-link')).toBeTruthy();
   });
 
@@ -239,10 +241,25 @@ describe('the shop window', () => {
 
     await waitFor(() => expect(screen.getByTestId('showcase-offers')).toBeTruthy());
 
-    // Present and reachable, below the offers rather than instead of them: an
-    // account is what buying produces, not what it requires.
+    // At the top, in the corner the signed-in shell keeps its account circle
+    // (2026-09-27) — and small, beside the offers rather than instead of
+    // them: an account is what buying produces, not what it requires.
+    const menu = screen.getByTestId('visitor-menu');
+    expect(menu.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByTestId('sign-in-link')).toBeNull();
+
+    fireEvent.click(menu);
+    expect(menu.getAttribute('aria-expanded')).toBe('true');
+    // Which version and build this is, at the end of the menu (2026-09-27):
+    // the values the build stamped, never a placeholder.
+    const stamp = screen.getByTestId('build-stamp');
+    expect(stamp.textContent).toContain(`Version ${BUILD.version}`);
+    expect(stamp.textContent).toContain(`build ${BUILD.commit}`);
+    expect(BUILD.commit).not.toBe('');
     fireEvent.click(screen.getByTestId('sign-in-link'));
     expect(onSignIn).toHaveBeenCalled();
+    // Choosing closes it.
+    expect(screen.queryByTestId('visitor-menu-panel')).toBeNull();
   });
 });
 
@@ -290,9 +307,11 @@ describe('choosing an offer', () => {
     await waitFor(() => expect(screen.getByTestId('showcase-offers')).toBeTruthy());
   });
 
-  it('has a door with nothing in hand, from the footer', async () => {
+  it('has a door with nothing in hand, from the menu at the top', async () => {
     renderWith(<Storefront onSignIn={() => undefined} />, clientFor());
 
+    await waitFor(() => expect(screen.getByTestId('storefront-tenant')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('visitor-menu'));
     await waitFor(() => expect(screen.getByTestId('sign-up-link')).toBeTruthy());
     expect(screen.getByTestId('sign-up-link').textContent).toContain('Acme Ltd');
     fireEvent.click(screen.getByTestId('sign-up-link'));
@@ -312,8 +331,22 @@ describe('choosing an offer', () => {
       }),
     );
 
+    fireEvent.click(await screen.findByTestId('visitor-menu'));
     await waitFor(() => expect(screen.getByTestId('sign-in-link')).toBeTruthy());
     expect(screen.queryByTestId('sign-up-link')).toBeNull();
+  });
+
+  it('closes on Escape and gives the focus back to the icon', async () => {
+    renderWith(<Storefront onSignIn={() => undefined} />, clientFor());
+
+    const menu = await screen.findByTestId('visitor-menu');
+    fireEvent.click(menu);
+    expect(screen.getByTestId('visitor-menu-panel')).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.queryByTestId('visitor-menu-panel')).toBeNull();
+    expect(document.activeElement).toBe(menu);
   });
 });
 
@@ -437,8 +470,9 @@ describe('creating the account', () => {
 
     renderWith(<Storefront onSignIn={() => undefined} />, clientFor());
 
-    await waitFor(() => expect(screen.getByTestId('sign-up-link')).toBeTruthy());
-    fireEvent.click(screen.getByTestId('sign-up-link'));
+    await waitFor(() => expect(screen.getByTestId('storefront-tenant')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('visitor-menu'));
+    fireEvent.click(await screen.findByTestId('sign-up-link'));
     await waitFor(() => expect(screen.getByLabelText('Email')).toBeTruthy());
     signUpAs({ email: 'ada@acme.test', password: 'a-long-enough-password' });
 

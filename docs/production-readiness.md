@@ -27,7 +27,7 @@ contract had grown to 225, and nothing compares the two.
 | No mutation that moves money is optimistic | `gate:money` — 8 modules |
 | Every permission the frontend gates on exists | `gate:permissions` |
 | Domain code cannot reach SQL | `deptrac` + `gate:proof`, which proves the gate itself rejects a violation |
-| The behaviour, against a real PostgreSQL 16 | 1 418 tests, 15 017 assertions |
+| The behaviour, against a real PostgreSQL 16 | 1 422 tests, 15 172 assertions |
 | Every route is usable without a mouse and passes WCAG 2.1 AA | 64 axe scans — 32 routes across both authorities, on both viewports |
 | A password becomes a session; a refresh hands every tab the same token, answers a lost reply again, and a replay ends that sign-in only | `SignInTest` — 31 cases against the real database (ADR-038, ADR-062), including the security notice a replay sends; `e2e/sign-in.spec.ts` proves tabs restored together take turns |
 | The §37.4 chain works for a person, not only in PHPUnit | `e2e/sales-chain.spec.ts` |

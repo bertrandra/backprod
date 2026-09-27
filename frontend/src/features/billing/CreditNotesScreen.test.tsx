@@ -19,6 +19,7 @@ const NOTE = {
   id: 'cn-1',
   number: 'CN-2026-000007',
   invoice_id: 'inv-1',
+  person: null,
   direction: 'CREDIT',
   reason: 'Duplicate charge',
   net: { minor_units: 2900, currency: 'EUR' },

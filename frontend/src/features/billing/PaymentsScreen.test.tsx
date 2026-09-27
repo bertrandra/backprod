@@ -57,6 +57,8 @@ function payment(overrides: Record<string, unknown> = {}) {
     invoice_number: '2026-000004',
     customer_name: 'Ada Lovelace',
     customer_email: 'ada@acme.test',
+    // The member it is for (2026-09-27), by the platform's own rule.
+    person: { user_id: 'u-ada', name: 'Ada Lovelace', email: 'ada@acme.test' },
     ...overrides,
   };
 }

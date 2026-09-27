@@ -18,9 +18,9 @@ interface InvoiceRepository
     /**
      * @return list<Invoice>
      */
-    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array;
+    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null, ?string $person = null, ?string $status = null): array;
 
-    public function countForTenant(string $tenantId, string $productId, ?string $ownedBy = null): int;
+    public function countForTenant(string $tenantId, string $productId, ?string $ownedBy = null, ?string $person = null, ?string $status = null): int;
 
     public function find(string $tenantId, string $productId, string $invoiceId, ?string $ownedBy = null): ?Invoice;
 

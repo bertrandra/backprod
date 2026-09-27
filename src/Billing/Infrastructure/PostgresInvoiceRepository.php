@@ -53,8 +53,10 @@ final class PostgresInvoiceRepository implements InvoiceRepository
     ) {
     }
 
-    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
+    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null, ?string $person = null, ?string $status = null): array
     {
+        $narrow = DocumentPersonSql::narrowing(DocumentPersonSql::ofInvoice('invoices'));
+
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return [];
         }
@@ -62,29 +64,29 @@ final class PostgresInvoiceRepository implements InvoiceRepository
         // A person's own documents (2026-09-18) are the invoices their seat's
         // orders raised — the organisation's, unnarrowed, when null.
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT ' . self::COLUMNS . <<<'SQL'
+            'SELECT ' . self::COLUMNS . <<<SQL
                  FROM invoices
                 WHERE tenant_id = :tenantId AND product_id = :productId
-                  AND (CAST(:ownedBy AS uuid) IS NULL OR id IN (SELECT invoice_id FROM orders WHERE subscriber_user_id = CAST(:ownedBy AS uuid) AND invoice_id IS NOT NULL))
+                  AND {$narrow} AND (CAST(:status AS text) IS NULL OR status = CAST(:status AS text))
                 ORDER BY coalesce(issued_at, created_at) DESC, id
                 LIMIT :limit OFFSET :offset
                 SQL,
-            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset, 'ownedBy' => $ownedBy],
+            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset, 'ownedBy' => $ownedBy, 'person' => $person, 'status' => $status],
             ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
         );
 
         return $this->hydrateAll($rows);
     }
 
-    public function countForTenant(string $tenantId, string $productId, ?string $ownedBy = null): int
+    public function countForTenant(string $tenantId, string $productId, ?string $ownedBy = null, ?string $person = null, ?string $status = null): int
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return 0;
         }
 
         $count = $this->connection->fetchOne(
-            'SELECT count(*) FROM invoices WHERE tenant_id = :tenantId AND product_id = :productId AND (CAST(:ownedBy AS uuid) IS NULL OR id IN (SELECT invoice_id FROM orders WHERE subscriber_user_id = CAST(:ownedBy AS uuid) AND invoice_id IS NOT NULL))',
-            ['tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy],
+            'SELECT count(*) FROM invoices WHERE tenant_id = :tenantId AND product_id = :productId AND ' . DocumentPersonSql::narrowing(DocumentPersonSql::ofInvoice('invoices')) . ' AND (CAST(:status AS text) IS NULL OR status = CAST(:status AS text))',
+            ['tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy, 'person' => $person, 'status' => $status],
         );
 
         return is_numeric($count) ? (int) $count : 0;
@@ -92,17 +94,19 @@ final class PostgresInvoiceRepository implements InvoiceRepository
 
     public function find(string $tenantId, string $productId, string $invoiceId, ?string $ownedBy = null): ?Invoice
     {
+        $narrow = DocumentPersonSql::narrowing(DocumentPersonSql::ofInvoice('invoices'));
+
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId) || !Uuid::isValid($invoiceId)) {
             return null;
         }
 
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT ' . self::COLUMNS . <<<'SQL'
+            'SELECT ' . self::COLUMNS . <<<SQL
                  FROM invoices
                 WHERE id = :id AND tenant_id = :tenantId AND product_id = :productId
-                  AND (CAST(:ownedBy AS uuid) IS NULL OR id IN (SELECT invoice_id FROM orders WHERE subscriber_user_id = CAST(:ownedBy AS uuid) AND invoice_id IS NOT NULL))
+                  AND {$narrow}
                 SQL,
-            ['id' => $invoiceId, 'tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy],
+            ['id' => $invoiceId, 'tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy, 'person' => null],
         );
 
         return $this->hydrateAll($rows)[0] ?? null;

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Payment\Infrastructure;
 
 use App\Billing\Domain\Money;
+use App\Billing\Infrastructure\DocumentPersonSql;
 use App\Payment\Domain\Payment;
 use App\Payment\Domain\PaymentRepository;
 use App\Payment\Domain\PaymentSettlement;
@@ -46,37 +47,39 @@ final class PostgresPaymentRepository implements PaymentRepository
     {
     }
 
-    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
+    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null, ?string $person = null, ?string $status = null): array
     {
+        $narrow = DocumentPersonSql::narrowing(DocumentPersonSql::ofPayment('payments'));
+
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return [];
         }
 
         // A person's own payments (2026-09-18): those on their seat's invoices.
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT ' . self::COLUMNS . <<<'SQL'
+            'SELECT ' . self::COLUMNS . <<<SQL
                  FROM payments
                 WHERE tenant_id = :tenantId AND product_id = :productId
-                  AND (CAST(:ownedBy AS uuid) IS NULL OR invoice_id IN (SELECT invoice_id FROM orders WHERE subscriber_user_id = CAST(:ownedBy AS uuid) AND invoice_id IS NOT NULL))
+                  AND {$narrow} AND (CAST(:status AS text) IS NULL OR status = CAST(:status AS text))
                 ORDER BY created_at DESC, id
                 LIMIT :limit OFFSET :offset
                 SQL,
-            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset, 'ownedBy' => $ownedBy],
+            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset, 'ownedBy' => $ownedBy, 'person' => $person, 'status' => $status],
             ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
         );
 
         return array_map(self::toPayment(...), $rows);
     }
 
-    public function countForTenant(string $tenantId, string $productId, ?string $ownedBy = null): int
+    public function countForTenant(string $tenantId, string $productId, ?string $ownedBy = null, ?string $person = null, ?string $status = null): int
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return 0;
         }
 
         $count = $this->connection->fetchOne(
-            'SELECT count(*) FROM payments WHERE tenant_id = :tenantId AND product_id = :productId AND (CAST(:ownedBy AS uuid) IS NULL OR invoice_id IN (SELECT invoice_id FROM orders WHERE subscriber_user_id = CAST(:ownedBy AS uuid) AND invoice_id IS NOT NULL))',
-            ['tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy],
+            'SELECT count(*) FROM payments WHERE tenant_id = :tenantId AND product_id = :productId AND ' . DocumentPersonSql::narrowing(DocumentPersonSql::ofPayment('payments')) . ' AND (CAST(:status AS text) IS NULL OR status = CAST(:status AS text))',
+            ['tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy, 'person' => $person, 'status' => $status],
         );
 
         return is_numeric($count) ? (int) $count : 0;
@@ -84,17 +87,19 @@ final class PostgresPaymentRepository implements PaymentRepository
 
     public function find(string $tenantId, string $productId, string $paymentId, ?string $ownedBy = null): ?Payment
     {
+        $narrow = DocumentPersonSql::narrowing(DocumentPersonSql::ofPayment('payments'));
+
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId) || !Uuid::isValid($paymentId)) {
             return null;
         }
 
         $row = $this->connection->fetchAssociative(
-            'SELECT ' . self::COLUMNS . <<<'SQL'
+            'SELECT ' . self::COLUMNS . <<<SQL
                  FROM payments
                 WHERE id = :id AND tenant_id = :tenantId AND product_id = :productId
-                  AND (CAST(:ownedBy AS uuid) IS NULL OR invoice_id IN (SELECT invoice_id FROM orders WHERE subscriber_user_id = CAST(:ownedBy AS uuid) AND invoice_id IS NOT NULL))
+                  AND {$narrow}
                 SQL,
-            ['id' => $paymentId, 'tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy],
+            ['id' => $paymentId, 'tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy, 'person' => null],
         );
 
         return $row === false ? null : self::toPayment($row);

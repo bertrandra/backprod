@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Staff\Controller;
 
+use App\Billing\Domain\DocumentPeople;
 use App\Payment\Controller\PaymentPresenter;
 use App\Payment\Domain\CollectedInvoices;
 use App\Shared\Http\RouteHandler;
@@ -25,6 +26,7 @@ final class ListTenantPaymentsController implements RouteHandler
     public function __construct(
         private readonly TenantReads $reads,
         private readonly CollectedInvoices $collected,
+        private readonly DocumentPeople $people,
     ) {
     }
 
@@ -53,6 +55,9 @@ final class ListTenantPaymentsController implements RouteHandler
         // outside what was authorized and recorded.
         $collected = $this->collected->of($tenantId, PaymentPresenter::invoicesOf($rows));
 
-        return new JsonResponse(['payments' => PaymentPresenter::many($rows, $collected)], 200);
+        // And the member each one is for (2026-09-27), under the same tenant.
+        $people = $this->people->ofPayments($tenantId, array_map(static fn ($payment): string => $payment->id, $rows));
+
+        return new JsonResponse(['payments' => PaymentPresenter::many($rows, $collected, $people)], 200);
     }
 }

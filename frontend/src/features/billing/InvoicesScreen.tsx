@@ -2,7 +2,9 @@ import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import { can } from '@/app/access/access';
-import { useInvoices, useIssueInvoice, type Invoice } from '@/queries/billing';
+import { ListFilterBar, PersonLine } from '@/features/billing/ListFilterBar';
+import { INVOICE_STATUSES, useInvoices, useIssueInvoice, type Invoice } from '@/queries/billing';
+import { isFiltered, type ListFilter } from '@/queries/listFilter';
 import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
@@ -32,12 +34,17 @@ import { currentLocale, t } from '@/i18n';
  */
 export function InvoicesScreen() {
   const { data: session } = useSession();
-  const invoices = useInvoices();
+  const [filter, setFilter] = useState<ListFilter<Invoice['status']>>({});
+  const invoices = useInvoices(25, 0, filter);
   const issue = useIssueInvoice();
 
   const [confirming, setConfirming] = useState(false);
 
   const mayManage = can(session, 'billing.manage');
+  // The person select is the administrator's (2026-09-27): a member's list
+  // holds only what concerns them. Its options are the organisation's
+  // people, so it needs their list as well.
+  const mayChoosePerson = mayManage && can(session, 'members.read');
 
   if (invoices.isPending) {
     return <SkeletonRows rows={6} />;
@@ -54,13 +61,25 @@ export function InvoicesScreen() {
         meta={<>{invoices.data.total} {t("in this product")}</>}
       />
 
+      <ListFilterBar
+        value={filter}
+        onChange={setFilter}
+        people={mayChoosePerson}
+        statuses={INVOICE_STATUSES}
+        testId="invoice-filters"
+      />
+
       {issue.error !== null && <ErrorSurface error={issue.error} />}
 
       {invoices.data.invoices.length === 0 ? (
-        <EmptyState
-          title={t("No invoices")}
-          description={t("An invoice is raised when an order is fulfilled, or issued here from what is billable now.")}
-        />
+        isFiltered(filter) ? (
+          <EmptyState title={t("Nothing matches this filter")} description={t("Choose another person or status, or clear the filter.")} />
+        ) : (
+          <EmptyState
+            title={t("No invoices")}
+            description={t("An invoice is raised when an order is fulfilled, or issued here from what is billable now.")}
+          />
+        )
       ) : (
         <ul className="space-y-2">
           {invoices.data.invoices.map((invoice) => (
@@ -102,6 +121,8 @@ export function InvoicesScreen() {
                 testId="invoice-for"
                 className="mt-1 text-xs text-muted"
               />
+
+              <PersonLine person={invoice.person} testId="invoice-person" />
 
               <p className="mt-1 text-xs text-muted">
                 {t("net")}{' '}<Amount money={invoice.net} /> {t("· VAT")}{' '}<Amount money={invoice.vat} />

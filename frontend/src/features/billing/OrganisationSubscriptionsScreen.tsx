@@ -1,7 +1,11 @@
+import { useState } from 'react';
+
 import { can } from '@/app/access/access';
+import { ListFilterBar } from '@/features/billing/ListFilterBar';
+import { isFiltered, type ListFilter } from '@/queries/listFilter';
 import { useOrganisation } from '@/queries/organisation';
 import { useSession } from '@/queries/session';
-import { useOrganisationSubscriptions, type HeldSubscription } from '@/queries/subscription';
+import { SUBSCRIPTION_STATUSES, useOrganisationSubscriptions, type HeldSubscription } from '@/queries/subscription';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Amount } from '@/ui/Money';
@@ -45,7 +49,10 @@ import { t } from '@/i18n';
 export function OrganisationSubscriptionsScreen() {
   const { data: session, isPending: askingWho } = useSession();
   const mayManage = can(session, 'tenant.manage');
-  const held = useOrganisationSubscriptions(mayManage);
+  // Narrowed to one holder, one status, or neither (2026-09-27) — by the
+  // server, so the total above the table is the filter's total.
+  const [filter, setFilter] = useState<ListFilter<HeldSubscription['status']>>({});
+  const held = useOrganisationSubscriptions(mayManage, 50, 0, filter);
   // Which organisation this register belongs to (2026-09-26). Read, not
   // assumed, and only where it is allowed: `tenant.read` is every member's.
   const organisation = useOrganisation(can(session, 'tenant.read'));
@@ -84,7 +91,7 @@ export function OrganisationSubscriptionsScreen() {
   const rows = held.data.subscriptions;
   const living = rows.filter((one) => one.live).length;
 
-  if (rows.length === 0) {
+  if (rows.length === 0 && !isFiltered(filter)) {
     return (
       <div className="space-y-6">
         <PageHeader title={t("Subscriptions")} />
@@ -112,22 +119,34 @@ export function OrganisationSubscriptionsScreen() {
         description={t("What each person in this organisation holds on this product, and how many of the places their offer sells are taken. Buying is theirs; this is the record of it.")}
       />
 
-      <Table caption={t("Who holds what, with the places taken")}>
-        <THead>
-          <Th>{t("Holder")}</Th>
-          <Th>{t("Offer")}</Th>
-          <Th>{t("Billing")}</Th>
-          <Th numeric>{t("Price")}</Th>
-          <Th numeric>{t("Places")}</Th>
-          <Th>{t("Owed until")}</Th>
-          <Th>{t("State")}</Th>
-        </THead>
-        <TBody>
-          {rows.map((one) => (
-            <HeldRow key={one.id} held={one} />
-          ))}
-        </TBody>
-      </Table>
+      <ListFilterBar
+        value={filter}
+        onChange={setFilter}
+        people={can(session, 'members.read')}
+        statuses={SUBSCRIPTION_STATUSES}
+        testId="subscription-filters"
+      />
+
+      {rows.length === 0 ? (
+        <EmptyState title={t("Nothing matches this filter")} description={t("Choose another person or status, or clear the filter.")} />
+      ) : (
+        <Table caption={t("Who holds what, with the places taken")}>
+          <THead>
+            <Th>{t("Holder")}</Th>
+            <Th>{t("Offer")}</Th>
+            <Th>{t("Billing")}</Th>
+            <Th numeric>{t("Price")}</Th>
+            <Th numeric>{t("Places")}</Th>
+            <Th>{t("Owed until")}</Th>
+            <Th>{t("State")}</Th>
+          </THead>
+          <TBody>
+            {rows.map((one) => (
+              <HeldRow key={one.id} held={one} />
+            ))}
+          </TBody>
+        </Table>
+      )}
     </div>
   );
 }

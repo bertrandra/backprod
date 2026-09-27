@@ -113,6 +113,17 @@ describe('a page load with a session the server still honours', () => {
 });
 
 describe('a page load with no session', () => {
+  // A deep link, which is where the gate shows the form. At `/` it shows the
+  // home page instead — and these two used to pass there, on the home page's
+  // own "Sign in" link, having never seen the form they meant (2026-09-27).
+  beforeEach(() => {
+    window.history.replaceState(null, '', '/projects');
+  });
+
+  afterEach(() => {
+    window.history.replaceState(null, '', '/');
+  });
+
   it('shows the form once the server says so', async () => {
     renderWith(
       <SignInGate>
@@ -121,7 +132,8 @@ describe('a page load with no session', () => {
       stubClient({ [REFRESH]: REFUSED }),
     );
 
-    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeDefined();
+    expect(await screen.findByLabelText('Email')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeDefined();
   });
 
   it('renders nothing of the application behind the form', async () => {
@@ -132,7 +144,7 @@ describe('a page load with no session', () => {
       stubClient({ [REFRESH]: REFUSED }),
     );
 
-    await screen.findByRole('button', { name: 'Sign in' });
+    await screen.findByLabelText('Email');
 
     // Not merely hidden: the children never mount, so no screen fires a query that
     // would come back 401. That is the reason the gate is above the router rather
@@ -305,6 +317,7 @@ describe('the landing page, before and after', () => {
       }),
     );
 
+    (await screen.findByTestId('visitor-menu')).click();
     const link = await screen.findByTestId('sign-in-link');
     link.click();
     await waitFor(() => expect(screen.getByLabelText('Email')).toBeDefined());
@@ -313,7 +326,7 @@ describe('the landing page, before and after', () => {
     await waitFor(() => expect(screen.getByText('The application')).toBeDefined());
 
     useSessionStore.setState({ token: null, status: 'anonymous', expiresAt: null });
-    await waitFor(() => expect(screen.getByTestId('sign-in-link')).toBeDefined());
+    await waitFor(() => expect(screen.getByTestId('visitor-menu')).toBeDefined());
     expect(screen.queryByLabelText('Email')).toBeNull();
   });
 });

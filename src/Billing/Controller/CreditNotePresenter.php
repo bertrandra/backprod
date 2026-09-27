@@ -41,12 +41,16 @@ final class CreditNotePresenter
     }
 
     /**
-     * @param list<CreditNote> $notes
+     * @param list<CreditNote>                                                       $notes
+     * @param array<string, array{user_id: string, name: string|null, email: string|null}> $people by document id
      *
      * @return list<array<string, mixed>>
      */
-    public static function many(array $notes): array
+    public static function many(array $notes, array $people = []): array
     {
-        return array_map(self::one(...), $notes);
+        return array_map(
+            static fn (CreditNote $note): array => self::one($note) + ['person' => InvoicePresenter::person($people[$note->id] ?? null)],
+            $notes,
+        );
     }
 }

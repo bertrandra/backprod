@@ -10,6 +10,8 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { t } from '@/i18n';
 import { LanguageSelect } from '@/i18n/LanguageSelect';
 
+import { VisitorMenu } from './VisitorMenu';
+
 /**
  * `public.storefront` — the shop window, and the first page anybody sees.
  *
@@ -19,11 +21,13 @@ import { LanguageSelect } from '@/i18n/LanguageSelect';
  * for the landing route, which is the same mechanism `SignInGate` already uses
  * to keep a deep link alive across signing in.
  *
- * **Signing in is secondary, and deliberately.** The primary act on this page
- * is choosing something to buy; an account is what that produces, not what it
- * requires. So the sign-in link is one line of text and the offers are the
- * page — the opposite weighting from a product whose front door is a login
- * form.
+ * **Signing in is secondary, and deliberately — but it is at the top.** The
+ * primary act on this page is choosing something to buy; an account is what
+ * that produces, not what it requires. So the way in is a small person icon
+ * in the top bar (`VisitorMenu`: *Sign in*, *Ask to join*), where the signed-in
+ * shell keeps its account circle, and the offers are the page. It used to be a
+ * line of text in the footer, found by whoever scrolled past every price and
+ * by nobody who came back to sign in (2026-09-27).
  *
  * **Nothing here decides what may be shown.** The backend returns only offers
  * marked as advertised and inside their sale window; a filter on this side
@@ -92,7 +96,17 @@ export function StorefrontScreen({
         ) : (
           <span />
         )}
-        <LanguageSelect />
+        <div className="flex items-center gap-2">
+          <LanguageSelect />
+          {/* The way in, where the signed-in shell keeps its account
+              circle. Joining is offered only once there is an organisation
+              to ask, which a bare host with no default lacks. */}
+          <VisitorMenu
+            onSignIn={onSignIn}
+            onSignUp={tenant !== null ? onSignUp : undefined}
+            organisation={tenant?.name}
+          />
+        </div>
       </div>
 
       {several && (
@@ -126,7 +140,7 @@ export function StorefrontScreen({
         <div className="mx-auto w-full max-w-3xl px-4 py-10">
           <EmptyState
             title={t("Nothing on sale yet")}
-            description={t("There is nothing to buy here for now. If you already have an account, sign in below.")}
+            description={t("There is nothing to buy here for now. If you already have an account, sign in from the icon at the top of the page.")}
           />
         </div>
       ) : productCode === null || productCode === '' ? (
@@ -165,34 +179,6 @@ export function StorefrontScreen({
           }
         />
       )}
-      <footer className="border-t border-line bg-canvas px-4 py-8 text-sm md:px-8">
-        <p className="mx-auto max-w-6xl text-muted">
-          {t("Already have an account?")}{' '}
-          <button
-            type="button"
-            data-testid="sign-in-link"
-            onClick={onSignIn}
-            className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
-          >
-            {t("Sign in")}</button>
-          {/* The door with nothing in hand (2026-09-17): only once there is
-              an organisation to ask, which a bare host with no default and
-              an unknown slug both lack. */}
-          {onSignUp !== undefined && tenant !== null && (
-            <>
-              {t(" · New here? ")}
-              <button
-                type="button"
-                data-testid="sign-up-link"
-                onClick={onSignUp}
-                className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
-              >
-                {t("Ask to join")}{' '}{tenant.name}
-              </button>
-            </>
-          )}
-        </p>
-      </footer>
     </main>
   );
 }

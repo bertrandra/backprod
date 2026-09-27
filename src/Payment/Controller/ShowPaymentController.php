@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Payment\Controller;
 
+use App\Billing\Controller\InvoicePresenter;
+use App\Billing\Domain\DocumentPeople;
 use App\Payment\Domain\CollectedInvoices;
 use App\Payment\Service\Payments;
 use App\Shared\Http\RouteHandler;
@@ -26,6 +28,7 @@ final class ShowPaymentController implements RouteHandler
     public function __construct(
         private readonly Payments $payments,
         private readonly CollectedInvoices $collected,
+        private readonly DocumentPeople $people,
     ) {
     }
 
@@ -44,6 +47,9 @@ final class ShowPaymentController implements RouteHandler
 
         return new JsonResponse(
             PaymentPresenter::one($payment, $collected[$payment->invoiceId] ?? null) + [
+                // Whom it is for (2026-09-27): `CollectedPayment` names them
+                // wherever it is answered, the list and this read alike.
+                'person' => InvoicePresenter::person($this->people->ofPayments($context->tenantId, [$payment->id])[$payment->id] ?? null),
                 'refunds' => PaymentPresenter::refunds($this->payments->refundsOf($payment)),
             ],
             200,

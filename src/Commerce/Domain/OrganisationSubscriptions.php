@@ -36,10 +36,13 @@ interface OrganisationSubscriptions
      * response. Sorting locally is also what makes paging impossible — page
      * two's live rows would render below page one's dead ones.
      *
+     * Narrowed, when asked, to one holder and one status (2026-09-27) — the
+     * filter above the list. Both null is the whole organisation.
+     *
      * @return list<HeldSubscription>
      */
-    public function of(string $tenantId, string $productId, int $limit, int $offset): array;
+    public function of(string $tenantId, string $productId, int $limit, int $offset, ?string $holder = null, ?string $status = null): array;
 
-    /** How many there are in total, for the page the caller is on. */
-    public function countOf(string $tenantId, string $productId): int;
+    /** How many there are in total, under the same filter, for the page the caller is on. */
+    public function countOf(string $tenantId, string $productId, ?string $holder = null, ?string $status = null): int;
 }

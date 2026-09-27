@@ -1,10 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { ambientParams, type Schemas } from '@/api/client';
 import { useApiClient } from '@/app/providers/ApiProvider';
 import { sessionSnapshot } from '@/state/session';
 
 import { keys } from './keys';
+import { everyValue, filterQuery, type ListFilter } from './listFilter';
 import { toApiError } from './session';
 
 /**
@@ -41,6 +42,18 @@ export type Payment = Schemas['Payment'];
  * means *that invoice has no number yet* and never *nobody looked*.
  */
 export type CollectedPayment = Schemas['CollectedPayment'];
+
+/** Every payment status the contract has, for the list's filter. */
+export const PAYMENT_STATUSES = everyValue<Payment['status']>({
+  PENDING: true,
+  AUTHORIZED: true,
+  SUCCEEDED: true,
+  FAILED: true,
+  CANCELLED: true,
+  REFUNDED: true,
+  PARTIALLY_REFUNDED: true,
+  CHARGEBACK: true,
+});
 export type Refund = Schemas['Refund'];
 
 /** The status a retry exists for. */
@@ -53,16 +66,20 @@ export function isRefundable(payment: Payment): boolean {
   return payment.status === 'SUCCEEDED' && payment.settled;
 }
 
-export function usePayments(limit = 25, offset = 0) {
+export function usePayments(limit = 25, offset = 0, filter: ListFilter<Payment['status']> = {}) {
+  const narrowed = filterQuery(filter);
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.billing.paymentList(limit, offset),
+    queryKey: keys.billing.paymentList(limit, offset, narrowed),
+    // The previous page stays on screen while a filter's answer arrives,
+    // so the bar above it does not vanish into a skeleton on every change.
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const ambient = ambientParams(sessionSnapshot);
 
       const { data, error, response } = await client.GET('/api/v1/billing/payments', {
-        params: { ...ambient.params, query: { limit, offset } },
+        params: { ...ambient.params, query: { limit, offset, ...narrowed } },
       });
 
       if (error !== undefined || data === undefined) {

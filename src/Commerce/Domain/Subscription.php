@@ -44,6 +44,9 @@ final class Subscription
     public const CANCELLED = 'CANCELLED';
     public const EXPIRED = 'EXPIRED';
 
+    /** Every status there is, for a list's filter (2026-09-27). */
+    public const STATUSES = [self::ACTIVE, self::PAST_DUE, self::CANCELLED, self::EXPIRED];
+
     public function __construct(
         public readonly string $id,
         public readonly string $tenantId,

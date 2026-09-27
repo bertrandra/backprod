@@ -35,6 +35,7 @@ use App\Auth\Infrastructure\SupabaseJwtAuthProvider;
 use App\Auth\Service\Sessions;
 use App\Billing\Domain\BillingProfileRepository;
 use App\Billing\Domain\CreditNoteRepository;
+use App\Billing\Domain\DocumentPeople;
 use App\Billing\Domain\InvoiceDocumentRepository;
 use App\Billing\Domain\InvoicePaid;
 use App\Billing\Domain\InvoiceRenderer;
@@ -42,6 +43,7 @@ use App\Billing\Domain\InvoiceRepository;
 use App\Billing\Infrastructure\MpdfInvoiceRenderer;
 use App\Billing\Infrastructure\PostgresBillingProfileRepository;
 use App\Billing\Infrastructure\PostgresCreditNoteRepository;
+use App\Billing\Infrastructure\PostgresDocumentPeople;
 use App\Billing\Infrastructure\PostgresInvoiceDocumentRepository;
 use App\Billing\Infrastructure\PostgresInvoiceRepository;
 use App\Billing\Service\EverythingWaitingOnAPaidInvoice;
@@ -432,6 +434,7 @@ return static function (array $overrides = []): ContainerInterface {
         FinancialDashboard::class => autowire(),
         BillingProfileRepository::class => autowire(PostgresBillingProfileRepository::class),
         InvoiceRepository::class => autowire(PostgresInvoiceRepository::class),
+        DocumentPeople::class => autowire(PostgresDocumentPeople::class),
         InvoiceDocumentRepository::class => autowire(PostgresInvoiceDocumentRepository::class),
 
         // Which engine renders an invoice is an adapter, like the store

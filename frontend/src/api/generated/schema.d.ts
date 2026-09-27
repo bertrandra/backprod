@@ -4267,8 +4267,11 @@ export interface components {
         HeldSubscription: {
             /** Format: uuid */
             id: string;
-            /** @description ACTIVE, CANCELLED, EXPIRED — the row's own state. Not the same question as `live`. */
-            status: string;
+            /**
+             * @description The row's own state. Not the same question as `live`: `PAST_DUE` is a subscription whose invoice went unpaid past the product's schedule (ADR-060).
+             * @enum {string}
+             */
+            status: "ACTIVE" | "PAST_DUE" | "CANCELLED" | "EXPIRED";
             /**
              * @description Who contracted (§13.1). The tenant surface has sold only USER since 2026-09-25; a TENANT row is one a deployment already had, or one the platform granted.
              * @enum {string}
@@ -4522,8 +4525,11 @@ export interface components {
             id: string;
             /** @description Null until issued. A draft has no legal number, and inventing a placeholder is how a gap enters a sequence that must not have one. */
             number: string | null;
-            /** @enum {string} */
-            status: "DRAFT" | "ISSUED" | "PAID" | "CANCELLED";
+            /**
+             * @description Every state the invoice lifecycle has (§26). The contract listed four until 2026-09-27 while the code had nine, so an invoice in e-invoicing or credited arrived as a value the client's type said could not exist.
+             * @enum {string}
+             */
+            status: "DRAFT" | "ISSUED" | "READY_FOR_EINVOICE" | "SUBMITTED" | "ACCEPTED" | "REJECTED" | "PAID" | "CANCELLED" | "CREDITED";
             /** @description Whether it can still change. A final invoice is corrected by a credit note, never edited. */
             final: boolean;
             /** Format: uuid */
@@ -4580,8 +4586,11 @@ export interface components {
             /** @description Which PSP. The domain never names one; this is the adapter that was used. */
             provider: string;
             provider_payment_id: string | null;
-            /** @enum {string} */
-            status: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED" | "CHARGED_BACK";
+            /**
+             * @description Every state a payment attempt has. `CHARGEBACK`, as the code has always written it: the contract said `CHARGED_BACK` until 2026-09-27, so a screen matching the contract's word never matched a disputed payment.
+             * @enum {string}
+             */
+            status: "PENDING" | "AUTHORIZED" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "REFUNDED" | "PARTIALLY_REFUNDED" | "CHARGEBACK";
             settled: boolean;
             /** @description Whether the status can still move. A webhook arriving after this is ignored rather than applied twice. */
             final: boolean;
@@ -5607,6 +5616,22 @@ export interface components {
             /** @description The class of the last failure — `TIMEOUT`, `UNREACHABLE`, `HTTP_500`, `NO_ENDPOINT` — never a message. */
             last_error: string | null;
         };
+        /** @description The member a document or payment concerns (2026-09-27): the holder of the subscription it was raised against, or the person whose order raised it. Null is an answer — the organisation's own document, bought by nobody in particular. One rule for invoices, credit notes and payments, and the same one that decides what a member may see of their own. */
+        DocumentPerson: {
+            /** Format: uuid */
+            user_id: string;
+            name: string | null;
+            /** @description Null once the person was erased (§15); the document is kept, and so is the fact it was theirs. */
+            email: string | null;
+        } | null;
+        /** @description An invoice on a list, with whom it concerns (2026-09-27). A schema of its own for the reason `CollectedPayment` is one: the reads of one invoice answer to a page that already knows it. */
+        ListedInvoice: components["schemas"]["Invoice"] & {
+            person: components["schemas"]["DocumentPerson"];
+        };
+        /** @description A credit note on a list, with whom it concerns — the person of the invoice it corrects (2026-09-27). */
+        ListedCreditNote: components["schemas"]["CreditNote"] & {
+            person: components["schemas"]["DocumentPerson"];
+        };
         /**
          * @description A payment, with the document it collects and who that document names (2026-09-26).
          *
@@ -5621,6 +5646,7 @@ export interface components {
             customer_name: string | null;
             /** @description The address on the document — the person's for a seat, the billing address otherwise. Null where the snapshot carries neither. */
             customer_email: string | null;
+            person: components["schemas"]["DocumentPerson"];
         };
         /** @description What the page needs to *use* a `client_secret` (ADR-048): which provider, the key that loads its own component, and whether any of this moves real money. Null when there is no payment to make (a free offer) or when the provider has no page-side part (the stub). `publishable_key` is designed by the provider to sit in a page and is not a secret — it belongs in the contract rather than in a build variable, which would freeze one deployment’s key into a bundle another deployment reuses. */
         PaymentProviderClient: {
@@ -5956,6 +5982,14 @@ export interface components {
         Limit: number;
         /** @description How many to skip. */
         Offset: number;
+        /** @description Only what concerns this person (2026-09-27): the member a document or a subscription is for. It narrows and never widens — applied beside the caller's own scope, so a member naming a colleague gets an empty page. Malformed is a 400, never ignored. */
+        PersonFilter: string;
+        /** @description Only invoices in this state. */
+        InvoiceStatusFilter: "DRAFT" | "ISSUED" | "READY_FOR_EINVOICE" | "SUBMITTED" | "ACCEPTED" | "REJECTED" | "PAID" | "CANCELLED" | "CREDITED";
+        /** @description Only payments in this state. */
+        PaymentStatusFilter: "PENDING" | "AUTHORIZED" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "REFUNDED" | "PARTIALLY_REFUNDED" | "CHARGEBACK";
+        /** @description Only subscriptions in this state. */
+        SubscriptionStatusFilter: "ACTIVE" | "PAST_DUE" | "CANCELLED" | "EXPIRED";
         /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
         DirectoryLimit: number;
         DirectoryOffset: number;
@@ -6610,6 +6644,8 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 /** @description How many to skip. */
                 offset?: components["parameters"]["Offset"];
+                /** @description Only what concerns this person (2026-09-27): the member a document or a subscription is for. It narrows and never widens — applied beside the caller's own scope, so a member naming a colleague gets an empty page. Malformed is a 400, never ignored. */
+                person?: components["parameters"]["PersonFilter"];
             };
             header: {
                 /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
@@ -6629,7 +6665,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        credit_notes: components["schemas"]["CreditNote"][];
+                        credit_notes: components["schemas"]["ListedCreditNote"][];
                         total: number;
                         limit: number;
                         offset: number;
@@ -6649,6 +6685,10 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 /** @description How many to skip. */
                 offset?: components["parameters"]["Offset"];
+                /** @description Only what concerns this person (2026-09-27): the member a document or a subscription is for. It narrows and never widens — applied beside the caller's own scope, so a member naming a colleague gets an empty page. Malformed is a 400, never ignored. */
+                person?: components["parameters"]["PersonFilter"];
+                /** @description Only invoices in this state. */
+                status?: components["parameters"]["InvoiceStatusFilter"];
             };
             header: {
                 /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
@@ -6668,7 +6708,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        invoices: components["schemas"]["Invoice"][];
+                        invoices: components["schemas"]["ListedInvoice"][];
                         total: number;
                         limit: number;
                         offset: number;
@@ -7070,6 +7110,10 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 /** @description How many to skip. */
                 offset?: components["parameters"]["Offset"];
+                /** @description Only what concerns this person (2026-09-27): the member a document or a subscription is for. It narrows and never widens — applied beside the caller's own scope, so a member naming a colleague gets an empty page. Malformed is a 400, never ignored. */
+                person?: components["parameters"]["PersonFilter"];
+                /** @description Only payments in this state. */
+                status?: components["parameters"]["PaymentStatusFilter"];
             };
             header: {
                 /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
@@ -11563,6 +11607,10 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 /** @description How many to skip. */
                 offset?: components["parameters"]["Offset"];
+                /** @description Only what concerns this person (2026-09-27): the member a document or a subscription is for. It narrows and never widens — applied beside the caller's own scope, so a member naming a colleague gets an empty page. Malformed is a 400, never ignored. */
+                person?: components["parameters"]["PersonFilter"];
+                /** @description Only subscriptions in this state. */
+                status?: components["parameters"]["SubscriptionStatusFilter"];
             };
             header: {
                 /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */

@@ -107,6 +107,8 @@ const SESSION = { access_token: 'access-token', token_type: 'Bearer', expires_in
  */
 async function openSignIn(page: Page): Promise<void> {
   await page.goto('/');
+  // The way in is a small menu at the top of the home page (2026-09-27).
+  await page.getByTestId('visitor-menu').click();
   await page.getByTestId('sign-in-link').click();
   await page.getByLabel('Password', { exact: true }).waitFor();
 }
@@ -150,6 +152,7 @@ test.describe('arriving with no session', () => {
     // no `?product=`. Before 2026-09-17 nothing chose a product, so nothing
     // could ask `/me`, so there was no menu and nothing on top.
     await page.goto('/');
+    await page.getByTestId('visitor-menu').click();
     await page.getByTestId('sign-in-link').click();
     await page.getByLabel('Email').fill('ada@acme.test');
     await page.getByLabel('Password', { exact: true }).fill('correct horse');
@@ -234,6 +237,7 @@ test.describe('arriving with no session', () => {
     await page.route(/\/api\/v1\/public\/offers/, (route) => route.fulfill({ json: { offers: [] } }));
 
     await page.goto('/');
+    await page.getByTestId('visitor-menu').click();
     await page.getByTestId('sign-in-link').click();
     await page.getByLabel('Email').fill('ada@zenith.test');
     await page.getByLabel('Password', { exact: true }).fill('correct horse');
@@ -425,7 +429,7 @@ test.describe('signing out', () => {
     // Home, not a sign-in form for the profile just left: the storefront, at
     // the landing address, with its own way back in.
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByTestId('sign-in-link')).toBeVisible();
+    await expect(page.getByTestId('visitor-menu')).toBeVisible();
     // "Signed out" should mean the credential is dead rather than mislaid: the
     // server revokes the refresh token, and clearing the cookie alone would leave
     // it valid for anybody holding a copy.
@@ -448,7 +452,7 @@ test.describe('signing out', () => {
     await expect(page.getByRole('menu', { name: 'Account' })).toBeVisible();
     await page.getByRole('menuitem', { name: 'Sign out' }).click();
 
-    await expect(page.getByTestId('sign-in-link')).toBeVisible();
+    await expect(page.getByTestId('visitor-menu')).toBeVisible();
     expect(asked.some((url) => url.endsWith('/api/v1/auth/sign-out'))).toBe(true);
   });
 });

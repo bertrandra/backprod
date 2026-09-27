@@ -6,7 +6,9 @@ namespace App\Commerce\Controller;
 
 use App\Commerce\Domain\HeldSubscription;
 use App\Commerce\Domain\OrganisationSubscriptions;
+use App\Commerce\Domain\Subscription;
 use App\Shared\Context\RequestContextReader;
+use App\Shared\Http\ListFilter;
 use App\Shared\Http\PageRequest;
 use App\Shared\Http\RouteHandler;
 use DateTimeImmutable;
@@ -66,6 +68,8 @@ final class ListOrganisationSubscriptionsController implements RouteHandler
         $query = $request->getQueryParams();
         $limit = PageRequest::bounded($query, 'limit', self::DEFAULT_LIMIT, 1, self::MAX_LIMIT);
         $offset = PageRequest::bounded($query, 'offset', 0, 0, PHP_INT_MAX);
+        $holder = ListFilter::person($query);
+        $status = ListFilter::status($query, Subscription::STATUSES);
 
         $now = new DateTimeImmutable();
 
@@ -89,9 +93,9 @@ final class ListOrganisationSubscriptionsController implements RouteHandler
                     'places_sold' => $one->placesSold,
                     'places_used' => $one->placesUsed,
                 ],
-                $this->held->of($context->tenantId, $context->productId, $limit, $offset),
+                $this->held->of($context->tenantId, $context->productId, $limit, $offset, $holder, $status),
             ),
-            'total' => $this->held->countOf($context->tenantId, $context->productId),
+            'total' => $this->held->countOf($context->tenantId, $context->productId, $holder, $status),
             'limit' => $limit,
             'offset' => $offset,
         ], 200);

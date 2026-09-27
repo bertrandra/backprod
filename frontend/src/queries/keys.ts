@@ -6,6 +6,9 @@
  * stale data and looks like a caching bug rather than a typo. Naming them here
  * makes that a compile error instead.
  */
+/** A list's filter, as it enters a key: only what is set (see `filterQuery`). */
+type ListFilterKey = { readonly person?: string; readonly status?: string };
+
 export const keys = {
   session: {
     me: ['session', 'me'] as const,
@@ -131,23 +134,28 @@ export const keys = {
     // The prefix is what mutations invalidate, so every page goes at once —
     // a seat cancelled on page one changes the total that page two shows.
     organisation: ['subscription', 'organisation'] as const,
-    organisationPage: (limit: number, offset: number) =>
-      ['subscription', 'organisation', limit, offset] as const,
+    organisationPage: (limit: number, offset: number, filter: ListFilterKey = {}) =>
+      ['subscription', 'organisation', limit, offset, filter] as const,
   },
   billing: {
     invoiceLists: ['billing', 'invoices'] as const,
-    invoiceList: (limit: number, offset: number) => ['billing', 'invoices', limit, offset] as const,
+    // The filter is part of the key (2026-09-27): a page narrowed to one
+    // person is a different answer, and under the same prefix, so every
+    // mutation that invalidates the lists still reaches it.
+    invoiceList: (limit: number, offset: number, filter: ListFilterKey = {}) =>
+      ['billing', 'invoices', limit, offset, filter] as const,
     invoice: (id: string) => ['billing', 'invoice', id] as const,
     // Its own key, cached forever: the document is rendered once at issue and
     // its bytes never change (ADR-035).
     invoicePdf: (id: string) => ['billing', 'invoice', id, 'pdf'] as const,
     transmissions: (id: string) => ['billing', 'invoice', id, 'transmissions'] as const,
     paymentLists: ['billing', 'payments'] as const,
-    paymentList: (limit: number, offset: number) => ['billing', 'payments', limit, offset] as const,
+    paymentList: (limit: number, offset: number, filter: ListFilterKey = {}) =>
+      ['billing', 'payments', limit, offset, filter] as const,
     payment: (id: string) => ['billing', 'payment', id] as const,
     creditNoteLists: ['billing', 'credit-notes'] as const,
-    creditNoteList: (limit: number, offset: number) =>
-      ['billing', 'credit-notes', limit, offset] as const,
+    creditNoteList: (limit: number, offset: number, filter: ListFilterKey = {}) =>
+      ['billing', 'credit-notes', limit, offset, filter] as const,
     profile: ['billing', 'profile'] as const,
   },
   sales: {
