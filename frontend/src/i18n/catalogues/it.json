@@ -1336,5 +1336,6 @@
   "Ask to join {organisation}": "Chiedi di unirti a {organisation}",
   "New here?": "Nuovo qui?",
   "Sign in or join": "Accedi o unisciti",
-  "There is nothing to buy here for now. If you already have an account, sign in from the icon at the top of the page.": "Per ora qui non c'è nulla da acquistare. Se hai già un account, accedi dall'icona in cima alla pagina."
+  "There is nothing to buy here for now. If you already have an account, sign in from the icon at the top of the page.": "Per ora qui non c'è nulla da acquistare. Se hai già un account, accedi dall'icona in cima alla pagina.",
+  "Version {version} · build {commit} · {day}": "Versione {version} · build {commit} · {day}"
 }

@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { BUILD } from '@/build';
 import { useSessionStore } from '@/state/session';
 import { recordingClient, renderAtRoute, SESSION, stubClient } from '@/test-utils';
 
@@ -51,6 +52,8 @@ describe('a tenant member', () => {
     expect(screen.getByTestId('account-name').textContent).toBe('Ada');
     expect(screen.getByTestId('account-email').textContent).toBe('ada@acme.test');
     expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeTruthy();
+    // Version and build, last (2026-09-27).
+    expect(screen.getByTestId('build-stamp').textContent).toContain(`Version ${BUILD.version}`);
     // And the way to their profile — name, default product, language.
     expect(screen.getByRole('menuitem', { name: 'Your profile' }).getAttribute('href')).toMatch(/^\/profile/);
   });

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { t } from '@/i18n';
+import { BuildStamp } from '@/ui/BuildStamp';
 import { touchTargetClass } from '@/ui/Field';
 import { cn } from '@/utils/cn';
 
@@ -129,6 +130,7 @@ export function VisitorMenu({
               <span className="block text-muted">{t('Ask to join {organisation}', { organisation })}</span>
             </button>
           )}
+          <BuildStamp />
         </div>
       )}
     </div>

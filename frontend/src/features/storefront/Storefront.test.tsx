@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useSessionStore } from '@/state/session';
+import { BUILD } from '@/build';
 import { recordingClient, renderWith, stubClient, type Stubs } from '@/test-utils';
 
 import { Storefront } from './Storefront';
@@ -249,6 +250,12 @@ describe('the shop window', () => {
 
     fireEvent.click(menu);
     expect(menu.getAttribute('aria-expanded')).toBe('true');
+    // Which version and build this is, at the end of the menu (2026-09-27):
+    // the values the build stamped, never a placeholder.
+    const stamp = screen.getByTestId('build-stamp');
+    expect(stamp.textContent).toContain(`Version ${BUILD.version}`);
+    expect(stamp.textContent).toContain(`build ${BUILD.commit}`);
+    expect(BUILD.commit).not.toBe('');
     fireEvent.click(screen.getByTestId('sign-in-link'));
     expect(onSignIn).toHaveBeenCalled();
     // Choosing closes it.

@@ -13,3 +13,8 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/** Stamped by `vite.config.ts` at build time; read through `src/build.ts`, never directly. */
+declare const __APP_VERSION__: string;
+declare const __BUILD_COMMIT__: string;
+declare const __BUILD_TIME__: string;

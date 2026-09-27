@@ -1336,5 +1336,6 @@
   "Ask to join {organisation}": "Beitritt zu {organisation} anfragen",
   "New here?": "Neu hier?",
   "Sign in or join": "Anmelden oder beitreten",
-  "There is nothing to buy here for now. If you already have an account, sign in from the icon at the top of the page.": "Hier gibt es im Moment nichts zu kaufen. Wenn Sie bereits ein Konto haben, melden Sie sich über das Symbol oben auf der Seite an."
+  "There is nothing to buy here for now. If you already have an account, sign in from the icon at the top of the page.": "Hier gibt es im Moment nichts zu kaufen. Wenn Sie bereits ein Konto haben, melden Sie sich über das Symbol oben auf der Seite an.",
+  "Version {version} · build {commit} · {day}": "Version {version} · Build {commit} · {day}"
 }
