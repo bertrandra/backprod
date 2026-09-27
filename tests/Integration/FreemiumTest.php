@@ -10,6 +10,7 @@ use App\Commerce\Domain\CancellationDecision;
 use App\Commerce\Domain\CancellationPolicy;
 use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\ProrationPolicy;
+use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionEvent;
 use App\Commerce\Infrastructure\OfferVersionLoader;
@@ -20,6 +21,7 @@ use App\Commerce\Service\Subscriptions;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
+use App\Shared\Exceptions\ConflictException;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
@@ -339,6 +341,153 @@ final class FreemiumTest extends DatabaseApiTestCase
         self::assertSame(1, $this->rowsOf('SELECT count(*) FROM subscriptions WHERE is_freemium'));
     }
 
+    // --- Said before the click (§6.4, étape 7) -------------------------------
+
+    /**
+     * The catalogue's half of the rule: the read answers it, so nothing has to
+     * discover `FREEMIUM_ALREADY_USED` by trying.
+     *
+     * Three facts in one test because they are one fact: it is the caller's,
+     * it survives the subscription being over, and it is **per product** — a
+     * screen that took any of the three the other way would offer a button the
+     * database refuses, or withhold one nobody has spent.
+     */
+    public function testTheReadSaysWhetherTheFreePeriodIsSpent(): void
+    {
+        self::assertFalse($this->readSubscription()['freemium_used'] ?? null);
+
+        self::assertSame(201, $this->take()->getStatusCode());
+
+        self::assertTrue($this->readSubscription()['freemium_used'] ?? null);
+
+        // Whatever became of it. A status filter here would say "you may take
+        // one" while the index says otherwise, which is worse than saying
+        // nothing.
+        $this->connection->executeStatement(
+            <<<'SQL'
+                UPDATE subscriptions
+                   SET status = 'EXPIRED',
+                       started_at = now() - interval '7 months',
+                       current_period_start = now() - interval '7 months',
+                       current_period_end = now() - interval '6 months',
+                       ended_at = now() - interval '6 months'
+                 WHERE is_freemium
+                SQL,
+        );
+
+        self::assertTrue($this->readSubscription()['freemium_used'] ?? null);
+
+        // Tasting Atlas has never said anything about Boreas.
+        self::assertFalse($this->readSubscription('boreas')['freemium_used'] ?? null);
+    }
+
+    /**
+     * And the answer belongs to the person, not to the organisation they are
+     * in: a colleague who has spent nothing is offered the free period.
+     */
+    public function testAnothersSpentFreePeriodIsNotThisOnes(): void
+    {
+        self::assertSame(201, $this->take()->getStatusCode());
+
+        $bob = $this->request(
+            'GET',
+            '/api/v1/subscription',
+            ['Authorization' => 'Bearer bob-token', 'X-Product' => 'atlas'],
+        );
+
+        self::assertSame(200, $bob->getStatusCode());
+        self::assertFalse($this->decode($bob)['freemium_used'] ?? null);
+    }
+
+    /**
+     * **The way round the once-ever rule**, closed (2026-09-27).
+     *
+     * The freemium is the lowest rank, so every move to it is a move *down* —
+     * deferred, not sold — and a move down went through neither door that
+     * knows anything about free periods. `Sales::order()` refuses the offer and
+     * `Freemium::take()` meets the index; this reached neither, so five spent
+     * days could be retaken by changing plan, and `is_freemium` would stay
+     * false while it happened.
+     *
+     * Refused in the shared place, so the preview a catalogue renders says the
+     * same thing before the click as the act says after it.
+     */
+    public function testMovingDownOntoTheFreePeriodIsRefusedOnceItIsSpent(): void
+    {
+        self::assertSame(201, $this->take()->getStatusCode());
+
+        $this->subscriptions()->changeOffer(
+            $this->tenant,
+            $this->product,
+            $this->pricedOffer,
+            $this->user,
+            seat: true,
+        );
+
+        foreach (['scheduleChange', 'changeOffer'] as $door) {
+            try {
+                $this->subscriptions()->{$door}(
+                    $this->tenant,
+                    $this->product,
+                    $this->freemiumOffer,
+                    $this->user,
+                    seat: true,
+                );
+
+                self::fail($door . ' gave a second free period away');
+            } catch (ConflictException $refusal) {
+                self::assertSame('FREEMIUM_ALREADY_USED', $refusal->errorCode());
+            }
+        }
+
+        // And the preview, which is what the catalogue renders: a screen
+        // offering *Descendre à ce plan* beside a refusal is the surprise
+        // §6.2 asks to be prevented.
+        try {
+            $this->subscriptions()->previewChange(
+                $this->tenant,
+                $this->product,
+                $this->freemiumOffer,
+                $this->user,
+                seat: true,
+            );
+
+            self::fail('the preview promised a move the act refuses');
+        } catch (ConflictException $refusal) {
+            self::assertSame('FREEMIUM_ALREADY_USED', $refusal->errorCode());
+        }
+
+        // Nothing was scheduled by the attempts.
+        self::assertSame(0, $this->rowsOf(
+            'SELECT count(*) FROM subscriptions WHERE pending_offer_version_id IS NOT NULL',
+        ));
+    }
+
+    /**
+     * The other side of it: somebody who has never had one may still move down
+     * onto the free period, which is what §6.2 says Lecture → Freemium is.
+     */
+    public function testMovingDownOntoItIsAllowedForSomebodyWhoHasNeverHadOne(): void
+    {
+        $this->subscriptions()->subscribe(
+            $this->tenant,
+            $this->product,
+            $this->pricedOffer,
+            $this->user,
+            Subscriber::user($this->user),
+        );
+
+        $moved = $this->subscriptions()->scheduleChange(
+            $this->tenant,
+            $this->product,
+            $this->freemiumOffer,
+            $this->user,
+            seat: true,
+        );
+
+        self::assertNotNull($moved->pending);
+    }
+
     // --- What is not a free period ------------------------------------------
 
     public function testAPricedOfferIsNotGivenAway(): void
@@ -508,6 +657,20 @@ final class FreemiumTest extends DatabaseApiTestCase
             $this->headers(),
             $this->json(['offer_id' => $offerId ?? $this->freemiumOffer]),
         );
+    }
+
+    /**
+     * What the catalogue reads before it offers anything (§6.4, étape 7).
+     *
+     * @return array<string, mixed>
+     */
+    private function readSubscription(string $product = 'atlas'): array
+    {
+        $response = $this->request('GET', '/api/v1/subscription', $this->headers($product));
+
+        self::assertSame(200, $response->getStatusCode());
+
+        return $this->decode($response);
     }
 
     /**

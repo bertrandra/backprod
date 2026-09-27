@@ -4203,6 +4203,14 @@ export interface components {
             valid_from: string;
             /** Format: date-time */
             valid_until: string | null;
+            /**
+             * @description Whether this version is the **free period** of spec §6: free, and over when its period is. Derived by the platform and never by a reader — a client comparing a plan's code is the branch §13 forbids, and one comparing `price == 0` against a renewal setting is a business rule copied into a frontend where §4 does not let one live (and `renewal` is not in this schema at all).
+             *
+             *     It decides which door an acquisition goes through, which is why it is worth a field: a free period is taken with `startFreemium` and raises no order, no invoice and no payment, while `openCheckoutSession` refuses it outright (`FREEMIUM_IS_NOT_SOLD`). It is given **once per account per product**, whatever became of it (§6.4), so `freemium_used` on `showSubscription` is the other half of the answer.
+             */
+            freemium: boolean;
+            /** @description What subscribing on this version commits to, and it belongs on the **sale** view rather than only the authoring one: §7's catalogue says price, period *and commitment* before the button, and how long somebody is agreeing to stay is not a figure a client may derive from how often they pay (non-negotiable #23). Snapshotted into the subscription when it is taken out (§13.1), so what is read here is what will be agreed. */
+            terms: components["schemas"]["SubscriptionTerms"];
             grants: components["schemas"]["OfferGrant"][];
         };
         Offer: {
@@ -5223,6 +5231,8 @@ export interface components {
             valid_from: string;
             /** Format: date-time */
             valid_until: string | null;
+            /** @description Whether this version is the free period (spec §6) — the same answer `OfferVersion.freemium` gives, from the same domain method, because an author deciding what to publish needs to know which door the version they are writing will be acquired through. */
+            freemium: boolean;
             grants: components["schemas"]["AuthoredOfferGrant"][];
             terms: components["schemas"]["SubscriptionTerms"];
         };
@@ -11582,6 +11592,14 @@ export interface operations {
                         events: components["schemas"]["SubscriptionEvent"][];
                         /** @description The caller’s own live seat on this product, or null (§13.1, 2026-09-18). Apart from `subscription`, the organisation’s, because the two bind different parties: a member may hold a seat at an organisation that also subscribes. */
                         seat: components["schemas"]["Subscription"] | null;
+                        /**
+                         * @description Whether the caller's one free period for this product is spent (spec §6.4). The caller's own fact, like `seat`, and never withheld.
+                         *
+                         *     Here so the catalogue can say it **before the click**. A free period is given once and once for all — one that expired six months ago still forbids another — and the row that misleads worst without this is not the free offer itself but the move *down* to it: for somebody whose free period is spent, leaving the cheapest paid plan downwards is a **cancellation**, not a change of plan, and that is not a thing to discover from a 409.
+                         *
+                         *     It is a courtesy and not the rule. `subscriptions_one_freemium_ever` is the rule, because a read followed by an insert is a race two simultaneous requests walk straight through; this read is built on the index's own predicate — the same key, and no status filter — so the two cannot disagree.
+                         */
+                        freemium_used: boolean;
                     };
                 };
             };
@@ -11695,7 +11713,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description No subscription to change, the offer is not on sale, `COMMITMENT_OUTLASTS_TERM` — the offer runs for less time than the commitment already agreed, which would leave the commitment with no subscription under it — `CHANGE_NOT_PERMITTED` when the move cannot be priced, with the decision and its rule in the details, or `BILLING_PROFILE_REQUIRED` when a priced move has nobody to invoice. A move to a **lower-ranked** plan is not refused: it is scheduled for the end of the paid period, and the answer carries `pending`. */
+            /** @description No subscription to change, the offer is not on sale, `COMMITMENT_OUTLASTS_TERM` — the offer runs for less time than the commitment already agreed, which would leave the commitment with no subscription under it — `CHANGE_NOT_PERMITTED` when the move cannot be priced, with the decision and its rule in the details, or `BILLING_PROFILE_REQUIRED` when a priced move has nobody to invoice. `FREEMIUM_ALREADY_USED` where the arriving offer is the free period and this account has had its one (§6.4): the freemium is the lowest rank, so a move to it is a move *down* and met neither of the two doors that know about free periods — which left it the way round the once-ever rule. A move to a **lower-ranked** plan is not refused: it is scheduled for the end of the paid period, and the answer carries `pending`. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11749,7 +11767,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description The refusals the change itself would make, made here for the same reason and with nothing written: `ALREADY_ON_OFFER`, or `COMMITMENT_OUTLASTS_TERM` where the commitment already agreed would outlast the offer's own term. A move that merely cannot be *priced* is not one of these — it comes back as a 200 with `accepted: false` and the rule that says why, exactly as a refused cancellation does. */
+            /** @description The refusals the change itself would make, made here for the same reason and with nothing written: `ALREADY_ON_OFFER`, `COMMITMENT_OUTLASTS_TERM` where the commitment already agreed would outlast the offer's own term, or `FREEMIUM_ALREADY_USED` where the arriving offer is the free period and this account has had its one (§6.4) — the refusal a catalogue renders as a sentence rather than discovering after a click. A move that merely cannot be *priced* is not one of these — it comes back as a 200 with `accepted: false` and the rule that says why, exactly as a refused cancellation does. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11800,7 +11818,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description `NOT_A_DOWNGRADE` for a move that is not down, `ALREADY_ON_OFFER`, `SUBSCRIPTION_ENDING` when a cancellation is already due — a subscription has one ending — or `NO_PERIOD_END` for a CUSTOM billing period, which has no date to defer to. */
+            /** @description `NOT_A_DOWNGRADE` for a move that is not down, `ALREADY_ON_OFFER`, `FREEMIUM_ALREADY_USED` where the arriving offer is the free period and this account has had its one (§6.4) — so leaving the cheapest paid plan downwards is a *cancellation* for that person, and the catalogue says so — `SUBSCRIPTION_ENDING` when a cancellation is already due — a subscription has one ending — or `NO_PERIOD_END` for a CUSTOM billing period, which has no date to defer to. */
             409: {
                 headers: {
                     [name: string]: unknown;

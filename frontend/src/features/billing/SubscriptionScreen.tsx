@@ -13,8 +13,6 @@ import {
   useSchedule,
   useScheduleOfferChange,
   useSubscription,
-  type CancellationDecision,
-  type ChangeDecision,
   type Entitlement,
   type Subscription,
 } from '@/queries/subscription';
@@ -29,6 +27,7 @@ import { notice, pill, type Tone } from '@/ui/tone';
 import { PageHeader } from '@/ui/Page';
 import { Whose } from '@/ui/Whose';
 
+import { CancellationOutcome, ChangeOutcome } from './decisions';
 import { SubscriptionPeople } from './SubscriptionPeople';
 import { currentLocale, t } from '@/i18n';
 import { tx } from '@/i18n/react';
@@ -362,7 +361,7 @@ export function SubscriptionScreen() {
                 {/* The preview, before the button. The backend computes it, so
                     the number here is the number that will be charged. */}
                 {schedule.data?.if_cancelled_now !== undefined && (
-                  <Decision decision={schedule.data.if_cancelled_now} label={t("If you cancelled now")} />
+                  <CancellationOutcome decision={schedule.data.if_cancelled_now} label={t("If you cancelled now")} />
                 )}
 
                 <label className="flex items-center gap-2 text-sm">
@@ -403,7 +402,7 @@ export function SubscriptionScreen() {
             )}
 
             {cancel.data?.cancellation !== undefined && cancel.data.cancellation !== null && (
-              <Decision decision={cancel.data.cancellation} label={t("What the policy decided")} />
+              <CancellationOutcome decision={cancel.data.cancellation} label={t("What the policy decided")} />
             )}
           </section>
         </>
@@ -630,138 +629,6 @@ function ChangePreview({ offerId }: { offerId: string }) {
   }
 
   return <ChangeOutcome decision={preview.data.if_changed_now} label={t("If you changed now")} />;
-}
-
-/**
- * A change decision, in full — the preview's and the act's, which are the same
- * object because they come from the same calculation.
- */
-function ChangeOutcome({ decision, label }: { decision: ChangeDecision; label: string }) {
-  const money = (minorUnits: number) => ({ minor_units: minorUnits, currency: decision.currency });
-
-  return (
-    <div
-      data-testid="change-decision"
-      data-rule={decision.rule_id}
-      data-direction={decision.direction}
-      data-effect={decision.effect}
-      className="max-w-md space-y-1 rounded-card border border-line bg-surface p-4 text-sm shadow-raise"
-    >
-      <p className="font-medium">{label}</p>
-
-      {!decision.accepted ? (
-        <p data-testid="change-refused">{t("This change cannot be priced on these terms.")}</p>
-      ) : decision.effect === 'AT_PERIOD_END' ? (
-        <p data-testid="change-effect">
-          {decision.effective_at === null
-            ? t("It takes effect at the end of the period you have paid for.")
-            : t("It takes effect on {date}, at the end of the period you have paid for. Until then nothing changes, and nothing is charged.", { date: new Date(decision.effective_at).toLocaleDateString(currentLocale()) })}
-        </p>
-      ) : (
-        <>
-          <p data-testid="change-effect">{t("It takes effect immediately.")}</p>
-
-          {/* The three amounts, apart. A single figure would hide which half
-              of it is money coming back. */}
-          <dl className="grid gap-1 sm:grid-cols-3">
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-subtle">{t("Credited")}</dt>
-              <dd data-testid="change-credit">
-                <Amount money={money(decision.credit_minor_units)} />
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-subtle">{t("New period")}</dt>
-              <dd data-testid="change-charge">
-                <Amount money={money(decision.charge_minor_units)} />
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-subtle">
-                {decision.net_minor_units < 0 ? t("Back to you") : t("To pay today")}
-              </dt>
-              <dd data-testid="change-net" className="font-medium">
-                <Amount money={money(Math.abs(decision.net_minor_units))} />
-              </dd>
-            </div>
-          </dl>
-
-          {decision.new_period_end !== null && (
-            <p className="text-xs text-subtle">
-              {t("The new period runs to {date}.", { date: new Date(decision.new_period_end).toLocaleDateString(currentLocale()) })}
-            </p>
-          )}
-        </>
-      )}
-
-      {decision.reasons.length > 0 && (
-        <ul className="list-inside list-disc text-xs text-muted">
-          {decision.reasons.map((reason) => (
-            <li key={reason}>{reason}</li>
-          ))}
-        </ul>
-      )}
-
-      <p className="text-xs text-subtle">
-        {t("Rule")}{' '}<code>{decision.rule_id}</code>
-      </p>
-    </div>
-  );
-}
-
-/**
- * A cancellation decision, in full.
- *
- * Not `accepted: true`. What somebody needs is *when* it takes effect, what it
- * costs, and which rule said so — the rule's id travels with the decision
- * precisely so it can be quoted in a support conversation.
- */
-function Decision({ decision, label }: { decision: CancellationDecision; label: string }) {
-  return (
-    <div
-      data-testid="cancellation-decision"
-      data-effect={decision.effect}
-      data-rule={decision.rule_id}
-      className="space-y-1 rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
-    >
-      <p className="font-medium">{label}</p>
-
-      <p data-testid="decision-effect">
-        {decision.effect === 'REFUSED'
-          ? t("It would be refused.")
-          : decision.effective_at === null
-            ? t("Effect: {value}", { value: decision.effect.toLowerCase().replace(/_/g, ' ') })
-            : t("Takes effect {value} ({value_})", { value: new Date(decision.effective_at).toLocaleDateString(currentLocale()), value_: decision.effect
-                .toLowerCase()
-                .replace(/_/g, ' ') })}
-      </p>
-
-      {decision.chargeable_months > 0 && (
-        // Counted from the end of the period already paid for, not from today —
-        // which is why this is the server's number and not a subtraction here.
-        <p data-testid="chargeable-months">
-          {t(
-            decision.chargeable_months === 1
-              ? "{count} month of commitment would still be owed."
-              : "{count} months of commitment would still be owed.",
-            { count: decision.chargeable_months },
-          )}
-        </p>
-      )}
-
-      {decision.reasons.length > 0 && (
-        <ul className="list-inside list-disc text-xs text-muted">
-          {decision.reasons.map((reason) => (
-            <li key={reason}>{reason}</li>
-          ))}
-        </ul>
-      )}
-
-      <p className="text-xs text-subtle">
-        {t("Rule")}{' '}<code>{decision.rule_id}</code>
-      </p>
-    </div>
-  );
 }
 
 /**

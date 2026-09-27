@@ -228,6 +228,7 @@ final class Subscriptions
 
         self::refuseIfAlreadyOnTheOffer($subscription, $offer);
         self::refuseIfTheCommitmentOutlastsTheTerm($subscription, $offer);
+        $this->refuseIfTheFreePeriodIsSpent($subscription, $offer);
 
         $direction = self::directionBetween($subscription->offer->plan->rank, $offer->plan->rank);
 
@@ -290,6 +291,11 @@ final class Subscriptions
         // own CHECK, and a preview that answered "€12.40 today" for a change
         // that will be refused is worse than no preview.
         self::refuseIfTheCommitmentOutlastsTheTerm($subscription, $offer);
+
+        // And the same again for the free period (§6.4): the catalogue asks
+        // this question once per row, so this is where "you have already had
+        // it" becomes a sentence on screen instead of a 409 after a click.
+        $this->refuseIfTheFreePeriodIsSpent($subscription, $offer);
 
         $direction = self::directionBetween($subscription->offer->plan->rank, $offer->plan->rank);
 
@@ -479,6 +485,7 @@ final class Subscriptions
         $offer = $this->sellable($productId, $offerId);
 
         self::refuseIfAlreadyOnTheOffer($subscription, $offer);
+        $this->refuseIfTheFreePeriodIsSpent($subscription, $offer);
 
         if (self::directionBetween($subscription->offer->plan->rank, $offer->plan->rank) !== self::DOWNGRADE) {
             throw new ConflictException(
@@ -588,6 +595,47 @@ final class Subscriptions
                 ],
             );
         }
+    }
+
+    /**
+     * A move **to** the free period, refused where the free period is spent
+     * (2026-09-27, spec §6.4).
+     *
+     * The freemium is the lowest rank, so every move to it is a move *down* —
+     * and a move down is deferred rather than sold, which means it reached
+     * neither door that knows anything about free periods. `Sales::order()`
+     * refuses it (`FREEMIUM_IS_NOT_SOLD`) and `Freemium::take()` meets
+     * `subscriptions_one_freemium_ever`; this way in met neither, so somebody
+     * whose five days were spent could schedule a move down onto the free
+     * offer, be given them again, and keep `is_freemium` false while doing it
+     * — which is "free for ever by recurrence" (§6.4) through the back door.
+     *
+     * Refused in the **shared** place, so the preview says it before the click
+     * and the act says it after. That is what lets the catalogue state the rule
+     * at all: §6.2 asks the screen to say that leaving the cheapest paid plan
+     * downwards is a *cancellation* for this person, and a screen withholding a
+     * button the API would have accepted would be the frontend deciding.
+     *
+     * Asked of the **subscription's** subscriber and not of the caller, because
+     * that is the index's key: `coalesce(subscriber_user_id, tenant_id)`.
+     */
+    private function refuseIfTheFreePeriodIsSpent(Subscription $subscription, SubscribedOffer $offer): void
+    {
+        if (!$offer->version->isFreemium()) {
+            return;
+        }
+
+        $subscriber = $subscription->subscriber->userId ?? $subscription->tenantId;
+
+        if (!$this->subscriptions->hasHadFreemium($subscription->productId, $subscriber)) {
+            return;
+        }
+
+        throw new ConflictException(
+            'FREEMIUM_ALREADY_USED',
+            'This account has already had the free period for this product, so there is nothing below this plan to move to: leaving it is a cancellation.',
+            ['product_id' => $subscription->productId],
+        );
     }
 
     /**

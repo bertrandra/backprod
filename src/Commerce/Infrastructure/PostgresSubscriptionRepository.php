@@ -1137,6 +1137,41 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
     }
 
     /**
+     * Whether this subscriber's one free period is spent (spec §6.4).
+     *
+     * Written as the index's own predicate — `coalesce(subscriber_user_id,
+     * tenant_id)`, `is_freemium`, and **no status filter** — because the point
+     * of this read is to agree with `subscriptions_one_freemium_ever`. Adding
+     * `status = 'ACTIVE'` here would offer a button the database refuses,
+     * which is the surprise §6.4 asks the catalogue to prevent.
+     *
+     * It does not enforce anything: the index does, and still has to, because
+     * this read and the insert that follows it are two statements.
+     */
+    public function hasHadFreemium(string $productId, string $subscriberKey): bool
+    {
+        if (!Uuid::isValid($productId) || !Uuid::isValid($subscriberKey)) {
+            return false;
+        }
+
+        // A row rather than a boolean expression: PostgreSQL hands `true` back
+        // through PDO as `'t'`, and a comparison against `true` would then be
+        // false for every account that has had one — the defect this read
+        // exists to prevent, inverted. Presence is unambiguous.
+        return $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT 1
+                  FROM subscriptions
+                 WHERE product_id = :productId
+                   AND coalesce(subscriber_user_id, tenant_id) = :subscriber
+                   AND is_freemium
+                 LIMIT 1
+                SQL,
+            ['productId' => $productId, 'subscriber' => $subscriberKey],
+        ) !== false;
+    }
+
+    /**
      * Every subscription this person holds here: the tenant's own, plus their
      * seat if they have one.
      *

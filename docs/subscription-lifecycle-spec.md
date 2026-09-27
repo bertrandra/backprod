@@ -575,6 +575,37 @@ toujours d'en reprendre un.
 
 **Étape 7 — l'écran catalogue**, une fois que 2, 3 et 4 répondent.
 
+> **Livrée** le 27 septembre 2026. Chaque ligne du catalogue est l'une de sept
+> situations, et c'est le **rang** qui tranche entre les deux dernières — donc
+> deux opérations différentes, `changeOffer` et `scheduleOfferChange`, jamais la
+> première pour une descente. Toutes portent `seat: true` : la surface locataire
+> ne vend que des sièges (ADR-055), et sans le drapeau chaque bouton s'adressait
+> à l'abonnement de l'organisation, que le client ne détient pas. Les montants
+> sont **ceux du serveur**, lus dans `preview-change` ligne par ligne ; le test
+> qui le prouve fabrique un `net` qui n'est pas `charge − credit`, parce qu'un
+> jeu d'essai cohérent laisserait passer une soustraction faite ici.
+>
+> **Le freemium se dit avant le clic** (§6.4), et il a fallu deux choses pour
+> cela. Un fait : `freemium_used` sur `GET /subscription`, la réponse du serveur
+> et non une déduction du siège en main — l'index ne filtre pas sur le statut,
+> et cette lecture non plus. Et une propriété : `OfferVersion.freemium` sur la
+> vue de vente, parce que reconnaître la période gratuite à `price == 0` serait
+> recopier une règle métier dans le frontend et la reconnaître au code d'un plan
+> serait la branche qu'interdit le §13.
+>
+> **Ce qui a été trouvé en chemin** : la descente vers le freemium ne passait
+> par **aucune** des deux portes qui connaissent la période gratuite —
+> `Sales::order()` la refuse, `Freemium::take()` rencontre l'index — donc cinq
+> jours dépensés se reprenaient en changeant de plan, `is_freemium` restant
+> faux. Refusée désormais à l'endroit partagé, donc l'aperçu le dit avant le
+> clic et l'acte après. Ce qui reste : une descente vers le freemium **autorisée**
+> (pour qui n'y a jamais eu droit) ne pose toujours pas `is_freemium` quand le
+> renouvellement l'applique, si bien que ce chemin-là consomme le droit sans
+> l'enregistrer.
+>
+> La vue de vente porte aussi `terms` : « prix, période, engagement » demandait
+> l'engagement, et il n'était que dans la vue d'édition.
+
 > L'ordre n'est pas négociable entre 1 et 4 : prorater des conditions qui
 > décrivent l'offre quittée donnerait un montant juste sur le mauvais contrat.
 
