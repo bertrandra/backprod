@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 
-import { expect, stubSession, test } from './support/app';
+import { expect, heldOpen, stubSession, test } from './support/app';
 
 /**
  * U9's accessibility pass, run rather than asserted.
@@ -386,13 +386,32 @@ test.describe('what axe cannot see', () => {
     await expect(alert).toContainText('request req-1');
   });
 
-  test('a loading state is announced as busy rather than as empty', async ({ page }) => {
+  /**
+   * The invoice list, still loading, and staying that way until released.
+   *
+   * Both tests below are about what is on screen *while* a read is outstanding,
+   * and that window used to be a 1.5s `setTimeout`. A window measured in wall
+   * clock is a race against the application's own start-up, which stretches
+   * under load while the sleep does not — so on a busy laptop the page reached
+   * the invoice screen after the stub had already answered, and the assertion
+   * failed reporting a missing skeleton rather than anything about a skeleton.
+   * Held open, the state lasts as long as the test needs it to.
+   */
+  async function loadingInvoices(page: Page) {
+    const { held, release } = heldOpen();
+
     await stubbed(page);
     await page.route(/\/api\/v1\/billing\/invoices/, async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      await held;
 
       return route.fulfill({ json: { invoices: [], total: 0, limit: 25, offset: 0 } });
     });
+
+    return release;
+  }
+
+  test('a loading state is announced as busy rather than as empty', async ({ page }) => {
+    const release = await loadingInvoices(page);
 
     await page.goto('/invoices?product=atlas');
 
@@ -404,20 +423,22 @@ test.describe('what axe cannot see', () => {
     const busy = page.getByRole('main').locator('[role="status"][aria-busy="true"]');
     await expect(busy).toBeVisible();
     await expect(busy).toContainText('Loading');
+
+    release();
   });
 
   test('reduced motion removes the pulse rather than merely declaring it', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await stubbed(page);
-    await page.route(/\/api\/v1\/billing\/invoices/, async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 1_500));
 
-      return route.fulfill({ json: { invoices: [], total: 0, limit: 25, offset: 0 } });
-    });
+    const release = await loadingInvoices(page);
 
     await page.goto('/invoices?product=atlas');
 
-    const skeleton = page.locator('[role="status"] div[aria-hidden="true"]').first();
+    // Scoped to `main` for the same reason as the test above, and so that the
+    // element this reads a computed style from is certainly the skeleton and
+    // not whatever else a live region elsewhere on the page hides from
+    // assistive technology.
+    const skeleton = page.getByRole('main').locator('[role="status"] div[aria-hidden="true"]').first();
     await expect(skeleton).toBeVisible();
 
     // `motion-safe:animate-pulse` compiles to a rule inside a
@@ -429,6 +450,8 @@ test.describe('what axe cannot see', () => {
     );
 
     expect(animation).toBe('none');
+
+    release();
   });
 
   test('every control is big enough to hit on a phone', async ({ page, viewport }) => {

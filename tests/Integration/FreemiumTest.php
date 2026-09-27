@@ -647,6 +647,60 @@ final class FreemiumTest extends DatabaseApiTestCase
         self::assertSame('tier', $after->offer->code);
     }
 
+    /**
+     * A free period reached by a scheduled change is spent just the same.
+     *
+     * The free period is the lowest rank, so *arriving* on it is always a move
+     * down — deferred, never sold. It therefore passes through neither door
+     * that knows about free periods: `Sales::order()` refuses to sell one and
+     * `Freemium::take()` meets the index. Applying the change without marking
+     * the row left the right consumed and unrecorded, so the same account
+     * could take its "first" free period again afterwards.
+     */
+    public function testAFreePeriodReachedByAScheduledChangeIsSpent(): void
+    {
+        $this->subscriptions()->subscribe($this->tenant, $this->product, $this->pricedOffer, $this->user);
+
+        $this->subscriptions()->scheduleChange(
+            $this->tenant,
+            $this->product,
+            $this->freemiumOffer,
+            $this->user,
+        );
+
+        $after = $this->subscriptions()->renew($this->tenant, $this->product);
+
+        self::assertSame('freemium', $after->offer->code);
+        self::assertTrue($after->isFreemium, 'the right is consumed, so the row has to say so');
+        self::assertSame(1, $this->rowsOf('SELECT count(*) FROM subscriptions WHERE is_freemium'));
+    }
+
+    /**
+     * And a plan that is merely free is not a free period.
+     *
+     * `tier` costs nothing and renews for ever; the free period costs nothing
+     * and stops at its term. Marking the first would spend a right its holder
+     * never took, so the predicate is {@see OfferVersion::isFreemium()} and
+     * never a price of zero.
+     */
+    public function testAFreePlanThatRenewsIsNotAFreePeriod(): void
+    {
+        $this->subscriptions()->subscribe($this->tenant, $this->product, $this->pricedOffer, $this->user);
+
+        $this->subscriptions()->scheduleChange(
+            $this->tenant,
+            $this->product,
+            $this->freeTierOffer,
+            $this->user,
+        );
+
+        $after = $this->subscriptions()->renew($this->tenant, $this->product);
+
+        self::assertSame('tier', $after->offer->code);
+        self::assertFalse($after->isFreemium);
+        self::assertSame(0, $this->rowsOf('SELECT count(*) FROM subscriptions WHERE is_freemium'));
+    }
+
     // --- Fixtures -----------------------------------------------------------
 
     private function take(?string $offerId = null): ResponseInterface
