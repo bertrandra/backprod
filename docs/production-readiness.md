@@ -113,8 +113,10 @@ Stated plainly, because a readiness document that omits these is worse than none
   of Acme, with whatever its `USER` role reads. The domain is the only evidence
   that policy asks for, and it is exactly the evidence a confirmation exists to
   provide. The rest — invoices, notices and reset links going to an unproved
-  address for as long as the account lives — is a product decision not yet
-  taken; until it is, the answer is "nothing".
+  address for as long as the account lives — follows the same rule.
+
+  Specified in ADR-061 (proposed): anybody may register, and no membership
+  becomes live until the address is proved, whatever the policy.
 
   This entry used to read *"No password reset, no email verification, no
   registration — the next thing to build"*, and it outlived all three. It was
@@ -132,10 +134,10 @@ Stated plainly, because a readiness document that omits these is worse than none
 
 ## 4. The order these would go in
 
-0. The `DOMAIN` join policy, before any organisation turns it on in
-   production: a domain match should admit somebody once the address is
-   confirmed, not when it is typed. It needs no deployment to fix, and it is
-   the only item here that is a hole rather than an absence.
+0. ADR-061, before any organisation turns on `DOMAIN` in production: a
+   membership goes live once the address is proved, not when it is typed. It
+   needs no deployment to build, and it is the only item here that is a hole
+   rather than an absence.
 1. A deployment and a staging environment, so anything below can be observed at
    all.
 2. Observability, because the next four items are unanswerable without it.

@@ -167,6 +167,8 @@ Recommended default: `APPROVAL`, with `DOMAIN` as the setting an
 administrator switches on once they have seen who turns up. `OPEN` is not
 offered. Whatever the policy, the address is confirmed by the existing
 email verification before a membership becomes live.
+*(Not honoured by the first implementation — `OPEN` and `DOMAIN` went live
+on the typed address. Restated, with the mechanism, in ADR-061.)*
 
 **Design.** `tenants.join_policy` + `tenant_join_domains`;
 `tenant_members.status` (`ACTIVE | PENDING`) with the resolver treating
