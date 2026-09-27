@@ -27,6 +27,20 @@ use DateTimeImmutable;
 final class Subscription
 {
     public const ACTIVE = 'ACTIVE';
+
+    /**
+     * An invoice raised against this subscription went unpaid past the date
+     * the product's schedule gives it (2026-09-27, spec §5.1).
+     *
+     * **A status and not an indicator**, unlike `cancel_at_period_end` and
+     * `pending_offer_version_id` beside it, and §2.2 gives the rule that
+     * separates them: those two describe a *future* ending and leave the
+     * current rights entirely intact, so putting them in `status` would make
+     * `status` lie about the access. This one describes the access — it is
+     * suspended — so it belongs there, and the first code to read `status` and
+     * decide gets the right answer.
+     */
+    public const PAST_DUE = 'PAST_DUE';
     public const CANCELLED = 'CANCELLED';
     public const EXPIRED = 'EXPIRED';
 
@@ -67,7 +81,35 @@ final class Subscription
          * holds somebody to that, whatever the status of the row since.
          */
         public readonly bool $isFreemium = false,
+        /**
+         * When this was declared in arrears, and which unpaid invoice did it
+         * (2026-09-27, spec §5.1). Both null together, which the database
+         * enforces: a date with no document is a suspension nothing can lift.
+         *
+         * They survive the subscription: a row cancelled while owed for keeps
+         * them, because "it was in arrears when it died" is a fact and nothing
+         * reconstructs it from what remains.
+         */
+        public readonly ?DateTimeImmutable $pastDueSince = null,
+        public readonly ?string $pastDueInvoiceId = null,
     ) {
+    }
+
+    /**
+     * Suspended for non-payment (spec §5.1).
+     *
+     * Suspended and not restricted, which the operator decided on 2026-09-26:
+     * no read-only tier and no half measure. "Restricted" would have required
+     * deciding *what stays open*, product by product — a question with no
+     * general answer, which would have to be re-asked for every new product,
+     * and to which an oversight answers "open".
+     *
+     * What is shut is the workshop. The documents stay reachable, or the door
+     * of the screen the customer came to pay at would be the one closed.
+     */
+    public function isPastDue(): bool
+    {
+        return $this->status === self::PAST_DUE;
     }
 
     /**
@@ -155,10 +197,42 @@ final class Subscription
      *
      * A null period end means open-ended, not expired: a CUSTOM billing
      * period has no computable end, and it runs until someone ends it.
+     *
+     * **`PAST_DUE` is not live, and nothing here needed changing to make that
+     * true** (2026-09-27, spec §5.1). The test is `status === ACTIVE`, so
+     * introducing a fourth status suspended every entitlement that asks this
+     * question, in one place, with no branch on the new word anywhere. That is
+     * the argument for a status over a flag, and it is why `isHeldAt()` below
+     * is the method that had to be added rather than this one.
      */
     public function isLiveAt(DateTimeImmutable $moment): bool
     {
         if ($this->status !== self::ACTIVE) {
+            return false;
+        }
+
+        return $this->currentPeriodEnd === null || $moment < $this->currentPeriodEnd;
+    }
+
+    /**
+     * Still the subscription this tenant or person holds, entitling or not
+     * (2026-09-27, spec §5.1).
+     *
+     * The question a *screen* asks, and the one the scope indexes ask: a
+     * suspended subscription grants nothing and is nonetheless the customer's
+     * subscription, the one the banner is about and the one they have to pay
+     * before they may buy anything else. Answered `false` and the screen would
+     * show "no subscription" to somebody who has one and owes for it — which
+     * offers them a fresh purchase instead of the invoice.
+     *
+     * Distinct from `isLiveAt()` on purpose, and never a substitute for it:
+     * entitlement asks that one. Two names because there are two questions,
+     * and a single method serving both would have to decide which caller is
+     * wrong.
+     */
+    public function isHeldAt(DateTimeImmutable $moment): bool
+    {
+        if ($this->status !== self::ACTIVE && $this->status !== self::PAST_DUE) {
             return false;
         }
 

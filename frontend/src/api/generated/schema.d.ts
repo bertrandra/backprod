@@ -4273,8 +4273,11 @@ export interface components {
         Subscription: {
             /** Format: uuid */
             id: string;
-            /** @enum {string} */
-            status: "ACTIVE" | "CANCELLED" | "EXPIRED";
+            /**
+             * @description `PAST_DUE` means an invoice raised against this subscription went unpaid past the day the product's collection schedule allows, so its entitlements are **suspended** (spec §5.1) — not restricted: there is no read-only tier. The documents stay reachable, because the screen the customer pays from is one of them. It is a status and not an indicator for the reason `cancel_at_period_end` and `pending` are indicators: those describe a future ending and leave today's access intact, while this describes today's access.
+             * @enum {string}
+             */
+            status: "ACTIVE" | "PAST_DUE" | "CANCELLED" | "EXPIRED";
             offer: {
                 /** Format: uuid */
                 id: string;
@@ -4311,6 +4314,16 @@ export interface components {
             owner_user_id: string | null;
             /** @description A move to another offer waiting for the end of the paid period, or null when none is waiting (spec §4). Never set at the same time as `cancel_at_period_end`: a subscription has one ending, and the cancellation is it. */
             pending: components["schemas"]["PendingChange"] | null;
+            /**
+             * Format: date-time
+             * @description When this subscription was declared in arrears, or null when it is not (spec §5.1). Set with the first chase the product's schedule allows, cleared when the invoice below is paid.
+             */
+            past_due_since: string | null;
+            /**
+             * Format: uuid
+             * @description Which unpaid invoice suspended it — the way to pay, and what a screen links to. Null together with `past_due_since`: a date with no document would be a suspension nothing can lift. Settling *this* invoice is what reopens the product; another payment arriving does not.
+             */
+            past_due_invoice_id: string | null;
         };
         /** @description A change of offer that has not happened yet. Choosing a **lower-ranked** plan changes nothing on the day it is chosen — the customer keeps, entire, the plan they have already paid for — so the choice is recorded as an intention and renewal applies it. Withdrawn with `DELETE /api/v1/subscription/pending`, which is not optional: a future change nobody can undo is a cancellation in disguise. */
         PendingChange: {
@@ -5853,6 +5866,7 @@ export interface components {
          *     - `ENTITLEMENT_REQUIRED` — the organisation never bought the feature. Answered by buying it.
          *     - `QUOTA_EXCEEDED` — it did, and there is none left. Answered by upgrading or deleting something.
          *     - `SUBSCRIPTION_REQUIRED` — the organisation bought it and **the caller is not one of the people the subscription covers** (ADR-053, 2026-09-25). Answered by whoever owns that subscription adding them to it, within the number of people their offer sells. Raised where a product's own work lives, before the permission is even considered, and never in place of `ENTITLEMENT_REQUIRED`: telling somebody to buy what their colleague already pays for sends them to the wrong place.
+         *     - `SUBSCRIPTION_PAST_DUE` — the caller **is** on a subscription and an invoice against it is unpaid (spec §5.1, 2026-09-27). Answered by paying it, and distinct from `SUBSCRIPTION_REQUIRED` for exactly that reason: raised as that code, the holder of a seat goes and asks a colleague for a place they already hold while the invoice stays unpaid. `GET /subscription` carries `past_due_since` and the invoice to settle; coverage does not gate it, nor `/invoices` and `/payments`, because shutting the screen the customer pays from would make the suspension unrecoverable.
          *     - `NO_TENANT_ACCESS` — the caller has no membership resolving here at all.
          */
         PermissionDenied: {

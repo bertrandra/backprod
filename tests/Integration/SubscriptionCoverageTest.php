@@ -192,8 +192,8 @@ final class SubscriptionCoverageTest extends DatabaseApiTestCase
 
         // And coverage is a different question from that one: the colleague
         // is not covered even though the organisation holds all three.
-        self::assertFalse($entitlements->covers($this->tenant, $this->product, $this->colleague));
-        self::assertTrue($entitlements->covers($this->tenant, $this->product, $this->owner));
+        self::assertFalse($entitlements->coverageFor($this->tenant, $this->product, $this->colleague)->covers());
+        self::assertTrue($entitlements->coverageFor($this->tenant, $this->product, $this->owner)->covers());
     }
 
     /**
@@ -223,7 +223,7 @@ final class SubscriptionCoverageTest extends DatabaseApiTestCase
         // The whole organisation holds it — that is what an override is for.
         self::assertSame(['advanced_3d'], $entitlements->capabilitiesFor($this->tenant, $this->product, $this->owner));
         // And it covers nobody, so it opens no workspace.
-        self::assertFalse($entitlements->covers($this->tenant, $this->product, $this->owner));
+        self::assertFalse($entitlements->coverageFor($this->tenant, $this->product, $this->owner)->covers());
         self::assertSame(403, $this->projects('ada-token')->getStatusCode());
     }
 

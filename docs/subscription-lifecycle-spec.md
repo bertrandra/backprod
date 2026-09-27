@@ -516,6 +516,36 @@ refus se distingue de « votre organisation ne vous couvre pas » ; une relance
 est une nouvelle tentative ; le calendrier vient de la configuration du
 produit et non d'une constante.
 
+> **Livrée** le 27 septembre 2026, ADR-060. Le refus a **son propre code**
+> (`SUBSCRIPTION_PAST_DUE`) : `EntitlementRepository::covers()` rendait un
+> booléen et rend désormais une réponse à trois valeurs (`Coverage`), parce
+> qu'un écran ne peut pas distinguer deux codes identiques et que le frontend
+> n'est jamais l'autorité. `COVERED` l'emporte sur `IN_ARREARS` — un siège
+> vivant n'est pas fermé par ce que doit l'organisation.
+>
+> Un **statut** et non un drapeau : `isLiveAt()` teste `status === ACTIVE`,
+> donc le quatrième statut a suspendu toutes les requêtes d'entitlement d'un
+> coup, sans une seule branche sur le mot nouveau. En contrepartie, les deux
+> index uniques partiels s'élargissent à `('ACTIVE', 'PAST_DUE')` : être en
+> impayé n'est pas une sortie, et ne libère pas la place.
+>
+> **La première relance est le délai de grâce**, un seul nombre. Toute facture
+> de la plateforme est « payable à réception », donc déclarer l'impayé à
+> l'échéance suspendrait un client en train de payer — la facture de prorata
+> d'une montée en gamme est émise et réglée à la minute. `retries[0]` répond
+> aux deux questions parce que c'est la même.
+>
+> La relance est une notification à **effet juridique** (corps rendu conservé,
+> mots propres dans les cinq langues), jamais un message, et la tentative suit
+> l'avis : un plantage entre les deux perd une tentative et prévient quand
+> même, l'ordre inverse demanderait de l'argent sans prévenir personne. Une
+> passe ne résilie **jamais** : résilier est une décision (§13.1), pas ce que
+> fait un cron.
+>
+> Reste hors de cette étape : **rien ne facture encore un renouvellement**
+> (M6), donc le mécanisme vise toute facture émise contre un abonnement — un
+> prorata, un rachat, un renouvellement le jour où il existera.
+
 **Étape 6 — le freemium.** La renumérotation des rangs (10, puis de 10 en
 10), l'unicité à vie du §6.4 — colonne et index, jamais une vérification
 applicative — la valeur de `renewal`, le chemin de souscription sans facture,

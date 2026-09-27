@@ -270,4 +270,61 @@ interface SubscriptionRepository
      * @return list<RenewalNotice>
      */
     public function dueForRenewalNotice(int $limit): array;
+
+    /**
+     * Subscriptions with an unpaid invoice against them, and who to chase
+     * (2026-09-27, spec §5).
+     *
+     * **How long overdue is returned, not whether it is due to be chased.** The
+     * schedule is the *product's* ({@see DunningSchedule}), and a query that
+     * joined it would read a JSON document per row in SQL and put a commercial
+     * decision inside a statement. So this answers the clock — which invoices
+     * are unpaid, and by how many whole days — and the caller asks the
+     * product's configuration what that means. Push the schedule in here and
+     * changing it stops being configuration.
+     *
+     * Only an **ISSUED** invoice counts. A draft was never sent, a paid one is
+     * settled, a cancelled one is a debt that no longer exists, and a credited
+     * one has been undone: chasing any of them is chasing nothing.
+     *
+     * Only an invoice raised **against a subscription** counts, which is also
+     * what keeps a purchase in flight out of this: the invoice a checkout
+     * raises names no subscription, because the subscription is what the money
+     * starts.
+     *
+     * One row per recipient, exactly as `dueForRenewalNotice` — see
+     * {@see OverdueSubscription} for why, including the null one.
+     *
+     * @return list<OverdueSubscription>
+     */
+    public function overdue(int $limit): array;
+
+    /**
+     * Declares a subscription in arrears, naming the debt that did it
+     * (2026-09-27, spec §5.1).
+     *
+     * Returns false when nothing changed — it was already suspended, or it is
+     * no longer ACTIVE at all. False is the ordinary answer on every pass after
+     * the first, not a failure: the collection pass runs from cron and reads
+     * the same debt every night until it is settled.
+     *
+     * Conditional on the status **in the statement** rather than on a value
+     * read a moment earlier: two overlapping passes would each see `ACTIVE`
+     * and both write, and both would record the declaration in the history.
+     */
+    public function declareArrears(string $subscriptionId, string $invoiceId): bool;
+
+    /**
+     * Lifts the suspension an invoice caused, because that invoice was paid.
+     *
+     * Keyed on the invoice and not only on the subscription: a subscription
+     * suspended by March's invoice is not reopened by April's being settled,
+     * and the difference is a customer's access.
+     *
+     * Participates in the caller's transaction — the invoice reaching PAID and
+     * the workshop reopening are one fact, and a payment collected with the
+     * product still shut is the state that ordering exists to make
+     * unobservable.
+     */
+    public function clearArrears(string $invoiceId): bool;
 }

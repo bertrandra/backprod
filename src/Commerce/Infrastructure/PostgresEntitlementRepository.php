@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commerce\Infrastructure;
 
+use App\Entitlement\Domain\Coverage;
 use App\Entitlement\Domain\Entitlement;
 use App\Entitlement\Domain\EntitlementRepository;
 use App\Shared\Database\Row;
@@ -202,20 +203,66 @@ final class PostgresEntitlementRepository implements EntitlementRepository
      * place on a subscription. Answered any other way, one support exception
      * would cover every member — the shape of the hole this closes.
      */
-    public function covers(string $tenantId, string $productId, string $userId): bool
+    public function coverageFor(string $tenantId, string $productId, string $userId): Coverage
     {
         if (!self::addressable($tenantId, $productId) || !Uuid::isValid($userId)) {
-            return false;
+            return Coverage::NONE;
         }
 
-        return $this->connection->fetchOne(
+        $answer = $this->connection->fetchOne(
             <<<'SQL'
-                SELECT EXISTS (
+                SELECT CASE
+                         WHEN EXISTS (
+                SQL . self::onASubscription('ACTIVE') . <<<'SQL'
+                         ) THEN 'COVERED'
+                         -- A trial the platform opened, checked second: it is
+                         -- an entitlement and not a subscription, so nothing
+                         -- about it can be in arrears.
+                         WHEN EXISTS (
+                SQL . self::onACoveringGrant() . <<<'SQL'
+                         ) THEN 'COVERED'
+                         -- Last, and this is the whole of spec §5.1: on a
+                         -- subscription that is suspended for non-payment.
+                         -- **After** both of the above, because the most
+                         -- generous answer wins — somebody whose own seat is
+                         -- live is covered whatever their organisation owes.
+                         WHEN EXISTS (
+                SQL . self::onASubscription('PAST_DUE') . <<<'SQL'
+                         ) THEN 'IN_ARREARS'
+                         ELSE 'NONE'
+                       END
+                SQL,
+            ['tenantId' => $tenantId, 'productId' => $productId, 'userId' => $userId],
+        );
+
+        return Coverage::fromName(is_string($answer) ? $answer : 'NONE');
+    }
+
+    /**
+     * The three ways to be on one of this tenant's subscriptions for this
+     * product, in a given status — owner, named subscriber, or added by the
+     * owner — against the subscription's own clock.
+     *
+     * Written once and asked twice, for `ACTIVE` and for `PAST_DUE`. Two
+     * hand-written copies differing by one literal is how the second one stops
+     * agreeing with the first: a later fix to who counts as "on" a
+     * subscription would have landed in the covered branch and not in the
+     * arrears branch, and arrears would then have read as no subscription at
+     * all — which is exactly the refusal §5.1 exists to tell apart.
+     *
+     * The clock is deliberately still asked of a suspended subscription. A
+     * period that ran out is lapsed rather than owed for, and calling it
+     * arrears would tell somebody to pay for a subscription that has ended.
+     */
+    private static function onASubscription(string $status): string
+    {
+        return sprintf(
+            <<<'SQL'
                     SELECT 1
                       FROM subscriptions s
                      WHERE s.tenant_id = CAST(:tenantId AS uuid)
                        AND s.product_id = CAST(:productId AS uuid)
-                       AND s.status = 'ACTIVE'
+                       AND s.status = '%s'
                        AND (s.current_period_end IS NULL OR s.current_period_end > now())
                        AND (
                              s.owner_user_id = CAST(:userId AS uuid)
@@ -226,8 +273,14 @@ final class PostgresEntitlementRepository implements EntitlementRepository
                                      AND m.user_id = CAST(:userId AS uuid)
                                 )
                            )
-                )
-                OR EXISTS (
+                SQL,
+            $status,
+        );
+    }
+
+    private static function onACoveringGrant(): string
+    {
+        return <<<'SQL'
                     -- A trial the platform opened (2026-09-25). It names no
                     -- people — "this organisation may try this product" has
                     -- none to name — so what stands in for the list is
@@ -256,10 +309,7 @@ final class PostgresEntitlementRepository implements EntitlementRepository
                              WHERE tm.tenant_id = e.tenant_id
                                AND tm.user_id = CAST(:userId AS uuid)
                            )
-                )
-                SQL,
-            ['tenantId' => $tenantId, 'productId' => $productId, 'userId' => $userId],
-        ) === true;
+                SQL;
     }
 
     /**

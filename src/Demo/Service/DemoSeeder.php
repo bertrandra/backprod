@@ -375,11 +375,11 @@ final class DemoSeeder
             // somebody could have used.
             'the free period covers its holder' => array_filter(
                 DemoWorld::FREEMIUM,
-                fn (array $trying): bool => !$this->entitlements->covers(
+                fn (array $trying): bool => !$this->entitlements->coverageFor(
                     $structure->tenant($trying['tenant']),
                     $structure->product($trying['product']),
                     $structure->user($trying['holder']),
-                ),
+                )->covers(),
             ) === [],
             // The rule the whole demonstration now turns on (2026-09-25):
             // whoever made a project was covered by a subscription at the
@@ -387,21 +387,21 @@ final class DemoSeeder
             // world that seeded is a world somebody could have built.
             'every project was made by somebody a subscription covers' => array_filter(
                 DemoWorld::PROJECTS,
-                fn (array $draft): bool => !$this->entitlements->covers(
+                fn (array $draft): bool => !$this->entitlements->coverageFor(
                     $structure->tenant($draft['tenant']),
                     $structure->product($draft['product']),
                     $structure->user($draft['by']),
-                ),
+                )->covers(),
             ) === [],
             // And the other half, which is what makes the number sold mean
             // something: a member the subscription does not cover is covered
             // by nothing. Globex sells one place on Boreas and has three
             // members.
-            'a member outside the places sold is covered by nothing' => !$this->entitlements->covers(
+            'a member outside the places sold is covered by nothing' => !$this->entitlements->coverageFor(
                 $structure->tenant('globex'),
                 $structure->product('boreas'),
                 $structure->user('globex-user2'),
-            ),
+            )->covers(),
             // The model's most surprising consequence (2026-09-25), so it is
             // asserted rather than left to be discovered on a screen: running
             // an organisation entitles its administrator to nothing. They
@@ -410,11 +410,11 @@ final class DemoSeeder
                 DemoWorld::TENANT_ADMINS,
                 fn (string $who, string $slug): bool => array_filter(
                     DemoWorld::TENANTS[$slug]['holds'],
-                    fn (string $code): bool => $this->entitlements->covers(
+                    fn (string $code): bool => $this->entitlements->coverageFor(
                         $structure->tenant($slug),
                         $structure->product($code),
                         $structure->user($who),
-                    ),
+                    )->covers(),
                 ) !== [],
                 ARRAY_FILTER_USE_BOTH,
             ) === [],

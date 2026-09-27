@@ -8,6 +8,7 @@ use App\Commerce\Domain\CancellationDecision;
 use App\Commerce\Domain\Feature;
 use App\Commerce\Domain\OfferGrant;
 use App\Commerce\Domain\OfferVersion;
+use App\Commerce\Domain\OverdueSubscription;
 use App\Commerce\Domain\PendingChange;
 use App\Commerce\Domain\Plan;
 use App\Commerce\Domain\RenewalNotice;
@@ -53,6 +54,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         s.term_months, s.term_ends_at, s.commitment_months, s.commitment_ends_at,
         s.cancellation_policy, s.renewal, s.early_termination, s.notice_days,
         s.cancel_effective_at, s.owner_user_id, s.is_freemium,
+        s.past_due_since, s.past_due_invoice_id,
         s.pending_offer_version_id, s.pending_effective_at,
         s.pending_requested_at, s.pending_requested_by,
         o.id AS offer_id, o.code AS offer_code, o.name AS offer_name,
@@ -88,13 +90,28 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
     {
     }
 
+    /**
+     * The organisation's own subscription, whether or not it is entitling.
+     *
+     * `status IN ('ACTIVE', 'PAST_DUE')` since 2026-09-27, and the two
+     * partial unique indexes are written with the same pair: a subscription
+     * suspended for non-payment is still the one this tenant holds. Read as
+     * `ACTIVE` alone, the screen would show "no subscription" to somebody who
+     * has one and owes for it — offering them a fresh purchase instead of the
+     * invoice — and the commerce layer would let them buy a second one, which
+     * the index would then refuse with a 500.
+     *
+     * Whether it *entitles* is a different question, asked by
+     * {@see Subscription::isLiveAt()} and by the entitlement queries, and it
+     * answers no.
+     */
     public function findActive(string $tenantId, string $productId): ?Subscription
     {
         $row = $this->connection->fetchAssociative(
             'SELECT ' . self::COLUMNS . ' ' . self::FROM . <<<'SQL'
                  WHERE s.tenant_id = :tenantId
                    AND s.product_id = :productId
-                   AND s.status = 'ACTIVE'
+                   AND s.status IN ('ACTIVE', 'PAST_DUE')
                    AND s.subscriber_kind = 'TENANT'
                 SQL,
             ['tenantId' => $tenantId, 'productId' => $productId],
@@ -808,6 +825,165 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         );
     }
 
+    public function overdue(int $limit): array
+    {
+        // `coalesce(i.due_at, i.issued_at)`: every invoice this platform raises
+        // says "payable on receipt", and `due_at` has never been written by
+        // anything — so an invoice with no due date is due when it was issued,
+        // which is what its own terms say. Honouring the column where a
+        // deployment does set one costs one function call and means the day a
+        // payment term exists, this reads it.
+        //
+        // The recipient is resolved in the same query and for the same reason
+        // `dueForRenewalNotice` resolves it here: the membership port is shaped
+        // "every tenant this user belongs to" on purpose, and nothing in this
+        // query comes from a client.
+        $rows = $this->connection->fetchAllAssociative(
+            <<<'SQL'
+                SELECT s.id, s.tenant_id, s.product_id,
+                       i.id AS invoice_id, i.number AS invoice_number,
+                       coalesce(i.due_at, i.issued_at) AS due_at,
+                       floor(
+                           extract(epoch FROM now() - coalesce(i.due_at, i.issued_at)) / 86400
+                       )::int AS days_overdue,
+                       (s.status = 'PAST_DUE') AS already_in_arrears,
+                       r.user_id AS recipient_user_id
+                  FROM subscriptions s
+                  JOIN invoices i ON i.subscription_id = s.id
+                  LEFT JOIN LATERAL (
+                        -- Whoever the debt is addressed to: the seat's holder,
+                        -- whoever took the subscription out, and — for an
+                        -- organisation's — its administrators. The owner is in
+                        -- this union and is not in `dueForRenewalNotice`'s,
+                        -- because the questions differ: a renewal notice is a
+                        -- legal obligation towards the contracting party, and a
+                        -- chase is addressed to whoever can settle it, which is
+                        -- first of all the person who bought the thing. UNION,
+                        -- so an owner who is also an administrator is chased
+                        -- once.
+                        SELECT s.subscriber_user_id AS user_id
+                         WHERE s.subscriber_kind = 'USER'
+                           AND s.subscriber_user_id IS NOT NULL
+                        UNION
+                        SELECT s.owner_user_id
+                         WHERE s.owner_user_id IS NOT NULL
+                        UNION
+                        SELECT tmr.user_id
+                          FROM tenant_member_roles tmr
+                          JOIN roles ro ON ro.id = tmr.role_id
+                         WHERE s.subscriber_kind = 'TENANT'
+                           AND tmr.tenant_id = s.tenant_id
+                           AND tmr.product_id = s.product_id
+                           AND ro.code = 'TENANT_ADMIN'
+                       ) r ON TRUE
+                 WHERE s.status IN ('ACTIVE', 'PAST_DUE')
+                   AND i.status = 'ISSUED'
+                   AND i.issued_at IS NOT NULL
+                   AND coalesce(i.due_at, i.issued_at) < now()
+                 ORDER BY coalesce(i.due_at, i.issued_at), i.id, r.user_id
+                 LIMIT :limit
+                SQL,
+            ['limit' => $limit],
+        );
+
+        return array_map(
+            static fn (array $row): OverdueSubscription => new OverdueSubscription(
+                Row::string($row, 'id'),
+                Row::string($row, 'tenant_id'),
+                Row::string($row, 'product_id'),
+                Row::string($row, 'invoice_id'),
+                Row::nullableString($row, 'invoice_number'),
+                Row::timestamp($row, 'due_at'),
+                Row::integer($row, 'days_overdue'),
+                self::boolean($row, 'already_in_arrears'),
+                Row::nullableString($row, 'recipient_user_id'),
+            ),
+            $rows,
+        );
+    }
+
+    public function declareArrears(string $subscriptionId, string $invoiceId): bool
+    {
+        if (!Uuid::isValid($subscriptionId) || !Uuid::isValid($invoiceId)) {
+            return false;
+        }
+
+        return $this->connection->transactional(function () use ($subscriptionId, $invoiceId): bool {
+            // The status is part of the WHERE, so two overlapping passes cannot
+            // both declare it and both write the history row. Whoever loses
+            // updates nothing and learns so from the count.
+            $changed = $this->connection->executeStatement(
+                <<<'SQL'
+                    UPDATE subscriptions
+                       SET status = 'PAST_DUE',
+                           past_due_since = now(),
+                           past_due_invoice_id = :invoice,
+                           updated_at = now()
+                     WHERE id = :id
+                       AND status = 'ACTIVE'
+                    SQL,
+                ['id' => $subscriptionId, 'invoice' => $invoiceId],
+            );
+
+            if ($changed === 0) {
+                return false;
+            }
+
+            // No actor: nobody suspended this, an unpaid invoice did.
+            $this->record(
+                $subscriptionId,
+                SubscriptionEvent::ARREARS_DECLARED,
+                null,
+                null,
+                null,
+                ['invoice_id' => $invoiceId],
+            );
+
+            return true;
+        });
+    }
+
+    public function clearArrears(string $invoiceId): bool
+    {
+        if (!Uuid::isValid($invoiceId)) {
+            return false;
+        }
+
+        // No transactional() here on purpose, the same choice
+        // `Notifications::raise` makes: the caller holds the transaction that
+        // marked the invoice paid, and the workshop reopening is part of that
+        // one fact. Opening a second transaction inside it would make
+        // correctness depend on how the driver nests.
+        $ids = $this->connection->fetchFirstColumn(
+            <<<'SQL'
+                UPDATE subscriptions
+                   SET status = 'ACTIVE',
+                       past_due_since = NULL,
+                       past_due_invoice_id = NULL,
+                       updated_at = now()
+                 WHERE status = 'PAST_DUE'
+                   AND past_due_invoice_id = :invoice
+                RETURNING id
+                SQL,
+            ['invoice' => $invoiceId],
+        );
+
+        foreach ($ids as $id) {
+            if (is_string($id)) {
+                $this->record(
+                    $id,
+                    SubscriptionEvent::ARREARS_CLEARED,
+                    null,
+                    null,
+                    null,
+                    ['invoice_id' => $invoiceId],
+                );
+            }
+        }
+
+        return $ids !== [];
+    }
+
     public function expireLapsed(): int
     {
         return $this->connection->transactional(function (): int {
@@ -818,11 +994,18 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
             //
             // A CUSTOM period has no `current_period_end` and is therefore
             // never past one — untouched, deliberately.
+            //
+            // `PAST_DUE` lapses too (2026-09-27). A period that has run out is
+            // over whatever was owed on it, and coverage already reads it as
+            // lapsed rather than as arrears — leaving the column at `PAST_DUE`
+            // would keep a dead subscription in the collection pass, chasing
+            // somebody for a product that has ended. The arrears dates stay on
+            // the row: it *was* owed for, and nothing reconstructs that.
             $ids = $this->connection->fetchFirstColumn(
                 <<<'SQL'
                     UPDATE subscriptions
                        SET status = 'EXPIRED', ended_at = now(), updated_at = now()
-                     WHERE status = 'ACTIVE'
+                     WHERE status IN ('ACTIVE', 'PAST_DUE')
                        AND current_period_end IS NOT NULL
                        AND current_period_end < now()
                     RETURNING id
@@ -954,8 +1137,13 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
     }
 
     /**
-     * Every live subscription that entitles this person: the tenant's own,
-     * plus their seat if they hold one.
+     * Every subscription this person holds here: the tenant's own, plus their
+     * seat if they have one.
+     *
+     * `PAST_DUE` is included since 2026-09-27, as in `findActive` above and for
+     * the same two reasons: the screen has to show a suspended seat rather than
+     * none, and the scope it occupies is not freed by owing for it. What it
+     * entitles is `isLiveAt()`, which answers no.
      *
      * @return list<Subscription>
      */
@@ -969,7 +1157,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
             'SELECT ' . self::COLUMNS . ' ' . self::FROM . <<<'SQL'
                  WHERE s.tenant_id = :tenantId
                    AND s.product_id = :productId
-                   AND s.status = 'ACTIVE'
+                   AND s.status IN ('ACTIVE', 'PAST_DUE')
                    AND (s.subscriber_kind = 'TENANT' OR s.subscriber_user_id = :userId)
                  ORDER BY s.subscriber_kind, s.started_at DESC
                 SQL,
@@ -1136,6 +1324,8 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
             Row::nullableString($row, 'owner_user_id'),
             self::toPendingChange($row),
             self::boolean($row, 'is_freemium'),
+            Row::nullableTimestamp($row, 'past_due_since'),
+            Row::nullableString($row, 'past_due_invoice_id'),
         );
     }
 

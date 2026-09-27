@@ -186,7 +186,7 @@ final class SalesChainTest extends DatabaseApiTestCase
         $entitlements = $this->container()->get(EntitlementRepository::class);
         self::assertInstanceOf(EntitlementRepository::class, $entitlements);
         self::assertTrue(
-            $entitlements->covers($this->tenant, $this->product, $this->user),
+            $entitlements->coverageFor($this->tenant, $this->product, $this->user)->covers(),
             'whoever bought it owns it, and an owner is covered',
         );
     }

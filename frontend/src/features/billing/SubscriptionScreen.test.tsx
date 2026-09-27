@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { recordingClient, renderWith, SESSION, stubClient, type Stub, type Stubs } from '@/test-utils';
+import { recordingClient, renderAtRoute, renderWith, SESSION, stubClient, type Stub, type Stubs } from '@/test-utils';
 
 import { SubscriptionScreen } from './SubscriptionScreen';
 
@@ -635,5 +635,77 @@ describe('the screen says who is asking and where', () => {
     // invented here would be a second answer to a question that has one.
     expect(screen.getByTestId('subscription-whose').textContent).toContain('Ada');
     expect(screen.getByTestId('subscription-whose').textContent).not.toContain('Acme');
+  });
+});
+
+/**
+ * Spec §2.2 and §5.1: an unpaid invoice shows the red banner, and the banner
+ * offers the way to pay.
+ *
+ * Everything asserted here is **read**. The status decides whether the banner
+ * appears, `past_due_since` dates it and `past_due_invoice_id` is what it links
+ * to — three server answers and no arithmetic, because how long is too long is
+ * the *product's* schedule and a screen that worked it out from a date would
+ * disagree with the server the moment an operator changed one.
+ */
+describe('an unpaid invoice (spec §5.1)', () => {
+  const suspended = (overrides: Record<string, unknown> = {}) =>
+    subscription({
+      status: 'PAST_DUE',
+      past_due_since: '2026-03-04T00:00:00Z',
+      past_due_invoice_id: 'inv-9',
+      ...overrides,
+    });
+
+  // A router, because the banner's whole point is that it *links* somewhere:
+  // rendering it without one would assert the words and not the remedy.
+  const renderSuspended = (client: ReturnType<typeof stubClient>) =>
+    renderAtRoute(<SubscriptionScreen />, client, { path: '/subscription' });
+
+  it('shows the banner, dates it, and links to the invoice to settle', async () => {
+    renderSuspended(clientFor({}, suspended()));
+
+    const banner = await waitFor(() => screen.getByTestId('past-due-organisation'));
+
+    expect(banner.textContent).toMatch(/payment failed/i);
+    // The remedy is a document, never a plan: this refusal is answered by
+    // paying, not by buying.
+    expect(screen.getByTestId('past-due-invoice').getAttribute('href')).toContain('inv-9');
+    // And the subscription is still shown as what it is, rather than hidden.
+    expect(screen.getByTestId('subscription-status').getAttribute('data-status')).toBe('PAST_DUE');
+  });
+
+  it('says so without a date rather than inventing one', async () => {
+    // `past_due_since` is nullable in the contract. A screen that filled it in
+    // from `current_period_start` would print a date the server never gave.
+    renderSuspended(clientFor({}, suspended({ past_due_since: null })));
+
+    const banner = await waitFor(() => screen.getByTestId('past-due-organisation'));
+
+    expect(banner.textContent).toMatch(/payment failed/i);
+    expect(banner.textContent).not.toMatch(/since/i);
+  });
+
+  /**
+   * A seat and the organisation's subscription are two contracts, and either
+   * can be in arrears on its own — so the banner is per contract and says which
+   * one. A single banner would leave the holder guessing which card to change.
+   */
+  it('is shown for a suspended seat even when the organisation has nothing', async () => {
+    renderSuspended(stubClient(stubsFor({}, null, {
+      seat: suspended({ id: 'seat-1', subscriber: { kind: 'USER', user_id: 'u-1' } }),
+      session: MEMBER,
+    })));
+
+    await waitFor(() => expect(screen.getByTestId('past-due-seat')).toBeTruthy());
+    expect(screen.queryByTestId('past-due-organisation')).toBeNull();
+  });
+
+  it('is absent while nothing is owed', async () => {
+    renderWith(<SubscriptionScreen />, clientFor());
+
+    await waitFor(() => expect(screen.getByTestId('periodicity')).toBeTruthy());
+    expect(screen.queryByTestId('past-due-organisation')).toBeNull();
+    expect(screen.queryByTestId('past-due-seat')).toBeNull();
   });
 });

@@ -74,6 +74,12 @@ interface EntitlementRepository
      * (`covers_people`), false unless somebody chose otherwise, and a
      * covering grant reaches every member of the tenant — which is what
      * "this organisation may try this product" means.
+     *
+     * **It answers with a reason and not a boolean** (2026-09-27, spec §5.1).
+     * Failing to cover somebody has two causes, and they are answered by two
+     * different people: nobody gave them a place, or the subscription they are
+     * on is suspended for non-payment. See {@see Coverage} for why collapsing
+     * the two sends the second one to ask a colleague for a seat they hold.
      */
-    public function covers(string $tenantId, string $productId, string $userId): bool;
+    public function coverageFor(string $tenantId, string $productId, string $userId): Coverage;
 }

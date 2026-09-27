@@ -68,6 +68,13 @@ final class SubscriptionPresenter
             // it needs to say "you will move to Starter on 31 March" and to
             // offer the button that undoes it.
             'pending' => self::pending($subscription),
+            // Suspended for non-payment, and the document that lifts it
+            // (spec §5.1). Both null in the ordinary case; when they are not,
+            // the screen has everything the banner needs — since when, and
+            // where to pay — without a second operation and without deriving
+            // anything of its own.
+            'past_due_since' => self::nullableMoment($subscription->pastDueSince),
+            'past_due_invoice_id' => $subscription->pastDueInvoiceId,
         ];
     }
 

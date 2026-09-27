@@ -46,6 +46,15 @@ const WORDING: Record<string, { title: string; hint?: string }> = {
     title: 'You are not on this subscription yet',
     hint: 'Your organisation has one, and it covers a set number of people. Whoever manages it can add you, on Subscription › People.',
   },
+  // The sixth refusal (spec §5.1, 2026-09-27), and its wording is the whole
+  // reason it is not the one above. That one sends somebody to a colleague; this
+  // one has to send them to an invoice. Raised as the same code, the holder of a
+  // seat asks for a place they already hold and the invoice stays unpaid while
+  // they wait — which is the outcome the distinction exists to prevent.
+  SUBSCRIPTION_PAST_DUE: {
+    title: 'Your subscription is suspended for non-payment',
+    hint: 'An invoice for it has not been paid. Your invoices and payments are still available, so you can settle it from Subscription — access returns as soon as the payment is confirmed.',
+  },
   NO_TENANT_ACCESS: {
     title: 'You do not have access to this organisation',
   },

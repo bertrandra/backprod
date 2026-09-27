@@ -87,6 +87,38 @@ final class ForbiddenException extends HttpException
     }
 
     /**
+     * The caller is on a subscription and an invoice against it is unpaid
+     * (2026-09-27, spec §5.1).
+     *
+     * A **sixth** refusal, and it exists because of what the fifth one says.
+     * `SUBSCRIPTION_REQUIRED` means "your organisation has one and it does not
+     * cover you", which is answered by a colleague giving you a place. This one
+     * is answered by a card. Raised as the same code with the same wording,
+     * somebody goes and asks a colleague for a seat they are already holding —
+     * and the invoice stays unpaid while they wait, which is the one outcome
+     * the whole of §5 exists to avoid.
+     *
+     * So the two are told apart **here**, where the refusal is minted, and not
+     * in a screen: the frontend is never the authority, and two identical codes
+     * are not something a screen can tell apart either.
+     *
+     * Nothing about the debt travels with the refusal — not the amount, not
+     * the document, not what the provider said. A refusal is a poor place to
+     * publish a price, §31 keeps a provider's words out of responses, and the
+     * remedy is already addressable: `GET /subscription` returns
+     * `past_due_since` and `past_due_invoice_id`, coverage does not gate it,
+     * and that is where the screen gets the way to pay. The code's job is to
+     * send the reader to the right screen, not to be the screen.
+     */
+    public static function subscriptionPastDue(): self
+    {
+        return new self(
+            'SUBSCRIPTION_PAST_DUE',
+            'This subscription is suspended because an invoice for it has not been paid.',
+        );
+    }
+
+    /**
      * The tenant has the feature and has used all of it.
      *
      * A fourth refusal, distinct from the three above because it is fixed in
