@@ -11,7 +11,6 @@
   " · holds ": " · tiene ",
   " · issued {value}": " · emitida el {value}",
   " · leased until {value}": " · reservado hasta {value}",
-  " · New here? ": " · ¿Nuevo aquí? ",
   " · no longer open": " · ya no está abierto",
   " · not before {value}": " · no antes de {value}",
   " · oldest {value}": " · el más antiguo {value}",
@@ -195,7 +194,6 @@
   "As they stood on": "Tal como estaban el",
   "Ask an administrator": "Pedir a un administrador",
   "Ask to end immediately": "Pedir la finalización inmediata",
-  "Ask to join": "Solicitar unirse",
   "Asking does not make it so — the cancellation policy decides, and the answer below is what it decided.": "Pedirlo no lo hace realidad — la política de cancelación decide, y la respuesta de abajo es lo que decidió.",
   "at": "a las",
   "At least 12 characters.": "Al menos 12 caracteres.",
@@ -1108,7 +1106,6 @@
   "The whole refundable amount is returned. The money leaves asynchronously, so this is accepted rather than done.": "Se devuelve todo el importe reembolsable. El dinero sale de forma asíncrona, así que esto queda aceptado en lugar de hecho.",
   "There is no document yet. One is rendered when the invoice is issued, and then never again — the stored file is the invoice.": "Aún no hay documento. Se genera uno al emitir la factura, y nunca más — el archivo almacenado es la factura.",
   "There is nothing to buy for this product yet.": "Todavía no hay nada que comprar para este producto.",
-  "There is nothing to buy here for now. If you already have an account, sign in below.": "No hay nada que comprar aquí por ahora. Si ya tiene una cuenta, inicie sesión abajo.",
   "These are not exceptions the platform chose. Each is a record it is obliged to retain, and each survives an erasure with the person’s identity stripped from it:": "No son excepciones que eligió la plataforma. Cada uno es un registro que está obligada a conservar, y cada uno sobrevive a un borrado con la identidad de la persona eliminada:",
   "These are yours to use without a subscription, until {value}.": "Estos son suyos sin suscripción, hasta el {value}.",
   "These are yours to use without a subscription, with no end date.": "Estos son suyos sin suscripción, sin fecha de fin.",
@@ -1335,5 +1332,9 @@
   "Confirming your address…": "Confirmando su dirección…",
   "Continue": "Continuar",
   "It may have been used already, or replaced by a newer one. Ask for a new link, or carry on: if your address is already confirmed, there is nothing left to do.": "Puede que ya se haya usado, o que otro más reciente lo haya sustituido. Pida un nuevo enlace, o continúe: si su dirección ya está confirmada, no queda nada por hacer.",
-  "That confirmation link is no longer valid": "Este enlace de confirmación ya no es válido"
+  "That confirmation link is no longer valid": "Este enlace de confirmación ya no es válido",
+  "Ask to join {organisation}": "Solicitar unirse a {organisation}",
+  "New here?": "¿Nuevo aquí?",
+  "Sign in or join": "Iniciar sesión o unirse",
+  "There is nothing to buy here for now. If you already have an account, sign in from the icon at the top of the page.": "Por ahora no hay nada que comprar aquí. Si ya tiene una cuenta, inicie sesión desde el icono en la parte superior de la página."
 }

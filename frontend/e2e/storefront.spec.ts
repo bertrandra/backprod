@@ -140,7 +140,12 @@ test.describe('the shop window', () => {
 
     await page.goto('/?product=atlas');
 
-    // Below the offers, not instead of them — and it does reach the form.
+    // At the top, small, beside the offers rather than instead of them — and
+    // it does reach the form (2026-09-27).
+    const menu = page.getByTestId('visitor-menu');
+    await expect(menu).toBeVisible();
+    await expect(page.getByTestId('sign-in-link')).toHaveCount(0);
+    await menu.click();
     await page.getByTestId('sign-in-link').click();
     await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
   });
@@ -191,10 +196,11 @@ test.describe('choosing an offer', () => {
     await expect(page.getByText('Pro, monthly')).toBeVisible();
   });
 
-  test('has a door from the footer too, with nothing in hand', async ({ page }) => {
+  test('has a door from the menu at the top too, with nothing in hand', async ({ page }) => {
     await stubStorefront(page);
 
     await page.goto('/?product=atlas');
+    await page.getByTestId('visitor-menu').click();
     await page.getByTestId('sign-up-link').click();
 
     await expect(page.getByRole('heading', { name: 'Join Acme Ltd' })).toBeVisible();
