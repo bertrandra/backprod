@@ -83,6 +83,15 @@ const WORDING: Record<string, { title: string; hint?: string }> = {
     title: 'You already hold a live seat on this product',
     hint: 'Change it from the subscription screen rather than buying a second one.',
   },
+  // The free period, once and once for all (spec §6.4, 2026-09-27). The hint
+  // says *whatever became of it* on purpose: somebody whose five days ran out
+  // last spring reads "already had" and assumes a bug, because their screen
+  // shows no subscription at all. And it does not say "upgrade" — there is
+  // nothing to upgrade from, the answer is to buy a plan.
+  FREEMIUM_ALREADY_USED: {
+    title: 'You have already had the free period for this product',
+    hint: 'It is given once and once only, whether it is still running, was cancelled or ran out long ago. Choosing a paid plan is the way in from here.',
+  },
   // Minted by the client, like NETWORK_UNREACHABLE above and for the same
   // reason: the failure is real and the server never saw it. Translating one
   // sentence of a product's story means sending the whole story back, so the

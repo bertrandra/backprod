@@ -126,6 +126,27 @@ final class Sales
             throw new ConflictException('SEAT_NEEDS_A_PERSON', 'A seat is taken out by the person it is for.');
         }
 
+        // A freemium is not sold, so it is not ordered (spec §6.3). The chain
+        // this starts raises an invoice at fulfilment — "nothing to collect is
+        // not the same as nothing to do", says `InvoiceThenSubscribe`, and for
+        // a priced order settled by credit that is right. For a free period it
+        // is not: numbering is gapless, so the €0 document it would raise is a
+        // permanent, unremovable record of no transaction in a series a tax
+        // authority reads. Refused here, before an order exists, and the free
+        // period has its own door ({@see \App\Commerce\Service\Freemium}).
+        //
+        // Read off the offer's properties, never a plan's name — free, and over
+        // when its period is. A free offer that *renews* is a free tier and is
+        // ordered like anything else: it is a subscription somebody may hold
+        // for years, and the order is where that is recorded.
+        if ($offer->version->isFreemium()) {
+            throw new ConflictException(
+                'FREEMIUM_IS_NOT_SOLD',
+                'This offer is a free period, not a purchase; take it rather than buying it.',
+                ['offer_id' => $offer->offerId],
+            );
+        }
+
         $this->refuseWhileSeated($tenantId, $productId, $actorUserId);
 
         $subscriber = Subscriber::user($actorUserId);

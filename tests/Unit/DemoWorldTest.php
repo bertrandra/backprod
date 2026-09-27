@@ -110,6 +110,37 @@ final class DemoWorldTest extends TestCase
             );
         }
 
+        foreach (DemoWorld::FREEMIUM as $free) {
+            self::assertContains($free['product'], DemoWorld::TENANTS[$free['tenant']]['holds'], 'a free period on a product the tenant does not hold');
+            self::assertContains($free['tenant'], DemoWorld::PEOPLE[$free['holder']]['tenants'], "{$free['holder']} is trying a product outside their organisation");
+
+            // And it is not one of the seats either. A live seat and a free
+            // period are one live seat too many for one person on one product
+            // — `SEAT_ALREADY_ACTIVE`, refused by the door and by a partial
+            // unique index behind it, which is the right refusal reached the
+            // slow way.
+            self::assertNotContains(
+                $free['tenant'] . '/' . $free['product'] . '/' . $free['holder'],
+                array_map(
+                    static fn (array $seat): string => $seat['tenant'] . '/' . $seat['product'] . '/' . $seat['holder'],
+                    DemoWorld::SEATS,
+                ),
+                "{$free['holder']} already holds a seat on the product they are trying",
+            );
+
+            // The offer it is taken on is the product's own, and the plan it
+            // belongs to is free and does not renew — which is what makes it a
+            // free period rather than a plan called one.
+            $plan = array_filter(
+                DemoWorld::PRODUCTS[$free['product']]['plans'],
+                static fn (array $candidate): bool => $candidate['offer']['code'] === $free['offer'],
+            );
+
+            self::assertCount(1, $plan, "{$free['offer']} is not an offer {$free['product']} sells");
+            self::assertSame(0, reset($plan)['price'], "{$free['offer']} is not free");
+            self::assertSame('ENDS_AT_TERM', reset($plan)['renewal'] ?? 'AUTO_RENEW', "{$free['offer']} renews, so it is a free tier and not a free period");
+        }
+
         foreach (DemoWorld::SUBSCRIPTION_PEOPLE as $covered) {
             // Only the owner adds, so the holder named here must be one
             // (2026-09-25). Naming anybody else would make the seeder fail
@@ -147,7 +178,21 @@ final class DemoWorldTest extends TestCase
                     ) !== []),
             );
 
-            self::assertNotEmpty($covering, "{$draft['name']} is made by somebody no seat covers");
+            // Or by a free period (2026-09-27), which is a subscription like
+            // any other and grants a quota like any other — the only thing it
+            // does not do is raise a document. It covers its holder and
+            // nobody else: `users` is 1, so there is no list to look through.
+            $trying = array_filter(
+                DemoWorld::FREEMIUM,
+                static fn (array $free): bool => $free['tenant'] === $draft['tenant']
+                    && $free['product'] === $draft['product']
+                    && $free['holder'] === $draft['by'],
+            );
+
+            self::assertNotEmpty(
+                $covering + $trying,
+                "{$draft['name']} is made by somebody no subscription covers",
+            );
         }
     }
 }

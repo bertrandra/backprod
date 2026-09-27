@@ -104,6 +104,7 @@
     },
     "commerce.catalogue": {
       "authority": "tenant",
+      "$comment": "What a product sells, and the one acquisition that happens here rather than through the checkout: startFreemium (spec §6). A free period raises no order, no invoice and no payment — nothing is outstanding, so nothing is raised — and the button for it is on the card that advertises it, beside Souscrire. Everything with a price goes to commerce.checkout.",
       "routes": [
         "/",
         "/catalogue"
@@ -112,6 +113,7 @@
         "listFeatures",
         "listOffers",
         "listPlans",
+        "startFreemium",
         "listProductFeatures",
         "listProducts",
         "showOffer",

@@ -2457,6 +2457,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/subscription/freemium": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take a product's free period
+         * @description Starts the caller's own seat on an offer that costs nothing and does not renew — the freemium of spec §6.
+         *
+         *     **No order, no invoice and no payment.** Nothing is outstanding, so nothing is raised: numbering is gapless, and a €0 invoice would be a permanent, unremovable record of no transaction in a series a tax authority reads. That is why this is not `openCheckoutSession`, which refuses this offer outright (`FREEMIUM_IS_NOT_SOLD`) rather than raising that document at fulfilment.
+         *
+         *     **The body names an offer and nothing else.** No subscriber, because what is taken is always the caller's seat and whose it is comes from the resolved context (ADR-055). No duration, because how long a product gives itself away is the operator's configuration and a client that could name a number would name a larger one.
+         *
+         *     The offer must be **free and non-renewing**, and both halves are asked of the offer rather than of a plan's name: a priced offer taken here would be given away, and a free offer that *renews* is a free tier somebody may hold for years rather than a period that ends. The permission is `billing.pay` — the member's and not the administrator's, because acquiring a subscription for oneself is the act it names.
+         */
+        post: operations["startFreemium"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/subscription/schedule": {
         parameters: {
             query?: never;
@@ -11694,6 +11720,63 @@ export interface operations {
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
             /** @description Nothing was scheduled to end. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    startFreemium: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description An offer on sale in this product right now, whose price is zero and whose renewal stops at the term. A draft, an expired one, or one belonging to another product is not found.
+                     */
+                    offer_id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The free period, started. `current_period_end` is when it is over, and `terms.renewal` is `ENDS_AT_TERM`: nothing will roll it into another period. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description No such offer on sale in this product. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `FREEMIUM_ALREADY_USED` — this account has already had the free period for this product, **whatever became of it**: one that expired six months ago still forbids another, or five free days would be retaken every five days. `NOT_A_FREEMIUM_OFFER` — the offer is sold, or it renews; buy it instead. `FREEMIUM_NOT_OFFERED` — this product has not said how long its free period lasts, so it gives none. `SEAT_ALREADY_ACTIVE` — the caller already holds a live seat on this product; changing what they have is a change on the subscription. `FREEMIUM_NEEDS_A_PERSON` — the request names nobody, and a free period belongs to whoever takes it. */
             409: {
                 headers: {
                     [name: string]: unknown;

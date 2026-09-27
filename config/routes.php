@@ -58,6 +58,7 @@ use App\Commerce\Controller\ScheduleOfferChangeController;
 use App\Commerce\Controller\ShowOfferController;
 use App\Commerce\Controller\ShowScheduleController;
 use App\Commerce\Controller\ShowSubscriptionController;
+use App\Commerce\Controller\StartFreemiumController;
 use App\Commerce\Controller\TenantUsageController;
 use App\Commerce\Controller\UpdateOfferController;
 use App\Demo\Controller\PublicDemoController;
@@ -375,6 +376,11 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('POST', '/api/v1/subscription/people', AddPersonController::class);
     $routes->addRoute('DELETE', '/api/v1/subscription/people/{userId}', RemovePersonController::class);
     $routes->addRoute('POST', '/api/v1/subscription/resume', ResumeSubscriptionController::class);
+
+    // The free period (spec §6), which is its own door and not a checkout: the
+    // price is zero, so there is no order, no invoice and no payment — and a €0
+    // invoice would be a permanent hole in a series that must not have one.
+    $routes->addRoute('POST', '/api/v1/subscription/freemium', StartFreemiumController::class);
 
     $routes->addRoute('GET', '/api/v1/entitlements', ListEntitlementsController::class);
 

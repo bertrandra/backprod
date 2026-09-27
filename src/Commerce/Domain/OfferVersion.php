@@ -56,6 +56,36 @@ final class OfferVersion
     }
 
     /**
+     * Whether this version costs nothing.
+     *
+     * A property, and asked as one. "Is this the freemium?" written as a
+     * comparison against a plan's code is exactly the shape `gate:plans`
+     * forbids in PHP and §13 forbids everywhere: a name that means something
+     * in one deployment's catalogue and nothing in another's. A price of zero
+     * means the same thing in every catalogue there will ever be.
+     */
+    public function isFree(): bool
+    {
+        return $this->priceMinorUnits === 0;
+    }
+
+    /**
+     * Whether this version is a **freemium** (spec §6): free, and over when
+     * its period is.
+     *
+     * Both halves, and neither alone would do. A free offer that renews is a
+     * free tier — somebody may hold it for years, and nothing about it is a
+     * trial. An offer that ends at its term and costs money is an ordinary
+     * fixed-term contract, invoiced like any other. Only the conjunction is
+     * the thing this platform gives away once per account (§6.4), and only the
+     * conjunction may be taken without an order, an invoice or a payment.
+     */
+    public function isFreemium(): bool
+    {
+        return $this->isFree() && $this->terms->endsAtTerm();
+    }
+
+    /**
      * When the period this version bills for would end, starting from a
      * moment.
      *
