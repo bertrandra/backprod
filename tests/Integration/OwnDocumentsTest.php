@@ -351,6 +351,20 @@ final class OwnDocumentsTest extends DatabaseApiTestCase
 
         self::assertSame([], $this->idsOf($this->get('bob-token', '/api/v1/billing/invoices?person=' . $this->admin), 'invoices'));
         self::assertSame([], $this->idsOf($this->get('bob-token', '/api/v1/billing/payments?person=' . $this->admin), 'payments'));
+
+        // The credit notes too: a refund on the administrator's payment
+        // raises one, and the member naming her still gets nothing.
+        self::assertIsString($company['payment_id']);
+        $refund = $this->request(
+            'POST',
+            '/api/v1/billing/payments/' . $company['payment_id'] . '/refund',
+            $this->headers('alice-token'),
+            $this->json(['amount_minor_units' => 100]),
+        );
+        self::assertSame(202, $refund->getStatusCode(), (string) $refund->getBody());
+        self::assertCount(1, $this->idsOf($this->get('alice-token', '/api/v1/billing/credit-notes?person=' . $this->admin), 'credit_notes'));
+        self::assertSame([], $this->idsOf($this->get('bob-token', '/api/v1/billing/credit-notes?person=' . $this->admin), 'credit_notes'));
+        self::assertSame([], $this->idsOf($this->get('bob-token', '/api/v1/billing/credit-notes'), 'credit_notes'));
     }
 
     /**

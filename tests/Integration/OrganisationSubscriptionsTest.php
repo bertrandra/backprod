@@ -168,6 +168,13 @@ final class OrganisationSubscriptionsTest extends DatabaseApiTestCase
 
         self::assertSame(403, $response->getStatusCode());
         self::assertSame('PERMISSION_DENIED', $this->errorOf($response)['code'] ?? null);
+
+        // A filter is not a way round it (2026-09-27): naming himself, or
+        // naming a status, is still the register, and still refused.
+        foreach (['person=' . $this->holder, 'status=ACTIVE'] as $query) {
+            $filtered = $this->request('GET', '/api/v1/organisation/subscriptions?' . $query, $this->headersFor('bo-token'));
+            self::assertSame(403, $filtered->getStatusCode(), $query);
+        }
     }
 
     public function testAnOrganisationThatHoldsNothingGetsAnEmptyListNotAnError(): void
