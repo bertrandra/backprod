@@ -109,6 +109,14 @@ final class RequestContextMiddleware implements MiddlewareInterface
             );
         }
 
+        // An address still unproved past its deadline (ADR-061): the tenant
+        // surface waits for the click. After staff and identity-only routes,
+        // deliberately — the way out (resending the link) is identity-only,
+        // and platform staff are not self-service sign-ups.
+        if ($user->addressOverdue) {
+            throw ForbiddenException::emailUnconfirmed();
+        }
+
         $product = $this->products->resolve($request->getHeaderLine(ProductResolver::HEADER));
 
         $membership = $this->tenants->resolve(

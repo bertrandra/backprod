@@ -15,9 +15,12 @@ namespace App\Tenant\Domain;
 interface JoinRequests
 {
     /**
-     * Organisations this person has asked to join and is still waiting on.
+     * Organisations this person has asked to join and is still waiting on,
+     * and on whom: an administrator (`PENDING`), or their own mailbox — a
+     * domain that admits them once the address is proved (`UNCONFIRMED`,
+     * ADR-061).
      *
-     * @return list<array{tenant_id: string, slug: string, name: string}>
+     * @return list<array{tenant_id: string, slug: string, name: string, waiting_on: 'ADMINISTRATOR'|'CONFIRMATION'}>
      */
     public function pendingFor(string $userId): array;
 

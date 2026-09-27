@@ -129,6 +129,9 @@ final class SmtpNotifierTest extends TestCase
                 'account.invitation',
                 'account.password_changed',
                 'account.email_verification',
+                // A sign-in ended because its token was used twice (ADR-062).
+                // SECURITY, so it cannot be muted — and still editable here.
+                'account.session_revoked',
                 // The formal demand (spec §5.2, 2026-09-27). Editable like the
                 // others, and the one in this list with legal effect — so what
                 // an administrator wrote is what is kept as sent.

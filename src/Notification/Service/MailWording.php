@@ -69,6 +69,15 @@ final class MailWording
             'body' => "Thanks for signing up. Open this link to confirm this address is yours:\n{link}\n\n"
                 . 'If you did not sign up, ignore this mail.',
         ],
+        'account.session_revoked' => [
+            'about' => 'A sign-in was ended because its session token was used from two places — a sign it was copied. Security: it cannot be switched off.',
+            'placeholders' => ['email'],
+            'subject' => 'One of your sign-ins was ended for your safety',
+            'body' => 'We ended one of your sign-ins because its session token was used from two places at once, '
+                . "which usually means it was copied.\n\n"
+                . 'If you are asked to sign in again on a device, that is why. If you do not recognise this, '
+                . 'change your password from the sign-in page: that ends every sign-in on every device.',
+        ],
         // A formal demand (spec §5.2, 2026-09-27), and the one mail here that
         // carries legal effect — so the rendered body is kept as it went out,
         // for the reason an invoice keeps its snapshot. It says what is owed,
@@ -119,6 +128,13 @@ final class MailWording
                 'body' => "Merci de votre inscription. Ouvrez ce lien pour confirmer que cette adresse est bien la vôtre :\n{link}\n\n"
                     . 'Si vous ne vous êtes pas inscrit, ignorez ce message.',
             ],
+            'account.session_revoked' => [
+                'subject' => 'Une de vos connexions a été fermée par sécurité',
+                'body' => 'Nous avons fermé une de vos connexions parce que son jeton de session a été utilisé depuis deux endroits à la fois, '
+                    . "ce qui signifie en général qu'il a été copié.\n\n"
+                    . "Si l'on vous redemande de vous connecter sur un appareil, c'est pour cette raison. Si vous ne reconnaissez pas cela, "
+                    . 'changez votre mot de passe depuis la page de connexion : cela ferme toutes les connexions sur tous les appareils.',
+            ],
             'subscription.payment_overdue' => [
                 'subject' => 'Échec de paiement — votre accès est suspendu',
                 'body' => "La facture {invoice_number} était due le {due_on} et reste impayée, {days_overdue} jours plus tard.\n\n"
@@ -150,6 +166,13 @@ final class MailWording
                 'subject' => 'Confirme su dirección de correo',
                 'body' => "Gracias por registrarse. Abra este enlace para confirmar que esta dirección es suya:\n{link}\n\n"
                     . 'Si no se registró, ignore este mensaje.',
+            ],
+            'account.session_revoked' => [
+                'subject' => 'Hemos cerrado uno de sus inicios de sesión por seguridad',
+                'body' => 'Hemos cerrado uno de sus inicios de sesión porque su token de sesión se usó desde dos lugares a la vez, '
+                    . "lo que suele significar que fue copiado.\n\n"
+                    . 'Si se le pide que vuelva a iniciar sesión en un dispositivo, es por eso. Si no lo reconoce, '
+                    . 'cambie su contraseña desde la página de inicio de sesión: eso cierra todas las sesiones en todos los dispositivos.',
             ],
             'subscription.payment_overdue' => [
                 'subject' => 'Pago fallido: su acceso está suspendido',
@@ -183,6 +206,13 @@ final class MailWording
                 'body' => "Danke für Ihre Registrierung. Öffnen Sie diesen Link, um zu bestätigen, dass diese Adresse Ihnen gehört:\n{link}\n\n"
                     . 'Falls Sie sich nicht registriert haben, ignorieren Sie diese Mail.',
             ],
+            'account.session_revoked' => [
+                'subject' => 'Eine Ihrer Anmeldungen wurde zu Ihrer Sicherheit beendet',
+                'body' => 'Wir haben eine Ihrer Anmeldungen beendet, weil ihr Sitzungstoken gleichzeitig von zwei Orten verwendet wurde, '
+                    . "was meist bedeutet, dass es kopiert wurde.\n\n"
+                    . 'Wenn Sie auf einem Gerät erneut zur Anmeldung aufgefordert werden, ist das der Grund. Wenn Ihnen das unbekannt vorkommt, '
+                    . 'ändern Sie Ihr Passwort über die Anmeldeseite: Damit werden alle Anmeldungen auf allen Geräten beendet.',
+            ],
             'subscription.payment_overdue' => [
                 'subject' => 'Zahlung fehlgeschlagen – Ihr Zugang ist gesperrt',
                 'body' => "Die Rechnung {invoice_number} war am {due_on} fällig und ist {days_overdue} Tage später noch offen.\n\n"
@@ -214,6 +244,13 @@ final class MailWording
                 'subject' => 'Conferma il tuo indirizzo e-mail',
                 'body' => "Grazie per esserti registrato. Apri questo link per confermare che questo indirizzo è tuo:\n{link}\n\n"
                     . 'Se non ti sei registrato, ignora questo messaggio.',
+            ],
+            'account.session_revoked' => [
+                'subject' => 'Uno dei tuoi accessi è stato chiuso per sicurezza',
+                'body' => 'Abbiamo chiuso uno dei tuoi accessi perché il suo token di sessione è stato usato da due luoghi contemporaneamente, '
+                    . "il che di solito significa che è stato copiato.\n\n"
+                    . 'Se ti viene chiesto di accedere di nuovo su un dispositivo, il motivo è questo. Se non lo riconosci, '
+                    . 'cambia la password dalla pagina di accesso: così si chiudono tutti gli accessi su tutti i dispositivi.',
             ],
             'subscription.payment_overdue' => [
                 'subject' => 'Pagamento non riuscito: il tuo accesso è sospeso',

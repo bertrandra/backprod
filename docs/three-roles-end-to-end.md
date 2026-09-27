@@ -18,7 +18,7 @@ et **ce que chaque action change** une fois faite.
 
 ## Ce que « 100 % » veut dire ici
 
-Le contrat déclare **225 opérations**. Chacune apparaît dans ce document,
+Le contrat déclare **226 opérations**. Chacune apparaît dans ce document,
 attribuée à qui peut l'atteindre. Pas un échantillon, pas les principales :
 toutes, y compris les sept que personne n'atteint à la main et les quatre qu'une
 machine seule appelle.
@@ -55,7 +55,7 @@ filtre oublié une élévation de privilège.
 | Il facture | non | **oui** — c'est son organisation qui émet | non, sauf les ventes de la plateforme |
 | Il travaille dans le produit | oui, si un abonnement le couvre | oui, aux mêmes conditions | non |
 | Permissions | 21 | 30 | 19 (dont 5 côté `admin.*`) |
-| Opérations atteignables | 7 propres + 70 partagées + 16 sans permission + 2 par capacité = **95** | 34 propres + 70 partagées + 16 sans permission + 2 par capacité = **122** | **78** |
+| Opérations atteignables | 7 propres + 70 partagées + 17 sans permission + 2 par capacité = **96** | 34 propres + 70 partagées + 17 sans permission + 2 par capacité = **123** | **78** |
 
 Les 10 permissions que l'administrateur a en plus sont `billing.manage`,
 `catalog.manage`, `jobs.manage`, `members.manage`, `payments.manage`,
@@ -314,8 +314,9 @@ non par un paramètre.
 
 ### Ce qu'il lit sans permission particulière
 
-`signIn`, `refreshSession`, `signOut`, `verifyEmail`, `forgotPassword`,
-`resetPassword` — l'authentification elle-même. `showMe`, `listProducts`,
+`signIn`, `refreshSession`, `signOut`, `verifyEmail`,
+`resendEmailVerification`, `forgotPassword`, `resetPassword` —
+l'authentification elle-même. `showMe`, `listProducts`,
 `showProduct`, `showProductCatalogue`, `listProductFeatures`,
 `showProductConfiguration`, `showSkin` — ce qu'un membre voit du simple fait
 d'être membre. Tout le reste passe par une permission.
@@ -683,20 +684,20 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
   atteignables par un USER seul                    7    billing.pay
   atteignables par un TENANT_ADMIN seul           34
   partagées par les deux                          70
-  sans permission, tout membre                    16
+  sans permission, tout membre                    17
   par capacité (gis.access)                        2
   ─────────────────────────────────────────────────
-  surface locataire                              129
+  surface locataire                              130
 
   PLATFORM_ADMIN                                  78
   publiques, sans compte                           7
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          225
+  total                                          226
 ```
 
-Dont **109 lectures** et **116 écritures**. Chaque écriture a sa ligne dans les
+Dont **109 lectures** et **117 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

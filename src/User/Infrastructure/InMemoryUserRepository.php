@@ -69,4 +69,10 @@ final class InMemoryUserRepository implements UserRepository
     public function updateLocale(string $userId, string $locale): void
     {
     }
+
+    public function addressStanding(string $userId): ?array
+    {
+        // Nothing in memory signs up by itself, so nothing here has a deadline.
+        return isset($this->byId[$userId]) ? ['confirmed' => true, 'confirm_by' => null] : null;
+    }
 }

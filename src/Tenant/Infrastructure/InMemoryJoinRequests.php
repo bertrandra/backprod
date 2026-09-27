@@ -15,7 +15,7 @@ use App\Tenant\Domain\TenantMember;
 final class InMemoryJoinRequests implements JoinRequests
 {
     /**
-     * @param array<string, list<array{tenant_id: string, slug: string, name: string}>> $pending by user id
+     * @param array<string, list<array{tenant_id: string, slug: string, name: string, waiting_on: 'ADMINISTRATOR'|'CONFIRMATION'}>> $pending by user id
      * @param array<string, list<array{tenant_id: string, slug: string, name: string, default_product: string|null}>> $members by user id
      */
     public function __construct(private array $pending = [], private array $members = [])

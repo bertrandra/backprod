@@ -16,7 +16,8 @@ import { StatusStrip } from '@/app/frame/StatusStrip';
 import { useProductContext } from '@/app/frame/useProductContext';
 import { useMyNavigation, useStaffNavigation } from '@/queries/navigation';
 import { useMyProducts } from '@/queries/catalogue';
-import { useSession } from '@/queries/session';
+import { ApiError, useSession } from '@/queries/session';
+import { AddressBanner, AddressOverdue, WaitingOnConfirmation } from '@/features/auth/ConfirmYourAddress';
 import { staffAccess, useStaffIdentity } from '@/queries/staff';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
@@ -170,6 +171,10 @@ export function AppShell() {
         </>
       ) : productCode === null || waitingOnly ? (
         <WithoutAProduct />
+      ) : session.error instanceof ApiError && session.error.code === 'EMAIL_UNCONFIRMED' ? (
+        // Its own screen (ADR-061): answered by a click in a mailbox, with
+        // the way to get a new link on it — not a generic refusal.
+        <AddressOverdue />
       ) : session.error !== null ? (
         // The session is the shell's own dependency, so its failure is rendered
         // here rather than by each screen — but only for the screens that need
@@ -177,7 +182,12 @@ export function AppShell() {
         // and that is an answer, not a broken page.
         <ErrorSurface error={session.error} onRetry={() => void session.refetch()} />
       ) : (
-        <Outlet />
+        <>
+          {/* While there is still time to confirm the address (ADR-061):
+              above the screen, because nothing is refused yet. */}
+          {mine.data !== undefined && <AddressBanner address={mine.data.address} />}
+          <Outlet />
+        </>
       )}
     </AppFrame>
   );
@@ -198,6 +208,14 @@ function WithoutAProduct() {
   // switcher beside it is: a missing list is an empty one, not a crash.
   const products = mine.data?.products ?? [];
   const waiting = products.length === 0 ? (mine.data?.pending ?? []) : [];
+
+  // Waiting on their own mailbox rather than on an administrator (ADR-061):
+  // a different sentence, and a way to get a new link.
+  const onConfirmation = waiting.filter((request) => request.waiting_on === 'CONFIRMATION');
+
+  if (onConfirmation.length > 0) {
+    return <WaitingOnConfirmation names={onConfirmation.map((request) => request.name).join(', ')} />;
+  }
 
   if (waiting.length > 0) {
     const names = waiting.map((request) => request.name).join(', ');

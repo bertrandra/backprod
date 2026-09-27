@@ -200,8 +200,15 @@ export function useSignUp() {
  */
 export function useVerifyEmail() {
   const client = useApiClient();
+  const queryClient = useQueryClient();
 
   return useMutation({
+    // Proving the address may have made a membership live and lifted
+    // EMAIL_UNCONFIRMED (ADR-061): whatever this browser holds is stale, and
+    // the server is asked again rather than guessed at.
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+    },
     mutationFn: async (token: string) => {
       const { data, error, response } = await client.POST('/api/v1/auth/verify-email', {
         body: { token },
@@ -212,6 +219,29 @@ export function useVerifyEmail() {
       }
 
       return data.verified;
+    },
+  });
+}
+
+/**
+ * A new confirmation link for the signed-in person (ADR-061).
+ *
+ * Answers whether one went: false when the address is already proved, or a
+ * link went out less than a minute ago — the server throttles, so a button
+ * pressed twice is one mail.
+ */
+export function useResendEmailVerification() {
+  const client = useApiClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error, response } = await client.POST('/api/v1/auth/verify-email/resend', {});
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.sent;
     },
   });
 }

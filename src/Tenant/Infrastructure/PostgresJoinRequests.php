@@ -24,10 +24,10 @@ final class PostgresJoinRequests implements JoinRequests
 
         $rows = $this->connection->fetchAllAssociative(
             <<<'SQL'
-                SELECT DISTINCT t.id, t.slug, t.name
+                SELECT DISTINCT t.id, t.slug, t.name, tm.status
                   FROM tenant_members tm
                   JOIN tenants t ON t.id = tm.tenant_id
-                 WHERE tm.user_id = :user AND tm.status = 'PENDING'
+                 WHERE tm.user_id = :user AND tm.status IN ('PENDING', 'UNCONFIRMED')
                  ORDER BY t.name
                 SQL,
             ['user' => $userId],
@@ -37,6 +37,7 @@ final class PostgresJoinRequests implements JoinRequests
             'tenant_id' => Row::string($row, 'id'),
             'slug' => Row::string($row, 'slug'),
             'name' => Row::string($row, 'name'),
+            'waiting_on' => Row::string($row, 'status') === 'UNCONFIRMED' ? 'CONFIRMATION' : 'ADMINISTRATOR',
         ], $rows);
     }
 

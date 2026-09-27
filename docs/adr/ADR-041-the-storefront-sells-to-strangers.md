@@ -96,9 +96,11 @@ still has somebody to be addressed to, and **nothing records which of the two
 cases it was** — a column saying B2C would invite something downstream to
 branch on it, and nothing should.
 
-**The address is not verified first.** *(Superseded by ADR-061, proposed
-2026-09-27: registering still issues a session at once, but no membership
-becomes live until the address is proved.)* A session is issued immediately,
+**The address is not verified first.** *(Amended by ADR-061,
+2026-09-27: the session is still issued at once and an `OPEN` sign-up still
+buys in the same breath, but the address now has seven days to be proved
+before the tenant surface waits for it — and under `DOMAIN` the membership
+waits from the start.)* A session is issued immediately,
 `users.email_verified_at` stays null, and a confirmation link goes out through
 the notification chain. An interrupted purchase is a purchase that does not
 happen, and a verification mail landing in a spam folder is not something to

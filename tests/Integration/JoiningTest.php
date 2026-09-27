@@ -107,7 +107,7 @@ final class JoiningTest extends DatabaseApiTestCase
         // But the product list, which needs no product, says where they wait.
         $products = $this->decode($this->request('GET', '/api/v1/products', ['Authorization' => 'Bearer ' . $token]));
         self::assertSame([], $products['products'] ?? null);
-        self::assertSame([['tenant' => 'acme', 'name' => 'Acme Ltd']], $products['pending_memberships'] ?? null);
+        self::assertSame([['tenant' => 'acme', 'name' => 'Acme Ltd', 'waiting_on' => 'ADMINISTRATOR']], $products['pending_memberships'] ?? null);
         // Waiting is not belonging: no root is theirs yet.
         self::assertSame([], $products['memberships'] ?? null);
 
@@ -203,29 +203,145 @@ final class JoiningTest extends DatabaseApiTestCase
 
     // --- DOMAIN and INVITATION --------------------------------------------------
 
-    public function testUnderDomainAListedAddressIsInAtOnceAndAnyOtherIsRefused(): void
+    /**
+     * A domain is proved, not typed (ADR-061). Signing up with an address on
+     * the list writes a membership that waits for the address — and until
+     * the link is followed it reaches nothing, whatever the address says.
+     */
+    public function testUnderDomainAListedAddressWaitsForItsProofAndAnyOtherIsRefused(): void
     {
-        $set = $this->request('PATCH', '/api/v1/tenants/current', $this->as('ann@acme.test'), $this->json([
-            'join_policy' => 'DOMAIN',
-            'join_domains' => ['Acme.test'],
-        ]));
-
-        self::assertSame(200, $set->getStatusCode());
-        self::assertSame('DOMAIN', $this->tenantIn($set)['join_policy'] ?? null);
-        self::assertSame(['acme.test'], $this->tenantIn($set)['join_domains'] ?? null);
+        $this->domainPolicy('acme.test');
 
         $colleague = $this->signUp('new@acme.test');
         self::assertSame(201, $colleague->getStatusCode());
-        self::assertSame('ACTIVE', $this->decode($colleague)['membership'] ?? null);
-        self::assertSame(200, $this->request('GET', '/api/v1/me', ['Authorization' => 'Bearer ' . $this->tokenIn($colleague), 'X-Product' => 'atlas'])->getStatusCode());
+        self::assertSame('UNCONFIRMED', $this->decode($colleague)['membership'] ?? null);
+
+        $token = $this->tokenIn($colleague);
+
+        // Typing the address is not being a member.
+        self::assertSame(403, $this->request('GET', '/api/v1/me', ['Authorization' => 'Bearer ' . $token, 'X-Product' => 'atlas'])->getStatusCode());
+
+        // The shell is told what it waits on: the mailbox, not an administrator.
+        $products = $this->decode($this->request('GET', '/api/v1/products', ['Authorization' => 'Bearer ' . $token]));
+        self::assertSame([['tenant' => 'acme', 'name' => 'Acme Ltd', 'waiting_on' => 'CONFIRMATION']], $products['pending_memberships'] ?? null);
+
+        // Nobody was asked anything, and it is not on the administrator's list.
+        self::assertSame(0, $this->connection->fetchOne("SELECT count(*) FROM notifications WHERE type = 'member.requested'"));
+        $requests = $this->decode($this->request('GET', '/api/v1/tenants/current/members/requests', $this->as('ann@acme.test')));
+        self::assertSame([], $requests['requests'] ?? null);
+
+        // The link proves it, and the membership is live.
+        self::assertSame(200, $this->followConfirmation('new@acme.test')->getStatusCode());
+        self::assertSame(200, $this->request('GET', '/api/v1/me', ['Authorization' => 'Bearer ' . $token, 'X-Product' => 'atlas'])->getStatusCode());
 
         $stranger = $this->signUp('zed@elsewhere.test');
         self::assertSame(403, $stranger->getStatusCode());
         self::assertSame('JOIN_DOMAIN_NOT_ALLOWED', $this->errorOf($stranger)['code'] ?? null);
         // Refused before anything is written: no account to sign in with.
         self::assertSame(0, $this->connection->fetchOne("SELECT count(*) FROM users WHERE email = 'zed@elsewhere.test'"));
-        // And nobody was told about a request that was never made.
-        self::assertSame(0, $this->connection->fetchOne("SELECT count(*) FROM notifications WHERE type = 'member.requested'"));
+    }
+
+    /** The decision is taken again when the proof arrives, against the list as it stands then. */
+    public function testADomainDroppedBeforeTheProofArrivesAdmitsNobody(): void
+    {
+        $this->domainPolicy('acme.test');
+        $colleague = $this->signUp('new@acme.test');
+
+        $this->connection->executeStatement('DELETE FROM tenant_join_domains WHERE tenant_id = :t', ['t' => $this->acme]);
+        $this->connection->executeStatement("INSERT INTO tenant_join_domains (tenant_id, domain) VALUES (:t, 'acme.example')", ['t' => $this->acme]);
+
+        self::assertSame(200, $this->followConfirmation('new@acme.test')->getStatusCode());
+
+        self::assertSame(0, $this->connection->fetchOne('SELECT count(*) FROM tenant_members WHERE user_id = :u', ['u' => $this->userId('new@acme.test')]));
+        self::assertSame(403, $this->request('GET', '/api/v1/me', ['Authorization' => 'Bearer ' . $this->tokenIn($colleague), 'X-Product' => 'atlas'])->getStatusCode());
+    }
+
+    /** A password link reaches the same mailbox, so it proves the address too. */
+    public function testAPasswordResetProvesTheAddressAndLetsADomainMemberIn(): void
+    {
+        $this->domainPolicy('acme.test');
+        $this->signUp('new@acme.test');
+
+        $this->request('POST', '/api/v1/auth/password/forgot', [], $this->json(['email' => 'new@acme.test']));
+        $link = $this->latestLink('account.password_reset', 'new@acme.test');
+        $reset = $this->request('POST', '/api/v1/auth/password/reset', [], $this->json([
+            'token' => substr($link, (int) strpos($link, 'reset=') + 6),
+            'password' => 'another-long-enough-password',
+        ]));
+        self::assertSame(200, $reset->getStatusCode(), (string) $reset->getBody());
+
+        self::assertSame('ACTIVE', $this->connection->fetchOne(
+            'SELECT status FROM tenant_members WHERE user_id = :u LIMIT 1',
+            ['u' => $this->userId('new@acme.test')],
+        ));
+    }
+
+    // --- The deadline to prove an address (ADR-061) ------------------------------
+
+    /**
+     * Registering never waits: under OPEN the person is in, and may buy, at
+     * once — with a deadline to prove the address, reported where the shell
+     * can read it before anything is refused.
+     */
+    public function testASelfServiceSignUpIsInAtOnceAndToldItsDeadline(): void
+    {
+        $response = $this->signUp('zed@elsewhere.test');
+        $token = $this->tokenIn($response);
+
+        self::assertSame(200, $this->request('GET', '/api/v1/me', ['Authorization' => 'Bearer ' . $token, 'X-Product' => 'atlas'])->getStatusCode());
+
+        $address = $this->decode($this->request('GET', '/api/v1/products', ['Authorization' => 'Bearer ' . $token]))['address'] ?? null;
+        self::assertIsArray($address);
+        self::assertFalse($address['confirmed'] ?? true);
+        self::assertIsString($address['confirm_by'] ?? null);
+        self::assertGreaterThan(time() + 6 * 86400, strtotime((string) $address['confirm_by']));
+    }
+
+    /**
+     * Past the deadline, unproved: the tenant surface waits for the click,
+     * with a refusal of its own — and the way out stays open.
+     */
+    public function testPastTheDeadlineTheTenantSurfaceWaitsForTheClickAndTheWayOutStaysOpen(): void
+    {
+        $response = $this->signUp('zed@elsewhere.test');
+        $token = $this->tokenIn($response);
+        $this->overdue('zed@elsewhere.test');
+
+        $me = $this->request('GET', '/api/v1/me', ['Authorization' => 'Bearer ' . $token, 'X-Product' => 'atlas']);
+        self::assertSame(403, $me->getStatusCode());
+        self::assertSame('EMAIL_UNCONFIRMED', $this->errorOf($me)['code'] ?? null);
+
+        // Identity-only reads still answer, so the shell can say why.
+        self::assertSame(200, $this->request('GET', '/api/v1/products', ['Authorization' => 'Bearer ' . $token])->getStatusCode());
+
+        // A new link, once; a second press within the minute sends nothing.
+        $resend = $this->request('POST', '/api/v1/auth/verify-email/resend', ['Authorization' => 'Bearer ' . $token]);
+        self::assertSame(200, $resend->getStatusCode(), (string) $resend->getBody());
+        self::assertTrue($this->decode($resend)['sent'] ?? false);
+        $again = $this->request('POST', '/api/v1/auth/verify-email/resend', ['Authorization' => 'Bearer ' . $token]);
+        self::assertFalse($this->decode($again)['sent'] ?? true);
+        self::assertSame(2, $this->connection->fetchOne(
+            "SELECT count(*) FROM notifications WHERE type = 'account.email_verification' AND recipient_user_id = :u",
+            ['u' => $this->userId('zed@elsewhere.test')],
+        ));
+
+        // The new link proves it, and everything is back — nothing was cancelled.
+        self::assertSame(200, $this->followConfirmation('zed@elsewhere.test')->getStatusCode());
+        self::assertSame(200, $this->request('GET', '/api/v1/me', ['Authorization' => 'Bearer ' . $token, 'X-Product' => 'atlas'])->getStatusCode());
+
+        // And a proved address asks for no more links.
+        self::assertFalse($this->decode($this->request('POST', '/api/v1/auth/verify-email/resend', ['Authorization' => 'Bearer ' . $token]))['sent'] ?? true);
+    }
+
+    /**
+     * A deadline nobody was given is not enforced: accounts named by an
+     * administrator or an operator have none, whatever their address.
+     */
+    public function testAnAccountThatDidNotSignUpByItselfHasNoDeadline(): void
+    {
+        $this->connection->executeStatement('UPDATE users SET email_verified_at = NULL WHERE id = :u', ['u' => $this->uma]);
+
+        self::assertSame(200, $this->request('GET', '/api/v1/me', $this->as('uma@acme.test'))->getStatusCode());
     }
 
     public function testUnderInvitationNobodyArrivesByThemselves(): void
@@ -276,6 +392,55 @@ final class JoiningTest extends DatabaseApiTestCase
             'display_name' => 'Somebody',
             'tenant' => 'acme',
             'product' => 'atlas',
+        ]));
+    }
+
+    private function domainPolicy(string $domain): void
+    {
+        $set = $this->request('PATCH', '/api/v1/tenants/current', $this->as('ann@acme.test'), $this->json([
+            'join_policy' => 'DOMAIN',
+            'join_domains' => [$domain],
+        ]));
+        self::assertSame(200, $set->getStatusCode());
+    }
+
+    /** Moves somebody's deadline into the past, as a week would. */
+    private function overdue(string $email): void
+    {
+        $this->connection->executeStatement(
+            "UPDATE users SET email_confirm_by = now() - interval '1 minute' WHERE email = :email",
+            ['email' => $email],
+        );
+        // As if the last link had gone out long ago, so a resend is allowed.
+        $this->connection->executeStatement(
+            "UPDATE email_verifications SET created_at = now() - interval '1 day' WHERE user_id = (SELECT id FROM users WHERE email = :email)",
+            ['email' => $email],
+        );
+    }
+
+    /** The link in the most recent mail of this type to this address. */
+    private function latestLink(string $type, string $email): string
+    {
+        $payload = $this->connection->fetchOne(
+            'SELECT payload FROM notifications n JOIN users u ON u.id = n.recipient_user_id
+              WHERE n.type = :type AND u.email = :email ORDER BY n.created_at DESC, n.id DESC LIMIT 1',
+            ['type' => $type, 'email' => $email],
+        );
+        self::assertIsString($payload);
+        $decoded = json_decode($payload, true);
+        self::assertIsArray($decoded);
+        $link = $decoded['link'] ?? null;
+        self::assertIsString($link);
+
+        return $link;
+    }
+
+    private function followConfirmation(string $email): ResponseInterface
+    {
+        $link = $this->latestLink('account.email_verification', $email);
+
+        return $this->request('POST', '/api/v1/auth/verify-email', [], $this->json([
+            'token' => substr($link, (int) strpos($link, 'verify=') + 7),
         ]));
     }
 

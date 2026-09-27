@@ -119,6 +119,25 @@ final class ForbiddenException extends HttpException
     }
 
     /**
+     * The address this person signed up with is still unproved, past the
+     * deadline they were given (ADR-061).
+     *
+     * Its own refusal, answered by a click in their mailbox — never by a
+     * colleague, an administrator or a card. Folded into
+     * `PERMISSION_DENIED`, the person would go and ask for a role they
+     * already hold. The remedy is reachable while refused: resending the
+     * link and following it are identity-only and public respectively, and
+     * `GET /products` says when the deadline was.
+     */
+    public static function emailUnconfirmed(): self
+    {
+        return new self(
+            'EMAIL_UNCONFIRMED',
+            'Confirm your email address to continue: follow the link we sent you, or ask for a new one.',
+        );
+    }
+
+    /**
      * The tenant has the feature and has used all of it.
      *
      * A fourth refusal, distinct from the three above because it is fixed in

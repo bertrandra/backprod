@@ -15,21 +15,21 @@ list is the one that matters when somebody is deciding whether to launch.
 
 Counted on 2026-09-27 by running each gate, except the axe scans, which are
 read from `e2e/accessibility.spec.ts` (routes × viewports). These numbers
-drift with every merge: this table still said 137 operations while the
+drift with every merge: this table once said 137 operations while the
 contract had grown to 225, and nothing compares the two.
 
 | Claim | What proves it |
 |---|---|
-| The contract describes every route the router serves | `gate:openapi` — 225 operations, both directions |
-| Every operation has a screen, and every screen calls what it claims | `gate:ui` + `gate:screens` — 207 in 50 areas, all called; 5 bootstrap and 13 with a written reason for having no screen |
+| The contract describes every route the router serves | `gate:openapi` — 226 operations, both directions |
+| Every operation has a screen, and every screen calls what it claims | `gate:ui` + `gate:screens` — 208 in 50 areas, all called; 5 bootstrap and 13 with a written reason for having no screen |
 | No code branches on a product, plan or tier name | `gate:products`, `gate:plans` |
 | Entitlement decisions have one door | `gate:entitlements` |
 | No mutation that moves money is optimistic | `gate:money` — 8 modules |
 | Every permission the frontend gates on exists | `gate:permissions` |
 | Domain code cannot reach SQL | `deptrac` + `gate:proof`, which proves the gate itself rejects a violation |
-| The behaviour, against a real PostgreSQL 16 | 1 411 tests, 14 913 assertions |
+| The behaviour, against a real PostgreSQL 16 | 1 418 tests, 15 017 assertions |
 | Every route is usable without a mouse and passes WCAG 2.1 AA | 64 axe scans — 32 routes across both authorities, on both viewports |
-| A password becomes a session; a refresh hands every tab the same token, answers a lost reply again, and a replay ends that sign-in only | `SignInTest` — 29 cases against the real database (ADR-038, ADR-062); `e2e/sign-in.spec.ts` proves tabs restored together take turns |
+| A password becomes a session; a refresh hands every tab the same token, answers a lost reply again, and a replay ends that sign-in only | `SignInTest` — 31 cases against the real database (ADR-038, ADR-062), including the security notice a replay sends; `e2e/sign-in.spec.ts` proves tabs restored together take turns |
 | The §37.4 chain works for a person, not only in PHPUnit | `e2e/sales-chain.spec.ts` |
 
 ## 2. Built, and rehearsable here
@@ -97,30 +97,17 @@ Stated plainly, because a readiness document that omits these is worse than none
   a route against a stubbed API. Nobody knows what this does under concurrency.
 - **No secret management.** Secrets come from `.env`. There is no vault, no
   rotation, and no audit of who read one.
-- **Nothing acts on an unconfirmed address.** Registration, email verification
-  and password reset exist (`/auth/sign-up`, `/auth/verify-email`,
-  `/auth/password/forgot`, `/auth/password/reset`; dated 2026-09-17 and
-  2026-09-19 in `Auth\Service\Sessions`), and a session is issued at sign-up
-  before the address is confirmed, deliberately, so a confirmation mail in a
-  spam folder never stands between somebody and a purchase.
-  `users.email_verified_at` records the doubt — and is written by the
-  confirmation and read by nothing.
+- **An account that never proves its address is kept for ever.** ADR-061
+  (2026-09-27) closed the rest: a `DOMAIN` membership waits for the address,
+  every self-service sign-up has seven days to prove it before the tenant
+  surface answers `EMAIL_UNCONFIRMED`, and a password or invitation link
+  proves it too. What nothing does is sweep an account whose owner never
+  clicks — it holds its address (`EMAIL_TAKEN`) indefinitely. How long one is
+  kept is a retention decision for §15, open as it is for deleted projects.
 
-  One consequence is a hole rather than a loose end: the `DOMAIN` join policy
-  (`JoinDecision::statusFor`) admits somebody as an **active** member because
-  their address ends in the organisation's domain — an address nobody has
-  proved is theirs. Typing `anyone@acme.example` at Acme's root is a membership
-  of Acme, with whatever its `USER` role reads. The domain is the only evidence
-  that policy asks for, and it is exactly the evidence a confirmation exists to
-  provide. The rest — invoices, notices and reset links going to an unproved
-  address for as long as the account lives — follows the same rule.
-
-  Specified in ADR-061 (proposed): anybody may register, and no membership
-  becomes live until the address is proved, whatever the policy.
-
-  This entry used to read *"No password reset, no email verification, no
-  registration — the next thing to build"*, and it outlived all three. It was
-  then recommended as the next piece of work on the strength of this document
+  This entry once read *"No password reset, no email verification, no
+  registration — the next thing to build"*, and it outlived all three;
+  it was recommended as the next piece of work on the strength of this document
   alone. A list of what does not exist is only worth anything if it is checked
   against the code when the code changes.
 - **No certified e-invoicing platform** (R3). The four transmission states are
@@ -134,10 +121,6 @@ Stated plainly, because a readiness document that omits these is worse than none
 
 ## 4. The order these would go in
 
-0. ADR-061, before any organisation turns on `DOMAIN` in production: a
-   membership goes live once the address is proved, not when it is typed. It
-   needs no deployment to build, and it is the only item here that is a hole
-   rather than an absence.
 1. A deployment and a staging environment, so anything below can be observed at
    all.
 2. Observability, because the next four items are unanswerable without it.

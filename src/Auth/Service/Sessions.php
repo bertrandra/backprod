@@ -59,6 +59,12 @@ final class Sessions
      */
     public const RACE_WINDOW = 30;
 
+    /** Seven days to prove the address a self-service sign-up gave (ADR-061). */
+    public const CONFIRMATION_GRACE = 604_800;
+
+    /** At most one resent confirmation a minute. */
+    public const RESEND_INTERVAL = 60;
+
     /** How far a race is followed along a chain before it is called something else. */
     private const RACE_STEPS = 8;
 
@@ -109,6 +115,11 @@ final class Sessions
         /** What a refresh token is replaced by (ADR-062). */
         private readonly RefreshRotation $rotation = new RefreshRotation(''),
         private readonly int $maxSessionAge = self::MAX_SESSION_AGE,
+        /**
+         * How long a self-service sign-up has to prove its address before
+         * the tenant surface refuses it (ADR-061). `AUTH_EMAIL_CONFIRMATION_GRACE`.
+         */
+        private readonly int $confirmationGrace = self::CONFIRMATION_GRACE,
     ) {
     }
 
@@ -159,9 +170,13 @@ final class Sessions
             $tenantSlug,
             $productCode,
             $locale,
+            // Registering never waits (ADR-061): the person uses what they
+            // buy at once, and has this long to prove the address it will
+            // all be sent to.
+            $this->confirmationGrace,
         );
 
-        $this->askForConfirmation($account);
+        $this->askForConfirmation($account->userId, $account->email, $account->tenantId, $account->productId);
 
         // The organisation's products hear of the arrival (ADR-051 §5) —
         // with the status, because a membership waiting on an administrator
@@ -216,28 +231,61 @@ final class Sessions
      * the same split `refresh_tokens` makes: what is stored must not be
      * presentable as a credential.
      */
-    private function askForConfirmation(RegisteredAccount $account): void
+    private function askForConfirmation(string $userId, string $email, string $tenantId, string $productId): void
     {
         $raw = bin2hex(random_bytes(32));
+        $hash = $this->hash($raw);
 
-        $this->registrar->issueVerification($account->userId, $this->hash($raw), self::VERIFICATION_LIFETIME);
+        // One live token per account: a new one replaces the last.
+        $this->registrar->issueVerification($userId, $hash, self::VERIFICATION_LIFETIME);
 
         $this->notifications->raise(
-            $account->tenantId,
-            $account->productId,
-            $account->userId,
+            $tenantId,
+            $productId,
+            $userId,
             'account.email_verification',
             Category::ACCOUNT,
             [
                 'link' => rtrim($this->appUrl, '/') . '/sign-in?verify=' . $raw,
-                'email' => $account->email,
+                'email' => $email,
             ],
-            // One live token per account, so one notice per account: asking
-            // again replaces both rather than adding to them.
-            'email-verification:' . $account->userId,
+            // One notice per token, keyed by a prefix of its hash: a resend
+            // is a new token and must be a new mail, and the dedup index —
+            // ON CONFLICT DO NOTHING — would swallow it under a per-account
+            // key. The prefix identifies the token and presents nothing.
+            'email-verification:' . $userId . ':' . substr($hash, 0, 16),
             false,
             [Channel::EMAIL],
         );
+    }
+
+    /**
+     * A new confirmation link, for somebody whose first one was lost, expired
+     * or never read (ADR-061).
+     *
+     * Asked by the person, signed in — the session sign-up issued is enough,
+     * because it names the account and nothing here reveals anything about it
+     * that the person does not already know. A proved address needs no link
+     * and gets none. At most one a minute, so a button pressed repeatedly is
+     * one mail and not a flood into somebody's inbox.
+     *
+     * @return bool whether a link was sent
+     */
+    public function resendConfirmation(string $userId): bool
+    {
+        $target = $this->registrar->confirmationTargetOf($userId);
+
+        if ($target === null || $target['verified']) {
+            return false;
+        }
+
+        if ($this->registrar->verificationIssuedWithin($userId, self::RESEND_INTERVAL)) {
+            return false;
+        }
+
+        $this->askForConfirmation($userId, $target['email'], $target['tenant_id'], $target['product_id']);
+
+        return true;
     }
 
     /**
@@ -286,6 +334,11 @@ final class Sessions
         if ($userId === null) {
             return false;
         }
+
+        // The link reached them at the account's address, which is exactly
+        // what a confirmation link proves (ADR-061) — so it proves it too,
+        // and somebody whose confirmation expired has a way in that exists.
+        $this->registrar->proveAddress($userId);
 
         $email = $this->registrar->emailOf($userId);
 
@@ -465,6 +518,10 @@ final class Sessions
                 'family_id' => $familyId,
                 'revoked' => $revoked,
             ]);
+
+            if ($revoked > 0) {
+                $this->tellOfRevokedSignIn($userId, (string) $familyId);
+            }
         }
 
         throw new UnauthenticatedException();
@@ -573,6 +630,40 @@ final class Sessions
             $this->issuer->issue($token->authSubject, $token->email, $this->audienceFor($productCode)),
             $rawToken,
             max(1, $token->expiresInSeconds),
+        );
+    }
+
+    /**
+     * The person hears that a sign-in of theirs was ended because its token
+     * was used twice (ADR-062).
+     *
+     * SECURITY, so it cannot be switched off: a notice an attacker could
+     * mute is one they would. Only when a live sign-in was actually ended —
+     * a copy presented after it had already ended changes nothing, and
+     * mailing about it would teach people to ignore these. Once per sign-in,
+     * by the dedup index. Nothing in the payload identifies the token.
+     */
+    private function tellOfRevokedSignIn(string $userId, string $familyId): void
+    {
+        $home = $this->registrar->homeOf($userId);
+        $email = $this->registrar->emailOf($userId);
+
+        if ($home === null || $email === null) {
+            // No live membership to raise it under: logged above, and a
+            // person with nowhere to sign in to has nothing left to protect.
+            return;
+        }
+
+        $this->notifications->raise(
+            $home['tenant_id'],
+            $home['product_id'],
+            $userId,
+            'account.session_revoked',
+            Category::SECURITY,
+            ['email' => $email],
+            'session-revoked:' . $familyId,
+            false,
+            [Channel::EMAIL, Channel::SCREEN],
         );
     }
 

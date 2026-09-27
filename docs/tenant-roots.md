@@ -168,7 +168,10 @@ administrator switches on once they have seen who turns up. `OPEN` is not
 offered. Whatever the policy, the address is confirmed by the existing
 email verification before a membership becomes live.
 *(Not honoured by the first implementation — `OPEN` and `DOMAIN` went live
-on the typed address. Restated, with the mechanism, in ADR-061.)*
+on the typed address. ADR-061 made it true where it is evidence — a `DOMAIN`
+membership waits for the proof — and gave every self-service sign-up seven
+days to prove its address, so that `OPEN` keeps signing up and paying in one
+breath.)*
 
 **Design.** `tenants.join_policy` + `tenant_join_domains`;
 `tenant_members.status` (`ACTIVE | PENDING`) with the resolver treating

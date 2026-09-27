@@ -61,6 +61,7 @@ final class PostgresAccountRegistrar implements AccountRegistrar
         string $tenantSlug,
         ?string $productCode,
         ?string $locale = null,
+        int $confirmWithinSeconds = 0,
     ): RegisteredAccount {
         $tenant = $this->connection->fetchAssociative(
             'SELECT id, slug, join_policy FROM tenants WHERE slug = :slug',
@@ -127,11 +128,20 @@ final class PostgresAccountRegistrar implements AccountRegistrar
         try {
             $userId = $this->connection->fetchOne(
                 <<<'SQL'
-                    INSERT INTO users (auth_subject, email, display_name, default_product_id, locale)
-                    VALUES ('pending', :email, :name, :product, :locale)
+                    INSERT INTO users (auth_subject, email, display_name, default_product_id, locale, email_confirm_by)
+                    VALUES ('pending', :email, :name, :product, :locale,
+                            CASE WHEN :within > 0 THEN now() + make_interval(secs => :within) END)
                     RETURNING id
                     SQL,
-                ['email' => $email, 'name' => $displayName, 'product' => $firstProduct, 'locale' => Locale::of($locale)],
+                [
+                    'email' => $email,
+                    'name' => $displayName,
+                    'product' => $firstProduct,
+                    'locale' => Locale::of($locale),
+                    // The deadline to prove the address (ADR-061), counted by
+                    // the clock that will later compare against it.
+                    'within' => $confirmWithinSeconds,
+                ],
             );
 
             if (!is_string($userId)) {
@@ -206,6 +216,23 @@ final class PostgresAccountRegistrar implements AccountRegistrar
         );
     }
 
+    public function verificationIssuedWithin(string $userId, int $seconds): bool
+    {
+        if (!Uuid::isValid($userId)) {
+            return false;
+        }
+
+        return (bool) $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT EXISTS (
+                    SELECT 1 FROM email_verifications
+                     WHERE user_id = :user AND created_at > now() - make_interval(secs => :within)
+                )
+                SQL,
+            ['user' => $userId, 'within' => $seconds],
+        );
+    }
+
     public function issuePasswordLink(string $userId, string $tokenHash, int $lifetimeSeconds, string $purpose): void
     {
         $this->connection->executeStatement(
@@ -269,8 +296,13 @@ final class PostgresAccountRegistrar implements AccountRegistrar
                   FROM tenant_members tm
                   JOIN tenants t ON t.id = tm.tenant_id
                   JOIN products p ON p.id = tm.product_id
-                 WHERE tm.user_id = :user AND tm.status = 'ACTIVE' AND p.active
-                 ORDER BY t.name, p.code
+                 WHERE tm.user_id = :user AND p.active
+                 -- A live membership first; a waiting one otherwise
+                 -- (2026-09-27). This is where notices to the person are
+                 -- addressed, and somebody waiting on an administrator or on
+                 -- their own address still has to be able to reset a
+                 -- forgotten password — which found no home and sent nothing.
+                 ORDER BY (tm.status = 'ACTIVE') DESC, t.name, p.code
                  LIMIT 1
                 SQL,
             ['user' => $userId],
@@ -343,10 +375,12 @@ final class PostgresAccountRegistrar implements AccountRegistrar
                     SQL,
                 ['tenant' => $tenantId, 'user' => $userId],
             );
+            // Waiting on an administrator or on their own mailbox, the
+            // invitation settles both: an administrator has named them.
             $this->connection->executeStatement(
                 <<<'SQL'
                     UPDATE tenant_members SET status = 'ACTIVE'
-                     WHERE tenant_id = :tenant AND user_id = :user AND status = 'PENDING'
+                     WHERE tenant_id = :tenant AND user_id = :user AND status IN ('PENDING', 'UNCONFIRMED')
                     SQL,
                 ['tenant' => $tenantId, 'user' => $userId],
             );
@@ -389,11 +423,94 @@ final class PostgresAccountRegistrar implements AccountRegistrar
             return false;
         }
 
-        $this->connection->executeStatement(
-            'UPDATE users SET email_verified_at = now() WHERE id = :id AND email_verified_at IS NULL',
-            ['id' => $userId],
-        );
+        $this->proveAddress($userId);
 
         return true;
+    }
+
+    public function proveAddress(string $userId): void
+    {
+        if (!Uuid::isValid($userId)) {
+            return;
+        }
+
+        $this->connection->transactional(function () use ($userId): void {
+            $email = $this->connection->fetchOne(
+                'UPDATE users SET email_verified_at = coalesce(email_verified_at, now()) WHERE id = :id RETURNING email',
+                ['id' => $userId],
+            );
+
+            if (!is_string($email)) {
+                return;
+            }
+
+            // Decided again now, against the list as it stands: the
+            // organisation may have dropped the domain, or the policy, since
+            // the address was typed. What no longer admits them goes — the
+            // evidence arrived and the answer is no — rather than lingering as
+            // a membership nobody can act on.
+            $waiting = $this->connection->fetchAllAssociative(
+                <<<'SQL'
+                    SELECT DISTINCT tm.tenant_id, t.join_policy
+                      FROM tenant_members tm
+                      JOIN tenants t ON t.id = tm.tenant_id
+                     WHERE tm.user_id = :user AND tm.status = 'UNCONFIRMED'
+                    SQL,
+                ['user' => $userId],
+            );
+
+            foreach ($waiting as $row) {
+                $tenantId = Row::string($row, 'tenant_id');
+                $domains = $this->connection->fetchFirstColumn(
+                    'SELECT domain FROM tenant_join_domains WHERE tenant_id = :tenant',
+                    ['tenant' => $tenantId],
+                );
+                $admitted = Row::string($row, 'join_policy') === JoinDecision::DOMAIN
+                    && JoinDecision::admitsByDomain(
+                        array_values(array_map(static fn (mixed $d): string => strtolower(is_string($d) ? $d : ''), $domains)),
+                        $email,
+                    );
+
+                $this->connection->executeStatement(
+                    $admitted
+                        ? "UPDATE tenant_members SET status = 'ACTIVE' WHERE tenant_id = :tenant AND user_id = :user AND status = 'UNCONFIRMED'"
+                        : "DELETE FROM tenant_members WHERE tenant_id = :tenant AND user_id = :user AND status = 'UNCONFIRMED'",
+                    ['tenant' => $tenantId, 'user' => $userId],
+                );
+            }
+        });
+    }
+
+    public function confirmationTargetOf(string $userId): ?array
+    {
+        if (!Uuid::isValid($userId)) {
+            return null;
+        }
+
+        // Any membership, live or waiting: somebody waiting on their own
+        // address under DOMAIN has no live one, and is exactly who asks.
+        $row = $this->connection->fetchAssociative(
+            <<<'SQL'
+                SELECT u.email, (u.email_verified_at IS NOT NULL) AS verified, tm.tenant_id, tm.product_id
+                  FROM users u
+                  JOIN tenant_members tm ON tm.user_id = u.id
+                  JOIN products p ON p.id = tm.product_id
+                 WHERE u.id = :user AND u.erased_at IS NULL AND u.email IS NOT NULL AND p.active
+                 ORDER BY (tm.status = 'ACTIVE') DESC, p.display_order, p.code
+                 LIMIT 1
+                SQL,
+            ['user' => $userId],
+        );
+
+        if ($row === false) {
+            return null;
+        }
+
+        return [
+            'email' => Row::string($row, 'email'),
+            'verified' => (bool) $row['verified'],
+            'tenant_id' => Row::string($row, 'tenant_id'),
+            'product_id' => Row::string($row, 'product_id'),
+        ];
     }
 }
