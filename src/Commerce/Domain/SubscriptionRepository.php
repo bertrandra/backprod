@@ -122,23 +122,44 @@ interface SubscriptionRepository
     ): Subscription;
 
     /**
-     * Moves a live subscription onto different terms, keeping its period.
-     *
-     * Prorating the difference is billing, and billing is M6. What happens
-     * here is the change of what the tenant may use, recorded with both ends
-     * so the move is auditable.
+     * Moves a live subscription onto different terms, and opens a new period
+     * on it (spec §3).
      *
      * Implementations must **re-snapshot the terms** from the new version
      * (spec §1c): a subscription pointing at one offer while carrying the
      * conditions of another is bound by an agreement it is no longer on. The
      * commitment is the one exception — see
      * {@see Subscription::commitmentAfterMovingTo()}.
+     *
+     * And they must **reset the anchor** (2026-09-27): `$periodStart` becomes
+     * the period's start and `$periodEnd` its end. This kept the old period
+     * until today, with a comment saying prorating was billing and billing had
+     * not landed. It has, and the reset is the reason a chain of upgrades needs
+     * no credit balance (§3.4) — the unconsumed share is always read off the
+     * period the *previous* change opened.
+     *
+     * `$detail` is recorded on the event: what the move was priced at, so the
+     * figure is answerable from the subscription's own history rather than
+     * re-derived later against a clock that has moved.
+     *
+     * `$alsoBill` runs inside this method's transaction, after the row has
+     * moved, for a change that costs something. A subscription moved onto a
+     * dearer plan with its period unbilled is revenue given away, and an
+     * invoice for a period the subscription never entered is a customer charged
+     * for what they did not get; neither may survive a crash between the two.
+     *
+     * @param array<string, mixed>                $detail
+     * @param (callable(Subscription): void)|null $alsoBill
      */
     public function changeOffer(
         Subscription $subscription,
         SubscribedOffer $offer,
         string $direction,
         ?string $actorUserId,
+        DateTimeImmutable $periodStart,
+        ?DateTimeImmutable $periodEnd,
+        array $detail = [],
+        ?callable $alsoBill = null,
     ): Subscription;
 
     /**

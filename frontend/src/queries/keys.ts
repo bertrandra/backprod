@@ -111,6 +111,13 @@ export const keys = {
     schedule: ['subscription', 'schedule'] as const,
     entitlements: ['subscription', 'entitlements'] as const,
     people: (seat: boolean) => ['subscription', 'people', seat ? 'seat' : 'tenant'] as const,
+    // What changing to one offer would cost (spec §7). Keyed on the offer,
+    // because a catalogue asks the question once per row — and the prefix is
+    // what a change invalidates, since every other row's answer moves with the
+    // period the change just reset.
+    changes: ['subscription', 'change-preview'] as const,
+    change: (offerId: string, seat: boolean) =>
+      ['subscription', 'change-preview', seat ? 'seat' : 'tenant', offerId] as const,
     // What everybody in the organisation holds (2026-09-25). Its own key, not
     // under `current`: a different question, a different permission, and
     // invalidating one has no business emptying the other.

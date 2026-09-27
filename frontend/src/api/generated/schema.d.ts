@@ -2404,9 +2404,29 @@ export interface paths {
         put?: never;
         /**
          * Move to a different offer
-         * @description The subscription keeps its identity and its history; only what it grants changes. An upgrade compares the plans' ranks, never their names (§13).
+         * @description The subscription keeps its identity and its history. A move **up** takes effect at once and is **priced** (spec §3): the unconsumed share of the current period goes back to the payment method with its credit note, the new period is invoiced through the normal billing chain, and the billing anchor restarts today — which is what makes successive moves up need no credit balance. A move **down** changes nothing today and the answer carries `pending` instead. Which it is comes from the plans' ranks, never their names (§13). What it would cost is answerable beforehand with `previewOfferChange`, which shares the calculation. `seat` names the caller's own seat rather than the organisation's subscription, and it is the case that matters: the tenant surface sells seats and nothing else (ADR-055), so without it these operations answer `NO_SUBSCRIPTION` to every subscription a customer can hold.
          */
         post: operations["changeOffer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscription/preview-change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * What changing plan would cost
+         * @description Read-only: nothing is written, no document is raised and no number is allocated, so a catalogue may ask about every offer it shows. The counterpart of `showSchedule`, which answers `if_cancelled_now` for the cancellation decision — and it goes through the same calculation `changeOffer` acts on, so the credit, the net and the date given here cannot disagree with what happens when somebody acts on them. It answers for a move **down** as well: nothing to pay, and the date it takes effect. A POST because it takes the offer in a body, not because it changes anything. `seat` names the caller's own seat rather than the organisation's subscription, and it is the case that matters: the tenant surface sells seats and nothing else (ADR-055), so without it these operations answer `NO_SUBSCRIPTION` to every subscription a customer can hold.
+         */
+        post: operations["previewOfferChange"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2424,12 +2444,12 @@ export interface paths {
         put?: never;
         /**
          * Schedule a move to a lower plan
-         * @description Nothing changes today. The subscription keeps the plan it has paid for until `current_period_end`, and moves to this offer then — because the service is owed until the end of the paid period, exactly as it is for a cancellation. Refuses `NOT_A_DOWNGRADE` for a move that is not down: going up is immediate. Which move it is comes from the plans' ranks, never their names (§13).
+         * @description Nothing changes today. The subscription keeps the plan it has paid for until `current_period_end`, and moves to this offer then — because the service is owed until the end of the paid period, exactly as it is for a cancellation. Refuses `NOT_A_DOWNGRADE` for a move that is not down: going up is immediate. Which move it is comes from the plans' ranks, never their names (§13). `seat` names the caller's own seat rather than the organisation's subscription, and it is the case that matters: the tenant surface sells seats and nothing else (ADR-055), so without it these operations answer `NO_SUBSCRIPTION` to every subscription a customer can hold.
          */
         post: operations["scheduleOfferChange"];
         /**
          * Undo a scheduled change of plan
-         * @description Nothing had happened yet, so this restores nothing — it removes the intention and records that it was removed. Obligatory rather than convenient: a future change that cannot be withdrawn is a cancellation in disguise, and somebody with twenty days of the higher plan in front of them changes their mind.
+         * @description Nothing had happened yet, so this restores nothing — it removes the intention and records that it was removed. Obligatory rather than convenient: a future change that cannot be withdrawn is a cancellation in disguise, and somebody with twenty days of the higher plan in front of them changes their mind. `seat` names the caller's own seat rather than the organisation's subscription, and it is the case that matters: the tenant surface sells seats and nothing else (ADR-055), so without it these operations answer `NO_SUBSCRIPTION` to every subscription a customer can hold.
          */
         delete: operations["cancelScheduledChange"];
         options?: never;
@@ -4302,6 +4322,54 @@ export interface components {
             effective_at: string | null;
             /** @description Months of the commitment still owed. Counted from the end of the period already paid for, not from today. */
             chargeable_months: number;
+            reasons: string[];
+        };
+        /** @description What moving to another offer does, and why (spec §3, §7). The same shape as `CancellationDecision` and for the same reason: "can I change plan?" answered yes-or-no tells the person asking neither *when* it takes effect nor *what it costs today*. One calculation answers two questions — `previewOfferChange` renders it and `changeOffer` acts on it — so a catalogue can never quote a figure the server did not agree to. */
+        ChangeDecision: {
+            /** @description False when the move cannot be priced at all — a `CUSTOM` billing period has no length to take a share of. The reasons say which. */
+            accepted: boolean;
+            /**
+             * @description Which rule decided. Stable, and the thing to quote in a support conversation.
+             * @example change.prorated_now
+             * @example change.deferred_to_period_end
+             * @example change.period_not_priceable
+             * @example change.currency_mismatch
+             */
+            rule_id: string;
+            /**
+             * @description From the plans' **ranks**, never their names (§13). A lateral move is priced like a move up, because what decides whether there is a period to cut short is that the change is immediate.
+             * @enum {string}
+             */
+            direction: "UPGRADE" | "DOWNGRADE" | "LATERAL";
+            /**
+             * @description Null when the move was not accepted.
+             * @enum {string|null}
+             */
+            effect: "IMMEDIATE" | "AT_PERIOD_END" | null;
+            /**
+             * Format: date-time
+             * @description Now for a move up, `current_period_end` for a move down — the date the customer has paid until.
+             */
+            effective_at: string | null;
+            /** @description The arriving offer's. A credit collected in another currency is refused rather than netted against it. */
+            currency: string;
+            /** @description The unconsumed share of what was **collected** for the current period, gross, going back to the payment method with its credit note (ADR-058). Zero for a move down, and zero — with the reason said — where nothing was collected or everything has already been given back. Never a negative line on an invoice. */
+            credit_minor_units: number;
+            /** @description What the new period is invoiced at, gross, through the normal billing chain. Zero raises **no document at all**: numbering is gapless, so a €0 invoice is the permanent record of no transaction. */
+            charge_minor_units: number;
+            /** @description `charge − credit`: what the move costs today, worked out **here** because §4 forbids adding two amounts in the frontend. Negative when the credit is the larger, which rank does not prevent. */
+            net_minor_units: number;
+            /**
+             * Format: date-time
+             * @description When the period this move opens would end. Null when the move cannot be priced.
+             */
+            new_period_end: string | null;
+            /**
+             * Format: date-time
+             * @description The commitment after the move, which resetting the billing anchor neither re-arms nor shortens (§3.3). Reported because "does upgrading re-commit me?" is what somebody under commitment asks.
+             */
+            commitment_ends_at: string | null;
+            /** @description In plain words, and never empty. Where the credit is nothing, this is where it says why — a silent zero is the thing to avoid. */
             reasons: string[];
         };
         /** @description The history (§18). Every transition writes one, including those nobody performed — an expiry has no actor because the clock did it. */
@@ -11553,23 +11621,95 @@ export interface operations {
                 "application/json": {
                     /** Format: uuid */
                     offer_id: string;
+                    /**
+                     * @description Act on the caller's own seat rather than the organisation's subscription. A **flag and never an id**: the only two subscribers §13.1 allows are the tenant and the caller, and both come from the resolved context, so there is nothing to supply and nothing to check one against. Since the tenant surface sells seats and nothing else (ADR-055), this is the case that reaches a subscription a customer can actually hold — without it these operations answer `NO_SUBSCRIPTION` to every one of them.
+                     * @default false
+                     */
+                    seat?: boolean;
                 };
             };
         };
         responses: {
-            /** @description The subscription on its new offer. */
+            /** @description The subscription on its new offer, and what the move cost. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Subscription"];
+                    "application/json": components["schemas"]["Subscription"] & {
+                        change: components["schemas"]["ChangeDecision"] & {
+                            /**
+                             * Format: uuid
+                             * @description The invoice raised for the new period. Null when nothing was outstanding, because nothing outstanding raises no document.
+                             */
+                            charge_invoice_id: string | null;
+                            /**
+                             * Format: uuid
+                             * @description The refund that returned the unconsumed share. Null when there was nothing to return — the reasons say why.
+                             */
+                            credit_refund_id: string | null;
+                        };
+                    };
                 };
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description No subscription to change, the offer is not on sale, or `COMMITMENT_OUTLASTS_TERM` — the offer runs for less time than the commitment already agreed, which would leave the commitment with no subscription under it. A move to a **lower-ranked** plan is not refused: it is scheduled for the end of the paid period, and the answer carries `pending`. */
+            /** @description No subscription to change, the offer is not on sale, `COMMITMENT_OUTLASTS_TERM` — the offer runs for less time than the commitment already agreed, which would leave the commitment with no subscription under it — `CHANGE_NOT_PERMITTED` when the move cannot be priced, with the decision and its rule in the details, or `BILLING_PROFILE_REQUIRED` when a priced move has nobody to invoice. A move to a **lower-ranked** plan is not refused: it is scheduled for the end of the paid period, and the answer carries `pending`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    previewOfferChange: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    offer_id: string;
+                    /**
+                     * @description Act on the caller's own seat rather than the organisation's subscription. A **flag and never an id**: the only two subscribers §13.1 allows are the tenant and the caller, and both come from the resolved context, so there is nothing to supply and nothing to check one against. Since the tenant surface sells seats and nothing else (ADR-055), this is the case that reaches a subscription a customer can actually hold — without it these operations answer `NO_SUBSCRIPTION` to every one of them.
+                     * @default false
+                     */
+                    seat?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The subscription as it stands, and what changing to that offer would do. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        subscription: components["schemas"]["Subscription"];
+                        if_changed_now: components["schemas"]["ChangeDecision"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            /** @description The refusals the change itself would make, made here for the same reason and with nothing written: `ALREADY_ON_OFFER`, or `COMMITMENT_OUTLASTS_TERM` where the commitment already agreed would outlast the offer's own term. A move that merely cannot be *priced* is not one of these — it comes back as a 200 with `accepted: false` and the rule that says why, exactly as a refused cancellation does. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11599,6 +11739,11 @@ export interface operations {
                 "application/json": {
                     /** Format: uuid */
                     offer_id: string;
+                    /**
+                     * @description Act on the caller's own seat rather than the organisation's subscription. A **flag and never an id**: the only two subscribers §13.1 allows are the tenant and the caller, and both come from the resolved context, so there is nothing to supply and nothing to check one against. Since the tenant surface sells seats and nothing else (ADR-055), this is the case that reaches a subscription a customer can actually hold — without it these operations answer `NO_SUBSCRIPTION` to every one of them.
+                     * @default false
+                     */
+                    seat?: boolean;
                 };
             };
         };
@@ -11630,7 +11775,10 @@ export interface operations {
     };
     cancelScheduledChange: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Present withdraws the change on the caller's own seat rather than on the organisation's subscription. In the query because a DELETE has no body; still a flag rather than an id, for the reason §13.1 gives. */
+                seat?: string;
+            };
             header: {
                 /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
                 "X-Product": components["parameters"]["ProductHeader"];

@@ -208,9 +208,22 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         SubscribedOffer $offer,
         string $direction,
         ?string $actorUserId,
+        DateTimeImmutable $periodStart,
+        ?DateTimeImmutable $periodEnd,
+        array $detail = [],
+        ?callable $alsoBill = null,
     ): Subscription {
         return $this->connection->transactional(
-            function () use ($subscription, $offer, $direction, $actorUserId): Subscription {
+            function () use (
+                $subscription,
+                $offer,
+                $direction,
+                $actorUserId,
+                $periodStart,
+                $periodEnd,
+                $detail,
+                $alsoBill,
+            ): Subscription {
                 $this->connection->executeStatement(
                     <<<'SQL'
                         UPDATE subscriptions
@@ -223,11 +236,22 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                                renewal = :renewal,
                                early_termination = :earlyTermination,
                                notice_days = :noticeDays,
+                               current_period_start = :periodStart,
+                               current_period_end = :periodEnd,
                                updated_at = now()
                          WHERE id = :id
                         SQL,
-                    self::reSnapshot($subscription, $offer, new DateTimeImmutable())
-                        + ['id' => $subscription->id],
+                    self::reSnapshot($subscription, $offer, $periodStart)
+                        + [
+                            // The anchor resets (2026-09-27, spec §3): the
+                            // period the customer has just been credited for is
+                            // over. The two dates are the caller's, from one
+                            // reading of the clock — the same instant the credit
+                            // was computed against and the invoice is dated.
+                            'periodStart' => self::moment($periodStart),
+                            'periodEnd' => self::moment($periodEnd),
+                            'id' => $subscription->id,
+                        ],
                 );
 
                 $this->record(
@@ -236,22 +260,31 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     $subscription->offer->version->id,
                     $offer->version->id,
                     $actorUserId,
-                    ['direction' => $direction],
+                    ['direction' => $direction] + $detail,
                 );
 
-                // The old grants go, the new ones arrive, and the period is
-                // untouched: what the tenant may use changes, what they have
-                // paid for until does not. Prorating is billing (M6).
+                // The old grants go, the new ones arrive, and they run to the
+                // new period's end: what the tenant may use changes, and so
+                // does what they have paid it for until.
                 $this->revokeEntitlements($subscription->id);
                 $this->grantEntitlements(
                     $subscription->id,
                     $subscription->tenantId,
                     $subscription->productId,
                     $offer,
-                    $subscription->currentPeriodEnd,
+                    $periodEnd,
                 );
 
-                return $this->requireActive($subscription->tenantId, $subscription->productId);
+                $moved = $this->requireById($subscription->id, 'changed');
+
+                // Last, and on this transaction: the invoice names the
+                // subscription as it now stands, and the move and the document
+                // commit together or neither does.
+                if ($alsoBill !== null) {
+                    $alsoBill($moved);
+                }
+
+                return $moved;
             },
         );
     }

@@ -47,6 +47,7 @@ use App\Commerce\Controller\ListOfferVersionsController;
 use App\Commerce\Controller\ListOrganisationSubscriptionsController;
 use App\Commerce\Controller\ListPeopleController;
 use App\Commerce\Controller\ListPlansController;
+use App\Commerce\Controller\PreviewChangeController;
 use App\Commerce\Controller\PublicOfferController;
 use App\Commerce\Controller\PublicOffersController;
 use App\Commerce\Controller\PublicProductsController;
@@ -356,6 +357,10 @@ return static function (RouteCollector $routes): void {
     // read, beside the caller's own above.
     $routes->addRoute('GET', '/api/v1/organisation/subscriptions', ListOrganisationSubscriptionsController::class);
     $routes->addRoute('POST', '/api/v1/subscription/change-offer', ChangeOfferController::class);
+    // What that change would cost, before it is made (spec §7). The same
+    // calculation with nothing written, so the catalogue's figure is the one
+    // that gets charged — `showSchedule`'s arrangement for a change of plan.
+    $routes->addRoute('POST', '/api/v1/subscription/preview-change', PreviewChangeController::class);
     $routes->addRoute('POST', '/api/v1/subscription/cancel', CancelSubscriptionController::class);
 
     // A move **down** waits for the end of the period the customer paid for

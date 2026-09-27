@@ -7,11 +7,13 @@ import {
   useCancelSubscription,
   useChangeOffer,
   useEntitlements,
+  usePreviewOfferChange,
   useResumeSubscription,
   useSchedule,
   useScheduleOfferChange,
   useSubscription,
   type CancellationDecision,
+  type ChangeDecision,
   type Entitlement,
   type Subscription,
 } from '@/queries/subscription';
@@ -302,16 +304,18 @@ export function SubscriptionScreen() {
                 {goesDown ? t("Move down to this plan") : t("Change")}</Button>
             </div>
 
-            {/* Said before the click, not discovered after it. A move down
-                changes nothing today, and that is what the customer is
-                paying for. */}
-            {goesDown && (
-              <p data-testid="deferred-notice" className="max-w-md text-xs text-muted">
-                {current.current_period_end === null
-                  ? t("A lower plan takes effect at the end of the period you have paid for.")
-                  : t("A lower plan takes effect on {date}, at the end of the period you have paid for. Until then nothing changes.", { date: new Date(current.current_period_end).toLocaleDateString(currentLocale()) })}
-              </p>
+            {/* What the move actually did, from the server's own answer — the
+                same decision the preview showed, so the two cannot disagree. */}
+            {changeOffer.data?.change !== undefined && (
+              <ChangeOutcome decision={changeOffer.data.change} label={t("What the change did")} />
             )}
+
+            {/* Said before the click, not discovered after it — and said by
+                the **server**, which is the whole of spec §7. The credit, the
+                amount payable today and the date all come from the same
+                calculation the button then runs, so nothing here can quote a
+                figure that will not be charged. */}
+            {chosen !== null && <ChangePreview offerId={chosen.id} />}
           </section>
 
           <section className="space-y-3 border-t border-line pt-6">
@@ -425,10 +429,17 @@ function Held({
 }
 
 /**
- * The caller's own seat (§13.1): what it is, when it is paid to, and the one
- * act its holder may take on it. No offer change — a seat is exchanged by
- * ending one and buying another — and the preview of leaving is the same
- * policy's, which the decision reports once it is asked.
+ * The caller's own seat (§13.1): what it is, when it is paid to, and what its
+ * holder may do with it.
+ *
+ * This said "no offer change — a seat is exchanged by ending one and buying
+ * another", and since 2026-09-27 that is no longer true: `changeOffer`,
+ * `previewOfferChange` and the pending pair all take a `seat` flag, and a seat
+ * is in fact the **only** subscription the tenant surface can sell (ADR-055) —
+ * so those operations reached nothing a customer could hold until they did.
+ * The hooks here carry the flag; the screen that offers the choice per offer is
+ * the catalogue (spec §7, étape 7), which is where a price list belongs rather
+ * than beside one subscription.
  */
 function YourSeat({
   seat,
@@ -568,6 +579,115 @@ function PendingChange({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * What changing to an offer would do, as the server answered it (spec §7).
+ *
+ * Every figure is read, never derived. The credit is the unconsumed share of
+ * what was collected, the charge is the new period, and the net is the
+ * difference — **worked out server-side**, because "never add two amounts in
+ * the frontend; every total on screen is the server's" (§4, §25). A component
+ * that subtracted these two itself would be a second answer to a question that
+ * already has one, and it would disagree the moment rounding did.
+ *
+ * It says the same thing for both directions, which is why it replaced a
+ * sentence this screen used to compose from `current_period_end`: a move down
+ * costs nothing and takes effect on a date the server names, and deriving that
+ * date here was one local calculation too many.
+ *
+ * Nothing about it is a button. Asking costs nothing and writes nothing, so it
+ * renders as soon as an offer is chosen.
+ */
+function ChangePreview({ offerId }: { offerId: string }) {
+  const preview = usePreviewOfferChange(offerId);
+
+  if (preview.isPending) {
+    return <SkeletonRows rows={2} />;
+  }
+
+  if (preview.error !== null) {
+    return <ErrorSurface error={preview.error} />;
+  }
+
+  return <ChangeOutcome decision={preview.data.if_changed_now} label={t("If you changed now")} />;
+}
+
+/**
+ * A change decision, in full — the preview's and the act's, which are the same
+ * object because they come from the same calculation.
+ */
+function ChangeOutcome({ decision, label }: { decision: ChangeDecision; label: string }) {
+  const money = (minorUnits: number) => ({ minor_units: minorUnits, currency: decision.currency });
+
+  return (
+    <div
+      data-testid="change-decision"
+      data-rule={decision.rule_id}
+      data-direction={decision.direction}
+      data-effect={decision.effect}
+      className="max-w-md space-y-1 rounded-card border border-line bg-surface p-4 text-sm shadow-raise"
+    >
+      <p className="font-medium">{label}</p>
+
+      {!decision.accepted ? (
+        <p data-testid="change-refused">{t("This change cannot be priced on these terms.")}</p>
+      ) : decision.effect === 'AT_PERIOD_END' ? (
+        <p data-testid="change-effect">
+          {decision.effective_at === null
+            ? t("It takes effect at the end of the period you have paid for.")
+            : t("It takes effect on {date}, at the end of the period you have paid for. Until then nothing changes, and nothing is charged.", { date: new Date(decision.effective_at).toLocaleDateString(currentLocale()) })}
+        </p>
+      ) : (
+        <>
+          <p data-testid="change-effect">{t("It takes effect immediately.")}</p>
+
+          {/* The three amounts, apart. A single figure would hide which half
+              of it is money coming back. */}
+          <dl className="grid gap-1 sm:grid-cols-3">
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-subtle">{t("Credited")}</dt>
+              <dd data-testid="change-credit">
+                <Amount money={money(decision.credit_minor_units)} />
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-subtle">{t("New period")}</dt>
+              <dd data-testid="change-charge">
+                <Amount money={money(decision.charge_minor_units)} />
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-subtle">
+                {decision.net_minor_units < 0 ? t("Back to you") : t("To pay today")}
+              </dt>
+              <dd data-testid="change-net" className="font-medium">
+                <Amount money={money(Math.abs(decision.net_minor_units))} />
+              </dd>
+            </div>
+          </dl>
+
+          {decision.new_period_end !== null && (
+            <p className="text-xs text-subtle">
+              {t("The new period runs to {date}.", { date: new Date(decision.new_period_end).toLocaleDateString(currentLocale()) })}
+            </p>
+          )}
+        </>
+      )}
+
+      {decision.reasons.length > 0 && (
+        <ul className="list-inside list-disc text-xs text-muted">
+          {decision.reasons.map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
+      )}
+
+      <p className="text-xs text-subtle">
+        {t("Rule")}{' '}<code>{decision.rule_id}</code>
+      </p>
+    </div>
   );
 }
 

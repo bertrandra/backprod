@@ -574,6 +574,7 @@
         "cancelSubscription",
         "changeOffer",
         "listEntitlements",
+        "previewOfferChange",
         "resumeSubscription",
         "scheduleOfferChange",
         "showSchedule",

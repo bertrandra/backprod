@@ -26,6 +26,8 @@ import { toApiError } from './session';
 
 export type Subscription = Schemas['Subscription'];
 export type CancellationDecision = Schemas['CancellationDecision'];
+/** What a change of offer would do (spec §3, §7): the credit, the net, the date, the rule. */
+export type ChangeDecision = Schemas['ChangeDecision'];
 export type Entitlement = Schemas['Entitlement'];
 export type HeldSubscription = Schemas['HeldSubscription'];
 
@@ -187,18 +189,75 @@ async function refreshSubscription(
     // administrator who cancelled their own seat and opened the register saw
     // it still live for as long as the default staleness lasted.
     queryClient.invalidateQueries({ queryKey: keys.subscription.organisation }),
+    // And every preview of what another change would cost (2026-09-27): a move
+    // up resets the period, so the unconsumed share the next one would credit
+    // has changed for *all* of them, not only the offer just moved to.
+    queryClient.invalidateQueries({ queryKey: keys.subscription.changes }),
+    // A move up raises an invoice and sends a refund with its credit note, so
+    // both registers have something new in them.
+    queryClient.invalidateQueries({ queryKey: keys.billing.creditNoteLists }),
+    queryClient.invalidateQueries({ queryKey: keys.billing.paymentLists }),
   ]);
 }
 
-export function useChangeOffer() {
+/**
+ * What changing to an offer would cost, before the click (spec §7).
+ *
+ * A **query**, not a mutation, because it writes nothing — no document, no
+ * number — which is what lets a catalogue ask it once per row. It is a POST
+ * only because the offer travels in a body; TanStack does not care about the
+ * verb and neither does anything else here.
+ *
+ * `enabled` is the caller's: asked for no offer it would be a request with
+ * nothing to answer about.
+ *
+ * Every number in the answer is the **server's**. The credit, the charge and
+ * the net come back already worked out, because "never add two amounts in the
+ * frontend; every total on screen is the server's" (§4, §25) — and because the
+ * same calculation answers the act, so the figure shown is the figure charged.
+ */
+export function usePreviewOfferChange(offerId: string, enabled = true, seat = false) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.subscription.change(offerId, seat),
+    enabled: enabled && offerId !== '',
+    queryFn: async () => {
+      const { data, error, response } = await client.POST('/api/v1/subscription/preview-change', {
+        ...ambientParams(sessionSnapshot),
+        body: { offer_id: offerId, seat },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    // A refusal is an answer — `ALREADY_ON_OFFER`, or a commitment that would
+    // outlast the offer's term — and asking again three times would not change
+    // it.
+    retry: false,
+  });
+}
+
+/**
+ * Moving now, which since 2026-09-27 **costs something** (spec §3).
+ *
+ * The answer carries the decision beside the subscription: what was credited,
+ * what was charged, and the two documents that say so. Nothing optimistic — it
+ * raises an invoice with a gapless legal number and sends money back through a
+ * provider, and a screen that assumed success would have invented both.
+ */
+export function useChangeOffer(seat = false) {
   const client = useApiClient();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (offerId: string): Promise<Subscription> => {
+    mutationFn: async (offerId: string) => {
       const { data, error, response } = await client.POST('/api/v1/subscription/change-offer', {
         ...ambientParams(sessionSnapshot),
-        body: { offer_id: offerId },
+        body: { offer_id: offerId, seat },
       });
 
       if (error !== undefined || data === undefined) {
@@ -313,6 +372,11 @@ export function useRemovePerson(seat: boolean) {
 /**
  * Asking to move **down** a plan, at the end of the paid period (spec §4).
  *
+ * `seat` names the caller's own seat rather than the organisation's
+ * subscription — a flag and never an id (§13.1) — and it is the one that
+ * reaches a subscription a customer can hold, because the tenant surface sells
+ * seats and nothing else (ADR-055).
+ *
  * The separate mutation is the separate promise: `useChangeOffer` moves the
  * subscription now, this one records that it will move later. Which of the two
  * a screen calls is decided by comparing the plans' **ranks** — never their
@@ -322,7 +386,7 @@ export function useRemovePerson(seat: boolean) {
  * subscription the whole billing chain reads, and the date it takes effect on
  * is the server's answer rather than a subtraction here.
  */
-export function useScheduleOfferChange() {
+export function useScheduleOfferChange(seat = false) {
   const client = useApiClient();
   const queryClient = useQueryClient();
 
@@ -330,7 +394,7 @@ export function useScheduleOfferChange() {
     mutationFn: async (offerId: string): Promise<Subscription> => {
       const { data, error, response } = await client.POST('/api/v1/subscription/pending', {
         ...ambientParams(sessionSnapshot),
-        body: { offer_id: offerId },
+        body: { offer_id: offerId, seat },
       });
 
       if (error !== undefined || data === undefined) {
@@ -349,16 +413,18 @@ export function useScheduleOfferChange() {
  * A future change a customer cannot withdraw is a cancellation in disguise, so
  * the button exists wherever the pending change is shown.
  */
-export function useCancelScheduledChange() {
+export function useCancelScheduledChange(seat = false) {
   const client = useApiClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (): Promise<Subscription> => {
-      const { data, error, response } = await client.DELETE(
-        '/api/v1/subscription/pending',
-        ambientParams(sessionSnapshot),
-      );
+      const ambient = ambientParams(sessionSnapshot);
+      // A DELETE has no body, so whose subscription it is travels in the query —
+      // the same shape `showSchedule` uses, and still a flag rather than an id.
+      const { data, error, response } = await client.DELETE('/api/v1/subscription/pending', {
+        params: { ...ambient.params, query: seat ? { seat: '1' } : {} },
+      });
 
       if (error !== undefined || data === undefined) {
         throw toApiError(response.status, error);
