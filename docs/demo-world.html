@@ -134,7 +134,7 @@
 <main>
   <p class="eyebrow">Backprod · demonstration database</p>
   <h1>The Demonstration World</h1>
-  <p class="lede">Five products — one of them deployed beside the platform — three organisations, one person per role, five seats bought by five people with the invoices their organisations raised, four payments and one debt nobody has settled, five projects — the world <code>composer run demo:seed</code> builds and the installer seeds. This page is who is in it, how to sign in as each of them, and what each one sees.</p>
+  <p class="lede">Five products — one of them deployed beside the platform — three organisations, one person per role, five seats bought by five people with the invoices their organisations raised, four payments and one debt nobody has settled, one free period that raised no document at all, six projects — the world <code>composer run demo:seed</code> builds and the installer seeds. This page is who is in it, how to sign in as each of them, and what each one sees.</p>
 
   <h2>Seeding it</h2>
   <p>From a shell, against a migrated database (<code>DATABASE_DSN</code> set, or in <code>.env</code>):</p>
@@ -169,7 +169,7 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
     <thead><tr><th>Tenant</th><th>Slug</th><th>Holds</th><th>Who subscribed, to what</th><th>Invoices it raised</th></tr></thead>
     <tbody>
       <tr><td>Acme Ltd</td><td><code>acme</code></td><td>atlas, boreas, ceres, delos, plan</td><td><strong>user1</strong> · Plan, Pro monthly<br><strong>user1</strong> · Atlas, Pro monthly<br><strong>user4</strong> · Plan, Lecture monthly<br>Ceres and Delos: held, nothing bought</td><td><code>2026-000001</code> — paid by card, at the second attempt<br><code>2026-000002</code>, <code>2026-000003</code> — paid</td></tr>
-      <tr><td>Globex SA</td><td><code>globex</code></td><td>atlas, boreas, plan</td><td><strong>user1</strong> · Boreas, Starter monthly<br><strong>user2</strong> · Atlas, Pro monthly — ordered, <em>card refused</em>, so no seat<br>Plan: held, nothing bought</td><td><code>2026-000001</code> — paid by card<br><code>2026-000002</code> — issued, still owed</td></tr>
+      <tr><td>Globex SA</td><td><code>globex</code></td><td>atlas, boreas, plan</td><td><strong>user1</strong> · Boreas, Starter monthly<br><strong>user2</strong> · Atlas, Pro monthly — ordered, <em>card refused</em>, so no seat<br><strong>user2</strong> · Plan, Freemium — five free days, <em>no order, no invoice, no payment</em></td><td><code>2026-000001</code> — paid by card<br><code>2026-000002</code> — issued, still owed</td></tr>
       <tr><td>Initech SARL</td><td><code>initech</code></td><td>plan</td><td><strong>user1</strong> · Plan, Starter monthly</td><td><code>2026-000001</code> — paid</td></tr>
     </tbody>
   </table>
@@ -178,10 +178,11 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
   <p>Each was bought the way a customer buys one — the person orders the seat, fulfilling the order raises the invoice, and paying it is what activates the seat. So there is no subscription here the application could not have produced.</p>
   <p><strong>And the money arrives both ways it can</strong> (2026-09-26). Three of the five are transfers that landed outside the platform, which the organisation's administrator records by marking the invoice <em>paid</em>. Two were collected: an attempt against the invoice, the provider's word applied, and the invoice settled by that — Acme's <code>2026-000001</code> at the second attempt, because the first was refused for want of funds and stays FAILED for ever, since it is the record of what happened. Beside them sits a debt: Globex's user2 ordered an Atlas seat, the card was declined, and <code>2026-000002</code> is issued and owed with no seat behind it. That is the state <em>Try again</em> on the Payments screen exists for — a retry against an invoice already paid is refused, so a world where every failure sat on a settled document would offer a button that could only answer with an error.</p>
   <p class="note">A seeded payment is the <strong>stub</strong> provider's, and says so in <code>payments.provider</code>: nothing in this world moved money, and the seeder deliberately calls no provider — a deployment configured with Stripe would otherwise have its demonstration create payment intents at a PSP, and one configured with none could not seed at all. Everything under that seam is the real path: the amount is the document's, the status machine is the real one, each delivery is recorded once in <code>payment_events</code>, and a success settles its invoice in the same transaction.</p>
+  <p><strong>And one person is trying the product for free</strong> (2026-09-27). Globex&rsquo;s <em>user2</em> — the same member Starter on Boreas does not cover, and whose card was refused for Atlas — holds Plan&rsquo;s <strong>Freemium</strong>: the lowest plan on the ladder, price 0, one user, one project, <strong>five days</strong>, and it does not renew. It raised <strong>no order, no invoice and no payment at all</strong>: numbering is gapless, so a &euro;0 invoice would be the permanent, unremovable record of a transaction that never happened, in the middle of a series a tax authority reads. So it has its own door rather than the checkout&rsquo;s, and the checkout declines the offer outright. It is given <strong>once and once for all</strong>, terminated ones included — an index with no filter on status, because five free days retaken every five days is a product given away by recurrence.</p>
   <p><strong>Each organisation numbers from one</strong>, because a gapless series belongs to whoever issues it (2026-09-25). Acme sold three seats and its invoices run 1, 2, 3; Globex and Initech sold one each and both hold a <code>2026-000001</code>. Until that day there was a single platform-wide counter, and it showed: Initech's only invoice came out <code>2026-000005</code>, telling its customer about four documents Initech never wrote — while Acme's own series was missing the two that had gone to the other companies, which is the gap the rule exists to prevent.</p>
   <p class="note">A reseed after a reset starts every series again at <code>000001</code>. The platform keeps a series of its own, with nothing in it here: in this world the platform sells nothing directly.</p>
 
-  <h2>The five projects</h2>
+  <h2>The six projects</h2>
   <p>Made through the workspace by the people who would make them — so each one was counted against a quota somebody bought, by an author that purchase covers, and stored under the schema version the product declares — rather than inserted. No administrator made one: they bought nothing, so they are entitled to nothing. Plan's carry what Plan keeps for a parcel; the other two show the platform's own workspace with something in it.</p>
   <div class="table-wrap">
   <table>
@@ -192,6 +193,7 @@ composer run demo:reset         # wipe the business tables first, then seed</cod
       <tr><td>Initech</td><td>plan</td><td>Terrasse du restaurant</td><td>Initech user1</td></tr>
       <tr><td>Acme</td><td>atlas</td><td>North wall</td><td>ACME user1</td></tr>
       <tr><td>Globex</td><td>boreas</td><td>Site survey</td><td>Globex user1</td></tr>
+      <tr><td>Globex</td><td>plan</td><td>Terrasse à l’essai</td><td>Globex user2 — on the free period, whose quota is exactly one</td></tr>
     </tbody>
   </table>
   </div>

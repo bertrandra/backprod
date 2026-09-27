@@ -16163,6 +16163,88 @@
         }
       }
     },
+    "/api/v1/subscription/freemium": {
+      "post": {
+        "tags": [
+          "Subscription"
+        ],
+        "operationId": "startFreemium",
+        "summary": "Take a product's free period",
+        "description": "Starts the caller's own seat on an offer that costs nothing and does not renew — the freemium of spec §6.\n\n**No order, no invoice and no payment.** Nothing is outstanding, so nothing is raised: numbering is gapless, and a €0 invoice would be a permanent, unremovable record of no transaction in a series a tax authority reads. That is why this is not `openCheckoutSession`, which refuses this offer outright (`FREEMIUM_IS_NOT_SOLD`) rather than raising that document at fulfilment.\n\n**The body names an offer and nothing else.** No subscriber, because what is taken is always the caller's seat and whose it is comes from the resolved context (ADR-055). No duration, because how long a product gives itself away is the operator's configuration and a client that could name a number would name a larger one.\n\nThe offer must be **free and non-renewing**, and both halves are asked of the offer rather than of a plan's name: a priced offer taken here would be given away, and a free offer that *renews* is a free tier somebody may hold for years rather than a period that ends. The permission is `billing.pay` — the member's and not the administrator's, because acquiring a subscription for oneself is the act it names.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "offer_id"
+                ],
+                "properties": {
+                  "offer_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "An offer on sale in this product right now, whose price is zero and whose renewal stops at the term. A draft, an expired one, or one belonging to another product is not found."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The free period, started. `current_period_end` is when it is over, and `terms.renewal` is `ENDS_AT_TERM`: nothing will roll it into another period.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such offer on sale in this product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`FREEMIUM_ALREADY_USED` — this account has already had the free period for this product, **whatever became of it**: one that expired six months ago still forbids another, or five free days would be retaken every five days. `NOT_A_FREEMIUM_OFFER` — the offer is sold, or it renews; buy it instead. `FREEMIUM_NOT_OFFERED` — this product has not said how long its free period lasts, so it gives none. `SEAT_ALREADY_ACTIVE` — the caller already holds a live seat on this product; changing what they have is a change on the subscription. `FREEMIUM_NEEDS_A_PERSON` — the request names nobody, and a free period belongs to whoever takes it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/subscription/schedule": {
       "get": {
         "tags": [

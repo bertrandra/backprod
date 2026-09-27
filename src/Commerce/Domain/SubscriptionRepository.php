@@ -219,6 +219,21 @@ interface SubscriptionRepository
     public function renew(Subscription $subscription, ?DateTimeImmutable $periodEnd): Subscription;
 
     /**
+     * Ends one subscription whose period is up and which nothing renews
+     * (spec §6.3), recording why.
+     *
+     * The single-subscription counterpart of {@see self::expireLapsed()}. It
+     * exists because renewal is where the decision is made: a subscription
+     * sold as `ENDS_AT_TERM` must be ended *by* the renewal that declines to
+     * roll it, not left ACTIVE for a sweep to notice afterwards. The two
+     * disagree for as long as the sweep has not run, and the operator's
+     * screens read the column.
+     *
+     * $why is recorded on the event, not interpreted.
+     */
+    public function expire(Subscription $subscription, string $why): Subscription;
+
+    /**
      * @return list<SubscriptionEvent>
      */
     public function events(Subscription $subscription): array;

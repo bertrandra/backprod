@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Demo\Infrastructure;
 
+use App\Commerce\Domain\FreemiumPeriod;
+use App\Commerce\Domain\SubscriptionTerms;
 use App\Demo\Domain\DemoFixtures;
 use App\Demo\Domain\DemoStructure;
 use App\Demo\Domain\DemoWorld;
@@ -118,6 +120,7 @@ final class PostgresDemoFixtures implements DemoFixtures
                 $offers[$code] = $this->catalogue($products[$code], $definition['base'], $definition['meters'], $definition['capabilities'] ?? [], $definition['plans'] ?? []);
                 $this->supplier($products[$code], $definition['name']);
                 $this->schemaVersions($products[$code]);
+                $this->freemium($products[$code], $definition['plans'] ?? []);
                 $this->showcase($products[$code], $code);
             }
 
@@ -135,7 +138,7 @@ final class PostgresDemoFixtures implements DemoFixtures
         // Trois offres par produit, plus celles des plans hors echelle — le siege Lecture de Plan
         // en est un. Compter « trois fois le nombre de produits » ne tient plus des qu'un produit
         // vend autre chose qu'un rang de son echelle, et c'etait la le seul obstacle a le faire.
-        $offresAttendues = 3 * $productCount + array_sum(array_map(
+        $offresAttendues = count(DemoWorld::LADDER) * $productCount + array_sum(array_map(
             static fn (array $p): int => count($p['plans'] ?? []),
             DemoWorld::PRODUCTS,
         ));
@@ -196,7 +199,7 @@ final class PostgresDemoFixtures implements DemoFixtures
             // The quota the workspace actually asks for (2026-09-22), and a
             // schema version to accept a document under: without both, the
             // Projects screen offers nothing and refuses what it offers.
-            'every offer grants the projects quota the workspace reads' => 3 * $productCount === $this->count(
+            'every offer grants the projects quota the workspace reads' => self::offersGranting(DemoWorld::PROJECTS_QUOTA) === $this->count(
                 <<<'SQL'
                 SELECT count(*) FROM offer_version_features g
                 JOIN features f ON f.id = g.feature_id
@@ -214,7 +217,7 @@ final class PostgresDemoFixtures implements DemoFixtures
             'both tenant roles are held, and the platform has its one administrator' => 2 === $this->count(
                 'SELECT count(DISTINCT r.code) FROM tenant_member_roles m JOIN roles r ON r.id = m.role_id',
             ) && 1 === $this->count('SELECT count(*) FROM platform_staff'),
-            'every offer says how many people it covers' => 3 * $productCount === $this->count(
+            'every offer says how many people it covers' => self::offersGranting('users') === $this->count(
                 <<<'SQL'
                 SELECT count(*) FROM offer_version_features g
                 JOIN features f ON f.id = g.feature_id
@@ -320,7 +323,114 @@ final class PostgresDemoFixtures implements DemoFixtures
                 WHERE p.status = 'SUCCEEDED' AND i.status <> 'PAID'
                 SQL,
             ),
+            // The free period (2026-09-27, spec §6). Counted rather than
+            // spot-checked, for the reason the catalogue's translations are: a
+            // world seeded without it still renders — every screen looks
+            // exactly the same, and the catalogue simply has one fewer card —
+            // so nothing on screen would say this had quietly stopped working.
+            //
+            // Recognised by its properties throughout, never by a plan's code:
+            // free, and over when its period is. That is what the subscription
+            // path asks and what `gate:plans` requires it to ask.
+            'a free period is on sale, free and finite' => count(DemoWorld::FREEMIUM) === $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM offer_versions v
+                JOIN offers o ON o.id = v.offer_id
+                WHERE v.price_minor_units = 0
+                  AND v.renewal = 'ENDS_AT_TERM'
+                  AND v.status = 'ACTIVE'
+                  AND o.publicly_listed
+                SQL,
+            ),
+            // How long it runs, which `term_months` cannot say. Read back as a
+            // number rather than counted, so a figure typed into the wrong key
+            // fails here and not on somebody's fifth free day.
+            'it says how many days it lasts, and only where it is sold' => count(DemoWorld::FREEMIUM) === $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM product_configuration
+                WHERE key = :key AND value = CAST(:value AS jsonb)
+                SQL,
+                [
+                    'key' => FreemiumPeriod::CONFIGURATION_KEY,
+                    'value' => json_encode(
+                        FreemiumPeriod::ofDays(DemoWorld::FREEMIUM_DAYS)->asConfiguration(),
+                        JSON_THROW_ON_ERROR,
+                    ),
+                ],
+            ),
+            // One user, one project — what the operator asked for, and both in
+            // the platform's own codes, so the workspace enforces them rather
+            // than a screen describing them.
+            'it sells one person and one project' => 2 === $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM offer_version_features g
+                JOIN features f ON f.id = g.feature_id
+                JOIN offer_versions v ON v.id = g.offer_version_id
+                WHERE v.price_minor_units = 0
+                  AND v.renewal = 'ENDS_AT_TERM'
+                  AND f.code IN (:projects, 'users')
+                  AND g.limit_value = 1
+                SQL,
+                ['projects' => DemoWorld::PROJECTS_QUOTA],
+            ),
+            // Somebody is actually on it, and the row says what it is. Without
+            // this the catalogue would advertise a plan nobody in the world
+            // has ever taken, which demonstrates the card and not the path.
+            'somebody is trying it, and their five days are running' => count(DemoWorld::FREEMIUM) === $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM subscriptions
+                WHERE is_freemium
+                  AND status = 'ACTIVE'
+                  AND subscriber_kind = 'USER'
+                  AND renewal = 'ENDS_AT_TERM'
+                  AND term_months IS NULL
+                  AND current_period_end > now() + CAST(:short AS interval)
+                  AND current_period_end <= now() + CAST(:exact AS interval)
+                SQL,
+                [
+                    'short' => sprintf('%d days', DemoWorld::FREEMIUM_DAYS - 1),
+                    'exact' => sprintf('%d days', DemoWorld::FREEMIUM_DAYS),
+                ],
+            ),
+            // And the whole of §6.3: **no document at all.** Numbering is
+            // gapless, so a €0 invoice is a permanent, unremovable record of no
+            // transaction — and an order would have raised one at fulfilment.
+            // Asserted on the rows rather than on the path, because the path
+            // could change and this is the fact that must not.
+            'the free period raised no order and no invoice' => 0 === $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM invoices i
+                JOIN subscriptions s ON s.id = i.subscription_id
+                WHERE s.is_freemium
+                SQL,
+            ) && 0 === $this->count(
+                <<<'SQL'
+                SELECT count(*) FROM orders o
+                JOIN subscriptions s ON s.id = o.subscription_id
+                WHERE s.is_freemium
+                SQL,
+            ),
         ];
+    }
+
+    /**
+     * How many offers in this world grant a feature: the three rungs of every
+     * product's ladder, plus the plans of their own that name it.
+     *
+     * Derived from the world rather than written as `3 * $productCount`, which
+     * was right until a plan outside the ladder granted a quota — the freemium
+     * sells one project and one person — and would then have failed with a
+     * number nobody could read a cause from.
+     */
+    private static function offersGranting(string $feature): int
+    {
+        return count(DemoWorld::PRODUCTS) * count(DemoWorld::LADDER) + array_sum(array_map(
+            static fn (array $product): int => count(array_filter(
+                $product['plans'] ?? [],
+                static fn (array $plan): bool => array_key_exists($feature, $plan['grants']),
+            )),
+            DemoWorld::PRODUCTS,
+        ));
     }
 
     // --- The rows -----------------------------------------------------------------
@@ -509,7 +619,7 @@ final class PostgresDemoFixtures implements DemoFixtures
      *
      * @param array<string, array{name: string, unit: string, starter: int, pro: int}> $meters
      * @param array<string, array{name: string, from: string}> $capabilities
-     * @param array<string, array{name: string, rank: int, price: int, period: string, grants: list<string>}> $plansEnPlus
+     * @param array<string, array{name: string, rank: int, price: int, period: string, renewal?: string, offer: array{code: string, name: string}, grants: array<string, int|null>}> $plansEnPlus
      *
      * @return array<string, string> offer code => id
      */
@@ -517,7 +627,14 @@ final class PostgresDemoFixtures implements DemoFixtures
     {
         $plans = [];
 
-        $echelle = [['starter', 'Starter', 10], ['pro', 'Pro', 20], ['scale', 'Scale', 30]];
+        // The ladder's ranks come from the world's own table (2026-09-27), not
+        // from three literals here: renumbering it is a change of constants in
+        // one place, which is what spec §6.2 says it is.
+        $echelle = [];
+
+        foreach (DemoWorld::LADDER as $code => $rung) {
+            $echelle[] = [$code, $rung['name'], $rung['rank']];
+        }
 
         foreach ($plansEnPlus as $code => $plan) {
             $echelle[] = [$code, $plan['name'], $plan['rank']];
@@ -589,23 +706,28 @@ final class PostgresDemoFixtures implements DemoFixtures
         $offers = [];
 
         $aVendre = [
-            ['starter-monthly', 'Starter, monthly', 'starter', $base, 'MONTHLY', $starter],
-            ['pro-monthly', 'Pro, monthly', 'pro', intdiv($base * 26, 10), 'MONTHLY', $pro],
-            ['scale-yearly', 'Scale, yearly', 'scale', $base * 26, 'YEARLY', $scale],
+            ['starter-monthly', 'Starter, monthly', 'starter', $base, 'MONTHLY', $starter, 'AUTO_RENEW'],
+            ['pro-monthly', 'Pro, monthly', 'pro', intdiv($base * 26, 10), 'MONTHLY', $pro, 'AUTO_RENEW'],
+            ['scale-yearly', 'Scale, yearly', 'scale', $base * 26, 'YEARLY', $scale, 'AUTO_RENEW'],
         ];
 
         foreach ($plansEnPlus as $code => $plan) {
+            // The offer's code and name are written down rather than derived
+            // from the period (2026-09-27): a freemium's period is CUSTOM,
+            // because it is never billed, and `freemium-custom` describes
+            // nothing a customer would recognise.
             $aVendre[] = [
-                $code . '-' . strtolower($plan['period']),
-                $plan['name'] . ', ' . strtolower($plan['period']),
+                $plan['offer']['code'],
+                $plan['offer']['name'],
                 $code,
                 $plan['price'],
                 $plan['period'],
-                array_fill_keys($plan['grants'], null),
+                $plan['grants'],
+                $plan['renewal'] ?? 'AUTO_RENEW',
             ];
         }
 
-        foreach ($aVendre as [$code, $name, $plan, $price, $period, $grants]) {
+        foreach ($aVendre as [$code, $name, $plan, $price, $period, $grants, $renewal]) {
             $offer = $this->id(
                 <<<'SQL'
                 INSERT INTO offers (product_id, plan_id, code, name, publicly_listed)
@@ -623,11 +745,11 @@ final class PostgresDemoFixtures implements DemoFixtures
             $version = $this->id(
                 <<<'SQL'
                 INSERT INTO offer_versions
-                    (offer_id, version, status, billing_period, price_minor_units, currency, valid_from)
-                VALUES (:offer, 1, 'DRAFT', :period, :price, 'EUR', now() - interval '30 days')
+                    (offer_id, version, status, billing_period, price_minor_units, currency, valid_from, renewal)
+                VALUES (:offer, 1, 'DRAFT', :period, :price, 'EUR', now() - interval '30 days', :renewal)
                 RETURNING id
                 SQL,
-                ['offer' => $offer, 'period' => $period, 'price' => $price],
+                ['offer' => $offer, 'period' => $period, 'price' => $price, 'renewal' => $renewal],
             );
 
             foreach ($grants as $feature => $limit) {
@@ -862,6 +984,45 @@ final class PostgresDemoFixtures implements DemoFixtures
                 'value' => json_encode(['supported' => DemoWorld::SCHEMA_VERSIONS], JSON_THROW_ON_ERROR),
             ],
         );
+    }
+
+    /**
+     * How long this product's free period runs, if it sells one (spec §6.3).
+     *
+     * `term_months` cannot say five days, so the interval lives in the
+     * product's configuration and the subscription path reads it there
+     * ({@see \App\Commerce\Domain\FreemiumPeriod}). Nothing is written for a
+     * product that sells no free period, and that absence is the refusal: a
+     * product which has not said how long it gives itself away for does not
+     * give itself away.
+     *
+     * Which plan is the freemium is read off its **properties** — free, and
+     * over when its period is — never off its code. That is §13's rule and
+     * what `gate:plans` holds in PHP, and it holds in a fixture too.
+     *
+     * @param array<string, array{name: string, rank: int, price: int, period: string, renewal?: string, offer: array{code: string, name: string}, grants: array<string, int|null>}> $plansEnPlus
+     */
+    private function freemium(string $product, array $plansEnPlus): void
+    {
+        foreach ($plansEnPlus as $plan) {
+            if ($plan['price'] !== 0 || ($plan['renewal'] ?? 'AUTO_RENEW') !== SubscriptionTerms::ENDS_AT_TERM) {
+                continue;
+            }
+
+            $this->connection->executeStatement(
+                'INSERT INTO product_configuration (product_id, key, value) VALUES (:product, :key, CAST(:value AS jsonb))',
+                [
+                    'product' => $product,
+                    'key' => FreemiumPeriod::CONFIGURATION_KEY,
+                    'value' => json_encode(
+                        FreemiumPeriod::ofDays(DemoWorld::FREEMIUM_DAYS)->asConfiguration(),
+                        JSON_THROW_ON_ERROR,
+                    ),
+                ],
+            );
+
+            return;
+        }
     }
 
     /**

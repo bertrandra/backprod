@@ -7,8 +7,8 @@ namespace App\Demo\Domain;
 /**
  * What the demonstration world contains — the definition, not the rows.
  *
- * **Five products, three organisations, nine people, five seats, five
- * projects.** The platform is multi-product, and a demo with one
+ * **Five products, three organisations, nine people, five seats, one free
+ * period, six projects.** The platform is multi-product, and a demo with one
  * product cannot show the part that matters: a tenant holding several
  * (ADR-047), the console switching between them, the storefront asking
  * which one a stranger wants. Since 2026-09-22 one of the five is **Plan**,
@@ -30,6 +30,11 @@ namespace App\Demo\Domain;
  * payment at all, so `/payments` was permanently empty in the one place the
  * platform is shown to people — and a screen that is always empty reads as a
  * feature that does not work.
+ *
+ * **And one person trying it for nothing** (2026-09-27, spec §6): Plan's
+ * freemium, five days, one user, one project — the only subscription in the
+ * world that raised no order, no invoice and no payment, because there was
+ * nothing outstanding to raise one for.
  *
  * `docs/demo-world.html` is the human-readable copy of this file; when one
  * changes, so does the other. The rows are written by {@see DemoFixtures}
@@ -87,7 +92,7 @@ final class DemoWorld
      * switcher's first option is what somebody lands on. The array is
      * written in that order too, so the file reads as the screen does.
      *
-     * @var array<string, array{name: string, base: int, order: int, app_url: ?string, meters: array<string, array{name: string, unit: string, starter: int, pro: int}>, capabilities?: array<string, array{name: string, from: string}>, plans?: array<string, array{name: string, rank: int, price: int, period: string, grants: list<string>}>}>
+     * @var array<string, array{name: string, base: int, order: int, app_url: ?string, meters: array<string, array{name: string, unit: string, starter: int, pro: int}>, capabilities?: array<string, array{name: string, from: string}>, plans?: array<string, array{name: string, rank: int, price: int, period: string, renewal?: string, offer: array{code: string, name: string}, grants: array<string, int|null>}>}>
      */
     public const PRODUCTS = [
         'plan' => [
@@ -114,15 +119,36 @@ final class DemoWorld
                 // a different seat, sold on its own plan below.
                 'plan.readonly' => ['name' => 'Read-only seat', 'from' => 'lecture'],
             ],
-            // A plan of its own, outside the Starter/Pro/Scale ladder, because it is not a rung on
-            // it: somebody who consults a plan and never draws one. Sold per seat, so a colleague
-            // who reads costs a fraction of one who works.
+            // Two plans of their own, outside the Starter/Pro/Scale ladder, because neither is a
+            // rung on it. Only this product sells them, and that is the point of the key: whether
+            // a product gives itself away, or sells a reader's seat, is a commercial decision of
+            // whoever sells *it* — goûter Plan n'a jamais rien dit de Boreas (spec §6.4).
             'plans' => [
+                // The free period (spec §6): the lowest rank there is, so leaving it is an upgrade
+                // and nothing below it can be dropped to. Price 0 and `ENDS_AT_TERM` together are
+                // what make it a freemium — no code anywhere asks whether a plan is *called* one.
+                // How long it runs is `FREEMIUM_DAYS` below, in the product's configuration,
+                // because `term_months` cannot say five days.
+                'freemium' => [
+                    'name' => 'Freemium', 'rank' => 10, 'price' => 0, 'period' => 'CUSTOM',
+                    'renewal' => 'ENDS_AT_TERM',
+                    'offer' => ['code' => 'freemium', 'name' => 'Freemium'],
+                    // One person, one project — what the operator asked for. The quotas are the
+                    // platform's own codes, so the workspace enforces them: `max_projects` is what
+                    // it asks before storing a project and `users` what bounds the people covered.
+                    'grants' => ['users' => 1, 'max_projects' => 1, 'plan.terrasse' => null],
+                ],
+                // Somebody who consults a plan and never draws one. Sold per seat, so a colleague
+                // who reads costs a fraction of one who works.
                 'lecture' => [
-                    'name' => 'Lecture', 'rank' => 5, 'price' => 500, 'period' => 'MONTHLY',
+                    'name' => 'Lecture', 'rank' => 20, 'price' => 500, 'period' => 'MONTHLY',
+                    'offer' => ['code' => 'lecture-monthly', 'name' => 'Lecture, monthly'],
                     // Everything one needs to look at a plan, and `plan.readonly` to say that
                     // looking is all. No quota: a reader stores nothing to count.
-                    'grants' => ['plan.readonly', 'plan.terrasse', 'plan.cadastre', 'plan.ortho', 'plan.plu', 'plan.3d'],
+                    'grants' => [
+                        'plan.readonly' => null, 'plan.terrasse' => null, 'plan.cadastre' => null,
+                        'plan.ortho' => null, 'plan.plu' => null, 'plan.3d' => null,
+                    ],
                 ],
             ],
         ],
@@ -131,6 +157,50 @@ final class DemoWorld
         'ceres' => ['name' => 'Ceres', 'order' => 40, 'base' => 900, 'app_url' => null, 'meters' => []],
         'delos' => ['name' => 'Delos', 'order' => 50, 'base' => 4_900, 'app_url' => null, 'meters' => []],
     ];
+
+    /**
+     * Where the ladder's three rungs sit (2026-09-27, spec §6.2).
+     *
+     * **The lowest rank is 10 and they step by 10**, which is the convention
+     * every ordered list in this world follows — products, showcase bands,
+     * display orders — so that one can be slipped between two others without
+     * renumbering anything. Starter, Pro and Scale stood at 10, 20 and 30, and
+     * *Lecture* was squeezed underneath at 5 for want of room. The freemium is
+     * lower still, so the whole ladder moved up a notch and the bottom of it is
+     * 10 again: freemium 10, lecture 20, starter 30, pro 40, scale 50.
+     *
+     * **One table for the platform, not one per product.** A rank is a tier, so
+     * `starter` means the same rung wherever it is sold; the same code sitting
+     * at 30 in one product and 10 in another would make every cross-product
+     * reading of a catalogue a translation. A product sells a subset of the
+     * ladder and adds plans of its own beside it, which is what `plans` above
+     * is for, and the bottom of *this* product's list is not the bottom of the
+     * scale.
+     *
+     * Nothing in the database constrains `rank` (only `plans_code_unique` on
+     * `(product_id, code)`): it is an ordering, read by
+     * {@see \App\Commerce\Service\Subscriptions::directionBetween()} to decide
+     * upgrade from downgrade. So renumbering is a change of constants here and
+     * **no migration**.
+     *
+     * @var array<string, array{name: string, rank: int}>
+     */
+    public const LADDER = [
+        'starter' => ['name' => 'Starter', 'rank' => 30],
+        'pro' => ['name' => 'Pro', 'rank' => 40],
+        'scale' => ['name' => 'Scale', 'rank' => 50],
+    ];
+
+    /**
+     * How long the demonstration's free period runs: **five days** (spec §6.1).
+     *
+     * It is written into `product_configuration` and read from there
+     * ({@see \App\Commerce\Domain\FreemiumPeriod}), not compiled into the
+     * subscription path — `term_months` cannot say five days, and a constant in
+     * PHP is a commercial term an operator cannot change without a release.
+     * Five is this world's answer; another deployment's is its own.
+     */
+    public const FREEMIUM_DAYS = 5;
 
     /**
      * The four features every catalogue grants, by the codes the platform
@@ -304,6 +374,17 @@ final class DemoWorld
             'es' => 'Lectura, mensual',
             'de' => 'Lesen, monatlich',
             'it' => 'Lettura, mensile',
+        ],
+        // The same word in all four, because it is the same word in all four:
+        // *freemium* is the borrowed term French, Spanish, German and Italian
+        // catalogues all use. Written out rather than left absent — the seeder
+        // requires four translations per offer, and an offer nobody translated
+        // still renders, in English, with French buttons around it.
+        'freemium' => [
+            'fr' => 'Freemium',
+            'es' => 'Freemium',
+            'de' => 'Freemium',
+            'it' => 'Freemium',
         ],
     ];
 
@@ -688,6 +769,30 @@ final class DemoWorld
     public const PAYMENT_PROVIDER = 'stub';
 
     /**
+     * The free period somebody is trying (2026-09-27, spec §6).
+     *
+     * Deliberately **not** in `SEATS`: that list is what the world *sold*, each
+     * row an order, an invoice and a payment. A freemium is none of those — no
+     * order, no invoice and no payment at all — so it is seeded through its own
+     * door, which is the only door it has.
+     *
+     * `globex-user2` takes it, and the choice is the third act of a story this
+     * world already tells twice about the same person: Starter on Boreas covers
+     * one place and not theirs, and the card they put in for Atlas was refused.
+     * So the one member the demonstration uses to show a quota refusing and a
+     * payment failing is the one who gets in for five days by trying it — on
+     * Plan, which is the only product with anywhere to be.
+     *
+     * One person, one project, five days: the quota is filled exactly, which is
+     * the only state in which a limit of one is visibly a limit.
+     *
+     * @var list<array{tenant: string, product: string, offer: string, holder: string}>
+     */
+    public const FREEMIUM = [
+        ['tenant' => 'globex', 'product' => 'plan', 'offer' => 'freemium', 'holder' => 'globex-user2'],
+    ];
+
+    /**
      * Who each holder has put on their seat (2026-09-25) — added through
      * `SubscriptionPeople`, so the quota is enforced here exactly as it is
      * for a customer, and a world that exceeded what it sold could not be
@@ -759,6 +864,17 @@ final class DemoWorld
             'name' => 'Site survey',
             'description' => 'First pass at the Globex yard.',
             'document' => ['source' => 'demo'],
+        ],
+        [
+            // The free period's one project (2026-09-27), by the person trying
+            // it. Freemium sells `max_projects` = 1, so this fills the quota
+            // exactly: a limit of one with nothing counted against it is a
+            // number on a page, and the next project this person attempts is
+            // refused — which is the sentence the plan exists to say.
+            'tenant' => 'globex', 'product' => 'plan', 'by' => 'globex-user2',
+            'name' => 'Terrasse à l’essai',
+            'description' => 'Cinq jours pour voir si Plan fait le travail : terrasse 18 m², Villeurbanne.',
+            'document' => ['parcelle' => 'AK 7', 'commune' => 'Villeurbanne', 'surface_m2' => 18, 'source' => 'demo'],
         ],
     ];
 

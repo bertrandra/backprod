@@ -21,8 +21,11 @@ use App\Commerce\Domain\SubscriptionRepository;
 use App\Commerce\Domain\SubscriptionTerms;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
+use App\Shared\Exceptions\ConflictException;
 use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Doctrine\DBAL\ParameterType;
 use RuntimeException;
 use stdClass;
 
@@ -49,7 +52,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         s.subscriber_kind, s.subscriber_user_id,
         s.term_months, s.term_ends_at, s.commitment_months, s.commitment_ends_at,
         s.cancellation_policy, s.renewal, s.early_termination, s.notice_days,
-        s.cancel_effective_at, s.owner_user_id,
+        s.cancel_effective_at, s.owner_user_id, s.is_freemium,
         s.pending_offer_version_id, s.pending_effective_at,
         s.pending_requested_at, s.pending_requested_by,
         o.id AS offer_id, o.code AS offer_code, o.name AS offer_name,
@@ -121,16 +124,44 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         ?string $actorUserId,
         ?Subscriber $subscriber = null,
     ): Subscription {
-        return $this->connection->transactional(
-            fn (): Subscription => $this->applyActivate(
-                $tenantId,
-                $productId,
-                $offer,
-                $periodEnd,
-                $actorUserId,
-                $subscriber,
-            ),
-        );
+        try {
+            return $this->connection->transactional(
+                fn (): Subscription => $this->applyActivate(
+                    $tenantId,
+                    $productId,
+                    $offer,
+                    $periodEnd,
+                    $actorUserId,
+                    $subscriber,
+                ),
+            );
+        } catch (UniqueConstraintViolationException $violation) {
+            // Caught **outside** the transaction, because inside it the
+            // transaction is already aborted and nothing further can be read.
+            //
+            // Only the freemium index is answered in words. The active-scope
+            // indexes are refused a step earlier, in the service, with a
+            // message a client can act on; reaching one here means two
+            // simultaneous requests raced, and the honest answer is the
+            // collision rather than a sentence invented about which of them
+            // was second. Every other unique index is a fault and propagates
+            // — the mistake `PostgresPaymentRepository` writes down, where
+            // answering "already done" to an unrelated constraint lost a
+            // payment nobody was told about.
+            if (!str_contains($violation->getMessage(), 'subscriptions_one_freemium_ever')) {
+                throw $violation;
+            }
+
+            // Whatever its status, and that is the rule (§6.4): a freemium
+            // that expired six months ago is still a freemium this account
+            // has had. The index carries no status filter, so this refusal
+            // says the same thing the database says.
+            throw new ConflictException(
+                'FREEMIUM_ALREADY_USED',
+                'This account has already had the free period for this product.',
+                ['product_id' => $productId],
+            );
+        }
     }
 
     public function applyActivate(
@@ -155,11 +186,13 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     (tenant_id, product_id, offer_version_id, current_period_end,
                      subscriber_kind, subscriber_user_id, owner_user_id,
                      term_months, term_ends_at, commitment_months, commitment_ends_at,
-                     cancellation_policy, renewal, early_termination, notice_days)
+                     cancellation_policy, renewal, early_termination, notice_days,
+                     is_freemium)
                 VALUES (:tenantId, :productId, :versionId, :periodEnd,
                         :subscriberKind, :subscriberUserId, :ownerUserId,
                         :termMonths, :termEndsAt, :commitmentMonths, :commitmentEndsAt,
-                        :cancellationPolicy, :renewal, :earlyTermination, :noticeDays)
+                        :cancellationPolicy, :renewal, :earlyTermination, :noticeDays,
+                        :freemium)
                 RETURNING id
                 SQL,
             [
@@ -181,7 +214,18 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                 'renewal' => $terms->renewal,
                 'earlyTermination' => $terms->earlyTermination,
                 'noticeDays' => $terms->noticeDays,
+                // Snapshotted from the version, exactly like the terms above
+                // and for the same reason: what is being recorded is what was
+                // sold. Derived from the offer's own properties — free, and
+                // over when its period is — so nothing here names a plan, and
+                // no caller gets to decide that a priced offer was free.
+                'freemium' => $offer->version->isFreemium(),
             ],
+            // The one typed parameter here, and it has to be: PostgreSQL is
+            // handed `''` for a PHP `false` otherwise, and refuses it as a
+            // boolean. Every other value in this statement is a string, an
+            // integer or null, which need no help.
+            ['freemium' => ParameterType::BOOLEAN],
         );
 
         if (!is_string($id)) {
@@ -637,6 +681,45 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         );
     }
 
+    /**
+     * Ends a subscription because its period is up and nothing renews it
+     * (spec §6.3).
+     *
+     * The same transition `expireLapsed()` performs in bulk, asked about one
+     * subscription the caller is holding — and it writes the same event, for
+     * the same reason: a subscription that ended with no trace of ending is
+     * the one gap in an otherwise complete history (§18). The detail says the
+     * clock arrived at a term that was never going to roll, which is what
+     * distinguishes this from the sweep finding a row nobody renewed in time.
+     *
+     * The entitlements are left alone, deliberately. They carry `valid_until`
+     * of the period that has just ended, so they have already lapsed — the
+     * clock decides, which is why nothing has to be swept for a refusal to be
+     * right.
+     */
+    public function expire(Subscription $subscription, string $why): Subscription
+    {
+        return $this->connection->transactional(
+            function () use ($subscription, $why): Subscription {
+                $this->connection->executeStatement(
+                    <<<'SQL'
+                        UPDATE subscriptions
+                           SET status = 'EXPIRED',
+                               ended_at = coalesce(current_period_end, now()),
+                               updated_at = now()
+                         WHERE id = :id AND status = 'ACTIVE'
+                        SQL,
+                    ['id' => $subscription->id],
+                );
+
+                // No actor: nobody did this, the clock did.
+                $this->record($subscription->id, SubscriptionEvent::EXPIRED, $subscription->offer->version->id, null, null, ['reason' => $why]);
+
+                return $this->requireById($subscription->id, 'expired');
+            },
+        );
+    }
+
     public function events(Subscription $subscription): array
     {
         $rows = $this->connection->fetchAllAssociative(
@@ -1052,6 +1135,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
             Row::nullableTimestamp($row, 'cancel_effective_at'),
             Row::nullableString($row, 'owner_user_id'),
             self::toPendingChange($row),
+            self::boolean($row, 'is_freemium'),
         );
     }
 
