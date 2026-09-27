@@ -62,6 +62,31 @@ final class Freemium
     }
 
     /**
+     * Whether this person's one free period for this product is spent (§6.4).
+     *
+     * **A read, and never the rule.** The rule is
+     * `subscriptions_one_freemium_ever`, for the reason written above: a
+     * `SELECT` then an `INSERT` is not a constraint. What this answers is a
+     * different question — the catalogue's. §6.4 asks the screen to say the
+     * free period is gone *before* the click, because the alternative is a
+     * customer choosing it and meeting a 409; and the row that matters most,
+     * "leaving *Lecture* downwards", is a **cancellation** for somebody whose
+     * free period is spent, which is not a thing to discover afterwards.
+     *
+     * Nobody named has had nothing: a free period belongs to the person who
+     * takes it, and a request with no caller has no free period to have spent
+     * — the same reasoning that mints `FREEMIUM_NEEDS_A_PERSON` below.
+     */
+    public function alreadyTaken(string $productId, ?string $userId): bool
+    {
+        if ($userId === null) {
+            return false;
+        }
+
+        return $this->subscriptions->hasHadFreemium($productId, $userId);
+    }
+
+    /**
      * Starts the caller's free period on an offer that gives one.
      *
      * @throws ConflictException FREEMIUM_ALREADY_USED — this account has had

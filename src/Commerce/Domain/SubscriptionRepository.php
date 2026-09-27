@@ -77,6 +77,28 @@ interface SubscriptionRepository
     public function findById(string $subscriptionId): ?Subscription;
 
     /**
+     * Whether this subscriber's free period for a product is spent (spec §6.4).
+     *
+     * A **read of the same fact the index refuses on**, and it does not
+     * replace it: `subscriptions_one_freemium_ever` is still what makes the
+     * rule true, because a `SELECT` then an `INSERT` is a race two
+     * simultaneous requests walk straight through. This exists so a screen can
+     * *say so before the click* rather than let `FREEMIUM_ALREADY_USED` arrive
+     * as a surprise — hiding is courtesy, and the database is the authority.
+     *
+     * Asked with the same key the index is built on, so the answer and the
+     * refusal cannot disagree: `coalesce(subscriber_user_id, tenant_id)`,
+     * which carries both kinds of subscriber, and **no status filter** — a
+     * free period that expired six months ago is still one this account has
+     * had.
+     *
+     * @param string $subscriberKey the person, or the tenant for a
+     *                              subscription of the kind ADR-055 stopped
+     *                              selling
+     */
+    public function hasHadFreemium(string $productId, string $subscriberKey): bool;
+
+    /**
      * Every live subscription entitling this person: the tenant's own, plus
      * their seat if they hold one.
      *

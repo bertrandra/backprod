@@ -92,6 +92,20 @@ const WORDING: Record<string, { title: string; hint?: string }> = {
     title: 'You have already had the free period for this product',
     hint: 'It is given once and once only, whether it is still running, was cancelled or ran out long ago. Choosing a paid plan is the way in from here.',
   },
+  // A priced move up raises an invoice, and an invoice is addressed to
+  // somebody (2026-09-27, ADR-057). Before the proration a change of plan
+  // billed nothing, so this refusal could not reach a catalogue; now the
+  // cheapest thing a customer can do on that screen is meet it.
+  //
+  // The title says which of the two profiles, because there are two and they
+  // are not the same screen: this is the organisation's postal identity, not
+  // the fiscal record on Tax. And the hint says *nothing was charged* — the
+  // document is decided before the provider is asked (ADR-058), so a refusal
+  // here costs nothing and leaves no half-made invoice to worry about.
+  BILLING_PROFILE_REQUIRED: {
+    title: 'Your organisation has no billing address yet',
+    hint: 'A move that costs something raises an invoice, and an invoice has to be addressed to somebody. Nothing was charged. Whoever manages billing can fill it in on Billing › Profile, and the change can then be made.',
+  },
   // Minted by the client, like NETWORK_UNREACHABLE above and for the same
   // reason: the failure is real and the server never saw it. Translating one
   // sentence of a product's story means sending the whole story back, so the

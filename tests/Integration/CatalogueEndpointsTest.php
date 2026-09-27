@@ -170,6 +170,57 @@ final class CatalogueEndpointsTest extends ApiTestCase
     }
 
     /**
+     * The sale view answers two questions a client must never work out for
+     * itself (2026-09-27, spec §6, §7).
+     *
+     * **Is this the free period?** Free *and* over when its period is — and
+     * this catalogue's cheapest offer is the counter-example that matters: it
+     * costs nothing and it **renews**, which makes it a free tier rather than
+     * a trial. A client deriving the answer from `price == 0` would send
+     * somebody to the wrong door, and `renewal` is not even in the sale
+     * schema; a client comparing the plan's code — which here is literally
+     * `FREE` — would be writing §13's forbidden branch.
+     *
+     * **What does subscribing commit to?** §7's first row says price, period
+     * *and* commitment, and how long somebody agrees to stay cannot be derived
+     * from how often they pay (non-negotiable #23). The terms were in the
+     * authoring view alone until this.
+     */
+    public function testTheSaleViewSaysWhetherAVersionIsTheFreePeriodAndWhatItCommitsTo(): void
+    {
+        $offers = $this->decode($this->request('GET', '/api/v1/offers', $this->aliceHeaders()))['offers'] ?? null;
+
+        self::assertIsArray($offers);
+
+        $free = $offers[0] ?? null;
+        self::assertIsArray($free);
+
+        $tier = $free['version'] ?? null;
+        self::assertIsArray($tier);
+
+        $price = $tier['price'] ?? null;
+        self::assertIsArray($price);
+
+        $plan = $free['plan'] ?? null;
+        self::assertIsArray($plan);
+
+        // Priced at zero, on a plan actually called FREE, and still not the
+        // free period — because it renews.
+        self::assertSame(0, $price['minor_units'] ?? null);
+        self::assertSame('FREE', $plan['code'] ?? null);
+        self::assertFalse($tier['freemium'] ?? null);
+
+        self::assertSame([
+            'term_months' => null,
+            'commitment_months' => 0,
+            'cancellation_policy' => 'ANYTIME',
+            'renewal' => 'AUTO_RENEW',
+            'early_termination' => 'FORBIDDEN',
+            'notice_days' => 0,
+        ], $tier['terms'] ?? null);
+    }
+
+    /**
      * The two meanings of a null limit, kept apart. A boolean capability has
      * nothing to count; an unlimited quota has no ceiling. Both would be
      * `null` alone, so the flag says which.
