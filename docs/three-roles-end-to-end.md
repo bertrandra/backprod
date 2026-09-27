@@ -18,7 +18,7 @@ et **ce que chaque action change** une fois faite.
 
 ## Ce que « 100 % » veut dire ici
 
-Le contrat déclare **224 opérations**. Chacune apparaît dans ce document,
+Le contrat déclare **225 opérations**. Chacune apparaît dans ce document,
 attribuée à qui peut l'atteindre. Pas un échantillon, pas les principales :
 toutes, y compris les sept que personne n'atteint à la main et les quatre qu'une
 machine seule appelle.
@@ -243,15 +243,6 @@ ceux qui savent atteindre l'endpoint.
 | `showSubscription`, `showSchedule`, `listEntitlements` | Rien. Ce qu'il tient, jusqu'à quand, et ce que ça ouvre. |
 | `changeOffer` | Déplace l'abonnement vivant sur d'autres conditions et **ré-instantanéise les conditions** depuis la nouvelle version d'offre — sauf l'engagement, qui survit inchangé : un changement de plan n'est pas un nouveau contrat. Un passage vers le haut prend effet **tout de suite et se paie** (spec §3) : la valeur non consommée de la période en cours revient sur le moyen de paiement avec son avoir, la nouvelle période est facturée par la chaîne normale, et l'ancre de facturation repart d'aujourd'hui — ce qui fait que des montées successives n'ont besoin d'aucun solde de crédits. Rien à payer ne lève **aucun** document. Un passage vers un plan de **rang inférieur** n'est pas appliqué tout de suite : il est programmé, comme ci-dessous. |
 | `previewOfferChange` | Rien : le même calcul, sans rien écrire. Le crédit, le net à payer, la nouvelle échéance et la règle qui a décidé — pour les deux sens, parce que descendre coûte zéro et prend effet plus tard, et que le catalogue doit le dire avant le clic. La contrepartie de `showSchedule`, et le même code que `changeOffer`, donc l'aperçu ne peut pas contredire l'acte. |
-
-> **Les quatre opérations ci-dessus prennent `seat`** (2026-09-27) : le siège du
-> demandeur plutôt que l'abonnement de l'organisation — **un drapeau, jamais un
-> identifiant**, comme la résiliation, parce que les deux seuls souscripteurs
-> sont le locataire et l'appelant et que tous deux viennent du contexte (§13.1).
-> C'est le cas qui compte : la surface locataire ne vend que des sièges
-> (ADR-055), donc sans ce drapeau `changeOffer`, `previewOfferChange`,
-> `scheduleOfferChange` et `cancelScheduledChange` répondaient `NO_SUBSCRIPTION`
-> à *tous* les abonnements qu'un client peut réellement détenir.
 | `scheduleOfferChange` | Programme la descente vers un plan de rang inférieur à la **fin de la période payée**. Ne touche aucun droit : le client garde entier le plan qu'il a payé. Refuse `NOT_A_DOWNGRADE` pour un passage vers le haut, qui est immédiat, et `SUBSCRIPTION_ENDING` quand une résiliation est déjà due — un abonnement n'a qu'une fin. |
 | `cancelScheduledChange` | Retire le changement programmé. **Obligatoire et non un confort** : un changement futur qu'on ne peut pas défaire est une résiliation déguisée. |
 | `cancelSubscription` | Enregistre une **décision** — identifiant de règle, effet, date d'effet, mois dus, motifs — jamais un `cancelled: true`. Sous engagement, la demande est refusée ou différée selon la politique de l'offre, et un rachat éventuel est facturé **sur la transaction de la résiliation**. |
@@ -259,6 +250,15 @@ ceux qui savent atteindre l'endpoint.
 | `listSubscriptionPeople` | Rien. Qui son abonnement couvre, en plus de lui. |
 | `addSubscriptionPerson` | Ajoute quelqu'un dans le quota `users`, **lui compris**. Refuse `PEOPLE_QUOTA_REACHED` quand les places sont prises, `ALREADY_THE_OWNER` pour lui-même. Un inconnu nommé par adresse reçoit un compte et un lien d'invitation. |
 | `removeSubscriptionPerson` | Retire la couverture. La personne garde son appartenance et perd l'accès au travail. |
+
+> **`changeOffer`, `previewOfferChange`, `scheduleOfferChange` et
+> `cancelScheduledChange` prennent `seat`** (2026-09-27) : le siège du
+> demandeur plutôt que l'abonnement de l'organisation — **un drapeau, jamais un
+> identifiant**, comme la résiliation, parce que les deux seuls souscripteurs
+> sont le locataire et l'appelant et que tous deux viennent du contexte (§13.1).
+> C'est le cas qui compte : la surface locataire ne vend que des sièges
+> (ADR-055), donc sans ce drapeau les quatre répondaient `NO_SUBSCRIPTION` à
+> *tous* les abonnements qu'un client peut réellement détenir.
 
 ### Son travail — `projects.*`, `assets.*`, `jobs.read`
 
@@ -682,21 +682,21 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
                                           opérations
   atteignables par un USER seul                    7    billing.pay
   atteignables par un TENANT_ADMIN seul           34
-  partagées par les deux                          69
+  partagées par les deux                          70
   sans permission, tout membre                    16
   par capacité (gis.access)                        2
   ─────────────────────────────────────────────────
-  surface locataire                              128
+  surface locataire                              129
 
   PLATFORM_ADMIN                                  78
   publiques, sans compte                           7
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          224
+  total                                          225
 ```
 
-Dont **108 lectures** et **116 écritures**. Chaque écriture a sa ligne dans les
+Dont **109 lectures** et **116 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 
