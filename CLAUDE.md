@@ -798,6 +798,28 @@ BroadcastChannel. **Only a 401 from `/auth/refresh` signs anybody out.** A 429, 
 `unreachable` state, never the sign-in form. `/auth/refresh` and `/auth/sign-out`
 have their own rate-limit bucket, at the signed-in allowance.
 
+**A reuse that ends a live sign-in is told to the person**: an
+`account.session_revoked` notice, `SECURITY` so it cannot be muted, once per
+sign-in. A copy presented after the sign-in had already ended revokes nothing
+and says nothing — mail that cries wolf teaches people to ignore it.
+
+**Registering never waits; what the address is evidence for decides what
+waits for it** (ADR-061). A self-service sign-up gets its session at once and,
+under `OPEN`, buys in the same breath. Under `DOMAIN` the domain is the only
+evidence, so the membership is `UNCONFIRMED` — not `PENDING`, which is a
+question put to administrators — until the address is proved, and is decided
+again then against the list as it stands. Every self-service sign-up has
+`AUTH_EMAIL_CONFIRMATION_GRACE` (7 days, `users.email_confirm_by`) to prove it;
+past that the tenant chain answers `EMAIL_UNCONFIRMED`, its own refusal,
+answered by a click and nothing else, with nothing cancelled. Invited, seeded
+and older accounts have no deadline (`NULL`): a deadline nobody announced is
+not one to enforce. A password or invitation link proves the address as well
+as the confirmation link does — it reaches the same mailbox.
+`resendEmailVerification` is identity-only, because it is the way out of the
+refusal the full chain raises. A confirmation link opened while signed in must
+be spent before the landing: forwarding it unspent confirmed nothing on the
+path nearly everybody takes.
+
 Every request needs a product: pass `ambientParams(sessionSnapshot)` as the
 call's init. The contract declares `X-Product` required, so a call that omits it
 does not compile — which is the point (ADR-037). The bearer token is different:

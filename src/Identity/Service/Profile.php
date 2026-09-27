@@ -92,6 +92,17 @@ final class Profile
      * pointing at a product they have since left is not offered, and a
      * client choosing from this list never chooses one they cannot act in.
      */
+    /**
+     * Whether this person's address is proved, and by when it must be
+     * (ADR-061) — what the shell reads to say "confirm your address by …".
+     *
+     * @return array{confirmed: bool, confirm_by: string|null}
+     */
+    public function addressStanding(string $userId): array
+    {
+        return $this->users->addressStanding($userId) ?? ['confirmed' => true, 'confirm_by' => null];
+    }
+
     public function defaultProductCode(string $userId): ?string
     {
         $user = $this->users->find($userId);

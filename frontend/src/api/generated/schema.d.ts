@@ -3257,6 +3257,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/verify-email/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a new confirmation link to the caller's address
+         * @description Identity-only (ADR-061): it acts on the caller's own account and needs no product, and it must stay reachable while the tenant surface answers `EMAIL_UNCONFIRMED` — it is the way out. A new link replaces the last one. Sends nothing when the address is already proved, or when a link went out in the last minute, so a button pressed repeatedly is one mail; `sent` says which.
+         */
+        post: operations["resendEmailVerification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/password/forgot": {
         parameters: {
             query?: never;
@@ -5877,6 +5897,7 @@ export interface components {
          *     - `QUOTA_EXCEEDED` — it did, and there is none left. Answered by upgrading or deleting something.
          *     - `SUBSCRIPTION_REQUIRED` — the organisation bought it and **the caller is not one of the people the subscription covers** (ADR-053, 2026-09-25). Answered by whoever owns that subscription adding them to it, within the number of people their offer sells. Raised where a product's own work lives, before the permission is even considered, and never in place of `ENTITLEMENT_REQUIRED`: telling somebody to buy what their colleague already pays for sends them to the wrong place.
          *     - `SUBSCRIPTION_PAST_DUE` — the caller **is** on a subscription and an invoice against it is unpaid (spec §5.1, 2026-09-27). Answered by paying it, and distinct from `SUBSCRIPTION_REQUIRED` for exactly that reason: raised as that code, the holder of a seat goes and asks a colleague for a place they already hold while the invoice stays unpaid. `GET /subscription` carries `past_due_since` and the invoice to settle; coverage does not gate it, nor `/invoices` and `/payments`, because shutting the screen the customer pays from would make the suspension unrecoverable.
+         *     - `EMAIL_UNCONFIRMED` — the caller signed up by themselves and has not proved their address by the deadline they were given (ADR-061). Answered by following the link mailed to them, or asking for a new one (`resendEmailVerification`, which stays reachable); nothing is cancelled meanwhile. `listProducts` carries the deadline as `address.confirm_by`.
          *     - `NO_TENANT_ACCESS` — the caller has no membership resolving here at all.
          */
         PermissionDenied: {
@@ -9373,6 +9394,11 @@ export interface operations {
                             /** @description The organisation’s slug. */
                             tenant: string;
                             name: string;
+                            /**
+                             * @description Who the membership waits on (ADR-061): an administrator accepting the request, or the person proving their address — a `DOMAIN` organisation admits the address once it is proved, and saying an administrator had been asked would be untrue.
+                             * @enum {string}
+                             */
+                            waiting_on: "ADMINISTRATOR" | "CONFIRMATION";
                         }[];
                         /** @description The organisations this person is a live member of (2026-09-18), whatever the products. How a page puts its address under the right root after signing in: a member of Acme who signed in at the bare host belongs at `/acme/`. Beside `pending_memberships` for the same reason that one is here — this is the one read a client can make before it knows a product or a tenant. */
                         memberships: {
@@ -9382,6 +9408,16 @@ export interface operations {
                             /** @description The code of the product that organisation opens on (2026-09-26), or null. Per organisation, because a person can belong to several — and here rather than on `showCurrentTenant`, which needs `X-Product` and so cannot be the thing that answers which product. */
                             default_product: string | null;
                         }[];
+                        /** @description The caller's address, proved or not, and by when it must be (ADR-061). Here, on the one read that needs no product, because past the deadline the tenant surface answers `EMAIL_UNCONFIRMED` to everything that does — this is how a client says so, and when, before that happens. */
+                        address: {
+                            /** @description Whether the person has proved they read mail at their address — a confirmation link, or a password or invitation link, followed. */
+                            confirmed: boolean;
+                            /**
+                             * Format: date-time
+                             * @description The deadline a self-service sign-up was given to prove it, or null for none — invited, seeded and older accounts. Moot once `confirmed`.
+                             */
+                            confirm_by: string | null;
+                        };
                     };
                 };
             };
@@ -13841,10 +13877,10 @@ export interface operations {
                         /** @description Its slug — the root to return to. */
                         tenant: string;
                         /**
-                         * @description `ACTIVE`: the person is in and `/me` answers. `PENDING`: an administrator has to accept first; `listProducts` lists nothing for them yet and names the organisation under `pending_memberships`.
+                         * @description `ACTIVE`: the person is in and `/me` answers. `PENDING`: an administrator has to accept first; `listProducts` lists nothing for them yet and names the organisation under `pending_memberships`. `UNCONFIRMED` (ADR-061): the organisation admits this address's domain, and the membership goes live once the address is proved by the link just mailed — `pending_memberships` names it with `waiting_on: CONFIRMATION`. Whatever the membership, the address has `AUTH_EMAIL_CONFIRMATION_GRACE` (seven days by default) to be proved; past it, unproved, the tenant surface answers `EMAIL_UNCONFIRMED` until it is.
                          * @enum {string}
                          */
-                        membership: "ACTIVE" | "PENDING";
+                        membership: "ACTIVE" | "PENDING" | "UNCONFIRMED";
                     };
                 };
             };
@@ -13923,6 +13959,32 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    resendEmailVerification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether a link went out. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description False when the address is already proved, or a link went out less than a minute ago. */
+                        sent: boolean;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

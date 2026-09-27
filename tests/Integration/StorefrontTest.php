@@ -67,10 +67,12 @@ final class StorefrontTest extends DatabaseApiTestCase
         $this->private = $this->offer('reseller', 'Reseller terms', false);
 
         // The organisation whose root the storefront is at (2026-09-17): a
-        // sign-up joins it rather than making one. It admits its own domain
-        // at once, so the person who signs up below can buy in the same
-        // breath; the other policies are JoiningTest's.
-        $this->acme = $this->id("INSERT INTO tenants (name, slug, join_policy) VALUES ('Acme Ltd', 'acme', 'DOMAIN') RETURNING id");
+        // sign-up joins it rather than making one. OPEN, the storefront's
+        // default, so the person who signs up below can buy in the same
+        // breath (ADR-061); the other policies are JoiningTest's. It used to
+        // be DOMAIN, which admitted a typed address at once — the hole
+        // ADR-061 closed.
+        $this->acme = $this->id("INSERT INTO tenants (name, slug, join_policy) VALUES ('Acme Ltd', 'acme', 'OPEN') RETURNING id");
         $this->connection->executeStatement(
             "INSERT INTO tenant_join_domains (tenant_id, domain) VALUES (:tenant, 'acme.test')",
             ['tenant' => $this->acme],

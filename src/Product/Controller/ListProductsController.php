@@ -61,10 +61,23 @@ final class ListProductsController implements RouteHandler
             // as the default: somebody with no live membership has no
             // product to ask `/me` with, and this is how the shell learns
             // to say "waiting" rather than "nothing".
+            //
+            // And on whom (ADR-061): an administrator, or the person's own
+            // mailbox — a domain admits them once the address is proved, and
+            // "an administrator has been asked" would be untrue.
             'pending_memberships' => array_map(
-                static fn (array $request): array => ['tenant' => $request['slug'], 'name' => $request['name']],
+                static fn (array $request): array => [
+                    'tenant' => $request['slug'],
+                    'name' => $request['name'],
+                    'waiting_on' => $request['waiting_on'],
+                ],
                 $this->requests->pendingFor($identity->userId),
             ),
+            // Whether the address is proved, and by when it must be
+            // (ADR-061). Here, on the one read that works before a product is
+            // named — and while `EMAIL_UNCONFIRMED` refuses everything that
+            // needs one.
+            'address' => $this->profile->addressStanding($identity->userId),
         ], 200);
     }
 }

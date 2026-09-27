@@ -729,7 +729,11 @@ return static function (array $overrides = []): ContainerInterface {
                     // A public key is public (ADR-051 milestone E).
                     '/api/v1/auth/jwks',
                 ],
-                identityOnlyPaths: ['/api/v1/products'],
+                // Who is asking and nothing else. The resend is here rather
+                // than public because it acts on the caller's own account,
+                // and rather than behind the full chain because it is the way
+                // out of `EMAIL_UNCONFIRMED`, which that chain raises (ADR-061).
+                identityOnlyPaths: ['/api/v1/products', '/api/v1/auth/verify-email/resend'],
                 // Unauthenticated, because the sender is a payment provider
                 // rather than a person. Everything under it must verify its
                 // own signature — see RoutePolicy and §24.
@@ -788,7 +792,8 @@ return static function (array $overrides = []): ContainerInterface {
         Sessions::class => autowire(Sessions::class)
             ->constructorParameter('appUrl', $env('APP_URL'))
             ->constructorParameter('rotation', get(RefreshRotation::class))
-            ->constructorParameter('maxSessionAge', (int) $env('AUTH_SESSION_MAX_AGE', (string) Sessions::MAX_SESSION_AGE)),
+            ->constructorParameter('maxSessionAge', (int) $env('AUTH_SESSION_MAX_AGE', (string) Sessions::MAX_SESSION_AGE))
+            ->constructorParameter('confirmationGrace', (int) $env('AUTH_EMAIL_CONFIRMATION_GRACE', (string) Sessions::CONFIRMATION_GRACE)),
 
         // What a refresh token is replaced by (ADR-062): derived from the
         // secret the access tokens are signed with, and the one before it

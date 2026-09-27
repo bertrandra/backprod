@@ -91,6 +91,8 @@ final class ProductDiscoveryTest extends ApiTestCase
             'default' => null,
             'memberships' => [],
             'pending_memberships' => [],
+            // In memory nobody signs up by themselves, so nobody has a deadline (ADR-061).
+            'address' => ['confirmed' => true, 'confirm_by' => null],
         ], $this->decode($response));
     }
 

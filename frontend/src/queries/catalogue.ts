@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { ambientParams, type Schemas } from '@/api/client';
+import { ambientParams, type Operations, type Schemas } from '@/api/client';
 import { useApiClient } from '@/app/providers/ApiProvider';
 import { sessionSnapshot, useSessionStore } from '@/state/session';
 
@@ -129,7 +129,20 @@ export function useProducts(enabled = true) {
  * second is only meaningful among the first, and the server says both in
  * one reply.
  */
-export type PendingMembership = { readonly tenant: string; readonly name: string };
+type ProductsAnswer = Operations['listProducts']['responses'][200]['content']['application/json'];
+
+/**
+ * An organisation this person is waiting on, and on whom (ADR-061): an
+ * administrator, or their own mailbox. From the contract, so a field the
+ * server adds is a field this reads.
+ */
+export type PendingMembership = ProductsAnswer['pending_memberships'][number];
+
+/**
+ * Whether this person's address is proved, and by when it must be (ADR-061).
+ * `confirm_by` null is no deadline.
+ */
+export type AddressStanding = ProductsAnswer['address'];
 
 /**
  * An organisation this person is a live member of, and the product it opens
@@ -140,9 +153,7 @@ export type PendingMembership = { readonly tenant: string; readonly name: string
  * cannot be behind one. Per organisation, because a person can belong to
  * several and each names its own.
  */
-export type Membership = PendingMembership & {
-  readonly default_product?: string | null;
-};
+export type Membership = ProductsAnswer['memberships'][number];
 
 export function useMyProducts(enabled = true) {
   const client = useApiClient();
@@ -156,8 +167,10 @@ export function useMyProducts(enabled = true) {
       readonly default: string | null;
       /** The organisations this person belongs to, by slug (2026-09-18): where their root is. */
       readonly memberships: readonly Membership[];
-      /** Where this person asked to join and is still waiting (2026-09-17). */
+      /** Where this person asked to join and is still waiting (2026-09-17), and on whom. */
       readonly pending: readonly PendingMembership[];
+      /** Their address, proved or not, and the deadline (ADR-061). */
+      readonly address: AddressStanding;
     }> => {
       const { data, error, response } = await client.GET('/api/v1/products', {});
 
@@ -171,6 +184,8 @@ export function useMyProducts(enabled = true) {
         default: data.default ?? null,
         memberships: data.memberships ?? [],
         pending: data.pending_memberships ?? [],
+        // An older server says nothing, which is no deadline — never a refusal.
+        address: data.address ?? { confirmed: true, confirm_by: null },
       };
     },
   });

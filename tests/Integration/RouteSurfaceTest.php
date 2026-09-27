@@ -101,6 +101,8 @@ final class RouteSurfaceTest extends ApiTestCase
      * name a product until it has learned which ones it may use.
      */
     private const IDENTITY_ONLY_PATHS = [
+        // The way out of EMAIL_UNCONFIRMED, which the full chain raises (ADR-061).
+        'POST /api/v1/auth/verify-email/resend',
         'GET /api/v1/products',
         'GET /api/v1/products/{productId}',
         'GET /api/v1/products/{productId}/catalog',

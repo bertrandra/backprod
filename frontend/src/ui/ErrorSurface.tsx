@@ -55,6 +55,13 @@ const WORDING: Record<string, { title: string; hint?: string }> = {
     title: 'Your subscription is suspended for non-payment',
     hint: 'An invoice for it has not been paid. Your invoices and payments are still available, so you can settle it from Subscription — access returns as soon as the payment is confirmed.',
   },
+  // The address signed up with is unproved past its deadline (ADR-061).
+  // Answered by a click in a mailbox, and by nobody else — so the hint says
+  // where the link is and that nothing was lost.
+  EMAIL_UNCONFIRMED: {
+    title: 'Confirm your email address to continue',
+    hint: 'Follow the link we sent you, or ask for a new one from the banner at the top of the application. Nothing was cancelled.',
+  },
   NO_TENANT_ACCESS: {
     title: 'You do not have access to this organisation',
   },

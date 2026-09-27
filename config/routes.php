@@ -15,6 +15,7 @@ use App\Admin\Controller\ShowQueueController;
 use App\Auth\Controller\ForgotPasswordController;
 use App\Auth\Controller\JwksController;
 use App\Auth\Controller\RefreshSessionController;
+use App\Auth\Controller\ResendEmailVerificationController;
 use App\Auth\Controller\ResetPasswordController;
 use App\Auth\Controller\SignInController;
 use App\Auth\Controller\SignOutController;
@@ -267,6 +268,10 @@ return static function (RouteCollector $routes): void {
     // never issues a session: a link that did would be a credential living in
     // an inbox.
     $routes->addRoute('POST', '/api/v1/auth/verify-email', VerifyEmailController::class);
+    // A new link for somebody signed in whose first one was lost (ADR-061).
+    // Identity-only rather than public: it acts on the caller's own account,
+    // and it must stay reachable while the tenant surface waits for the click.
+    $routes->addRoute('POST', '/api/v1/auth/verify-email/resend', ResendEmailVerificationController::class);
     // A forgotten password, and the link that sets a new one (2026-09-19).
     // Both public and both authenticate the request itself — an address that
     // is only ever answered 202, and a single-use token from a mail.

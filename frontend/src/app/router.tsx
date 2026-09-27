@@ -10,6 +10,7 @@ import {
 import { useStringParam } from '@/app/frame/routeParams';
 import { parseViewState, type ViewState } from '@/app/frame/viewState';
 import { ProfileScreen } from '@/features/account/ProfileScreen';
+import { ConfirmWhileSignedIn } from '@/features/auth/ConfirmYourAddress';
 import { BrandingScreen } from '@/features/branding/BrandingScreen';
 import { BillingProfileScreen } from '@/features/billing/BillingProfileScreen';
 import { CreditNotesScreen } from '@/features/billing/CreditNotesScreen';
@@ -165,6 +166,15 @@ const PLATFORM_SCREEN_ROUTES: readonly { path: string; component: () => React.JS
  * search kept so `?product=` and `?lang=` survive.
  */
 function SignedInAlready() {
+  // A confirmation link followed while signed in (ADR-061): spent first,
+  // then on to the landing. Forwarding with the token unspent confirmed
+  // nothing, on the path almost everybody takes.
+  const token = new URLSearchParams(window.location.search).get('verify');
+
+  if (token !== null && token !== '') {
+    return <ConfirmWhileSignedIn token={token} />;
+  }
+
   return <Navigate to="/" replace search={(previous: Record<string, unknown>) => previous} />;
 }
 

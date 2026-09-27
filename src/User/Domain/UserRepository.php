@@ -27,4 +27,12 @@ interface UserRepository
 
     /** The language they read in; a known code, checked by the caller (ADR-050). */
     public function updateLocale(string $userId, string $locale): void;
+
+    /**
+     * Whether the address is proved, and by when it must be (ADR-061). A null
+     * deadline is no deadline; a proved address makes the deadline moot.
+     *
+     * @return array{confirmed: bool, confirm_by: string|null}|null ISO-8601 date-time
+     */
+    public function addressStanding(string $userId): ?array;
 }

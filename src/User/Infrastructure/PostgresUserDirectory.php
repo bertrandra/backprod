@@ -32,7 +32,9 @@ final class PostgresUserDirectory implements UserDirectory
                 ON CONFLICT (auth_subject) DO UPDATE
                     SET email = EXCLUDED.email,
                         updated_at = now()
-                RETURNING id, auth_subject, email, display_name, locale
+                RETURNING id, auth_subject, email, display_name, locale,
+                          (email_verified_at IS NULL AND email_confirm_by IS NOT NULL
+                           AND email_confirm_by <= now()) AS address_overdue
                 SQL,
             [
                 'subject' => $identity->userId,
@@ -67,6 +69,9 @@ final class PostgresUserDirectory implements UserDirectory
             // second read.
             null,
             is_string($locale) ? $locale : 'en',
+            // Read here, on the row every request already fetches, so the
+            // deadline costs no query of its own (ADR-061).
+            (bool) ($row['address_overdue'] ?? false),
         );
     }
 }

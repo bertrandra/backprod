@@ -2,7 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { useSessionStore } from '@/state/session';
-import { renderAtRoute, stubClient } from '@/test-utils';
+import { recordingClient, renderAtRoute, stubClient } from '@/test-utils';
 
 import { AppShell } from './AppShell';
 
@@ -302,6 +302,105 @@ describe('with no product to open in', () => {
     renderAtRoute(<AppShell />, clientFor([]), { path: '/', product: null });
 
     await waitFor(() => expect(screen.getByText('No product selected')).toBeTruthy());
+    expect(screen.queryByTestId('waiting-for-approval')).toBeNull();
+  });
+});
+
+/**
+ * Proving an address (ADR-061). Registering never waits, so a self-service
+ * sign-up is in at once with a deadline; the shell says so while there is
+ * time, gives the refusal a screen of its own once there is none, and tells
+ * somebody a domain is waiting to admit that it is their mailbox, not an
+ * administrator, they are waiting on. Every one of them can ask for a new link.
+ */
+describe('proving an address', () => {
+  const MEMBER = {
+    user_id: 'u-1',
+    email: 'ada@acme.test',
+    display_name: 'Ada',
+    product_id: 'p-1',
+    tenant_id: 't-1',
+    roles: ['USER'],
+    permissions: ['billing.read'],
+    capabilities: [],
+  };
+  const ATLAS = { id: 'p-1', code: 'atlas', name: 'Atlas' };
+  const DEADLINE = '2026-10-04T12:00:00Z';
+  const LIVE = { products: [ATLAS], default: 'atlas', memberships: [{ tenant: 'acme', name: 'Acme Ltd', default_product: null }] };
+
+  it('says by when, while nothing is refused yet', async () => {
+    renderAtRoute(
+      <AppShell />,
+      stubClient({
+        'GET /api/v1/me': { data: MEMBER },
+        'GET /api/v1/me/navigation': { data: { hidden: [] } },
+        'GET /api/v1/products': { data: { ...LIVE, pending_memberships: [], address: { confirmed: false, confirm_by: DEADLINE } } },
+        'GET /api/v1/staff/me': NOBODY_ON_STAFF,
+      }),
+      { path: '/billing', initial: '/billing?product=atlas' },
+    );
+
+    expect(await screen.findByTestId('address-banner')).toBeTruthy();
+    expect(screen.getByTestId('address-deadline').getAttribute('datetime')).toBe(DEADLINE);
+  });
+
+  it('says nothing once the address is proved', async () => {
+    renderAtRoute(
+      <AppShell />,
+      stubClient({
+        'GET /api/v1/me': { data: MEMBER },
+        'GET /api/v1/me/navigation': { data: { hidden: [] } },
+        'GET /api/v1/products': { data: { ...LIVE, pending_memberships: [], address: { confirmed: true, confirm_by: DEADLINE } } },
+        'GET /api/v1/staff/me': NOBODY_ON_STAFF,
+      }),
+      { path: '/billing', initial: '/billing?product=atlas' },
+    );
+
+    await waitFor(() => expect(screen.getByTestId('context-organisation')).toBeTruthy());
+    expect(screen.queryByTestId('address-banner')).toBeNull();
+  });
+
+  it('gives the refusal past the deadline its own screen, with a new link one click away', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/me': {
+        status: 403,
+        error: { error: { code: 'EMAIL_UNCONFIRMED', message: 'Confirm.', details: {}, request_id: 'r' } },
+      },
+      'GET /api/v1/me/navigation': { data: { hidden: [] } },
+      'GET /api/v1/products': { data: { ...LIVE, pending_memberships: [], address: { confirmed: false, confirm_by: DEADLINE } } },
+      'GET /api/v1/staff/me': NOBODY_ON_STAFF,
+      'POST /api/v1/auth/verify-email/resend': { data: { sent: true } },
+    });
+
+    renderAtRoute(<AppShell />, client, { path: '/billing', initial: '/billing?product=atlas' });
+
+    expect(await screen.findByTestId('address-overdue')).toBeTruthy();
+
+    screen.getByTestId('resend-confirmation').click();
+
+    await waitFor(() => expect(requests.some((r) => r.path === '/api/v1/auth/verify-email/resend')).toBe(true));
+    expect(await screen.findByText(/A new link is on its way/)).toBeTruthy();
+  });
+
+  it('tells somebody a domain is waiting to admit that the wait is on their mailbox', async () => {
+    renderAtRoute(
+      <AppShell />,
+      stubClient({
+        'GET /api/v1/products': {
+          data: {
+            products: [],
+            default: null,
+            memberships: [],
+            pending_memberships: [{ tenant: 'acme', name: 'Acme Ltd', waiting_on: 'CONFIRMATION' }],
+            address: { confirmed: false, confirm_by: DEADLINE },
+          },
+        },
+        'GET /api/v1/staff/me': NOBODY_ON_STAFF,
+      }),
+      { path: '/', initial: '/?product=atlas' },
+    );
+
+    expect(await screen.findByTestId('waiting-for-confirmation')).toBeTruthy();
     expect(screen.queryByTestId('waiting-for-approval')).toBeNull();
   });
 });

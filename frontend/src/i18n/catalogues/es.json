@@ -1322,5 +1322,18 @@
   "Your seat is yours alone. An offer from the catalogue, bought for the organisation, starts one for everyone.": "Su plaza es solo suya. Una oferta del catálogo, comprada para la organización, inicia una para todos.",
   "Your subscription is suspended for non-payment": "Su suscripción está suspendida por falta de pago",
   "Cannot reach the server. Your session is kept, and we will try again shortly.": "No se puede contactar con el servidor. Su sesión se conserva y lo intentaremos de nuevo en breve.",
-  "Try again now": "Reintentar ahora"
+  "Try again now": "Reintentar ahora",
+  "{names} admits people from its own email domain once they have shown the address is theirs. Follow the link we sent you; you are in as soon as you do.": "{names} admite a las personas de su propio dominio de correo en cuanto demuestran que la dirección es suya. Siga el enlace que le hemos enviado; entrará en cuanto lo haga.",
+  "A new link is on its way. It replaces the last one.": "Un nuevo enlace está en camino. Sustituye al anterior.",
+  "Confirm your email address by following the link we sent you. Everything keeps working until the deadline:": "Confirme su dirección de correo siguiendo el enlace que le hemos enviado. Todo sigue funcionando hasta la fecha límite:",
+  "Confirm your email address to continue": "Confirme su dirección de correo para continuar",
+  "Confirm your email address to join {names}": "Confirme su dirección de correo para unirse a {names}",
+  "Follow the link we sent you, or ask for a new one from the banner at the top of the application. Nothing was cancelled.": "Siga el enlace que le hemos enviado o pida uno nuevo desde el aviso en la parte superior de la aplicación. No se ha cancelado nada.",
+  "No new link was sent: your address may already be confirmed, or a link went out less than a minute ago.": "No se ha enviado ningún enlace nuevo: puede que su dirección ya esté confirmada, o que haya salido un enlace hace menos de un minuto.",
+  "Send a new link": "Enviar un nuevo enlace",
+  "The deadline to confirm the address you signed up with has passed. Nothing was cancelled: follow the link we sent you, or ask for a new one, and everything is back as it was.": "El plazo para confirmar la dirección con la que se registró ha vencido. No se ha cancelado nada: siga el enlace que le hemos enviado, o pida uno nuevo, y todo volverá a estar como antes.",
+  "Confirming your address…": "Confirmando su dirección…",
+  "Continue": "Continuar",
+  "It may have been used already, or replaced by a newer one. Ask for a new link, or carry on: if your address is already confirmed, there is nothing left to do.": "Puede que ya se haya usado, o que otro más reciente lo haya sustituido. Pida un nuevo enlace, o continúe: si su dirección ya está confirmada, no queda nada por hacer.",
+  "That confirmation link is no longer valid": "Este enlace de confirmación ya no es válido"
 }

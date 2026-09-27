@@ -13,6 +13,7 @@ use App\Auth\Infrastructure\LocalJwtAuthProvider;
 use App\Auth\Infrastructure\LocalJwtTokenIssuer;
 use App\Auth\Service\Sessions;
 use App\Shared\Logging\ErrorLogLogger;
+use App\Tests\Support\TestDatabase;
 use Laminas\Diactoros\Response\EmptyResponse;
 use Laminas\Diactoros\ServerRequest;
 use Laminas\Diactoros\Uri;
@@ -427,6 +428,59 @@ final class SignInTest extends DatabaseApiTestCase
 
         // The other device was never involved.
         self::assertSame(200, $this->refresh($elsewhere)->getStatusCode());
+    }
+
+    /**
+     * A theft that ends a sign-in is told to the person, once (ADR-062).
+     *
+     * SECURITY, so nobody can mute it. Once, because the family is revoked
+     * by the first replay: a second replay ends nothing and says nothing.
+     */
+    public function testATheftThatEndsASignInIsToldToThePersonOnce(): void
+    {
+        $this->giveAHome();
+
+        $first = $this->cookieFrom($this->signIn());
+        $second = $this->cookieFrom($this->refresh($first));
+        $this->refresh($second);
+        $this->ageRotationOf($second, Sessions::RACE_WINDOW + 60);
+
+        $replay = $this->refresh($first);
+        $again = $this->refresh($first);
+
+        self::assertSame(401, $replay->getStatusCode());
+        self::assertSame(401, $again->getStatusCode());
+
+        self::assertSame(1, $this->connection->fetchOne(
+            "SELECT count(*) FROM notifications WHERE type = 'account.session_revoked' AND category = 'SECURITY' AND recipient_user_id = :u",
+            ['u' => $this->userId],
+        ));
+    }
+
+    /** A copy presented after a sign-out ends nothing, so it tells nobody anything. */
+    public function testACopyPresentedAfterSigningOutSendsNoNotice(): void
+    {
+        $this->giveAHome();
+
+        $cookie = $this->cookieFrom($this->signIn());
+        $this->request('POST', '/api/v1/auth/sign-out', cookies: [RefreshCookie::NAME => $cookie]);
+
+        self::assertSame(401, $this->refresh($cookie)->getStatusCode());
+        self::assertSame(0, $this->connection->fetchOne("SELECT count(*) FROM notifications WHERE type = 'account.session_revoked'"));
+    }
+
+    /** A membership, so a notice has an organisation and a product to be raised under. */
+    private function giveAHome(): void
+    {
+        $product = $this->connection->fetchOne("INSERT INTO products (code, name, active) VALUES ('atlas', 'Atlas', true) RETURNING id");
+        $tenant = $this->connection->fetchOne("INSERT INTO tenants (name, slug) VALUES ('Acme Ltd', 'acme') RETURNING id");
+        self::assertIsString($product);
+        self::assertIsString($tenant);
+        TestDatabase::assignProduct($this->connection, $tenant, $product);
+        $this->connection->executeStatement(
+            'INSERT INTO tenant_members (tenant_id, product_id, user_id) VALUES (:t, :p, :u)',
+            ['t' => $tenant, 'p' => $product, 'u' => $this->userId],
+        );
     }
 
     /**

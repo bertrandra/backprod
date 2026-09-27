@@ -157,16 +157,22 @@ d'adhésion** d'Acme (`tenants.join_policy`) décide si l'appartenance est activ
 Une appartenance en attente **n'est pas une appartenance** : aucun contexte ne
 se résout, `/me` répond 403, et la coquille dit « en attente d'Acme ».
 
-**L'adresse doit être prouvée avant que l'appartenance ne vive** (ADR-061,
-proposé le 27 septembre 2026, pas encore implémenté). L'inscription reste
-libre — compte, mot de passe et session sont créés tout de suite — mais toute
-appartenance issue d'une inscription naît `UNCONFIRMED`, quelle que soit la
-politique. Le lien de confirmation (ou un lien de mot de passe, qui arrive à la
-même boîte) la tranche de nouveau selon la politique du moment : `ACTIVE` sous
-`OPEN` ou `DOMAIN`, `PENDING` sous `APPROVAL` — et c'est alors seulement que
-les administrateurs sont prévenus. Aujourd'hui, `OPEN` et `DOMAIN` rendent
-l'appartenance active sur l'adresse telle que tapée : sous `DOMAIN`,
-`nimporte-qui@acme.example` est membre d'Acme.
+**L'adresse se prouve, et ce qu'elle prouve décide de ce qui l'attend**
+(ADR-061, 27 septembre 2026). L'inscription ne fait jamais attendre : compte,
+mot de passe et session sont créés tout de suite, et sous `OPEN` on paie dans
+la foulée. Mais :
+
+- sous `DOMAIN`, le domaine est la seule preuve demandée, donc l'appartenance
+  naît `UNCONFIRMED` et ne vit qu'une fois l'adresse prouvée — tranchée de
+  nouveau selon la liste du moment. `nimporte-qui@acme.example` n'est plus
+  membre d'Acme ;
+- toute inscription en libre-service a **sept jours** pour prouver son adresse
+  (`AUTH_EMAIL_CONFIRMATION_GRACE`). Passé ce délai, la surface locataire répond
+  `EMAIL_UNCONFIRMED` jusqu'au clic ; rien n'est annulé, et un clic rétablit
+  tout. Les comptes invités, installés ou antérieurs n'ont pas de délai.
+
+Le lien de confirmation prouve l'adresse, et un lien de mot de passe aussi — il
+arrive à la même boîte. `POST /auth/verify-email/resend` en envoie un nouveau.
 
 Il n'existe toujours aucun type « B2C ». Un particulier est un `USER` du tenant
 à la racine duquel il s'est inscrit, et **il paie dans la foulée** : la

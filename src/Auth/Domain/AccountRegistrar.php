@@ -58,6 +58,8 @@ interface AccountRegistrar
         string $tenantSlug,
         ?string $productCode,
         ?string $locale = null,
+        /** Seconds the person has to prove the address (ADR-061); 0 for no deadline. */
+        int $confirmWithinSeconds = 0,
     ): RegisteredAccount;
 
     /**
@@ -70,6 +72,9 @@ interface AccountRegistrar
      * @param string $tokenHash SHA-256 of the token that was sent
      */
     public function issueVerification(string $userId, string $tokenHash, int $lifetimeSeconds): void;
+
+    /** Whether a verification token was issued to this person in the last `$seconds`. */
+    public function verificationIssuedWithin(string $userId, int $seconds): bool;
 
     /**
      * Records a password link for a user — a reset, or an invitation to set
@@ -89,14 +94,38 @@ interface AccountRegistrar
      */
     public function consumePasswordLink(string $tokenHash): ?string;
 
+    /**
+     * The person has shown they read mail at the account's address
+     * (ADR-061): a confirmation link, or a password link, followed.
+     *
+     * Records it on `users.email_verified_at` — once; a later proof does not
+     * move the date, and the deadline stops mattering — and settles every
+     * membership that was waiting on it (`JoinDecision::UNCONFIRMED`): live
+     * where the organisation still admits the address's domain, gone where it
+     * no longer does. One transaction, so a proof never leaves half of
+     * somebody's memberships decided.
+     */
+    public function proveAddress(string $userId): void;
+
+    /**
+     * Where a confirmation mail for this person goes, and whether one is
+     * still needed: their address, whether it is proved, and a tenant and
+     * product to raise the notice under — any membership, live or waiting.
+     *
+     * @return array{email: string, verified: bool, tenant_id: string, product_id: string}|null
+     */
+    public function confirmationTargetOf(string $userId): ?array;
+
     /** The address of a live account, or null for an unknown or erased one. */
     public function emailOf(string $userId): ?string;
 
     /**
      * Where a person lives, for a link that has to land somewhere: the
-     * organisation of their first live membership and a product it holds.
-     * Null for somebody with no membership at all — who has no root to be
-     * sent to and no notification context to be told in.
+     * organisation of their first live membership and a product it holds —
+     * or, with none live, of one they are waiting on (2026-09-27), so that
+     * somebody waiting can still be sent a password link. Null for somebody
+     * with no membership at all — who has no root to be sent to and no
+     * notification context to be told in.
      *
      * @return array{tenant_id: string, product_id: string, slug: string, is_default: bool}|null
      */

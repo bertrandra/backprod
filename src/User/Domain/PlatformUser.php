@@ -28,6 +28,11 @@ final class PlatformUser
         public readonly ?string $defaultProductId = null,
         /** The language they read in (ADR-050); a known code, English by default. */
         public readonly string $locale = 'en',
+        /**
+         * Past the deadline to prove the address they signed up with, and
+         * still not proved (ADR-061): the tenant surface refuses them.
+         */
+        public readonly bool $addressOverdue = false,
     ) {
     }
 }

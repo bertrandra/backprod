@@ -25,6 +25,27 @@ final class PostgresUserRepository implements UserRepository
         return $row === false ? null : $this->toUser($row);
     }
 
+    public function addressStanding(string $userId): ?array
+    {
+        $row = $this->connection->fetchAssociative(
+            <<<'SQL'
+                SELECT (email_verified_at IS NOT NULL) AS confirmed,
+                       to_char(email_confirm_by AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS confirm_by
+                  FROM users
+                 WHERE id = :id AND erased_at IS NULL
+                SQL,
+            ['id' => $userId],
+        );
+
+        if ($row === false) {
+            return null;
+        }
+
+        $confirmBy = $row['confirm_by'] ?? null;
+
+        return ['confirmed' => (bool) $row['confirmed'], 'confirm_by' => is_string($confirmBy) ? $confirmBy : null];
+    }
+
     public function findByEmail(string $email): array
     {
         // Case-insensitive: people type their own address with whatever

@@ -5522,7 +5522,7 @@
         }
       },
       "PermissionDenied": {
-        "description": "Authenticated, but not allowed to do this here. The envelope's `code` says which of the refusals it is, and they are answered by different people:\n\n- `PERMISSION_DENIED` — the caller's role in this organisation does not allow it. Answered by its administrator.\n- `ENTITLEMENT_REQUIRED` — the organisation never bought the feature. Answered by buying it.\n- `QUOTA_EXCEEDED` — it did, and there is none left. Answered by upgrading or deleting something.\n- `SUBSCRIPTION_REQUIRED` — the organisation bought it and **the caller is not one of the people the subscription covers** (ADR-053, 2026-09-25). Answered by whoever owns that subscription adding them to it, within the number of people their offer sells. Raised where a product's own work lives, before the permission is even considered, and never in place of `ENTITLEMENT_REQUIRED`: telling somebody to buy what their colleague already pays for sends them to the wrong place.\n- `SUBSCRIPTION_PAST_DUE` — the caller **is** on a subscription and an invoice against it is unpaid (spec §5.1, 2026-09-27). Answered by paying it, and distinct from `SUBSCRIPTION_REQUIRED` for exactly that reason: raised as that code, the holder of a seat goes and asks a colleague for a place they already hold while the invoice stays unpaid. `GET /subscription` carries `past_due_since` and the invoice to settle; coverage does not gate it, nor `/invoices` and `/payments`, because shutting the screen the customer pays from would make the suspension unrecoverable.\n- `NO_TENANT_ACCESS` — the caller has no membership resolving here at all.",
+        "description": "Authenticated, but not allowed to do this here. The envelope's `code` says which of the refusals it is, and they are answered by different people:\n\n- `PERMISSION_DENIED` — the caller's role in this organisation does not allow it. Answered by its administrator.\n- `ENTITLEMENT_REQUIRED` — the organisation never bought the feature. Answered by buying it.\n- `QUOTA_EXCEEDED` — it did, and there is none left. Answered by upgrading or deleting something.\n- `SUBSCRIPTION_REQUIRED` — the organisation bought it and **the caller is not one of the people the subscription covers** (ADR-053, 2026-09-25). Answered by whoever owns that subscription adding them to it, within the number of people their offer sells. Raised where a product's own work lives, before the permission is even considered, and never in place of `ENTITLEMENT_REQUIRED`: telling somebody to buy what their colleague already pays for sends them to the wrong place.\n- `SUBSCRIPTION_PAST_DUE` — the caller **is** on a subscription and an invoice against it is unpaid (spec §5.1, 2026-09-27). Answered by paying it, and distinct from `SUBSCRIPTION_REQUIRED` for exactly that reason: raised as that code, the holder of a seat goes and asks a colleague for a place they already hold while the invoice stays unpaid. `GET /subscription` carries `past_due_since` and the invoice to settle; coverage does not gate it, nor `/invoices` and `/payments`, because shutting the screen the customer pays from would make the suspension unrecoverable.\n- `EMAIL_UNCONFIRMED` — the caller signed up by themselves and has not proved their address by the deadline they were given (ADR-061). Answered by following the link mailed to them, or asking for a new one (`resendEmailVerification`, which stays reachable); nothing is cancelled meanwhile. `listProducts` carries the deadline as `address.confirm_by`.\n- `NO_TENANT_ACCESS` — the caller has no membership resolving here at all.",
         "content": {
           "application/json": {
             "schema": {
@@ -11762,7 +11762,8 @@
                     "products",
                     "default",
                     "pending_memberships",
-                    "memberships"
+                    "memberships",
+                    "address"
                   ],
                   "properties": {
                     "products": {
@@ -11784,7 +11785,8 @@
                         "type": "object",
                         "required": [
                           "tenant",
-                          "name"
+                          "name",
+                          "waiting_on"
                         ],
                         "properties": {
                           "tenant": {
@@ -11793,6 +11795,14 @@
                           },
                           "name": {
                             "type": "string"
+                          },
+                          "waiting_on": {
+                            "type": "string",
+                            "enum": [
+                              "ADMINISTRATOR",
+                              "CONFIRMATION"
+                            ],
+                            "description": "Who the membership waits on (ADR-061): an administrator accepting the request, or the person proving their address — a `DOMAIN` organisation admits the address once it is proved, and saying an administrator had been asked would be untrue."
                           }
                         }
                       },
@@ -11825,6 +11835,28 @@
                         }
                       },
                       "description": "The organisations this person is a live member of (2026-09-18), whatever the products. How a page puts its address under the right root after signing in: a member of Acme who signed in at the bare host belongs at `/acme/`. Beside `pending_memberships` for the same reason that one is here — this is the one read a client can make before it knows a product or a tenant."
+                    },
+                    "address": {
+                      "type": "object",
+                      "required": [
+                        "confirmed",
+                        "confirm_by"
+                      ],
+                      "properties": {
+                        "confirmed": {
+                          "type": "boolean",
+                          "description": "Whether the person has proved they read mail at their address — a confirmation link, or a password or invitation link, followed."
+                        },
+                        "confirm_by": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time",
+                          "description": "The deadline a self-service sign-up was given to prove it, or null for none — invited, seeded and older accounts. Moot once `confirmed`."
+                        }
+                      },
+                      "description": "The caller's address, proved or not, and by when it must be (ADR-061). Here, on the one read that needs no product, because past the deadline the tenant surface answers `EMAIL_UNCONFIRMED` to everything that does — this is how a client says so, and when, before that happens."
                     }
                   }
                 }
@@ -19545,9 +19577,10 @@
                       "type": "string",
                       "enum": [
                         "ACTIVE",
-                        "PENDING"
+                        "PENDING",
+                        "UNCONFIRMED"
                       ],
-                      "description": "`ACTIVE`: the person is in and `/me` answers. `PENDING`: an administrator has to accept first; `listProducts` lists nothing for them yet and names the organisation under `pending_memberships`."
+                      "description": "`ACTIVE`: the person is in and `/me` answers. `PENDING`: an administrator has to accept first; `listProducts` lists nothing for them yet and names the organisation under `pending_memberships`. `UNCONFIRMED` (ADR-061): the organisation admits this address's domain, and the membership goes live once the address is proved by the link just mailed — `pending_memberships` names it with `waiting_on: CONFIRMATION`. Whatever the membership, the address has `AUTH_EMAIL_CONFIRMATION_GRACE` (seven days by default) to be proved; past it, unproved, the tenant surface answers `EMAIL_UNCONFIRMED` until it is."
                     }
                   }
                 }
@@ -19658,6 +19691,46 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/verify-email/resend": {
+      "post": {
+        "tags": [
+          "Session"
+        ],
+        "operationId": "resendEmailVerification",
+        "summary": "Send a new confirmation link to the caller's address",
+        "description": "Identity-only (ADR-061): it acts on the caller's own account and needs no product, and it must stay reachable while the tenant surface answers `EMAIL_UNCONFIRMED` — it is the way out. A new link replaces the last one. Sends nothing when the address is already proved, or when a link went out in the last minute, so a button pressed repeatedly is one mail; `sent` says which.",
+        "responses": {
+          "200": {
+            "description": "Whether a link went out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "sent"
+                  ],
+                  "properties": {
+                    "sent": {
+                      "type": "boolean",
+                      "description": "False when the address is already proved, or a link went out less than a minute ago."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
