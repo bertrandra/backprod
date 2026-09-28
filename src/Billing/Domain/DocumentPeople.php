@@ -41,4 +41,11 @@ interface DocumentPeople
      * @return array<string, Person> by payment id
      */
     public function ofPayments(string $tenantId, array $paymentIds): array;
+
+    /**
+     * @param list<string> $orderIds
+     *
+     * @return array<string, Person> by order id
+     */
+    public function ofOrders(string $tenantId, array $orderIds): array;
 }

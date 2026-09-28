@@ -31,8 +31,13 @@ final class PostgresDocumentPeople implements DocumentPeople
         return $this->people('payments', DocumentPersonSql::ofPayment('d'), $tenantId, $paymentIds);
     }
 
+    public function ofOrders(string $tenantId, array $orderIds): array
+    {
+        return $this->people('orders', DocumentPersonSql::ofOrder('d'), $tenantId, $orderIds);
+    }
+
     /**
-     * @param 'invoices'|'credit_notes'|'payments' $table a fixed name, never input
+     * @param 'invoices'|'credit_notes'|'payments'|'orders' $table a fixed name, never input
      * @param list<string>                         $ids
      *
      * @return array<string, array{user_id: string, name: string|null, email: string|null}>

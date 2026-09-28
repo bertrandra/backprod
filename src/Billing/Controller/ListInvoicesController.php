@@ -42,6 +42,8 @@ final class ListInvoicesController implements RouteHandler
             $context->documentsOf(),
             ListFilter::person($query),
             ListFilter::status($query, InvoiceStatus::all()),
+            ListFilter::date($query, 'from'),
+            ListFilter::date($query, 'to'),
         );
 
         return new JsonResponse([

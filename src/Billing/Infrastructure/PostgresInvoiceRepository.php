@@ -47,15 +47,25 @@ final class PostgresInvoiceRepository implements InvoiceRepository
         locale
         SQL;
 
+    /**
+     * The moment this list is ordered by, and therefore the one a date
+     * filter narrows on (2026-09-28). One constant rather than the
+     * expression written twice: a page and its total reading different
+     * clocks is a disagreement nobody sees until they count.
+     */    private const MOMENT = 'coalesce(issued_at, created_at)';
+
     public function __construct(
         private readonly Connection $connection,
         private readonly OfferLineDetails $offers,
     ) {
     }
 
-    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null, ?string $person = null, ?string $status = null): array
+    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null, ?string $person = null, ?string $status = null, ?string $from = null, ?string $to = null): array
     {
         $narrow = DocumentPersonSql::narrowing(DocumentPersonSql::ofInvoice('invoices'));
+        // The window over the very expression the page is ordered by, so the
+        // date a reader sees is the date they filtered on (2026-09-28).
+        $window = DocumentWindowSql::narrowing(self::MOMENT);
 
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return [];
@@ -68,25 +78,26 @@ final class PostgresInvoiceRepository implements InvoiceRepository
                  FROM invoices
                 WHERE tenant_id = :tenantId AND product_id = :productId
                   AND {$narrow} AND (CAST(:status AS text) IS NULL OR status = CAST(:status AS text))
+                  AND {$window}
                 ORDER BY coalesce(issued_at, created_at) DESC, id
                 LIMIT :limit OFFSET :offset
                 SQL,
-            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset, 'ownedBy' => $ownedBy, 'person' => $person, 'status' => $status],
+            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset, 'ownedBy' => $ownedBy, 'person' => $person, 'status' => $status, 'from' => $from, 'to' => $to],
             ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
         );
 
         return $this->hydrateAll($rows);
     }
 
-    public function countForTenant(string $tenantId, string $productId, ?string $ownedBy = null, ?string $person = null, ?string $status = null): int
+    public function countForTenant(string $tenantId, string $productId, ?string $ownedBy = null, ?string $person = null, ?string $status = null, ?string $from = null, ?string $to = null): int
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return 0;
         }
 
         $count = $this->connection->fetchOne(
-            'SELECT count(*) FROM invoices WHERE tenant_id = :tenantId AND product_id = :productId AND ' . DocumentPersonSql::narrowing(DocumentPersonSql::ofInvoice('invoices')) . ' AND (CAST(:status AS text) IS NULL OR status = CAST(:status AS text))',
-            ['tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy, 'person' => $person, 'status' => $status],
+            'SELECT count(*) FROM invoices WHERE tenant_id = :tenantId AND product_id = :productId AND ' . DocumentPersonSql::narrowing(DocumentPersonSql::ofInvoice('invoices')) . ' AND (CAST(:status AS text) IS NULL OR status = CAST(:status AS text)) AND ' . DocumentWindowSql::narrowing(self::MOMENT),
+            ['tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy, 'person' => $person, 'status' => $status, 'from' => $from, 'to' => $to],
         );
 
         return is_numeric($count) ? (int) $count : 0;

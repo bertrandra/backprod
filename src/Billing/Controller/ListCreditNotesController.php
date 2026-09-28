@@ -36,6 +36,11 @@ final class ListCreditNotesController implements RouteHandler
             PageRequest::bounded($query, 'offset', 0, 0, PHP_INT_MAX),
             $context->documentsOf(),
             ListFilter::person($query),
+            // No status: a credit note has none of its own — it exists or it
+            // does not — so the position is filled rather than offered.
+            null,
+            ListFilter::date($query, 'from'),
+            ListFilter::date($query, 'to'),
         );
 
         return new JsonResponse([

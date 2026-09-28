@@ -44,9 +44,9 @@ interface SalesRepository
     /**
      * @return list<Order>
      */
-    public function listOrders(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array;
+    public function listOrders(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null, ?string $person = null, ?string $status = null, ?string $from = null, ?string $to = null): array;
 
-    public function countOrders(string $tenantId, string $productId, ?string $ownedBy = null): int;
+    public function countOrders(string $tenantId, string $productId, ?string $ownedBy = null, ?string $person = null, ?string $status = null, ?string $from = null, ?string $to = null): int;
 
     public function findOrder(string $tenantId, string $productId, string $orderId, ?string $ownedBy = null): ?Order;
 

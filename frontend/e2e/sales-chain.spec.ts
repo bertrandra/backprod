@@ -73,6 +73,10 @@ function order(state: Chain) {
     invoice_id: INVOICE_ID,
     subscription_id: state.paid ? '88888888-8888-4888-8888-888888888888' : null,
     completed_at: state.paid ? '2026-01-03T10:00:00Z' : null,
+    // Whom it concerns (2026-09-28): the organisation's own here, like the
+    // invoice below. The contract makes `person` required on a listed order,
+    // so a stub without it is a response the server cannot send.
+    person: null,
     created_at: '2026-01-02T10:00:00Z',
     lines: [],
     ...MONEY,
