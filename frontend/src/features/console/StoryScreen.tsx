@@ -5,7 +5,13 @@ import {
   BandFieldEditor,
   BAND_FIELDS,
 } from '@/features/showcase/blocks/editors';
-import { BAND_META, carriesAPicture, type AuthoredBandKind } from '@/features/showcase/blocks/meta';
+import {
+  BAND_META,
+  bandsInOrder,
+  carriesAPicture,
+  type AuthoredBandKind,
+  type BandKind,
+} from '@/features/showcase/blocks/meta';
 import {
   useProductStory,
   usePublishProductStory,
@@ -20,6 +26,7 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { Section } from '@/ui/Page';
 
 import { BandPicture } from './BandPicture';
+import { SectionOrder } from './SectionOrder';
 import type { Translated } from '@/ui/TranslatedField';
 import { t } from '@/i18n';
 
@@ -60,13 +67,18 @@ export function StoryScreen({ productId }: { productId: string }) {
   // somebody could then save over a real one.
   const loaded = story.data?.blocks;
   const [seen, setSeen] = useState(loaded);
+  // The order, drafted beside the bands and saved with them. Through
+  // `bandsInOrder` so the console completes a short or stale order exactly
+  // as the page does — one rule, not two that agree today.
+  const [order, setOrder] = useState<readonly BandKind[] | null>(null);
 
   if (loaded !== undefined && loaded !== seen) {
     setSeen(loaded);
     setDraft(loaded.map(toDraft));
+    setOrder(bandsInOrder(story.data?.sections));
   }
 
-  if (story.isPending || draft === null) {
+  if (story.isPending || draft === null || order === null) {
     return <SkeletonRows rows={6} />;
   }
 
@@ -95,7 +107,10 @@ export function StoryScreen({ productId }: { productId: string }) {
               type="button"
               pending={write.isPending}
               data-testid="save-story"
-              onClick={() => write.mutate(draft.map(toInput))}
+              // One write for the whole page, order included: two writes
+              // for one afternoon's work is two chances to leave it half
+              // changed.
+              onClick={() => write.mutate({ blocks: draft.map(toInput), sections: [...order] })}
             >
               {t("Save")}</Button>
           </>
@@ -170,6 +185,14 @@ export function StoryScreen({ productId }: { productId: string }) {
             ))}
           </ul>
         )}
+      </Section>
+
+      <Section
+        className="border-t border-line pt-6"
+        title={t("The order it is read in")}
+        description={t("Drag a section, or use the arrows. Prices is here too: it has no form of its own because it reads the catalogue, but where it falls on the page is yours to decide.")}
+      >
+        <SectionOrder sections={order} onChange={setOrder} />
       </Section>
 
       <Section

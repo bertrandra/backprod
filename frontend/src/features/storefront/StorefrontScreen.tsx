@@ -1,4 +1,4 @@
-import { contentFrom, isRetired } from '@/features/showcase/blocks/fromApi';
+import { contentFrom, isRetired, sectionsFrom } from '@/features/showcase/blocks/fromApi';
 import { BAND_META } from '@/features/showcase/blocks/meta';
 import { Showcase } from '@/features/showcase/Showcase';
 import { usePublicShowcase } from '@/queries/showcase';
@@ -169,6 +169,7 @@ export function StorefrontScreen({
         <Showcase
           productName={storefront.data?.product?.name ?? t("What we sell")}
           content={contentFrom(story.data)}
+          sections={sectionsFrom(story.data)}
           offers={storefront.data?.offers ?? []}
           offersLoading={storefront.isPending}
           onChooseOffer={onChoose}

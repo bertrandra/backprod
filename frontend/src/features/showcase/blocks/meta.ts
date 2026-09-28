@@ -76,9 +76,42 @@ export function carriesAPicture(kind: AuthoredBandKind): boolean {
   return BANDS_WITH_A_PICTURE.includes(kind);
 }
 
-/** The bands in the order they are read, which is the order they are rendered. */
-export function bandsInOrder(): readonly BandKind[] {
-  return (Object.keys(BAND_META) as BandKind[]).sort(
+/**
+ * The bands in the order they are read, which is the order they are
+ * rendered.
+ *
+ * **The order is the product's, and `BAND_META[kind].order` is only the
+ * fallback** (2026-09-28). It used to be the whole answer: a constant
+ * compiled into the bundle, so an operator who wanted the prices above the
+ * questions could do nothing about it without a rebuild and a redeploy —
+ * the same position `VITE_DEFAULT_PRODUCT` put a deployment in before a
+ * tenant could choose its own product.
+ *
+ * **Tolerant, exactly as the server is** ({@see ShowcaseSections::readIn}):
+ * a band this code knows and the given order does not is appended in its
+ * compiled place, a band named twice is read once, and a name this bundle
+ * has never heard of is dropped. All three are what an order that has
+ * outlived a deployment looks like — a sixth band added today is missing
+ * from every order stored yesterday — and none is worth refusing to draw a
+ * page over.
+ */
+export function bandsInOrder(sections?: readonly string[]): readonly BandKind[] {
+  const compiled = (Object.keys(BAND_META) as BandKind[]).sort(
     (a, b) => BAND_META[a].order - BAND_META[b].order,
   );
+
+  if (sections === undefined) {
+    return compiled;
+  }
+
+  const known = new Set<string>(compiled);
+  const order: BandKind[] = [];
+
+  for (const section of sections) {
+    if (known.has(section) && !order.includes(section as BandKind)) {
+      order.push(section as BandKind);
+    }
+  }
+
+  return [...order, ...compiled.filter((kind) => !order.includes(kind))];
 }

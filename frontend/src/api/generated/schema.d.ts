@@ -3473,6 +3473,8 @@ export interface paths {
          *
          *     `PRICING` is not a block kind and is refused: it is a position in the order and reads the catalogue, so a row for it would be a row somebody could type a price into. One `HEADLINE` per page.
          *
+         *     **`sections` absent means "leave the order alone"**, never "put it back to the default" (2026-09-28). That distinction is load-bearing: the translation desk writes one sentence through this same operation by re-reading the story and sending the blocks back, and it carries no order — so a request without one that reset the order would make translating a headline reorder the page. Sent, it must be a permutation of every section.
+         *
          *     Writing does not publish — that is the next route — so four bands can be written over an afternoon without a stranger reading the half-finished ones. `staff.products.manage`.
          */
         put: operations["writeProductStory"];
@@ -4163,6 +4165,14 @@ export interface components {
                 it?: components["schemas"]["ShowcaseBlockContent"];
             };
         };
+        /**
+         * @description The order a product reads its showcase sections in (2026-09-28). A **permutation**: every section exactly once, `PRICING` included.
+         *
+         *     This is a different fact from a block's `position`, which orders the rows *within* one band — three steps, two use cases. This orders the bands themselves, and there is one of it per product.
+         *
+         *     `PRICING` appears here and in no request that writes a band, deliberately: it is a section that reads the catalogue and has no row anybody writes, because a row for it would be a row somebody could type a price into. Its place in the order is the one thing about it an operator decides.
+         */
+        ShowcaseSectionOrder: ("HEADLINE" | "STEPS" | "USE_CASE" | "PROOF" | "PRICING" | "QUESTION")[];
         /** @description A product's story as a reader gets it: one language, resolved field by field. The product's own facts come with it because a stranger cannot ask for them separately — `listProducts` answers from a membership, and they have none. */
         Showcase: {
             product: {
@@ -4171,6 +4181,7 @@ export interface components {
                 /** @description False for a retired product, which keeps its page (§11.3). It is what lets the prices band say *No longer sold* rather than showing an empty band or a Buy that leads to a refusal. */
                 active: boolean;
             };
+            sections: components["schemas"]["ShowcaseSectionOrder"];
             blocks: {
                 /** Format: uuid */
                 id: string;
@@ -14556,6 +14567,7 @@ export interface operations {
                             code: string;
                             name: string;
                         };
+                        sections: components["schemas"]["ShowcaseSectionOrder"];
                         /**
                          * Format: date-time
                          * @description Null is a draft, and the public read answers 404 for one.
@@ -14584,6 +14596,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    sections?: components["schemas"]["ShowcaseSectionOrder"];
                     /** @description The whole story. Empty removes it, which leaves the page as the product's name and its prices. */
                     blocks: components["schemas"]["ShowcaseBlockInput"][];
                 };
@@ -14597,6 +14610,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        sections: components["schemas"]["ShowcaseSectionOrder"];
                         blocks: components["schemas"]["EditableShowcaseBlock"][];
                     };
                 };

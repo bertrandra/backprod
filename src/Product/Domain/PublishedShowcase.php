@@ -25,6 +25,9 @@ final class PublishedShowcase
 {
     /**
      * @param list<ShowcaseBlock> $blocks
+     * @param list<string>        $sections the order the page reads its bands in,
+     *                                      already completed by {@see ShowcaseSections::readIn}
+     *                                      so a reader never has to know what "unset" means
      */
     public function __construct(
         public readonly string $productId,
@@ -33,6 +36,7 @@ final class PublishedShowcase
         public readonly bool $active,
         public readonly array $blocks,
         public readonly ?DateTimeImmutable $publishedAt = null,
+        public readonly array $sections = ShowcaseSections::DEFAULT_ORDER,
     ) {
     }
 

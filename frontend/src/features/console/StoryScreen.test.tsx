@@ -118,6 +118,10 @@ describe('saving', () => {
     await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
 
     expect(requests.find((r) => r.method === 'PUT')?.body).toEqual({
+      // The order goes with the bands (2026-09-28): one write for the whole
+      // page, because two writes for one afternoon's work is two chances to
+      // leave it half changed. `PRICING` is in it and in no band.
+      sections: ['HEADLINE', 'STEPS', 'USE_CASE', 'PROOF', 'PRICING', 'QUESTION'],
       blocks: [
         {
           block: 'HEADLINE',
@@ -278,6 +282,151 @@ describe('a picture and its description', () => {
 
     expect(body.blocks[0]?.content.alt).toBe('The terrace, drawn to scale.');
     expect(body.blocks[0]?.translations?.fr?.alt).toBe('La terrasse, à l’échelle.');
+  });
+});
+
+/**
+ * The order of the page, which was a constant compiled into the bundle
+ * until 2026-09-28: an operator who wanted the prices above the questions
+ * could do nothing about it without a rebuild and a redeploy.
+ */
+describe('the order the page is read in', () => {
+  const SECTIONS = ['HEADLINE', 'STEPS', 'USE_CASE', 'PROOF', 'PRICING', 'QUESTION'];
+
+  it('lists every section, prices included, in the order the server gave', async () => {
+    renderWith(
+      <StoryScreen productId="p-1" />,
+      clientFor({
+        'GET /api/v1/staff/products/{productId}/showcase': {
+          data: {
+            product: PRODUCT,
+            published_at: null,
+            sections: ['QUESTION', 'PRICING', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF'],
+            blocks: [HEADLINE],
+          },
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('section-order')).toBeTruthy());
+
+    const rows = [...screen.getByTestId('section-order').children].map((row) =>
+      row.getAttribute('data-section'),
+    );
+
+    // The server's order, not the compiled one — and `PRICING` is a row
+    // like the others, because its place is the one thing about it an
+    // operator decides.
+    expect(rows).toEqual(['QUESTION', 'PRICING', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF']);
+    expect(screen.getByTestId('reads-the-catalogue')).toBeTruthy();
+  });
+
+  it('completes an order written before a band existed, rather than hiding the band', async () => {
+    renderWith(
+      <StoryScreen productId="p-1" />,
+      clientFor({
+        'GET /api/v1/staff/products/{productId}/showcase': {
+          data: {
+            product: PRODUCT,
+            published_at: null,
+            // An order from a deployment that had never heard of PROOF or
+            // QUESTION. Both are appended in their compiled place rather
+            // than vanishing from a console nobody could add them back in.
+            sections: ['PRICING', 'HEADLINE', 'STEPS', 'USE_CASE'],
+            blocks: [HEADLINE],
+          },
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('section-order')).toBeTruthy());
+
+    const rows = [...screen.getByTestId('section-order').children].map((row) =>
+      row.getAttribute('data-section'),
+    );
+
+    expect(rows).toEqual(['PRICING', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF', 'QUESTION']);
+  });
+
+  it('moves a section with the arrows, which are the interface a drag is a shortcut for', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/products/{productId}/showcase': {
+        data: { product: PRODUCT, published_at: null, sections: SECTIONS, blocks: [HEADLINE] },
+      },
+      'PUT /api/v1/staff/products/{productId}/showcase': { data: { sections: SECTIONS, blocks: [HEADLINE] } },
+    });
+
+    renderWith(<StoryScreen productId="p-1" />, client);
+
+    await waitFor(() => expect(screen.getByTestId('section-order')).toBeTruthy());
+
+    // A pointer drag is unreachable by keyboard, hostile on a touch screen
+    // and impossible with a screen reader, so the buttons are the real
+    // interface — and this test is the one that would fail if they became
+    // decoration.
+    fireEvent.click(screen.getByTestId('up-PRICING'));
+    fireEvent.click(screen.getByTestId('up-PRICING'));
+
+    await waitFor(() =>
+      expect(
+        [...screen.getByTestId('section-order').children].map((row) => row.getAttribute('data-section')),
+      ).toEqual(['HEADLINE', 'STEPS', 'PRICING', 'USE_CASE', 'PROOF', 'QUESTION']),
+    );
+
+    fireEvent.click(screen.getByTestId('save-story'));
+    await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
+
+    const body = requests.find((r) => r.method === 'PUT')?.body as { sections: string[] };
+
+    expect(body.sections).toEqual(['HEADLINE', 'STEPS', 'PRICING', 'USE_CASE', 'PROOF', 'QUESTION']);
+  });
+
+  it('will not move the first section up or the last one down', async () => {
+    renderWith(
+      <StoryScreen productId="p-1" />,
+      clientFor({
+        'GET /api/v1/staff/products/{productId}/showcase': {
+          data: { product: PRODUCT, published_at: null, sections: SECTIONS, blocks: [HEADLINE] },
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('section-order')).toBeTruthy());
+
+    // Disabled rather than a click that does nothing: a control that
+    // refuses silently is one somebody presses twice wondering why.
+    expect(screen.getByTestId<HTMLButtonElement>('up-HEADLINE').disabled).toBe(true);
+    expect(screen.getByTestId<HTMLButtonElement>('down-HEADLINE').disabled).toBe(false);
+    expect(screen.getByTestId<HTMLButtonElement>('down-QUESTION').disabled).toBe(true);
+  });
+
+  it('carries the order through a save that changed only a sentence', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/products/{productId}/showcase': {
+        data: {
+          product: PRODUCT,
+          published_at: null,
+          sections: ['QUESTION', 'PRICING', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF'],
+          blocks: [HEADLINE],
+        },
+      },
+      'PUT /api/v1/staff/products/{productId}/showcase': { data: { sections: SECTIONS, blocks: [HEADLINE] } },
+    });
+
+    renderWith(<StoryScreen productId="p-1" />, client);
+
+    await waitFor(() => expect(screen.getByTestId('translated-b-1-headline')).toBeTruthy());
+    fireEvent.change(screen.getByTestId('translated-b-1-headline'), { target: { value: 'Draw a deck' } });
+    fireEvent.click(screen.getByTestId('save-story'));
+
+    await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
+
+    // Editing a headline must not reset the page's order back to the
+    // default — which is what a screen that sent the compiled order, or no
+    // order at all with a server that took absence as a reset, would do.
+    const body = requests.find((r) => r.method === 'PUT')?.body as { sections: string[] };
+
+    expect(body.sections).toEqual(['QUESTION', 'PRICING', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF']);
   });
 });
 

@@ -43,10 +43,16 @@ final class WriteStoryController implements RouteHandler
     {
         $context = StaffRoute::permitted($request, StaffPermission::PRODUCTS_MANAGE);
 
+        $body = JsonBody::of($request);
+
         $story = $this->desk->write(
             $context->identity,
             StaffRoute::id($request, 'productId'),
-            ShowcaseBlocks::of(JsonBody::of($request), 'blocks'),
+            ShowcaseBlocks::of($body, 'blocks'),
+            // Absent means "leave the order alone", never "put it back to
+            // the default": the translation desk writes one sentence through
+            // this operation and carries no order (2026-09-28).
+            ShowcaseBlocks::sections($body, 'sections'),
         );
 
         return new JsonResponse([
@@ -54,6 +60,7 @@ final class WriteStoryController implements RouteHandler
                 static fn (ShowcaseBlock $block): array => ShowcasePresenter::block($block, $story['code']),
                 $story['blocks'],
             ),
+            'sections' => $story['sections'],
         ], 200);
     }
 }

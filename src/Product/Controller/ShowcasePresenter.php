@@ -37,6 +37,12 @@ final class ShowcasePresenter
                 // stays private is which products the platform *runs*.
                 'active' => $showcase->active,
             ],
+            // The order to read the bands in (2026-09-28). Always complete,
+            // so a page never has to know what an unset order means — and
+            // answered to strangers too, because the order *is* the page:
+            // a reader who got the bands without it would be given the
+            // database's order, which is nobody's decision.
+            'sections' => $showcase->sections,
             'blocks' => array_map(
                 static fn (ShowcaseBlock $block): array => [
                     'id' => $block->id,

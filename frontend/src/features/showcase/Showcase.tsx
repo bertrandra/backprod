@@ -36,9 +36,18 @@ export function Showcase({
   onChooseOffer,
   buyLabel,
   retired = false,
+  sections,
 }: {
   productName: string;
   content?: ShowcaseContent | undefined;
+  /**
+   * The order this product reads its sections in, from the server.
+   *
+   * Undefined is the compiled order, which is what a page rendered from a
+   * fixture or an answer that predates the column gets — never an empty
+   * page, and never the database's own order, which is nobody's decision.
+   */
+  sections?: readonly string[] | undefined;
   offers: readonly Offer[];
   offersLoading: boolean;
   /** What §3's table decided this reader should do. */
@@ -58,7 +67,7 @@ export function Showcase({
     retired,
   };
 
-  const present = bandsInOrder().filter((kind) => BAND_VIEWS[kind].speaks(props));
+  const present = bandsInOrder(sections).filter((kind) => BAND_VIEWS[kind].speaks(props));
 
   // No bleed of its own: the bands run edge to edge of whatever contains
   // them, and what that edge is differs. Inside the shell it is the padded

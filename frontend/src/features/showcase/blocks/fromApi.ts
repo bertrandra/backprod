@@ -89,6 +89,30 @@ export function contentFrom(showcase: Showcase | null | undefined): ShowcaseCont
  * nobody has retired would be worse than saying nothing, and the prices
  * band has an honest answer for an empty catalogue already.
  */
+/**
+ * The order this product reads its sections in (2026-09-28).
+ *
+ * Guarded exactly as {@see isRetired} is, and for the same reason: this is
+ * the one page a stranger reaches with no session behind it to blame, and an
+ * answer whose `sections` is missing — an older server, a proxy that
+ * rewrote something, a stub in a test — must cost the compiled order rather
+ * than a blank screen.
+ *
+ * Undefined rather than a default list, so the one place that knows the
+ * fallback is {@see bandsInOrder} and there is no second copy of it to
+ * disagree.
+ */
+export function sectionsFrom(showcase: Showcase | null | undefined): readonly string[] | undefined {
+  if (showcase === null || showcase === undefined || !Array.isArray(showcase.sections)) {
+    return undefined;
+  }
+
+  // The contract types these as a closed set, so the check is about the
+  // answer being the shape it claims rather than about narrowing: a
+  // `sections` carrying a number is an answer no server here sends.
+  return showcase.sections.filter((section) => typeof section === 'string');
+}
+
 export function isRetired(showcase: Showcase | null | undefined): boolean {
   return (
     showcase !== null &&

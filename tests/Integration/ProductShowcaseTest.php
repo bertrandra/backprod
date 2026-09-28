@@ -146,6 +146,95 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         self::assertSame(400, $refused->getStatusCode());
     }
 
+    /**
+     * The order of the page belongs to the product (2026-09-28).
+     *
+     * It was a constant compiled into the frontend bundle, so an operator
+     * who wanted the prices above the questions could do nothing about it
+     * without a rebuild and a redeploy.
+     */
+    public function testAProductDecidesTheOrderOfItsOwnSections(): void
+    {
+        // Never reordered: the default, answered in full rather than as an
+        // absence the client would have to know the meaning of.
+        $fresh = $this->request('GET', '/api/v1/staff/products/' . $this->plan . '/showcase', ['Authorization' => 'Bearer ola-token']);
+        self::assertSame(200, $fresh->getStatusCode());
+        self::assertSame(
+            ['HEADLINE', 'STEPS', 'USE_CASE', 'PROOF', 'PRICING', 'QUESTION'],
+            $this->decode($fresh)['sections'] ?? null,
+        );
+
+        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF'];
+
+        $written = $this->request(
+            'PUT',
+            '/api/v1/staff/products/' . $this->plan . '/showcase',
+            ['Authorization' => 'Bearer ola-token'],
+            $this->json(['blocks' => [self::headline()], 'sections' => $chosen]),
+        );
+
+        self::assertSame(200, $written->getStatusCode(), (string) $written->getBody());
+        self::assertSame($chosen, $this->decode($written)['sections'] ?? null);
+
+        // And a stranger reads it: the order *is* the page, and a reader
+        // given the bands without it would be given the database's order,
+        // which is nobody's decision.
+        $this->publish(true);
+
+        $public = $this->request('GET', '/api/v1/public/products/plan/showcase', []);
+        self::assertSame(200, $public->getStatusCode());
+
+        $showcase = $this->decode($public)['showcase'] ?? null;
+        self::assertIsArray($showcase);
+        self::assertSame($chosen, $showcase['sections'] ?? null);
+    }
+
+    /**
+     * An order that is not a permutation is refused, and an absent one
+     * leaves the page alone.
+     *
+     * The second half is the one that matters: the translation desk writes
+     * one sentence through this same operation by re-reading the story and
+     * sending the blocks back, and it carries no order. If absent meant
+     * "the default", translating a headline would reorder the page.
+     */
+    public function testAnOrderIsAPermutationAndAnAbsentOneChangesNothing(): void
+    {
+        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF'];
+
+        $this->request(
+            'PUT',
+            '/api/v1/staff/products/' . $this->plan . '/showcase',
+            ['Authorization' => 'Bearer ola-token'],
+            $this->json(['blocks' => [self::headline()], 'sections' => $chosen]),
+        );
+
+        // A write that says nothing about the order: the order stays.
+        $again = $this->write([self::headline()]);
+        self::assertSame(200, $again->getStatusCode(), (string) $again->getBody());
+        self::assertSame($chosen, $this->decode($again)['sections'] ?? null);
+
+        // A subset, a section named twice, and one nobody has heard of.
+        foreach ([
+            ['HEADLINE', 'STEPS'],
+            ['HEADLINE', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF', 'PRICING'],
+            ['HEADLINE', 'STEPS', 'USE_CASE', 'PROOF', 'PRICING', 'TESTIMONIAL'],
+        ] as $sections) {
+            $refused = $this->request(
+                'PUT',
+                '/api/v1/staff/products/' . $this->plan . '/showcase',
+                ['Authorization' => 'Bearer ola-token'],
+                $this->json(['blocks' => [self::headline()], 'sections' => $sections]),
+            );
+
+            self::assertSame(400, $refused->getStatusCode(), json_encode($sections) ?: '');
+        }
+
+        // And none of the refusals moved it.
+        $story = $this->request('GET', '/api/v1/staff/products/' . $this->plan . '/showcase', ['Authorization' => 'Bearer ola-token']);
+        self::assertSame($chosen, $this->decode($story)['sections'] ?? null);
+    }
+
     public function testPricingIsNotABandSomebodyCanWrite(): void
     {
         // It is a position in the order and reads the catalogue. A row for
