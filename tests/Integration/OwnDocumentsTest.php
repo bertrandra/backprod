@@ -362,6 +362,68 @@ final class OwnDocumentsTest extends DatabaseApiTestCase
     }
 
     /**
+     * The window, on all four lists and their totals (2026-09-28).
+     *
+     * The assertion that matters is the third: **`to` is inclusive of its own
+     * day.** A bound written `< :to` drops everything raised on the last day
+     * asked for — ask for the 1st to the 31st and be given the 30th — and it
+     * is invisible unless a test names today on both sides.
+     *
+     * The day is UTC, because every stored moment is; the local database here
+     * is not on the application's clock, which is why it is said rather than
+     * inherited from the session.
+     */
+    public function testEveryListIsNarrowedToAWindowOfDaysInclusiveOfBothEnds(): void
+    {
+        $company = $this->sessionOf($this->open('alice-token'));
+        $this->pay($company, 'evt_company');
+        $seat = $this->sessionOf($this->open('bob-token', seat: true));
+        $this->pay($seat, 'evt_seat');
+
+        self::assertIsString($seat['payment_id']);
+
+        $refund = $this->request(
+            'POST',
+            '/api/v1/billing/payments/' . $seat['payment_id'] . '/refund',
+            $this->headers('alice-token'),
+            $this->json(['amount_minor_units' => 100]),
+        );
+        self::assertSame(202, $refund->getStatusCode(), (string) $refund->getBody());
+
+        $today = gmdate('Y-m-d');
+        $yesterday = gmdate('Y-m-d', strtotime('-1 day'));
+        $tomorrow = gmdate('Y-m-d', strtotime('+1 day'));
+
+        $lists = [
+            '/api/v1/billing/invoices' => 'invoices',
+            '/api/v1/billing/payments' => 'payments',
+            '/api/v1/billing/credit-notes' => 'credit_notes',
+            '/api/v1/sales/orders' => 'orders',
+        ];
+
+        foreach ($lists as $path => $key) {
+            $all = $this->idsOf($this->get('alice-token', $path), $key);
+            self::assertNotSame([], $all, $path);
+
+            // Both ends name today, and today's documents are in it. The
+            // whole window is one day wide, which is the case an exclusive
+            // upper bound answers empty.
+            self::assertSame($all, $this->idsOf($this->get('alice-token', $path . '?from=' . $today . '&to=' . $today), $key), $path);
+
+            // Outside, on either side, and the total goes with the page.
+            self::assertSame([], $this->idsOf($this->get('alice-token', $path . '?to=' . $yesterday), $key), $path);
+            self::assertSame([], $this->idsOf($this->get('alice-token', $path . '?from=' . $tomorrow), $key), $path);
+
+            // A date that is not one is refused, never ignored — `2026-02-30`
+            // has the right shape and is not a day.
+            self::assertSame(400, $this->get('alice-token', $path . '?from=2026-02-30')->getStatusCode(), $path);
+            self::assertSame(400, $this->get('alice-token', $path . '?to=last-tuesday')->getStatusCode(), $path);
+        }
+
+        // The register's own window is proved where it has an administrator
+        // to read it: {@see OrganisationSubscriptionsTest}.
+    }
+    /**
      * A filter narrows; it never widens. A member naming a colleague gets an
      * empty page, not the colleague's documents.
      */

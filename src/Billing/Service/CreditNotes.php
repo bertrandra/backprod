@@ -84,8 +84,9 @@ final class CreditNotes
 
     /**
      * A page of them — the caller's own when `$ownedBy` is set, one person's
-     * when `$person` is — and whom each concerns (2026-09-27), so the list
-     * can name the person beside every document.
+     * when `$person` is, inside the window `$from`..`$to` — and whom each
+     * concerns (2026-09-27, the window 2026-09-28), so the list can name the
+     * person beside every document.
      *
      * @return array{credit_notes: list<CreditNote>, people: array<string, array{user_id: string, name: string|null, email: string|null}>, total: int, limit: int, offset: int}
      */
@@ -97,13 +98,15 @@ final class CreditNotes
         ?string $ownedBy = null,
         ?string $person = null,
         ?string $status = null,
+        ?string $from = null,
+        ?string $to = null,
     ): array {
-        $page = $this->creditNotes->listForTenant($tenantId, $productId, $limit, $offset, $ownedBy, $person, $status);
+        $page = $this->creditNotes->listForTenant($tenantId, $productId, $limit, $offset, $ownedBy, $person, $status, $from, $to);
 
         return [
             'credit_notes' => $page,
             'people' => $this->people->ofCreditNotes($tenantId, array_map(static fn ($document): string => $document->id, $page)),
-            'total' => $this->creditNotes->countForTenant($tenantId, $productId, $ownedBy, $person, $status),
+            'total' => $this->creditNotes->countForTenant($tenantId, $productId, $ownedBy, $person, $status, $from, $to),
             'limit' => $limit,
             'offset' => $offset,
         ];

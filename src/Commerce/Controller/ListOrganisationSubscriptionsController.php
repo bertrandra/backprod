@@ -70,6 +70,8 @@ final class ListOrganisationSubscriptionsController implements RouteHandler
         $offset = PageRequest::bounded($query, 'offset', 0, 0, PHP_INT_MAX);
         $holder = ListFilter::person($query);
         $status = ListFilter::status($query, Subscription::STATUSES);
+        $from = ListFilter::date($query, 'from');
+        $to = ListFilter::date($query, 'to');
 
         $now = new DateTimeImmutable();
 
@@ -93,9 +95,9 @@ final class ListOrganisationSubscriptionsController implements RouteHandler
                     'places_sold' => $one->placesSold,
                     'places_used' => $one->placesUsed,
                 ],
-                $this->held->of($context->tenantId, $context->productId, $limit, $offset, $holder, $status),
+                $this->held->of($context->tenantId, $context->productId, $limit, $offset, $holder, $status, $from, $to),
             ),
-            'total' => $this->held->countOf($context->tenantId, $context->productId, $holder, $status),
+            'total' => $this->held->countOf($context->tenantId, $context->productId, $holder, $status, $from, $to),
             'limit' => $limit,
             'offset' => $offset,
         ], 200);

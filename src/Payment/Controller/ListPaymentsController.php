@@ -41,6 +41,8 @@ final class ListPaymentsController implements RouteHandler
             $context->documentsOf(),
             ListFilter::person($query),
             ListFilter::status($query, PaymentStatus::all()),
+            ListFilter::date($query, 'from'),
+            ListFilter::date($query, 'to'),
         );
 
         // One extra read for the whole page, never one per row (2026-09-26):

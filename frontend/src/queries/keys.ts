@@ -7,7 +7,12 @@
  * makes that a compile error instead.
  */
 /** A list's filter, as it enters a key: only what is set (see `filterQuery`). */
-type ListFilterKey = { readonly person?: string; readonly status?: string };
+type ListFilterKey = {
+  readonly person?: string;
+  readonly status?: string;
+  readonly from?: string;
+  readonly to?: string;
+};
 
 export const keys = {
   session: {

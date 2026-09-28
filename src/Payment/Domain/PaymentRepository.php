@@ -21,9 +21,9 @@ interface PaymentRepository
     /**
      * @return list<Payment>
      */
-    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null, ?string $person = null, ?string $status = null): array;
+    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null, ?string $person = null, ?string $status = null, ?string $from = null, ?string $to = null): array;
 
-    public function countForTenant(string $tenantId, string $productId, ?string $ownedBy = null, ?string $person = null, ?string $status = null): int;
+    public function countForTenant(string $tenantId, string $productId, ?string $ownedBy = null, ?string $person = null, ?string $status = null, ?string $from = null, ?string $to = null): int;
 
     public function find(string $tenantId, string $productId, string $paymentId, ?string $ownedBy = null): ?Payment;
 

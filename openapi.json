@@ -143,6 +143,26 @@
         },
         "description": "How many to skip."
       },
+      "FromFilter": {
+        "name": "from",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "date"
+        },
+        "description": "Only what is dated on or after this day (2026-09-28), read in UTC — as every stored moment is. The day compared is the one the list is ordered by, so the date on screen is the date filtered on: an invoice's issue day (its creation day while it is a draft), a credit note's issue day, the day a payment or an order was made, the day a subscription started. Not a date is a 400, never ignored."
+      },
+      "ToFilter": {
+        "name": "to",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "date"
+        },
+        "description": "Only what is dated on or before this day (2026-09-28) — inclusive of the whole day, which is the off-by-one everybody writes once: asked for the 1st to the 31st, an exclusive bound answers with the 30th. Same column, same UTC clock and same refusal as `from`."
+      },
       "PersonFilter": {
         "name": "person",
         "in": "query",
@@ -7021,6 +7041,12 @@
           },
           {
             "$ref": "#/components/parameters/PersonFilter"
+          },
+          {
+            "$ref": "#/components/parameters/FromFilter"
+          },
+          {
+            "$ref": "#/components/parameters/ToFilter"
           }
         ],
         "responses": {
@@ -7098,6 +7124,12 @@
           },
           {
             "$ref": "#/components/parameters/InvoiceStatusFilter"
+          },
+          {
+            "$ref": "#/components/parameters/FromFilter"
+          },
+          {
+            "$ref": "#/components/parameters/ToFilter"
           }
         ],
         "responses": {
@@ -7801,6 +7833,12 @@
           },
           {
             "$ref": "#/components/parameters/PaymentStatusFilter"
+          },
+          {
+            "$ref": "#/components/parameters/FromFilter"
+          },
+          {
+            "$ref": "#/components/parameters/ToFilter"
           }
         ],
         "responses": {
@@ -13313,6 +13351,12 @@
           },
           {
             "$ref": "#/components/parameters/OrderStatusFilter"
+          },
+          {
+            "$ref": "#/components/parameters/FromFilter"
+          },
+          {
+            "$ref": "#/components/parameters/ToFilter"
           }
         ],
         "responses": {
@@ -15795,6 +15839,12 @@
           },
           {
             "$ref": "#/components/parameters/SubscriptionStatusFilter"
+          },
+          {
+            "$ref": "#/components/parameters/FromFilter"
+          },
+          {
+            "$ref": "#/components/parameters/ToFilter"
           }
         ],
         "responses": {

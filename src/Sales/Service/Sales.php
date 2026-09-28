@@ -91,8 +91,10 @@ final class Sales
         ?string $ownedBy = null,
         ?string $person = null,
         ?string $status = null,
+        ?string $from = null,
+        ?string $to = null,
     ): array {
-        $orders = $this->sales->listOrders($tenantId, $productId, $limit, $offset, $ownedBy, $person, $status);
+        $orders = $this->sales->listOrders($tenantId, $productId, $limit, $offset, $ownedBy, $person, $status, $from, $to);
 
         return [
             'orders' => $orders,
@@ -103,7 +105,7 @@ final class Sales
                 static fn (Order $order): string => $order->id,
                 $orders,
             )),
-            'total' => $this->sales->countOrders($tenantId, $productId, $ownedBy, $person, $status),
+            'total' => $this->sales->countOrders($tenantId, $productId, $ownedBy, $person, $status, $from, $to),
             'limit' => $limit,
             'offset' => $offset,
         ];

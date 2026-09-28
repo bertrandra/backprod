@@ -8,6 +8,7 @@ use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\LineOffer;
 use App\Billing\Domain\Money;
 use App\Billing\Infrastructure\DocumentPersonSql;
+use App\Billing\Infrastructure\DocumentWindowSql;
 use App\Commerce\Domain\OfferLineDetails;
 use App\Commerce\Domain\Subscriber;
 use App\Sales\Domain\Order;
@@ -52,6 +53,13 @@ final class PostgresSalesRepository implements SalesRepository
         gross_minor_units, completed_at, created_at, subscriber_kind, subscriber_user_id,
         placed_by
         SQL;
+
+    /**
+     * The moment this list is ordered by, and therefore the one a date
+     * filter narrows on (2026-09-28). One constant rather than the
+     * expression written twice: a page and its total reading different
+     * clocks is a disagreement nobody sees until they count.
+     */    private const MOMENT = 'created_at';
 
     public function __construct(
         private readonly Connection $connection,
@@ -198,12 +206,15 @@ final class PostgresSalesRepository implements SalesRepository
         ?string $ownedBy = null,
         ?string $person = null,
         ?string $status = null,
+        ?string $from = null,
+        ?string $to = null,
     ): array {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return [];
         }
 
         $narrow = DocumentPersonSql::narrowing(DocumentPersonSql::ofOrder('orders'));
+        $window = DocumentWindowSql::narrowing(self::MOMENT);
 
         // A person's own orders, and one person's when the administrator asks
         // (2026-09-28). Both read `DocumentPersonSql`, which is the whole
@@ -220,10 +231,11 @@ final class PostgresSalesRepository implements SalesRepository
                  FROM orders
                 WHERE tenant_id = :tenantId AND product_id = :productId
                   AND {$narrow} AND (CAST(:status AS text) IS NULL OR status = CAST(:status AS text))
+                  AND {$window}
                 ORDER BY created_at DESC, id
                 LIMIT :limit OFFSET :offset
                 SQL,
-            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset, 'ownedBy' => $ownedBy, 'person' => $person, 'status' => $status],
+            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset, 'ownedBy' => $ownedBy, 'person' => $person, 'status' => $status, 'from' => $from, 'to' => $to],
             ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
         ));
     }
@@ -234,6 +246,8 @@ final class PostgresSalesRepository implements SalesRepository
         ?string $ownedBy = null,
         ?string $person = null,
         ?string $status = null,
+        ?string $from = null,
+        ?string $to = null,
     ): int {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return 0;
@@ -242,14 +256,16 @@ final class PostgresSalesRepository implements SalesRepository
         // Counted with the same WHERE the page is read with, never a looser
         // one: a total that disagrees with its page is worse than none.
         $narrow = DocumentPersonSql::narrowing(DocumentPersonSql::ofOrder('orders'));
+        $window = DocumentWindowSql::narrowing(self::MOMENT);
 
         $count = $this->connection->fetchOne(
             <<<SQL
                 SELECT count(*) FROM orders
                  WHERE tenant_id = :tenantId AND product_id = :productId
                    AND {$narrow} AND (CAST(:status AS text) IS NULL OR status = CAST(:status AS text))
+                   AND {$window}
                 SQL,
-            ['tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy, 'person' => $person, 'status' => $status],
+            ['tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy, 'person' => $person, 'status' => $status, 'from' => $from, 'to' => $to],
         );
 
         return is_numeric($count) ? (int) $count : 0;

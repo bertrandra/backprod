@@ -38,6 +38,8 @@ final class ListOrdersController implements RouteHandler
             $context->documentsOf(),
             ListFilter::person($query),
             ListFilter::status($query, Order::statuses()),
+            ListFilter::date($query, 'from'),
+            ListFilter::date($query, 'to'),
         );
 
         return new JsonResponse([

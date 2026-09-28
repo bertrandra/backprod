@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commerce\Infrastructure;
 
 use App\Billing\Domain\Money;
+use App\Billing\Infrastructure\DocumentWindowSql;
 use App\Commerce\Domain\HeldSubscription;
 use App\Commerce\Domain\OrganisationSubscriptions;
 use App\Commerce\Domain\Places;
@@ -39,33 +40,40 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
 
     /**
      * The filter above the list, in one place for the page and its count.
+     *
+     * The window is over `started_at`, which is what the page is ordered by:
+     * a list sorted by the day a seat began and filtered by some other day
+     * would answer a question nobody asked, and the reader could not tell.
      */
     private const FILTER = <<<'SQL'
         (CAST(:holder AS uuid) IS NULL OR s.owner_user_id = CAST(:holder AS uuid))
                            AND (CAST(:status AS text) IS NULL OR s.status = CAST(:status AS text))
         SQL;
 
-    public function countOf(string $tenantId, string $productId, ?string $holder = null, ?string $status = null): int
+    private const MOMENT = 's.started_at';
+
+    public function countOf(string $tenantId, string $productId, ?string $holder = null, ?string $status = null, ?string $from = null, ?string $to = null): int
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return 0;
         }
 
         $total = $this->connection->fetchOne(
-            'SELECT count(*) FROM subscriptions s WHERE s.tenant_id = :tenantId AND s.product_id = :productId AND ' . self::FILTER,
-            ['tenantId' => $tenantId, 'productId' => $productId, 'holder' => $holder, 'status' => $status],
+            'SELECT count(*) FROM subscriptions s WHERE s.tenant_id = :tenantId AND s.product_id = :productId AND ' . self::FILTER . ' AND ' . DocumentWindowSql::narrowing(self::MOMENT),
+            ['tenantId' => $tenantId, 'productId' => $productId, 'holder' => $holder, 'status' => $status, 'from' => $from, 'to' => $to],
         );
 
         return is_numeric($total) ? (int) $total : 0;
     }
 
-    public function of(string $tenantId, string $productId, int $limit, int $offset, ?string $holder = null, ?string $status = null): array
+    public function of(string $tenantId, string $productId, int $limit, int $offset, ?string $holder = null, ?string $status = null, ?string $from = null, ?string $to = null): array
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return [];
         }
 
         $filter = self::FILTER;
+        $window = DocumentWindowSql::narrowing(self::MOMENT);
         $rows = $this->connection->fetchAllAssociative(
             <<<SQL
                 SELECT s.id,
@@ -102,6 +110,7 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
                  WHERE s.tenant_id = :tenantId
                    AND s.product_id = :productId
                    AND {$filter}
+                   AND {$window}
                  -- Living first, decided here rather than by the screen
                  -- (2026-09-26): the same clock `isLiveAt` uses, so a page
                  -- boundary cannot put a live seat below a cancelled one.
@@ -119,6 +128,8 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
                 'offset' => $offset,
                 'holder' => $holder,
                 'status' => $status,
+                'from' => $from,
+                'to' => $to,
             ],
         );
 

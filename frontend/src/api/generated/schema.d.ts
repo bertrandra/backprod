@@ -5986,6 +5986,10 @@ export interface components {
         Limit: number;
         /** @description How many to skip. */
         Offset: number;
+        /** @description Only what is dated on or after this day (2026-09-28), read in UTC — as every stored moment is. The day compared is the one the list is ordered by, so the date on screen is the date filtered on: an invoice's issue day (its creation day while it is a draft), a credit note's issue day, the day a payment or an order was made, the day a subscription started. Not a date is a 400, never ignored. */
+        FromFilter: string;
+        /** @description Only what is dated on or before this day (2026-09-28) — inclusive of the whole day, which is the off-by-one everybody writes once: asked for the 1st to the 31st, an exclusive bound answers with the 30th. Same column, same UTC clock and same refusal as `from`. */
+        ToFilter: string;
         /** @description Only what concerns this person (2026-09-27): the member a document or a subscription is for. It narrows and never widens — applied beside the caller's own scope, so a member naming a colleague gets an empty page. Malformed is a 400, never ignored. */
         PersonFilter: string;
         /** @description Only invoices in this state. */
@@ -6652,6 +6656,10 @@ export interface operations {
                 offset?: components["parameters"]["Offset"];
                 /** @description Only what concerns this person (2026-09-27): the member a document or a subscription is for. It narrows and never widens — applied beside the caller's own scope, so a member naming a colleague gets an empty page. Malformed is a 400, never ignored. */
                 person?: components["parameters"]["PersonFilter"];
+                /** @description Only what is dated on or after this day (2026-09-28), read in UTC — as every stored moment is. The day compared is the one the list is ordered by, so the date on screen is the date filtered on: an invoice's issue day (its creation day while it is a draft), a credit note's issue day, the day a payment or an order was made, the day a subscription started. Not a date is a 400, never ignored. */
+                from?: components["parameters"]["FromFilter"];
+                /** @description Only what is dated on or before this day (2026-09-28) — inclusive of the whole day, which is the off-by-one everybody writes once: asked for the 1st to the 31st, an exclusive bound answers with the 30th. Same column, same UTC clock and same refusal as `from`. */
+                to?: components["parameters"]["ToFilter"];
             };
             header: {
                 /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
@@ -6695,6 +6703,10 @@ export interface operations {
                 person?: components["parameters"]["PersonFilter"];
                 /** @description Only invoices in this state. */
                 status?: components["parameters"]["InvoiceStatusFilter"];
+                /** @description Only what is dated on or after this day (2026-09-28), read in UTC — as every stored moment is. The day compared is the one the list is ordered by, so the date on screen is the date filtered on: an invoice's issue day (its creation day while it is a draft), a credit note's issue day, the day a payment or an order was made, the day a subscription started. Not a date is a 400, never ignored. */
+                from?: components["parameters"]["FromFilter"];
+                /** @description Only what is dated on or before this day (2026-09-28) — inclusive of the whole day, which is the off-by-one everybody writes once: asked for the 1st to the 31st, an exclusive bound answers with the 30th. Same column, same UTC clock and same refusal as `from`. */
+                to?: components["parameters"]["ToFilter"];
             };
             header: {
                 /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
@@ -7120,6 +7132,10 @@ export interface operations {
                 person?: components["parameters"]["PersonFilter"];
                 /** @description Only payments in this state. */
                 status?: components["parameters"]["PaymentStatusFilter"];
+                /** @description Only what is dated on or after this day (2026-09-28), read in UTC — as every stored moment is. The day compared is the one the list is ordered by, so the date on screen is the date filtered on: an invoice's issue day (its creation day while it is a draft), a credit note's issue day, the day a payment or an order was made, the day a subscription started. Not a date is a 400, never ignored. */
+                from?: components["parameters"]["FromFilter"];
+                /** @description Only what is dated on or before this day (2026-09-28) — inclusive of the whole day, which is the off-by-one everybody writes once: asked for the 1st to the 31st, an exclusive bound answers with the 30th. Same column, same UTC clock and same refusal as `from`. */
+                to?: components["parameters"]["ToFilter"];
             };
             header: {
                 /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
@@ -10167,6 +10183,10 @@ export interface operations {
                 person?: components["parameters"]["PersonFilter"];
                 /** @description Only orders in this state. A state this platform has never heard of is refused with 400 rather than answered with an empty page, which somebody would read as having no orders. */
                 status?: components["parameters"]["OrderStatusFilter"];
+                /** @description Only what is dated on or after this day (2026-09-28), read in UTC — as every stored moment is. The day compared is the one the list is ordered by, so the date on screen is the date filtered on: an invoice's issue day (its creation day while it is a draft), a credit note's issue day, the day a payment or an order was made, the day a subscription started. Not a date is a 400, never ignored. */
+                from?: components["parameters"]["FromFilter"];
+                /** @description Only what is dated on or before this day (2026-09-28) — inclusive of the whole day, which is the off-by-one everybody writes once: asked for the 1st to the 31st, an exclusive bound answers with the 30th. Same column, same UTC clock and same refusal as `from`. */
+                to?: components["parameters"]["ToFilter"];
             };
             header: {
                 /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
@@ -11621,6 +11641,10 @@ export interface operations {
                 person?: components["parameters"]["PersonFilter"];
                 /** @description Only subscriptions in this state. */
                 status?: components["parameters"]["SubscriptionStatusFilter"];
+                /** @description Only what is dated on or after this day (2026-09-28), read in UTC — as every stored moment is. The day compared is the one the list is ordered by, so the date on screen is the date filtered on: an invoice's issue day (its creation day while it is a draft), a credit note's issue day, the day a payment or an order was made, the day a subscription started. Not a date is a 400, never ignored. */
+                from?: components["parameters"]["FromFilter"];
+                /** @description Only what is dated on or before this day (2026-09-28) — inclusive of the whole day, which is the off-by-one everybody writes once: asked for the 1st to the 31st, an exclusive bound answers with the 30th. Same column, same UTC clock and same refusal as `from`. */
+                to?: components["parameters"]["ToFilter"];
             };
             header: {
                 /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
