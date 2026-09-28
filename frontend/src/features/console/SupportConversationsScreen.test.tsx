@@ -106,14 +106,24 @@ describe('a reply', () => {
         data: message({ id: 'm-2', seq: 2, author_kind: 'STAFF', body: 'Looking into it.' }),
         // Held open, so the window an optimistic implementation would fill is
         // real time rather than a promise that has already settled.
-        delayMs: 80,
+        //
+        // Long enough that the window cannot close before the assertion looks
+        // through it (2026-09-28). At 80ms it was a race with the machine:
+        // the whole suite running at once is exactly when 80ms of real time
+        // disappears, and a test that passes because the answer had not
+        // arrived yet proves nothing on the run where it has.
+        delayMs: 1_500,
       },
     });
 
     renderAtRoute(<SupportConversationsScreen />, client, at(THREAD.id));
     await giveAMotive();
 
-    await waitFor(() => expect(screen.getByLabelText('Reply')).toBeTruthy());
+    // Four reads deep — staff identity, the list, the thread, then the
+    // motive gate — so the default second is not enough when the machine is
+    // running the whole suite. This wait is setup and asserts nothing; the
+    // assertions that matter are below and unchanged.
+    await waitFor(() => expect(screen.getByLabelText('Reply')).toBeTruthy(), { timeout: 5_000 });
     fireEvent.change(screen.getByLabelText('Reply'), { target: { value: 'Looking into it.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
@@ -131,7 +141,9 @@ describe('a reply', () => {
     // thread did.
     expect(document.querySelector('[data-message="m-2"]')).toBeNull();
 
-    await waitFor(() => expect(document.querySelector('[data-message="m-2"]')).not.toBeNull());
+    await waitFor(() => expect(document.querySelector('[data-message="m-2"]')).not.toBeNull(), {
+      timeout: 5_000,
+    });
     expect(document.querySelector('[data-message="m-2"]')?.textContent).toContain(
       'Looking into it.',
     );
