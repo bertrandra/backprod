@@ -265,8 +265,8 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         $bands = $this->decode($written)['bands'] ?? null;
         self::assertIsArray($bands);
         self::assertIsArray($bands['STEPS'] ?? null);
-        self::assertSame('Trace, place, print.', $bands['STEPS']['content']['title'] ?? null);
-        self::assertSame('Tracer, poser, imprimer.', $bands['STEPS']['translations']['fr']['title'] ?? null);
+        self::assertSame('Trace, place, print.', $this->sentenceAt($bands, ['STEPS', 'content', 'title']));
+        self::assertSame('Tracer, poser, imprimer.', $this->sentenceAt($bands, ['STEPS', 'translations', 'fr', 'title']));
         self::assertIsArray($bands['PRICING'] ?? null);
 
         // A band never retitled is absent, not an empty title: the page then
@@ -283,8 +283,8 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         self::assertIsArray($showcase['bands'] ?? null);
         // Field by field: the title is French, the eyebrow was never
         // translated and stays English rather than disappearing.
-        self::assertSame('Tracer, poser, imprimer.', $showcase['bands']['STEPS']['title'] ?? null);
-        self::assertSame('The tutorial', $showcase['bands']['STEPS']['eyebrow'] ?? null);
+        self::assertSame('Tracer, poser, imprimer.', $this->sentenceAt($showcase, ['bands', 'STEPS', 'title']));
+        self::assertSame('The tutorial', $this->sentenceAt($showcase, ['bands', 'STEPS', 'eyebrow']));
     }
 
     /**
@@ -306,7 +306,10 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
 
         $again = $this->write([self::headline()]);
         self::assertSame(200, $again->getStatusCode(), (string) $again->getBody());
-        self::assertSame('Trace, place, print.', $this->decode($again)['bands']['STEPS']['content']['title'] ?? null);
+        self::assertSame(
+            'Trace, place, print.',
+            $this->sentenceAt($this->decode($again), ['bands', 'STEPS', 'content', 'title']),
+        );
 
         // Sent empty, the set is replaced: the band goes back to its default.
         $cleared = $this->request(
@@ -647,6 +650,34 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
             '/api/v1/staff/products/' . $this->plan . '/showcase',
             ['Authorization' => 'Bearer ' . $token],
         );
+    }
+
+    /**
+     * One sentence out of a nest of decoded JSON, narrowed at every step.
+     *
+     * `$body['bands']['STEPS']['content']['title']` is four offsets on
+     * `mixed`, which PHPStan refuses and is right to: any one of them could
+     * be a string and the failure would read as "title is null" rather than
+     * "bands is not an object". This says which level went wrong.
+     *
+     * @param array<array-key, mixed> $from
+     * @param list<string>            $path
+     */
+    private function sentenceAt(array $from, array $path): ?string
+    {
+        $at = $from;
+
+        foreach ($path as $step) {
+            self::assertIsArray($at, 'expected an object at ' . $step);
+
+            if (!array_key_exists($step, $at)) {
+                return null;
+            }
+
+            $at = $at[$step];
+        }
+
+        return is_string($at) ? $at : null;
     }
 
     /**
