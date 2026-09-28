@@ -3173,6 +3173,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/sign-up/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whether a new account must prove its address
+         * @description Whether a new account must prove its address before it may use the platform (ADR-063). `staff.sign_up.manage`, which PLATFORM_ADMIN alone holds — deliberately not the storefront console’s `staff.catalog.manage`, although the control sits on that screen: what a stranger is shown and what a stranger must prove are two trusts.
+         */
+        get: operations["showSignUpSettings"];
+        /**
+         * Ask new accounts to prove their address, or stop asking
+         * @description ADR-061 gave every self-service sign-up seven days to follow the link mailed to it, and made the tenant surface answer `EMAIL_UNCONFIRMED` past that deadline. Whether the platform asks for that proof at all is the operator’s call (ADR-063, 2026-09-28), and **it is off unless it is switched on**: an absent setting is an absent demand, because what silence would otherwise cost is somebody locked out of what they paid for by a deadline nobody chose.
+         *
+         *     Switching it **on** binds the sign-ups that follow it and not the ones before — the deadline is written at sign-up, and a deadline nobody was given is not one to enforce. Switching it **off** releases everybody at once, those already refused included.
+         *
+         *     The confirmation link itself is unaffected either way: `verifyEmail` still proves an address, and a `DOMAIN` membership still waits for that proof, because there the address is the only evidence the organisation asked for. `staff.sign_up.manage`.
+         */
+        put: operations["setSignUpSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/mail/templates": {
         parameters: {
             query?: never;
@@ -13710,6 +13738,74 @@ export interface operations {
                 };
             };
             /** @description `VALIDATION_FAILED` — `after_sign_up` is not one of `PAY`, `CATALOGUE`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showSignUpSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The setting. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description `false`, the default, means nothing is ever refused for an unproved address. `true` means a self-service sign-up has `AUTH_EMAIL_CONFIRMATION_GRACE` (seven days) to follow the link, after which the tenant surface answers `EMAIL_UNCONFIRMED` until it does. */
+                        confirm_email: boolean;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setSignUpSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    confirm_email: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The setting as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        confirm_email: boolean;
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `confirm_email` is missing or is not a boolean. */
             400: {
                 headers: {
                     [name: string]: unknown;

@@ -18,7 +18,7 @@ et **ce que chaque action change** une fois faite.
 
 ## Ce que « 100 % » veut dire ici
 
-Le contrat déclare **226 opérations**. Chacune apparaît dans ce document,
+Le contrat déclare **228 opérations**. Chacune apparaît dans ce document,
 attribuée à qui peut l'atteindre. Pas un échantillon, pas les principales :
 toutes, y compris les sept que personne n'atteint à la main et les quatre qu'une
 machine seule appelle.
@@ -54,8 +54,8 @@ filtre oublié une élévation de privilège.
 | Il achète | **oui** — et lui seul | non (ADR-055 §2b) | non |
 | Il facture | non | **oui** — c'est son organisation qui émet | non, sauf les ventes de la plateforme |
 | Il travaille dans le produit | oui, si un abonnement le couvre | oui, aux mêmes conditions | non |
-| Permissions | 21 | 30 | 19 (dont 5 côté `admin.*`) |
-| Opérations atteignables | 7 propres + 70 partagées + 17 sans permission + 2 par capacité = **96** | 34 propres + 70 partagées + 17 sans permission + 2 par capacité = **123** | **78** |
+| Permissions | 21 | 30 | 20 (dont 5 côté `admin.*`) |
+| Opérations atteignables | 7 propres + 70 partagées + 17 sans permission + 2 par capacité = **96** | 34 propres + 70 partagées + 17 sans permission + 2 par capacité = **123** | **80** |
 
 Les 10 permissions que l'administrateur a en plus sont `billing.manage`,
 `catalog.manage`, `jobs.manage`, `members.manage`, `payments.manage`,
@@ -597,6 +597,27 @@ construire son menu) et `updateStaffProfile` (son nom affiché et sa langue).
 | `listStorefrontOffers`, `setOfferPublicListing` | Décide ce que la vitrine montre à un inconnu. |
 | `showStorefrontSettings`, `setStorefrontSettings` | Le tenant par défaut de l'hôte nu, et ce que la vitrine met en avant. |
 
+### La porte d'entrée — `staff.sign_up.manage`
+
+`showSignUpSettings` ne change rien ; `setSignUpSettings` dit si une
+inscription doit **prouver son adresse** avant de pouvoir se servir de la
+plateforme (ADR-063).
+
+Une permission à elle seule, et non `staff.catalog.manage`, bien que le
+réglage soit sur l'écran Vitrine : ce qu'on **montre** à un inconnu et ce
+qu'on lui **demande de prouver** sont deux confiances, et qui tient le tarif
+n'a pas à pouvoir éteindre la preuve.
+
+**Non par défaut.** Une absence de décision est une absence d'exigence, parce
+que ce que le silence coûterait ici, c'est quelqu'un enfermé dehors, loin de
+ce qu'il a payé, par une échéance que personne n'a choisie. Activée, elle
+n'engage que les inscriptions qui la suivent — une échéance que personne n'a
+annoncée ne s'applique pas (ADR-061). Désactivée, elle libère tout le monde
+d'un coup, y compris ceux qu'elle refusait déjà : on l'éteint justement parce
+que quelqu'un est bloqué. Le lien de confirmation, lui, marche dans les deux
+cas, et une appartenance par domaine attend toujours cette preuve — là,
+l'adresse est la seule preuve que l'organisation ait demandée.
+
 ### Les clients — `staff.tenants.read`, `staff.tenants.manage`, `staff.grant`
 
 Chacune de ces opérations écrit une ligne dans `staff_access_log`.
@@ -689,15 +710,15 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
   ─────────────────────────────────────────────────
   surface locataire                              130
 
-  PLATFORM_ADMIN                                  78
+  PLATFORM_ADMIN                                  80
   publiques, sans compte                           7
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          226
+  total                                          228
 ```
 
-Dont **109 lectures** et **117 écritures**. Chaque écriture a sa ligne dans les
+Dont **110 lectures** et **118 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

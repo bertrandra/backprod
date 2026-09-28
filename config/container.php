@@ -21,6 +21,7 @@ use App\Auth\Domain\LocalTokens;
 use App\Auth\Domain\PublicKeys;
 use App\Auth\Domain\RefreshRotation;
 use App\Auth\Domain\RefreshTokenRepository;
+use App\Auth\Domain\SignUpSettings;
 use App\Auth\Domain\TokenIssuer;
 use App\Auth\Infrastructure\LocalJwtAuthProvider;
 use App\Auth\Infrastructure\LocalJwtTokenIssuer;
@@ -29,6 +30,7 @@ use App\Auth\Infrastructure\NullSigningKeySource;
 use App\Auth\Infrastructure\PostgresAccountRegistrar;
 use App\Auth\Infrastructure\PostgresLocalCredentialRepository;
 use App\Auth\Infrastructure\PostgresRefreshTokenRepository;
+use App\Auth\Infrastructure\PostgresSignUpSettings;
 use App\Auth\Infrastructure\SigningKeySource;
 use App\Auth\Infrastructure\StaticSigningKeySource;
 use App\Auth\Infrastructure\SupabaseJwtAuthProvider;
@@ -554,6 +556,10 @@ return static function (array $overrides = []): ContainerInterface {
         DefaultTenant::class => autowire(PostgresDefaultTenant::class),
         DemoPage::class => autowire(PostgresDemoPage::class),
         StorefrontSettings::class => autowire(PostgresStorefrontSettings::class),
+        // Whether a new account must prove its address (ADR-063). Absent
+        // means off, so a deployment that never opens the screen asks for
+        // nothing.
+        SignUpSettings::class => autowire(PostgresSignUpSettings::class),
         JoinRequests::class => autowire(PostgresJoinRequests::class),
         TenantMemberRepository::class => autowire(PostgresTenantMemberRepository::class),
         TenantMembershipRepository::class => autowire(PostgresTenantMembershipRepository::class),

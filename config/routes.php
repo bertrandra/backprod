@@ -181,6 +181,7 @@ use App\Staff\Controller\SetMailTemplatesController;
 use App\Staff\Controller\SetNavigationSetupController;
 use App\Staff\Controller\SetOfferAuthoringController;
 use App\Staff\Controller\SetPublicListingController;
+use App\Staff\Controller\SetSignUpSettingsController;
 use App\Staff\Controller\SetStorefrontSettingsController;
 use App\Staff\Controller\SetTaxSettingsController;
 use App\Staff\Controller\ShowCatalogueController;
@@ -189,6 +190,7 @@ use App\Staff\Controller\ShowDemoPageController;
 use App\Staff\Controller\ShowMailTemplatesController;
 use App\Staff\Controller\ShowNavigationSetupController;
 use App\Staff\Controller\ShowReadinessController;
+use App\Staff\Controller\ShowSignUpSettingsController;
 use App\Staff\Controller\ShowStaffNavigationController;
 use App\Staff\Controller\ShowStorefrontSettingsController;
 use App\Staff\Controller\ShowStoryController;
@@ -781,6 +783,11 @@ return static function (RouteCollector $routes): void {
     // application first. Platform-wide, on the storefront console.
     $routes->addRoute('GET', '/api/v1/staff/storefront/settings', ShowStorefrontSettingsController::class);
     $routes->addRoute('PUT', '/api/v1/staff/storefront/settings', SetStorefrontSettingsController::class);
+    // Whether a new account must prove its address at all (ADR-063). Off by
+    // default, platform-wide, and behind a permission of its own: what a
+    // stranger is shown and what a stranger must prove are two trusts.
+    $routes->addRoute('GET', '/api/v1/staff/sign-up/settings', ShowSignUpSettingsController::class);
+    $routes->addRoute('PUT', '/api/v1/staff/sign-up/settings', SetSignUpSettingsController::class);
     // The words the platform's mails say, and a test of the mail host (2026-09-19).
     $routes->addRoute('GET', '/api/v1/staff/mail/templates', ShowMailTemplatesController::class);
     $routes->addRoute('PUT', '/api/v1/staff/mail/templates', SetMailTemplatesController::class);

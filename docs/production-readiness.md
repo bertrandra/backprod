@@ -20,7 +20,7 @@ contract had grown to 225, and nothing compares the two.
 
 | Claim | What proves it |
 |---|---|
-| The contract describes every route the router serves | `gate:openapi` — 226 operations, both directions |
+| The contract describes every route the router serves | `gate:openapi` — 228 operations, both directions |
 | Every operation has a screen, and every screen calls what it claims | `gate:ui` + `gate:screens` — 208 in 50 areas, all called; 5 bootstrap and 13 with a written reason for having no screen |
 | No code branches on a product, plan or tier name | `gate:products`, `gate:plans` |
 | Entitlement decisions have one door | `gate:entitlements` |

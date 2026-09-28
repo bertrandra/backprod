@@ -10,6 +10,7 @@ use App\Auth\Domain\LocalCredentialRepository;
 use App\Auth\Domain\RefreshRotation;
 use App\Auth\Domain\RefreshTokenRepository;
 use App\Auth\Domain\RegisteredAccount;
+use App\Auth\Domain\SignUpSettings;
 use App\Auth\Domain\StoredRefreshToken;
 use App\Auth\Domain\TokenIssuer;
 use App\Notification\Domain\Category;
@@ -105,6 +106,8 @@ final class Sessions
         private readonly JoinRequests $requests,
         private readonly ProductEvents $events,
         private readonly ProductRepository $products,
+        /** Whether the platform asks a new account to prove its address at all (ADR-063). */
+        private readonly SignUpSettings $signUpSettings,
         /**
          * Where this deployment is reachable, for the link in a confirmation
          * email. Empty when nobody configured it, and the link is then
@@ -172,8 +175,13 @@ final class Sessions
             $locale,
             // Registering never waits (ADR-061): the person uses what they
             // buy at once, and has this long to prove the address it will
-            // all be sent to.
-            $this->confirmationGrace,
+            // all be sent to — where the platform asks for the proof at all,
+            // which by default it does not (ADR-063). No demand, no deadline:
+            // the column is what the person was *told*, and writing one
+            // nobody announced is the thing ADR-061 refused to do to invited
+            // and seeded accounts. Switching the demand on therefore binds
+            // the sign-ups that follow it and not the ones before.
+            $this->signUpSettings->emailConfirmationRequired() ? $this->confirmationGrace : 0,
         );
 
         $this->askForConfirmation($account->userId, $account->email, $account->tenantId, $account->productId);

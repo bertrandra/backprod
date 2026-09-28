@@ -19342,6 +19342,117 @@
         }
       }
     },
+    "/api/v1/staff/sign-up/settings": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "showSignUpSettings",
+        "summary": "Whether a new account must prove its address",
+        "description": "Whether a new account must prove its address before it may use the platform (ADR-063). `staff.sign_up.manage`, which PLATFORM_ADMIN alone holds — deliberately not the storefront console’s `staff.catalog.manage`, although the control sits on that screen: what a stranger is shown and what a stranger must prove are two trusts.",
+        "responses": {
+          "200": {
+            "description": "The setting.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "confirm_email"
+                  ],
+                  "properties": {
+                    "confirm_email": {
+                      "type": "boolean",
+                      "description": "`false`, the default, means nothing is ever refused for an unproved address. `true` means a self-service sign-up has `AUTH_EMAIL_CONFIRMATION_GRACE` (seven days) to follow the link, after which the tenant surface answers `EMAIL_UNCONFIRMED` until it does."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "setSignUpSettings",
+        "summary": "Ask new accounts to prove their address, or stop asking",
+        "description": "ADR-061 gave every self-service sign-up seven days to follow the link mailed to it, and made the tenant surface answer `EMAIL_UNCONFIRMED` past that deadline. Whether the platform asks for that proof at all is the operator’s call (ADR-063, 2026-09-28), and **it is off unless it is switched on**: an absent setting is an absent demand, because what silence would otherwise cost is somebody locked out of what they paid for by a deadline nobody chose.\n\nSwitching it **on** binds the sign-ups that follow it and not the ones before — the deadline is written at sign-up, and a deadline nobody was given is not one to enforce. Switching it **off** releases everybody at once, those already refused included.\n\nThe confirmation link itself is unaffected either way: `verifyEmail` still proves an address, and a `DOMAIN` membership still waits for that proof, because there the address is the only evidence the organisation asked for. `staff.sign_up.manage`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "confirm_email"
+                ],
+                "properties": {
+                  "confirm_email": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The setting as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "confirm_email"
+                  ],
+                  "properties": {
+                    "confirm_email": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — `confirm_email` is missing or is not a boolean.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/staff/mail/templates": {
       "get": {
         "tags": [

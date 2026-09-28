@@ -186,6 +186,8 @@ export const keys = {
     identity: ['staff', 'me'] as const,
     demoPage: ['staff', 'demo', 'page'] as const,
     storefrontSettings: ['staff', 'storefront', 'settings'] as const,
+    /** Whether a new account must prove its address (ADR-063). */
+    signUpSettings: ['staff', 'sign-up', 'settings'] as const,
     mailTemplates: (locale: string) => ['staff', 'mail', 'templates', locale] as const,
     tenantLists: ['staff', 'tenants'] as const,
     productCredentials: (productId: string) => ['staff', 'products', productId, 'credentials'] as const,

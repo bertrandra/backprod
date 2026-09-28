@@ -2,7 +2,9 @@ import { Link } from '@tanstack/react-router';
 
 import {
   useSetOfferPublicListing,
+  useSetSignUpSettings,
   useSetStorefrontSettings,
+  useSignUpSettings,
   useStaffIdentity,
   useStorefrontOffers,
   useStorefrontSettings,
@@ -66,6 +68,7 @@ export function StorefrontScreen() {
           }
         />
         <AfterSignUpPanel />
+        <ConfirmAddressPanel />
       </div>
     );
   }
@@ -101,6 +104,7 @@ export function StorefrontScreen() {
       {decide.error !== null && <ErrorSurface error={decide.error} />}
 
       <AfterSignUpPanel />
+      <ConfirmAddressPanel />
 
       {offers.data.offers.length === 0 ? (
         <EmptyState
@@ -149,6 +153,89 @@ export function StorefrontScreen() {
     </div>
   );
 }
+
+/**
+ * Whether a new account must prove its address (ADR-063), for the whole
+ * platform.
+ *
+ * **Here** because this screen is the front door a stranger meets: what the
+ * public page advertises, what follows a sign-up, and now what the sign-up
+ * has to prove. It is about no product and no customer, like the panel above
+ * it, and so it is shown whether or not a product is chosen.
+ *
+ * **Behind `staff.sign_up.manage`**, read from the controller that requires
+ * it and not from this screen's own `staff.catalog.manage`: being shown an
+ * offer and having to prove an address are two trusts, and somebody lent the
+ * price list must not thereby be able to switch off the proof. So the panel
+ * is simply absent for them — the API refuses regardless, and hiding is only
+ * courtesy.
+ *
+ * **Off is the default, and the copy says what each side costs**, because an
+ * operator choosing between them is choosing between an unproved address on
+ * file and a customer suspended over an unread mail.
+ */
+function ConfirmAddressPanel() {
+  const me = useStaffIdentity();
+  const mayManage = me.data?.permissions.includes('staff.sign_up.manage') ?? false;
+  const setting = useSignUpSettings(mayManage);
+  const set = useSetSignUpSettings();
+
+  if (!mayManage) {
+    return null;
+  }
+
+  return (
+    <section className="space-y-3 border-t border-line pt-4" data-testid="confirm-address">
+      <h2 className="text-xl font-semibold">{t("Confirming an address")}</h2>
+      <p className="text-sm text-muted">
+        {t("A new account is always sent a link to confirm the address it gave. This decides whether anything is refused when nobody follows it.")}</p>
+
+      {setting.error !== null && <ErrorSurface error={setting.error} onRetry={() => void setting.refetch()} />}
+      {set.error !== null && <ErrorSurface error={set.error} />}
+
+      {setting.isPending ? (
+        <SkeletonRows rows={2} />
+      ) : (
+        <fieldset className="space-y-2" disabled={set.isPending}>
+          <legend className="sr-only">{t("Confirming an address")}</legend>
+          {CONFIRM_EMAIL.map((option) => (
+            <label key={String(option.value)} className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                name="confirm-email"
+                value={String(option.value)}
+                data-confirm-email={String(option.value)}
+                className="mt-1"
+                checked={setting.data === option.value}
+                onChange={() => set.mutate(option.value)}
+              />
+              <span>
+                <span className="font-medium">{t(option.label)}</span>
+                <span className="block text-xs text-muted">{t(option.hint)}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      )}
+
+      <p className="text-xs text-muted">
+        {t("Switching it on applies to the sign-ups that follow, never to accounts that were never given a deadline. Switching it off releases everybody at once, including anybody already refused.")}</p>
+    </section>
+  );
+}
+
+const CONFIRM_EMAIL: readonly { value: boolean; label: string; hint: string }[] = [
+  {
+    value: false,
+    label: 'Not required',
+    hint: 'The link is still sent, and following it still proves the address. Nothing is ever refused for an address nobody proved.',
+  },
+  {
+    value: true,
+    label: 'Required within seven days',
+    hint: 'Somebody who signs up by themselves uses what they bought straight away, and has a week to follow the link. After that the application asks them to confirm before going further — nothing is cancelled, and one click restores everything.',
+  },
+];
 
 const AFTER_SIGN_UP: readonly { value: AfterSignUp; label: string; hint: string }[] = [
   {

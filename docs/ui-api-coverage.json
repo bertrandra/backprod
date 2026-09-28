@@ -348,14 +348,16 @@
     },
     "console.admin.storefront": {
       "authority": "platform",
-      "$comment": "What the public page advertises. Behind staff.catalog.manage rather than catalog.manage: ADR-040 lets the platform lend the latter to a tenant, and a tenant authoring its own offers must not decide what a stranger is shown. The product it administers is the one chosen in the context bar's switcher, which on the console lists every product the platform hosts (ADR-047): a platform role grants no membership, so the choice is made from the platform's own list rather than from what somebody belongs to.",
+      "$comment": "What the public page advertises, and what a stranger has to do to get past it. Behind staff.catalog.manage rather than catalog.manage: ADR-040 lets the platform lend the latter to a tenant, and a tenant authoring its own offers must not decide what a stranger is shown. The product it administers is the one chosen in the context bar's switcher, which on the console lists every product the platform hosts (ADR-047): a platform role grants no membership, so the choice is made from the platform's own list rather than from what somebody belongs to. The sign-up settings (ADR-063) are on this screen because the front door is what it describes, and behind staff.sign_up.manage rather than the screen's own permission: being shown an offer and having to prove an address are two trusts, and the panel is absent for somebody holding only the other one.",
       "routes": [
         "/console/storefront"
       ],
       "operations": [
         "listStorefrontOffers",
         "setOfferPublicListing",
+        "setSignUpSettings",
         "setStorefrontSettings",
+        "showSignUpSettings",
         "showStorefrontSettings"
       ]
     },

@@ -276,7 +276,67 @@ final class JoiningTest extends DatabaseApiTestCase
         ));
     }
 
-    // --- The deadline to prove an address (ADR-061) ------------------------------
+    // --- The deadline to prove an address (ADR-061, ADR-063) ---------------------
+
+    /**
+     * By default the platform asks for no proof at all (ADR-063): the link
+     * still goes out, no deadline is written, and nothing is ever refused
+     * for an address nobody proved.
+     */
+    public function testByDefaultNoDeadlineIsGivenAndNothingIsEverRefused(): void
+    {
+        $response = $this->signUp('zed@elsewhere.test');
+        $token = $this->tokenIn($response);
+
+        self::assertNull($this->connection->fetchOne(
+            'SELECT email_confirm_by FROM users WHERE email = :e',
+            ['e' => 'zed@elsewhere.test'],
+        ));
+
+        $address = $this->decode($this->request('GET', '/api/v1/products', ['Authorization' => 'Bearer ' . $token]))['address'] ?? null;
+        self::assertIsArray($address);
+        self::assertFalse($address['confirmed'] ?? true);
+        // Present and null, not absent: the contract requires the key, and a
+        // client reading it has to be able to tell "no deadline" from
+        // "the server forgot to say".
+        self::assertArrayHasKey('confirm_by', $address);
+        self::assertNull($address['confirm_by']);
+
+        // The link still went out — the setting governs the refusal, not the mail.
+        self::assertSame(1, $this->connection->fetchOne(
+            "SELECT count(*) FROM notifications WHERE type = 'account.email_verification' AND recipient_user_id = :u",
+            ['u' => $this->userId('zed@elsewhere.test')],
+        ));
+
+        // And even a deadline long past refuses nothing while nobody asks for one.
+        $this->overdue('zed@elsewhere.test');
+        self::assertSame(200, $this->request('GET', '/api/v1/me', ['Authorization' => 'Bearer ' . $token, 'X-Product' => 'atlas'])->getStatusCode());
+    }
+
+    /**
+     * Switching the demand off releases somebody it was already refusing —
+     * which is why the refusal asks the setting and not the column alone
+     * (ADR-063). An operator switches it off precisely because somebody is
+     * locked out.
+     */
+    public function testSwitchingItOffReleasesSomebodyAlreadyRefused(): void
+    {
+        $this->requireConfirmation(true);
+        $token = $this->tokenIn($this->signUp('zed@elsewhere.test'));
+        $this->overdue('zed@elsewhere.test');
+
+        self::assertSame(403, $this->request('GET', '/api/v1/me', ['Authorization' => 'Bearer ' . $token, 'X-Product' => 'atlas'])->getStatusCode());
+
+        $this->requireConfirmation(false);
+
+        // Released at once, with the deadline still on the row: it records
+        // what this person was told, and nothing clears it.
+        self::assertSame(200, $this->request('GET', '/api/v1/me', ['Authorization' => 'Bearer ' . $token, 'X-Product' => 'atlas'])->getStatusCode());
+        self::assertIsString($this->connection->fetchOne(
+            'SELECT email_confirm_by FROM users WHERE email = :e',
+            ['e' => 'zed@elsewhere.test'],
+        ));
+    }
 
     /**
      * Registering never waits: under OPEN the person is in, and may buy, at
@@ -285,6 +345,7 @@ final class JoiningTest extends DatabaseApiTestCase
      */
     public function testASelfServiceSignUpIsInAtOnceAndToldItsDeadline(): void
     {
+        $this->requireConfirmation(true);
         $response = $this->signUp('zed@elsewhere.test');
         $token = $this->tokenIn($response);
 
@@ -303,6 +364,7 @@ final class JoiningTest extends DatabaseApiTestCase
      */
     public function testPastTheDeadlineTheTenantSurfaceWaitsForTheClickAndTheWayOutStaysOpen(): void
     {
+        $this->requireConfirmation(true);
         $response = $this->signUp('zed@elsewhere.test');
         $token = $this->tokenIn($response);
         $this->overdue('zed@elsewhere.test');
@@ -339,6 +401,7 @@ final class JoiningTest extends DatabaseApiTestCase
      */
     public function testAnAccountThatDidNotSignUpByItselfHasNoDeadline(): void
     {
+        $this->requireConfirmation(true);
         $this->connection->executeStatement('UPDATE users SET email_verified_at = NULL WHERE id = :u', ['u' => $this->uma]);
 
         self::assertSame(200, $this->request('GET', '/api/v1/me', $this->as('uma@acme.test'))->getStatusCode());
@@ -402,6 +465,24 @@ final class JoiningTest extends DatabaseApiTestCase
             'join_domains' => [$domain],
         ]));
         self::assertSame(200, $set->getStatusCode());
+    }
+
+    /**
+     * Whether the platform asks a new account to prove its address
+     * (ADR-063). Written where the setting lives, because that is what the
+     * console's `setSignUpSettings` writes — a test that reached past it
+     * would prove the enforcement against a state no screen can produce.
+     */
+    private function requireConfirmation(bool $required): void
+    {
+        $this->connection->executeStatement(
+            <<<'SQL'
+                INSERT INTO platform_settings (key, value)
+                VALUES ('sign_up', CAST(:value AS jsonb))
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                SQL,
+            ['value' => json_encode(['confirm_email' => $required], JSON_THROW_ON_ERROR)],
+        );
     }
 
     /** Moves somebody's deadline into the past, as a week would. */
