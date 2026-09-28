@@ -50,8 +50,10 @@ describe('the editor', () => {
 
     expect(offered).toEqual([
       'add-HEADLINE',
+      'add-PROBLEM',
       'add-STEPS',
       'add-USE_CASE',
+      'add-QUOTE',
       'add-PROOF',
       'add-QUESTION',
     ]);
@@ -121,7 +123,10 @@ describe('saving', () => {
       // The order goes with the bands (2026-09-28): one write for the whole
       // page, because two writes for one afternoon's work is two chances to
       // leave it half changed. `PRICING` is in it and in no band.
-      sections: ['HEADLINE', 'STEPS', 'USE_CASE', 'PROOF', 'PRICING', 'QUESTION'],
+      sections: ['HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'PROOF', 'PRICING', 'QUESTION'],
+      // Nothing retitled, so nothing sent: a band left out of the map reads
+      // the words its component was written with.
+      bands: {},
       blocks: [
         {
           block: 'HEADLINE',
@@ -291,7 +296,16 @@ describe('a picture and its description', () => {
  * could do nothing about it without a rebuild and a redeploy.
  */
 describe('the order the page is read in', () => {
-  const SECTIONS = ['HEADLINE', 'STEPS', 'USE_CASE', 'PROOF', 'PRICING', 'QUESTION'];
+  const SECTIONS = [
+    'HEADLINE',
+    'PROBLEM',
+    'STEPS',
+    'USE_CASE',
+    'QUOTE',
+    'PROOF',
+    'PRICING',
+    'QUESTION',
+  ];
 
   it('lists every section, prices included, in the order the server gave', async () => {
     renderWith(
@@ -301,7 +315,16 @@ describe('the order the page is read in', () => {
           data: {
             product: PRODUCT,
             published_at: null,
-            sections: ['QUESTION', 'PRICING', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF'],
+            sections: [
+              'QUESTION',
+              'PRICING',
+              'HEADLINE',
+              'PROBLEM',
+              'STEPS',
+              'USE_CASE',
+              'QUOTE',
+              'PROOF',
+            ],
             blocks: [HEADLINE],
           },
         },
@@ -317,7 +340,16 @@ describe('the order the page is read in', () => {
     // The server's order, not the compiled one — and `PRICING` is a row
     // like the others, because its place is the one thing about it an
     // operator decides.
-    expect(rows).toEqual(['QUESTION', 'PRICING', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF']);
+    expect(rows).toEqual([
+      'QUESTION',
+      'PRICING',
+      'HEADLINE',
+      'PROBLEM',
+      'STEPS',
+      'USE_CASE',
+      'QUOTE',
+      'PROOF',
+    ]);
     expect(screen.getByTestId('reads-the-catalogue')).toBeTruthy();
   });
 
@@ -332,7 +364,7 @@ describe('the order the page is read in', () => {
             // An order from a deployment that had never heard of PROOF or
             // QUESTION. Both are appended in their compiled place rather
             // than vanishing from a console nobody could add them back in.
-            sections: ['PRICING', 'HEADLINE', 'STEPS', 'USE_CASE'],
+            sections: ['PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE'],
             blocks: [HEADLINE],
           },
         },
@@ -345,7 +377,16 @@ describe('the order the page is read in', () => {
       row.getAttribute('data-section'),
     );
 
-    expect(rows).toEqual(['PRICING', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF', 'QUESTION']);
+    expect(rows).toEqual([
+      'PRICING',
+      'HEADLINE',
+      'PROBLEM',
+      'STEPS',
+      'USE_CASE',
+      'QUOTE',
+      'PROOF',
+      'QUESTION',
+    ]);
   });
 
   it('moves a section with the arrows, which are the interface a drag is a shortcut for', async () => {
@@ -370,7 +411,16 @@ describe('the order the page is read in', () => {
     await waitFor(() =>
       expect(
         [...screen.getByTestId('section-order').children].map((row) => row.getAttribute('data-section')),
-      ).toEqual(['HEADLINE', 'STEPS', 'PRICING', 'USE_CASE', 'PROOF', 'QUESTION']),
+      ).toEqual([
+        'HEADLINE',
+        'PROBLEM',
+        'STEPS',
+        'USE_CASE',
+        'PRICING',
+        'QUOTE',
+        'PROOF',
+        'QUESTION',
+      ]),
     );
 
     fireEvent.click(screen.getByTestId('save-story'));
@@ -378,7 +428,16 @@ describe('the order the page is read in', () => {
 
     const body = requests.find((r) => r.method === 'PUT')?.body as { sections: string[] };
 
-    expect(body.sections).toEqual(['HEADLINE', 'STEPS', 'PRICING', 'USE_CASE', 'PROOF', 'QUESTION']);
+    expect(body.sections).toEqual([
+      'HEADLINE',
+      'PROBLEM',
+      'STEPS',
+      'USE_CASE',
+      'PRICING',
+      'QUOTE',
+      'PROOF',
+      'QUESTION',
+    ]);
   });
 
   it('will not move the first section up or the last one down', async () => {
@@ -406,7 +465,16 @@ describe('the order the page is read in', () => {
         data: {
           product: PRODUCT,
           published_at: null,
-          sections: ['QUESTION', 'PRICING', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF'],
+          sections: [
+            'QUESTION',
+            'PRICING',
+            'HEADLINE',
+            'PROBLEM',
+            'STEPS',
+            'USE_CASE',
+            'QUOTE',
+            'PROOF',
+          ],
           blocks: [HEADLINE],
         },
       },
@@ -426,7 +494,16 @@ describe('the order the page is read in', () => {
     // order at all with a server that took absence as a reset, would do.
     const body = requests.find((r) => r.method === 'PUT')?.body as { sections: string[] };
 
-    expect(body.sections).toEqual(['QUESTION', 'PRICING', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF']);
+    expect(body.sections).toEqual([
+      'QUESTION',
+      'PRICING',
+      'HEADLINE',
+      'PROBLEM',
+      'STEPS',
+      'USE_CASE',
+      'QUOTE',
+      'PROOF',
+    ]);
   });
 });
 

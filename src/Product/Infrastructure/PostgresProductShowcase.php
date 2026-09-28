@@ -6,6 +6,7 @@ namespace App\Product\Infrastructure;
 
 use App\Product\Domain\ProductShowcase;
 use App\Product\Domain\PublishedShowcase;
+use App\Product\Domain\ShowcaseBandHeading;
 use App\Product\Domain\ShowcaseBlock;
 use App\Product\Domain\ShowcaseSections;
 use App\Shared\Database\Row;
@@ -31,6 +32,75 @@ final class PostgresProductShowcase implements ProductShowcase
         );
 
         return $this->toBlocks($rows);
+    }
+
+    public function headingsOf(string $productId): array
+    {
+        $rows = $this->connection->fetchAllAssociative(
+            <<<'SQL'
+                SELECT b.block,
+                       b.content,
+                       COALESCE(
+                           (SELECT jsonb_object_agg(t.locale, t.content)
+                              FROM product_showcase_band_translations t
+                             WHERE t.product_id = b.product_id AND t.block = b.block),
+                           '{}'::jsonb
+                       ) AS translations
+                  FROM product_showcase_bands b
+                 WHERE b.product_id = :product
+                SQL,
+            ['product' => $productId],
+        );
+
+        $headings = [];
+
+        foreach ($rows as $row) {
+            $block = Row::string($row, 'block');
+
+            $headings[$block] = new ShowcaseBandHeading(
+                $block,
+                self::sentences(self::decode(Row::nullableString($row, 'content'))),
+                self::sentencesByLocale(self::decode(Row::nullableString($row, 'translations'))),
+            );
+        }
+
+        return $headings;
+    }
+
+    /**
+     * @param array<array-key, mixed> $raw
+     *
+     * @return array<string, string>
+     */
+    private static function sentences(array $raw): array
+    {
+        $said = [];
+
+        foreach ($raw as $field => $value) {
+            if (is_string($field) && is_string($value)) {
+                $said[$field] = $value;
+            }
+        }
+
+        return $said;
+    }
+
+    /**
+     * @param array<array-key, mixed> $raw
+     *
+     * @return array<string, array<string, string>>
+     */
+    private static function sentencesByLocale(array $raw): array
+    {
+        $byLocale = [];
+
+        foreach ($raw as $locale => $content) {
+            if (is_string($locale) && is_array($content)) {
+                $byLocale[$locale] = self::sentences($content);
+            }
+        }
+
+        return $byLocale;
     }
 
     public function sectionsOf(string $productId): array
@@ -69,6 +139,7 @@ final class PostgresProductShowcase implements ProductShowcase
             $this->blocksOf(Row::string($product, 'id')),
             Row::nullableTimestamp($product, 'showcase_published_at'),
             ShowcaseSections::readIn(self::storedOrder($product['showcase_sections'] ?? null)),
+            $this->headingsOf(Row::string($product, 'id')),
         );
     }
 
@@ -97,9 +168,9 @@ final class PostgresProductShowcase implements ProductShowcase
         return array_values(array_filter($decoded, is_string(...)));
     }
 
-    public function replace(string $productId, array $blocks, ?array $sections = null): array
+    public function replace(string $productId, array $blocks, ?array $sections = null, ?array $headings = null): array
     {
-        return $this->connection->transactional(function () use ($productId, $blocks, $sections): array {
+        return $this->connection->transactional(function () use ($productId, $blocks, $sections, $headings): array {
             // Named or left alone, never reset: the translation desk writes
             // one sentence through this same operation and carries no order,
             // so a write that always set one would make translating a
@@ -109,6 +180,49 @@ final class PostgresProductShowcase implements ProductShowcase
                     'UPDATE products SET showcase_sections = CAST(:sections AS jsonb), updated_at = now() WHERE id = :id',
                     ['id' => $productId, 'sections' => self::json($sections)],
                 );
+            }
+
+            // The headings, same rule: named or left alone. Replaced as a
+            // set when named, so a band left out is one whose title goes
+            // back to the words its component was written with.
+            if ($headings !== null) {
+                $this->connection->executeStatement(
+                    'DELETE FROM product_showcase_bands WHERE product_id = :product',
+                    ['product' => $productId],
+                );
+
+                foreach ($headings as $heading) {
+                    $this->connection->executeStatement(
+                        <<<'SQL'
+                            INSERT INTO product_showcase_bands (product_id, block, content)
+                            VALUES (:product, :block, CAST(:content AS jsonb))
+                            SQL,
+                        [
+                            'product' => $productId,
+                            'block' => $heading->block,
+                            'content' => self::json($heading->content),
+                        ],
+                    );
+
+                    foreach ($heading->translations as $locale => $content) {
+                        if ($content === []) {
+                            continue;
+                        }
+
+                        $this->connection->executeStatement(
+                            <<<'SQL'
+                                INSERT INTO product_showcase_band_translations (product_id, block, locale, content)
+                                VALUES (:product, :block, :locale, CAST(:content AS jsonb))
+                                SQL,
+                            [
+                                'product' => $productId,
+                                'block' => $heading->block,
+                                'locale' => $locale,
+                                'content' => self::json($content),
+                            ],
+                        );
+                    }
+                }
             }
 
             // Deleted first, so a block the console left out is one it

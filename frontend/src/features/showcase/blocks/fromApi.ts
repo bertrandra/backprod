@@ -1,7 +1,10 @@
 import type { Showcase } from '@/queries/showcase';
 
+import { isProblemIcon } from './meta';
+
 import {
   NO_CONTENT,
+  type BandHeading,
   type ShowcaseContent,
   type ShowcaseImage,
   type ShowcaseRow,
@@ -50,7 +53,19 @@ export function contentFrom(showcase: Showcase | null | undefined): ShowcaseCont
     headline: pick('HEADLINE', (c) => {
       const headline = text(c.headline);
 
-      return headline === null ? null : { headline, subline: text(c.subline) };
+      return headline === null
+        ? null
+        : { headline, subline: text(c.subline), reassurance: text(c.reassurance) };
+    }),
+    problems: pick('PROBLEM', (c) => {
+      const title = text(c.title);
+      const icon = text(c.icon);
+
+      // An icon this bundle cannot draw reads as no icon. A name stored by
+      // a newer deployment must cost a missing glyph, never a blank band.
+      return title === null
+        ? null
+        : { title, body: text(c.body), icon: isProblemIcon(icon) ? icon : null };
     }),
     steps: pick('STEPS', (c) => {
       const title = text(c.title);
@@ -61,6 +76,11 @@ export function contentFrom(showcase: Showcase | null | undefined): ShowcaseCont
       const who = text(c.who);
 
       return who === null ? null : { who, before: text(c.before), after: text(c.after) };
+    }),
+    quotes: pick('QUOTE', (c) => {
+      const quote = text(c.quote);
+
+      return quote === null ? null : { quote, author: text(c.author) };
     }),
     proof: pick('PROOF', (c) => {
       const caption = text(c.caption);
@@ -73,7 +93,43 @@ export function contentFrom(showcase: Showcase | null | undefined): ShowcaseCont
 
       return question === null || answer === null ? null : { question, answer };
     }),
+    headings: headingsFrom(showcase.bands),
   };
+}
+
+/**
+ * Each band's heading, guarded like everything else read off this answer.
+ *
+ * A band whose heading says nothing in any field is left out entirely
+ * rather than carried as three nulls: the component's own fallback then
+ * applies, which is the difference between "nobody retitled this" and "this
+ * band has an empty title".
+ *
+ * @param bands the contract's `bands` map, or anything at all
+ */
+function headingsFrom(bands: unknown): Record<string, BandHeading> {
+  if (typeof bands !== 'object' || bands === null) {
+    return {};
+  }
+
+  const headings: Record<string, BandHeading> = {};
+
+  for (const [block, heading] of Object.entries(bands as Record<string, unknown>)) {
+    if (typeof heading !== 'object' || heading === null) {
+      continue;
+    }
+
+    const said = heading as Record<string, unknown>;
+    const eyebrow = text(said.eyebrow);
+    const title = text(said.title);
+    const lede = text(said.lede);
+
+    if (eyebrow !== null || title !== null || lede !== null) {
+      headings[block] = { eyebrow, title, lede };
+    }
+  }
+
+  return headings;
 }
 
 /**

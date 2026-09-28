@@ -9,6 +9,7 @@ import {
   BAND_META,
   bandsInOrder,
   carriesAPicture,
+  SECTIONS_WITH_A_HEADING,
   type AuthoredBandKind,
   type BandKind,
 } from '@/features/showcase/blocks/meta';
@@ -16,6 +17,7 @@ import {
   useProductStory,
   usePublishProductStory,
   useWriteProductStory,
+  type ShowcaseBandHeadings,
   type ShowcaseBlock,
   type ShowcaseBlockInput,
 } from '@/queries/showcase';
@@ -25,6 +27,7 @@ import { Button } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { Section } from '@/ui/Page';
 
+import { BandHeadingEditor, HEADING_FIELDS } from './BandHeading';
 import { BandPicture } from './BandPicture';
 import { SectionOrder } from './SectionOrder';
 import type { Translated } from '@/ui/TranslatedField';
@@ -71,14 +74,18 @@ export function StoryScreen({ productId }: { productId: string }) {
   // `bandsInOrder` so the console completes a short or stale order exactly
   // as the page does — one rule, not two that agree today.
   const [order, setOrder] = useState<readonly BandKind[] | null>(null);
+  // Every section's heading, in five languages, drafted beside the rows and
+  // saved with them.
+  const [headings, setHeadings] = useState<HeadingDraft | null>(null);
 
   if (loaded !== undefined && loaded !== seen) {
     setSeen(loaded);
     setDraft(loaded.map(toDraft));
     setOrder(bandsInOrder(story.data?.sections));
+    setHeadings(headingsToDraft(story.data?.bands));
   }
 
-  if (story.isPending || draft === null || order === null) {
+  if (story.isPending || draft === null || order === null || headings === null) {
     return <SkeletonRows rows={6} />;
   }
 
@@ -110,7 +117,13 @@ export function StoryScreen({ productId }: { productId: string }) {
               // One write for the whole page, order included: two writes
               // for one afternoon's work is two chances to leave it half
               // changed.
-              onClick={() => write.mutate({ blocks: draft.map(toInput), sections: [...order] })}
+              onClick={() =>
+                write.mutate({
+                  blocks: draft.map(toInput),
+                  sections: [...order],
+                  bands: headingsToInput(headings),
+                })
+              }
             >
               {t("Save")}</Button>
           </>
@@ -193,6 +206,28 @@ export function StoryScreen({ productId }: { productId: string }) {
         description={t("Drag a section, or use the arrows. Prices is here too: it has no form of its own because it reads the catalogue, but where it falls on the page is yours to decide.")}
       >
         <SectionOrder sections={order} onChange={setOrder} />
+      </Section>
+
+      <Section
+        className="border-t border-line pt-6"
+        title={t("What each band is called")}
+        description={t("The line above, the title, and the sentence under it. Leave a title empty and the band reads the words it was written with. Prices is here too: it has a heading and no rows, because the amounts come from the catalogue.")}
+      >
+        <div className="grid gap-4 md:grid-cols-2" data-testid="band-headings">
+          {SECTIONS_WITH_A_HEADING.map((block) => (
+            <BandHeadingEditor
+              key={block}
+              block={block}
+              fields={headings[block] ?? {}}
+              onChange={(field, next) =>
+                setHeadings((current) => ({
+                  ...(current ?? {}),
+                  [block]: { ...(current?.[block] ?? {}), [field]: next },
+                }))
+              }
+            />
+          ))}
+        </div>
       </Section>
 
       <Section
@@ -318,4 +353,82 @@ function toInput(block: DraftBlock, index: number): ShowcaseBlockInput {
     asset_id: block.assetId,
     ...(Object.keys(translations).length === 0 ? {} : { translations }),
   };
+}
+
+/** Every section's heading, in five languages, as the console holds them. */
+type HeadingDraft = Record<string, Record<string, Translated> | undefined>;
+
+/**
+ * The server's headings as a draft.
+ *
+ * A section the server did not name has never been retitled, and arrives as
+ * nothing at all rather than as three empty strings — the form fills in the
+ * blanks itself, and the difference matters on the way back out.
+ */
+function headingsToDraft(bands: ShowcaseBandHeadings | undefined): HeadingDraft {
+  const draft: HeadingDraft = {};
+
+  for (const [block, heading] of Object.entries(bands ?? {})) {
+    const content = (heading?.content ?? {}) as Record<string, string | undefined>;
+    const translations = (heading?.translations ?? {}) as Record<
+      string,
+      Record<string, string | undefined> | undefined
+    >;
+
+    draft[block] = Object.fromEntries(
+      HEADING_FIELDS.map((field) => [
+        field.name,
+        {
+          en: content[field.name] ?? '',
+          fr: translations.fr?.[field.name] ?? '',
+          es: translations.es?.[field.name] ?? '',
+          de: translations.de?.[field.name] ?? '',
+          it: translations.it?.[field.name] ?? '',
+        },
+      ]),
+    );
+  }
+
+  return draft;
+}
+
+/**
+ * The draft as the contract takes it.
+ *
+ * **A band that says nothing in any language is left out**, not sent empty:
+ * the server stores no row for it, so sending one would be asking for a
+ * state it does not keep, and the next read would disagree with what the
+ * screen had sent. Left out is also exactly what "this band reads its
+ * default words" means.
+ */
+function headingsToInput(headings: HeadingDraft): ShowcaseBandHeadings {
+  const written: Record<string, { content: Record<string, string>; translations: Record<string, Record<string, string>> }> = {};
+
+  for (const [block, fields] of Object.entries(headings)) {
+    const content: Record<string, string> = {};
+    const translations: Record<string, Record<string, string>> = {};
+
+    for (const field of HEADING_FIELDS) {
+      const value = fields?.[field.name] ?? EMPTY;
+      const english = value.en.trim();
+
+      if (english !== '') {
+        content[field.name] = english;
+      }
+
+      for (const locale of ['fr', 'es', 'de', 'it'] as const) {
+        const said = (value[locale] ?? '').trim();
+
+        if (said !== '') {
+          translations[locale] = { ...translations[locale], [field.name]: said };
+        }
+      }
+    }
+
+    if (Object.keys(content).length > 0 || Object.keys(translations).length > 0) {
+      written[block] = { content, translations };
+    }
+  }
+
+  return written;
 }

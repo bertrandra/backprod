@@ -1,8 +1,11 @@
 import { TranslatedField, type Translated } from '@/ui/TranslatedField';
-import { Field } from '@/ui/Field';
+import { Field, inputClass } from '@/ui/Field';
 import { t } from '@/i18n';
 
-import { AUTHORED_BANDS, BAND_META, type AuthoredBandKind } from './meta';
+import { AUTHORED_BANDS, BAND_META, PROBLEM_ICONS, type AuthoredBandKind } from './meta';
+
+/** The icon codes, for the one field that offers a list rather than a box. */
+const PROBLEM_ICON_NAMES = Object.keys(PROBLEM_ICONS);
 
 /**
  * The fields each band is written in, and their order on the form.
@@ -22,6 +25,14 @@ export interface BandField {
   readonly name: string;
   readonly label: string;
   readonly required: boolean;
+  /**
+   * A closed set of codes rather than a sentence.
+   *
+   * The field is then **not translated** — the server refuses it in a
+   * locale — so the editor shows one control and not five. An icon has no
+   * French.
+   */
+  readonly choices?: readonly string[];
   /** A sentence rather than a phrase: the control grows. */
   readonly long?: boolean;
   /** What this field is for, where the label alone does not say it. */
@@ -58,7 +69,17 @@ export const BAND_FIELDS: Record<AuthoredBandKind, readonly BandField[]> = {
   HEADLINE: [
     { name: 'headline', label: 'Headline', required: true },
     { name: 'subline', label: 'Subline', required: false, long: true },
+    { name: 'reassurance', label: 'Under the buttons', required: false, hint: 'What it does not cost, what it does not install \u2014 for somebody hesitating over the button above it.' },
     PICTURE_DESCRIPTION,
+  ],
+  PROBLEM: [
+    { name: 'title', label: 'What it costs them', required: true },
+    { name: 'body', label: 'Why', required: false, long: true },
+    { name: 'icon', label: 'Icon', required: false, choices: PROBLEM_ICON_NAMES, hint: 'Drawn by the page, so it has no translation. None is a fine answer.' },
+  ],
+  QUOTE: [
+    { name: 'quote', label: 'What they said', required: true, long: true },
+    { name: 'author', label: 'Who said it', required: false, hint: 'Their name and what they do. Left empty, nothing stands in for it.' },
   ],
   STEPS: [
     { name: 'title', label: 'Step', required: true },
@@ -102,6 +123,29 @@ export function BandFieldEditor({
   value: Translated;
   onChange: (next: Translated) => void;
 }) {
+  // A code, not a sentence: one control, no language button, and the
+  // options are the ones the page can draw.
+  if (field.choices !== undefined) {
+    return (
+      <Field id={id} label={t(field.label)} hint={field.hint === undefined ? undefined : t(field.hint)}>
+        <select
+          id={id}
+          data-testid={`choice-${id}`}
+          className={inputClass()}
+          value={value.en}
+          onChange={(event) => onChange({ ...value, en: event.target.value })}
+        >
+          <option value="">{t('None')}</option>
+          {field.choices.map((choice) => (
+            <option key={choice} value={choice}>
+              {choice}
+            </option>
+          ))}
+        </select>
+      </Field>
+    );
+  }
+
   return (
     <Field
       id={id}

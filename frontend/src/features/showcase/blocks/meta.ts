@@ -30,12 +30,50 @@ export interface BandMeta {
 
 export const BAND_META = {
   HEADLINE: { order: 10, anchor: 'what', surface: 'canvas', nav: 'What it does' },
+  // The one dark band on the page, and deliberately the second: a reader
+  // meets the promise, then what it is a promise about, and the ground
+  // going dark for one band is what says "this part is the trouble" without
+  // a word. Its tone is fixed here rather than chosen per product — a page
+  // where every band picks its own colour is the page this registry exists
+  // to prevent.
+  PROBLEM: { order: 15, anchor: 'problem', surface: 'deep', nav: 'The problem' },
   STEPS: { order: 20, anchor: 'how', surface: 'surface', nav: 'How it works' },
   USE_CASE: { order: 30, anchor: 'who', surface: 'canvas', nav: 'Who it is for' },
+  QUOTE: { order: 35, anchor: 'said', surface: 'surface', nav: 'What they say' },
   PROOF: { order: 40, anchor: 'proof', surface: 'well', nav: 'See it' },
   PRICING: { order: 50, anchor: 'prices', surface: 'surface', nav: 'Prices' },
   QUESTION: { order: 60, anchor: 'questions', surface: 'canvas', nav: 'Questions' },
 } as const satisfies Record<string, BandMeta>;
+
+/**
+ * The icons a problem point may carry, drawn here (2026-09-28).
+ *
+ * A **closed set and a code, not a sentence**: the server validates the
+ * name against this list's own keys and refuses it in a translation, and
+ * the drawing lives with the band that draws it. An icon library would be a
+ * dependency and a network request for eight glyphs; an uploaded picture
+ * would be a photograph in a bullet.
+ *
+ * Stroke paths on a 30×30 box, so they take the band's colour and stay
+ * legible at the one size the band draws them.
+ */
+export const PROBLEM_ICONS = {
+  clock: 'M15 4 V15 L22 19',
+  cross: 'M6 24 L24 6 M6 6 L24 24',
+  house: 'M7 25 V11 L15 5 L23 11 V25 Z M12 25 V17 H18 V25',
+  coin: 'M15 8 V22 M12 11 h5 a2.5 2.5 0 0 1 0 5 h-4 a2.5 2.5 0 0 0 0 5 h5',
+  ruler: 'M4 18 L18 4 L26 12 L12 26 Z M9 13 l3 3 M13 9 l3 3 M17 17 l3 3',
+  paper: 'M8 4 h10 l6 6 v20 H8 Z M18 4 v6 h6 M12 18 h9 M12 23 h9',
+  warning: 'M15 4 L27 25 H3 Z M15 12 v6 M15 21 v0.5',
+  repeat: 'M6 13 a9 9 0 0 1 15 -6 M24 17 a9 9 0 0 1 -15 6 M21 3 v5 h-5 M9 27 v-5 h5',
+} as const;
+
+export type ProblemIcon = keyof typeof PROBLEM_ICONS;
+
+/** Whether a stored name is one this bundle can draw. */
+export function isProblemIcon(name: string | null | undefined): name is ProblemIcon {
+  return name !== null && name !== undefined && name in PROBLEM_ICONS;
+}
 
 export type BandKind = keyof typeof BAND_META;
 
@@ -46,7 +84,15 @@ export type BandKind = keyof typeof BAND_META;
  * the console must not offer a form for it and the migration's enum must
  * not carry it. The two lists differing is the point.
  */
-export const AUTHORED_BANDS = ['HEADLINE', 'STEPS', 'USE_CASE', 'PROOF', 'QUESTION'] as const;
+export const AUTHORED_BANDS = [
+  'HEADLINE',
+  'PROBLEM',
+  'STEPS',
+  'USE_CASE',
+  'QUOTE',
+  'PROOF',
+  'QUESTION',
+] as const;
 
 export type AuthoredBandKind = (typeof AUTHORED_BANDS)[number];
 
@@ -70,6 +116,24 @@ export const BANDS_WITH_A_PICTURE: readonly AuthoredBandKind[] = [
   'STEPS',
   'USE_CASE',
   'PROOF',
+];
+
+/**
+ * Every section of the page, the one with no rows included.
+ *
+ * `PRICING` is here and absent from {@see AUTHORED_BANDS}: it has a heading
+ * an operator writes and no row they ever could, because a row for it would
+ * be a row somebody could type a price into.
+ */
+export const SECTIONS_WITH_A_HEADING: readonly BandKind[] = [
+  'HEADLINE',
+  'PROBLEM',
+  'STEPS',
+  'USE_CASE',
+  'QUOTE',
+  'PROOF',
+  'PRICING',
+  'QUESTION',
 ];
 
 export function carriesAPicture(kind: AuthoredBandKind): boolean {

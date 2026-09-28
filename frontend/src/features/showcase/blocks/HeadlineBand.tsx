@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 import { ShowcaseImageFrame } from '../ShowcaseImageFrame';
 import { useReveal } from '../useReveal';
-import type { HeadlineRow, ShowcaseRow } from './content';
+import type { BandHeading, HeadlineRow, ShowcaseRow } from './content';
 import { BAND_META } from './meta';
 
 /**
@@ -30,14 +30,24 @@ export function HeadlineBand({
   productName,
   row,
   action,
+  heading,
 }: {
   productName: string;
   row: ShowcaseRow<HeadlineRow> | null;
   action: ReactNode;
+  /**
+   * The hero's own eyebrow, where the operator wrote one.
+   *
+   * Its `title` and `lede` are deliberately **not** read: the hero's title
+   * is the headline row and its lede is the subline, and a second place to
+   * write either would be two sentences competing for one slot.
+   */
+  heading?: BandHeading | undefined;
 }) {
   const { ref, revealed } = useReveal<HTMLElement>();
   const headline = row?.content.headline ?? null;
   const subline = row?.content.subline ?? null;
+  const reassurance = row?.content.reassurance ?? null;
 
   return (
     <section
@@ -58,9 +68,11 @@ export function HeadlineBand({
         >
           <p
             data-testid="showcase-eyebrow"
-            className="text-2xs font-semibold uppercase tracking-[0.14em] text-subtle"
+            className="text-2xs font-semibold uppercase tracking-[0.14em] text-accent"
           >
-            {productName}
+            {/* The product's name until somebody writes something better:
+                a page that has said nothing still says what it is. */}
+            {heading?.eyebrow ?? productName}
           </p>
 
           <h1
@@ -78,6 +90,16 @@ export function HeadlineBand({
           )}
 
           <div className="flex flex-wrap items-center gap-3 pt-1">{action}</div>
+
+          {/* Under the buttons, where somebody hesitating over one is
+              looking (2026-09-28): what it does not cost, what it does not
+              install. Absent where nobody wrote it \u2014 an invented
+              reassurance is the kind that reassures nobody. */}
+          {reassurance !== null && reassurance !== '' && (
+            <p data-testid="showcase-reassurance" className="text-sm text-muted">
+              {reassurance}
+            </p>
+          )}
         </div>
 
         {/* Staggered behind the words by one beat: the sentence is what the

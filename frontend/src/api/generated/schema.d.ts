@@ -3473,6 +3473,8 @@ export interface paths {
          *
          *     `PRICING` is not a block kind and is refused: it is a position in the order and reads the catalogue, so a row for it would be a row somebody could type a price into. One `HEADLINE` per page.
          *
+         *     **`bands` absent means "leave the headings alone"**, cleared never — and named, the map replaces the set, so a band left out of it goes back to its compiled default. `PROBLEM` names what the reader lives with in a few short points; `QUOTE` carries somebody saying it worked; `PROBLEM.icon` is a code from a closed set the frontend draws, so it is refused in a translation — an icon has no French.
+         *
          *     **`sections` absent means "leave the order alone"**, never "put it back to the default" (2026-09-28). That distinction is load-bearing: the translation desk writes one sentence through this same operation by re-reading the story and sending the blocks back, and it carries no order — so a request without one that reset the order would make translating a headline reorder the page. Sent, it must be a permutation of every section.
          *
          *     Writing does not publish — that is the next route — so four bands can be written over an afternoon without a stranger reading the half-finished ones. `staff.products.manage`.
@@ -4091,16 +4093,27 @@ export interface components {
             name?: string | null;
             description?: string | null;
         };
-        /** @description One band's own fields, all plain text (2026-09-24). Which fields a band has depends on its kind — a HEADLINE has `headline` and `subline`, a QUESTION has `question` and `answer` — and the server refuses any field no band renders, so nobody writes into a hole. No markup is accepted or rendered anywhere in here. */
+        /** @description One band's own fields, all plain text (2026-09-24). Which fields a band has depends on its kind — a HEADLINE has `headline` and `subline`, a QUESTION has `question` and `answer`, a PROBLEM has `title`, `body` and `icon` — and the server refuses any field no band renders, so nobody writes into a hole. No markup is accepted or rendered anywhere in here. */
         ShowcaseBlockContent: {
             /** @description HEADLINE: what it does, for whom. */
             headline?: string;
             /** @description HEADLINE: the change it makes. */
             subline?: string;
-            /** @description STEPS: the move. */
+            /** @description HEADLINE: the line under the buttons that takes the risk out of pressing one — what it does not cost, what it does not install. */
+            reassurance?: string;
+            /** @description STEPS: the move. PROBLEM: what the reader lives with, in a few words. */
             title?: string;
-            /** @description STEPS: what happens in it. */
+            /** @description STEPS: what happens in it. PROBLEM: why it costs them. */
             body?: string;
+            /**
+             * @description PROBLEM: which of the drawn icons sits above the point. A **code, not a sentence** — the frontend draws it, so it has no French and is refused in a translation, the way a price is refused in a band.
+             * @enum {string}
+             */
+            icon?: "clock" | "cross" | "house" | "coin" | "ruler" | "paper" | "warning" | "repeat";
+            /** @description QUOTE: what the customer said, in their words. */
+            quote?: string;
+            /** @description QUOTE: who said it, and what they do. One line, under the quote. */
+            author?: string;
             /** @description USE_CASE: the customer who recognises themselves. */
             who?: string;
             /** @description USE_CASE: what they were doing. */
@@ -4122,7 +4135,7 @@ export interface components {
              * @description PRICING is absent and must stay absent: it is a position in the order and reads the catalogue. One HEADLINE per page.
              * @enum {string}
              */
-            block: "HEADLINE" | "STEPS" | "USE_CASE" | "PROOF" | "QUESTION";
+            block: "HEADLINE" | "PROBLEM" | "STEPS" | "USE_CASE" | "QUOTE" | "PROOF" | "QUESTION";
             /**
              * @description Within its kind. In tens, so one can be slipped between two others without renumbering anybody.
              * @default 10
@@ -4147,7 +4160,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            block: "HEADLINE" | "STEPS" | "USE_CASE" | "PROOF" | "QUESTION";
+            block: "HEADLINE" | "PROBLEM" | "STEPS" | "USE_CASE" | "QUOTE" | "PROOF" | "QUESTION";
             position: number;
             content: components["schemas"]["ShowcaseBlockContent"];
             /**
@@ -4166,13 +4179,39 @@ export interface components {
             };
         };
         /**
+         * @description A band's own heading (2026-09-28): the eyebrow above it, its title, and the sentence under it. Every field optional, and **absent is the band's compiled default** — the words its component was written with — never an empty title. Blank removes one, which is how a band goes back to that default.
+         *
+         *     One fact per band, where a block is one per row: three steps are three blocks and one heading, because the section is called "How it works" once. `PRICING` is what settles it — it has no blocks at all, because a row for it would be a row somebody could type a price into, and it still has a title.
+         */
+        ShowcaseBandHeading: {
+            eyebrow?: string;
+            title?: string;
+            lede?: string;
+        };
+        /** @description Each band's heading in one language, keyed by section — for a reader. Resolved field by field, so a title translated and a lede not reads translated above and English below. */
+        ShowcaseBandHeadings: {
+            [key: string]: components["schemas"]["ShowcaseBandHeading"];
+        };
+        /** @description Each band's heading with every language beside it, keyed by section — for the console, which is the only place that can finish a half-translated page. A section absent from the map has never been retitled. */
+        EditableShowcaseBandHeadings: {
+            [key: string]: {
+                content?: components["schemas"]["ShowcaseBandHeading"];
+                translations?: {
+                    fr?: components["schemas"]["ShowcaseBandHeading"];
+                    es?: components["schemas"]["ShowcaseBandHeading"];
+                    de?: components["schemas"]["ShowcaseBandHeading"];
+                    it?: components["schemas"]["ShowcaseBandHeading"];
+                };
+            };
+        };
+        /**
          * @description The order a product reads its showcase sections in (2026-09-28). A **permutation**: every section exactly once, `PRICING` included.
          *
          *     This is a different fact from a block's `position`, which orders the rows *within* one band — three steps, two use cases. This orders the bands themselves, and there is one of it per product.
          *
          *     `PRICING` appears here and in no request that writes a band, deliberately: it is a section that reads the catalogue and has no row anybody writes, because a row for it would be a row somebody could type a price into. Its place in the order is the one thing about it an operator decides.
          */
-        ShowcaseSectionOrder: ("HEADLINE" | "STEPS" | "USE_CASE" | "PROOF" | "PRICING" | "QUESTION")[];
+        ShowcaseSectionOrder: ("HEADLINE" | "PROBLEM" | "STEPS" | "USE_CASE" | "QUOTE" | "PROOF" | "PRICING" | "QUESTION")[];
         /** @description A product's story as a reader gets it: one language, resolved field by field. The product's own facts come with it because a stranger cannot ask for them separately — `listProducts` answers from a membership, and they have none. */
         Showcase: {
             product: {
@@ -4182,11 +4221,12 @@ export interface components {
                 active: boolean;
             };
             sections: components["schemas"]["ShowcaseSectionOrder"];
+            bands: components["schemas"]["ShowcaseBandHeadings"];
             blocks: {
                 /** Format: uuid */
                 id: string;
                 /** @enum {string} */
-                block: "HEADLINE" | "STEPS" | "USE_CASE" | "PROOF" | "QUESTION";
+                block: "HEADLINE" | "PROBLEM" | "STEPS" | "USE_CASE" | "QUOTE" | "PROOF" | "QUESTION";
                 position: number;
                 content: components["schemas"]["ShowcaseBlockContent"];
                 /** @description Where the band's picture lives, ready for an <img src>. An address and not an id, because a client that had to compose the URL would be a second place the route is spelled. Null where the band carries no picture, which is most of them. */
@@ -14568,6 +14608,7 @@ export interface operations {
                             name: string;
                         };
                         sections: components["schemas"]["ShowcaseSectionOrder"];
+                        bands: components["schemas"]["EditableShowcaseBandHeadings"];
                         /**
                          * Format: date-time
                          * @description Null is a draft, and the public read answers 404 for one.
@@ -14597,6 +14638,7 @@ export interface operations {
             content: {
                 "application/json": {
                     sections?: components["schemas"]["ShowcaseSectionOrder"];
+                    bands?: components["schemas"]["EditableShowcaseBandHeadings"];
                     /** @description The whole story. Empty removes it, which leaves the page as the product's name and its prices. */
                     blocks: components["schemas"]["ShowcaseBlockInput"][];
                 };
@@ -14611,6 +14653,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         sections: components["schemas"]["ShowcaseSectionOrder"];
+                        bands: components["schemas"]["EditableShowcaseBandHeadings"];
                         blocks: components["schemas"]["EditableShowcaseBlock"][];
                     };
                 };

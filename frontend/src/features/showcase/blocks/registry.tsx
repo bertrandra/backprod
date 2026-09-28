@@ -6,8 +6,10 @@ import type { ShowcaseContent } from './content';
 import type { BandKind } from './meta';
 import { HeadlineBand } from './HeadlineBand';
 import { PricingBand } from './PricingBand';
+import { ProblemBand } from './ProblemBand';
 import { ProofBand } from './ProofBand';
 import { QuestionsBand } from './QuestionsBand';
+import { QuoteBand } from './QuoteBand';
 import { StepsBand } from './StepsBand';
 import { UseCasesBand } from './UseCasesBand';
 
@@ -68,24 +70,40 @@ export interface BandEntry {
   readonly speaks: (props: BandProps) => boolean;
 }
 
+/** One band's heading, or nothing where the operator has written none. */
+const heading = (p: BandProps, block: BandKind) => p.content.headings[block];
+
 export const BAND_VIEWS: Record<BandKind, BandEntry> = {
   HEADLINE: {
     speaks: () => true,
     view: (p) => (
-      <HeadlineBand productName={p.productName} row={p.content.headline[0] ?? null} action={p.action} />
+      <HeadlineBand
+        productName={p.productName}
+        row={p.content.headline[0] ?? null}
+        heading={heading(p, 'HEADLINE')}
+        action={p.action}
+      />
     ),
+  },
+  PROBLEM: {
+    speaks: (p) => p.content.problems.length > 0,
+    view: (p) => <ProblemBand rows={p.content.problems} heading={heading(p, 'PROBLEM')} />,
   },
   STEPS: {
     speaks: (p) => p.content.steps.length > 0,
-    view: (p) => <StepsBand rows={p.content.steps} />,
+    view: (p) => <StepsBand rows={p.content.steps} heading={heading(p, 'STEPS')} />,
   },
   USE_CASE: {
     speaks: (p) => p.content.useCases.length > 0,
-    view: (p) => <UseCasesBand rows={p.content.useCases} />,
+    view: (p) => <UseCasesBand rows={p.content.useCases} heading={heading(p, 'USE_CASE')} />,
+  },
+  QUOTE: {
+    speaks: (p) => p.content.quotes.length > 0,
+    view: (p) => <QuoteBand rows={p.content.quotes} heading={heading(p, 'QUOTE')} />,
   },
   PROOF: {
     speaks: (p) => p.content.proof.length > 0,
-    view: (p) => <ProofBand rows={p.content.proof} />,
+    view: (p) => <ProofBand rows={p.content.proof} heading={heading(p, 'PROOF')} />,
   },
   PRICING: {
     speaks: () => true,
@@ -96,12 +114,13 @@ export const BAND_VIEWS: Record<BandKind, BandEntry> = {
         onChoose={p.onChooseOffer}
         action={p.buyLabel}
         retired={p.retired}
+        heading={heading(p, 'PRICING')}
       />
     ),
   },
   QUESTION: {
     speaks: (p) => p.content.questions.length > 0,
-    view: (p) => <QuestionsBand rows={p.content.questions} />,
+    view: (p) => <QuestionsBand rows={p.content.questions} heading={heading(p, 'QUESTION')} />,
   },
 };
 

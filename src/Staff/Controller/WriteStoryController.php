@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Staff\Controller;
 
+use App\Product\Controller\ShowcaseBandHeadings;
 use App\Product\Controller\ShowcaseBlocks;
 use App\Product\Controller\ShowcasePresenter;
 use App\Product\Domain\ShowcaseBlock;
@@ -53,6 +54,9 @@ final class WriteStoryController implements RouteHandler
             // the default": the translation desk writes one sentence through
             // this operation and carries no order (2026-09-28).
             ShowcaseBlocks::sections($body, 'sections'),
+            // Same rule again: absent leaves the titles alone, never clears
+            // them — the translation desk writes through here too.
+            ShowcaseBandHeadings::of($body, 'bands'),
         );
 
         return new JsonResponse([
@@ -61,6 +65,7 @@ final class WriteStoryController implements RouteHandler
                 $story['blocks'],
             ),
             'sections' => $story['sections'],
+            'bands' => ShowcasePresenter::headings($story['headings']),
         ], 200);
     }
 }

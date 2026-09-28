@@ -30,6 +30,12 @@ function isProse(text) {
   if (!/[A-Za-z]/.test(text) || text.length < 2 || text.includes('/')) return false;
   if (/^[a-z0-9\-/:.[\]%_#]+( [a-z0-9\-/:.[\]%_#]+)*$/.test(text)) return false; // classes, codes, paths
   if (/^[A-Z0-9_]+$/.test(text)) return false; // an enumeration value
+  // SVG path data (2026-09-28): the showcase draws its problem icons from a
+  // table of paths, and `M15 4 V15 L22 19` has capitals and spaces, so it
+  // read as a sentence and asked four translators for a French version of a
+  // line. Anchored on a move command followed by a number, so a word that
+  // happens to be spelled out of path letters — `Malta` — is still prose.
+  if (/^[Mm][\s\d-]/.test(text) && /^[MmLlHhVvCcSsQqTtAaZz\s\d.,+-]+$/.test(text)) return false;
 
   return /[A-Z]/.test(text) || /[ ,.;:!?’'—]/.test(text);
 }

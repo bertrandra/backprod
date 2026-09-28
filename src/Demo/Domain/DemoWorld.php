@@ -389,6 +389,98 @@ final class DemoWorld
     ];
 
     /**
+     * What each of Plan's bands is called (2026-09-28).
+     *
+     * **A heading is one fact per band**, where {@see SHOWCASE} is one per
+     * row: three steps are three entries there and one here, because the
+     * section is called "How it works" once. `PRICING` is in this list and
+     * in no other — it has something to say about its prices and no row
+     * anybody could type one into (§9).
+     *
+     * A band left out reads the words its component was written with, which
+     * is the state every other product is in.
+     *
+     * @var array<string, array<string, array{content: array<string, string>, translations: array<string, array<string, string>>}>>
+     */
+    public const SHOWCASE_HEADINGS = [
+        'plan' => [
+            'HEADLINE' => [
+                'content' => ['eyebrow' => 'Outdoor plans'],
+                'translations' => [
+                    'fr' => ['eyebrow' => 'Plans d’extérieur'],
+                    'es' => ['eyebrow' => 'Planos de exteriores'],
+                    'de' => ['eyebrow' => 'Außenpläne'],
+                    'it' => ['eyebrow' => 'Piani per esterni'],
+                ],
+            ],
+            'PROBLEM' => [
+                'content' => [
+                    'eyebrow' => 'The problem',
+                    'title' => 'The plan is never the work. It is what has to be redone before the work can start.',
+                ],
+                'translations' => [
+                    'fr' => ['eyebrow' => 'Le problème', 'title' => 'Le plan n’est jamais le travail. C’est ce qu’il faut refaire avant de pouvoir travailler.'],
+                    'es' => ['eyebrow' => 'El problema', 'title' => 'El plano nunca es el trabajo. Es lo que hay que rehacer antes de poder trabajar.'],
+                    'de' => ['eyebrow' => 'Das Problem', 'title' => 'Der Plan ist nie die Arbeit. Er ist das, was vorher noch einmal gemacht werden muss.'],
+                    'it' => ['eyebrow' => 'Il problema', 'title' => 'Il piano non è mai il lavoro. È ciò che va rifatto prima di poter lavorare.'],
+                ],
+            ],
+            'STEPS' => [
+                'content' => [
+                    'eyebrow' => 'The tutorial — three moves',
+                    'title' => 'Trace, place, print.',
+                    'lede' => 'No training, no template to download. These are the only three things to know.',
+                ],
+                'translations' => [
+                    'fr' => ['eyebrow' => 'Le tuto — trois gestes', 'title' => 'Tracer, poser, imprimer.', 'lede' => 'Aucune formation, aucun gabarit à télécharger. Ce sont les trois seules choses à savoir faire.'],
+                    'es' => ['eyebrow' => 'El tutorial — tres gestos', 'title' => 'Trazar, colocar, imprimir.', 'lede' => 'Sin formación, sin plantilla que descargar. Son las tres únicas cosas que hay que saber.'],
+                    'de' => ['eyebrow' => 'Die Anleitung — drei Handgriffe', 'title' => 'Zeichnen, setzen, drucken.', 'lede' => 'Keine Schulung, keine Vorlage zum Herunterladen. Das sind die einzigen drei Dinge.'],
+                    'it' => ['eyebrow' => 'Il tutorial — tre gesti', 'title' => 'Tracciare, posare, stampare.', 'lede' => 'Nessuna formazione, nessun modello da scaricare. Sono le uniche tre cose da sapere.'],
+                ],
+            ],
+            'USE_CASE' => [
+                'content' => ['eyebrow' => 'The result', 'title' => 'The same plot, before and after.'],
+                'translations' => [
+                    'fr' => ['eyebrow' => 'Le résultat', 'title' => 'La même parcelle, avant et après.'],
+                    'es' => ['eyebrow' => 'El resultado', 'title' => 'La misma parcela, antes y después.'],
+                    'de' => ['eyebrow' => 'Das Ergebnis', 'title' => 'Dasselbe Grundstück, vorher und nachher.'],
+                    'it' => ['eyebrow' => 'Il risultato', 'title' => 'La stessa particella, prima e dopo.'],
+                ],
+            ],
+            'PROOF' => [
+                'content' => ['eyebrow' => 'The proof', 'title' => 'The sheet that comes out, as it comes out.'],
+                'translations' => [
+                    'fr' => ['eyebrow' => 'La preuve', 'title' => 'La feuille qui sort, telle quelle.'],
+                    'es' => ['eyebrow' => 'La prueba', 'title' => 'La hoja que sale, tal cual.'],
+                    'de' => ['eyebrow' => 'Der Beleg', 'title' => 'Das Blatt, das herauskommt — so wie es herauskommt.'],
+                    'it' => ['eyebrow' => 'La prova', 'title' => 'Il foglio che esce, così com’è.'],
+                ],
+            ],
+            'PRICING' => [
+                'content' => [
+                    'title' => 'The first plan costs nothing.',
+                    'lede' => 'Draw it in full, print it. You pay only if you make a second one.',
+                ],
+                'translations' => [
+                    'fr' => ['title' => 'Le premier plan ne coûte rien.', 'lede' => 'Dessinez-le en entier, imprimez-le. Vous ne payez que si vous en faites un deuxième.'],
+                    'es' => ['title' => 'El primer plano no cuesta nada.', 'lede' => 'Dibújelo entero, imprímalo. Solo paga si hace un segundo.'],
+                    'de' => ['title' => 'Der erste Plan kostet nichts.', 'lede' => 'Zeichnen Sie ihn ganz, drucken Sie ihn. Sie zahlen erst für den zweiten.'],
+                    'it' => ['title' => 'Il primo piano non costa nulla.', 'lede' => 'Disegnalo per intero, stampalo. Paghi solo se ne fai un secondo.'],
+                ],
+            ],
+            'QUESTION' => [
+                'content' => ['title' => 'The questions we are asked'],
+                'translations' => [
+                    'fr' => ['title' => 'Les questions qu’on nous pose'],
+                    'es' => ['title' => 'Las preguntas que nos hacen'],
+                    'de' => ['title' => 'Die Fragen, die uns gestellt werden'],
+                    'it' => ['title' => 'Le domande che ci fanno'],
+                ],
+            ],
+        ],
+    ];
+
+    /**
      * The story Plan tells on its own page (2026-09-24, step 5 of
      * `docs/home-showcase-spec.md`).
      *
@@ -416,24 +508,71 @@ final class DemoWorld
                 'content' => [
                     'headline' => 'Draw a terrace in three minutes',
                     'subline' => 'From the cadastral plot to a file your builder can read — without redrawing anything by hand.',
+                    'reassurance' => 'Nothing to install. The first plan costs nothing.',
                 ],
                 'translations' => [
                     'fr' => [
                         'headline' => 'Dessinez une terrasse en trois minutes',
                         'subline' => 'De la parcelle cadastrale au fichier que votre artisan peut lire, sans rien redessiner à la main.',
+                        'reassurance' => 'Rien à installer. Le premier plan ne coûte rien.',
                     ],
                     'es' => [
                         'headline' => 'Dibuje una terraza en tres minutos',
                         'subline' => 'De la parcela catastral al archivo que su constructor puede leer, sin volver a dibujar nada a mano.',
+                        'reassurance' => 'Nada que instalar. El primer plano no cuesta nada.',
                     ],
                     'de' => [
                         'headline' => 'Zeichnen Sie eine Terrasse in drei Minuten',
                         'subline' => 'Vom Katasterplan zur Datei, die Ihr Handwerker lesen kann — ohne etwas von Hand nachzuzeichnen.',
+                        'reassurance' => 'Nichts zu installieren. Der erste Plan kostet nichts.',
                     ],
                     'it' => [
                         'headline' => 'Disegna una terrazza in tre minuti',
                         'subline' => 'Dalla particella catastale al file che il tuo costruttore può leggere, senza ridisegnare nulla a mano.',
+                        'reassurance' => 'Niente da installare. Il primo piano non costa nulla.',
                     ],
+                ],
+            ],
+            [
+                'block' => 'PROBLEM',
+                'content' => [
+                    'title' => 'Half a day for every job',
+                    'body' => 'Measure, transfer to paper, start again because the scale will not come out round.',
+                    'icon' => 'clock',
+                ],
+                'translations' => [
+                    'fr' => ['title' => 'Une demi-journée par chantier', 'body' => 'Mesurer, reporter sur papier, recommencer parce que l’échelle ne tombe pas juste.'],
+                    'es' => ['title' => 'Media jornada por obra', 'body' => 'Medir, pasar al papel, empezar de nuevo porque la escala no sale redonda.'],
+                    'de' => ['title' => 'Ein halber Tag je Baustelle', 'body' => 'Messen, aufs Papier übertragen, von vorn anfangen, weil der Maßstab nicht aufgeht.'],
+                    'it' => ['title' => 'Mezza giornata per cantiere', 'body' => 'Misurare, riportare su carta, ricominciare perché la scala non torna.'],
+                ],
+            ],
+            [
+                'block' => 'PROBLEM',
+                'content' => [
+                    'title' => 'Two figures for one area',
+                    'body' => 'The site notebook and the quotation disagree, and nothing decides between them.',
+                    'icon' => 'cross',
+                ],
+                'translations' => [
+                    'fr' => ['title' => 'Deux chiffres pour une surface', 'body' => 'Le carnet de chantier et le devis ne disent pas la même chose, et rien ne tranche.'],
+                    'es' => ['title' => 'Dos cifras para una superficie', 'body' => 'El cuaderno de obra y el presupuesto no coinciden, y nada decide entre ellos.'],
+                    'de' => ['title' => 'Zwei Zahlen für eine Fläche', 'body' => 'Das Bautagebuch und das Angebot widersprechen sich, und nichts entscheidet.'],
+                    'it' => ['title' => 'Due cifre per una superficie', 'body' => 'Il quaderno di cantiere e il preventivo non coincidono, e nulla decide.'],
+                ],
+            ],
+            [
+                'block' => 'PROBLEM',
+                'content' => [
+                    'title' => 'A client who sees nothing',
+                    'body' => 'A pencil sketch is not signed. It is discussed, at length, and then drawn again.',
+                    'icon' => 'house',
+                ],
+                'translations' => [
+                    'fr' => ['title' => 'Un client qui ne voit rien', 'body' => 'Un croquis au crayon ne se signe pas. Il se discute, longtemps, puis se refait.'],
+                    'es' => ['title' => 'Un cliente que no ve nada', 'body' => 'Un croquis a lápiz no se firma. Se discute, largamente, y luego se rehace.'],
+                    'de' => ['title' => 'Ein Kunde, der nichts sieht', 'body' => 'Eine Bleistiftskizze wird nicht unterschrieben. Sie wird lange besprochen und dann neu gezeichnet.'],
+                    'it' => ['title' => 'Un cliente che non vede nulla', 'body' => 'Uno schizzo a matita non si firma. Si discute, a lungo, e poi si rifà.'],
                 ],
             ],
             [
@@ -533,6 +672,19 @@ final class DemoWorld
                         'before' => 'Un PDF senza quote e una telefonata per chiedere i livelli.',
                         'after' => 'Un DXF che si apre negli strumenti che ha già, con i livelli dentro.',
                     ],
+                ],
+            ],
+            [
+                'block' => 'QUOTE',
+                'content' => [
+                    'quote' => 'The quotation goes out the same evening, from the same drawing. I have stopped redrawing at the kitchen table.',
+                    'author' => 'Head of a three-person landscaping firm',
+                ],
+                'translations' => [
+                    'fr' => ['quote' => 'Le devis part le soir même, depuis le même dessin. J’ai arrêté de redessiner à la table de la cuisine.', 'author' => 'Gérant d’une entreprise de paysage de trois personnes'],
+                    'es' => ['quote' => 'El presupuesto sale esa misma tarde, del mismo dibujo. He dejado de redibujar en la mesa de la cocina.', 'author' => 'Responsable de una empresa de paisajismo de tres personas'],
+                    'de' => ['quote' => 'Das Angebot geht noch am selben Abend raus, aus derselben Zeichnung. Ich zeichne nicht mehr am Küchentisch nach.', 'author' => 'Inhaber eines Garten- und Landschaftsbaubetriebs mit drei Leuten'],
+                    'it' => ['quote' => 'Il preventivo parte la sera stessa, dallo stesso disegno. Ho smesso di ridisegnare al tavolo di cucina.', 'author' => 'Titolare di un’impresa di giardinaggio di tre persone'],
                 ],
             ],
             [

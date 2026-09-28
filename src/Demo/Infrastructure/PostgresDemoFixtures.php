@@ -49,6 +49,7 @@ final class PostgresDemoFixtures implements DemoFixtures
         // Named although both cascade from `products`: this list is what a
         // reader checks to answer "is anything left behind", and a table
         // that is only ever emptied by a cascade is one nobody finds.
+        'product_showcase_band_translations', 'product_showcase_bands',
         'product_showcase_translations', 'product_showcase', 'product_assets',
         'messages', 'conversation_participants', 'conversations',
         'notification_deliveries', 'notifications', 'notification_consents', 'notification_preferences',
@@ -870,6 +871,40 @@ final class PostgresDemoFixtures implements DemoFixtures
                     SQL,
                     [
                         'block' => $id,
+                        'locale' => $locale,
+                        'content' => json_encode($content, JSON_THROW_ON_ERROR),
+                    ],
+                );
+            }
+        }
+
+        // Each band's own heading, which is one row per band where the
+        // blocks above are one per row: the section is called "How it
+        // works" once, however many steps it holds. `PRICING` gets one and
+        // has no block at all, which is the whole reason headings are their
+        // own table.
+        foreach (DemoWorld::SHOWCASE_HEADINGS[$code] ?? [] as $band => $heading) {
+            $this->connection->executeStatement(
+                <<<'SQL'
+                INSERT INTO product_showcase_bands (product_id, block, content)
+                VALUES (:product, :block, CAST(:content AS jsonb))
+                SQL,
+                [
+                    'product' => $product,
+                    'block' => $band,
+                    'content' => json_encode($heading['content'], JSON_THROW_ON_ERROR),
+                ],
+            );
+
+            foreach ($heading['translations'] as $locale => $content) {
+                $this->connection->executeStatement(
+                    <<<'SQL'
+                    INSERT INTO product_showcase_band_translations (product_id, block, locale, content)
+                    VALUES (:product, :block, :locale, CAST(:content AS jsonb))
+                    SQL,
+                    [
+                        'product' => $product,
+                        'block' => $band,
                         'locale' => $locale,
                         'content' => json_encode($content, JSON_THROW_ON_ERROR),
                     ],

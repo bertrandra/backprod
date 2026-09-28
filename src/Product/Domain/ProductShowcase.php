@@ -36,6 +36,16 @@ interface ProductShowcase
     public function blocksOf(string $productId): array;
 
     /**
+     * Each band's own heading, keyed by section.
+     *
+     * Absent from the map is "this band has never been retitled", which the
+     * page reads as its compiled default — never as an empty title.
+     *
+     * @return array<string, ShowcaseBandHeading>
+     */
+    public function headingsOf(string $productId): array;
+
+    /**
      * The order this product reads its sections in, completed.
      *
      * Always a full list — {@see ShowcaseSections::readIn} fills in anything
@@ -79,12 +89,20 @@ interface ProductShowcase
      * the blocks and nothing else. If an order had to be sent, translating a
      * headline into French would silently reset the order of the page.
      *
-     * @param list<ShowcaseBlock> $blocks
-     * @param list<string>|null   $sections a permutation of the page's sections, or null to leave it
+     * **The headings are left alone unless they are named**, exactly as the
+     * order is, and for the same reason: the translation desk writes one
+     * sentence through this operation carrying neither, so a write that
+     * always set them would erase a page's titles by translating a step.
+     * Named, the map replaces the set — a band left out of it is one whose
+     * heading goes back to its compiled default.
+     *
+     * @param list<ShowcaseBlock>                    $blocks
+     * @param list<string>|null                      $sections a permutation of the page's sections, or null to leave it
+     * @param array<string, ShowcaseBandHeading>|null $headings by section, or null to leave them
      *
      * @return list<ShowcaseBlock> what the product now says
      */
-    public function replace(string $productId, array $blocks, ?array $sections = null): array;
+    public function replace(string $productId, array $blocks, ?array $sections = null, ?array $headings = null): array;
 
     /**
      * Publishes the story, or takes it back to a draft.

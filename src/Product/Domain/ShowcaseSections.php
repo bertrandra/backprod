@@ -40,7 +40,7 @@ final class ShowcaseSections
     /**
      * Every section of the page, in the order it has always been read.
      *
-     * The five an operator writes rows for, plus the one that reads the
+     * The seven an operator writes rows for, plus the one that reads the
      * catalogue. Kept here rather than derived from {@see ShowcaseBlock}
      * because that list is deliberately the *writable* kinds and this one
      * deliberately is not — the difference is `PRICING`, and it is the point.
@@ -49,8 +49,10 @@ final class ShowcaseSections
      */
     public const DEFAULT_ORDER = [
         ShowcaseBlock::HEADLINE,
+        ShowcaseBlock::PROBLEM,
         ShowcaseBlock::STEPS,
         ShowcaseBlock::USE_CASE,
+        ShowcaseBlock::QUOTE,
         ShowcaseBlock::PROOF,
         self::PRICING,
         ShowcaseBlock::QUESTION,

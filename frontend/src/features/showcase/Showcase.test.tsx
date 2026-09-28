@@ -45,14 +45,34 @@ const OFFER = {
 const row = <T,>(id: string, content: T) => ({ id, content, image: null });
 
 const FULL: ShowcaseContent = {
-  headline: [row('h', { headline: 'Draw a terrace in three minutes', subline: 'And print the file.' })],
+  headline: [
+    row('h', {
+      headline: 'Draw a terrace in three minutes',
+      subline: 'And print the file.',
+      reassurance: null,
+    }),
+  ],
+  problems: [
+    row('p1', { title: 'Half a day per job', body: 'Measuring, then redrawing it.', icon: 'clock' }),
+  ],
+  quotes: [row('q1', { quote: 'The quote goes out the same evening.', author: 'A paving contractor' })],
+  headings: {},
   steps: [row('s1', { title: 'Draw the parcel', body: null }), row('s2', { title: 'The terrace follows', body: null })],
   useCases: [row('u1', { who: 'A landscaper', before: 'An afternoon of redrawing', after: 'Three minutes' })],
   proof: [row('p1', { caption: 'The plan, as it prints' })],
   questions: [row('q1', { question: 'Can I cancel?', answer: 'Yes, at the end of the period.' })],
 };
 
-const EMPTY: ShowcaseContent = { headline: [], steps: [], useCases: [], proof: [], questions: [] };
+const EMPTY: ShowcaseContent = {
+  headline: [],
+  problems: [],
+  steps: [],
+  useCases: [],
+  quotes: [],
+  proof: [],
+  questions: [],
+  headings: {},
+};
 
 /**
  * A picture on a band that had none until 2026-09-28.
@@ -110,7 +130,7 @@ describe('a product that has said nothing', () => {
 });
 
 describe('a product that has said everything', () => {
-  it('renders the six bands in the order the registry gives them', () => {
+  it('renders every band in the order the registry gives them', () => {
     const { container } = renderStory(FULL);
 
     const order = [...container.querySelectorAll('[data-band]')].map((band) =>
@@ -309,7 +329,16 @@ describe('the order the page is read in', () => {
       <Showcase
         productName="Plan"
         content={FULL}
-        sections={['QUESTION', 'PRICING', 'PROOF', 'USE_CASE', 'STEPS', 'HEADLINE']}
+        sections={[
+          'QUESTION',
+          'PRICING',
+          'PROOF',
+          'QUOTE',
+          'USE_CASE',
+          'STEPS',
+          'PROBLEM',
+          'HEADLINE',
+        ]}
         offers={[OFFER]}
         offersLoading={false}
         action={<span />}
@@ -327,7 +356,7 @@ describe('the order the page is read in', () => {
       <Showcase
         productName="Plan"
         content={FULL}
-        sections={['PRICING', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF']}
+        sections={['PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'PROOF']}
         offers={[OFFER]}
         offersLoading={false}
         action={<span />}
@@ -337,8 +366,10 @@ describe('the order the page is read in', () => {
     expect(bandsOn(container)).toEqual([
       BAND_META.PRICING.anchor,
       BAND_META.HEADLINE.anchor,
+      BAND_META.PROBLEM.anchor,
       BAND_META.STEPS.anchor,
       BAND_META.USE_CASE.anchor,
+      BAND_META.QUOTE.anchor,
       BAND_META.PROOF.anchor,
       BAND_META.QUESTION.anchor,
     ]);
@@ -358,7 +389,16 @@ describe('the order the page is read in', () => {
       <Showcase
         productName="Plan"
         content={FULL}
-        sections={['QUESTION', 'PRICING', 'PROOF', 'USE_CASE', 'STEPS', 'HEADLINE']}
+        sections={[
+          'QUESTION',
+          'PRICING',
+          'PROOF',
+          'QUOTE',
+          'USE_CASE',
+          'STEPS',
+          'PROBLEM',
+          'HEADLINE',
+        ]}
         offers={[OFFER]}
         offersLoading={false}
         action={<span />}
@@ -368,13 +408,108 @@ describe('the order the page is read in', () => {
     const targets = [...container.querySelectorAll('nav a')].map((link) => link.getAttribute('href'));
 
     expect(targets).toEqual(
-      ['QUESTION', 'PRICING', 'PROOF', 'USE_CASE', 'STEPS', 'HEADLINE'].map(
+      ['QUESTION', 'PRICING', 'PROOF', 'QUOTE', 'USE_CASE', 'STEPS', 'PROBLEM', 'HEADLINE'].map(
         (kind) => `#${BAND_META[kind as keyof typeof BAND_META].anchor}`,
       ),
     );
   });
 });
 
+/**
+ * The two bands the mockup asked for, and the heading every band can now
+ * carry (2026-09-28).
+ */
+describe('the problem band', () => {
+  it('draws the icon it was given, and nothing where the name is unknown', () => {
+    renderStory({
+      ...FULL,
+      problems: [
+        row('p1', { title: 'Half a day per job', body: null, icon: 'clock' }),
+        row('p2', { title: 'Two figures for one area', body: null, icon: null }),
+      ],
+    });
+
+    const band = within(screen.getByTestId('showcase-problem'));
+    const points = band.getAllByRole('listitem');
+
+    expect(points[0]?.getAttribute('data-icon')).toBe('clock');
+    expect(points[0]?.querySelector('svg')).toBeTruthy();
+
+    // No icon is a real answer, not a gap: the sentence is the point.
+    expect(points[1]?.getAttribute('data-icon')).toBe('none');
+    expect(points[1]?.querySelector('svg')).toBeNull();
+  });
+
+  it('hides itself when nobody wrote a problem', () => {
+    renderStory({ ...FULL, problems: [] });
+
+    expect(screen.queryByTestId('showcase-problem')).toBeNull();
+  });
+});
+
+describe('the quote band', () => {
+  it('marks it up as a quotation with its attribution', () => {
+    renderStory({
+      ...FULL,
+      quotes: [row('q1', { quote: 'The quote goes out the same evening.', author: 'A paving contractor' })],
+    });
+
+    const band = within(screen.getByTestId('showcase-quotes'));
+
+    // A blockquote and a cite, so a screen reader announces a quotation and
+    // who made it — not two paragraphs, one of them smaller and grey.
+    expect(band.getByText('The quote goes out the same evening.').closest('blockquote')).toBeTruthy();
+    expect(band.getByText('A paving contractor').tagName.toLowerCase()).toBe('cite');
+  });
+
+  it('puts nothing in place of an author nobody named', () => {
+    renderStory({ ...FULL, quotes: [row('q1', { quote: 'It works.', author: null })] });
+
+    // An invented "— a customer" makes the real testimonials look invented
+    // too, so the line is simply absent.
+    expect(within(screen.getByTestId('showcase-quotes')).queryByRole('figure')).not.toBeNull();
+    expect(screen.queryByText(/a customer/i)).toBeNull();
+  });
+});
+
+describe('what a band is called', () => {
+  it('reads the operator’s words over the ones it was written with', () => {
+    renderStory({
+      ...FULL,
+      headings: {
+        STEPS: { eyebrow: 'The tutorial', title: 'Trace, place, print.', lede: 'No training at all.' },
+      },
+    });
+
+    const band = within(screen.getByTestId('showcase-steps'));
+
+    expect(band.getByText('Trace, place, print.')).toBeTruthy();
+    expect(band.getByText('The tutorial')).toBeTruthy();
+    expect(band.getByText('No training at all.')).toBeTruthy();
+    expect(band.queryByText('How it works')).toBeNull();
+  });
+
+  it('falls back field by field, so a missing lede keeps the title', () => {
+    renderStory({ ...FULL, headings: { STEPS: { eyebrow: null, title: 'Three moves', lede: null } } });
+
+    const band = within(screen.getByTestId('showcase-steps'));
+
+    expect(band.getByText('Three moves')).toBeTruthy();
+    // Nothing invented where the operator wrote nothing.
+    expect(screen.queryByTestId('how-eyebrow')).toBeNull();
+  });
+
+  it('gives the prices band a heading, which is the only thing it can be given', () => {
+    renderStory({
+      ...FULL,
+      headings: { PRICING: { eyebrow: null, title: 'The first plan costs nothing.', lede: null } },
+    });
+
+    // The one section with a heading and no rows: a row for it would be a
+    // row somebody could type a price into.
+    expect(within(screen.getByTestId('showcase-pricing')).getByText('The first plan costs nothing.')).toBeTruthy();
+  });
+});
 describe('the registry', () => {
   it('describes every band it renders, and renders every band it describes', () => {
     // The promise in docs/home-showcase-spec.md §6: adding a band is four

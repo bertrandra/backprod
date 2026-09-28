@@ -23,7 +23,9 @@ namespace App\Product\Domain;
 final class ShowcaseBlock
 {
     public const HEADLINE = 'HEADLINE';
+    public const PROBLEM = 'PROBLEM';
     public const STEPS = 'STEPS';
+    public const QUOTE = 'QUOTE';
     public const USE_CASE = 'USE_CASE';
     public const PROOF = 'PROOF';
     public const QUESTION = 'QUESTION';
@@ -38,7 +40,28 @@ final class ShowcaseBlock
      *
      * @var list<string>
      */
-    public const KINDS = [self::HEADLINE, self::STEPS, self::USE_CASE, self::PROOF, self::QUESTION];
+    public const KINDS = [
+        self::HEADLINE,
+        self::PROBLEM,
+        self::STEPS,
+        self::USE_CASE,
+        self::QUOTE,
+        self::PROOF,
+        self::QUESTION,
+    ];
+
+    /**
+     * The icons a `PROBLEM` row may carry.
+     *
+     * A closed set, and a **code rather than a sentence**: the frontend
+     * draws it, so it has no French and is refused in a translation the way
+     * a price is refused in a band. Free text here would be either a class
+     * name from a library this platform does not ship or an operator's
+     * afternoon spent typing into a hole.
+     *
+     * @var list<string>
+     */
+    public const ICONS = ['clock', 'cross', 'house', 'coin', 'ruler', 'paper', 'warning', 'repeat'];
 
     /**
      * The kinds that hold exactly one row.

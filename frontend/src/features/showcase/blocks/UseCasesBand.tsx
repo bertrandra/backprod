@@ -2,7 +2,7 @@ import { t } from '@/i18n';
 
 import { ShowcaseBand } from '../ShowcaseBand';
 import { ShowcaseImageFrame } from '../ShowcaseImageFrame';
-import type { ShowcaseRow, UseCaseRow } from './content';
+import type { BandHeading, ShowcaseRow, UseCaseRow } from './content';
 import { BAND_META } from './meta';
 
 /**
@@ -20,7 +20,13 @@ import { BAND_META } from './meta';
  * for writes `who` and stops — and a card with neither is the person's name
  * alone, which is honest rather than padded.
  */
-export function UseCasesBand({ rows }: { rows: readonly ShowcaseRow<UseCaseRow>[] }) {
+export function UseCasesBand({
+  rows,
+  heading,
+}: {
+  rows: readonly ShowcaseRow<UseCaseRow>[];
+  heading?: BandHeading | undefined;
+}) {
   if (rows.length === 0) {
     return null;
   }
@@ -29,7 +35,9 @@ export function UseCasesBand({ rows }: { rows: readonly ShowcaseRow<UseCaseRow>[
     <ShowcaseBand
       id={BAND_META.USE_CASE.anchor}
       surface={BAND_META.USE_CASE.surface}
-      title={t("Who it is for")}
+      eyebrow={heading?.eyebrow ?? undefined}
+      title={heading?.title ?? t("Who it is for")}
+      lede={heading?.lede ?? undefined}
       data-testid="showcase-use-cases"
     >
       <ul className="grid gap-5 md:grid-cols-2 lg:gap-6">

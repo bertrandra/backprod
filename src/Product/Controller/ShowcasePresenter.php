@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Product\Controller;
 
 use App\Product\Domain\PublishedShowcase;
+use App\Product\Domain\ShowcaseBandHeading;
 use App\Product\Domain\ShowcaseBlock;
 
 /**
@@ -20,6 +21,30 @@ use App\Product\Domain\ShowcaseBlock;
  */
 final class ShowcasePresenter
 {
+    /**
+     * The bands' headings as the console edits them: English and every
+     * language beside it, keyed by section (2026-09-28).
+     *
+     * An object and not a list, because a band has at most one heading and
+     * the section is the key — the same shape `translations` already has on
+     * a block, so the console reads both the same way.
+     *
+     * @param array<string, ShowcaseBandHeading> $headings
+     */
+    public static function headings(array $headings): object
+    {
+        return (object) array_map(
+            static fn (ShowcaseBandHeading $heading): object => (object) [
+                'content' => (object) $heading->content,
+                'translations' => (object) array_map(
+                    static fn (array $said): object => (object) $said,
+                    $heading->translations,
+                ),
+            ],
+            $headings,
+        );
+    }
+
     /**
      * The page as a stranger reads it, in their language.
      *
@@ -43,6 +68,13 @@ final class ShowcasePresenter
             // a reader who got the bands without it would be given the
             // database's order, which is nobody's decision.
             'sections' => $showcase->sections,
+            // Resolved into the reader's language field by field, exactly as a
+            // band's rows are: a title translated and a lede not reads
+            // translated above and English below, which is honest.
+            'bands' => (object) array_map(
+                static fn (ShowcaseBandHeading $heading): object => (object) $heading->contentIn($locale),
+                $showcase->headings,
+            ),
             'blocks' => array_map(
                 static fn (ShowcaseBlock $block): array => [
                     'id' => $block->id,

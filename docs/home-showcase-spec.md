@@ -302,6 +302,37 @@ product_showcase
   asset_id        the picture, when the band has one         nullable
 ```
 
+**A band carries its own heading** (`product_showcase_bands`, 2026-09-28):
+its eyebrow, its title, the sentence under it, in five languages like every
+other sentence on the page. One row per `(product, band)`, where
+`product_showcase` is one row per *row* — three steps are three rows there
+and one here, because the section is called "How it works" once.
+
+**`PRICING` is what settles that design rather than an afterthought to it.**
+It has no rows and never will, because a row for it would be a row somebody
+could type a price into (§9), and it still needs a title. Nothing that lives
+on a row can carry one. So the heading is its own table, and the prices band
+becomes editable without ever gaining a field that could hold an amount.
+
+Every field is optional and **absent means the band's compiled default** —
+the words its component was written with — so this arrives with no backfill
+and a band goes back to its default by having its title emptied. `bands`
+absent on a write leaves every heading alone, the same rule and the same
+reason as the order: the translation desk writes one sentence through the
+operation that owns the story and carries neither.
+
+**Two more bands** (2026-09-28). `PROBLEM` names what the reader lives with
+in a few short points, on the one dark ground the page has; `QUOTE` carries
+somebody saying it worked. Neither fitted what was there — a problem is not
+a numbered sequence and not a before-and-after about one person — and
+forcing either would have given the page a numbered list of complaints or an
+empty "after" column.
+
+`PROBLEM.icon` names one of a closed set the frontend draws. It is a **code
+and not a sentence**: validated against that set, refused in a translation,
+and drawn from a table beside the band rather than fetched from an icon
+library. An icon has no French.
+
 **And the order of the sections is the product's** (`products.showcase_sections`,
 2026-09-28). A JSON array of section kinds, nullable, and null is the default
 order — so no backfill, and a product reads exactly as it did yesterday until

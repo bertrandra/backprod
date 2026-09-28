@@ -44,7 +44,7 @@ final class ShowcaseDesk
      * Drafts included — that is what a draft is — because this is the only
      * screen that can finish a half-translated page.
      *
-     * @return array{product: \App\Product\Domain\Product, blocks: list<ShowcaseBlock>, sections: list<string>, published_at: ?\DateTimeImmutable}
+     * @return array{product: \App\Product\Domain\Product, blocks: list<ShowcaseBlock>, sections: list<string>, headings: array<string, \App\Product\Domain\ShowcaseBandHeading>, published_at: ?\DateTimeImmutable}
      */
     public function story(string $productId): array
     {
@@ -53,6 +53,9 @@ final class ShowcaseDesk
         return [
             'product' => $product,
             'blocks' => $this->showcase->blocksOf($productId),
+            // A band the map does not name has never been retitled, which
+            // the page reads as its compiled default — never an empty title.
+            'headings' => $this->showcase->headingsOf($productId),
             // Always a full order, never "unset": the console draws one row
             // per section and a screen that had to know what an absent order
             // meant would be a second place the default lives.
@@ -69,15 +72,16 @@ final class ShowcaseDesk
      * product up to check it exists — asking twice would be two reads for
      * one fact.
      *
-     * @param list<ShowcaseBlock> $blocks
-     * @param list<string>|null   $sections the order to read the page in, or null to leave it alone
+     * @param list<ShowcaseBlock>                                       $blocks
+     * @param list<string>|null                                         $sections the order to read the page in, or null to leave it alone
+     * @param array<string, \App\Product\Domain\ShowcaseBandHeading>|null $headings the bands' own headings, or null to leave them
      *
-     * @return array{code: string, blocks: list<ShowcaseBlock>, sections: list<string>}
+     * @return array{code: string, blocks: list<ShowcaseBlock>, sections: list<string>, headings: array<string, \App\Product\Domain\ShowcaseBandHeading>}
      */
-    public function write(StaffIdentity $staff, string $productId, array $blocks, ?array $sections = null): array
+    public function write(StaffIdentity $staff, string $productId, array $blocks, ?array $sections = null, ?array $headings = null): array
     {
         $product = $this->product($productId);
-        $written = $this->showcase->replace($productId, $blocks, $sections);
+        $written = $this->showcase->replace($productId, $blocks, $sections, $headings);
 
         // The bands it now has and the languages they say something in —
         // not what they say. A trail answers "who changed this, and roughly
@@ -89,7 +93,8 @@ final class ShowcaseDesk
         $this->record($staff, $product->id, 'WRITE', [
             'blocks' => array_map(static fn (ShowcaseBlock $block): string => $block->block, $written),
             'translated' => self::languages($written),
-        ] + ($sections === null ? [] : ['sections' => $sections]));
+        ] + ($sections === null ? [] : ['sections' => $sections])
+            + ($headings === null ? [] : ['headings' => array_keys($headings)]));
 
         return [
             'code' => $product->code,
@@ -97,6 +102,7 @@ final class ShowcaseDesk
             // Read back rather than echoed: where the request said nothing,
             // the answer still has to carry the order the page actually has.
             'sections' => $this->showcase->sectionsOf($productId),
+            'headings' => $this->showcase->headingsOf($productId),
         ];
     }
 
