@@ -956,3 +956,230 @@ describe('somebody who may read but not change', () => {
     expect(screen.queryByTestId('cancellation-decision')).toBeNull();
   });
 });
+
+/**
+ * The half the screen used to drop on the floor (2026-09-28).
+ *
+ * The server has always answered `charge_invoice_id` and `credit_refund_id`;
+ * nothing read them. So a customer moved up, an invoice with a gapless legal
+ * number came into existence, and nobody was ever asked to pay it — it sat
+ * unpaid until the dunning pass noticed and shut their workshop (ADR-060).
+ */
+describe('a change of plan pays for itself', () => {
+  const CHARGED = { ...MOVING_UP, charge_invoice_id: 'inv-up', credit_refund_id: 'ref-1' };
+
+  const STARTED = {
+    id: 'pay-1',
+    invoice_id: 'inv-up',
+    subscription_id: null,
+    provider: 'stripe',
+    provider_payment_id: 'pi_1',
+    status: 'PENDING',
+    settled: false,
+    final: false,
+    amount: { minor_units: 3900, currency: 'EUR' },
+    method: null,
+    failure_code: null,
+    failure_reason: null,
+    succeeded_at: null,
+    failed_at: null,
+    created_at: '2026-09-28T09:00:00Z',
+    client_secret: 'pi_1_secret',
+    payment_provider: { provider: 'stripe', publishable_key: 'pk_test' },
+  };
+
+  function movingUp(extra: Record<string, Stub | (() => Stub)> = {}, change: unknown = CHARGED) {
+    return stubsFor(
+      [offer('o-1', ZEBRA), offer('o-up', ALPHA)],
+      {
+        ...subscriptionRead(null, live()),
+        ...scheduling(),
+        ...previewing(MOVING_UP),
+        'POST /api/v1/subscription/change-offer': { data: { subscription: live(), change } },
+        ...extra,
+      },
+      SUBSCRIBER,
+    );
+  }
+
+  it('asks the server for a payment on the invoice the change raised', async () => {
+    const { client, requests } = recordingClient(
+      movingUp({
+        'POST /api/v1/billing/invoices/{invoiceId}/payments': { data: STARTED, status: 201 },
+      }),
+    );
+    render(client);
+
+    await waitFor(() => expect(screen.getByTestId('move-up')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('move-up'));
+
+    // The invoice the *server* named, never one the screen guessed: a
+    // document's number is never invented, and neither is its id.
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (request) =>
+            request.path === '/api/v1/billing/invoices/{invoiceId}/payments' &&
+            (request.pathParams as { invoiceId?: string } | undefined)?.invoiceId === 'inv-up',
+        ),
+      ).toBe(true),
+    );
+
+    // And the way back is there whatever the card form does.
+    await waitFor(() =>
+      expect(screen.getByTestId('continue-to-invoice').getAttribute('href')).toContain('inv-up'),
+    );
+  });
+
+  it('says what went back to the card, because that money has already moved', async () => {
+    render(
+      stubClient(
+        movingUp({
+          'POST /api/v1/billing/invoices/{invoiceId}/payments': { data: STARTED, status: 201 },
+        }),
+      ),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('move-up')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('move-up'));
+
+    // In the past tense and with no button: the refund was sent before the
+    // plan moved (ADR-058), so there is nothing for the customer to do.
+    await waitFor(() => expect(screen.getByTestId('settle-credit')).toBeTruthy());
+    // 900 minor units, through `Money` and therefore through `Intl` — the
+    // separator is the locale’s, so the assertion is about the figure and not
+    // about which punctuation this machine happens to use.
+    expect(screen.getByTestId('settle-credit').textContent).toMatch(/9[.,]00/);
+  });
+
+  it('asks for no payment when the move raised no document', async () => {
+    // Nothing outstanding raises no document at all (§6.3) — a €0 invoice
+    // would be a permanent hole in a gapless legal series. The screen must
+    // not then invent a payment, nor take itself over to say nothing.
+    const free = { ...MOVING_UP, charge_invoice_id: null, credit_refund_id: null };
+    const { client, requests } = recordingClient(movingUp({}, free));
+    render(client);
+
+    await waitFor(() => expect(screen.getByTestId('move-up')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('move-up'));
+
+    await waitFor(() =>
+      expect(requests.some((request) => request.path === '/api/v1/subscription/change-offer')).toBe(true),
+    );
+
+    expect(
+      requests.some((request) => request.path === '/api/v1/billing/invoices/{invoiceId}/payments'),
+    ).toBe(false);
+    expect(screen.queryByTestId('catalogue-settle')).toBeNull();
+    expect(screen.getByTestId('move-up')).toBeTruthy();
+  });
+
+  it('draws no card form until the server has answered with a secret', async () => {
+    // Waiting is the honest state. A panel rendered ahead of the secret would
+    // be the optimism `gate:money` forbids, and the secret is returned once
+    // and never recoverable (ADR-034) — there is nothing to draw without it.
+    render(
+      stubClient(
+        movingUp({
+          // Held open: this is the window an optimistic implementation would
+          // have filled with a form it had no secret for.
+          'POST /api/v1/billing/invoices/{invoiceId}/payments': {
+            data: STARTED,
+            status: 201,
+            delayMs: 5_000,
+          },
+        }),
+      ),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('move-up')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('move-up'));
+
+    // The move has landed and the screen says so, with no form on it yet.
+    await waitFor(() => expect(screen.getByTestId('catalogue-settle')).toBeTruthy());
+    expect(screen.queryByTestId('payment-element')).toBeNull();
+
+  });
+});
+
+describe('leaving early pays for itself too', () => {
+  const CHARGED = { ...IF_CANCELLED, charge_invoice_id: 'inv-exit' };
+
+  const STARTED = {
+    id: 'pay-2',
+    invoice_id: 'inv-exit',
+    subscription_id: null,
+    provider: 'stripe',
+    provider_payment_id: 'pi_2',
+    status: 'PENDING',
+    settled: false,
+    final: false,
+    amount: { minor_units: 8700, currency: 'EUR' },
+    method: null,
+    failure_code: null,
+    failure_reason: null,
+    succeeded_at: null,
+    failed_at: null,
+    created_at: '2026-09-28T09:00:00Z',
+    client_secret: 'pi_2_secret',
+    payment_provider: { provider: 'stripe', publishable_key: 'pk_test' },
+  };
+
+  function leaving(cancellation: unknown, extra: Record<string, Stub | (() => Stub)> = {}) {
+    return stubsFor(
+      [offer('o-1', ZEBRA)],
+      {
+        ...subscriptionRead(null, live()),
+        ...scheduling(),
+        'POST /api/v1/subscription/cancel': { data: { subscription: live(), cancellation } },
+        ...extra,
+      },
+      SUBSCRIBER,
+    );
+  }
+
+  it('collects the buy-out on the way out', async () => {
+    const { client, requests } = recordingClient(
+      leaving(CHARGED, {
+        'POST /api/v1/billing/invoices/{invoiceId}/payments': { data: STARTED, status: 201 },
+      }),
+    );
+    render(client);
+
+    await waitFor(() => expect(screen.getByTestId('confirm-cancel-seat')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('confirm-cancel-seat'));
+    await waitFor(() => expect(screen.getByTestId('cancel-seat')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('cancel-seat'));
+
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (request) =>
+            request.path === '/api/v1/billing/invoices/{invoiceId}/payments' &&
+            (request.pathParams as { invoiceId?: string } | undefined)?.invoiceId === 'inv-exit',
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it('asks for nothing when leaving cost nothing', async () => {
+    const { client, requests } = recordingClient(
+      leaving({ ...IF_CANCELLED, chargeable_months: 0, charge_invoice_id: null }),
+    );
+    render(client);
+
+    await waitFor(() => expect(screen.getByTestId('confirm-cancel-seat')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('confirm-cancel-seat'));
+    await waitFor(() => expect(screen.getByTestId('cancel-seat')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('cancel-seat'));
+
+    await waitFor(() =>
+      expect(requests.some((request) => request.path === '/api/v1/subscription/cancel')).toBe(true),
+    );
+
+    expect(
+      requests.some((request) => request.path === '/api/v1/billing/invoices/{invoiceId}/payments'),
+    ).toBe(false);
+    expect(screen.queryByTestId('catalogue-settle')).toBeNull();
+  });
+});

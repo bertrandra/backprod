@@ -132,12 +132,19 @@ export type StartedPayment = Payment & {
   payment_provider?: Schemas['PaymentProviderClient'];
 };
 
-export function useStartPayment(invoiceId: string) {
+/**
+ * **The invoice is a variable, not a closure** (2026-09-28). It used to be an
+ * argument to the hook, which suited the one caller that is already looking at
+ * an invoice and suited nobody else: a plan change learns which invoice it
+ * raised only when the server answers, and a hook cannot be called with it
+ * then. One door for both, rather than a second door that would drift.
+ */
+export function useStartPayment() {
   const client = useApiClient();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (): Promise<StartedPayment> => {
+    mutationFn: async (invoiceId: string): Promise<StartedPayment> => {
       const ambient = ambientParams(sessionSnapshot);
 
       const { data, error, response } = await client.POST(
@@ -151,7 +158,7 @@ export function useStartPayment(invoiceId: string) {
 
       return data;
     },
-    onSuccess: async () => {
+    onSuccess: async (_payment, invoiceId) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: keys.billing.paymentLists }),
         queryClient.invalidateQueries({ queryKey: keys.billing.invoice(invoiceId) }),

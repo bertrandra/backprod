@@ -50,7 +50,7 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
   const cancel = useCancelInvoice();
   const markPaid = useMarkInvoicePaid();
   const credit = useIssueCreditNote(invoiceId);
-  const startPayment = useStartPayment(invoiceId);
+  const startPayment = useStartPayment();
 
   // Held for exactly as long as this render: the card form is offered where
   // the secret was born and nowhere else (ADR-048).
@@ -217,7 +217,7 @@ export function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
               <Button
                 type="button"
                 pending={startPayment.isPending}
-                onClick={() => startPayment.mutate(undefined, { onSuccess: setStarted })}
+                onClick={() => startPayment.mutate(invoiceId, { onSuccess: setStarted })}
               >
                 {t("Take a payment")}</Button>
             )}

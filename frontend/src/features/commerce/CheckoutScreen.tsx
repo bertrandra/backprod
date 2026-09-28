@@ -288,11 +288,16 @@ export function CheckoutScreen({ sessionId }: { sessionId: string }) {
 }
 
 /**
- * The button that asks for a new attempt. Its own component so the mutation
- * is keyed to the invoice it collects, as `useStartPayment` requires.
+ * The button that asks for a new attempt.
+ *
+ * Its own component so the attempt's pending and error state belong to the
+ * button rather than to the page around it. It used to be one because
+ * `useStartPayment` took the invoice at creation time; since the invoice is a
+ * mutation variable (2026-09-28) that is no longer the reason, and a reason
+ * that has stopped being true is worse than none.
  */
 function StartAttempt({ invoiceId, onStarted }: { invoiceId: string; onStarted: (attempt: StartedPayment) => void }) {
-  const start = useStartPayment(invoiceId);
+  const start = useStartPayment();
 
   return (
     <>
@@ -301,7 +306,7 @@ function StartAttempt({ invoiceId, onStarted }: { invoiceId: string; onStarted: 
         type="button"
         pending={start.isPending}
         data-testid="pay-now"
-        onClick={() => start.mutate(undefined, { onSuccess: onStarted })}
+        onClick={() => start.mutate(invoiceId, { onSuccess: onStarted })}
       >
         {t("Pay now")}</Button>
     </>

@@ -7,6 +7,7 @@ import { CancellationOutcome } from '@/features/billing/decisions';
 import { PaymentElementPanel } from '@/features/commerce/payment/PaymentElementPanel';
 import { useOffers, usePlans, useProductCatalogue, type Offer } from '@/queries/catalogue';
 import { useOpenCheckoutSession, type OpenedCheckoutSession } from '@/queries/checkout';
+import { useStartPayment, type StartedPayment } from '@/queries/payments';
 import { useSession } from '@/queries/session';
 import { useSessionStore } from '@/state/session';
 import {
@@ -19,6 +20,7 @@ import {
   useStartFreemium,
   useSubscription,
   type CancellationDecision,
+  type ChangeDecision,
   type Subscription,
 } from '@/queries/subscription';
 import { EmptyState } from '@/ui/EmptyState';
@@ -112,6 +114,22 @@ import { billingPeriod } from '@/ui/period';
  * trusting it: a move up raises an invoice with a gapless legal number and
  * sends a refund back through a provider, and a screen that assumed success
  * would have invented both documents.
+ *
+ * **And changing a plan pays for itself, here** (2026-09-28). The server has
+ * always answered `charge_invoice_id` and `credit_refund_id`; this screen
+ * dropped both on the floor. So a customer moved up, a numbered invoice came
+ * into existence, and nobody was ever asked to pay it — it sat until the
+ * dunning pass noticed days later and shut their workshop (ADR-060). The
+ * money for a change now comes out at the moment the change is made, which is
+ * the moment the customer has already decided to spend it, through the same
+ * panel buying uses. §24 is why it has to be asked for at all: this platform
+ * holds no instrument, so there is no card here to charge by itself.
+ *
+ * The credit is the other half and is **already money that has moved** — a
+ * refund with its credit note (ADR-058), sent before the plan moved. It is
+ * reported rather than offered: there is nothing for the customer to do about
+ * it, and a screen silent about a repayment is a screen the customer has to
+ * check their bank to understand.
  */
 export function CatalogueScreen() {
   const navigate = useNavigate();
@@ -135,6 +153,7 @@ export function CatalogueScreen() {
   const scheduleChange = useScheduleOfferChange(true);
   const cancelScheduled = useCancelScheduledChange(true);
   const cancel = useCancelSubscription();
+  const settle = useStartPayment();
 
   // What it would refuse is not offered: the operator's rule, since the
   // Quote button beside Buy — a function a person cannot use is hidden, not
@@ -166,6 +185,20 @@ export function CatalogueScreen() {
   // offers the form (ADR-034): never in a store, never across a navigation.
   const [opened, setOpened] = useState<{ session: OpenedCheckoutSession; offer: Offer } | null>(null);
 
+  // What a change or a departure just did, and the payment for it once the
+  // server has answered. `payment` is null until then and the form is simply
+  // not drawn: waiting is the honest state, and a panel rendered ahead of the
+  // secret would be the optimism `gate:money` forbids.
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
+
+  const settleInvoice = (invoiceId: string) => {
+    settle.mutate(invoiceId, {
+      onSuccess: (payment) => {
+        setOutcome((current) => (current === null ? current : { ...current, payment }));
+      },
+    });
+  };
+
   if (offers.isPending || plans.isPending) {
     return <SkeletonRows rows={6} />;
   }
@@ -188,6 +221,76 @@ export function CatalogueScreen() {
   const orphaned = offers.data.filter(
     (offer) => !plans.data.some((plan) => plan.id === offer.plan.id),
   );
+
+  if (outcome !== null) {
+    const invoiceId = outcome.invoiceId;
+
+    return (
+      <div className="max-w-lg space-y-6" data-testid="catalogue-settle">
+        <header className="space-y-1">
+          <h1 className="text-2xl font-semibold">{outcome.heading}</h1>
+          <p className="text-sm text-muted" data-testid="settle-what">{outcome.what}</p>
+        </header>
+
+        {/* The repayment, stated. Already sent when the server answered, so it
+            is in the past tense and carries no button. */}
+        {outcome.credited !== null && (
+          <p className="text-sm" data-testid="settle-credit">
+            {t("Returned to the way you paid:")}{' '}
+            <Amount
+              money={{
+                minor_units: outcome.credited.credit_minor_units,
+                currency: outcome.credited.currency,
+              }}
+              className="font-medium"
+            />
+          </p>
+        )}
+
+        {settle.error !== null && <ErrorSurface error={settle.error} />}
+
+        {invoiceId !== null && outcome.payment !== null && (
+          <PaymentElementPanel
+            provider={outcome.payment.payment_provider}
+            clientSecret={outcome.payment.client_secret}
+            amount={outcome.payment.amount}
+            returnUrl={new URL(withRoot(root, `/invoices/${invoiceId}`), window.location.origin).toString()}
+            // Whatever the form said, the invoice says what the server knows.
+            onSettled={() =>
+              void navigate({ to: '/invoices/$invoiceId', params: { invoiceId } })
+            }
+          />
+        )}
+
+        {invoiceId !== null && (
+          // Always there, for the same reason the order link is: a provider
+          // with no card form confirms on its own, and somebody who changes
+          // their mind still has a document to come back to. Without it the
+          // only remaining route to this invoice was the dunning notice.
+          <p className="text-sm text-muted">
+            <Link
+              to="/invoices/$invoiceId"
+              params={{ invoiceId }}
+              data-testid="continue-to-invoice"
+              className="underline underline-offset-2"
+            >
+              {t("Open the invoice")}</Link>
+            {' — '}{t("it can be paid from there later.")}
+          </p>
+        )}
+
+        <p className="text-sm">
+          <button
+            type="button"
+            data-testid="back-to-catalogue"
+            className="underline underline-offset-2"
+            onClick={() => setOutcome(null)}
+          >
+            {t("Back to the catalogue")}</button>
+        </p>
+      </div>
+    );
+  }
 
   if (opened !== null) {
     const { session: order, offer: bought } = opened;
@@ -256,10 +359,66 @@ export function CatalogueScreen() {
         )
       }
       onTakeFreePeriod={() => freemium.mutate(offer.id)}
-      onMoveUp={() => changeOffer.mutate(offer.id)}
+      onMoveUp={() =>
+        changeOffer.mutate(offer.id, {
+          onSuccess: (moved) => {
+            const change = moved.change;
+            // `?? null` and not a bare read: the contract requires both, so
+            // absent means a response that did not come from this server, and
+            // the screen treats that as "nothing" rather than as a document.
+            const charge = change.charge_invoice_id ?? null;
+            const credited = (change.credit_refund_id ?? null) !== null ? change : null;
+
+            // A move that costs nothing and returns nothing has nothing to
+            // report, and taking the screen over to say so would put a page
+            // between the customer and the catalogue for no reason.
+            if (charge === null && credited === null) {
+              return;
+            }
+
+            setOutcome({
+              heading: charge !== null ? t('Pay') : t('Done'),
+              what: t('{plan} — the new period starts today.', { plan: offer.name }),
+              credited,
+              invoiceId: charge,
+              payment: null,
+            });
+
+            if (charge !== null) {
+              settleInvoice(charge);
+            }
+          },
+        })
+      }
       onMoveDown={() => scheduleChange.mutate(offer.id)}
       onWithdraw={() => cancelScheduled.mutate()}
-      onCancel={() => cancel.mutate({ seat: true })}
+      onCancel={() =>
+        cancel.mutate(
+          { seat: true },
+          {
+            onSuccess: (left) => {
+              const charge = left.cancellation.charge_invoice_id ?? null;
+
+              // A departure that costs nothing raises no document at all
+              // (§6.3), and there is then nothing to show here: the decision
+              // is already on the row that offered the button.
+              if (charge === null) {
+                return;
+              }
+
+              setOutcome({
+                heading: t('Pay'),
+                what: t('Leaving before the end of the commitment.'),
+                credited: null,
+                invoiceId: charge,
+                payment: null,
+              });
+
+              settleInvoice(charge);
+            },
+          },
+        )
+      }
     />
   );
 
@@ -660,3 +819,20 @@ function WhatItWouldDo({ offerId }: { offerId: string }) {
     </p>
   );
 }
+
+/**
+ * What a change of plan or a departure just did, held for exactly as long as
+ * the render that reports it.
+ *
+ * `invoiceId` null is "nothing was outstanding" — which raises no document,
+ * because a €0 invoice would be a permanent hole in a gapless legal series.
+ * `payment` null is "the server has not answered yet", never "there is
+ * nothing to pay": the two are different and the screen must not merge them.
+ */
+type Outcome = {
+  heading: string;
+  what: string;
+  credited: ChangeDecision | null;
+  invoiceId: string | null;
+  payment: StartedPayment | null;
+};
