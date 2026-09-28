@@ -46,7 +46,9 @@ final class ShowcaseBlocks
      * @var array<string, array{required: list<string>, optional: list<string>}>
      */
     private const FIELDS = [
-        ShowcaseBlock::HEADLINE => ['required' => ['headline'], 'optional' => ['subline', 'alt']],
+        ShowcaseBlock::HEADLINE => ['required' => ['headline'], 'optional' => ['subline', 'reassurance', 'alt']],
+        ShowcaseBlock::PROBLEM => ['required' => ['title'], 'optional' => ['body']],
+        ShowcaseBlock::QUOTE => ['required' => ['quote'], 'optional' => ['author']],
         ShowcaseBlock::STEPS => ['required' => ['title'], 'optional' => ['body', 'alt']],
         ShowcaseBlock::USE_CASE => ['required' => ['who'], 'optional' => ['before', 'after', 'alt']],
         ShowcaseBlock::PROOF => ['required' => ['caption'], 'optional' => ['alt']],
@@ -55,6 +57,20 @@ final class ShowcaseBlocks
         // below refuses on the way in, and it would be the same hole the
         // other way round — an operator writing a description of nothing.
         ShowcaseBlock::QUESTION => ['required' => ['question', 'answer'], 'optional' => []],
+    ];
+
+    /**
+     * Fields that are a **code and not a sentence** (2026-09-28).
+     *
+     * `icon` names one of a closed set the frontend draws. It is validated
+     * against that set, and refused in a translation: an icon has no
+     * French, and a locale that could hold one would be a second place the
+     * band's shape is decided.
+     *
+     * @var array<string, array<string, list<string>>>
+     */
+    private const CODES = [
+        ShowcaseBlock::PROBLEM => ['icon' => ShowcaseBlock::ICONS],
     ];
 
     /** Long enough for a paragraph, short enough that nobody pastes a book. */
@@ -179,7 +195,8 @@ final class ShowcaseBlocks
         }
 
         $shape = self::FIELDS[$kind];
-        $known = [...$shape['required'], ...$shape['optional']];
+        $codes = $english ? array_keys(self::CODES[$kind] ?? []) : [];
+        $known = [...$shape['required'], ...$shape['optional'], ...$codes];
         $content = [];
 
         foreach ($known as $field) {
@@ -193,9 +210,17 @@ final class ShowcaseBlocks
                 throw self::invalid($index, 'content.' . $field, sprintf('text of at most %d characters', self::LONGEST));
             }
 
-            if (trim($value) !== '') {
-                $content[$field] = trim($value);
+            if (trim($value) === '') {
+                continue;
             }
+
+            $allowed = self::CODES[$kind][$field] ?? null;
+
+            if ($allowed !== null && !in_array($value, $allowed, true)) {
+                throw self::invalid($index, 'content.' . $field, 'one of ' . implode(', ', $allowed));
+            }
+
+            $content[$field] = trim($value);
         }
 
         // Required in English only. A translation says what somebody has got

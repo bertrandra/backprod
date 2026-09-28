@@ -25,6 +25,9 @@ final class PublishedShowcase
 {
     /**
      * @param list<ShowcaseBlock> $blocks
+     * @param array<string, ShowcaseBandHeading> $headings each band's own eyebrow, title and lede,
+     *                                                     keyed by section; absent is the band's
+     *                                                     compiled default, never an empty title
      * @param list<string>        $sections the order the page reads its bands in,
      *                                      already completed by {@see ShowcaseSections::readIn}
      *                                      so a reader never has to know what "unset" means
@@ -37,6 +40,7 @@ final class PublishedShowcase
         public readonly array $blocks,
         public readonly ?DateTimeImmutable $publishedAt = null,
         public readonly array $sections = ShowcaseSections::DEFAULT_ORDER,
+        public readonly array $headings = [],
     ) {
     }
 

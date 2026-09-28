@@ -13,6 +13,8 @@
  * treat them alike.
  */
 
+import type { ProblemIcon } from './meta';
+
 /** A picture, once step 4 attaches one. Null everywhere until then. */
 export interface ShowcaseImage {
   readonly url: string;
@@ -26,6 +28,26 @@ export interface HeadlineRow {
   readonly headline: string;
   /** One sentence: the change it makes. */
   readonly subline: string | null;
+  /** The line under the buttons that takes the risk out of pressing one. */
+  readonly reassurance: string | null;
+}
+
+export interface ProblemRow {
+  readonly title: string;
+  readonly body: string | null;
+  /**
+   * Which drawn icon sits above the point, or none.
+   *
+   * A code the registry draws, never a sentence — so it has no translation,
+   * and a name this bundle does not know reads as no icon rather than as a
+   * gap where one should be.
+   */
+  readonly icon: ProblemIcon | null;
+}
+
+export interface QuoteRow {
+  readonly quote: string;
+  readonly author: string | null;
 }
 
 export interface StepRow {
@@ -64,16 +86,36 @@ export interface ShowcaseRow<TContent> {
  */
 export interface ShowcaseContent {
   readonly headline: readonly ShowcaseRow<HeadlineRow>[];
+  readonly problems: readonly ShowcaseRow<ProblemRow>[];
   readonly steps: readonly ShowcaseRow<StepRow>[];
   readonly useCases: readonly ShowcaseRow<UseCaseRow>[];
+  readonly quotes: readonly ShowcaseRow<QuoteRow>[];
   readonly proof: readonly ShowcaseRow<ProofRow>[];
   readonly questions: readonly ShowcaseRow<QuestionRow>[];
+  /**
+   * Each band's own heading, keyed by section (2026-09-28).
+   *
+   * A band absent from here has never been retitled and reads the words its
+   * component was written with. That fallback lives in the component rather
+   * than here, so there is one place the default words exist.
+   */
+  readonly headings: Readonly<Record<string, BandHeading | undefined>>;
+}
+
+/** What an operator may put above a band, any of it absent. */
+export interface BandHeading {
+  readonly eyebrow: string | null;
+  readonly title: string | null;
+  readonly lede: string | null;
 }
 
 export const NO_CONTENT: ShowcaseContent = {
   headline: [],
+  problems: [],
   steps: [],
   useCases: [],
+  quotes: [],
   proof: [],
   questions: [],
+  headings: {},
 };

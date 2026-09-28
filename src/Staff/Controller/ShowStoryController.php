@@ -42,6 +42,7 @@ final class ShowStoryController implements RouteHandler
             ],
             'published_at' => $story['published_at']?->format('c'),
             'sections' => $story['sections'],
+            'bands' => ShowcasePresenter::headings($story['headings']),
             'blocks' => array_map(
                 static fn (ShowcaseBlock $block): array => ShowcasePresenter::block($block, $code),
                 $story['blocks'],

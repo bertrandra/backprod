@@ -2,7 +2,7 @@ import { t } from '@/i18n';
 
 import { ShowcaseBand } from '../ShowcaseBand';
 import { ShowcaseImageFrame } from '../ShowcaseImageFrame';
-import type { ShowcaseRow, StepRow } from './content';
+import type { BandHeading, ShowcaseRow, StepRow } from './content';
 import { BAND_META } from './meta';
 
 /**
@@ -23,7 +23,13 @@ import { BAND_META } from './meta';
  * phone the steps stack, and a vertical line between stacked cards reads as
  * a border nobody asked for.
  */
-export function StepsBand({ rows }: { rows: readonly ShowcaseRow<StepRow>[] }) {
+export function StepsBand({
+  rows,
+  heading,
+}: {
+  rows: readonly ShowcaseRow<StepRow>[];
+  heading?: BandHeading | undefined;
+}) {
   if (rows.length === 0) {
     return null;
   }
@@ -32,7 +38,9 @@ export function StepsBand({ rows }: { rows: readonly ShowcaseRow<StepRow>[] }) {
     <ShowcaseBand
       id={BAND_META.STEPS.anchor}
       surface={BAND_META.STEPS.surface}
-      title={t("How it works")}
+      eyebrow={heading?.eyebrow ?? undefined}
+      title={heading?.title ?? t("How it works")}
+      lede={heading?.lede ?? undefined}
       data-testid="showcase-steps"
     >
       <ol className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 lg:gap-10">

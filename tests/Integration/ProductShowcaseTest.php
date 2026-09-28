@@ -160,11 +160,11 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         $fresh = $this->request('GET', '/api/v1/staff/products/' . $this->plan . '/showcase', ['Authorization' => 'Bearer ola-token']);
         self::assertSame(200, $fresh->getStatusCode());
         self::assertSame(
-            ['HEADLINE', 'STEPS', 'USE_CASE', 'PROOF', 'PRICING', 'QUESTION'],
+            ['HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'PROOF', 'PRICING', 'QUESTION'],
             $this->decode($fresh)['sections'] ?? null,
         );
 
-        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF'];
+        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'PROOF'];
 
         $written = $this->request(
             'PUT',
@@ -200,7 +200,7 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
      */
     public function testAnOrderIsAPermutationAndAnAbsentOneChangesNothing(): void
     {
-        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF'];
+        $chosen = ['QUESTION', 'PRICING', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'PROOF'];
 
         $this->request(
             'PUT',
@@ -217,8 +217,8 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         // A subset, a section named twice, and one nobody has heard of.
         foreach ([
             ['HEADLINE', 'STEPS'],
-            ['HEADLINE', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF', 'PRICING'],
-            ['HEADLINE', 'STEPS', 'USE_CASE', 'PROOF', 'PRICING', 'TESTIMONIAL'],
+            ['HEADLINE', 'HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'PROOF', 'PRICING'],
+            ['HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'PROOF', 'PRICING', 'TESTIMONIAL'],
         ] as $sections) {
             $refused = $this->request(
                 'PUT',
@@ -235,6 +235,119 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         self::assertSame($chosen, $this->decode($story)['sections'] ?? null);
     }
 
+    /**
+     * A band carries its own heading, and `PRICING` is why it is a table of
+     * its own (2026-09-28).
+     */
+    public function testEveryBandCarriesItsOwnHeadingAndPricingCarriesOnlyOne(): void
+    {
+        $written = $this->request(
+            'PUT',
+            '/api/v1/staff/products/' . $this->plan . '/showcase',
+            ['Authorization' => 'Bearer ola-token'],
+            $this->json([
+                'blocks' => [self::headline()],
+                'bands' => [
+                    'STEPS' => [
+                        'content' => ['eyebrow' => 'The tutorial', 'title' => 'Trace, place, print.'],
+                        'translations' => ['fr' => ['title' => 'Tracer, poser, imprimer.']],
+                    ],
+                    // The one section with a heading and no row anybody can
+                    // write: a row for it would be a row somebody could type
+                    // a price into.
+                    'PRICING' => ['content' => ['title' => 'The first plan costs nothing.']],
+                ],
+            ]),
+        );
+
+        self::assertSame(200, $written->getStatusCode(), (string) $written->getBody());
+
+        $bands = $this->decode($written)['bands'] ?? null;
+        self::assertIsArray($bands);
+        self::assertIsArray($bands['STEPS'] ?? null);
+        self::assertSame('Trace, place, print.', $bands['STEPS']['content']['title'] ?? null);
+        self::assertSame('Tracer, poser, imprimer.', $bands['STEPS']['translations']['fr']['title'] ?? null);
+        self::assertIsArray($bands['PRICING'] ?? null);
+
+        // A band never retitled is absent, not an empty title: the page then
+        // reads the words its component was written with.
+        self::assertArrayNotHasKey('QUESTION', $bands);
+
+        // And a stranger reads them resolved into one language.
+        $this->publish(true);
+        $public = $this->request('GET', '/api/v1/public/products/plan/showcase', ['Accept-Language' => 'fr']);
+        self::assertSame(200, $public->getStatusCode());
+
+        $showcase = $this->decode($public)['showcase'] ?? null;
+        self::assertIsArray($showcase);
+        self::assertIsArray($showcase['bands'] ?? null);
+        // Field by field: the title is French, the eyebrow was never
+        // translated and stays English rather than disappearing.
+        self::assertSame('Tracer, poser, imprimer.', $showcase['bands']['STEPS']['title'] ?? null);
+        self::assertSame('The tutorial', $showcase['bands']['STEPS']['eyebrow'] ?? null);
+    }
+
+    /**
+     * An absent `bands` leaves the titles alone — the same rule the order
+     * follows, and load-bearing for the same reason: the translation desk
+     * writes one sentence through this operation carrying neither.
+     */
+    public function testAnAbsentHeadingMapChangesNothingAndAnEmptyOneRemovesIt(): void
+    {
+        $this->request(
+            'PUT',
+            '/api/v1/staff/products/' . $this->plan . '/showcase',
+            ['Authorization' => 'Bearer ola-token'],
+            $this->json([
+                'blocks' => [self::headline()],
+                'bands' => ['STEPS' => ['content' => ['title' => 'Trace, place, print.']]],
+            ]),
+        );
+
+        $again = $this->write([self::headline()]);
+        self::assertSame(200, $again->getStatusCode(), (string) $again->getBody());
+        self::assertSame('Trace, place, print.', $this->decode($again)['bands']['STEPS']['content']['title'] ?? null);
+
+        // Sent empty, the set is replaced: the band goes back to its default.
+        $cleared = $this->request(
+            'PUT',
+            '/api/v1/staff/products/' . $this->plan . '/showcase',
+            ['Authorization' => 'Bearer ola-token'],
+            $this->json(['blocks' => [self::headline()], 'bands' => new \stdClass()]),
+        );
+
+        self::assertSame(200, $cleared->getStatusCode(), (string) $cleared->getBody());
+        self::assertSame([], (array) ($this->decode($cleared)['bands'] ?? null));
+    }
+
+    /**
+     * An icon is a code and not a sentence, so it has no French.
+     */
+    public function testAnIconIsRefusedInATranslationAndWhenItIsNotOneWeDraw(): void
+    {
+        $written = $this->write([
+            ['block' => 'PROBLEM', 'content' => ['title' => 'Half a day per job', 'icon' => 'clock']],
+        ]);
+
+        self::assertSame(200, $written->getStatusCode(), (string) $written->getBody());
+
+        // A name this platform cannot draw is refused rather than stored and
+        // silently ignored by the page.
+        $unknown = $this->write([
+            ['block' => 'PROBLEM', 'content' => ['title' => 'Half a day', 'icon' => 'teapot']],
+        ]);
+        self::assertSame(400, $unknown->getStatusCode());
+
+        // And a locale may not carry one at all: the field is not a sentence.
+        $translated = $this->write([
+            [
+                'block' => 'PROBLEM',
+                'content' => ['title' => 'Half a day', 'icon' => 'clock'],
+                'translations' => ['fr' => ['title' => 'Une demi-journée', 'icon' => 'cross']],
+            ],
+        ]);
+        self::assertSame(400, $translated->getStatusCode());
+    }
     public function testPricingIsNotABandSomebodyCanWrite(): void
     {
         // It is a position in the order and reads the catalogue. A row for

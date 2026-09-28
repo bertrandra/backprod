@@ -2,7 +2,7 @@ import { t } from '@/i18n';
 
 import { ShowcaseBand } from '../ShowcaseBand';
 import { ShowcaseImageFrame } from '../ShowcaseImageFrame';
-import type { ProofRow, ShowcaseRow } from './content';
+import type { BandHeading, ProofRow, ShowcaseRow } from './content';
 import { BAND_META } from './meta';
 
 /**
@@ -22,7 +22,13 @@ import { BAND_META } from './meta';
  * list of identical slabs — the one piece of visual rhythm on this page
  * that is not a surface change.
  */
-export function ProofBand({ rows }: { rows: readonly ShowcaseRow<ProofRow>[] }) {
+export function ProofBand({
+  rows,
+  heading,
+}: {
+  rows: readonly ShowcaseRow<ProofRow>[];
+  heading?: BandHeading | undefined;
+}) {
   if (rows.length === 0) {
     return null;
   }
@@ -31,7 +37,9 @@ export function ProofBand({ rows }: { rows: readonly ShowcaseRow<ProofRow>[] }) 
     <ShowcaseBand
       id={BAND_META.PROOF.anchor}
       surface={BAND_META.PROOF.surface}
-      title={t("See it")}
+      eyebrow={heading?.eyebrow ?? undefined}
+      title={heading?.title ?? t("See it")}
+      lede={heading?.lede ?? undefined}
       data-testid="showcase-proof"
     >
       <ul className="space-y-12 md:space-y-20">

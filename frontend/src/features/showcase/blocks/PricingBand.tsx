@@ -5,6 +5,7 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { t } from '@/i18n';
 
 import { ShowcaseBand } from '../ShowcaseBand';
+import type { BandHeading } from './content';
 import { BAND_META } from './meta';
 
 /**
@@ -27,11 +28,21 @@ export function PricingBand({
   onChoose,
   action,
   retired = false,
+  heading,
 }: {
   offers: readonly Offer[];
   loading: boolean;
   onChoose?: ((offer: Offer) => void) | undefined;
   action?: string | undefined;
+  /**
+   * The band's own words (2026-09-28).
+   *
+   * The only section with a heading an operator writes and **no row they
+   * ever could**: the amounts come from the catalogue, and a row here would
+   * be a row somebody could type one into (\u00a79). \u00ab The first plan costs
+   * nothing \u00bb is a promise about the prices, never one of them.
+   */
+  heading?: BandHeading | undefined;
   /** The product is no longer sold: the band says that rather than nothing. */
   retired?: boolean;
 }) {
@@ -39,7 +50,9 @@ export function PricingBand({
     <ShowcaseBand
       id={BAND_META.PRICING.anchor}
       surface={BAND_META.PRICING.surface}
-      title={t("What it costs")}
+      eyebrow={heading?.eyebrow ?? undefined}
+      title={heading?.title ?? t("What it costs")}
+      lede={heading?.lede ?? undefined}
       data-testid="showcase-pricing"
     >
       {loading ? (

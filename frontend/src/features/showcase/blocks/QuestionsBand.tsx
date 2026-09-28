@@ -1,7 +1,7 @@
 import { t } from '@/i18n';
 
 import { ShowcaseBand } from '../ShowcaseBand';
-import type { QuestionRow, ShowcaseRow } from './content';
+import type { BandHeading, QuestionRow, ShowcaseRow } from './content';
 import { BAND_META } from './meta';
 
 /**
@@ -17,7 +17,13 @@ import { BAND_META } from './meta';
  * looks like a page that stopped; one open answer shows what kind of thing
  * is behind the others.
  */
-export function QuestionsBand({ rows }: { rows: readonly ShowcaseRow<QuestionRow>[] }) {
+export function QuestionsBand({
+  rows,
+  heading,
+}: {
+  rows: readonly ShowcaseRow<QuestionRow>[];
+  heading?: BandHeading | undefined;
+}) {
   if (rows.length === 0) {
     return null;
   }
@@ -26,7 +32,9 @@ export function QuestionsBand({ rows }: { rows: readonly ShowcaseRow<QuestionRow
     <ShowcaseBand
       id={BAND_META.QUESTION.anchor}
       surface={BAND_META.QUESTION.surface}
-      title={t("Questions")}
+      eyebrow={heading?.eyebrow ?? undefined}
+      title={heading?.title ?? t("Questions")}
+      lede={heading?.lede ?? undefined}
       data-testid="showcase-questions"
     >
       <div className="max-w-3xl divide-y divide-line border-y border-line">

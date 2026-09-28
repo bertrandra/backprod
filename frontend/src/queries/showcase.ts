@@ -33,6 +33,8 @@ export type ShowcaseBlockContent = Schemas['ShowcaseBlockContent'];
  * reason `X-Product` is required in the contract rather than remembered.
  */
 export type ShowcaseSectionOrder = Schemas['ShowcaseSectionOrder'];
+/** Each band's heading with every language beside it, as the console edits them. */
+export type ShowcaseBandHeadings = Schemas['EditableShowcaseBandHeadings'];
 
 /**
  * One published product's story, to anybody.
@@ -162,12 +164,20 @@ function useStoryWrite<TVariables, TData>(
 export interface StoryWrite {
   readonly blocks: readonly ShowcaseBlockInput[];
   readonly sections?: ShowcaseSectionOrder;
+  /**
+   * Each band's own heading, keyed by section.
+   *
+   * Absent leaves every title alone; sent, the map replaces the set, so a
+   * band left out of it goes back to the words its component was written
+   * with. That is how a title is removed.
+   */
+  readonly bands?: Schemas['EditableShowcaseBandHeadings'];
 }
 
 export function useWriteProductStory(productId: string) {
   const client = useApiClient();
 
-  return useStoryWrite(productId, async ({ blocks, sections }: StoryWrite) => {
+  return useStoryWrite(productId, async ({ blocks, sections, bands }: StoryWrite) => {
     const { data, error, response } = await client.PUT(
       '/api/v1/staff/products/{productId}/showcase',
       {
@@ -175,6 +185,7 @@ export function useWriteProductStory(productId: string) {
         body: {
           blocks: [...blocks],
           ...(sections === undefined ? {} : { sections: [...sections] }),
+          ...(bands === undefined ? {} : { bands }),
         },
       },
     );
