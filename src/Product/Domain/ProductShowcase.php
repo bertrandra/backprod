@@ -36,6 +36,17 @@ interface ProductShowcase
     public function blocksOf(string $productId): array;
 
     /**
+     * The order this product reads its sections in, completed.
+     *
+     * Always a full list — {@see ShowcaseSections::readIn} fills in anything
+     * a stored order is missing — so no caller has to know what "never
+     * reordered" means.
+     *
+     * @return list<string>
+     */
+    public function sectionsOf(string $productId): array;
+
+    /**
      * One published product's story, by code, for somebody with no session.
      *
      * Null for a product nobody has published, a code nobody has, and a
@@ -60,11 +71,20 @@ interface ProductShowcase
      * One transaction, because a page half written is a page with a
      * sentence missing from the middle.
      *
+     * **The order is left alone unless it is named.** `$sections` null means
+     * "I am not saying anything about the order", not "put it back to the
+     * default" — and that is load-bearing rather than a convenience. The
+     * translation desk writes one sentence through this same operation by
+     * re-reading the story and sending it back (`storyWith`), and it carries
+     * the blocks and nothing else. If an order had to be sent, translating a
+     * headline into French would silently reset the order of the page.
+     *
      * @param list<ShowcaseBlock> $blocks
+     * @param list<string>|null   $sections a permutation of the page's sections, or null to leave it
      *
      * @return list<ShowcaseBlock> what the product now says
      */
-    public function replace(string $productId, array $blocks): array;
+    public function replace(string $productId, array $blocks, ?array $sections = null): array;
 
     /**
      * Publishes the story, or takes it back to a draft.

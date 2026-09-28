@@ -25,6 +25,14 @@ export type Showcase = Schemas['Showcase'];
 export type ShowcaseBlock = Schemas['EditableShowcaseBlock'];
 export type ShowcaseBlockInput = Schemas['ShowcaseBlockInput'];
 export type ShowcaseBlockContent = Schemas['ShowcaseBlockContent'];
+/**
+ * The order a product reads its sections in, from the contract.
+ *
+ * Taken from the generated types rather than spelled as `string[]`, so a
+ * section this platform has never heard of does not compile — the same
+ * reason `X-Product` is required in the contract rather than remembered.
+ */
+export type ShowcaseSectionOrder = Schemas['ShowcaseSectionOrder'];
 
 /**
  * One published product's story, to anybody.
@@ -141,13 +149,34 @@ function useStoryWrite<TVariables, TData>(
   });
 }
 
+/**
+ * What the console sends: the whole page, and optionally the order it is
+ * read in.
+ *
+ * `sections` **absent means "leave the order alone"**, never "put it back to
+ * the default" — the contract says so and it is load-bearing. The
+ * translation desk writes one sentence through this same operation by
+ * re-reading the story and sending the blocks back, and it carries no order;
+ * if one had to be sent, translating a headline would reorder the page.
+ */
+export interface StoryWrite {
+  readonly blocks: readonly ShowcaseBlockInput[];
+  readonly sections?: ShowcaseSectionOrder;
+}
+
 export function useWriteProductStory(productId: string) {
   const client = useApiClient();
 
-  return useStoryWrite(productId, async (blocks: readonly ShowcaseBlockInput[]) => {
+  return useStoryWrite(productId, async ({ blocks, sections }: StoryWrite) => {
     const { data, error, response } = await client.PUT(
       '/api/v1/staff/products/{productId}/showcase',
-      { params: { path: { productId } }, body: { blocks: [...blocks] } },
+      {
+        params: { path: { productId } },
+        body: {
+          blocks: [...blocks],
+          ...(sections === undefined ? {} : { sections: [...sections] }),
+        },
+      },
     );
 
     if (error !== undefined || data === undefined) {

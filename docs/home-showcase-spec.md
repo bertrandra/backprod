@@ -302,6 +302,46 @@ product_showcase
   asset_id        the picture, when the band has one         nullable
 ```
 
+**And the order of the sections is the product's** (`products.showcase_sections`,
+2026-09-28). A JSON array of section kinds, nullable, and null is the default
+order — so no backfill, and a product reads exactly as it did yesterday until
+somebody drags a row.
+
+It is a **different fact from `position`**, and the two are easy to confuse:
+`position` orders the rows *within* one band (three steps, two use cases) and
+is unique per `(product, block, position)`; this orders the **bands
+themselves**, and there is one of it per product. Until this, the band order
+was `BAND_META[kind].order` — a constant compiled into the frontend bundle —
+so an operator who wanted the prices above the questions could do nothing
+about it without a rebuild and a redeploy, which is the position
+`VITE_DEFAULT_PRODUCT` put a deployment in before a tenant could choose its
+own product.
+
+**`PRICING` is in this list and in no other.** It is a section that reads the
+catalogue and has no row anybody writes — a row for it would be a row
+somebody could type a price into (§9) — so its place in the order is the one
+thing about it an operator decides. A console showing five movable rows and
+one fixed would be a console nobody could explain.
+
+**`sections` absent on a write means "leave the order alone"**, never "put it
+back to the default". That distinction is load-bearing rather than a
+convenience: the translation desk writes one sentence through the same
+operation by re-reading the story and sending the blocks back, and it carries
+no order — so a request without one that reset the order would make
+translating a headline reorder the page.
+
+**Sent, it must be a permutation**: every section exactly once. A subset would
+be a section nobody could put back from the screen that sent it, and hiding a
+band is removing its rows — which the editor already does. Two ways of saying
+the same thing eventually disagree.
+
+**Read tolerantly, on both sides.** A stored order missing a section gets it
+appended in its compiled place, a section named twice is read once, and one
+the code no longer knows is dropped. That is not defensiveness for its own
+sake: the day a sixth band is added, every order stored before it exists is
+short, and the alternative is a band invisible on every product until somebody
+re-saves each one by hand.
+
 Rows rather than one document because the console edits one band at a time,
 and because a missing picture must not take a headline with it.
 

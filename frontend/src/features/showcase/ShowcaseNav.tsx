@@ -2,7 +2,18 @@ import { useEffect, useState } from 'react';
 
 import { t } from '@/i18n';
 
-import { BAND_META, bandsInOrder, type BandKind } from './blocks/meta';
+import { BAND_META, type BandKind } from './blocks/meta';
+
+/**
+ * Which band an anchor belongs to.
+ *
+ * Built once, because the scroll-spy recovers the page's order from its
+ * anchors — the one value its effect may depend on without rebuilding the
+ * observer every render.
+ */
+const KIND_BY_ANCHOR: Readonly<Record<string, BandKind>> = Object.fromEntries(
+  (Object.keys(BAND_META) as BandKind[]).map((kind) => [BAND_META[kind].anchor, kind]),
+);
 
 /**
  * A way back to the top of a thought, on a page that is six screens long.
@@ -85,7 +96,17 @@ function useCurrentBand(present: readonly BandKind[]): BandKind | null {
       return;
     }
 
-    const order = bandsInOrder();
+    // The order this page reads its bands in, recovered from the one thing
+    // this effect is keyed on (2026-09-28). `present` is a fresh array every
+    // render, so depending on it would tear the observer down and build it
+    // again on each one — and `anchors` is the same fact spelled stably, in
+    // the same order. Reading the compiled order here instead would
+    // highlight the wrong entry on any product that has been reordered.
+    const order = anchors
+      .split(',')
+      .map((anchor) => KIND_BY_ANCHOR[anchor])
+      .filter((kind): kind is BandKind => kind !== undefined);
+
     const visible = new Set<string>();
 
     const observer = new IntersectionObserver(
@@ -98,6 +119,9 @@ function useCurrentBand(present: readonly BandKind[]): BandKind | null {
           }
         }
 
+        // The order this page reads its bands in, not the compiled one:
+        // since 2026-09-28 that is only a fallback, and reading it here
+        // would highlight the wrong entry on a reordered product.
         const first = order.find((kind) => visible.has(BAND_META[kind].anchor));
 
         if (first !== undefined) {

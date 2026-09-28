@@ -41,6 +41,7 @@ final class ShowStoryController implements RouteHandler
                 'name' => $story['product']->name,
             ],
             'published_at' => $story['published_at']?->format('c'),
+            'sections' => $story['sections'],
             'blocks' => array_map(
                 static fn (ShowcaseBlock $block): array => ShowcasePresenter::block($block, $code),
                 $story['blocks'],

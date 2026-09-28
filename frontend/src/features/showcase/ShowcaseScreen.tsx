@@ -11,7 +11,7 @@ import { buttonClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { t } from '@/i18n';
 
-import { contentFrom, isRetired } from './blocks/fromApi';
+import { contentFrom, isRetired, sectionsFrom } from './blocks/fromApi';
 import { BAND_META } from './blocks/meta';
 import { Showcase } from './Showcase';
 
@@ -65,6 +65,8 @@ export function ShowcaseScreen() {
       <Showcase
       productName={product?.name ?? productCode ?? t("This product")}
       content={contentFrom(story.data)}
+      // The order is the product's since 2026-09-28, not the bundle's.
+      sections={sectionsFrom(story.data)}
       offers={offers.data ?? []}
       offersLoading={offers.isPending}
       // The prices band states a price; buying one is the catalogue's act,

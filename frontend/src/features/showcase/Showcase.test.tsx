@@ -293,6 +293,88 @@ describe('pictures', () => {
   });
 });
 
+/**
+ * The order of the page, which was `BAND_META[kind].order` — a constant
+ * compiled into the bundle — until 2026-09-28.
+ */
+describe('the order the page is read in', () => {
+  const bandsOn = (container: HTMLElement) =>
+    [...container.querySelectorAll('[data-band]')].map((band) => band.getAttribute('data-band'));
+
+  it('follows the product’s order, not the compiled one', () => {
+    const { container } = renderStory(FULL);
+    const compiled = bandsOn(container);
+
+    const { container: reordered } = render(
+      <Showcase
+        productName="Plan"
+        content={FULL}
+        sections={['QUESTION', 'PRICING', 'PROOF', 'USE_CASE', 'STEPS', 'HEADLINE']}
+        offers={[OFFER]}
+        offersLoading={false}
+        action={<span />}
+      />,
+    );
+
+    expect(bandsOn(reordered)).toEqual([...compiled].reverse());
+  });
+
+  it('puts a band the order forgot back in its compiled place', () => {
+    // An order stored before `QUESTION` existed. The band is appended
+    // rather than dropped: the alternative is a band invisible on every
+    // product until somebody re-saves each one by hand.
+    const { container } = render(
+      <Showcase
+        productName="Plan"
+        content={FULL}
+        sections={['PRICING', 'HEADLINE', 'STEPS', 'USE_CASE', 'PROOF']}
+        offers={[OFFER]}
+        offersLoading={false}
+        action={<span />}
+      />,
+    );
+
+    expect(bandsOn(container)).toEqual([
+      BAND_META.PRICING.anchor,
+      BAND_META.HEADLINE.anchor,
+      BAND_META.STEPS.anchor,
+      BAND_META.USE_CASE.anchor,
+      BAND_META.PROOF.anchor,
+      BAND_META.QUESTION.anchor,
+    ]);
+  });
+
+  it('reads the compiled order when the answer carries none', () => {
+    // An older server, or a fixture. The page renders as it always did
+    // rather than falling back to the database's own order, which is
+    // nobody's decision.
+    const { container } = renderStory(FULL);
+
+    expect(bandsOn(container)).toEqual(bandsInOrder().map((kind) => BAND_META[kind].anchor));
+  });
+
+  it('takes the nav with it, so the links read in the page’s order', () => {
+    const { container } = render(
+      <Showcase
+        productName="Plan"
+        content={FULL}
+        sections={['QUESTION', 'PRICING', 'PROOF', 'USE_CASE', 'STEPS', 'HEADLINE']}
+        offers={[OFFER]}
+        offersLoading={false}
+        action={<span />}
+      />,
+    );
+
+    const targets = [...container.querySelectorAll('nav a')].map((link) => link.getAttribute('href'));
+
+    expect(targets).toEqual(
+      ['QUESTION', 'PRICING', 'PROOF', 'USE_CASE', 'STEPS', 'HEADLINE'].map(
+        (kind) => `#${BAND_META[kind as keyof typeof BAND_META].anchor}`,
+      ),
+    );
+  });
+});
+
 describe('the registry', () => {
   it('describes every band it renders, and renders every band it describes', () => {
     // The promise in docs/home-showcase-spec.md §6: adding a band is four

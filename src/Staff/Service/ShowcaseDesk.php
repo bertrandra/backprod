@@ -44,7 +44,7 @@ final class ShowcaseDesk
      * Drafts included — that is what a draft is — because this is the only
      * screen that can finish a half-translated page.
      *
-     * @return array{product: \App\Product\Domain\Product, blocks: list<ShowcaseBlock>, published_at: ?\DateTimeImmutable}
+     * @return array{product: \App\Product\Domain\Product, blocks: list<ShowcaseBlock>, sections: list<string>, published_at: ?\DateTimeImmutable}
      */
     public function story(string $productId): array
     {
@@ -53,6 +53,10 @@ final class ShowcaseDesk
         return [
             'product' => $product,
             'blocks' => $this->showcase->blocksOf($productId),
+            // Always a full order, never "unset": the console draws one row
+            // per section and a screen that had to know what an absent order
+            // meant would be a second place the default lives.
+            'sections' => $this->showcase->sectionsOf($productId),
             'published_at' => $this->publishedAt($product->code),
         ];
     }
@@ -66,24 +70,34 @@ final class ShowcaseDesk
      * one fact.
      *
      * @param list<ShowcaseBlock> $blocks
+     * @param list<string>|null   $sections the order to read the page in, or null to leave it alone
      *
-     * @return array{code: string, blocks: list<ShowcaseBlock>}
+     * @return array{code: string, blocks: list<ShowcaseBlock>, sections: list<string>}
      */
-    public function write(StaffIdentity $staff, string $productId, array $blocks): array
+    public function write(StaffIdentity $staff, string $productId, array $blocks, ?array $sections = null): array
     {
         $product = $this->product($productId);
-        $written = $this->showcase->replace($productId, $blocks);
+        $written = $this->showcase->replace($productId, $blocks, $sections);
 
         // The bands it now has and the languages they say something in —
         // not what they say. A trail answers "who changed this, and roughly
         // what", and four paragraphs of marketing copy in an audit row is
         // neither readable nor anybody's business later.
+        //
+        // The order goes in only when this request named one, so the trail
+        // tells reordering the page apart from writing a sentence in it.
         $this->record($staff, $product->id, 'WRITE', [
             'blocks' => array_map(static fn (ShowcaseBlock $block): string => $block->block, $written),
             'translated' => self::languages($written),
-        ]);
+        ] + ($sections === null ? [] : ['sections' => $sections]));
 
-        return ['code' => $product->code, 'blocks' => $written];
+        return [
+            'code' => $product->code,
+            'blocks' => $written,
+            // Read back rather than echoed: where the request said nothing,
+            // the answer still has to carry the order the page actually has.
+            'sections' => $this->showcase->sectionsOf($productId),
+        ];
     }
 
     public function publish(StaffIdentity $staff, string $productId, bool $published): ?PublishedShowcase

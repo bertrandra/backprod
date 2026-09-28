@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Product\Controller;
 
 use App\Product\Domain\ShowcaseBlock;
+use App\Product\Domain\ShowcaseSections;
 use App\Shared\Exceptions\BadRequestException;
 use App\Shared\Http\JsonBody;
 use App\Shared\Validation\Locale;
@@ -85,6 +86,51 @@ final class ShowcaseBlocks
         }
 
         return $blocks;
+    }
+
+    /**
+     * The order the page reads its sections in, or null where the request
+     * says nothing about it (2026-09-28).
+     *
+     * **Absent is not the default order**, it is "leave it alone" — and that
+     * distinction is load-bearing. The translation desk writes one sentence
+     * through this same operation by re-reading the story and sending the
+     * blocks back; it carries no order, so a request without one that reset
+     * the order would make translating a headline reorder the page.
+     *
+     * A **permutation**, checked here: every section exactly once. A subset
+     * would be a section nobody could put back from the screen that sent it,
+     * and hiding a band is removing its rows — which the editor above
+     * already does. Two ways of saying the same thing eventually disagree.
+     *
+     * @return list<string>|null
+     */
+    public static function sections(JsonBody $body, string $field): ?array
+    {
+        if (!$body->has($field)) {
+            return null;
+        }
+
+        // Through the shared reader, so `["", 1]` and `"nope"` are refused
+        // by the same rule every other list on this platform is read with.
+        $sections = $body->optionalStringList($field);
+
+        if (!ShowcaseSections::isAPermutation($sections)) {
+            throw self::invalidOrder(
+                'each of ' . implode(', ', ShowcaseSections::DEFAULT_ORDER) . ' exactly once',
+            );
+        }
+
+        return $sections;
+    }
+
+    private static function invalidOrder(string $requirement): BadRequestException
+    {
+        return new BadRequestException(
+            'VALIDATION_FAILED',
+            'The request body is not valid.',
+            ['field' => 'sections', 'requirement' => $requirement],
+        );
     }
 
     private static function one(stdClass $raw, int $index): ShowcaseBlock
