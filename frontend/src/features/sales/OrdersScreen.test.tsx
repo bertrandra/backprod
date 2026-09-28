@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { renderAtRoute, SESSION, stubClient, type Stub } from '@/test-utils';
+import { recordingClient, renderAtRoute, SESSION, stubClient, type Stub } from '@/test-utils';
 
 import { OrdersScreen } from './OrdersScreen';
 
@@ -27,6 +27,8 @@ function order(overrides: Record<string, unknown> = {}) {
     vat: { minor_units: 580, currency: 'EUR' },
     gross: { minor_units: 3480, currency: 'EUR' },
     completed_at: null,
+    // Whom it concerns (2026-09-28): the server's answer, on every row.
+    person: { user_id: 'u-ada', name: 'Ada Lovelace', email: 'ada@acme.test' },
     created_at: '2026-01-01T00:00:00Z',
     lines: [],
     ...overrides,
@@ -221,5 +223,97 @@ describe('someone who may only read', () => {
     await waitFor(() => expect(screen.getByTestId('payment-gate')).toBeTruthy());
     expect(screen.queryByRole('button', { name: /^fulfil$/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /cancel order/i })).toBeNull();
+  });
+});
+
+describe('the filter above the list', () => {
+  const ADMIN = { ...SELLER, permissions: [...SELLER.permissions, 'members.read'] };
+  const MEMBERS = {
+    data: {
+      members: [
+        { user_id: 'u-ada', email: 'ada@acme.test', display_name: 'Ada Lovelace', roles: ['USER'], status: 'ACTIVE' },
+        { user_id: 'u-bo', email: 'bo@acme.test', display_name: null, roles: ['TENANT_ADMIN'], status: 'ACTIVE' },
+      ],
+    },
+  };
+
+  it('names the member each order concerns, or the organisation', async () => {
+    // The whole point of the row (2026-09-28): "for the organisation" told an
+    // administrator which *kind* of sale it was and never which colleague.
+    render(clientFor([order(), order({ id: 'o-2', person: null })]));
+
+    await waitFor(() => expect(screen.getAllByTestId('order-person')).toHaveLength(2));
+    const [ada, organisation] = screen.getAllByTestId('order-person');
+    expect(ada?.textContent).toContain('Ada Lovelace');
+    expect(ada?.getAttribute('data-person')).toBe('u-ada');
+    expect(organisation?.getAttribute('data-person')).toBe('organisation');
+  });
+
+  it('asks the server again for one person and one status', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/me': { data: ADMIN },
+      'GET /api/v1/sales/orders': listing([order()]),
+      'GET /api/v1/tenants/current/members': MEMBERS,
+    });
+    render(client);
+
+    await waitFor(() => expect(screen.getByTestId('filter-person')).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole('option', { name: 'bo@acme.test' })).toBeTruthy());
+
+    fireEvent.change(screen.getByTestId('filter-person'), { target: { value: 'u-bo' } });
+    fireEvent.change(screen.getByTestId('filter-status'), { target: { value: 'COMPLETED' } });
+
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (request) =>
+            request.path === '/api/v1/sales/orders' &&
+            (request.query as { person?: string; status?: string }).person === 'u-bo' &&
+            (request.query as { person?: string; status?: string }).status === 'COMPLETED',
+        ),
+      ).toBe(true),
+    );
+
+    // "Everybody" is the absence of the parameter, not a value of it — a
+    // `person=` sent empty is a person nobody is, and the server would answer
+    // it with an empty page.
+    fireEvent.change(screen.getByTestId('filter-person'), { target: { value: '' } });
+    await waitFor(() => {
+      const last = requests.filter((request) => request.path === '/api/v1/sales/orders').at(-1);
+      expect(last?.query).toEqual({ limit: 25, offset: 0, status: 'COMPLETED' });
+    });
+  });
+
+  it('offers exactly the four states an order has', async () => {
+    render(clientFor([order()]));
+
+    await waitFor(() => expect(screen.getByTestId('filter-status')).toBeTruthy());
+    const offered = Array.from(screen.getByTestId('filter-status').querySelectorAll('option')).map(
+      (option) => option.value,
+    );
+    expect(offered).toEqual(['', 'PENDING', 'AWAITING_PAYMENT', 'COMPLETED', 'CANCELLED']);
+  });
+
+  it('gives a member no one to choose: their list is already theirs', async () => {
+    const reader = { ...SESSION, permissions: [...SESSION.permissions, 'sales.read', 'members.read'] };
+    render(
+      stubClient({
+        'GET /api/v1/me': { data: reader },
+        'GET /api/v1/sales/orders': listing([order()]),
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('filter-status')).toBeTruthy());
+    expect(screen.queryByTestId('filter-person')).toBeNull();
+  });
+
+  it("says an empty page is the filter's, and keeps the filter on screen", async () => {
+    render(clientFor([]));
+
+    await waitFor(() => expect(screen.getByTestId('filter-status')).toBeTruthy());
+    fireEvent.change(screen.getByTestId('filter-status'), { target: { value: 'CANCELLED' } });
+
+    await waitFor(() => expect(screen.getByText('Nothing matches this filter')).toBeTruthy());
+    expect(screen.getByTestId('order-filters')).toBeTruthy();
   });
 });

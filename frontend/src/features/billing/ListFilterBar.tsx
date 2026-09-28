@@ -8,7 +8,7 @@ import { Field, inputClass } from '@/ui/Field';
 
 /**
  * The bar at the top of the organisation's lists — invoices, payments,
- * credit notes and subscriptions (2026-09-27).
+ * credit notes, orders and subscriptions (2026-09-27, the dates 2026-09-28).
  *
  * **The person select is the administrator's only.** A member's lists already
  * hold only what concerns them, so there is nobody to choose between; and the
@@ -37,10 +37,6 @@ export function ListFilterBar<Status extends string>({
 }) {
   const id = useId();
   const members = useMembers(people);
-
-  if (!people && statuses.length === 0) {
-    return null;
-  }
 
   const options: readonly Schemas['Member'][] = members.data ?? [];
 
@@ -96,6 +92,40 @@ export function ListFilterBar<Status extends string>({
           </Field>
         </div>
       )}
+
+      {/* The window, as two days (2026-09-28). A native date input, so the
+          person gets their own locale's order and their own calendar, and
+          the value it holds is already the `YYYY-MM-DD` the contract wants —
+          formatting one here would be a second contract to keep. Emptying
+          one drops that bound rather than sending nothing, which the server
+          would refuse. */}
+      <div className="min-w-36">
+        <Field id={`${id}-from`} label={t('From')}>
+          <input
+            id={`${id}-from`}
+            type="date"
+            data-testid="filter-from"
+            className={inputClass()}
+            value={value.from ?? ''}
+            max={value.to !== undefined && value.to !== '' ? value.to : undefined}
+            onChange={(event) => onChange({ ...value, from: event.target.value })}
+          />
+        </Field>
+      </div>
+
+      <div className="min-w-36">
+        <Field id={`${id}-to`} label={t('To')}>
+          <input
+            id={`${id}-to`}
+            type="date"
+            data-testid="filter-to"
+            className={inputClass()}
+            value={value.to ?? ''}
+            min={value.from !== undefined && value.from !== '' ? value.from : undefined}
+            onChange={(event) => onChange({ ...value, to: event.target.value })}
+          />
+        </Field>
+      </div>
     </div>
   );
 }

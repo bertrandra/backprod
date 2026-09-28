@@ -1,10 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { ambientParams, type Schemas } from '@/api/client';
 import { useApiClient } from '@/app/providers/ApiProvider';
 import { sessionSnapshot } from '@/state/session';
 
 import { keys } from './keys';
+import { everyValue, filterQuery, type ListFilter } from './listFilter';
 import { toApiError } from './session';
 
 /**
@@ -25,17 +26,34 @@ import { toApiError } from './session';
  */
 
 export type Order = Schemas['Order'];
+export type ListedOrder = Schemas['ListedOrder'];
 
-export function useOrders(limit = 25, offset = 0) {
+/** Every order status the contract has, for the list's filter. */
+export const ORDER_STATUSES = everyValue<Order['status']>({
+  PENDING: true,
+  AWAITING_PAYMENT: true,
+  COMPLETED: true,
+  CANCELLED: true,
+});
+
+export function useOrders(
+  limit = 25,
+  offset = 0,
+  filter: ListFilter<Order['status']> = {},
+) {
+  const narrowed = filterQuery(filter);
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.sales.orderList(limit, offset),
+    queryKey: keys.sales.orderList(limit, offset, narrowed),
+    // The previous page stays on screen while a filter's answer arrives, so
+    // the bar above it does not vanish into a skeleton on every change.
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const ambient = ambientParams(sessionSnapshot);
 
       const { data, error, response } = await client.GET('/api/v1/sales/orders', {
-        params: { ...ambient.params, query: { limit, offset } },
+        params: { ...ambient.params, query: { limit, offset, ...narrowed } },
       });
 
       if (error !== undefined || data === undefined) {

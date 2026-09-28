@@ -254,6 +254,29 @@ final class OrganisationSubscriptionsTest extends DatabaseApiTestCase
     }
 
     /**
+     * And by the day a seat started (2026-09-28), with `to` inclusive of its
+     * own day — the off-by-one that hides until both ends name today.
+     */
+    public function testTheRegisterIsNarrowedToAWindowOfDays(): void
+    {
+        $offer = $this->offer('pro', 'Pro', 2900, usersLimit: 3);
+        $live = $this->subscribe($offer, $this->colleague);
+
+        $today = gmdate('Y-m-d');
+
+        $inside = $this->filtered('from=' . $today . '&to=' . $today);
+        self::assertSame([$live], array_column($inside['subscriptions'], 'id'));
+        self::assertSame(1, $inside['total']);
+
+        self::assertSame(0, $this->filtered('to=' . gmdate('Y-m-d', strtotime('-1 day')))['total']);
+        self::assertSame(0, $this->filtered('from=' . gmdate('Y-m-d', strtotime('+1 day')))['total']);
+
+        foreach (['from=not-a-day', 'to=2026-02-30'] as $query) {
+            $response = $this->request('GET', '/api/v1/organisation/subscriptions?' . $query, $this->headersFor('ada-token'));
+            self::assertSame(400, $response->getStatusCode(), $query);
+        }
+    }
+    /**
      * @return array{subscriptions: list<array<string, mixed>>, total: int}
      */
     private function filtered(string $query): array

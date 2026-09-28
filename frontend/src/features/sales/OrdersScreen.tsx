@@ -2,7 +2,9 @@ import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import { can } from '@/app/access/access';
-import { useCancelOrder, useFulfilOrder, useOrders, type Order } from '@/queries/sales';
+import { ListFilterBar, PersonLine } from '@/features/billing/ListFilterBar';
+import { isFiltered, type ListFilter } from '@/queries/listFilter';
+import { ORDER_STATUSES, useCancelOrder, useFulfilOrder, useOrders, type Order } from '@/queries/sales';
 import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
@@ -36,13 +38,19 @@ import { t } from '@/i18n';
 export function OrdersScreen() {
   const { selected } = useViewState();
   const { data: session } = useSession();
-  const orders = useOrders();
+  const [filter, setFilter] = useState<ListFilter<Order['status']>>({});
+  const orders = useOrders(25, 0, filter);
   const fulfil = useFulfilOrder();
   const cancel = useCancelOrder();
 
   const [confirming, setConfirming] = useState<string | null>(null);
 
   const mayManage = can(session, 'sales.manage');
+  // The person select is the administrator's, as it is on the invoice list: a
+  // member's orders are already only their own, so a select offering
+  // colleagues would offer them empty pages. Its options are the
+  // organisation's people, so it needs their list too.
+  const mayChoosePerson = mayManage && can(session, 'members.read');
 
   if (orders.isPending) {
     return <SkeletonRows rows={6} />;
@@ -59,14 +67,28 @@ export function OrdersScreen() {
         meta={<>{orders.data.total} {t("in this product")}</>}
       />
 
+      <ListFilterBar
+        value={filter}
+        onChange={setFilter}
+        people={mayChoosePerson}
+        statuses={ORDER_STATUSES}
+        testId="order-filters"
+      />
+
       {fulfil.error !== null && <ErrorSurface error={fulfil.error} />}
       {cancel.error !== null && <ErrorSurface error={cancel.error} />}
 
       {orders.data.orders.length === 0 ? (
-        <EmptyState
-          title={t("No orders")}
-          description={t("An order is placed from the catalogue, or created by accepting a quote.")}
-        />
+        isFiltered(filter) ? (
+          // An empty page under a filter is the filter's doing, and saying so
+          // is the difference between "you have none" and "none match".
+          <EmptyState title={t("Nothing matches this filter")} description={t("Choose another person or status, or clear the filter.")} />
+        ) : (
+          <EmptyState
+            title={t("No orders")}
+            description={t("An order is placed from the catalogue, or created by accepting a quote.")}
+          />
+        )
       ) : (
         <ul className="space-y-2">
           {orders.data.orders.map((order) => (
@@ -118,6 +140,13 @@ export function OrdersScreen() {
                   {t("net")}{' '}<Amount money={order.net} /> {t("· VAT")}{' '}<Amount money={order.vat} />
                 </span>
               </div>
+
+              {/* Whose it is (2026-09-28), by the rule the invoice list reads:
+                  the seat the order bought, else whoever placed it. An
+                  administrator sees every order the organisation has placed,
+                  and until this the rows said "for the organisation" or "for
+                  yourself" — neither of which names the colleague. */}
+              <PersonLine person={order.person} testId="order-person" />
 
               <PaymentGate order={order} />
 

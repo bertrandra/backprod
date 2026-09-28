@@ -304,6 +304,44 @@ describe('the filter above the list', () => {
     });
   });
 
+  it('sends the window as two days, and dropping a bound drops the parameter', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/me': { data: ADMIN },
+      'GET /api/v1/billing/invoices': listing([invoice()]),
+      'GET /api/v1/tenants/current/members': MEMBERS,
+    });
+    render(client);
+
+    await waitFor(() => expect(screen.getByTestId('filter-from')).toBeTruthy());
+
+    fireEvent.change(screen.getByTestId('filter-from'), { target: { value: '2026-09-01' } });
+    fireEvent.change(screen.getByTestId('filter-to'), { target: { value: '2026-09-30' } });
+
+    // Passed through as the day the person chose: the input already holds
+    // `YYYY-MM-DD`, so nothing here formats a date — a second format to keep
+    // in step with the contract is a second contract.
+    await waitFor(() => {
+      const last = requests.filter((request) => request.path === '/api/v1/billing/invoices').at(-1);
+      expect(last?.query).toEqual({ limit: 25, offset: 0, from: '2026-09-01', to: '2026-09-30' });
+    });
+
+    // An emptied input is no bound, not a bound of nothing — which the
+    // server refuses with a 400.
+    fireEvent.change(screen.getByTestId('filter-from'), { target: { value: '' } });
+    await waitFor(() => {
+      const last = requests.filter((request) => request.path === '/api/v1/billing/invoices').at(-1);
+      expect(last?.query).toEqual({ limit: 25, offset: 0, to: '2026-09-30' });
+    });
+  });
+
+  it("counts a window as a filter, so an empty page says it is the filter's", async () => {
+    render(clientFor([]));
+
+    await waitFor(() => expect(screen.getByTestId('filter-from')).toBeTruthy());
+    fireEvent.change(screen.getByTestId('filter-from'), { target: { value: '2026-09-01' } });
+
+    await waitFor(() => expect(screen.getByText('Nothing matches this filter')).toBeTruthy());
+  });
   it('offers every status the contract has, CREDITED included', async () => {
     render(clientFor([invoice()]));
 

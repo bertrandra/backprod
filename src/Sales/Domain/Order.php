@@ -29,6 +29,21 @@ final class Order
     public const CANCELLED = 'CANCELLED';
 
     /**
+     * Every state an order can be listed in, for the filter that narrows by
+     * one (2026-09-28).
+     *
+     * Beside the constants rather than in the contract alone, so the API
+     * refuses a state this platform has never heard of instead of answering
+     * an empty page and letting somebody conclude they have no orders.
+     *
+     * @return list<string>
+     */
+    public static function statuses(): array
+    {
+        return [self::PENDING, self::AWAITING_PAYMENT, self::COMPLETED, self::CANCELLED];
+    }
+
+    /**
      * @param list<InvoiceLine> $lines
      */
     public function __construct(

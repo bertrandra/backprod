@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Sales\Controller;
 
+use App\Sales\Domain\Order;
 use App\Sales\Service\Sales;
+use App\Shared\Http\ListFilter;
 use App\Shared\Http\PageRequest;
 use App\Shared\Http\RouteHandler;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -34,10 +36,14 @@ final class ListOrdersController implements RouteHandler
             PageRequest::bounded($query, 'limit', self::DEFAULT_LIMIT, 1, self::MAX_LIMIT),
             PageRequest::bounded($query, 'offset', 0, 0, PHP_INT_MAX),
             $context->documentsOf(),
+            ListFilter::person($query),
+            ListFilter::status($query, Order::statuses()),
+            ListFilter::date($query, 'from'),
+            ListFilter::date($query, 'to'),
         );
 
         return new JsonResponse([
-            'orders' => SalesPresenter::orders($page['orders']),
+            'orders' => SalesPresenter::orders($page['orders'], $page['people']),
             'total' => $page['total'],
             'limit' => $page['limit'],
             'offset' => $page['offset'],

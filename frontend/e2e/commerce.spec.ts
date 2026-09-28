@@ -148,6 +148,8 @@ async function commerce(page: Page, session: Record<string, unknown> = SESSION) 
                 subscription_id: null,
                 invoice_id: 'invoice-1',
                 completed_at: null,
+                // Required on a listed order (2026-09-28).
+                person: null,
                 created_at: '2026-01-01T10:00:00Z',
                 lines: [],
                 ...MONEY,
