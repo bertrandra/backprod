@@ -589,10 +589,30 @@ final class DemoWorld
      * @var array<string, array{name: string, holds: list<string>}>
      */
     public const TENANTS = [
-        'acme' => ['name' => 'Acme Ltd', 'holds' => ['atlas', 'boreas', 'ceres', 'delos', 'plan']],
-        'globex' => ['name' => 'Globex SA', 'holds' => ['atlas', 'boreas', 'plan']],
-        'initech' => ['name' => 'Initech SARL', 'holds' => ['plan']],
+        'acme' => ['name' => 'Acme Ltd', 'holds' => ['atlas', 'boreas', 'ceres', 'delos', 'plan'], 'default' => 'plan'],
+        'globex' => ['name' => 'Globex SA', 'holds' => ['atlas', 'boreas', 'plan'], 'default' => 'atlas'],
+        // None, deliberately: an organisation that has not chosen is the
+        // ordinary state, and the ladder has to answer for it too.
+        'initech' => ['name' => 'Initech SARL', 'holds' => ['plan'], 'default' => null],
     ];
+
+    /**
+     * The organisations whose people have **no** default of their own, so that
+     * the organisation's is what decides (2026-09-28).
+     *
+     * The ladder is `?product=` → this browser → **the person** → **the
+     * organisation** → the bundle's constant, and the person's answer beats
+     * the organisation's. Giving everybody `plan` — which the demonstration
+     * did — therefore made `tenants.default_product_id` invisible: it could be
+     * set to anything and nobody would land anywhere different.
+     *
+     * So Globex's people answer nothing and open on Atlas because Globex says
+     * so, while Acme's answer Plan for themselves. Two rungs of one ladder,
+     * both visible, instead of one rung and a column nobody can see.
+     *
+     * @var list<string>
+     */
+    public const TENANTS_THAT_DECIDE_FOR_THEIR_PEOPLE = ['globex'];
 
     /**
      * The organisation the bare host addresses (2026-09-17): Acme, as the

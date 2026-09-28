@@ -108,7 +108,7 @@ final class PostgresDemoFixtures implements DemoFixtures
     {
         return $this->connection->transactional(function () use ($passwordHash): DemoStructure {
             $products = $this->products();
-            $tenants = $this->tenants();
+            $tenants = $this->tenants($products);
             $users = $this->people($passwordHash, $products);
 
             $this->holdings($tenants, $products, $users[DemoWorld::STAFF_ADMIN]);
@@ -168,19 +168,23 @@ final class PostgresDemoFixtures implements DemoFixtures
                 'SELECT count(*) FROM tenant_members WHERE tenant_id = :tenant AND user_id = :user',
                 ['tenant' => $acme, 'user' => $structure->user('acme-user1')],
             ),
-            // And where those screens open (2026-09-23): everybody with a
-            // membership lands on the product deployed beside the platform,
-            // which is the only one with anywhere else to be. Counted by
-            // joining the code rather than trusting an id, because a default
-            // pointing at the wrong product looks exactly like this one.
-            'every member opens on the product beside the platform' => $this->peopleWithAMembership() === $this->count(
-                <<<'SQL'
-                SELECT count(*) FROM users u
-                JOIN products p ON p.id = u.default_product_id
-                WHERE p.code = :code
-                SQL,
-                ['code' => DemoWorld::PEOPLE_DEFAULT_PRODUCT],
-            ),
+            // And where those screens open (2026-09-23, amended 2026-09-28):
+            // a member lands on the product deployed beside the platform,
+            // which is the only one with anywhere else to be — **unless their
+            // organisation decides for them**, in which case they answer
+            // nothing and the organisation's own choice is what the ladder
+            // reaches. Counted by joining the code rather than trusting an id,
+            // because a default pointing at the wrong product looks exactly
+            // like this one.
+            'every member who answers for themselves opens beside the platform'
+                => $this->peopleWhoAnswerForThemselves() === $this->count(
+                    <<<'SQL'
+                    SELECT count(*) FROM users u
+                    JOIN products p ON p.id = u.default_product_id
+                    WHERE p.code = :code
+                    SQL,
+                    ['code' => DemoWorld::PEOPLE_DEFAULT_PRODUCT],
+                ),
             // And the order they are listed in (2026-09-23): Plan first,
             // which is what the switcher offers and what somebody with no
             // default lands on. Read back as codes rather than counted, so a
@@ -332,6 +336,24 @@ final class PostgresDemoFixtures implements DemoFixtures
             // Recognised by its properties throughout, never by a plan's code:
             // free, and over when its period is. That is what the subscription
             // path asks and what `gate:plans` requires it to ask.
+            // The organisation's own landing (2026-09-28). Two rows rather
+            // than one, because the two halves fail separately: a tenant with
+            // no default lands nowhere in particular, and a tenant whose
+            // people all answer for themselves makes the column invisible —
+            // the ladder never reaches it, and it could hold anything.
+            'an organisation says where its screens open' => count(DemoWorld::TENANTS) - 1 === $this->count(
+                'SELECT count(*) FROM tenants WHERE default_product_id IS NOT NULL',
+            ),
+            'and the organisation that decides for its people is the one they leave unanswered'
+                => 0 === $this->count(
+                    <<<'SQL'
+                    SELECT count(*) FROM users u
+                    JOIN tenant_members m ON m.user_id = u.id
+                    JOIN tenants t ON t.id = m.tenant_id
+                    WHERE t.slug = ANY(:deciding) AND u.default_product_id IS NOT NULL
+                    SQL,
+                    ['deciding' => '{' . implode(',', DemoWorld::TENANTS_THAT_DECIDE_FOR_THEIR_PEOPLE) . '}'],
+                ),
             'a free period is on sale, free and finite' => count(DemoWorld::FREEMIUM) === $this->count(
                 <<<'SQL'
                 SELECT count(*) FROM offer_versions v
@@ -455,15 +477,29 @@ final class PostgresDemoFixtures implements DemoFixtures
         return $products;
     }
 
-    /** @return array<string, string> key => id */
-    private function tenants(): array
+    /**
+     * @param array<string, string> $products code => id
+     *
+     * @return array<string, string> key => id
+     */
+    private function tenants(array $products): array
     {
         $tenants = [];
 
         foreach (DemoWorld::TENANTS as $key => $tenant) {
             $tenants[$key] = $this->id(
-                'INSERT INTO tenants (name, slug) VALUES (:name, :slug) RETURNING id',
-                ['name' => $tenant['name'], 'slug' => $key],
+                // `default_product_id` is where an organisation's screens open
+                // when the address names none and the person has answered
+                // nothing for themselves (2026-09-28). A plain foreign key to
+                // `products`, so the row only has to exist — that the
+                // organisation also *holds* it is checked where a customer
+                // sets it, and here it is true by construction.
+                'INSERT INTO tenants (name, slug, default_product_id) VALUES (:name, :slug, :product) RETURNING id',
+                [
+                    'name' => $tenant['name'],
+                    'slug' => $key,
+                    'product' => $tenant['default'] === null ? null : $products[$tenant['default']],
+                ],
             );
         }
 
@@ -507,8 +543,14 @@ final class PostgresDemoFixtures implements DemoFixtures
                     'email' => DemoWorld::email($key),
                     'name' => $person['name'],
                     // Staff hold no membership, so they have no product to
-                    // default to — the console reads the platform's list.
-                    'product' => $person['tenants'] === [] ? null : $default,
+                    // default to — the console reads the platform's list. And
+                    // a member of an organisation that decides for its people
+                    // answers nothing here, so the organisation's own choice
+                    // is what the ladder reaches (2026-09-28).
+                    'product' => $person['tenants'] === [] || array_intersect(
+                        $person['tenants'],
+                        DemoWorld::TENANTS_THAT_DECIDE_FOR_THEIR_PEOPLE,
+                    ) !== [] ? null : $default,
                 ],
             );
         }
@@ -1086,6 +1128,32 @@ final class PostgresDemoFixtures implements DemoFixtures
         $value = $this->connection->fetchOne($sql, $parameters);
 
         return is_numeric($value) ? (int) $value : 0;
+    }
+
+    /**
+     * How many of the world's people answer the landing question for
+     * themselves (2026-09-28).
+     *
+     * Everybody with a membership, less those whose organisation decides for
+     * them: those leave `users.default_product_id` empty so that
+     * `tenants.default_product_id` is what the ladder reaches. Without that
+     * subtraction the organisation's column could hold anything and nobody
+     * would land anywhere different, which is what made it invisible before.
+     */
+    private static function peopleWhoAnswerForThemselves(): int
+    {
+        $decided = 0;
+
+        foreach (DemoWorld::PEOPLE as $person) {
+            if ($person['tenants'] !== [] && array_intersect(
+                $person['tenants'],
+                DemoWorld::TENANTS_THAT_DECIDE_FOR_THEIR_PEOPLE,
+            ) !== []) {
+                ++$decided;
+            }
+        }
+
+        return self::peopleWithAMembership() - $decided;
     }
 
     /**

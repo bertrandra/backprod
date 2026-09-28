@@ -134,15 +134,41 @@ final class DemoResetTest extends DatabaseApiTestCase
             $this->rowCount("SELECT count(*) FROM projects p JOIN products pr ON pr.id = p.product_id WHERE pr.code = 'plan'"),
         );
         self::assertSame('https://plan.raillard.org', $this->connection->fetchOne("SELECT app_url FROM products WHERE code = 'plan'"));
-        // Where a member's screens open when no address says (2026-09-23):
-        // the product beside the platform, for everybody who holds it — and
-        // nothing at all for staff, who hold no membership to choose from.
+        // Where a member's screens open when no address says (2026-09-23,
+        // amended 2026-09-28): the product beside the platform for those who
+        // answer for themselves, nothing at all for staff, who hold no
+        // membership to choose from — and nothing for Globex's people either,
+        // because Globex answers for them.
+        $decidedFor = 0;
+
+        foreach (DemoWorld::PEOPLE as $person) {
+            if (array_intersect($person['tenants'], DemoWorld::TENANTS_THAT_DECIDE_FOR_THEIR_PEOPLE) !== []) {
+                ++$decidedFor;
+            }
+        }
+
+        self::assertGreaterThan(0, $decidedFor, 'the arrangement is only visible if somebody is decided for');
+
         self::assertSame(
-            count(DemoWorld::PEOPLE) - 1,
+            count(DemoWorld::PEOPLE) - 1 - $decidedFor,
             $this->rowCount("SELECT count(*) FROM users u JOIN products p ON p.id = u.default_product_id WHERE p.code = 'plan'"),
         );
+
+        // And the organisation's own answer, which is the rung below. Acme
+        // says Plan and its people say so too; Globex says Atlas and its
+        // people say nothing, so Globex's is what decides.
         self::assertSame(
-            1,
+            'plan',
+            $this->connection->fetchOne("SELECT p.code FROM tenants t JOIN products p ON p.id = t.default_product_id WHERE t.slug = 'acme'"),
+        );
+        self::assertSame(
+            'atlas',
+            $this->connection->fetchOne("SELECT p.code FROM tenants t JOIN products p ON p.id = t.default_product_id WHERE t.slug = 'globex'"),
+        );
+        // The platform's own staff, plus everybody their organisation answers
+        // for. Both are deliberate absences and neither is a gap.
+        self::assertSame(
+            1 + $decidedFor,
             $this->rowCount('SELECT count(*) FROM users WHERE default_product_id IS NULL'),
         );
         self::assertSame(0, $this->rowCount("SELECT count(*) FROM tenants WHERE slug = 'leftover'"));
