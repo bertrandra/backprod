@@ -61,6 +61,14 @@ export interface RecordedRequest {
   readonly body: unknown;
   readonly query: unknown;
   /**
+   * The path parameters, so a test can see *which* record a call was about
+   * and not merely that one was made (2026-09-28). `path` is the template —
+   * `/api/v1/billing/invoices/{invoiceId}/payments` — so without this a
+   * screen paying the wrong invoice passed every assertion that could be
+   * written about it.
+   */
+  readonly pathParams: unknown;
+  /**
    * The ambient and per-call headers.
    *
    * Added when R14 made a header load-bearing: a staff read carries the reason
@@ -72,7 +80,7 @@ export interface RecordedRequest {
 
 interface RequestInit {
   body?: unknown;
-  params?: { query?: unknown; header?: unknown };
+  params?: { query?: unknown; header?: unknown; path?: unknown };
 }
 
 function answers(responses: Stubs, record: (request: RecordedRequest) => void) {
@@ -84,6 +92,7 @@ function answers(responses: Stubs, record: (request: RecordedRequest) => void) {
       path,
       body: init?.body,
       query: init?.params?.query,
+      pathParams: init?.params?.path,
       header: init?.params?.header,
     });
 
