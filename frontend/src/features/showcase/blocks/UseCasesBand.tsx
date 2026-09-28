@@ -1,6 +1,7 @@
 import { t } from '@/i18n';
 
 import { ShowcaseBand } from '../ShowcaseBand';
+import { ShowcaseImageFrame } from '../ShowcaseImageFrame';
 import type { ShowcaseRow, UseCaseRow } from './content';
 import { BAND_META } from './meta';
 
@@ -61,6 +62,14 @@ export function UseCasesBand({ rows }: { rows: readonly ShowcaseRow<UseCaseRow>[
                 )}
               </dl>
             )}
+
+            {/* Last in the card, so the recognition happens in the words
+                (2026-09-28): a reader decides "that is me" from the before
+                and the after, and the picture is what they look at once
+                they have. Nothing where none was chosen. */}
+            <div className="mt-5 empty:mt-0">
+              <ShowcaseImageFrame image={row.image} />
+            </div>
           </li>
         ))}
       </ul>

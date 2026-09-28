@@ -46,9 +46,13 @@ final class ShowcaseBlocks
      */
     private const FIELDS = [
         ShowcaseBlock::HEADLINE => ['required' => ['headline'], 'optional' => ['subline', 'alt']],
-        ShowcaseBlock::STEPS => ['required' => ['title'], 'optional' => ['body']],
-        ShowcaseBlock::USE_CASE => ['required' => ['who'], 'optional' => ['before', 'after']],
+        ShowcaseBlock::STEPS => ['required' => ['title'], 'optional' => ['body', 'alt']],
+        ShowcaseBlock::USE_CASE => ['required' => ['who'], 'optional' => ['before', 'after', 'alt']],
         ShowcaseBlock::PROOF => ['required' => ['caption'], 'optional' => ['alt']],
+        // `QUESTION` has no `alt` because it carries no picture (2026-09-28):
+        // a field this endpoint stored and no band rendered is what the loop
+        // below refuses on the way in, and it would be the same hole the
+        // other way round — an operator writing a description of nothing.
         ShowcaseBlock::QUESTION => ['required' => ['question', 'answer'], 'optional' => []],
     ];
 

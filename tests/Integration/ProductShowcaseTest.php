@@ -106,6 +106,46 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         self::assertSame('VALIDATION_FAILED', $this->errorOf($refused)['code'] ?? null);
     }
 
+    /**
+     * A picture may be described on every band that can carry one, and on
+     * no other (2026-09-28).
+     *
+     * `alt` is a band field rather than a column on the picture, so it goes
+     * through the same translation mechanism as every sentence on the page.
+     * That only works where the band accepts it — and a band that shows no
+     * picture must keep refusing it, or an operator writes a description of
+     * nothing and the loop above stops meaning anything.
+     */
+    public function testEveryBandThatShowsAPictureTakesADescriptionOfIt(): void
+    {
+        $written = $this->write([
+            ['block' => 'STEPS', 'content' => ['title' => 'Draw', 'alt' => 'The parcel, traced']],
+            ['block' => 'USE_CASE', 'content' => ['who' => 'A landscaper', 'alt' => 'At a laptop']],
+        ]);
+
+        self::assertSame(200, $written->getStatusCode(), (string) $written->getBody());
+
+        $described = [];
+
+        foreach ($this->listIn($written, 'blocks') as $block) {
+            self::assertIsArray($block);
+            self::assertIsString($block['block'] ?? null);
+            self::assertIsArray($block['content'] ?? null);
+            $described[$block['block']] = $block['content']['alt'] ?? null;
+        }
+
+        self::assertSame('The parcel, traced', $described['STEPS'] ?? null);
+        self::assertSame('At a laptop', $described['USE_CASE'] ?? null);
+
+        // The questions band shows no picture, so a description of one is a
+        // field no band renders — refused, not stored.
+        $refused = $this->write([
+            ['block' => 'QUESTION', 'content' => ['question' => 'Can I cancel?', 'answer' => 'Yes.', 'alt' => 'Of what?']],
+        ]);
+
+        self::assertSame(400, $refused->getStatusCode());
+    }
+
     public function testPricingIsNotABandSomebodyCanWrite(): void
     {
         // It is a position in the order and reads the catalogue. A row for

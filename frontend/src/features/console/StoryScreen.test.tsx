@@ -180,6 +180,107 @@ describe('saving', () => {
   });
 });
 
+/**
+ * Pictures, and the sentence that describes one (2026-09-28).
+ *
+ * The server has accepted `alt` on a headline since the first version and
+ * no screen ever offered it, so every showcase picture went out decorative
+ * — and `toInput` builds a band's content from `BAND_FIELDS` alone, so one
+ * that reached the database by any other route was dropped by the next
+ * save. The first test below is that drop.
+ */
+describe('a picture and its description', () => {
+  const DESCRIBED = {
+    ...HEADLINE,
+    content: { ...HEADLINE.content, alt: 'The terrace, drawn to scale.' },
+    asset_id: 'a-1',
+  };
+
+  it('carries a description already written through a save, rather than dropping it', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/products/{productId}/showcase': {
+        data: { product: PRODUCT, published_at: null, blocks: [DESCRIBED] },
+      },
+      'PUT /api/v1/staff/products/{productId}/showcase': { data: { blocks: [DESCRIBED] } },
+    });
+
+    renderWith(<StoryScreen productId="p-1" />, client);
+
+    await waitFor(() => expect(screen.getByTestId('story-bands')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('save-story'));
+    await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
+
+    const body = requests.find((r) => r.method === 'PUT')?.body as {
+      blocks: { content: Record<string, string>; asset_id: string | null }[];
+    };
+
+    // Saving a story the operator did not touch must give it back whole.
+    expect(body.blocks[0]?.content.alt).toBe('The terrace, drawn to scale.');
+    expect(body.blocks[0]?.asset_id).toBe('a-1');
+  });
+
+  it('offers the description on every band that can carry a picture, and on no other', async () => {
+    renderWith(<StoryScreen productId="p-1" />, clientFor());
+
+    await waitFor(() => expect(screen.getByTestId('story-bands')).toBeTruthy());
+
+    fireEvent.click(screen.getByTestId('add-STEPS'));
+    fireEvent.click(screen.getByTestId('add-USE_CASE'));
+    fireEvent.click(screen.getByTestId('add-QUESTION'));
+
+    // Four bands carry a picture; the questions do not, and a description
+    // of nothing is a field the server refuses outright.
+    await waitFor(() => expect(screen.getAllByTestId('band-picture')).toHaveLength(3));
+
+    const bands = [...screen.getByTestId('story-bands').children];
+    const withAPicture = bands
+      .filter((band) => band.querySelector('[data-testid="band-picture"]') !== null)
+      .map((band) => band.getAttribute('data-band-kind'));
+
+    expect(withAPicture).toEqual(['HEADLINE', 'STEPS', 'USE_CASE']);
+
+    const questions = bands.find((band) => band.getAttribute('data-band-kind') === 'QUESTION');
+    expect(questions?.querySelector('[data-testid="band-picture"]')).toBeNull();
+    expect(questions?.querySelector('[id$="-alt"]')).toBeNull();
+  });
+
+  it('writes the description as a sentence, so it is translated like any other', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/products/{productId}/showcase': {
+        data: { product: PRODUCT, published_at: null, blocks: [HEADLINE] },
+      },
+      'PUT /api/v1/staff/products/{productId}/showcase': { data: { blocks: [HEADLINE] } },
+    });
+
+    renderWith(<StoryScreen productId="p-1" />, client);
+
+    await waitFor(() => expect(screen.getByTestId('translated-b-1-alt')).toBeTruthy());
+
+    fireEvent.change(screen.getByTestId('translated-b-1-alt'), {
+      target: { value: 'The terrace, drawn to scale.' },
+    });
+
+    // The same control every sentence uses, so the language button is there
+    // and the desk counts it — an `alt` is read aloud and needs translating
+    // exactly as much as the headline above it.
+    fireEvent.click(screen.getByTestId('language-of-b-1-alt'));
+    fireEvent.click(screen.getByTestId('language-fr-of-b-1-alt'));
+    fireEvent.change(screen.getByTestId('translated-b-1-alt'), {
+      target: { value: 'La terrasse, à l’échelle.' },
+    });
+
+    fireEvent.click(screen.getByTestId('save-story'));
+    await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
+
+    const body = requests.find((r) => r.method === 'PUT')?.body as {
+      blocks: { content: Record<string, string>; translations?: Record<string, Record<string, string>> }[];
+    };
+
+    expect(body.blocks[0]?.content.alt).toBe('The terrace, drawn to scale.');
+    expect(body.blocks[0]?.translations?.fr?.alt).toBe('La terrasse, à l’échelle.');
+  });
+});
+
 describe('publishing', () => {
   it('is a second act, and says which state the page is in', async () => {
     const { client, requests } = recordingClient({

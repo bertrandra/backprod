@@ -54,6 +54,21 @@ const FULL: ShowcaseContent = {
 
 const EMPTY: ShowcaseContent = { headline: [], steps: [], useCases: [], proof: [], questions: [] };
 
+/**
+ * A picture on a band that had none until 2026-09-28.
+ *
+ * `pictureOf` has always read `image` off every block, so the rows carried
+ * one all along and only two bands rendered it. What these assert is that
+ * the other two now do — and that a band with no picture still draws no
+ * frame, because the alternative is a grey box where an operator simply had
+ * nothing to show.
+ */
+const pictured = <T,>(id: string, content: T, alt: string) => ({
+  id,
+  content,
+  image: { url: `https://example.test/${id}.png`, alt, ratio: 16 / 10 },
+});
+
 function renderStory(content: ShowcaseContent, offers = [OFFER]) {
   return render(
     <Showcase
@@ -215,6 +230,66 @@ describe('a bad answer', () => {
 
     expect(screen.getByTestId('showcase-headline').textContent).toBe('Plan');
     expect(container.querySelectorAll('[data-band]')).toHaveLength(2);
+  });
+});
+
+describe('pictures', () => {
+  it('shows one on a step and on a use case, described as the operator wrote it', () => {
+    renderStory({
+      ...FULL,
+      steps: [
+        pictured('s1', { title: 'Draw the parcel', body: null }, 'The parcel, traced on the map'),
+        row('s2', { title: 'The terrace follows', body: null }),
+      ],
+      useCases: [
+        pictured(
+          'u1',
+          { who: 'A landscaper', before: 'An afternoon of redrawing', after: 'Three minutes' },
+          'A landscaper at a laptop',
+        ),
+      ],
+    });
+
+    const steps = within(screen.getByTestId('showcase-steps'));
+    const pictures = steps.getAllByTestId('showcase-image');
+
+    // One of the two steps has a picture, so the band draws one frame and
+    // not two: a step with nothing to show gets no grey box.
+    expect(pictures).toHaveLength(1);
+    expect(pictures[0]?.querySelector('img')?.getAttribute('alt')).toBe(
+      'The parcel, traced on the map',
+    );
+
+    const useCases = within(screen.getByTestId('showcase-use-cases'));
+    expect(useCases.getByTestId('showcase-image').querySelector('img')?.getAttribute('alt')).toBe(
+      'A landscaper at a laptop',
+    );
+  });
+
+  it('draws no frame at all where nobody chose a picture', () => {
+    renderStory(FULL);
+
+    // Every row in `FULL` has `image: null`, and the bands that could show
+    // one show nothing rather than reserving a box for an absence.
+    expect(within(screen.getByTestId('showcase-steps')).queryByTestId('showcase-image')).toBeNull();
+    expect(
+      within(screen.getByTestId('showcase-use-cases')).queryByTestId('showcase-image'),
+    ).toBeNull();
+  });
+
+  it('leaves a description empty rather than inventing one, which means decorative', () => {
+    renderStory({
+      ...FULL,
+      steps: [pictured('s1', { title: 'Draw the parcel', body: null }, '')],
+    });
+
+    // An empty `alt` is a screen reader skipping the image, which is the
+    // right answer for one the words beside it already describe. Inventing
+    // "a screenshot of the product" would be a sentence that cannot be
+    // skipped and says nothing.
+    const picture = within(screen.getByTestId('showcase-steps')).getByTestId('showcase-image');
+
+    expect(picture.querySelector('img')?.getAttribute('alt')).toBe('');
   });
 });
 
