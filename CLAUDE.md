@@ -808,12 +808,25 @@ waits for it** (ADR-061). A self-service sign-up gets its session at once and,
 under `OPEN`, buys in the same breath. Under `DOMAIN` the domain is the only
 evidence, so the membership is `UNCONFIRMED` — not `PENDING`, which is a
 question put to administrators — until the address is proved, and is decided
-again then against the list as it stands. Every self-service sign-up has
-`AUTH_EMAIL_CONFIRMATION_GRACE` (7 days, `users.email_confirm_by`) to prove it;
-past that the tenant chain answers `EMAIL_UNCONFIRMED`, its own refusal,
-answered by a click and nothing else, with nothing cancelled. Invited, seeded
-and older accounts have no deadline (`NULL`): a deadline nobody announced is
-not one to enforce. A password or invitation link proves the address as well
+again then against the list as it stands.
+
+**Asking for that proof at all is the operator's choice, and it is off**
+(ADR-063, 2026-09-28) — `platform_settings.sign_up.confirm_email`, behind
+`staff.sign_up.manage`, on the console's Storefront screen. Absent means off,
+and the reason is this setting's own: what silence would cost is somebody
+locked out of what they paid for by a deadline nobody chose, so the absence of
+a decision is the absence of the demand. Switched on, a self-service sign-up
+has `AUTH_EMAIL_CONFIRMATION_GRACE` (7 days, `users.email_confirm_by`) to
+prove it; past that the tenant chain answers `EMAIL_UNCONFIRMED`, its own
+refusal, answered by a click and nothing else, with nothing cancelled. The
+setting is read **twice, for two reasons**: at sign-up, so switching it on
+binds only the sign-ups that follow — a deadline nobody announced is not one
+to enforce, which is also why invited, seeded and older accounts have none
+(`NULL`) — and at enforcement, so switching it off releases everybody at once,
+including those already refused. What never becomes optional is the mail, and
+the `DOMAIN` wait: there the address is the organisation's only evidence, and
+"must a new account confirm" must not silently answer "may a stranger claim to
+work at Acme". A password or invitation link proves the address as well
 as the confirmation link does — it reaches the same mailbox.
 `resendEmailVerification` is identity-only, because it is the way out of the
 refusal the full chain raises. A confirmation link opened while signed in must

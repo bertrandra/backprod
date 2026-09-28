@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Shared\Context;
 
 use App\Auth\Domain\AuthProvider;
+use App\Auth\Domain\SignUpSettings;
 use App\Entitlement\Domain\EntitlementRepository;
 use App\Product\Domain\ProductKeys;
 use App\Product\Service\ProductResolver;
@@ -54,6 +55,7 @@ final class RequestContextMiddleware implements MiddlewareInterface
         private readonly StaffRepository $staff,
         private readonly RoutePolicy $policy,
         private readonly ProductKeys $productKeys,
+        private readonly SignUpSettings $signUp,
     ) {
     }
 
@@ -113,7 +115,16 @@ final class RequestContextMiddleware implements MiddlewareInterface
         // surface waits for the click. After staff and identity-only routes,
         // deliberately — the way out (resending the link) is identity-only,
         // and platform staff are not self-service sign-ups.
-        if ($user->addressOverdue) {
+        //
+        // And only where the platform asks for the proof at all (ADR-063),
+        // which it does not by default. The setting is read *after* the
+        // deadline, so the query costs nothing on the ordinary request:
+        // almost nobody is overdue, and PHP stops at the first false. It is
+        // asked here rather than only at sign-up because switching the
+        // demand off has to release the people it is holding — an operator
+        // turns it off precisely because somebody is locked out, and a
+        // deadline already written would otherwise go on refusing them.
+        if ($user->addressOverdue && $this->signUp->emailConfirmationRequired()) {
             throw ForbiddenException::emailUnconfirmed();
         }
 

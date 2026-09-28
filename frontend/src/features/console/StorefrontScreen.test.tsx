@@ -180,6 +180,99 @@ describe('the storefront console', () => {
   });
 });
 
+/**
+ * Whether a new account must prove its address (ADR-063).
+ *
+ * Two things are asserted that nothing else would catch: the panel reads
+ * **off** when the server says off — the default the operator asked for, and
+ * the one a wrong initial value would misreport as a demand nobody made —
+ * and it answers to `staff.sign_up.manage` rather than to the permission the
+ * rest of this screen holds.
+ */
+describe('confirming an address', () => {
+  const SIGN_UP_ADMIN = {
+    staff: { user_id: 's-1', roles: ['PLATFORM_ADMIN'], permissions: ['staff.sign_up.manage'] },
+  };
+  // Holds the storefront's own permission and nothing else: the screen is
+  // theirs, the sign-up policy is not.
+  const CATALOGUE_ONLY = {
+    staff: { user_id: 's-3', roles: ['SUPPORT_ADMIN'], permissions: ['staff.catalog.manage'] },
+  };
+
+  it('reads off when nobody has asked for the proof', async () => {
+    renderAtRoute(
+      <StorefrontScreen />,
+      clientFor({
+        'GET /api/v1/staff/me': { data: SIGN_UP_ADMIN },
+        'GET /api/v1/staff/sign-up/settings': { data: { confirm_email: false } },
+      }),
+      ROUTE,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('confirm-address')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByLabelText<HTMLInputElement>(/Not required/).checked).toBe(true),
+    );
+    expect(screen.getByLabelText<HTMLInputElement>(/Required within seven days/).checked).toBe(
+      false,
+    );
+  });
+
+  it('shows the demand as in force when the server says so', async () => {
+    renderAtRoute(
+      <StorefrontScreen />,
+      clientFor({
+        'GET /api/v1/staff/me': { data: SIGN_UP_ADMIN },
+        'GET /api/v1/staff/sign-up/settings': { data: { confirm_email: true } },
+      }),
+      ROUTE,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByLabelText<HTMLInputElement>(/Required within seven days/).checked).toBe(
+        true,
+      ),
+    );
+  });
+
+  it('is absent for somebody holding only the storefront’s own permission', async () => {
+    renderAtRoute(
+      <StorefrontScreen />,
+      clientFor({ 'GET /api/v1/staff/me': { data: CATALOGUE_ONLY } }),
+      ROUTE,
+    );
+
+    // The rest of the screen is theirs; this panel is not.
+    await waitFor(() => expect(screen.getByTestId('after-sign-up')).toBeTruthy());
+    expect(screen.queryByTestId('confirm-address')).toBeNull();
+  });
+
+  it('sends the choice as PUT and shows what the server wrote', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/me': { data: SIGN_UP_ADMIN },
+      'GET /api/v1/staff/sign-up/settings': { data: { confirm_email: false } },
+      'PUT /api/v1/staff/sign-up/settings': { data: { confirm_email: true } },
+    });
+
+    renderAtRoute(<StorefrontScreen />, client, { ...ROUTE, product: null });
+
+    await waitFor(() => expect(screen.getByLabelText(/Not required/)).toBeTruthy());
+    fireEvent.click(screen.getByLabelText(/Required within seven days/));
+
+    await waitFor(() =>
+      expect(
+        requests.some((r) => r.method === 'PUT' && r.path === '/api/v1/staff/sign-up/settings'),
+      ).toBe(true),
+    );
+    expect(requests.find((r) => r.method === 'PUT')?.body).toEqual({ confirm_email: true });
+    await waitFor(() =>
+      expect(screen.getByLabelText<HTMLInputElement>(/Required within seven days/).checked).toBe(
+        true,
+      ),
+    );
+  });
+});
+
 describe('after a sign-up', () => {
   const ADMIN = { staff: { user_id: 's-1', roles: ['PLATFORM_ADMIN'], permissions: ['staff.catalog.manage'] } };
   const SUPPORT = { staff: { user_id: 's-2', roles: ['SUPPORT_ADMIN'], permissions: ['staff.tenants.read'] } };

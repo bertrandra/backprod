@@ -1333,6 +1333,55 @@ export function useStorefrontSettings(enabled = true) {
   });
 }
 
+/**
+ * Whether a new account must prove its address before it may use the
+ * platform (ADR-063). Platform-wide, behind `staff.sign_up.manage` — not the
+ * storefront's own permission, although the control sits on that screen: what
+ * a stranger is shown and what a stranger must prove are two trusts.
+ *
+ * The answer is written into the cache, since the API returns the setting it
+ * wrote.
+ */
+export function useSignUpSettings(enabled = true) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.signUpSettings,
+    enabled,
+    queryFn: async (): Promise<boolean> => {
+      const { data, error, response } = await client.GET('/api/v1/staff/sign-up/settings', {});
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.confirm_email;
+    },
+  });
+}
+
+export function useSetSignUpSettings() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (confirmEmail: boolean): Promise<boolean> => {
+      const { data, error, response } = await client.PUT('/api/v1/staff/sign-up/settings', {
+        body: { confirm_email: confirmEmail },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.confirm_email;
+    },
+    onSuccess: (confirmEmail) => {
+      queryClient.setQueryData(keys.staff.signUpSettings, confirmEmail);
+    },
+  });
+}
+
 export type MailTemplate = Schemas['MailTemplate'];
 export type MailLocale = 'en' | 'fr' | 'es' | 'de' | 'it';
 export type MailTemplates = {

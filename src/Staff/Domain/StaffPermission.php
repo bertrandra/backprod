@@ -92,4 +92,16 @@ final class StaffPermission
      */
     public const NAVIGATION_MANAGE = 'staff.navigation.manage';
     public const MAIL_MANAGE = 'staff.mail.manage';
+
+    /**
+     * Deciding whether a new account must prove its address before it may
+     * use the platform (ADR-063) — PLATFORM_ADMIN alone.
+     *
+     * Apart from `staff.catalog.manage`, which the rest of the storefront
+     * console answers to, although the control sits on that screen: that
+     * permission decides what a stranger is *shown*, and this one decides
+     * what a stranger must *prove*. Somebody trusted with the price list is
+     * not thereby trusted to switch off the proof.
+     */
+    public const SIGN_UP_MANAGE = 'staff.sign_up.manage';
 }
