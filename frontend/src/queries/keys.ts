@@ -160,7 +160,11 @@ export const keys = {
   },
   sales: {
     orderLists: ['sales', 'orders'] as const,
-    orderList: (limit: number, offset: number) => ['sales', 'orders', limit, offset] as const,
+    // The filter is part of the key, as it is for invoices: a page narrowed
+    // to one person is a different answer, and it stays under the same prefix
+    // so every mutation that invalidates the lists still reaches it.
+    orderList: (limit: number, offset: number, filter: ListFilterKey = {}) =>
+      ['sales', 'orders', limit, offset, filter] as const,
     order: (id: string) => ['sales', 'order', id] as const,
   },
   checkout: {

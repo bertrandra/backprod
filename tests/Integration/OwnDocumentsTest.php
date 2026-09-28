@@ -324,6 +324,27 @@ final class OwnDocumentsTest extends DatabaseApiTestCase
             }
         }
 
+        // The orders list answers the same two questions (2026-09-28), by the
+        // same rule: it is where an invoice's person comes from in the first
+        // place, so the two lists disagreeing would be one rule read twice.
+        foreach ($this->rowsOf($this->get('alice-token', '/api/v1/sales/orders'), 'orders') as $row) {
+            self::assertIsArray($row['person'] ?? null, 'an order names its person');
+            self::assertContains($row['person']['user_id'] ?? null, [$this->admin, $this->member]);
+        }
+
+        // Narrowed to Bob, and `idsOf` insists the total agrees with the page:
+        // a count read with a looser WHERE than its page is worse than none.
+        $bobsOrders = $this->rowsOf($this->get('alice-token', '/api/v1/sales/orders?person=' . $this->member), 'orders');
+        self::assertCount(1, $bobsOrders);
+        self::assertIsArray($bobsOrders[0]['person'] ?? null);
+        self::assertSame($this->member, $bobsOrders[0]['person']['user_id'] ?? null);
+        self::assertCount(1, $this->idsOf($this->get('alice-token', '/api/v1/sales/orders?person=' . $this->member), 'orders'));
+
+        self::assertCount(2, $this->idsOf($this->get('alice-token', '/api/v1/sales/orders?status=COMPLETED'), 'orders'));
+        self::assertSame([], $this->idsOf($this->get('alice-token', '/api/v1/sales/orders?status=CANCELLED'), 'orders'));
+        self::assertSame(400, $this->get('alice-token', '/api/v1/sales/orders?status=LOST')->getStatusCode());
+        self::assertSame(400, $this->get('alice-token', '/api/v1/sales/orders?person=bob')->getStatusCode());
+
         // A status narrows too, and a status nothing is in answers nothing.
         self::assertCount(2, $this->idsOf($this->get('alice-token', '/api/v1/billing/invoices?status=PAID'), 'invoices'));
         self::assertSame([], $this->idsOf($this->get('alice-token', '/api/v1/billing/invoices?status=DRAFT'), 'invoices'));
@@ -351,6 +372,7 @@ final class OwnDocumentsTest extends DatabaseApiTestCase
 
         self::assertSame([], $this->idsOf($this->get('bob-token', '/api/v1/billing/invoices?person=' . $this->admin), 'invoices'));
         self::assertSame([], $this->idsOf($this->get('bob-token', '/api/v1/billing/payments?person=' . $this->admin), 'payments'));
+        self::assertSame([], $this->idsOf($this->get('bob-token', '/api/v1/sales/orders?person=' . $this->admin), 'orders'));
 
         // The credit notes too: a refund on the administrator's payment
         // raises one, and the member naming her still gets nothing.
