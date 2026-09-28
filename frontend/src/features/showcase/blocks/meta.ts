@@ -57,9 +57,20 @@ export type AuthoredBandKind = (typeof AUTHORED_BANDS)[number];
  * because those are two different facts that happen to coincide today: a
  * band could carry a picture nobody has to describe, or a description of
  * something that is not a picture. Stated once, read by the console's
- * editor and by nothing else.
+ * editor and by nothing else — a band component renders `row.image`
+ * unconditionally and {@see ShowcaseImageFrame} answers nothing when there
+ * is none, so this list decides what is *offered*, never what is rendered.
+ *
+ * `QUESTION` is deliberately absent (2026-09-28): a picture per question
+ * makes a frequently-asked list unreadable, and there is no layout for one
+ * that does not push the answers apart.
  */
-export const BANDS_WITH_A_PICTURE: readonly AuthoredBandKind[] = ['HEADLINE', 'PROOF'];
+export const BANDS_WITH_A_PICTURE: readonly AuthoredBandKind[] = [
+  'HEADLINE',
+  'STEPS',
+  'USE_CASE',
+  'PROOF',
+];
 
 export function carriesAPicture(kind: AuthoredBandKind): boolean {
   return BANDS_WITH_A_PICTURE.includes(kind);

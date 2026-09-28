@@ -171,6 +171,22 @@ the product, cropped to the thing being discussed:
 No device mockups. A browser chrome drawn around a screenshot dates the
 page to the year the chrome was drawn.
 
+**Four bands may carry one** (2026-09-28): the headline, a step, a use case
+and a proof. A step shows its picture *after* its number and title, because
+those are what make it a sequence; a use case shows it last in the card,
+because the reader recognises themselves in the before and the after and
+looks at the picture once they have. The questions band carries none — a
+picture per question makes a frequently-asked list unreadable, and there is
+no layout for one that does not push the answers apart.
+
+**A picture is described where it means something.** `alt` is a band field
+like any sentence, so it is translated by the same mechanism rather than a
+second one — and it was accepted by the server and offered by no screen
+until 2026-09-28, so every picture ever published went out decorative, the
+hero included. Empty stays meaningful and the console's hint says so: a
+proof band's caption sits beside its picture already, and an `alt` repeating
+it makes a screen reader say the same sentence twice.
+
 **5. One motion, and the page is complete without it.** Each band rises
 12px and fades in over 400ms on `--ease-out-quart`, children staggered
 60ms, triggered once by an `IntersectionObserver`. Three rules keep it

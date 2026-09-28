@@ -1,6 +1,7 @@
 import { t } from '@/i18n';
 
 import { ShowcaseBand } from '../ShowcaseBand';
+import { ShowcaseImageFrame } from '../ShowcaseImageFrame';
 import type { ShowcaseRow, StepRow } from './content';
 import { BAND_META } from './meta';
 
@@ -49,6 +50,13 @@ export function StepsBand({ rows }: { rows: readonly ShowcaseRow<StepRow>[] }) {
             {row.content.body !== null && row.content.body !== '' && (
               <p className="max-w-prose text-base text-muted">{row.content.body}</p>
             )}
+
+            {/* After the words, never before them (2026-09-28): the number
+                and the title are what make this a sequence, and a picture
+                above them would push the step being described off the
+                first frame on a phone. Nothing at all where no picture was
+                chosen — the frame answers null rather than a grey box. */}
+            <ShowcaseImageFrame image={row.image} />
           </li>
         ))}
       </ol>
