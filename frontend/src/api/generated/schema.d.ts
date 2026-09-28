@@ -1797,7 +1797,7 @@ export interface paths {
         };
         /**
          * The tenant's orders
-         * @description Newest first, paginated.
+         * @description Newest first, paginated, and narrowable by the person an order was for and by its state (2026-09-28) — the same two the invoice list takes, answered by the same rule, so a person's orders and the invoices they raised cannot disagree about whose they are.
          */
         get: operations["listOrders"];
         put?: never;
@@ -5628,6 +5628,10 @@ export interface components {
         ListedInvoice: components["schemas"]["Invoice"] & {
             person: components["schemas"]["DocumentPerson"];
         };
+        /** @description An order on a list, with whom it concerns (2026-09-28): the seat it was placed for, else whoever placed it. Null is the organisation, said as such rather than attributed to anybody. The same rule `DocumentPersonSql` gives every billing list, so an order and the invoice it raised cannot disagree about whose they are. */
+        ListedOrder: components["schemas"]["Order"] & {
+            person: components["schemas"]["DocumentPerson"];
+        };
         /** @description A credit note on a list, with whom it concerns — the person of the invoice it corrects (2026-09-27). */
         ListedCreditNote: components["schemas"]["CreditNote"] & {
             person: components["schemas"]["DocumentPerson"];
@@ -5988,6 +5992,8 @@ export interface components {
         InvoiceStatusFilter: "DRAFT" | "ISSUED" | "READY_FOR_EINVOICE" | "SUBMITTED" | "ACCEPTED" | "REJECTED" | "PAID" | "CANCELLED" | "CREDITED";
         /** @description Only payments in this state. */
         PaymentStatusFilter: "PENDING" | "AUTHORIZED" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "REFUNDED" | "PARTIALLY_REFUNDED" | "CHARGEBACK";
+        /** @description Only orders in this state. A state this platform has never heard of is refused with 400 rather than answered with an empty page, which somebody would read as having no orders. */
+        OrderStatusFilter: "PENDING" | "AWAITING_PAYMENT" | "COMPLETED" | "CANCELLED";
         /** @description Only subscriptions in this state. */
         SubscriptionStatusFilter: "ACTIVE" | "PAST_DUE" | "CANCELLED" | "EXPIRED";
         /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
@@ -10157,6 +10163,10 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 /** @description How many to skip. */
                 offset?: components["parameters"]["Offset"];
+                /** @description Only what concerns this person (2026-09-27): the member a document or a subscription is for. It narrows and never widens — applied beside the caller's own scope, so a member naming a colleague gets an empty page. Malformed is a 400, never ignored. */
+                person?: components["parameters"]["PersonFilter"];
+                /** @description Only orders in this state. A state this platform has never heard of is refused with 400 rather than answered with an empty page, which somebody would read as having no orders. */
+                status?: components["parameters"]["OrderStatusFilter"];
             };
             header: {
                 /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
@@ -10176,7 +10186,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        orders: components["schemas"]["Order"][];
+                        orders: components["schemas"]["ListedOrder"][];
                         total: number;
                         limit: number;
                         offset: number;

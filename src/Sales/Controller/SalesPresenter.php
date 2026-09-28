@@ -80,13 +80,21 @@ final class SalesPresenter
     }
 
     /**
-     * @param list<Order> $orders
+     * @param list<Order>                                                              $orders
+     * @param array<string, array{user_id: string, name: string|null, email: string|null}> $people by order id
      *
      * @return list<array<string, mixed>>
      */
-    public static function orders(array $orders): array
+    public static function orders(array $orders, array $people = []): array
     {
-        return array_map(self::order(...), $orders);
+        // The person beside the row, by the rule every billing list shares
+        // (2026-09-28). Absent means the organisation, said as such rather
+        // than attributed to nobody in particular.
+        return array_map(
+            static fn (Order $order): array => self::order($order)
+                + ['person' => InvoicePresenter::person($people[$order->id] ?? null)],
+            $orders,
+        );
     }
 
     /**

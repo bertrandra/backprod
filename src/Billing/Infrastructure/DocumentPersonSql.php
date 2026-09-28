@@ -38,6 +38,20 @@ final class DocumentPersonSql
         );
     }
 
+    /**
+     * @param string $order alias of an `orders` row
+     *
+     * An order says whom it is for on the row itself, so there is nothing to
+     * chase: the seat it was placed for, else whoever placed it. It is the
+     * innermost of these rules — the one {@see self::ofInvoice()} falls back
+     * to — and it is written here so an order's own list asks the same
+     * question its invoice does rather than a second one that agrees today.
+     */
+    public static function ofOrder(string $order): string
+    {
+        return sprintf('coalesce(%1$s.subscriber_user_id, %1$s.placed_by)', $order);
+    }
+
     /** @param string $creditNote alias of a `credit_notes` row — whoever its invoice concerns */
     public static function ofCreditNote(string $creditNote): string
     {

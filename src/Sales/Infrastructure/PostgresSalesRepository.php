@@ -7,6 +7,7 @@ namespace App\Sales\Infrastructure;
 use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\LineOffer;
 use App\Billing\Domain\Money;
+use App\Billing\Infrastructure\DocumentPersonSql;
 use App\Commerce\Domain\OfferLineDetails;
 use App\Commerce\Domain\Subscriber;
 use App\Sales\Domain\Order;
@@ -189,29 +190,69 @@ final class PostgresSalesRepository implements SalesRepository
         });
     }
 
-    public function listOrders(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
-    {
+    public function listOrders(
+        string $tenantId,
+        string $productId,
+        int $limit,
+        int $offset,
+        ?string $ownedBy = null,
+        ?string $person = null,
+        ?string $status = null,
+    ): array {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return [];
         }
 
-        // A person's own orders (2026-09-18) are the ones that bought their seat.
+        $narrow = DocumentPersonSql::narrowing(DocumentPersonSql::ofOrder('orders'));
+
+        // A person's own orders, and one person's when the administrator asks
+        // (2026-09-28). Both read `DocumentPersonSql`, which is the whole
+        // point of it: the person named beside a row, the person filtered on,
+        // and a member's own view cannot disagree when they ask one question.
+        //
+        // It widens "mine" by a hair. This used to be `subscriber_user_id`
+        // alone, so an order somebody placed that bought nobody a seat was
+        // theirs to no one — invisible to them and attributed to the
+        // organisation for the administrator. `coalesce(..., placed_by)` is
+        // the rule the invoice raised from it already falls back to.
         return $this->hydrateOrders($this->connection->fetchAllAssociative(
-            'SELECT ' . self::ORDER_COLUMNS . <<<'SQL'
+            'SELECT ' . self::ORDER_COLUMNS . <<<SQL
                  FROM orders
                 WHERE tenant_id = :tenantId AND product_id = :productId
-                  AND (CAST(:ownedBy AS uuid) IS NULL OR subscriber_user_id = CAST(:ownedBy AS uuid))
+                  AND {$narrow} AND (CAST(:status AS text) IS NULL OR status = CAST(:status AS text))
                 ORDER BY created_at DESC, id
                 LIMIT :limit OFFSET :offset
                 SQL,
-            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset, 'ownedBy' => $ownedBy],
+            ['tenantId' => $tenantId, 'productId' => $productId, 'limit' => $limit, 'offset' => $offset, 'ownedBy' => $ownedBy, 'person' => $person, 'status' => $status],
             ['limit' => ParameterType::INTEGER, 'offset' => ParameterType::INTEGER],
         ));
     }
 
-    public function countOrders(string $tenantId, string $productId, ?string $ownedBy = null): int
-    {
-        return $this->countIn('orders', $tenantId, $productId, 'subscriber_user_id', $ownedBy);
+    public function countOrders(
+        string $tenantId,
+        string $productId,
+        ?string $ownedBy = null,
+        ?string $person = null,
+        ?string $status = null,
+    ): int {
+        if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
+            return 0;
+        }
+
+        // Counted with the same WHERE the page is read with, never a looser
+        // one: a total that disagrees with its page is worse than none.
+        $narrow = DocumentPersonSql::narrowing(DocumentPersonSql::ofOrder('orders'));
+
+        $count = $this->connection->fetchOne(
+            <<<SQL
+                SELECT count(*) FROM orders
+                 WHERE tenant_id = :tenantId AND product_id = :productId
+                   AND {$narrow} AND (CAST(:status AS text) IS NULL OR status = CAST(:status AS text))
+                SQL,
+            ['tenantId' => $tenantId, 'productId' => $productId, 'ownedBy' => $ownedBy, 'person' => $person, 'status' => $status],
+        );
+
+        return is_numeric($count) ? (int) $count : 0;
     }
 
     public function findOrder(string $tenantId, string $productId, string $orderId, ?string $ownedBy = null): ?Order

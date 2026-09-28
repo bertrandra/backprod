@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Sales\Service;
 
+use App\Billing\Domain\DocumentPeople;
 use App\Billing\Domain\InvoiceLine;
 use App\Billing\Domain\Money;
 use App\Billing\Service\WhoSellsAndWhoBuys;
@@ -72,17 +73,37 @@ final class Sales
         private readonly OrderFulfilment $fulfilment,
         private readonly SubscriptionRepository $subscriptions,
         private readonly WhoSellsAndWhoBuys $parties,
+        // Whom each order on a page concerns, by the one rule every billing
+        // list shares (DocumentPersonSql) rather than a second that agrees
+        // today.
+        private readonly DocumentPeople $people,
     ) {
     }
 
     /**
-     * @return array{orders: list<Order>, total: int, limit: int, offset: int}
+     * @return array{orders: list<Order>, total: int, limit: int, offset: int, people: array<string, array{user_id: string, name: string|null, email: string|null}>}
      */
-    public function orders(string $tenantId, string $productId, int $limit, int $offset, ?string $ownedBy = null): array
-    {
+    public function orders(
+        string $tenantId,
+        string $productId,
+        int $limit,
+        int $offset,
+        ?string $ownedBy = null,
+        ?string $person = null,
+        ?string $status = null,
+    ): array {
+        $orders = $this->sales->listOrders($tenantId, $productId, $limit, $offset, $ownedBy, $person, $status);
+
         return [
-            'orders' => $this->sales->listOrders($tenantId, $productId, $limit, $offset, $ownedBy),
-            'total' => $this->sales->countOrders($tenantId, $productId, $ownedBy),
+            'orders' => $orders,
+            // One read for the page, never one per row — and the tenant goes
+            // with it, because the ids come from a page already scoped to one
+            // and a boundary defended only by careful callers is not defended.
+            'people' => $this->people->ofOrders($tenantId, array_map(
+                static fn (Order $order): string => $order->id,
+                $orders,
+            )),
+            'total' => $this->sales->countOrders($tenantId, $productId, $ownedBy, $person, $status),
             'limit' => $limit,
             'offset' => $offset,
         ];

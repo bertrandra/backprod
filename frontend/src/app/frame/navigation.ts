@@ -223,6 +223,14 @@ export const APP_NAV: readonly NavSection[] = [
     label: 'Money',
     entries: [
       { id: 'subscription', label: 'Subscription', to: '/subscription', scope: 'tenant', permission: 'subscription.read' },
+      // The register of everybody's, beside the one that answers for whoever
+      // is asking (2026-09-28). It lived under Organisation as a secondary
+      // entry — *"Money is what this person owes and holds, and this is a
+      // register of everybody"* — which is a true distinction and the wrong
+      // conclusion: the operator went looking for it under Subscription,
+      // because that is the word for the thing it lists, and did not find it.
+      // A person holds one and administers the rest; both are subscriptions.
+      { id: 'held', label: 'All subscriptions', to: '/organisation/subscriptions', scope: 'tenant', permission: 'tenant.manage' },
       { id: 'invoices', label: 'Invoices', to: '/invoices', scope: 'tenant', permission: 'billing.read' },
       { id: 'payments', label: 'Payments', to: '/payments', scope: 'tenant', permission: 'payments.read', secondary: true },
       { id: 'credit-notes', label: 'Credit notes', to: '/credit-notes', scope: 'tenant', permission: 'billing.read', secondary: true },
@@ -252,10 +260,6 @@ export const APP_NAV: readonly NavSection[] = [
       // The screens stay reachable by address for a reader.
       { id: 'organisation', label: 'Organisation', to: '/organisation', scope: 'tenant', permission: 'tenant.manage', secondary: true },
       { id: 'members', label: 'Members', to: '/members', scope: 'tenant', permission: 'members.manage', secondary: true },
-      // What the organisation's people hold (2026-09-25). Here rather than
-      // under Money: Money is what *this* person owes and holds, and this is
-      // a register of everybody — the administrator's, like Members beside it.
-      { id: 'held', label: 'Subscriptions', to: '/organisation/subscriptions', scope: 'tenant', permission: 'tenant.manage', secondary: true },
       { id: 'profile', label: 'Your profile', to: '/profile', scope: 'tenant', permission: 'account.read', secondary: true },
       { id: 'branding', label: 'Branding', to: '/branding', scope: 'tenant', permission: 'skin.manage', secondary: true },
       { id: 'notification-settings', label: 'Notification settings', to: '/notification-settings', scope: 'tenant', permission: 'notifications.read', secondary: true },
