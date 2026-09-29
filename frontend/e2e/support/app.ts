@@ -62,6 +62,18 @@ export { expect } from '@playwright/test';
  *
  * Held open instead, the window is unbounded and the assertion is about the
  * application rather than about how fast this machine happens to be today.
+ *
+ * **The same rule holds one layer down**, where `heldOpen` in
+ * `src/test-utils.tsx` does this for a stubbed API client and a screen test:
+ * there the racing clock is `waitFor`'s 50 ms poll rather than the
+ * application's start-up, and the cure is the same promise. Change one and
+ * look at the other.
+ *
+ * *Provenance, because `git log` on this file misleads:* this arrived in
+ * `bebf97c`, under a commit message about a freemium period reached by a
+ * change of plan. It was swept in by a `git add -A` that should not have
+ * caught it. The code is deliberate; only its title is wrong, and somebody
+ * searching the history for where `heldOpen` came from would not find it.
  */
 export function heldOpen(): { held: Promise<void>; release: () => void } {
   let release!: () => void;
