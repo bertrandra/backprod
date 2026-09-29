@@ -28,14 +28,52 @@ export interface Stub {
   error?: unknown;
   status?: number;
   /**
-   * Holds the answer back.
+   * Holds the answer back for a while.
    *
-   * For the tests that have to assert what is on screen *while* a request is
-   * still in flight — an optimistic update that has been rolled back but not yet
-   * reconciled, say. Without it the refetch lands first and hides whether the
-   * rollback happened at all.
+   * Only sound where the delay outlasts the whole test — a request meant to
+   * stay outstanding from the click to the last assertion. For a window the
+   * test steps *through*, use {@see Stub.until}: a short delay makes the
+   * window a race between this timer and `waitFor`'s 50 ms poll, and a slow
+   * machine loses it.
    */
   delayMs?: number;
+  /**
+   * Holds the answer until the test lets it go.
+   *
+   * The explicit form of `delayMs`, and the one for any assertion about what
+   * is on screen *while* a request is outstanding — an optimistic update that
+   * must not be there, a rollback not yet reconciled.
+   *
+   * A timed window closes on its own schedule: the `waitFor` poll that
+   * observes the request runs every 50 ms, so the first one to see it can land
+   * *after* the answer has settled and the refetch has already rendered. The
+   * test then fails, reporting an optimism that never happened — and a rule a
+   * test exists to prove is not proved by a test that only holds on fast
+   * hardware. A promise the test resolves itself is open until released, so
+   * the window is a fact rather than a bet on the machine.
+   *
+   * Takes precedence over `delayMs`. See {@see heldOpen}.
+   */
+  until?: Promise<unknown>;
+}
+
+/**
+ * A response the test settles by hand.
+ *
+ * `until` goes on the stub and `release()` lets it answer. Between the two the
+ * request is provably in flight, which is what proving a rollback or an
+ * in-flight state needs: hold it open, assert, release, assert again.
+ */
+export function heldOpen(): { readonly until: Promise<void>; readonly release: () => void } {
+  // Reassigned by the executor, which runs before this function returns. The
+  // placeholder is there because TypeScript cannot see that.
+  let release: () => void = () => undefined;
+
+  const until = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  return { until, release };
 }
 
 /**
@@ -122,6 +160,10 @@ function answers(responses: Stubs, record: (request: RecordedRequest) => void) {
         status: found.status ?? (found.error === undefined ? 200 : 400),
       }),
     };
+
+    if (found.until !== undefined) {
+      return found.until.then(() => answered);
+    }
 
     return found.delayMs === undefined
       ? Promise.resolve(answered)

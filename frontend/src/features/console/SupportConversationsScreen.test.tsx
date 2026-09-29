@@ -1,7 +1,14 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { recordingClient, renderAtRoute, stubClient, type Stub, type Stubs } from '@/test-utils';
+import {
+  heldOpen,
+  recordingClient,
+  renderAtRoute,
+  stubClient,
+  type Stub,
+  type Stubs,
+} from '@/test-utils';
 
 import { SupportConversationsScreen } from './SupportConversationsScreen';
 
@@ -96,6 +103,11 @@ describe('a reply', () => {
           ]);
     };
 
+    // The send stays outstanding until this test releases it, which is what
+    // makes the assertion below about a moment rather than about a moment that
+    // may already have passed.
+    const send = heldOpen();
+
     const { client, requests } = recordingClient({
       'GET /api/v1/staff/me': { data: RESPONDER },
       'GET /api/v1/staff/conversations': {
@@ -106,23 +118,15 @@ describe('a reply', () => {
         data: message({ id: 'm-2', seq: 2, author_kind: 'STAFF', body: 'Looking into it.' }),
         // Held open, so the window an optimistic implementation would fill is
         // real time rather than a promise that has already settled.
-        //
-        // Long enough that the window cannot close before the assertion looks
-        // through it (2026-09-28). At 80ms it was a race with the machine:
-        // the whole suite running at once is exactly when 80ms of real time
-        // disappears, and a test that passes because the answer had not
-        // arrived yet proves nothing on the run where it has.
-        delayMs: 1_500,
+        until: send.until,
       },
     });
 
     renderAtRoute(<SupportConversationsScreen />, client, at(THREAD.id));
     await giveAMotive();
 
-    // Four reads deep — staff identity, the list, the thread, then the
-    // motive gate — so the default second is not enough when the machine is
-    // running the whole suite. This wait is setup and asserts nothing; the
-    // assertions that matter are below and unchanged.
+    // Four reads deep — staff identity, the list, the thread, then the motive
+    // gate. Setup, asserting nothing; the assertions are below.
     await waitFor(() => expect(screen.getByLabelText('Reply')).toBeTruthy(), { timeout: 5_000 });
     fireEvent.change(screen.getByLabelText('Reply'), { target: { value: 'Looking into it.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
@@ -133,7 +137,8 @@ describe('a reply', () => {
       expect(requests.filter((request) => request.method === 'POST')).toHaveLength(1),
     );
 
-    // In flight. An optimistic screen would already be showing an official
+    // In flight, and **provably** so: the answer cannot arrive before the
+    // release below. An optimistic screen would already be showing an official
     // answer written by somebody acting with platform authority.
     //
     // Asserted against the message list rather than by text: the draft is still
@@ -141,9 +146,9 @@ describe('a reply', () => {
     // thread did.
     expect(document.querySelector('[data-message="m-2"]')).toBeNull();
 
-    await waitFor(() => expect(document.querySelector('[data-message="m-2"]')).not.toBeNull(), {
-      timeout: 5_000,
-    });
+    send.release();
+
+    await waitFor(() => expect(document.querySelector('[data-message="m-2"]')).not.toBeNull());
     expect(document.querySelector('[data-message="m-2"]')?.textContent).toContain(
       'Looking into it.',
     );
