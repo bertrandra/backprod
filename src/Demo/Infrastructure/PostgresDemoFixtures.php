@@ -120,7 +120,7 @@ final class PostgresDemoFixtures implements DemoFixtures
             foreach (DemoWorld::PRODUCTS as $code => $definition) {
                 $offers[$code] = $this->catalogue($products[$code], $definition['base'], $definition['meters'], $definition['capabilities'] ?? [], $definition['plans'] ?? []);
                 $this->supplier($products[$code], $definition['name']);
-                $this->schemaVersions($products[$code]);
+                $this->schemaVersions($products[$code], $code);
                 $this->freemium($products[$code], $definition['plans'] ?? []);
                 $this->showcase($products[$code], $code);
             }
@@ -1051,14 +1051,14 @@ final class PostgresDemoFixtures implements DemoFixtures
      * writes, under the key the workspace reads. Without it every product
      * accepted no project, and the demo's Projects screen said so.
      */
-    private function schemaVersions(string $product): void
+    private function schemaVersions(string $product, string $code): void
     {
         $this->connection->executeStatement(
             'INSERT INTO product_configuration (product_id, key, value) VALUES (:product, :key, CAST(:value AS jsonb))',
             [
                 'product' => $product,
                 'key' => DemoWorld::SCHEMA_VERSIONS_KEY,
-                'value' => json_encode(['supported' => DemoWorld::SCHEMA_VERSIONS], JSON_THROW_ON_ERROR),
+                'value' => json_encode(['supported' => DemoWorld::schemaVersionsFor($code)], JSON_THROW_ON_ERROR),
             ],
         );
     }

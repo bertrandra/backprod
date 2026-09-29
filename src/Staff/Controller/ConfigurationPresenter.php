@@ -37,6 +37,7 @@ final class ConfigurationPresenter
     }
 
     /**
+     * @param list<int>    $schemaVersions
      * @param list<string> $missing
      *
      * @return array<string, mixed>
@@ -45,6 +46,7 @@ final class ConfigurationPresenter
         Product $product,
         SupplierDetails $supplier,
         SupplierTaxSettings $tax,
+        array $schemaVersions,
         array $missing,
     ): array {
         return [
@@ -55,6 +57,11 @@ final class ConfigurationPresenter
             ],
             'billing_supplier' => self::supplier($supplier),
             'tax' => self::tax($tax),
+            // Empty means the product accepts no project at all, which is the
+            // state of one nobody has configured — said as an empty list
+            // rather than omitted, so a screen can tell it from a field it
+            // failed to read.
+            'project_schema_versions' => $schemaVersions,
             'can_invoice' => $missing === [],
             'missing' => $missing,
         ];

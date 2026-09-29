@@ -1994,6 +1994,38 @@ export function useSetTaxSettings(productCode: string) {
 }
 
 /**
+ * Sets which project document schema versions the product accepts.
+ *
+ * The whole list every time, like the two writes above and for the same
+ * reason: retiring a version means sending the list without it, and
+ * "omitted means leave it" would make removing one impossible.
+ *
+ * Never optimistic. An empty list is refused by the backend — a product
+ * that accepts nothing is one nobody configured, not one somebody saved —
+ * and a screen that had already painted it would show a product refusing
+ * every project as though that had been the operator's choice.
+ */
+export function useSetProjectSchemaVersions(productCode: string) {
+  const client = useApiClient();
+
+  return useConfigurationWrite(productCode, async (supported: number[]) => {
+    const { data, error, response } = await client.PUT(
+      '/api/v1/staff/configuration/project-schema-versions',
+      {
+        params: { query: { product: productCode } },
+        body: { supported },
+      },
+    );
+
+    if (error !== undefined || data === undefined) {
+      throw toApiError(response.status, error);
+    }
+
+    return data.project_schema_versions;
+  });
+}
+
+/**
  * The chain a product has to complete before a stranger can buy from it.
  *
  * Read from the backend rather than assembled here from four separate calls.

@@ -1848,6 +1848,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/configuration/project-schema-versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set which project document schema versions a product accepts
+         * @description Non-negotiable #10 makes the accepted versions per-product configuration, and creating a product writes a row in `products` and none in `product_configuration` — so a product created through the console accepted no project of any version, and nothing on the platform could change it. That is the hole ADR-042 found in the billing identity, one layer down, and this is the same answer: a third named key rather than a JSONB editor. **PUT rather than PATCH**, like the two keys beside it: the list is one answer, and retiring a version means sending the list without it. An empty list is refused — a product that accepts nothing is one nobody has configured, not one somebody saved. Recorded in `staff_access_log` as `CONFIGURE_SCHEMA_VERSIONS` in full, because every element decides whether a document a customer is about to save is taken or refused.
+         */
+        put: operations["setProjectSchemaVersions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/conversations": {
         parameters: {
             query?: never;
@@ -10277,6 +10297,52 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    setProjectSchemaVersions: {
+        parameters: {
+            query: {
+                /** @description The product code this configuration belongs to. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description The versions accepted, as whole numbers. Stored deduplicated and ascending, so two lists naming the same versions are one row. `"2"` is refused rather than coerced: the reader would drop it, and a product would then display a version it refuses. */
+                    supported: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description The stored list, deduplicated and ascending. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        project_schema_versions: number[];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     listSupportConversations: {
         parameters: {
             query?: {
@@ -15503,6 +15569,8 @@ export interface operations {
                         };
                         billing_supplier: components["schemas"]["BillingSupplier"];
                         tax: components["schemas"]["TaxSettings"];
+                        /** @description Which project document schema versions this product accepts (non-negotiable #10). **Empty means it accepts none**, which is the state of a product nobody has configured — creating one writes no configuration at all — and every project write against it refuses with `UNSUPPORTED_SCHEMA_VERSION`. Read through the same tolerant path a project write uses, so this is what would actually be enforced rather than whatever the stored row holds. */
+                        project_schema_versions: number[];
                         /** @description False while any mandatory mention is missing. A checkout against such a product refuses with `BILLING_NOT_CONFIGURED`. */
                         can_invoice: boolean;
                         /** @description The mandatory mentions that are absent, so the screen can say what to fix rather than only that something is wrong. */

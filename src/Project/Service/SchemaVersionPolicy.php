@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Project\Service;
 
 use App\Product\Domain\ProductRegistry;
+use App\Project\Domain\SchemaVersions;
 use App\Shared\Exceptions\UnprocessableEntityException;
 
 /**
@@ -24,6 +25,11 @@ use App\Shared\Exceptions\UnprocessableEntityException;
  * schema versions are unknown must not accept documents on the assumption
  * that whatever arrives is fine — the same reasoning that seeds entitlements
  * empty rather than open.
+ *
+ * **What a valid list is lives in {@see SchemaVersions}**, not here, since the
+ * console gained a way to write one (2026-09-29). Reading stays tolerant and
+ * writing is strict, and both have to mean the same thing by "a version" or a
+ * product would display one list and enforce another.
  */
 final class SchemaVersionPolicy
 {
@@ -38,31 +44,9 @@ final class SchemaVersionPolicy
      */
     public function supportedFor(string $productId): array
     {
-        $configured = $this->products->configuration($productId)[self::CONFIGURATION_KEY] ?? null;
-
-        if (!is_array($configured)) {
-            return [];
-        }
-
-        $supported = $configured['supported'] ?? null;
-
-        if (!is_array($supported)) {
-            return [];
-        }
-
-        $versions = [];
-
-        foreach ($supported as $version) {
-            // Accepts only whole numbers: a version of "2" or 2.5 is a
-            // configuration mistake, and treating it as 2 would hide it.
-            if (is_int($version) && $version > 0 && !in_array($version, $versions, true)) {
-                $versions[] = $version;
-            }
-        }
-
-        sort($versions);
-
-        return $versions;
+        return SchemaVersions::read(
+            $this->products->configuration($productId)[self::CONFIGURATION_KEY] ?? null,
+        );
     }
 
     public function assertSupported(string $productId, int $schemaVersion): void

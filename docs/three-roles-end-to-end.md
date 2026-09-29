@@ -55,7 +55,7 @@ filtre oublié une élévation de privilège.
 | Il facture | non | **oui** — c'est son organisation qui émet | non, sauf les ventes de la plateforme |
 | Il travaille dans le produit | oui, si un abonnement le couvre | oui, aux mêmes conditions | non |
 | Permissions | 21 | 30 | 20 (dont 5 côté `admin.*`) |
-| Opérations atteignables | 7 propres + 70 partagées + 17 sans permission = **94** | 34 propres + 70 partagées + 17 sans permission = **121** | **80** |
+| Opérations atteignables | 7 propres + 70 partagées + 17 sans permission = **94** | 34 propres + 70 partagées + 17 sans permission = **121** | **81** |
 
 Les 10 permissions que l'administrateur a en plus sont `billing.manage`,
 `catalog.manage`, `jobs.manage`, `members.manage`, `payments.manage`,
@@ -575,6 +575,7 @@ construire son menu) et `updateStaffProfile` (son nom affiché et sa langue).
 | `showStaffConfiguration` | Rien. |
 | `setBillingIdentity` | Dit **qui vend** ce produit. Sans elle, aucune facture de la plateforme ne peut être levée. |
 | `setTaxSettings` | Pays, OSS, nature de la prestation, devise — et depuis 2026-09-26, assujettissement. |
+| `setProjectSchemaVersions` | Quelles versions de document le produit accepte. Sans elle, un produit créé ici n'en acceptait aucune et refusait tout projet (2026-09-29). |
 | `showProductReadiness` | Rien. Ce qui manque encore à un produit pour être vendable. |
 | `showProductStory`, `writeProductStory` | Lit et écrit la page publique, en brouillon. |
 | `publishProductStory` | La rend visible aux inconnus. |
@@ -708,15 +709,15 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
   ─────────────────────────────────────────────────
   surface locataire                              128
 
-  PLATFORM_ADMIN                                  80
+  PLATFORM_ADMIN                                  81
   publiques, sans compte                           7
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          226
+  total                                          227
 ```
 
-Dont **109 lectures** et **117 écritures**. Chaque écriture a sa ligne dans les
+Dont **109 lectures** et **118 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

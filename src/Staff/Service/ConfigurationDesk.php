@@ -8,6 +8,8 @@ use App\Billing\Domain\SupplierDetails;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Domain\ProductSettings;
+use App\Project\Domain\SchemaVersions;
+use App\Project\Service\SchemaVersionPolicy;
 use App\Shared\Exceptions\BadRequestException;
 use App\Shared\Exceptions\NotFoundException;
 use App\Staff\Domain\StaffAccess;
@@ -26,18 +28,30 @@ use App\Tax\Domain\SupplierTaxSettings;
  * wrote that table — `bin/seed-demo.php` — so the only products that could
  * invoice were the demo's and the installer's.
  *
- * Two keys, and deliberately only two:
+ * Three keys, and deliberately only three:
  *
  *   - `billing_supplier`, the legal identity an invoice must carry (§25);
  *   - `tax`, the supplier's own fiscal position, which §25.3 requires to be
  *     configured rather than derived — whether the supplier is registered for
  *     the One Stop Shop is a dated fact about the business, not something to
  *     infer from turnover.
+ *   - `project_schema_versions`, which document versions the product accepts
+ *     (non-negotiable #10).
+ *
+ * **The third closed the same hole as the first two, one layer down**
+ * (2026-09-29). `PostgresProductDirectory::create()` writes a row in `products`
+ * and none in `product_configuration`, and {@see SchemaVersionPolicy} is
+ * explicit that a product which has declared nothing accepts nothing — so a
+ * product created through the console could never accept a single project, of
+ * any version, and nothing on the platform could change that. Only
+ * `bin/seed-demo.php` had ever written the key, which is exactly what ADR-042
+ * found about the billing identity.
  *
  * **Not a free-form JSONB editor.** Every other key in that table is read by
  * code that names it, so a writer taking an arbitrary key would let a typo store
  * configuration nothing reads — which on screen is indistinguishable from
- * configuration that did not save.
+ * configuration that did not save. A third named key is the shape that rule
+ * prescribes; an arbitrary-key writer is what it forbids.
  *
  * **Reads are not recorded; writes are.** Non-negotiable #21 traces staff
  * crossing into a *tenant's* data, and a product's own fiscal identity is the
@@ -67,6 +81,7 @@ final class ConfigurationDesk
      *     product: Product,
      *     supplier: SupplierDetails,
      *     tax: SupplierTaxSettings,
+     *     schemaVersions: list<int>,
      *     missing: list<string>,
      * }
      */
@@ -80,6 +95,12 @@ final class ConfigurationDesk
         return [
             'product' => $product,
             'supplier' => $supplier,
+            // Read through the same tolerant path the project write uses, so
+            // the screen shows what the policy would actually enforce rather
+            // than what the row happens to contain.
+            'schemaVersions' => SchemaVersions::read(
+                $configured[SchemaVersionPolicy::CONFIGURATION_KEY] ?? null,
+            ),
             // The supplier's country is the fallback, exactly as the invoice
             // path resolves it: the tax key may be absent entirely and the
             // regime still has to be knowable.
@@ -153,6 +174,34 @@ final class ConfigurationDesk
         $this->record($staff, $product, 'CONFIGURE_TAX', $tax->toConfiguration());
 
         return $tax;
+    }
+
+    /**
+     * Sets which project document schema versions the product accepts.
+     *
+     * **Recorded in full**, like the tax settings and unlike the billing
+     * address: every element decides whether a document a customer is about to
+     * save is accepted or refused, and "why did every save start failing on the
+     * 14th?" is answerable only from a trail that kept the list.
+     *
+     * @return list<int>
+     */
+    public function setSchemaVersions(
+        StaffIdentity $staff,
+        string $productCode,
+        SchemaVersions $versions,
+    ): array {
+        $product = $this->product($productCode);
+
+        $this->settings->put(
+            $product->id,
+            SchemaVersionPolicy::CONFIGURATION_KEY,
+            $versions->toConfiguration(),
+        );
+
+        $this->record($staff, $product, 'CONFIGURE_SCHEMA_VERSIONS', $versions->toConfiguration());
+
+        return $versions->versions;
     }
 
     private function product(string $code): Product

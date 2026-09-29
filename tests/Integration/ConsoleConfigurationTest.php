@@ -7,6 +7,7 @@ namespace App\Tests\Integration;
 use App\Auth\Domain\AuthProvider;
 use App\Payment\Infrastructure\StubPaymentProvider;
 use App\Payment\Service\PaymentProviders;
+use App\Project\Service\SchemaVersionPolicy;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
@@ -315,6 +316,92 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
     }
 
     // --- The trail -----------------------------------------------------------
+
+    // --- The document versions the product accepts ---------------------------
+
+    public function testAProductAnAdministratorMadeAcceptsNoDocumentVersion(): void
+    {
+        // The hole this key closed, stated as the test that would have caught
+        // it: creating a product writes a row in `products` and none in
+        // `product_configuration`, and a product that has declared no versions
+        // accepts no project of any version. Until 2026-09-29 nothing on the
+        // platform could change that.
+        self::assertSame([], $this->itemIn($this->show(), 'project_schema_versions'));
+    }
+
+    public function testTheAcceptedVersionsAreStoredAndReadBack(): void
+    {
+        self::assertSame([1, 2], $this->decode($this->setVersions([1, 2]))['project_schema_versions'] ?? null);
+        self::assertSame([1, 2], $this->itemIn($this->show(), 'project_schema_versions'));
+    }
+
+    public function testTheWorkspaceThenAcceptsThoseVersionsAndNoOther(): void
+    {
+        // Asked of the class the project write actually calls, not of the read
+        // this endpoint serves. Both go through `SchemaVersions::read`, so a
+        // round trip through `show()` alone would prove only that the console
+        // agrees with itself — and the question here is whether a customer's
+        // save is taken. That the workspace refuses an unsupported version, and
+        // names what it would have accepted, is ProjectEndpointsTest's.
+        $this->setVersions([1, 2]);
+
+        $policy = $this->container()->get(SchemaVersionPolicy::class);
+        self::assertInstanceOf(SchemaVersionPolicy::class, $policy);
+
+        self::assertSame([1, 2], $policy->supportedFor($this->product));
+    }
+
+    public function testTheListIsStoredDeduplicatedAndAscending(): void
+    {
+        // So two lists naming the same versions are one row, and a screen never
+        // has to sort what it was given.
+        self::assertSame([1, 2, 5], $this->decode($this->setVersions([5, 2, 1, 2]))['project_schema_versions'] ?? null);
+    }
+
+    public function testAnEmptyListIsRefusedRatherThanStored(): void
+    {
+        $this->setVersions([1, 2]);
+
+        $refused = $this->setVersions([], 400);
+
+        self::assertSame('supported', $this->refusedField($refused));
+        // And the versions that were there are still there: a product does not
+        // stop accepting work because a form was submitted empty.
+        self::assertSame([1, 2], $this->itemIn($this->show(), 'project_schema_versions'));
+    }
+
+    public function testAVersionSentAsAStringIsRefusedRatherThanCoerced(): void
+    {
+        // The reader drops it, so storing it would show a product accepting a
+        // version it refuses — which is the one outcome the console must not
+        // produce, being indistinguishable on screen from a save that worked.
+        self::assertSame('supported', $this->refusedField($this->setVersions(['2'], 400)));
+        self::assertSame('supported', $this->refusedField($this->setVersions([0], 400)));
+        self::assertSame('supported', $this->refusedField($this->setVersions([2.5], 400)));
+    }
+
+    public function testRetiringAVersionMeansSendingTheListWithoutIt(): void
+    {
+        $this->setVersions([1, 2]);
+        $this->setVersions([2]);
+
+        // The PUT replaced the list rather than merging into it, which is what
+        // makes removal possible at all. Under \"omitted means leave it\" a
+        // product could never stop accepting a version it had once taken.
+        self::assertSame([2], $this->itemIn($this->show(), 'project_schema_versions'));
+    }
+
+    public function testOnlyProductAdministratorsMaySetTheAcceptedVersions(): void
+    {
+        $response = $this->request(
+            'PUT',
+            '/api/v1/staff/configuration/project-schema-versions?product=atlas',
+            ['Authorization' => 'Bearer sam-token'],
+            $this->json(['supported' => [1]]),
+        );
+
+        self::assertSame(403, $response->getStatusCode());
+    }
 
     public function testWritesAreRecordedAndReadsAreNot(): void
     {
@@ -661,6 +748,23 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
             '/api/v1/staff/configuration/tax?product=atlas',
             ['Authorization' => 'Bearer ola-token'],
             $this->json($tax),
+        );
+
+        self::assertSame($expected, $response->getStatusCode(), (string) $response->getBody());
+
+        return $response;
+    }
+
+    /**
+     * @param list<mixed> $supported
+     */
+    private function setVersions(array $supported, int $expected = 200): ResponseInterface
+    {
+        $response = $this->request(
+            'PUT',
+            '/api/v1/staff/configuration/project-schema-versions?product=atlas',
+            ['Authorization' => 'Bearer ola-token'],
+            $this->json(['supported' => $supported]),
         );
 
         self::assertSame($expected, $response->getStatusCode(), (string) $response->getBody());

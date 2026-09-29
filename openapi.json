@@ -13385,6 +13385,56 @@
         }
       }
     },
+    "/api/v1/staff/configuration/project-schema-versions": {
+      "put": {
+        "tags": ["Staff"],
+        "operationId": "setProjectSchemaVersions",
+        "summary": "Set which project document schema versions a product accepts",
+        "description": "Non-negotiable #10 makes the accepted versions per-product configuration, and creating a product writes a row in `products` and none in `product_configuration` — so a product created through the console accepted no project of any version, and nothing on the platform could change it. That is the hole ADR-042 found in the billing identity, one layer down, and this is the same answer: a third named key rather than a JSONB editor. **PUT rather than PATCH**, like the two keys beside it: the list is one answer, and retiring a version means sending the list without it. An empty list is refused — a product that accepts nothing is one nobody has configured, not one somebody saved. Recorded in `staff_access_log` as `CONFIGURE_SCHEMA_VERSIONS` in full, because every element decides whether a document a customer is about to save is taken or refused.",
+        "parameters": [
+          {"name": "product", "in": "query", "required": true, "description": "The product code this configuration belongs to. A staff route resolves no product of its own — a platform role grants no membership.", "schema": {"type": "string", "maxLength": 64}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["supported"],
+                "properties": {
+                  "supported": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"type": "integer", "minimum": 1}, "description": "The versions accepted, as whole numbers. Stored deduplicated and ascending, so two lists naming the same versions are one row. `\"2\"` is refused rather than coerced: the reader would drop it, and a product would then display a version it refuses."}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored list, deduplicated and ascending.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["project_schema_versions"],
+                  "properties": {
+                    "project_schema_versions": {"type": "array", "items": {"type": "integer", "minimum": 1}}
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected.",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "401": {"$ref": "#/components/responses/Unauthenticated"},
+          "403": {"$ref": "#/components/responses/PermissionDenied"},
+          "429": {"$ref": "#/components/responses/TooManyRequests"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v1/staff/conversations": {
       "get": {
         "tags": [
@@ -21864,6 +21914,7 @@
                     "product",
                     "billing_supplier",
                     "tax",
+                    "project_schema_versions",
                     "can_invoice",
                     "missing"
                   ],
@@ -21893,6 +21944,11 @@
                     },
                     "tax": {
                       "$ref": "#/components/schemas/TaxSettings"
+                    },
+                    "project_schema_versions": {
+                      "type": "array",
+                      "items": {"type": "integer", "minimum": 1},
+                      "description": "Which project document schema versions this product accepts (non-negotiable #10). **Empty means it accepts none**, which is the state of a product nobody has configured — creating one writes no configuration at all — and every project write against it refuses with `UNSUPPORTED_SCHEMA_VERSION`. Read through the same tolerant path a project write uses, so this is what would actually be enforced rather than whatever the stored row holds."
                     },
                     "can_invoice": {
                       "type": "boolean",

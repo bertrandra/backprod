@@ -260,6 +260,38 @@ final class JsonBody
     }
 
     /**
+     * A list of whole numbers.
+     *
+     * Rejects "2" and 2.0 for the reason {@see requiredInt} gives, and here it
+     * matters more: a list is where a single mistyped element hides. Emptiness
+     * and what the numbers have to mean are left to whoever asked — this says
+     * only that they are whole numbers.
+     *
+     * @return list<int>
+     */
+    public function requiredIntList(string $field, int $maximum): array
+    {
+        $value = $this->value($field);
+
+        if (!is_array($value) || !array_is_list($value)) {
+            throw $this->invalid($field, 'must be an array');
+        }
+
+        if (count($value) > $maximum) {
+            throw $this->invalid($field, sprintf('must hold at most %d items', $maximum));
+        }
+
+        foreach ($value as $item) {
+            if (!is_int($item)) {
+                throw $this->invalid($field, 'must contain only whole numbers');
+            }
+        }
+
+        /** @var list<int> $value */
+        return $value;
+    }
+
+    /**
      * A non-empty list of unique non-blank strings.
      *
      * @return list<string>

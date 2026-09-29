@@ -53,6 +53,7 @@ function clientFor(extra: Stubs = {}) {
         product: PRODUCT,
         billing_supplier: EMPTY_SUPPLIER,
         tax: TAX,
+        project_schema_versions: [1],
         can_invoice: false,
         missing: ['legal_name', 'country_code'],
       },
@@ -106,6 +107,7 @@ describe('a product that can invoice', () => {
             product: PRODUCT,
             billing_supplier: CONFIGURED_SUPPLIER,
             tax: TAX,
+            project_schema_versions: [1],
             can_invoice: true,
             missing: [],
           },
@@ -130,6 +132,7 @@ describe('a product that can invoice', () => {
             product: PRODUCT,
             billing_supplier: CONFIGURED_SUPPLIER,
             tax: TAX,
+            project_schema_versions: [1],
             can_invoice: true,
             missing: [],
           },
@@ -153,6 +156,7 @@ describe('setting the issuer', () => {
           product: PRODUCT,
           billing_supplier: EMPTY_SUPPLIER,
           tax: TAX,
+          project_schema_versions: [1],
           can_invoice: false,
           missing: ['legal_name', 'country_code'],
         },
@@ -204,6 +208,7 @@ describe('setting the issuer', () => {
           product: PRODUCT,
           billing_supplier: CONFIGURED_SUPPLIER,
           tax: TAX,
+          project_schema_versions: [1],
           can_invoice: true,
           missing: [],
         },
@@ -238,6 +243,7 @@ describe('the tax position', () => {
           product: PRODUCT,
           billing_supplier: CONFIGURED_SUPPLIER,
           tax: { country: 'FR', oss_registered: false, supply_type: 'SERVICES', currency: 'EUR' },
+          project_schema_versions: [1],
           can_invoice: true,
           missing: [],
         },
@@ -276,6 +282,7 @@ describe('the tax position', () => {
           product: PRODUCT,
           billing_supplier: CONFIGURED_SUPPLIER,
           tax: TAX,
+          project_schema_versions: [1],
           can_invoice: true,
           missing: [],
         },
@@ -305,5 +312,119 @@ describe('the tax position', () => {
     const sent = requests.find((request) => request.path === '/api/v1/staff/configuration/tax');
 
     expect((sent?.body as { country?: unknown } | undefined)?.country).toBe('BE');
+  });
+});
+
+describe('the accepted document versions', () => {
+  function configuredWith(versions: number[]) {
+    return {
+      'GET /api/v1/staff/configuration': {
+        data: {
+          product: PRODUCT,
+          billing_supplier: CONFIGURED_SUPPLIER,
+          tax: TAX,
+          project_schema_versions: versions,
+          can_invoice: true,
+          missing: [],
+        },
+      },
+      'PUT /api/v1/staff/configuration/project-schema-versions': {
+        data: { project_schema_versions: versions },
+      },
+    };
+  }
+
+  it('warns when the product accepts none, because that is every product the console made', async () => {
+    renderAtRoute(<InvoicingScreen />, stubClient(configuredWith([])), ROUTE);
+
+    const warning = await waitFor(() => screen.getByTestId('accepts-no-version'));
+
+    // The code somebody read in a log before opening this screen, and an alert
+    // rather than a colour: an empty list looks exactly like a form that has
+    // finished loading.
+    expect(warning.textContent).toMatch(/UNSUPPORTED_SCHEMA_VERSION/);
+    expect(warning.getAttribute('role')).toBe('alert');
+  });
+
+  it('cannot be saved empty, as a courtesy — the server refuses it either way', async () => {
+    renderAtRoute(<InvoicingScreen />, stubClient(configuredWith([])), ROUTE);
+
+    const save = await waitFor(() =>
+      screen.getByRole('button', { name: /Save the accepted versions/i }),
+    );
+
+    expect((save as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('sends the whole list, so that retiring a version is possible at all', async () => {
+    const { client, requests } = recordingClient(configuredWith([1, 2]));
+
+    renderAtRoute(<InvoicingScreen />, client, ROUTE);
+
+    await waitFor(() => expect(screen.getByTestId('schema-versions')).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove version 1' }));
+    fireEvent.click(screen.getByRole('button', { name: /Save the accepted versions/i }));
+
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (request) => request.path === '/api/v1/staff/configuration/project-schema-versions',
+        ),
+      ).toBe(true),
+    );
+
+    const sent = requests.find(
+      (request) => request.path === '/api/v1/staff/configuration/project-schema-versions',
+    );
+
+    // Not a patch naming what to remove: the list is one answer, and under
+    // "omitted means leave it" nothing could ever be taken away.
+    expect(sent?.body).toEqual({ supported: [2] });
+  });
+
+  it('adds a version in ascending order and never twice', async () => {
+    const { client, requests } = recordingClient(configuredWith([2]));
+
+    renderAtRoute(<InvoicingScreen />, client, ROUTE);
+
+    const entry = await waitFor(() => screen.getByLabelText<HTMLInputElement>('Add a version'));
+
+    fireEvent.change(entry, { target: { value: '2' } });
+    // Already in the list, so there is nothing to add.
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add' }).disabled).toBe(true);
+
+    fireEvent.change(entry, { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    fireEvent.click(screen.getByRole('button', { name: /Save the accepted versions/i }));
+
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (request) => request.path === '/api/v1/staff/configuration/project-schema-versions',
+        ),
+      ).toBe(true),
+    );
+
+    const sent = requests.find(
+      (request) => request.path === '/api/v1/staff/configuration/project-schema-versions',
+    );
+
+    expect(sent?.body).toEqual({ supported: [1, 2] });
+  });
+
+  it('refuses to add what the server would refuse, so no product displays a version it rejects', async () => {
+    renderAtRoute(<InvoicingScreen />, stubClient(configuredWith([1])), ROUTE);
+
+    const entry = await waitFor(() => screen.getByLabelText<HTMLInputElement>('Add a version'));
+    const add = () => screen.getByRole<HTMLButtonElement>('button', { name: 'Add' });
+
+    for (const rejected of ['0', '-1', '2.5', '']) {
+      fireEvent.change(entry, { target: { value: rejected } });
+      expect(add().disabled).toBe(true);
+    }
+
+    fireEvent.change(entry, { target: { value: '3' } });
+    expect(add().disabled).toBe(false);
   });
 });

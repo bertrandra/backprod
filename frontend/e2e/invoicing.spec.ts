@@ -92,6 +92,7 @@ async function stubInvoicing(page: Page) {
             product: PRODUCT,
             billing_supplier: { ...EMPTY_SUPPLIER, legal_name: 'Atlas SAS', country_code: 'FR' },
             tax: TAX,
+            project_schema_versions: [1],
             can_invoice: true,
             missing: [],
           }
@@ -99,6 +100,7 @@ async function stubInvoicing(page: Page) {
             product: PRODUCT,
             billing_supplier: EMPTY_SUPPLIER,
             tax: TAX,
+            project_schema_versions: [1],
             can_invoice: false,
             missing: ['legal_name', 'country_code'],
           },

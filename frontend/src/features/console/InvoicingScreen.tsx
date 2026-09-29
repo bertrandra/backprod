@@ -4,6 +4,7 @@ import { useState } from 'react';
 import {
   useProductConfiguration,
   useSetBillingIdentity,
+  useSetProjectSchemaVersions,
   useSetTaxSettings,
   type BillingSupplier,
   type TaxSettings,
@@ -38,10 +39,17 @@ import { tx } from '@/i18n/react';
  * from the same rule the invoice path applies, so what it lists is exactly what
  * the checkout is refusing over.
  *
- * **Two forms, not one save button.** The issuer's identity and the supplier's
- * fiscal position are separate decisions with separate consequences — one is who
- * the document names, the other is which country's VAT it charges — and they are
+ * **Three forms, not one save button.** The issuer's identity, the supplier's
+ * fiscal position and the document versions the product accepts are separate
+ * decisions with separate consequences — who the document names, which country's
+ * VAT it charges, and whether a customer's save is taken at all — and they are
  * recorded separately in the access log for that reason.
+ *
+ * **The third closed the same hole one layer down** (2026-09-29). Creating a
+ * product writes a row in `products` and none in `product_configuration`, and a
+ * product that has declared no schema versions accepts no project of any
+ * version — so every product created here refused every project, and nothing on
+ * the platform could change it. Exactly what ADR-042 found about the issuer.
  */
 export function InvoicingScreen() {
   const productCode = useSessionStore((state) => state.productCode);
@@ -72,7 +80,14 @@ export function InvoicingScreen() {
     return <ErrorSurface error={configuration.error} onRetry={() => void configuration.refetch()} />;
   }
 
-  const { product, billing_supplier: supplier, tax, can_invoice: canInvoice, missing } = configuration.data;
+  const {
+    product,
+    billing_supplier: supplier,
+    tax,
+    project_schema_versions: schemaVersions,
+    can_invoice: canInvoice,
+    missing,
+  } = configuration.data;
 
   return (
     <div className="max-w-3xl space-y-8">
@@ -102,6 +117,7 @@ export function InvoicingScreen() {
 
       <BillingIdentityForm productCode={productCode} initial={supplier} />
       <TaxForm productCode={productCode} initial={tax} />
+      <SchemaVersionsForm productCode={productCode} initial={schemaVersions} />
     </div>
   );
 }
@@ -296,6 +312,135 @@ function BillingIdentityForm({
  * event that changes the regime of *subsequent* sales only. Deriving it from
  * turnover would retroactively restate invoices already issued.
  */
+/**
+ * Which document versions the product takes (non-negotiable #10).
+ *
+ * **Chips and a number, not a comma-separated box.** A text field would make
+ * the screen parse what the operator typed, and the one thing that must not
+ * differ between here and the server is what counts as a version — `"2"` is
+ * refused there precisely so a product never displays a version it refuses.
+ * Entering one at a time leaves nothing to parse.
+ *
+ * The empty state gets an alert of its own rather than a quiet form, because it
+ * is the state of every product the console has ever created and it looks
+ * exactly like a screen that has finished loading.
+ */
+function SchemaVersionsForm({
+  productCode,
+  initial,
+}: {
+  productCode: string;
+  initial: number[];
+}) {
+  const save = useSetProjectSchemaVersions(productCode);
+
+  const [versions, setVersions] = useState<number[]>(initial);
+  const [entry, setEntry] = useState('');
+
+  const parsed = Number(entry);
+  // What the server would take: a whole number of 1 or more that is not already
+  // in the list. `Number('')` is 0 and `Number('2.5')` is not an integer, so
+  // both fail here for the same reason they would fail there.
+  const addable =
+    entry.trim() !== '' && Number.isInteger(parsed) && parsed >= 1 && !versions.includes(parsed);
+
+  function add() {
+    if (!addable) {
+      return;
+    }
+
+    setVersions([...versions, parsed].sort((left, right) => left - right));
+    setEntry('');
+  }
+
+  return (
+    <Section
+      className="border-t border-line pt-6"
+      title={t("Accepted document versions")}
+      description={t("Which versions of this product's project documents the platform will store. A product that accepts none refuses every save, which is the state of one nobody has configured — creating a product writes no configuration at all.")}
+    >
+      {save.error !== null && <ErrorSurface error={save.error} />}
+
+      {versions.length === 0 && (
+        <p data-testid="accepts-no-version" role="alert" className={notice('danger')}>
+          {tx("This product accepts no document version, so every project saved against it refuses with {code}. Add the versions its releases write.", {
+            code: <code>UNSUPPORTED_SCHEMA_VERSION</code>,
+          })}
+        </p>
+      )}
+
+      <FormCard
+        onSubmit={(event) => {
+          event.preventDefault();
+          save.mutate(versions);
+        }}
+      >
+        <FieldGroup
+          legend="The versions"
+          hint={t("Keep the versions earlier releases wrote, not only the newest: a document written last month is still one its owner opens, and dropping its version refuses their own work.")}
+        >
+          <ul data-testid="schema-versions" className="flex flex-wrap gap-2">
+            {versions.map((version) => (
+              <li
+                key={version}
+                data-version={version}
+                className="flex items-center gap-2 rounded-control border border-line bg-well px-3 py-1.5 text-sm"
+              >
+                <span className="tabular-nums">{version}</span>
+                <button
+                  type="button"
+                  aria-label={t("Remove version {version}", { version: String(version) })}
+                  className="text-muted underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+                  onClick={() => setVersions(versions.filter((kept) => kept !== version))}
+                >
+                  {t("Remove")}</button>
+              </li>
+            ))}
+          </ul>
+
+          <FieldRow>
+            <FieldCell width="short">
+              <Field id="schema-version" label={t("Add a version")}>
+                <input
+                  id="schema-version"
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  className={inputClass()}
+                  value={entry}
+                  onChange={(event) => setEntry(event.target.value)}
+                  onKeyDown={(event) => {
+                    // Enter adds the version rather than submitting the form:
+                    // typing a number and pressing Enter must not save a list
+                    // that does not yet contain it.
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      add();
+                    }
+                  }}
+                />
+              </Field>
+            </FieldCell>
+
+            <FieldCell>
+              <Button type="button" variant="secondary" disabled={!addable} onClick={add}>
+                {t("Add")}</Button>
+            </FieldCell>
+          </FieldRow>
+        </FieldGroup>
+
+        <FormActions>
+          {/* Disabled on an empty list as a courtesy only — the server refuses
+              it either way, and the frontend is never the authority. */}
+          <Button type="submit" pending={save.isPending} disabled={versions.length === 0}>
+            {t("Save the accepted versions")}</Button>
+        </FormActions>
+      </FormCard>
+    </Section>
+  );
+}
+
 function TaxForm({ productCode, initial }: { productCode: string; initial: TaxSettings }) {
   const save = useSetTaxSettings(productCode);
 
