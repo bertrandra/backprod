@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Auth\Infrastructure\LocalJwtTokenIssuer;
+use App\Job\Domain\JobRepository;
+use App\Job\Domain\QueueLiveness;
 use Doctrine\DBAL\Connection;
 use Dotenv\Dotenv;
 use Psr\Container\ContainerInterface;
@@ -166,6 +168,16 @@ $databaseNotes = [];
 $migrationsPending = null;
 
 /**
+ * Whether the cron-polled runner has ever run, and when it last finished.
+ *
+ * Read here rather than left to `GET /admin/queue` because the person who has
+ * just added the crontab entry is in a shell, not a browser with a platform
+ * role. Null when the database was not reached — absence of an answer, never
+ * a claim that nothing has run.
+ */
+$queue = null;
+
+/**
  * Products that live on their own host and therefore need both halves set,
  * by code with the address they answer on.
  *
@@ -198,6 +210,15 @@ if (configured('DATABASE_DSN')) {
         $databaseNotes[] = $migrationsPending === 0
             ? 'schema up to date'
             : sprintf('%d migration(s) not applied', $migrationsPending);
+
+        // The runner leaves its passes in `job_runs`, and that table is the
+        // only thing that tells a quiet queue apart from a cron that never
+        // fires — both produce silence (R10).
+        if ($migrationsPending === 0) {
+            /** @var JobRepository $jobs */
+            $jobs = $container->get(JobRepository::class);
+            $queue = $jobs->liveness();
+        }
 
         // A product deployed beside the platform, without both halves of the
         // setting, is not a capability that is merely absent: it is single
@@ -247,6 +268,40 @@ foreach ($capabilities as $capability) {
 
 if ($databaseNotes !== []) {
     printf("\n  database: %s\n", implode(', ', $databaseNotes));
+}
+
+if ($queue instanceof QueueLiveness) {
+    // Said as facts and in this order because they are three different things
+    // to go and fix: a cron that stopped ages the last finish, a runner that
+    // died mid-pass leaves a run open, and a wedged handler grows the backlog
+    // while the clock looks perfectly healthy.
+    $queueNotes = [];
+
+    if ($queue->neverRan()) {
+        // Every count is zero and nothing is overdue, which reads exactly like
+        // a calm idle queue. It is the opposite, so it is said out loud — and
+        // it is also the expected answer before step 8 of the deployment
+        // guide has been done, which is why it is a note and not a failure.
+        $queueNotes[] = 'no pass has ever run — add the crontab entry for bin/run-jobs.php';
+    } else {
+        $queueNotes[] = $queue->secondsSinceFinished === null
+            ? 'no pass has finished yet'
+            : sprintf('last pass finished %ds ago', $queue->secondsSinceFinished);
+    }
+
+    if ($queue->unfinishedRuns > 0) {
+        $queueNotes[] = sprintf(
+            '%d unfinished (oldest %ds)',
+            $queue->unfinishedRuns,
+            $queue->oldestUnfinishedSeconds ?? 0,
+        );
+    }
+
+    $queueNotes[] = $queue->dueJobs === 0
+        ? 'nothing due'
+        : sprintf('%d due (oldest %ds)', $queue->dueJobs, $queue->oldestDueSeconds ?? 0);
+
+    printf("  queue:    %s\n", implode(', ', $queueNotes));
 }
 
 if ($sideloaded !== []) {
