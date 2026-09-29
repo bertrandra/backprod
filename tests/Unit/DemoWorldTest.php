@@ -7,6 +7,7 @@ namespace App\Tests\Unit;
 use App\Commerce\Service\SubscriptionPeople;
 use App\Demo\Domain\DemoWorld;
 use App\Payment\Infrastructure\StubPaymentProvider;
+use App\Project\Domain\DocumentPolicy;
 use App\Project\Service\ProjectWorkspace;
 use App\Project\Service\SchemaVersionPolicy;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -67,6 +68,61 @@ final class DemoWorldTest extends TestCase
                 );
             }
         }
+    }
+
+    /**
+     * Every document the world names by file is one the platform would store.
+     *
+     * A project document named by file escapes every check a PHP constant
+     * gets for free — the file can go missing, stop being JSON, or grow past
+     * what `DocumentPolicy` accepts, and none of it shows until a seed pass
+     * fails somewhere that reads as a bug in the seeder. A real product
+     * document is also the thing most likely to change without this
+     * repository being told: Plan exports a new one and it is dropped in.
+     *
+     * So the file is checked here rather than discovered there, against the
+     * same policy the workspace applies.
+     */
+    public function testEveryDocumentNamedByFileIsOneThePlatformWouldStore(): void
+    {
+        $checked = 0;
+
+        foreach (DemoWorld::PROJECTS as $draft) {
+            $file = $draft['document_file'] ?? null;
+
+            if (!is_string($file)) {
+                continue;
+            }
+
+            ++$checked;
+
+            $path = DemoWorld::DOCUMENTS . '/' . $file;
+            self::assertFileExists($path, $file . ' is named by the world and is not there.');
+
+            $raw = (string) file_get_contents($path);
+            $fixture = json_decode($raw, false, 512, JSON_THROW_ON_ERROR);
+
+            self::assertInstanceOf(\stdClass::class, $fixture);
+            self::assertInstanceOf(\stdClass::class, $fixture->document);
+
+            // The version the export claims has to be one the product takes,
+            // or the seed pass ends in a 422 naming neither the file nor the
+            // product.
+            self::assertContains(
+                $fixture->schema_version,
+                DemoWorld::schemaVersionsFor($draft['product']),
+                $file . ' claims a schema version ' . $draft['product'] . ' does not accept.',
+            );
+
+            // The policy the workspace applies, applied here: size, depth, and
+            // no asset smuggled in as a data: URI or a very long string.
+            (new DocumentPolicy())->assertStorable($fixture->document);
+        }
+
+        // Otherwise this passes for ever by looping over nothing — which is
+        // exactly what would happen if the real document were dropped back to
+        // a place-holder.
+        self::assertGreaterThan(0, $checked, 'No document is named by file any more.');
     }
 
     public function testEveryReferenceInTheWorldNamesSomethingInIt(): void
