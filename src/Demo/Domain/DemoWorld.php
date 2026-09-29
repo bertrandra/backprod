@@ -1020,19 +1020,47 @@ final class DemoWorld
     ];
 
     /**
+     * Where a project document too large to be a constant is kept.
+     *
+     * Plan's real demonstration document is 42 KB encoded and 35 objects
+     * deep — a parcel with its cadastral record, its PLU zones and
+     * servitudes, a terrace with its bill of materials, paths, trees and
+     * camera positions. As a PHP literal it would bury every other fact in
+     * this file; as a JSON file beside it, it is the thing Plan exported and
+     * can be replaced by exporting again.
+     *
+     * Copied whole by `bin/build-dist.sh`, which takes all of `src/` rather
+     * than only its PHP — so a deployment seeded from the bundle gets it too.
+     */
+    public const DOCUMENTS = __DIR__ . '/../documents';
+
+    /**
      * The projects, made by the people who would make them, through the
      * workspace — so each one counted against its quota, in a product that
-     * had declared its schema version. Plan's carry what Plan keeps for a
-     * parcel; Atlas's is the platform's own workspace with something in it.
+     * had declared its schema version. Atlas's is the platform's own
+     * workspace with something in it.
      *
-     * @var list<array{tenant: string, product: string, by: string, name: string, description: string, document: array<string, mixed>}>
+     * **One of Plan's is a real Plan document** (2026-09-29), named by file
+     * rather than written inline. The three others carry a place-holder, and
+     * that is a statement of what is known rather than a decision: Plan
+     * exported one demonstration project, and it is the parcel at Le Vésinet.
+     * Giving the same cadastral record to a terrace in Lyon and one in
+     * Villeurbanne would make the demonstration say something untrue about
+     * its own data, which is worse than a project that does not open.
+     *
+     * @var list<array{tenant: string, product: string, by: string, name: string, description: string, document?: array<string, mixed>, document_file?: string}>
      */
     public const PROJECTS = [
         [
+            // Plan's own demonstration project, exported from 2.2.0 and
+            // stored as it was given. Written in **schema 1** although the
+            // product accepts 1 and 2, which is the ordinary case and worth
+            // demonstrating: a release that writes a new version still has to
+            // open what earlier ones wrote.
             'tenant' => 'acme', 'product' => 'plan', 'by' => 'acme-user1',
-            'name' => 'Terrasse sud — parcelle AE 101',
-            'description' => 'Terrasse bois sur plots, 24 m², exposition sud, Le Vésinet.',
-            'document' => ['parcelle' => 'AE 101', 'commune' => 'Le Vésinet', 'surface_m2' => 24, 'lames' => 'pin classe 4', 'source' => 'demo'],
+            'name' => 'Parcelle AE 101',
+            'description' => 'La parcelle au Vésinet : cadastre, PLU, terrasse bois sur vis de fondation, cheminements et arbres.',
+            'document_file' => 'plan-parcelle-ae-101.json',
         ],
         [
             // By `user2`, whom `user1` put on their seat — not by the

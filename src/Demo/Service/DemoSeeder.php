@@ -18,6 +18,8 @@ use App\Payment\Domain\PaymentStatus;
 use App\Project\Service\ProjectWorkspace;
 use App\Sales\Service\Sales;
 use App\Shared\Exceptions\ConflictException;
+use RuntimeException;
+use stdClass;
 
 /**
  * Builds the demonstration world, and rebuilds it.
@@ -278,17 +280,16 @@ final class DemoSeeder
         $projects = [];
 
         foreach (DemoWorld::PROJECTS as $draft) {
+            [$document, $schemaVersion] = $this->documentOf($draft);
+
             $projects[] = $this->workspace->create(
                 $structure->tenant($draft['tenant']),
                 $structure->product($draft['product']),
                 $structure->user($draft['by']),
                 $draft['name'],
                 $draft['description'],
-                // The first version this product accepts, not the platform's
-                // default: Plan accepts 1 and 2 since 2.2.0, and a seeded project
-                // has to be written in a version the product will take back.
-                DemoWorld::schemaVersionsFor($draft['product'])[0],
-                (object) $draft['document'],
+                $schemaVersion,
+                $document,
             );
         }
 
@@ -470,5 +471,75 @@ final class DemoSeeder
         $this->collection->collected($this->invoicing->show($tenant, $product, $invoiceId), $buyer);
 
         return $this->invoicing->show($tenant, $product, $invoiceId);
+    }
+
+    /**
+     * A project's document and the version it is written in.
+     *
+     * Two shapes, and the difference is what is known rather than a style:
+     * a place-holder is written inline, and a real product document is
+     * exported by that product and named by file — Plan's is 42 KB and 35
+     * objects, and as a PHP literal it would bury this file.
+     *
+     * **The version comes from the document that claims one.** A real export
+     * says which version wrote it, and seeding it as anything else would be
+     * the demonstration asserting something false about its own data. A
+     * place-holder claims nothing, so it takes the first version the product
+     * accepts — which is what every project here did before one of them was
+     * real.
+     *
+     * @param array<string, mixed> $draft
+     *
+     * @return array{object, int}
+     */
+    private function documentOf(array $draft): array
+    {
+        $product = $draft['product'];
+        assert(is_string($product));
+
+        $file = $draft['document_file'] ?? null;
+
+        if (!is_string($file)) {
+            $inline = $draft['document'] ?? [];
+            assert(is_array($inline));
+
+            return [(object) $inline, DemoWorld::schemaVersionsFor($product)[0]];
+        }
+
+        $path = DemoWorld::DOCUMENTS . '/' . $file;
+        $raw = file_get_contents($path);
+
+        if ($raw === false) {
+            // Raised rather than skipped: a demonstration missing the document
+            // it was built to show is a world that seeds green and shows an
+            // empty parcel, which is the failure nobody goes looking for.
+            throw new RuntimeException('The demonstration document ' . $file . ' is missing.');
+        }
+
+        /** @var array<string, mixed> $fixture */
+        $fixture = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+
+        $version = $fixture['schema_version'] ?? null;
+        assert(is_int($version));
+
+        if (!in_array($version, DemoWorld::schemaVersionsFor($product), true)) {
+            // The product would refuse it at the workspace anyway; refusing
+            // here says *which* file and *which* product, which the 422 that
+            // came out of a seed pass could not.
+            throw new RuntimeException(sprintf(
+                '%s is written in schema %d, which %s does not accept.',
+                $file,
+                $version,
+                $product,
+            ));
+        }
+
+        // Decoded a second time as objects: the workspace stores what it is
+        // given, and a JSON object that arrived as a PHP array would be
+        // re-encoded as one — which for an empty object is `[]` and not `{}`.
+        $document = json_decode($raw, false, 512, JSON_THROW_ON_ERROR);
+        assert($document instanceof stdClass && $document->document instanceof stdClass);
+
+        return [$document->document, $version];
     }
 }
