@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { renderAtRoute, SESSION, stubClient, type Stub, type Stubs } from '@/test-utils';
+import { heldOpen, renderAtRoute, SESSION, stubClient, type Stub, type Stubs } from '@/test-utils';
 
 import { VatReportsScreen } from './VatReportsScreen';
 
@@ -272,14 +272,18 @@ describe('closing a period', () => {
           };
     };
 
+    const closing = heldOpen();
+
     renderAtRoute(
       <VatReportsScreen />,
       clientFor([ENDED], { 'GET /api/v1/tax/reports/{periodId}': period }, MANAGER, {
         'POST /api/v1/tax/reports/{periodId}/close': {
           data: { declaration: { ...DECLARATION, period_id: ENDED.id } },
-          // Held back, so the assertion below is about the moment the request
-          // is in flight rather than about a race the refetch already won.
-          delayMs: 40,
+          // Held open until this test releases it, so the assertion below is
+          // about the moment the request is in flight rather than about a race
+          // the refetch may already have won (2026-09-29). At 40 ms it was a
+          // bet on the machine: the window closed on its own schedule.
+          until: closing.until,
         },
       }),
       at(ENDED.id),
@@ -292,6 +296,8 @@ describe('closing a period', () => {
     // While it is in flight nothing claims the period is closed: the figures
     // are the server's to compute and this client cannot know them.
     expect(screen.queryByTestId('declaration')).toBeNull();
+
+    closing.release();
 
     await waitFor(() => expect(screen.getByTestId('declaration')).toBeTruthy());
     expect(screen.getByTestId('no-reopen')).toBeTruthy();
