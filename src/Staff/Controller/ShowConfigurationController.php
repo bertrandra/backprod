@@ -36,6 +36,7 @@ final class ShowConfigurationController implements RouteHandler
                 $configuration['product'],
                 $configuration['supplier'],
                 $configuration['tax'],
+                $configuration['schemaVersions'],
                 $configuration['missing'],
             ),
             200,

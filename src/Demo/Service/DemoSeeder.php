@@ -284,7 +284,10 @@ final class DemoSeeder
                 $structure->user($draft['by']),
                 $draft['name'],
                 $draft['description'],
-                DemoWorld::SCHEMA_VERSIONS[0],
+                // The first version this product accepts, not the platform's
+                // default: Plan accepts 1 and 2 since 2.2.0, and a seeded project
+                // has to be written in a version the product will take back.
+                DemoWorld::schemaVersionsFor($draft['product'])[0],
                 (object) $draft['document'],
             );
         }

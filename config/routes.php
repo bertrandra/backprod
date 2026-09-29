@@ -178,6 +178,7 @@ use App\Staff\Controller\SetDemoPageController;
 use App\Staff\Controller\SetMailTemplatesController;
 use App\Staff\Controller\SetNavigationSetupController;
 use App\Staff\Controller\SetOfferAuthoringController;
+use App\Staff\Controller\SetProjectSchemaVersionsController;
 use App\Staff\Controller\SetPublicListingController;
 use App\Staff\Controller\SetSignUpSettingsController;
 use App\Staff\Controller\SetStorefrontSettingsController;
@@ -753,6 +754,17 @@ return static function (RouteCollector $routes): void {
         SetBillingIdentityController::class,
     );
     $routes->addRoute('PUT', '/api/v1/staff/configuration/tax', SetTaxSettingsController::class);
+
+    // The third key, and the same hole one layer down (2026-09-29): creating a
+    // product writes a row in `products` and none in `product_configuration`,
+    // and a product that has declared no schema versions accepts no project of
+    // any version. So every product created through the console refused every
+    // project, and nothing on the platform could change it.
+    $routes->addRoute(
+        'PUT',
+        '/api/v1/staff/configuration/project-schema-versions',
+        SetProjectSchemaVersionsController::class,
+    );
 
     // The platform's own menu setup (2026-09-17): what the shell shows each
     // kind of person. Platform-wide, so no product on the address.

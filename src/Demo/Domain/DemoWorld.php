@@ -100,6 +100,12 @@ final class DemoWorld
             'order' => 10,
             'base' => 1_500,
             'app_url' => 'https://plan.raillard.org',
+            // Two versions since Plan 2.2.0, which saves in schema 2 because of
+            // the façade survey. Both, and not just the new one: a document
+            // written by an earlier release is still a document its owner opens,
+            // and a product that stopped accepting the version it wrote last
+            // month would refuse its own customers' work.
+            'schema_versions' => [1, 2],
             // What `docs/plan-service.md` §11 says Plan meters: its documents.
             'meters' => ['plan.documents' => ['name' => 'Plan documents', 'unit' => 'documents', 'starter' => 20, 'pro' => 200]],
             // The seven Plan proposes (its `src/plateforme/capacites.ts`). The
@@ -725,15 +731,39 @@ final class DemoWorld
     public const PROJECTS_QUOTA = 'max_projects';
 
     /**
-     * Which project document schema versions every product accepts
-     * (non-negotiable #10): a product that declares none accepts no
-     * project at all, which is what the demo did until 2026-09-22. The key
-     * is `SchemaVersionPolicy::CONFIGURATION_KEY`, pinned the same way.
+     * Which project document schema versions a product accepts when its own
+     * definition names none (non-negotiable #10): a product that declares
+     * none accepts no project at all, which is what the demo did until
+     * 2026-09-22. The key is `SchemaVersionPolicy::CONFIGURATION_KEY`,
+     * pinned the same way.
+     *
+     * **A default and no longer the answer for everybody** (2026-09-29).
+     * One list for every product was a platform-wide answer to a per-product
+     * question, and Plan is where it showed: its 2.2.0 saves in schema 2
+     * because of the façade survey, the demo declared 1, and every save was
+     * refused. `PRODUCTS[…]['schema_versions']` is where a product says
+     * otherwise — data keyed by code, like every other fact in this file,
+     * never a branch on one.
      *
      * @var list<int>
      */
     public const SCHEMA_VERSIONS = [1];
     public const SCHEMA_VERSIONS_KEY = 'project_schema_versions';
+
+    /**
+     * What `$code` accepts: its own list, or the default above.
+     *
+     * @return list<int>
+     */
+    public static function schemaVersionsFor(string $code): array
+    {
+        // No emptiness check: a product declaring `[]` would be saying it
+        // accepts nothing, and quietly substituting the default would hide the
+        // mistake in the one place a seeded world cannot report it.
+        $declared = self::PRODUCTS[$code]['schema_versions'] ?? null;
+
+        return is_array($declared) ? $declared : self::SCHEMA_VERSIONS;
+    }
 
     /**
      * The organisations, and which products each holds (ADR-047).
