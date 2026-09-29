@@ -181,8 +181,9 @@ test.describe('an export', () => {
  * 375 px, no horizontal scroll, and the Core's 4242 over a triangle drawn
  * by hand. They went with the surface they described. What they proved is
  * not lost: that a screen renders a shape without computing anything about
- * it is now the business of the product that draws, and `measureGeometry`
- * keeps its own tests on the platform's side.
+ * it is now the business of the product that draws. `measureGeometry` kept
+ * its own tests on the platform's side until 2026-09-29, when the endpoint
+ * was removed for want of a caller (ADR-032, withdrawn).
  *
  * The page must still not scroll sideways on a phone, and that claim is
  * not about a canvas, so it stays.

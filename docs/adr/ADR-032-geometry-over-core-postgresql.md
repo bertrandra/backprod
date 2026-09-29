@@ -1,6 +1,7 @@
 # ADR-032 — Geometry over core PostgreSQL, and the operation it refuses to fake
 
-**Status:** accepted; amended 2026-09-23 — the caller changed, the decision did not
+**Status:** **withdrawn 2026-09-29** — the module is removed; see the note below
+**Was:** accepted; amended 2026-09-23 — the caller changed, the decision did not
 **Decides:** how spatial questions are answered before a spatial backend exists
 **Relates to:** Architecture V2 §19, §7, §10.2, §13; the last M7 deliverable;
 ADR-051 (a product beside the platform)
@@ -14,6 +15,34 @@ unchanged, still behind `gis.access`, still answered by core PostgreSQL;
 their caller is now that product, on the person's own session, rather than
 a component in this shell. Nothing below is revisited: what the port may
 promise does not depend on who asks.
+
+## Withdrawn (2026-09-29)
+
+`/geometry/measure` and `/geometry/intersections` are gone, with the whole
+`App\Geometry` module, its sixteen integration tests, its six contract
+schemas and the `gis.access` capability.
+
+**Not because the reasoning below was wrong.** It holds: a spatial answer
+belongs in PostgreSQL, PostGIS is not a confirmed dependency on the
+deployment target, and a buffer endpoint that approximated one would have
+been harder to remove than one never written.
+
+What was wrong was that **nobody ever called it**. The 2026-09-23 amendment
+moved the caller from this shell to the product deployed beside the
+platform, and that caller never arrived. Meanwhile `gis.access` was granted
+by no offer — not in the demonstration world, not in any migration — so the
+capability gate refused everybody, and the endpoints could not be reached
+even by the product they were kept for.
+
+An API with no caller and a door no key opens is not phase 1 of anything; it
+is a surface to keep warm, to migrate, to keep in the contract and to answer
+for at every review. §19 is unchanged and this decision is reusable: the day
+a spatial question is asked by something that exists, it is written then,
+and this page says how.
+
+Removed on the operator&#39;s instruction, after the alternatives — granting the
+capability in an offer, or closing the `PAST_DUE` hole and leaving it — were
+put and declined.
 
 ## Context
 

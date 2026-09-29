@@ -55,7 +55,7 @@ filtre oublié une élévation de privilège.
 | Il facture | non | **oui** — c'est son organisation qui émet | non, sauf les ventes de la plateforme |
 | Il travaille dans le produit | oui, si un abonnement le couvre | oui, aux mêmes conditions | non |
 | Permissions | 21 | 30 | 20 (dont 5 côté `admin.*`) |
-| Opérations atteignables | 7 propres + 70 partagées + 17 sans permission + 2 par capacité = **96** | 34 propres + 70 partagées + 17 sans permission + 2 par capacité = **123** | **80** |
+| Opérations atteignables | 7 propres + 70 partagées + 17 sans permission = **94** | 34 propres + 70 partagées + 17 sans permission = **121** | **80** |
 
 Les 10 permissions que l'administrateur a en plus sont `billing.manage`,
 `catalog.manage`, `jobs.manage`, `members.manage`, `payments.manage`,
@@ -277,7 +277,6 @@ ceux qui savent atteindre l'endpoint.
 | `createAssetLink` | Émet un lien **signé et daté** que le navigateur suit sans session. |
 | `requestExport` | Met un export en file. Le fichier arrive comme un asset quand la tâche passe. |
 | `listJobs`, `showJob` | Rien. Ce que la file fait de ses demandes. |
-| `measureGeometry`, `intersectGeometries` | Rien n'est écrit. Gardés par la **capacité** `gis.access` et non par une permission : la géométrie ne touche aucune donnée du tenant, donc la question n'est pas ce qu'un rôle en fait mais ce que le plan vend. |
 
 ### Ses documents — `billing.read`, `payments.read`, `sales.read`
 
@@ -706,19 +705,18 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
   atteignables par un TENANT_ADMIN seul           34
   partagées par les deux                          70
   sans permission, tout membre                    17
-  par capacité (gis.access)                        2
   ─────────────────────────────────────────────────
-  surface locataire                              130
+  surface locataire                              128
 
   PLATFORM_ADMIN                                  80
   publiques, sans compte                           7
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          228
+  total                                          226
 ```
 
-Dont **110 lectures** et **118 écritures**. Chaque écriture a sa ligne dans les
+Dont **109 lectures** et **117 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

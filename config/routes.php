@@ -67,8 +67,6 @@ use App\Demo\Controller\PublicDemoController;
 use App\EInvoice\Controller\EInvoiceWebhookController;
 use App\EInvoice\Controller\ListTransmissionsController;
 use App\EInvoice\Controller\SubmitInvoiceController;
-use App\Geometry\Controller\IntersectGeometriesController;
-use App\Geometry\Controller\MeasureGeometryController;
 use App\Health\Controller\HealthController;
 use App\Identity\Controller\MeContextController;
 use App\Identity\Controller\MeController;
@@ -550,16 +548,14 @@ return static function (RouteCollector $routes): void {
     // the whole asset surface behind a prefix reachable with no credential.
     $routes->addRoute('GET', '/api/v1/downloads/{assetId}/content', DownloadAssetController::class);
 
-    // Geometry (§19). Two routes, not the three §7 sketches: core PostgreSQL
-    // has no buffer, and §19 names buffers among the things a spatial
-    // extension is for. An endpoint that returned an approximation of one
-    // would be harder to remove than an endpoint that does not exist yet.
-    //
-    // These read no tenant row and write none. The door is the `gis.access`
-    // capability rather than a permission — what a plan bought, not what a
-    // role allows (§10.2, §13).
-    $routes->addRoute('POST', '/api/v1/geometry/measure', MeasureGeometryController::class);
-    $routes->addRoute('POST', '/api/v1/geometry/intersections', IntersectGeometriesController::class);
+    // `/geometry/*` stood here until 2026-09-29 and is gone (ADR-032,
+    // superseded). It answered area, perimeter and spatial relations out of
+    // core PostgreSQL, behind the `gis.access` capability — which no offer
+    // ever granted, so nothing could reach it, and no screen called it
+    // either: its caller was to be the product deployed beside the platform.
+    // Two years of §19's phase 1 with no first caller is a surface to remove
+    // rather than to keep warm. §19 itself is unchanged; the day a spatial
+    // answer is needed, it is written then, against a caller that exists.
 
     $routes->addRoute('GET', '/api/v1/tenants/current', CurrentTenantController::class);
     $routes->addRoute('PATCH', '/api/v1/tenants/current', UpdateCurrentTenantController::class);

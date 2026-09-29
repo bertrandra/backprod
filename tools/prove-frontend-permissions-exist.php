@@ -38,8 +38,8 @@ declare(strict_types=1);
  * vocabulary is real, not that each word is in the right place.
  *
  * Since U4 it checks **capabilities** the same way, against the
- * `const CAPABILITY` a route class declares. `gis.access` is why: it looks like
- * a permission, contains a dot, and is not one — and a misspelt capability
+ * `const CAPABILITY` a route class declares. A capability looks like a
+ * permission — it contains a dot — and is not one, and a misspelt capability
  * hides a screen just as quietly.
  *
  * Exit 0 means every permission and every capability the frontend believes in
@@ -404,10 +404,13 @@ printf(
 // the tenant's plan includes rather than what a role may do — and until U4 the
 // frontend used exactly one (`white_label`), so nothing checked them.
 //
-// `gis.access` made that worth closing: it *looks* like a permission, contains a
-// dot, and is not one. A misspelt capability hides a screen just as quietly as a
-// misspelt permission, and with two of them in the codebase the next one is
-// somebody's guess.
+// A second one made that worth closing: a capability *looks* like a permission,
+// contains a dot, and is not one. A misspelt capability hides a screen just as
+// quietly as a misspelt permission.
+//
+// It was `gis.access`, removed with the geometry module on 2026-09-29. The check
+// stays: it costs nothing while one capability is in play and is exactly what
+// nobody thinks to add back when a second arrives.
 //
 // The backend's list is authoritative and small: a route class declares
 // `const CAPABILITY = '…'` and requires it. That is where a capability comes
