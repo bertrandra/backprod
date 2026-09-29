@@ -63,6 +63,13 @@ export interface Stub {
  * `until` goes on the stub and `release()` lets it answer. Between the two the
  * request is provably in flight, which is what proving a rollback or an
  * in-flight state needs: hold it open, assert, release, assert again.
+ *
+ * **The same rule holds one layer up**, where `heldOpen` in
+ * `e2e/support/app.ts` does this for a Playwright route: there the racing
+ * clock is the application's own start-up rather than `waitFor`'s poll, and
+ * the cure is the same promise. That one was written first — it landed in
+ * `bebf97c` under a title about freemium periods, which is why nobody found
+ * it — and this is its twin, arrived by a different road at the same answer.
  */
 export function heldOpen(): { readonly until: Promise<void>; readonly release: () => void } {
   // Reassigned by the executor, which runs before this function returns. The
