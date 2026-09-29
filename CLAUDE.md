@@ -848,13 +848,21 @@ navigation table and every test passed anyway. `composer run gate:permissions`
 compares what the frontend gates on with what the migrations create.
 
 **Business calculation belongs to the Core, in the frontend too** (§4, §5).
-A component transports and renders; it never derives a quantity. Area, perimeter
-and every spatial relation come from `/geometry/*` — the shoelace formula is four
-lines of JavaScript, which is exactly why it must not be written: added once for
-a tooltip, it disagrees with PostgreSQL in the eleventh digit and leaves two
-numbers for one parcel with nothing to say which is right. Shaping a payload to
-the contract's format (closing a GeoJSON ring, mapping a tap to a coordinate) is
-presentation, not calculation.
+A component transports and renders; it never derives a quantity. The shoelace
+formula is four lines of JavaScript, which is exactly why it must not be
+written: added once for a tooltip, it disagrees with the server in the
+eleventh digit and leaves two numbers for one parcel with nothing to say which
+is right. Shaping a payload to the contract's format (closing a GeoJSON ring,
+mapping a tap to a coordinate) is presentation, not calculation.
+
+**This rule used to name `/geometry/*` as the place to ask.** That module was
+removed on 2026-09-29: it answered area, perimeter and spatial relations out
+of core PostgreSQL behind a `gis.access` capability **no offer ever granted**,
+so nothing could reach it, and no screen called it — its caller was to be the
+product deployed beside the platform, and that caller never came. The rule
+survives the address: a quantity is still the server's to compute, and the day
+one is needed again the endpoint is written then, against a caller that
+exists.
 
 **Which product a screen opens on is four answers, in order** (2026-09-26):
 
@@ -875,11 +883,11 @@ themselves. A code naming a product the organisation does not hold is refused
 on write, cleared when the product is unassigned, and ignored on read.
 
 **Gate on a capability when the plan decides, on a permission when the role
-does.** `isEntitled('gis.access')`, not `can(...)`: geometry touches no tenant
-data, so there is no question of what a role may do with it. The two refusals
-read differently — one is answered by an administrator, the other by an upgrade.
-`composer run gate:permissions` now checks both vocabularies against the
-platform.
+does.** `isEntitled(…)` where what is bought decides, `can(…)` where what a
+role may do with the tenant's data decides. The two refusals read differently —
+one is answered by an administrator, the other by an upgrade — and choosing
+the wrong one sends somebody to the wrong person. `composer run
+gate:permissions` checks both vocabularies against the platform.
 
 **Money is integer minor units all the way to the screen.** Convert only in
 `ui/Money.tsx`, which asks `Intl` for the currency's exponent — `/ 100` is right

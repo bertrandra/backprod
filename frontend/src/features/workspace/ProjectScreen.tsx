@@ -60,18 +60,19 @@ import { tx } from '@/i18n/react';
  * **The canvas is gone, and the files stay** (2026-09-23). The drawing
  * surface was U4's architectural test — that a screen can render a shape
  * without computing anything about it — and it proved its point: every
- * area, perimeter and relation came back from `/geometry/*`. What it never
+ * area, perimeter and relation came back from the server. What it never
  * became is a tool. It drew scratch shapes that no project document kept,
  * beside a real product whose whole business is drawing and which stores
  * its documents here; two drawing surfaces for one project, one of which
  * forgets, is worse than one.
  *
+ * **And the endpoints went too** (2026-09-29). `measureGeometry` and
+ * `intersectGeometries` were kept for the product beside the platform, and
+ * that caller never came — while `gis.access` was granted by no offer, so
+ * nothing could reach them anyway (ADR-032, withdrawn).
+ *
  * The files are the opposite case and stay: a project's files are
  * something the platform holds for whoever works on it, product or none.
- * `measureGeometry` and `intersectGeometries` keep their routes and their
- * tests — a product beside the platform is exactly who they are for now —
- * and `docs/ui-api-coverage.json` says so under `not_in_ui` rather than
- * letting them look forgotten.
  */
 const renameSchema = z.object({
   name: z.string().trim().min(1, 'A project needs a name.'),
