@@ -1031,6 +1031,15 @@ final class DemoWorld
      *
      * Copied whole by `bin/build-dist.sh`, which takes all of `src/` rather
      * than only its PHP — so a deployment seeded from the bundle gets it too.
+     *
+     * **A document file names nothing this world decides.** It carries the
+     * document, the version that document is written in, and which release of
+     * the product exported it — and not the project's name, its description,
+     * who made it or which organisation it belongs to. Those are the
+     * demonstration's own facts, they live in `PROJECTS`, and the file held a
+     * second copy of the name for one day: the seeder read the one here, so a
+     * re-export under a different name would have changed nothing and said
+     * nothing, which is the shape every drift in this repository has had.
      */
     public const DOCUMENTS = __DIR__ . '/../documents';
 

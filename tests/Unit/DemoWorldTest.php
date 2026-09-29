@@ -117,6 +117,18 @@ final class DemoWorldTest extends TestCase
             // The policy the workspace applies, applied here: size, depth, and
             // no asset smuggled in as a data: URI or a very long string.
             (new DocumentPolicy())->assertStorable($fixture->document);
+
+            // And it names nothing this world decides. A re-export is how a
+            // second copy of the name would come back, and it would come back
+            // silently: the seeder reads `PROJECTS`, so the file's copy would
+            // simply sit there disagreeing.
+            foreach (['name', 'description', 'tenant', 'product', 'by'] as $decided) {
+                self::assertObjectNotHasProperty(
+                    $decided,
+                    $fixture,
+                    $file . ' carries `' . $decided . '`, which the demonstration decides and the seeder reads from PROJECTS.',
+                );
+            }
         }
 
         // Otherwise this passes for ever by looping over nothing — which is
