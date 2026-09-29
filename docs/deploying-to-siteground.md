@@ -369,6 +369,18 @@ happens**: no notification is delivered, no export is produced, no pre-renewal
 notice is sent. Queued work simply accumulates, and `/console/queue` is where you
 will see it doing so.
 
+Wait a minute and confirm it took, in the shell you are already in:
+
+```sh
+php bin/preflight.php | grep queue
+```
+
+`no pass has ever run` means the entry is not firing — wrong path to `php` or to
+the script, most often, and SiteGround's cron mail says which. A pass that
+finished seconds ago means it is. The same three facts are on `/console/queue`
+with a threshold you can set, which is where to look later; this is for the
+minute after you typed the line, when signing in to find out would be a detour.
+
 ---
 
 ## What runs where
@@ -388,9 +400,19 @@ will see it doing so.
 Stated here rather than discovered later. `docs/production-readiness.md` is the
 fuller list; these are the ones specific to shipping it this way.
 
-- **No password reset, no email verification, no registration, no second factor**
-  (ADR-038). Accounts are created by an operator, which is honest for a platform
-  whose tenants are too — and the first thing to build if anybody self-registers.
+- **No second factor.** A password and a mailbox are the whole of it. This
+  paragraph used to say there was no registration, no password reset and no
+  email verification either; all three were built afterwards (ADR-061,
+  ADR-063) and the sentence was left standing — which is worse than never
+  having written it, because an operator reads this before going live and
+  would have set out to create every account by hand.
+- **Those three depend on mail actually leaving.** A reset, an invitation and
+  an address confirmation are recorded whether or not `MAIL_DSN` is set, and
+  without it none of them is sent — so somebody who asks to reset a password
+  waits for a message nobody posted. `preflight` says so under *Sending mail*.
+  Confirmation of a new address is off unless the operator switches it on
+  (ADR-063, console → Storefront), and its absence is deliberate: a deadline
+  nobody chose is not one to enforce.
 - **No observability.** Logs are structured and carry a request id; on shared
   hosting they go to the host's error log and nothing collects or alerts on them.
   A failing cron job is silent unless you read `jobs.log`.
