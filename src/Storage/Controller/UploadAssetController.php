@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Storage\Controller;
 
+use App\Project\Service\ProjectWorkspace;
 use App\Shared\Http\RouteHandler;
 use App\Storage\Service\Assets;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -23,13 +24,17 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 final class UploadAssetController implements RouteHandler
 {
-    public function __construct(private readonly Assets $assets)
-    {
+    public function __construct(
+        private readonly Assets $assets,
+        private readonly ProjectWorkspace $projects,
+    ) {
     }
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
         $context = AssetRoute::manageable($request);
+
+        AssetRoute::reachableProject($this->projects, $context, AssetRoute::id($request, 'projectId'));
 
         $asset = $this->assets->upload(
             $context->tenantId,

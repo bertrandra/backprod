@@ -41,6 +41,8 @@ final class UndeleteProjectController implements RouteHandler
         $project = $this->projects->undelete(
             $context->tenantId,
             $context->productId,
+            $context->userId,
+            ProjectRoute::seesEverything($context),
             ProjectRoute::projectId($request),
         );
 

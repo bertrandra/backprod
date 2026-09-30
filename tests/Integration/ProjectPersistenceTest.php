@@ -8,6 +8,7 @@ use App\Project\Domain\Project;
 use App\Project\Domain\ProjectChanges;
 use App\Project\Domain\ProjectDraft;
 use App\Project\Domain\ProjectVersion;
+use App\Project\Domain\Reach;
 use App\Project\Infrastructure\PostgresProjectRepository;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use RuntimeException;
@@ -201,8 +202,8 @@ final class ProjectPersistenceTest extends DatabaseTestCase
 
         // Gone from every live read — a deleted project is not "hidden", it is
         // out of the way — and every snapshot still there to come back to.
-        self::assertSame([], $projects->listForTenant($this->tenantId, $this->productId, 25, 0));
-        self::assertSame(0, $projects->countForTenant($this->tenantId, $this->productId));
+        self::assertSame([], $projects->listForTenant($this->tenantId, $this->productId, Reach::everything(), 25, 0));
+        self::assertSame(0, $projects->countForTenant($this->tenantId, $this->productId, Reach::everything()));
         self::assertSame(1, $this->countVersionsOf($project->id));
     }
 
@@ -213,12 +214,12 @@ final class ProjectPersistenceTest extends DatabaseTestCase
 
         $projects->delete($project, $this->userId);
 
-        $binned = $projects->listForTenant($this->tenantId, $this->productId, 25, 0, true);
+        $binned = $projects->listForTenant($this->tenantId, $this->productId, Reach::everything(), 25, 0, true);
 
         self::assertCount(1, $binned);
         self::assertSame($project->id, $binned[0]->id);
         self::assertTrue($binned[0]->isDeleted());
-        self::assertSame(1, $projects->countForTenant($this->tenantId, $this->productId, true));
+        self::assertSame(1, $projects->countForTenant($this->tenantId, $this->productId, Reach::everything(), true));
     }
 
     public function testUndeletingPutsAProjectBackWithItsVersions(): void
@@ -230,12 +231,12 @@ final class ProjectPersistenceTest extends DatabaseTestCase
         $projects->delete($project, $this->userId);
         $projects->undelete($project);
 
-        $live = $projects->find($this->tenantId, $this->productId, $project->id);
+        $live = $projects->find($this->tenantId, $this->productId, $project->id, Reach::everything());
 
         self::assertNotNull($live);
         self::assertFalse($live->isDeleted());
-        self::assertSame(1, $projects->countForTenant($this->tenantId, $this->productId));
-        self::assertSame(0, $projects->countForTenant($this->tenantId, $this->productId, true));
+        self::assertSame(1, $projects->countForTenant($this->tenantId, $this->productId, Reach::everything()));
+        self::assertSame(0, $projects->countForTenant($this->tenantId, $this->productId, Reach::everything(), true));
         // The document survived untouched: undeleting is not a restore, and it
         // must not behave like one.
         self::assertSame('{"walls":["east"]}', json_encode($live->document));
@@ -255,10 +256,10 @@ final class ProjectPersistenceTest extends DatabaseTestCase
         $project = $projects->create($this->draft('{"walls":[]}'));
 
         $projects->delete($project, $this->userId);
-        $first = $projects->listForTenant($this->tenantId, $this->productId, 25, 0, true)[0]->deletedAt;
+        $first = $projects->listForTenant($this->tenantId, $this->productId, Reach::everything(), 25, 0, true)[0]->deletedAt;
 
         $projects->delete($project, $this->userId);
-        $second = $projects->listForTenant($this->tenantId, $this->productId, 25, 0, true)[0]->deletedAt;
+        $second = $projects->listForTenant($this->tenantId, $this->productId, Reach::everything(), 25, 0, true)[0]->deletedAt;
 
         self::assertNotNull($first);
         self::assertEquals($first, $second);
@@ -274,7 +275,7 @@ final class ProjectPersistenceTest extends DatabaseTestCase
         $project = $projects->create($this->draft('{"walls":[]}'));
         $projects->delete($project, $this->userId);
 
-        self::assertSame([], $projects->listForTenant($this->otherTenantId, $this->productId, 25, 0, true));
+        self::assertSame([], $projects->listForTenant($this->otherTenantId, $this->productId, Reach::everything(), 25, 0, true));
     }
 
     public function testAProjectIsInvisibleFromAnotherTenant(): void
@@ -282,8 +283,8 @@ final class ProjectPersistenceTest extends DatabaseTestCase
         $projects = $this->repository();
         $project = $projects->create($this->draft('{"walls":[]}'));
 
-        self::assertNotNull($projects->find($this->tenantId, $this->productId, $project->id));
-        self::assertNull($projects->find($this->otherTenantId, $this->productId, $project->id));
+        self::assertNotNull($projects->find($this->tenantId, $this->productId, $project->id, Reach::everything()));
+        self::assertNull($projects->find($this->otherTenantId, $this->productId, $project->id, Reach::everything()));
     }
 
     /**
@@ -293,7 +294,7 @@ final class ProjectPersistenceTest extends DatabaseTestCase
      */
     public function testAMalformedIdIsNotFoundRatherThanADatabaseError(): void
     {
-        self::assertNull($this->repository()->find($this->tenantId, $this->productId, 'not-a-uuid'));
+        self::assertNull($this->repository()->find($this->tenantId, $this->productId, 'not-a-uuid', Reach::everything()));
     }
 
     public function testDuplicatingCopiesTheStoredDocumentAndNoHistory(): void
@@ -321,16 +322,16 @@ final class ProjectPersistenceTest extends DatabaseTestCase
         // "updated_at DESC" listing is for.
         $projects->update($first, ProjectChanges::of('First again', false, null, null, null));
 
-        $listed = $projects->listForTenant($this->tenantId, $this->productId, 10, 0);
+        $listed = $projects->listForTenant($this->tenantId, $this->productId, Reach::everything(), 10, 0);
 
         self::assertSame(
             [$first->id, $second->id],
             array_map(static fn (Project $p): string => $p->id, $listed),
         );
 
-        self::assertSame(2, $projects->countForTenant($this->tenantId, $this->productId));
-        self::assertCount(1, $projects->listForTenant($this->tenantId, $this->productId, 1, 0));
-        self::assertSame(0, $projects->countForTenant($this->otherTenantId, $this->productId));
+        self::assertSame(2, $projects->countForTenant($this->tenantId, $this->productId, Reach::everything()));
+        self::assertCount(1, $projects->listForTenant($this->tenantId, $this->productId, Reach::everything(), 1, 0));
+        self::assertSame(0, $projects->countForTenant($this->otherTenantId, $this->productId, Reach::everything()));
     }
 
     /**
@@ -352,6 +353,97 @@ final class ProjectPersistenceTest extends DatabaseTestCase
 
     // --- Helpers ------------------------------------------------------------
 
+    // --- Whose project it is, in SQL (2026-09-30) ---------------------------
+
+    public function testTheListAndItsTotalBothStopAtTheHolder(): void
+    {
+        $projects = $this->repository();
+        $other = $this->seedUser('sub-mallory');
+
+        $mine = $projects->create($this->draft('{"walls":[]}', 'Mine'));
+        $projects->create($this->heldBy($other, 'Theirs'));
+
+        $reach = Reach::heldBy([$this->userId]);
+
+        self::assertSame(
+            [$mine->id],
+            array_map(static fn (Project $p): string => $p->id, $projects->listForTenant($this->tenantId, $this->productId, $reach, 25, 0)),
+        );
+
+        // Both, because they compose the same clause: a total of two above a
+        // page of one would tell somebody there is work they cannot reach.
+        self::assertSame(1, $projects->countForTenant($this->tenantId, $this->productId, $reach));
+    }
+
+    public function testAProjectIsNotFoundByIdOutsideItsHolder(): void
+    {
+        $projects = $this->repository();
+        $other = $this->seedUser('sub-mallory');
+
+        $theirs = $projects->create($this->heldBy($other, 'Theirs'));
+
+        // Filtered in the query rather than fetched and checked: "no such
+        // project" and "not yours" must be one answer, or an id becomes a way
+        // to learn that a colleague has one.
+        self::assertNull($projects->find($this->tenantId, $this->productId, $theirs->id, Reach::heldBy([$this->userId])));
+        self::assertNotNull($projects->find($this->tenantId, $this->productId, $theirs->id, Reach::heldBy([$other])));
+        self::assertNotNull($projects->find($this->tenantId, $this->productId, $theirs->id, Reach::everything()));
+    }
+
+    public function testAReachOfNobodyIsNotAReachOfEverybody(): void
+    {
+        $projects = $this->repository();
+        $projects->create($this->draft('{"walls":[]}'));
+
+        // The mistake this shape exists to prevent: an empty list of holders
+        // read as "no filter". `IN ()` is a syntax error in PostgreSQL, so it
+        // would not even fail quietly — it would fail loudly, on the read
+        // path of every caller covered by nothing.
+        self::assertSame([], $projects->listForTenant($this->tenantId, $this->productId, Reach::nothing(), 25, 0));
+        self::assertSame(0, $projects->countForTenant($this->tenantId, $this->productId, Reach::nothing()));
+    }
+
+    public function testAProjectWithNoHolderIsReachedByNobodyNamed(): void
+    {
+        $projects = $this->repository();
+
+        // What erasure leaves behind (§30 nulls the column). Reachable by an
+        // administrator and by nobody else — the safe direction: an
+        // unreachable project is a support question, an over-shared one is a
+        // leak.
+        $orphan = $projects->create(new ProjectDraft(
+            $this->tenantId,
+            $this->productId,
+            'Nobody holds this',
+            null,
+            1,
+            self::decode('{}'),
+            $this->userId,
+            null,
+        ));
+
+        self::assertNull($projects->find($this->tenantId, $this->productId, $orphan->id, Reach::heldBy([$this->userId])));
+        self::assertNotNull($projects->find($this->tenantId, $this->productId, $orphan->id, Reach::everything()));
+    }
+
+    /**
+     * A draft held by somebody other than the person creating it, which is
+     * what a colleague working on a seat produces.
+     */
+    private function heldBy(string $holderUserId, string $name): ProjectDraft
+    {
+        return new ProjectDraft(
+            $this->tenantId,
+            $this->productId,
+            $name,
+            null,
+            1,
+            self::decode('{"walls":[]}'),
+            $this->userId,
+            $holderUserId,
+        );
+    }
+
     private function repository(): PostgresProjectRepository
     {
         return new PostgresProjectRepository($this->connection);
@@ -366,6 +458,7 @@ final class ProjectPersistenceTest extends DatabaseTestCase
             'Back garden',
             1,
             self::decode($documentJson),
+            $this->userId,
             $this->userId,
         );
     }

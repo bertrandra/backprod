@@ -13,6 +13,8 @@ use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRegistry;
 use App\Product\Infrastructure\InMemoryProductRepository;
 use App\Project\Domain\DocumentPolicy;
+use App\Project\Domain\Project;
+use App\Project\Domain\ProjectDraft;
 use App\Project\Domain\ProjectRepository;
 use App\Project\Infrastructure\InMemoryProjectRepository;
 use App\Project\Service\ProjectWorkspace;
@@ -41,6 +43,7 @@ final class ProjectEndpointsTest extends ApiTestCase
     private const ALICE = 'user-alice';
     private const BOB = 'user-bob';
     private const CAROL = 'user-carol';
+    private const DAVE = 'user-dave';
 
     private const ATLAS = 'prod-atlas';
 
@@ -60,12 +63,14 @@ final class ProjectEndpointsTest extends ApiTestCase
                 new PlatformUser(self::ALICE, self::ALICE, 'alice@example.test'),
                 new PlatformUser(self::BOB, self::BOB, 'bob@example.test'),
                 new PlatformUser(self::CAROL, self::CAROL, 'carol@example.test'),
+                new PlatformUser(self::DAVE, self::DAVE, 'dave@example.test'),
             ]),
 
             AuthProvider::class => new FakeAuthProvider([
                 'alice-token' => self::ALICE,
                 'bob-token' => self::BOB,
                 'carol-token' => self::CAROL,
+                'dave-token' => self::DAVE,
             ]),
 
             ProductRepository::class => new InMemoryProductRepository([$atlas]),
@@ -82,7 +87,11 @@ final class ProjectEndpointsTest extends ApiTestCase
                     self::ALICE,
                     self::ATLAS,
                     ['TENANT_ADMIN'],
-                    ['projects.read', 'projects.write'],
+                    // `tenant.manage` because TENANT_ADMIN carries it on the
+                    // platform, and since 2026-09-30 it is what decides that
+                    // an administrator reaches every project the
+                    // organisation holds.
+                    ['projects.read', 'projects.write', 'tenant.manage'],
                 ),
                 new TenantMembership(
                     self::GLOBEX,
@@ -93,6 +102,11 @@ final class ProjectEndpointsTest extends ApiTestCase
                 ),
                 // Carol may look, not touch.
                 new TenantMembership(self::ACME, self::CAROL, self::ATLAS, ['USER'], ['projects.read']),
+                // Dave works in the same organisation and holds no office in
+                // it: the colleague the isolation cases are about. Alice is
+                // TENANT_ADMIN and reaches everything by design, so she
+                // cannot stand in for one.
+                new TenantMembership(self::ACME, self::DAVE, self::ATLAS, ['USER'], ['projects.read', 'projects.write']),
             ]),
 
             ProjectRepository::class => new InMemoryProjectRepository(),
@@ -358,7 +372,13 @@ final class ProjectEndpointsTest extends ApiTestCase
 
     public function testReadingIsNotWriting(): void
     {
-        $project = $this->createdProject();
+        // Carol's own, since 2026-09-30: a project belongs to whoever's
+        // subscription paid for it, so Alice's is not Carol's to read and
+        // this case is about a role, not about ownership. Seeded through the
+        // repository rather than created over HTTP, because Carol cannot
+        // write — which is the very thing being asserted below, and a
+        // fixture that needed the permission under test would prove nothing.
+        $project = $this->projectHeldBy(self::CAROL)->id;
 
         $read = $this->request('GET', '/api/v1/projects/' . $project, $this->headersFor('carol-token'));
         self::assertSame(200, $read->getStatusCode());
@@ -743,14 +763,127 @@ final class ProjectEndpointsTest extends ApiTestCase
      * A created project, with a document and description the update tests
      * assert against.
      */
-    private function createdProject(): string
+    // --- Whose project it is (2026-09-30) ------------------------------------
+
+    public function testAColleaguesProjectIsNotInYourList(): void
+    {
+        $this->projectHeldBy(self::DAVE);
+        $mine = $this->projectHeldBy(self::CAROL);
+
+        $listed = $this->decode($this->request('GET', '/api/v1/projects', $this->headersFor('carol-token')));
+
+        // Hers, and only hers. Before this, `projects` was queried on
+        // `(tenant_id, product_id)` alone and Carol read the whole
+        // organisation's work.
+        $projects = $listed['projects'] ?? null;
+        self::assertIsArray($projects);
+        self::assertSame([$mine->id], array_column($projects, 'id'));
+
+        // And the total agrees with the page, which is why both compose the
+        // same clause: a count of two above a list of one would tell Carol
+        // there is work she cannot reach.
+        self::assertSame(1, $listed['total'] ?? null);
+    }
+
+    public function testAColleaguesProjectIsNotFoundRatherThanRefused(): void
+    {
+        $theirs = $this->projectHeldBy(self::DAVE);
+
+        $response = $this->request(
+            'GET',
+            '/api/v1/projects/' . $theirs->id,
+            $this->headersFor('carol-token'),
+        );
+
+        // 404 and not 403: the two must be indistinguishable, or an id
+        // becomes a way to learn that a colleague has a project by that name.
+        self::assertSame(404, $response->getStatusCode());
+        self::assertSame('PROJECT_NOT_FOUND', $this->errorOf($response)['code'] ?? null);
+    }
+
+    public function testAColleaguesProjectCannotBeWrittenToEither(): void
+    {
+        $theirs = $this->projectHeldBy(self::CAROL);
+        $headers = $this->headersFor('dave-token');
+
+        // Dave holds `projects.write`, so a refusal here is about whose work
+        // it is and nothing else. Every write path, because each one resolves
+        // the project separately and one that forgot would be the hole.
+        self::assertSame(404, $this->request('PATCH', '/api/v1/projects/' . $theirs->id, $headers, $this->json(['name' => 'Mine now']))->getStatusCode());
+        self::assertSame(404, $this->request('DELETE', '/api/v1/projects/' . $theirs->id, $headers)->getStatusCode());
+        self::assertSame(404, $this->request('POST', '/api/v1/projects/' . $theirs->id . '/duplicate', $headers, $this->json(['name' => 'Copy']))->getStatusCode());
+        self::assertSame(404, $this->request('POST', '/api/v1/projects/' . $theirs->id . '/versions', $headers, $this->json(['label' => 'Snap']))->getStatusCode());
+        self::assertSame(404, $this->request('GET', '/api/v1/projects/' . $theirs->id . '/versions', $headers)->getStatusCode());
+        self::assertSame(404, $this->request('POST', '/api/v1/projects/' . $theirs->id . '/exports', $headers, $this->json([]))->getStatusCode());
+    }
+
+    public function testTheAdministratorReachesEveryProjectTheOrganisationHolds(): void
+    {
+        $hers = $this->projectHeldBy(self::CAROL);
+        $his = $this->projectHeldBy(self::DAVE);
+
+        // Alice is TENANT_ADMIN. Decided with the operator on 2026-09-30: an
+        // administrator who cannot see the work cannot take it back when
+        // somebody leaves, and they already read every subscription on the
+        // organisation screen.
+        $listed = $this->decode($this->request('GET', '/api/v1/projects', $this->headersFor('alice-token')));
+
+        $projects = $listed['projects'] ?? null;
+        self::assertIsArray($projects);
+        $ids = array_column($projects, 'id');
+        self::assertContains($hers->id, $ids);
+        self::assertContains($his->id, $ids);
+
+        self::assertSame(200, $this->request('GET', '/api/v1/projects/' . $his->id, $this->headersFor('alice-token'))->getStatusCode());
+    }
+
+    public function testAProjectSaysWhoHoldsIt(): void
+    {
+        $hers = $this->projectHeldBy(self::CAROL);
+
+        $shown = $this->decode($this->request(
+            'GET',
+            '/api/v1/projects/' . $hers->id,
+            $this->headersFor('alice-token'),
+        ));
+
+        // The administrator sees everybody's work in one list, so the list
+        // has to say whose each one is or it is a jumble.
+        self::assertSame(self::CAROL, $shown['holder_user_id'] ?? null);
+    }
+
+    /**
+     * A project belonging to somebody, without going through the API.
+     *
+     * The holder is what decides who reaches a project (2026-09-30), and a
+     * test about permissions needs one it can attribute without first
+     * exercising the permission it is testing.
+     */
+    private function projectHeldBy(string $userId): Project
+    {
+        $repository = $this->container()->get(ProjectRepository::class);
+        self::assertInstanceOf(ProjectRepository::class, $repository);
+
+        return $repository->create(new ProjectDraft(
+            self::ACME,
+            self::ATLAS,
+            'Hers',
+            null,
+            1,
+            (object) [],
+            $userId,
+            $userId,
+        ));
+    }
+
+    private function createdProject(string $token = 'alice-token'): string
     {
         $created = $this->decode($this->create([
             'name' => 'Garden',
             'description' => 'Back garden',
             'schema_version' => 1,
             'document' => ['walls' => ['north']],
-        ]));
+        ], $token));
 
         $id = $created['id'] ?? null;
         self::assertIsString($id);

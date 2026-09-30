@@ -9,6 +9,7 @@ use App\Project\Domain\ProjectChanges;
 use App\Project\Domain\ProjectDraft;
 use App\Project\Domain\ProjectRepository;
 use App\Project\Domain\ProjectVersion;
+use App\Project\Domain\Reach;
 use DateTimeImmutable;
 use RuntimeException;
 
@@ -33,6 +34,7 @@ final class InMemoryProjectRepository implements ProjectRepository
     public function listForTenant(
         string $tenantId,
         string $productId,
+        Reach $reach,
         int $limit,
         int $offset,
         bool $deleted = false,
@@ -41,7 +43,8 @@ final class InMemoryProjectRepository implements ProjectRepository
             $this->projects,
             static fn (Project $p): bool => $p->tenantId === $tenantId
                 && $p->productId === $productId
-                && $p->isDeleted() === $deleted,
+                && $p->isDeleted() === $deleted
+                && $reach->includes($p->holderUserId),
         ));
 
         // Most recently touched first, id as the tie-break — the same order
@@ -53,17 +56,18 @@ final class InMemoryProjectRepository implements ProjectRepository
         return array_values(array_slice($matching, $offset, $limit));
     }
 
-    public function countForTenant(string $tenantId, string $productId, bool $deleted = false): int
+    public function countForTenant(string $tenantId, string $productId, Reach $reach, bool $deleted = false): int
     {
         return count(array_filter(
             $this->projects,
             static fn (Project $p): bool => $p->tenantId === $tenantId
                 && $p->productId === $productId
-                && $p->isDeleted() === $deleted,
+                && $p->isDeleted() === $deleted
+                && $reach->includes($p->holderUserId),
         ));
     }
 
-    public function find(string $tenantId, string $productId, string $projectId): ?Project
+    public function find(string $tenantId, string $productId, string $projectId, Reach $reach): ?Project
     {
         $project = $this->projects[$projectId] ?? null;
 
@@ -71,7 +75,7 @@ final class InMemoryProjectRepository implements ProjectRepository
             return null;
         }
 
-        return $project;
+        return $reach->includes($project->holderUserId) ? $project : null;
     }
 
     public function create(ProjectDraft $draft): Project
@@ -87,6 +91,7 @@ final class InMemoryProjectRepository implements ProjectRepository
             $draft->schemaVersion,
             self::copy($draft->document),
             $draft->createdBy,
+            $draft->holderUserId,
             $now,
             $now,
         );
@@ -107,6 +112,7 @@ final class InMemoryProjectRepository implements ProjectRepository
             $changes->schemaVersion ?? $project->schemaVersion,
             $changes->document === null ? $project->document : self::copy($changes->document),
             $project->createdBy,
+            $project->holderUserId,
             $project->createdAt,
             new DateTimeImmutable(),
         );
@@ -145,6 +151,7 @@ final class InMemoryProjectRepository implements ProjectRepository
             $project->schemaVersion,
             $project->document,
             $project->createdBy,
+            $project->holderUserId,
             $project->createdAt,
             $project->updatedAt,
             $deletedAt,
@@ -197,6 +204,7 @@ final class InMemoryProjectRepository implements ProjectRepository
             $version->schemaVersion,
             self::copy($version->document),
             $current->createdBy,
+            $current->holderUserId,
             $current->createdAt,
             new DateTimeImmutable(),
         );
@@ -220,6 +228,7 @@ final class InMemoryProjectRepository implements ProjectRepository
             $source->schemaVersion,
             self::copy($source->document),
             $createdBy,
+            $source->holderUserId,
             $now,
             $now,
         );

@@ -43,6 +43,8 @@ final class RequestExportController implements RouteHandler
         $project = $this->projects->get(
             $context->tenantId,
             $context->productId,
+            $context->userId,
+            ProjectRoute::seesEverything($context),
             ProjectRoute::projectId($request),
         );
 

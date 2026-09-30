@@ -22,6 +22,8 @@ final class ProjectDraft
         public readonly int $schemaVersion,
         public readonly object $document,
         public readonly ?string $createdBy,
+        /** Whose subscription pays for it — the holder covering `$createdBy`. */
+        public readonly ?string $holderUserId,
     ) {
     }
 }

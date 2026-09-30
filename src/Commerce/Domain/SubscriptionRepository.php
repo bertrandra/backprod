@@ -107,6 +107,23 @@ interface SubscriptionRepository
     public function liveFor(string $tenantId, string $productId, string $userId): array;
 
     /**
+     * Whose subscriptions cover this person, right now (2026-09-30).
+     *
+     * The holders of every live subscription on the product that covers
+     * them: themselves when they hold one, plus the owner of every
+     * subscription they have been added to. It is what decides which
+     * projects they reach ({@see \App\Project\Domain\Reach}).
+     *
+     * **ACTIVE and not PAST_DUE.** Arrears suspend the workshop (ADR-060),
+     * so a seat in arrears reaches nothing — and its holder is refused at
+     * the gate before this is asked. Including it here would let somebody
+     * covered by a live seat browse the work of a suspended one.
+     *
+     * @return list<string> user ids, the caller's own first when they hold one
+     */
+    public function holdersCovering(string $tenantId, string $productId, string $userId): array;
+
+    /**
      * The people a subscription covers beside its owner (2026-09-19).
      *
      * @return list<SubscriptionMember>

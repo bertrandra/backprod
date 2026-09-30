@@ -9,6 +9,7 @@ use App\Project\Domain\ProjectChanges;
 use App\Project\Domain\ProjectDraft;
 use App\Project\Domain\ProjectRepository;
 use App\Project\Domain\ProjectVersion;
+use App\Project\Domain\Reach;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
 use Doctrine\DBAL\Connection;
@@ -34,7 +35,7 @@ final class PostgresProjectRepository implements ProjectRepository
 {
     private const PROJECT_COLUMNS = <<<'SQL'
         id, tenant_id, product_id, name, description, schema_version,
-        document::text AS document, created_by, created_at, updated_at, deleted_at
+        document::text AS document, created_by, holder_user_id, created_at, updated_at, deleted_at
         SQL;
 
     private const VERSION_COLUMNS = <<<'SQL'
@@ -46,63 +47,89 @@ final class PostgresProjectRepository implements ProjectRepository
     {
     }
 
-    public function listForTenant(string $tenantId, string $productId, int $limit, int $offset, bool $deleted = false): array
+    public function listForTenant(string $tenantId, string $productId, Reach $reach, int $limit, int $offset, bool $deleted = false): array
     {
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT ' . self::PROJECT_COLUMNS . <<<'SQL'
-                 FROM projects
-                WHERE tenant_id = :tenantId AND product_id = :productId
-                  AND (deleted_at IS NULL) = NOT :deleted
-                ORDER BY updated_at DESC, id
-                LIMIT :limit OFFSET :offset
-                SQL,
-            [
+            'SELECT ' . self::PROJECT_COLUMNS . sprintf(
+                <<<'SQL'
+                     FROM projects p
+                    WHERE p.tenant_id = :tenantId AND p.product_id = :productId
+                      AND (p.deleted_at IS NULL) = NOT :deleted
+                      AND %s
+                    ORDER BY p.updated_at DESC, p.id
+                    LIMIT :limit OFFSET :offset
+                    SQL,
+                ReachSql::clause($reach, 'p'),
+            ),
+            array_merge([
                 'tenantId' => $tenantId,
                 'productId' => $productId,
                 'limit' => $limit,
                 'offset' => $offset,
                 'deleted' => $deleted,
-            ],
+            ], ReachSql::parameters($reach)),
             // Bound as integers rather than left to inference: LIMIT and
             // OFFSET are the two places PostgreSQL will not take a text
             // parameter.
-            [
+            array_merge([
                 'limit' => ParameterType::INTEGER,
                 'offset' => ParameterType::INTEGER,
                 'deleted' => ParameterType::BOOLEAN,
-            ],
+            ], ReachSql::types($reach)),
         );
 
         return array_map($this->toProject(...), $rows);
     }
 
-    public function countForTenant(string $tenantId, string $productId, bool $deleted = false): int
+    public function countForTenant(string $tenantId, string $productId, Reach $reach, bool $deleted = false): int
     {
+        // The same clause the page composes, for the reason
+        // DocumentWindowSql exists: a total that counted what the page could
+        // not show would tell somebody there are projects they cannot reach.
         $count = $this->connection->fetchOne(
-            <<<'SQL'
-            SELECT count(*) FROM projects
-             WHERE tenant_id = :tenantId AND product_id = :productId
-               AND (deleted_at IS NULL) = NOT :deleted
-            SQL,
-            ['tenantId' => $tenantId, 'productId' => $productId, 'deleted' => $deleted],
-            ['deleted' => ParameterType::BOOLEAN],
+            sprintf(
+                <<<'SQL'
+                SELECT count(*) FROM projects p
+                 WHERE p.tenant_id = :tenantId AND p.product_id = :productId
+                   AND (p.deleted_at IS NULL) = NOT :deleted
+                   AND %s
+                SQL,
+                ReachSql::clause($reach, 'p'),
+            ),
+            array_merge(
+                ['tenantId' => $tenantId, 'productId' => $productId, 'deleted' => $deleted],
+                ReachSql::parameters($reach),
+            ),
+            array_merge(['deleted' => ParameterType::BOOLEAN], ReachSql::types($reach)),
         );
 
         return is_numeric($count) ? (int) $count : 0;
     }
 
-    public function find(string $tenantId, string $productId, string $projectId): ?Project
+    public function find(string $tenantId, string $productId, string $projectId, Reach $reach): ?Project
     {
         if (!Uuid::isValid($projectId)) {
             return null;
         }
 
+        // Filtered in the query rather than fetched and checked: an id that
+        // came back and was then rejected is an id that existed, and the
+        // difference between "no such project" and "not yours" is exactly
+        // what must not be observable.
         $row = $this->connection->fetchAssociative(
-            'SELECT ' . self::PROJECT_COLUMNS . <<<'SQL'
-                 FROM projects
-                WHERE id = :id AND tenant_id = :tenantId AND product_id = :productId
-                SQL,
-            ['id' => $projectId, 'tenantId' => $tenantId, 'productId' => $productId],
+            'SELECT ' . self::PROJECT_COLUMNS . sprintf(
+                <<<'SQL'
+                     FROM projects p
+                    WHERE p.id = :id AND p.tenant_id = :tenantId AND p.product_id = :productId
+                      AND %s
+                    SQL,
+                ReachSql::clause($reach, 'p'),
+            ),
+            array_merge(
+                ['id' => $projectId, 'tenantId' => $tenantId, 'productId' => $productId],
+                ReachSql::parameters($reach),
+            ),
+            ReachSql::types($reach),
         );
 
         return $row === false ? null : $this->toProject($row);
@@ -113,9 +140,9 @@ final class PostgresProjectRepository implements ProjectRepository
         $row = $this->connection->fetchAssociative(
             <<<'SQL'
                 INSERT INTO projects
-                    (tenant_id, product_id, name, description, schema_version, document, created_by)
+                    (tenant_id, product_id, name, description, schema_version, document, created_by, holder_user_id)
                 VALUES
-                    (:tenantId, :productId, :name, :description, :schemaVersion, CAST(:document AS jsonb), :createdBy)
+                    (:tenantId, :productId, :name, :description, :schemaVersion, CAST(:document AS jsonb), :createdBy, :holderUserId)
                 RETURNING
                 SQL . ' ' . self::PROJECT_COLUMNS,
             [
@@ -125,6 +152,7 @@ final class PostgresProjectRepository implements ProjectRepository
                 'description' => $draft->description,
                 'schemaVersion' => $draft->schemaVersion,
                 'document' => self::encode($draft->document),
+                'holderUserId' => $draft->holderUserId,
                 'createdBy' => $draft->createdBy,
             ],
         );
@@ -306,8 +334,13 @@ final class PostgresProjectRepository implements ProjectRepository
         $row = $this->connection->fetchAssociative(
             <<<'SQL'
                 INSERT INTO projects
-                    (tenant_id, product_id, name, description, schema_version, document, created_by)
-                SELECT p.tenant_id, p.product_id, :name, p.description, p.schema_version, p.document, :createdBy
+                    (tenant_id, product_id, name, description, schema_version, document, created_by, holder_user_id)
+                -- The copy stays with the original's holder, not with whoever
+                -- pressed the button: a colleague on somebody's seat
+                -- duplicating their work must not move it onto a seat of
+                -- their own, and a copy nobody could reach afterwards would
+                -- be the other way of getting it wrong.
+                SELECT p.tenant_id, p.product_id, :name, p.description, p.schema_version, p.document, :createdBy, p.holder_user_id
                   FROM projects p
                  WHERE p.id = :projectId
                 RETURNING
@@ -398,6 +431,7 @@ final class PostgresProjectRepository implements ProjectRepository
             Row::integer($row, 'schema_version'),
             self::document($row),
             Row::nullableString($row, 'created_by'),
+            Row::nullableString($row, 'holder_user_id'),
             Row::timestamp($row, 'created_at'),
             Row::timestamp($row, 'updated_at'),
             Row::nullableTimestamp($row, 'deleted_at'),

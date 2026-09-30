@@ -6,6 +6,7 @@ namespace App\Project\Infrastructure;
 
 use App\Entitlement\Domain\UsageSource;
 use App\Project\Domain\ProjectRepository;
+use App\Project\Domain\Reach;
 
 /**
  * How many projects a tenant currently has.
@@ -27,6 +28,10 @@ final class ProjectUsageSource implements UsageSource
 
     public function usage(string $tenantId, string $productId): int
     {
-        return $this->projects->countForTenant($tenantId, $productId);
+        // Everything, deliberately: usage is measured tenant-wide because that
+        // is what the feature counts (CLAUDE.md §13). A quota narrowed to the
+        // caller's own projects would let an organisation hold as many
+        // projects as it has people on the same `max_projects` of one.
+        return $this->projects->countForTenant($tenantId, $productId, Reach::everything());
     }
 }

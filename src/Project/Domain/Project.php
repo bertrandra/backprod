@@ -29,6 +29,17 @@ final class Project
         public readonly int $schemaVersion,
         public readonly object $document,
         public readonly ?string $createdBy,
+        /**
+         * Whose subscription paid for it (2026-09-30).
+         *
+         * Not the same person as `createdBy`, and the difference is the
+         * point: a colleague added to somebody's seat makes projects that
+         * belong to the seat, so the work stays with whoever is paying when
+         * the colleague is removed. Null where the holder's account was
+         * erased (§30), which leaves the project reachable by the
+         * organisation's administrator alone.
+         */
+        public readonly ?string $holderUserId,
         public readonly DateTimeImmutable $createdAt,
         public readonly DateTimeImmutable $updatedAt,
         /**

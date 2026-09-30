@@ -390,6 +390,39 @@ own — `SUBSCRIPTION_REQUIRED`, answered by a colleague giving them a place,
 never `ENTITLEMENT_REQUIRED`, which would tell them to buy what their
 organisation is already paying for.
 
+**And the work belongs to whoever is paying for it** (ADR-064, 2026-09-30).
+Coverage says whether somebody may reach the workshop; it does not say whose
+work is inside it. `projects` was keyed on `(tenant, product)` and nothing
+else, so everybody covered saw everybody's — a colleague's terrace, a
+colleague's client's parcel — and could edit and delete them by id.
+`created_by` had been recorded from the first migration and no filter had ever
+read it.
+
+A project names a **holder**: the person whose subscription covered its
+creator. A person and not a subscription, because a subscription is a row with
+an end — cancelled and retaken is a new row, a change of offer a new version —
+and a project pointing at one would go invisible to its own owner the day the
+paperwork moved.
+
+It is reached by the holder, by whoever is on the holder's subscription
+**today**, and by the organisation's administrator. Delegation is a live fact:
+somebody removed from a seat stops seeing the work done on it, and the work
+stays with whoever is paying. The administrator reaches everything because they
+already read every subscription on the organisation screen, and one who cannot
+see the work cannot take it back when somebody leaves.
+
+`Reach` is a **required argument** of every project read, so a query that
+forgets it does not compile — a `WHERE` clause added by convention is the shape
+the leak had. Empty is not everything: "nobody" and "everybody" are different
+objects, because an empty list read as "no filter" has exactly one outcome.
+The page and its total compose the same clause, and an unreachable project
+answers **not found**, never refused. The assets follow the project, or the
+boundary has a door in it.
+
+Usage stays measured tenant-wide — that is what the feature counts — and a
+duplicate stays with the original's holder, never with whoever pressed the
+button.
+
 Coverage is **not** derived from capabilities, and both shortcuts are wrong
 in a way worth remembering: a tenant-wide override holds every capability
 and covers nobody, and a read-only seat covers somebody while holding no

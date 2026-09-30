@@ -7,6 +7,7 @@ namespace App\Project\Service;
 use App\Job\Domain\Job;
 use App\Job\Domain\JobHandler;
 use App\Project\Domain\ProjectRepository;
+use App\Project\Domain\Reach;
 use App\Shared\Exceptions\NotFoundException;
 use App\Storage\Service\Assets;
 use DateTimeImmutable;
@@ -52,7 +53,12 @@ final class ExportProject implements JobHandler
             throw new RuntimeException('This export job does not name a project.');
         }
 
-        $project = $this->projects->find($job->tenantId, $job->productId, $projectId);
+        // Everything: the reach was decided when the export was asked for
+        // (`RequestExportController` fetched the project first, and the job
+        // exists only because that succeeded). Resolving it again here would
+        // ask it of nobody — a job has a tenant and a product and no caller —
+        // and would fail every export the moment the requester's seat ended.
+        $project = $this->projects->find($job->tenantId, $job->productId, $projectId, Reach::everything());
 
         if ($project === null) {
             // Deleted between the request and the run. Not an error worth

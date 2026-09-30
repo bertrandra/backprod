@@ -27,6 +27,8 @@ final class ShowProjectVersionController implements RouteHandler
         $version = $this->projects->version(
             $context->tenantId,
             $context->productId,
+            $context->userId,
+            ProjectRoute::seesEverything($context),
             ProjectRoute::projectId($request),
             ProjectRoute::versionId($request),
         );

@@ -32,6 +32,8 @@ final class DuplicateProjectController implements RouteHandler
         $copy = $this->projects->duplicate(
             $context->tenantId,
             $context->productId,
+            $context->userId,
+            ProjectRoute::seesEverything($context),
             ProjectRoute::projectId($request),
             $body->has('name') ? $body->requiredString('name', ProjectWorkspace::NAME_MAX_LENGTH) : null,
             $context->userId,

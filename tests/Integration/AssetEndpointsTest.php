@@ -58,8 +58,13 @@ final class AssetEndpointsTest extends DatabaseApiTestCase
         );
         $this->project = $this->id(
             <<<'SQL'
-                INSERT INTO projects (tenant_id, product_id, name, schema_version, document, created_by)
-                VALUES (:tenant, :product, 'Roof survey', 1, CAST('{"walls": 4}' AS jsonb), :user)
+                -- `holder_user_id` since 2026-09-30: a project belongs to
+                -- the person whose subscription paid for it, and one with no
+                -- holder is reachable by administrators alone. Mia's own,
+                -- which is what makes these cases about assets rather than
+                -- about whose project it is.
+                INSERT INTO projects (tenant_id, product_id, name, schema_version, document, created_by, holder_user_id)
+                VALUES (:tenant, :product, 'Roof survey', 1, CAST('{"walls": 4}' AS jsonb), :user, :user)
                 RETURNING id
                 SQL,
             ['tenant' => $this->tenant, 'product' => $this->product, 'user' => $this->user],

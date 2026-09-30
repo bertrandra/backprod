@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Project\Service;
 
+use App\Commerce\Domain\SubscriptionRepository;
 use App\Entitlement\Domain\QuotaPolicy;
 use App\Project\Domain\DocumentPolicy;
 use App\Project\Domain\Project;
@@ -11,6 +12,7 @@ use App\Project\Domain\ProjectChanges;
 use App\Project\Domain\ProjectDraft;
 use App\Project\Domain\ProjectRepository;
 use App\Project\Domain\ProjectVersion;
+use App\Project\Domain\Reach;
 use App\Shared\Exceptions\BadRequestException;
 use App\Shared\Exceptions\NotFoundException;
 
@@ -45,7 +47,59 @@ final class ProjectWorkspace
         private readonly SchemaVersionPolicy $schemaVersions,
         private readonly DocumentPolicy $documents,
         private readonly QuotaPolicy $quotas,
+        private readonly SubscriptionRepository $subscriptions,
     ) {
+    }
+
+    /**
+     * What this caller may reach (2026-09-30).
+     *
+     * Built here rather than passed in, so there is one answer to "whose
+     * work is this" and no call site can compose a different one. An
+     * administrator reaches everything their organisation holds; everybody
+     * else reaches the projects of the subscriptions covering them, and a
+     * caller covered by none reaches nothing.
+     */
+    /**
+     * Whose subscription pays for what this person makes.
+     *
+     * Their own holding first when they have one, which is what
+     * `holdersCovering` orders by: somebody who holds a seat *and* sits on
+     * a colleague's makes their own work, not the colleague's. Null when
+     * nothing covers them — which cannot happen through the HTTP surface,
+     * where `requireSubscription()` has already refused, and can happen to a
+     * seeded or system-made project, whose holder is then nobody.
+     */
+    private function holderOf(string $tenantId, string $productId, ?string $callerId): ?string
+    {
+        if ($callerId === null) {
+            return null;
+        }
+
+        // Themselves when no subscription covers them. Coverage does not
+        // always come from a subscription: a platform grant carrying
+        // `covers_people` (ADR-056) reaches every member of the tenant and
+        // has no holder at all, and the work somebody does under a trial is
+        // still theirs. Found by the endpoint tests, which entitle their
+        // people exactly that way — every project came out belonging to
+        // nobody and was invisible to the person who had just made it.
+        return $this->subscriptions->holdersCovering($tenantId, $productId, $callerId)[0] ?? $callerId;
+    }
+
+    private function reachOf(string $tenantId, string $productId, string $callerId, bool $seesEverything): Reach
+    {
+        if ($seesEverything) {
+            return Reach::everything();
+        }
+
+        // The caller is always one of their own holders, for the same
+        // reason: work made under a grant rather than a subscription belongs
+        // to whoever made it, and a reach built only from subscriptions
+        // would hide it from them. It leaks nothing — it names them.
+        return Reach::heldBy(array_merge(
+            [$callerId],
+            $this->subscriptions->holdersCovering($tenantId, $productId, $callerId),
+        ));
     }
 
     /**
@@ -64,13 +118,17 @@ final class ProjectWorkspace
     public function list(
         string $tenantId,
         string $productId,
+        string $callerId,
+        bool $seesEverything,
         int $limit,
         int $offset,
         bool $deleted = false,
     ): array {
+        $reach = $this->reachOf($tenantId, $productId, $callerId, $seesEverything);
+
         return [
-            'projects' => $this->projects->listForTenant($tenantId, $productId, $limit, $offset, $deleted),
-            'total' => $this->projects->countForTenant($tenantId, $productId, $deleted),
+            'projects' => $this->projects->listForTenant($tenantId, $productId, $reach, $limit, $offset, $deleted),
+            'total' => $this->projects->countForTenant($tenantId, $productId, $reach, $deleted),
             'limit' => $limit,
             'offset' => $offset,
         ];
@@ -85,9 +143,14 @@ final class ProjectWorkspace
      * exporting â€” would otherwise have to remember that a project it just
      * fetched might be in the bin. One place decides.
      */
-    public function get(string $tenantId, string $productId, string $projectId): Project
+    public function get(string $tenantId, string $productId, string $callerId, bool $seesEverything, string $projectId): Project
     {
-        $project = $this->projects->find($tenantId, $productId, $projectId);
+        $project = $this->projects->find(
+            $tenantId,
+            $productId,
+            $projectId,
+            $this->reachOf($tenantId, $productId, $callerId, $seesEverything),
+        );
 
         if ($project === null || $project->isDeleted()) {
             throw self::unknownProject();
@@ -103,9 +166,14 @@ final class ProjectWorkspace
      * deleted project is something a caller has to *ask* for by name â€” there is
      * exactly one caller, and it is `undelete`.
      */
-    private function deletedProject(string $tenantId, string $productId, string $projectId): Project
+    private function deletedProject(string $tenantId, string $productId, string $callerId, bool $seesEverything, string $projectId): Project
     {
-        $project = $this->projects->find($tenantId, $productId, $projectId);
+        $project = $this->projects->find(
+            $tenantId,
+            $productId,
+            $projectId,
+            $this->reachOf($tenantId, $productId, $callerId, $seesEverything),
+        );
 
         if ($project === null || !$project->isDeleted()) {
             throw self::unknownProject();
@@ -138,12 +206,19 @@ final class ProjectWorkspace
             $schemaVersion,
             $document,
             $createdBy,
+            // Resolved here and never taken from the caller: the holder is
+            // whose subscription pays, which is a fact about coverage and
+            // not a field anybody gets to name. A colleague on somebody's
+            // seat makes work that belongs to the seat.
+            $this->holderOf($tenantId, $productId, $createdBy),
         ));
     }
 
     public function update(
         string $tenantId,
         string $productId,
+        string $callerId,
+        bool $seesEverything,
         string $projectId,
         ProjectChanges $changes,
     ): Project {
@@ -154,7 +229,7 @@ final class ProjectWorkspace
             );
         }
 
-        $project = $this->get($tenantId, $productId, $projectId);
+        $project = $this->get($tenantId, $productId, $callerId, $seesEverything, $projectId);
 
         // Only content changes are held to the schema. Renaming a project
         // whose schema was retired must stay possible â€” otherwise a product
@@ -182,9 +257,9 @@ final class ProjectWorkspace
      * projects` cascaded through `project_versions` and a project with fifty
      * snapshots left nothing behind.
      */
-    public function delete(string $tenantId, string $productId, string $projectId, ?string $actorUserId): void
+    public function delete(string $tenantId, string $productId, string $callerId, bool $seesEverything, string $projectId, ?string $actorUserId): void
     {
-        $this->projects->delete($this->get($tenantId, $productId, $projectId), $actorUserId);
+        $this->projects->delete($this->get($tenantId, $productId, $callerId, $seesEverything, $projectId), $actorUserId);
     }
 
     /**
@@ -195,31 +270,33 @@ final class ProjectWorkspace
      * versions â€” and R13 was filed partly because the two shared a word and not
      * an operation. They still share neither.
      */
-    public function undelete(string $tenantId, string $productId, string $projectId): Project
+    public function undelete(string $tenantId, string $productId, string $callerId, bool $seesEverything, string $projectId): Project
     {
-        $project = $this->deletedProject($tenantId, $productId, $projectId);
+        $project = $this->deletedProject($tenantId, $productId, $callerId, $seesEverything, $projectId);
 
         $this->projects->undelete($project);
 
-        return $this->get($tenantId, $productId, $projectId);
+        return $this->get($tenantId, $productId, $callerId, $seesEverything, $projectId);
     }
 
     /**
      * @return list<ProjectVersion>
      */
-    public function versions(string $tenantId, string $productId, string $projectId): array
+    public function versions(string $tenantId, string $productId, string $callerId, bool $seesEverything, string $projectId): array
     {
-        return $this->projects->listVersions($this->get($tenantId, $productId, $projectId));
+        return $this->projects->listVersions($this->get($tenantId, $productId, $callerId, $seesEverything, $projectId));
     }
 
     public function version(
         string $tenantId,
         string $productId,
+        string $callerId,
+        bool $seesEverything,
         string $projectId,
         string $versionId,
     ): ProjectVersion {
         $version = $this->projects->findVersion(
-            $this->get($tenantId, $productId, $projectId),
+            $this->get($tenantId, $productId, $callerId, $seesEverything, $projectId),
             $versionId,
         );
 
@@ -237,12 +314,14 @@ final class ProjectWorkspace
     public function snapshot(
         string $tenantId,
         string $productId,
+        string $callerId,
+        bool $seesEverything,
         string $projectId,
         ?string $label,
         ?string $createdBy,
     ): ProjectVersion {
         return $this->projects->snapshot(
-            $this->get($tenantId, $productId, $projectId),
+            $this->get($tenantId, $productId, $callerId, $seesEverything, $projectId),
             $label,
             $createdBy,
         );
@@ -261,12 +340,14 @@ final class ProjectWorkspace
     public function restore(
         string $tenantId,
         string $productId,
+        string $callerId,
+        bool $seesEverything,
         string $projectId,
         string $versionId,
         ?string $restoredBy,
     ): Project {
-        $project = $this->get($tenantId, $productId, $projectId);
-        $version = $this->version($tenantId, $productId, $projectId, $versionId);
+        $project = $this->get($tenantId, $productId, $callerId, $seesEverything, $projectId);
+        $version = $this->version($tenantId, $productId, $callerId, $seesEverything, $projectId, $versionId);
 
         return $this->projects->restore($project, $version, $restoredBy);
     }
@@ -274,11 +355,13 @@ final class ProjectWorkspace
     public function duplicate(
         string $tenantId,
         string $productId,
+        string $callerId,
+        bool $seesEverything,
         string $projectId,
         ?string $name,
         ?string $createdBy,
     ): Project {
-        $project = $this->get($tenantId, $productId, $projectId);
+        $project = $this->get($tenantId, $productId, $callerId, $seesEverything, $projectId);
 
         // A duplicate is a new project and counts against the same quota.
         // Exempting it would make the limit trivially avoidable.
