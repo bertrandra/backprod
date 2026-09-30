@@ -94,8 +94,12 @@ final class ListOrganisationSubscriptionsController implements RouteHandler
                     'current_period_end' => $one->currentPeriodEnd?->format(DATE_RFC3339),
                     'places_sold' => $one->placesSold,
                     'places_used' => $one->placesUsed,
+                    // Derived on read, never worked out by a screen: the
+                    // administrator's button depends on it, and two answers to
+                    // one question disagree the moment either is stale.
+                    'includes_me' => $one->includesMe,
                 ],
-                $this->held->of($context->tenantId, $context->productId, $limit, $offset, $holder, $status, $from, $to),
+                $this->held->of($context->tenantId, $context->productId, $context->userId, $limit, $offset, $holder, $status, $from, $to),
             ),
             'total' => $this->held->countOf($context->tenantId, $context->productId, $holder, $status, $from, $to),
             'limit' => $limit,

@@ -562,12 +562,14 @@
     },
     "organisation.subscriptions": {
       "authority": "tenant",
-      "$comment": "Who in the organisation holds what, with the places taken (2026-09-25). Its own area rather than a corner of tenant.subscription: a different permission (tenant.manage) and a different question — that one answers for whoever is asking, this one for everybody.",
+      "$comment": "Who in the organisation holds what, with the places taken (2026-09-25). Its own area rather than a corner of tenant.subscription: a different permission (tenant.manage) and a different question — that one answers for whoever is asking, this one for everybody. Read-only until 2026-09-30, when it gained the one thing an administrator may change about somebody else's subscription: whether they are on it themselves. Not who else is on it — that stays the owner's decision — and it spends no place, because an administrator takes none.",
       "routes": [
         "/organisation/subscriptions"
       ],
       "operations": [
-        "listOrganisationSubscriptions"
+        "listOrganisationSubscriptions",
+        "joinSubscription",
+        "leaveSubscription"
       ]
     },
     "tenant.subscription": {

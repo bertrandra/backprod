@@ -47,8 +47,19 @@ final class HeldSubscription
          * one place, which is what an offer selling no `users` feature gives.
          */
         public readonly ?int $placesSold,
-        /** The holder plus everybody they have added. */
+        /**
+         * The holder plus everybody they have added, minus whoever
+         * administers the organisation — an administrator takes no place.
+         */
         public readonly int $placesUsed,
+        /**
+         * Whether the person asking is on it (2026-09-30).
+         *
+         * For the administrator's own button, and derived on read rather
+         * than worked out by a screen from a second request: two answers to
+         * one question disagree the moment either is stale.
+         */
+        public readonly bool $includesMe,
     ) {
     }
 

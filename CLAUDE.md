@@ -444,6 +444,21 @@ figure a customer paid for, computed twice, eventually disagrees — the reason
 `Places` already exists for the other half of the question. And it holds both
 ways: removing an administrator frees nothing, because she took nothing.
 
+**And that is what lets an administrator go and look.** They may put
+themselves on any live subscription their organisation holds, and take
+themselves back off (`joinSubscription` / `leaveSubscription`,
+`tenant.manage`). **Themselves and nobody else**: there is no id in either
+request and none in the service signature, so the only person it can name is
+the caller — the same shape taking out a seat has, and for the same reason.
+Who else a subscription covers stays its owner's decision, which is what
+`owned()` says and what this does not touch.
+
+The subscription is verified against the caller's own tenant and product,
+never taken on trust: an id arrives from a client, and one belonging to
+another organisation would otherwise be joinable by anybody holding
+`tenant.manage` anywhere. `PAST_DUE` is admitted — arrears are not an exit,
+and behind on the bill is very often when somebody needs to go and look.
+
 **A platform grant covers people only when it says so** (ADR-056). Staff hand
 out a feature, never a seat — that is still the default, and it left the
 platform unable to give a *trial*: the features lit up and every workspace

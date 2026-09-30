@@ -2297,6 +2297,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organisation/subscriptions/{subscriptionId}/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * An administrator puts themselves on one of the organisation's subscriptions
+         * @description The one thing an administrator may change about somebody else's subscription: whether they are on it themselves (2026-09-30). **There is no body**, and that is the design rather than an omission — the only person this can add is the caller, so there is no id to supply and nothing to check one against, the same shape taking out a seat has. Who else a subscription covers stays its owner's decision and this does not touch it. **No quota is spent**: a `TENANT_ADMIN` takes no place, which is what makes going to look cost the customer nothing. `tenant.manage`, the same permission that shows the register. A subscription that is not this organisation's, not on this product, or over, answers 404 — one answer, or an id becomes a way to probe other tenants. `PAST_DUE` is admitted: arrears are not an exit, and behind on the bill is very often when somebody needs to go and look.
+         */
+        post: operations["joinSubscription"];
+        /**
+         * And takes themselves back off
+         * @description Idempotent, like every other removal here: taking yourself off something you are not on is nothing, not an error. The entitlement goes with the row. An administrator removes themselves and nobody else — the owner's list is untouched.
+         */
+        delete: operations["leaveSubscription"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organisation/subscriptions": {
         parameters: {
             query?: never;
@@ -4353,6 +4377,8 @@ export interface components {
             current_period_end: string | null;
             /** @description How many people the offer covers, counting the holder. Null means unlimited; 1 means the offer sells no `users` feature, which covers the holder alone. The two are different facts and are not both null here. */
             places_sold: number | null;
+            /** @description Whether the person asking is on this subscription — its holder, or one of the people on it. Derived on read, like `live` beside it: a screen working it out from a members list it fetched separately would disagree the moment either went stale. It is what decides which of the two buttons an administrator is offered, and the only thing they may change about somebody else's subscription. */
+            includes_me: boolean;
             /** @description The holder plus everybody they have added, **minus whoever administers the organisation** (2026-09-30). A `TENANT_ADMIN` takes no place, the holder included: they administer the organisation, and being added to a colleague's subscription to help with the work is not what the offer sold seats for. An organisation that appoints five administrators therefore gives itself five free places — the operator's decision, not an oversight. The same figure the quota is compared against when somebody is added, composed from the same SQL, so a screen and a refusal cannot disagree. */
             places_used: number;
         };
@@ -11546,6 +11572,95 @@ export interface operations {
             404: components["responses"]["NotFound"];
             /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    joinSubscription: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                subscriptionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The membership row, as the people list shows it. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        member: components["schemas"]["SubscriptionMember"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `NO_SUBSCRIPTION` — this organisation holds no live subscription with that id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `ALREADY_THE_OWNER` — the holder is covered already. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    leaveSubscription: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                subscriptionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Off it, or never on it. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `NO_SUBSCRIPTION` — this organisation holds no live subscription with that id. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
