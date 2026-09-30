@@ -367,8 +367,17 @@ band is removing its rows — which the editor already does. Two ways of saying
 the same thing eventually disagree.
 
 **Read tolerantly, on both sides.** A stored order missing a section gets it
-appended in its compiled place, a section named twice is read once, and one
-the code no longer knows is dropped. That is not defensiveness for its own
+back **beside the section it follows** in the compiled order, a section named
+twice is read once, and one the code no longer knows is dropped.
+
+This paragraph said « appended in its compiled place » and both
+implementations appended to the end, which nobody noticed until `DEMO` arrived
+and landed after the questions on every product that already had an order —
+below the prices, which is the one place a band called *Try it* must not be.
+The rule cannot guess an opinion nobody expressed: an operator who reordered
+their page said nothing about a band that did not exist, so the compiled
+neighbourhood is the only honest answer, and moving it afterwards is what says
+otherwise. That is not defensiveness for its own
 sake: the day a sixth band is added, every order stored before it exists is
 short, and the alternative is a band invisible on every product until somebody
 re-saves each one by hand.

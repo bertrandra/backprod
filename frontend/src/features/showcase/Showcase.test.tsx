@@ -352,9 +352,17 @@ describe('the order the page is read in', () => {
   });
 
   it('puts a band the order forgot back in its compiled place', () => {
-    // An order stored before `DEMO` and `QUESTION` existed. They are
-    // appended rather than dropped: the alternative is a band invisible on
-    // every product until somebody re-saves each one by hand.
+    // An order stored before `DEMO` and `QUESTION` existed. Each goes back
+    // beside the band it follows in the compiled order rather than at the
+    // end (2026-09-30) — appending put `DEMO` below the prices on every
+    // product that already had an order, which is the one place a band
+    // called *Try it* must not be.
+    //
+    // So `DEMO` follows `PROOF`, and `QUESTION` follows `PRICING` — which
+    // this operator moved to the front, taking the questions with it. The
+    // rule cannot guess an opinion nobody expressed: they said nothing about
+    // a band that did not exist, and the compiled neighbourhood is the only
+    // honest answer. Moving it afterwards is what says otherwise.
     const { container } = render(
       <Showcase
         productName="Plan"
@@ -368,6 +376,7 @@ describe('the order the page is read in', () => {
 
     expect(bandsOn(container)).toEqual([
       BAND_META.PRICING.anchor,
+      BAND_META.QUESTION.anchor,
       BAND_META.HEADLINE.anchor,
       BAND_META.PROBLEM.anchor,
       BAND_META.STEPS.anchor,
@@ -375,7 +384,6 @@ describe('the order the page is read in', () => {
       BAND_META.QUOTE.anchor,
       BAND_META.PROOF.anchor,
       BAND_META.DEMO.anchor,
-      BAND_META.QUESTION.anchor,
     ]);
   });
 
