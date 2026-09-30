@@ -64,11 +64,25 @@ final class ShowcaseSections
      *
      * **Tolerant on the way out, strict on the way in.** A stored order is
      * completed rather than trusted: any section the code knows about and
-     * the stored list does not is appended in its default place. That is not
-     * defensive programming for its own sake — it is what happens the day a
-     * sixth band is added, when every product in the database has an order
-     * written before that band existed. The alternative is a new band that
-     * is invisible on every product until somebody re-saves each one.
+     * the stored list does not is put back. That is not defensive
+     * programming for its own sake — it is what happens the day a ninth band
+     * is added, when every product in the database has an order written
+     * before that band existed. The alternative is a new band that is
+     * invisible on every product until somebody re-saves each one.
+     *
+     * **Back beside the section it follows**, not at the end (2026-09-30).
+     * This docblock has said "in its default place" since the first version
+     * and the code appended, which nobody noticed until `DEMO` arrived and
+     * landed after the questions on every product that already had an order
+     * — below the prices, which is the one place a band called *Try it* must
+     * not be. A missing section is now inserted after the nearest section
+     * that precedes it in {@see DEFAULT_ORDER} and is actually present, or
+     * at the front when none is.
+     *
+     * What it cannot do is guess an opinion nobody expressed: an operator
+     * who reordered their page said nothing about a band that did not exist,
+     * so the compiled neighbourhood is the only honest answer. They can move
+     * it afterwards, and then their order says so.
      *
      * A section stored twice is read once, and one the code no longer knows
      * is dropped: both are what a list that has outlived a deployment looks
@@ -92,13 +106,39 @@ final class ShowcaseSections
             }
         }
 
-        foreach (self::DEFAULT_ORDER as $section) {
-            if (!in_array($section, $order, true)) {
-                $order[] = $section;
+        foreach (self::DEFAULT_ORDER as $position => $section) {
+            if (in_array($section, $order, true)) {
+                continue;
             }
+
+            array_splice($order, self::placeFor($position, $order), 0, [$section]);
         }
 
         return $order;
+    }
+
+    /**
+     * Where a missing section goes: just after the nearest section that comes
+     * before it in {@see DEFAULT_ORDER} and is in `$order` already.
+     *
+     * Nearest first, so a page that kept `PROOF` puts `DEMO` after `PROOF`
+     * rather than after whatever else happens to be around. Nothing before it
+     * present at all means the front — a missing `HEADLINE` opens the page,
+     * which is what a headline is.
+     *
+     * @param list<string> $order
+     */
+    private static function placeFor(int $position, array $order): int
+    {
+        for ($earlier = $position - 1; $earlier >= 0; --$earlier) {
+            $at = array_search(self::DEFAULT_ORDER[$earlier], $order, true);
+
+            if ($at !== false) {
+                return $at + 1;
+            }
+        }
+
+        return 0;
     }
 
     /**

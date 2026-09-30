@@ -181,5 +181,37 @@ export function bandsInOrder(sections?: readonly string[]): readonly BandKind[] 
     }
   }
 
-  return [...order, ...compiled.filter((kind) => !order.includes(kind))];
+  // Back beside the band it follows, not at the end (2026-09-30). This used
+  // to append, so `DEMO` landed after the questions on every product that
+  // already had an order — below the prices, which is the one place a band
+  // called *Try it* must not be.
+  //
+  // The same rule as `ShowcaseSections::readIn()` in PHP, deliberately: the
+  // console completes a stale order with this and the server completes it
+  // with that, and two answers about one page would eventually differ.
+  compiled.forEach((kind, position) => {
+    if (order.includes(kind)) {
+      return;
+    }
+
+    order.splice(placeFor(position, compiled, order), 0, kind);
+  });
+
+  return order;
+}
+
+/**
+ * Just after the nearest band that precedes this one in the compiled order
+ * and is present already; the front when none is.
+ */
+function placeFor(position: number, compiled: readonly BandKind[], order: readonly BandKind[]): number {
+  for (let earlier = position - 1; earlier >= 0; earlier -= 1) {
+    const at = order.indexOf(compiled[earlier] as BandKind);
+
+    if (at !== -1) {
+      return at + 1;
+    }
+  }
+
+  return 0;
 }

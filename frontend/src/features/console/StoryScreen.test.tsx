@@ -381,8 +381,14 @@ describe('the order the page is read in', () => {
       row.getAttribute('data-section'),
     );
 
+    // Each missing band goes back beside the one it follows in the
+    // compiled order (2026-09-30): PROOF and DEMO after QUOTE, and QUESTION
+    // after PRICING — which this operator moved to the front. The console
+    // completes a stale order with the same rule the page reads it with, or
+    // the two would disagree about one page.
     expect(rows).toEqual([
       'PRICING',
+      'QUESTION',
       'HEADLINE',
       'PROBLEM',
       'STEPS',
@@ -390,7 +396,6 @@ describe('the order the page is read in', () => {
       'QUOTE',
       'PROOF',
       'DEMO',
-      'QUESTION',
     ]);
   });
 
