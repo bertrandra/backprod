@@ -66,6 +66,25 @@ final class ShowcaseBlock
     public const ICONS = ['clock', 'cross', 'house', 'coin', 'ruler', 'paper', 'warning', 'repeat'];
 
     /**
+     * The shapes a `DEMO` row may reserve, as width over height.
+     *
+     * A closed set for the reason `ICONS` is one: it decides the box the page
+     * holds before anything loads, and a free field would eventually hold
+     * `4/3`, `1.333` and "four to three". The frontend draws it, so it has no
+     * French and is refused in a translation.
+     *
+     * **It was offered by the console and refused by this endpoint** from the
+     * day the band shipped until 2026-09-30: the field was in `BAND_FIELDS`,
+     * read by the page, and declared nowhere here — so saving the home page
+     * answered `no such field on a DEMO`. The seeder writes rows straight to
+     * the table and never met the validator, which is why the demonstration
+     * worked and the console did not.
+     *
+     * @var list<string>
+     */
+    public const RATIOS = ['16:9', '4:3', '3:2', '1:1'];
+
+    /**
      * The kinds that hold exactly one row.
      *
      * Said here as well as by `product_showcase_one_headline`, because a

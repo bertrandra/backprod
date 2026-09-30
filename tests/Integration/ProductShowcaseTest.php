@@ -633,6 +633,64 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         self::assertSame(0, $this->connection->fetchOne('SELECT count(*) FROM staff_access_log'));
     }
 
+    // --- The band that shows the product working -----------------------------
+
+    public function testADemoRowTakesEveryFieldTheConsoleOffers(): void
+    {
+        // Every field of `BAND_FIELDS.DEMO`, in one request. The console sent
+        // exactly this and got `no such field on a DEMO`: `ratio` was offered
+        // by the editor, read by the page and declared nowhere in this
+        // endpoint, so saving the home page was impossible from the day the
+        // band shipped. The demonstration worked because the seeder writes
+        // rows straight to the table and never meets this validator.
+        $written = $this->write([[
+            'block' => 'DEMO',
+            'content' => [
+                'caption' => 'The terrace, in three dimensions',
+                'embed_url' => 'https://plan.example/?x={width}&y={height}',
+                'ratio' => '4:3',
+            ],
+        ]]);
+
+        self::assertSame(200, $written->getStatusCode(), (string) $written->getBody());
+
+        $stored = $this->demoContentOf($this->read());
+        self::assertSame('4:3', $stored['ratio'] ?? null);
+        self::assertSame('https://plan.example/?x={width}&y={height}', $stored['embed_url'] ?? null);
+    }
+
+    public function testAShapeNobodyDrawsIsRefused(): void
+    {
+        // A closed set, like `PROBLEM.icon`: the page holds a box of this
+        // shape before anything loads, and a free field would eventually hold
+        // `4/3`, `1.333` and "four to three".
+        $refused = $this->write([[
+            'block' => 'DEMO',
+            'content' => ['caption' => 'A demonstration', 'embed_url' => 'https://plan.example/', 'ratio' => '21:9'],
+        ]]);
+
+        self::assertSame(400, $refused->getStatusCode());
+        // The field is named with its row, which is what the console shows:
+        // `blocks[0].content.ratio` tells an operator which band to look at.
+        $details = $this->errorOf($refused)['details'] ?? null;
+        self::assertIsArray($details);
+        self::assertSame('blocks[0].content.ratio', $details['field'] ?? null);
+    }
+
+    public function testAShapeHasNoFrench(): void
+    {
+        // Refused in a translation, for the reason an icon is: a shape has no
+        // French, and a locale that could hold one would be a second place the
+        // band's shape is decided.
+        $refused = $this->write([[
+            'block' => 'DEMO',
+            'content' => ['caption' => 'A demonstration', 'embed_url' => 'https://plan.example/'],
+            'translations' => ['fr' => ['caption' => 'Une démonstration', 'ratio' => '4:3']],
+        ]]);
+
+        self::assertSame(400, $refused->getStatusCode());
+    }
+
     // --- Helpers ---------------------------------------------------------------------
 
     /**
@@ -723,6 +781,36 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
     /**
      * The resolved content of the published page's headline band.
      *
+     * @return array<string, mixed>
+     */
+    /**
+     * The one DEMO row's content, read back.
+     *
+     * @return array<string, mixed>
+     */
+    private function demoContentOf(ResponseInterface $response): array
+    {
+        self::assertSame(200, $response->getStatusCode());
+
+        // The staff read answers the story at the top level; `showcase` is
+        // the public page's shape, which is a different reader's question.
+        $blocks = $this->decode($response)['blocks'] ?? null;
+        self::assertIsArray($blocks);
+
+        foreach ($blocks as $block) {
+            if (is_array($block) && ($block['block'] ?? null) === 'DEMO') {
+                $content = $block['content'] ?? null;
+                self::assertIsArray($content);
+
+                /** @var array<string, mixed> $content */
+                return $content;
+            }
+        }
+
+        self::fail('The story carries no DEMO row.');
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function headlineOf(ResponseInterface $response): array

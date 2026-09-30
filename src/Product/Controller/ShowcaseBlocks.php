@@ -75,6 +75,7 @@ final class ShowcaseBlocks
      */
     private const CODES = [
         ShowcaseBlock::PROBLEM => ['icon' => ShowcaseBlock::ICONS],
+        ShowcaseBlock::DEMO => ['ratio' => ShowcaseBlock::RATIOS],
     ];
 
     /**
