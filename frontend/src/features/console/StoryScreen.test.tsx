@@ -55,6 +55,7 @@ describe('the editor', () => {
       'add-USE_CASE',
       'add-QUOTE',
       'add-PROOF',
+      'add-DEMO',
       'add-QUESTION',
     ]);
     expect(screen.queryByTestId('add-PRICING')).toBeNull();
@@ -123,7 +124,7 @@ describe('saving', () => {
       // The order goes with the bands (2026-09-28): one write for the whole
       // page, because two writes for one afternoon's work is two chances to
       // leave it half changed. `PRICING` is in it and in no band.
-      sections: ['HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'PROOF', 'PRICING', 'QUESTION'],
+      sections: ['HEADLINE', 'PROBLEM', 'STEPS', 'USE_CASE', 'QUOTE', 'PROOF', 'DEMO', 'PRICING', 'QUESTION'],
       // Nothing retitled, so nothing sent: a band left out of the map reads
       // the words its component was written with.
       bands: {},
@@ -303,6 +304,7 @@ describe('the order the page is read in', () => {
     'USE_CASE',
     'QUOTE',
     'PROOF',
+    'DEMO',
     'PRICING',
     'QUESTION',
   ];
@@ -324,6 +326,7 @@ describe('the order the page is read in', () => {
               'USE_CASE',
               'QUOTE',
               'PROOF',
+              'DEMO',
             ],
             blocks: [HEADLINE],
           },
@@ -349,6 +352,7 @@ describe('the order the page is read in', () => {
       'USE_CASE',
       'QUOTE',
       'PROOF',
+      'DEMO',
     ]);
     expect(screen.getByTestId('reads-the-catalogue')).toBeTruthy();
   });
@@ -385,6 +389,7 @@ describe('the order the page is read in', () => {
       'USE_CASE',
       'QUOTE',
       'PROOF',
+      'DEMO',
       'QUESTION',
     ]);
   });
@@ -416,9 +421,10 @@ describe('the order the page is read in', () => {
         'PROBLEM',
         'STEPS',
         'USE_CASE',
-        'PRICING',
         'QUOTE',
+        'PRICING',
         'PROOF',
+        'DEMO',
         'QUESTION',
       ]),
     );
@@ -433,9 +439,10 @@ describe('the order the page is read in', () => {
       'PROBLEM',
       'STEPS',
       'USE_CASE',
-      'PRICING',
       'QUOTE',
+      'PRICING',
       'PROOF',
+      'DEMO',
       'QUESTION',
     ]);
   });
@@ -474,6 +481,7 @@ describe('the order the page is read in', () => {
             'USE_CASE',
             'QUOTE',
             'PROOF',
+            'DEMO',
           ],
           blocks: [HEADLINE],
         },
@@ -503,6 +511,7 @@ describe('the order the page is read in', () => {
       'USE_CASE',
       'QUOTE',
       'PROOF',
+      'DEMO',
     ]);
   });
 });

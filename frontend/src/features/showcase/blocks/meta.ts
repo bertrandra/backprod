@@ -41,6 +41,9 @@ export const BAND_META = {
   USE_CASE: { order: 30, anchor: 'who', surface: 'canvas', nav: 'Who it is for' },
   QUOTE: { order: 35, anchor: 'said', surface: 'surface', nav: 'What they say' },
   PROOF: { order: 40, anchor: 'proof', surface: 'well', nav: 'See it' },
+  // Between the proof and the prices, which is where somebody who is
+  // nearly convinced wants to try it rather than read another sentence.
+  DEMO: { order: 45, anchor: 'demo', surface: 'canvas', nav: 'Try it' },
   PRICING: { order: 50, anchor: 'prices', surface: 'surface', nav: 'Prices' },
   QUESTION: { order: 60, anchor: 'questions', surface: 'canvas', nav: 'Questions' },
 } as const satisfies Record<string, BandMeta>;
@@ -91,6 +94,7 @@ export const AUTHORED_BANDS = [
   'USE_CASE',
   'QUOTE',
   'PROOF',
+  'DEMO',
   'QUESTION',
 ] as const;
 

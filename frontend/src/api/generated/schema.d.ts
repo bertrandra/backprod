@@ -4135,7 +4135,7 @@ export interface components {
              * @description PRICING is absent and must stay absent: it is a position in the order and reads the catalogue. One HEADLINE per page.
              * @enum {string}
              */
-            block: "HEADLINE" | "PROBLEM" | "STEPS" | "USE_CASE" | "QUOTE" | "PROOF" | "QUESTION";
+            block: "HEADLINE" | "PROBLEM" | "STEPS" | "USE_CASE" | "QUOTE" | "PROOF" | "DEMO" | "QUESTION";
             /**
              * @description Within its kind. In tens, so one can be slipped between two others without renumbering anybody.
              * @default 10
@@ -4160,7 +4160,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            block: "HEADLINE" | "PROBLEM" | "STEPS" | "USE_CASE" | "QUOTE" | "PROOF" | "QUESTION";
+            block: "HEADLINE" | "PROBLEM" | "STEPS" | "USE_CASE" | "QUOTE" | "PROOF" | "DEMO" | "QUESTION";
             position: number;
             content: components["schemas"]["ShowcaseBlockContent"];
             /**
@@ -4211,7 +4211,7 @@ export interface components {
          *
          *     `PRICING` appears here and in no request that writes a band, deliberately: it is a section that reads the catalogue and has no row anybody writes, because a row for it would be a row somebody could type a price into. Its place in the order is the one thing about it an operator decides.
          */
-        ShowcaseSectionOrder: ("HEADLINE" | "PROBLEM" | "STEPS" | "USE_CASE" | "QUOTE" | "PROOF" | "PRICING" | "QUESTION")[];
+        ShowcaseSectionOrder: ("HEADLINE" | "PROBLEM" | "STEPS" | "USE_CASE" | "QUOTE" | "PROOF" | "DEMO" | "PRICING" | "QUESTION")[];
         /** @description A product's story as a reader gets it: one language, resolved field by field. The product's own facts come with it because a stranger cannot ask for them separately — `listProducts` answers from a membership, and they have none. */
         Showcase: {
             product: {
@@ -4226,7 +4226,7 @@ export interface components {
                 /** Format: uuid */
                 id: string;
                 /** @enum {string} */
-                block: "HEADLINE" | "PROBLEM" | "STEPS" | "USE_CASE" | "QUOTE" | "PROOF" | "QUESTION";
+                block: "HEADLINE" | "PROBLEM" | "STEPS" | "USE_CASE" | "QUOTE" | "PROOF" | "DEMO" | "QUESTION";
                 position: number;
                 content: components["schemas"]["ShowcaseBlockContent"];
                 /** @description Where the band's picture lives, ready for an <img src>. An address and not an id, because a client that had to compose the URL would be a second place the route is spelled. Null where the band carries no picture, which is most of them. */

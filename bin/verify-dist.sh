@@ -513,6 +513,15 @@ get "/" >/dev/null
 
 if grep -qi 'content-security-policy' "$SCRATCH/headers"; then
     pass "a Content-Security-Policy is sent"
+
+    # What it will put in a frame, said out loud (2026-09-30). A showcase's
+    # DEMO band embeds a product from that product's own origin, and an origin
+    # missing from `frame-src` produces nothing on screen and one line in a
+    # console nobody reads. So the bundle states it rather than leaving an
+    # operator to find out from an empty box: `--embed https://host` at build
+    # time is what puts one here.
+    FRAME_ALLOWS="$(sed -n 's/.*frame-src \([^;]*\);.*/\1/p' "$SCRATCH/headers" | head -1)"
+    note "frames allowed from: ${FRAME_ALLOWS:-unknown}"
 else
     fail "no Content-Security-Policy on the entry document"
 fi
