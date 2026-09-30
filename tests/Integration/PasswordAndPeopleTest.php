@@ -162,15 +162,43 @@ final class PasswordAndPeopleTest extends DatabaseApiTestCase
         $zedHeaders = ['Authorization' => 'Bearer ' . $this->tokenIn($zedIn), 'X-Product' => 'atlas'];
         self::assertContains('users', $this->capabilitiesOf($zedHeaders));
 
-        // Three is three: the owner, Ann, Zed. A fourth is refused.
+        // Three is three, and Ann is not one of them (2026-09-30): she is
+        // TENANT_ADMIN, and an administrator takes no place. So the owner and
+        // Zed are two, and a fourth person still fits.
         $fourth = $this->request('POST', '/api/v1/subscription/people', $uma, $this->json(['seat' => true, 'email' => 'yan@elsewhere.test']));
-        self::assertSame(409, $fourth->getStatusCode());
-        self::assertSame('PEOPLE_QUOTA_REACHED', $this->errorOf($fourth)['code'] ?? null);
+        self::assertSame(201, $fourth->getStatusCode(), (string) $fourth->getBody());
 
-        // Removing gives the place back, and takes the entitlement away.
+        // The one after that is refused, which is what makes the exemption a
+        // rule about the office rather than a hole in the quota: three places
+        // still bound three people who are not administering.
+        $fifth = $this->request('POST', '/api/v1/subscription/people', $uma, $this->json(['seat' => true, 'email' => 'xia@elsewhere.test']));
+        self::assertSame(409, $fifth->getStatusCode());
+        self::assertSame('PEOPLE_QUOTA_REACHED', $this->errorOf($fifth)['code'] ?? null);
+
+        // And the figure the refusal carries is the one the organisation
+        // screen shows, because both come from the same SQL.
+        $details = $this->errorOf($fifth)['details'] ?? null;
+        self::assertIsArray($details);
+        self::assertSame(3, $details['used'] ?? null);
+
+        // Removing Ann takes the entitlement away — that part is unchanged,
+        // and it is what being on a subscription is for.
         self::assertSame(204, $this->request('DELETE', '/api/v1/subscription/people/' . $this->ann . '?seat=1', $uma)->getStatusCode());
         self::assertNotContains('users', $this->capabilitiesOf($this->as('ann@acme.test')));
-        self::assertSame(201, $this->request('POST', '/api/v1/subscription/people', $uma, $this->json(['seat' => true, 'email' => 'yan@elsewhere.test']))->getStatusCode());
+
+        // It frees no place, because she took none. The other half of the
+        // same rule, and the half that would be easy to get wrong: a count
+        // that excluded administrators on the way in but not on the way out
+        // would hand out a place nobody had used.
+        $after = $this->request('POST', '/api/v1/subscription/people', $uma, $this->json(['seat' => true, 'email' => 'wes@elsewhere.test']));
+        self::assertSame(409, $after->getStatusCode());
+        $details = $this->errorOf($after)['details'] ?? null;
+        self::assertIsArray($details);
+        self::assertSame(3, $details['used'] ?? null);
+
+        // And removing somebody who did take one gives it back.
+        self::assertSame(204, $this->request('DELETE', '/api/v1/subscription/people/' . $this->userId('zed@elsewhere.test') . '?seat=1', $uma)->getStatusCode());
+        self::assertSame(201, $this->request('POST', '/api/v1/subscription/people', $uma, $this->json(['seat' => true, 'email' => 'wes@elsewhere.test']))->getStatusCode());
     }
 
     public function testOnlyTheOwnerManagesThePeople(): void

@@ -429,6 +429,21 @@ and covers nobody, and a read-only seat covers somebody while holding no
 workspace quota at all — Plan's *Lecture* sells no `max_projects`, because a
 reader stores nothing to count.
 
+**An administrator takes no place** (2026-09-30). The `users` quota bounds the
+people a subscription covers, and whoever holds `TENANT_ADMIN` on its
+`(tenant, product)` is not one of them — the holder included, because the rule
+is about the office and not about how somebody came to be on the row. They
+administer the organisation; being added to a colleague's subscription to help
+with the work is not what the offer sold seats for. An organisation that
+appoints five administrators gives itself five free places, which is a
+decision and not an oversight.
+
+One number, in one place (`PlacesUsedSql`): the quota that refuses somebody
+and the `places_used` the organisation screen shows compose the same SQL. A
+figure a customer paid for, computed twice, eventually disagrees — the reason
+`Places` already exists for the other half of the question. And it holds both
+ways: removing an administrator frees nothing, because she took nothing.
+
 **A platform grant covers people only when it says so** (ADR-056). Staff hand
 out a feature, never a seat — that is still the default, and it left the
 platform unable to give a *trial*: the features lit up and every workspace

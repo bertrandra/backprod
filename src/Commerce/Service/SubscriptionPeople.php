@@ -73,17 +73,8 @@ final class SubscriptionPeople
     public function add(string $tenantId, string $productId, string $callerId, bool $seat, ?string $userId, ?string $email): array
     {
         $subscription = $this->owned($tenantId, $productId, $callerId, $seat);
-        $members = $this->subscriptions->membersOf($subscription->id);
-        $quota = self::quotaOf($subscription);
 
-        // The owner is one of the quota's people.
-        if ($quota !== null && count($members) + 1 >= $quota) {
-            throw new ConflictException(
-                'PEOPLE_QUOTA_REACHED',
-                sprintf('This subscription covers %d %s, and they are all taken.', $quota, $quota === 1 ? 'person' : 'people'),
-                ['quota' => $quota, 'members' => count($members)],
-            );
-        }
+        $this->assertAPlaceIsFree($subscription, $userId);
 
         $invited = false;
 
@@ -129,6 +120,46 @@ final class SubscriptionPeople
      * The subscription the caller means: their own seat, or the
      * organisation's — live, or there is nothing to manage.
      */
+    /**
+     * Refuses when the subscription's places are all taken.
+     *
+     * **An administrator takes no place** (2026-09-30), so somebody named by
+     * id who administers the organisation is added whatever the count says.
+     * The number the quota is compared against is the repository's, not a
+     * count of `membersOf()`: it is the same figure `places_used` shows on
+     * the organisation screen, and a number a customer paid for must not be
+     * computed twice.
+     *
+     * **Somebody named by address is held to the quota**, deliberately. An
+     * invitation creates an account, and an account with no membership holds
+     * no role — so a person invited by address is never an administrator, and
+     * resolving the address first to find out would mean creating the account
+     * before deciding whether to refuse. An existing colleague who does
+     * administer can be named by id instead, which is the path that skips it.
+     */
+    private function assertAPlaceIsFree(Subscription $subscription, ?string $userId): void
+    {
+        $quota = self::quotaOf($subscription);
+
+        if ($quota === null) {
+            return;
+        }
+
+        if ($userId !== null && $this->subscriptions->administersSubscription($subscription->id, $userId)) {
+            return;
+        }
+
+        $used = $this->subscriptions->placesUsedBy($subscription->id);
+
+        if ($used >= $quota) {
+            throw new ConflictException(
+                'PEOPLE_QUOTA_REACHED',
+                sprintf('This subscription covers %d %s, and they are all taken.', $quota, $quota === 1 ? 'person' : 'people'),
+                ['quota' => $quota, 'used' => $used],
+            );
+        }
+    }
+
     private function managed(string $tenantId, string $productId, string $callerId, bool $seat): Subscription
     {
         $subscription = $seat

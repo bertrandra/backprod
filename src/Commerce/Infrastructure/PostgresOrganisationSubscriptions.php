@@ -74,6 +74,7 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
 
         $filter = self::FILTER;
         $window = DocumentWindowSql::narrowing(self::MOMENT);
+        $placesUsed = PlacesUsedSql::count('s');
         $rows = $this->connection->fetchAllAssociative(
             <<<SQL
                 SELECT s.id,
@@ -93,7 +94,7 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
                        -- place), not a missing answer.
                        coalesce(g.granted, false) AS places_granted,
                        g.limit_value              AS places_limit,
-                       (SELECT count(*) FROM subscription_members m WHERE m.subscription_id = s.id) AS members
+                       {$placesUsed} AS places_used
                   FROM subscriptions s
                   JOIN offer_versions v ON v.id = s.offer_version_id
                   JOIN offers o         ON o.id = v.offer_id
@@ -154,11 +155,12 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
                     // with no limit sells everybody. Both are NULL in
                     // `limit_value`, so the flag is what tells them apart.
                     Places::sold($granted, Row::nullableInteger($row, 'places_limit')),
-                    // The holder is one of the people the subscription
-                    // covers, so they are counted — and a row with no owner
-                    // counts only the people on it, because there is nobody
-                    // else to count.
-                    ($owner === null ? 0 : 1) + Row::integer($row, 'members'),
+                    // Counted in SQL by the fragment the quota check also
+                    // composes (2026-09-30), so the number a screen shows and
+                    // the number a refusal is based on cannot disagree. The
+                    // holder counts as one; an administrator counts as none,
+                    // whichever of the two they are.
+                    Row::integer($row, 'places_used'),
                 );
             },
             $rows,
