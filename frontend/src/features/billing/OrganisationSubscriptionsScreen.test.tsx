@@ -245,7 +245,7 @@ describe("the administrator's own place", () => {
       'POST /api/v1/organisation/subscriptions/{subscriptionId}/me': { data: { member: {} } },
     });
 
-    renderWith(<OrganisationSubscriptionsScreen />, client, ADMIN);
+    renderWith(<OrganisationSubscriptionsScreen />, client);
 
     fireEvent.click(await waitFor(() => screen.getByTestId('join')));
 
@@ -273,7 +273,7 @@ describe("the administrator's own place", () => {
       'DELETE /api/v1/organisation/subscriptions/{subscriptionId}/me': {},
     });
 
-    renderWith(<OrganisationSubscriptionsScreen />, client, ADMIN);
+    renderWith(<OrganisationSubscriptionsScreen />, client);
 
     // One button or the other, never both: `includes_me` is the server's
     // answer and the screen only reads it.
@@ -293,7 +293,6 @@ describe("the administrator's own place", () => {
     renderWith(
       <OrganisationSubscriptionsScreen />,
       clientFor([held({ id: 's-gone', live: false, status: 'CANCELLED' })]),
-      ADMIN,
     );
 
     await waitFor(() => expect(screen.getByTestId('state')).toBeTruthy());
