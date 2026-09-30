@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Storage\Controller;
 
+use App\Project\Service\ProjectWorkspace;
 use App\Shared\Http\JsonBody;
 use App\Shared\Http\RouteHandler;
 use App\Storage\Service\AssetLinks;
@@ -25,6 +26,7 @@ final class CreateAssetLinkController implements RouteHandler
     public function __construct(
         private readonly Assets $assets,
         private readonly AssetLinks $links,
+        private readonly ProjectWorkspace $projects,
     ) {
     }
 
@@ -37,6 +39,11 @@ final class CreateAssetLinkController implements RouteHandler
             $context->productId,
             AssetRoute::id($request, 'assetId'),
         );
+
+        // The gate for the download too: the signed link carries its own
+        // authority afterwards, so this is the one moment the caller has to
+        // be somebody who reaches the project.
+        AssetRoute::reachableProject($this->projects, $context, $asset->projectId);
 
         $link = $this->links->mint($asset, $this->lifetimeIn($request));
 

@@ -11,6 +11,7 @@ use App\Payment\Domain\PaymentRepository;
 use App\Product\Domain\Product;
 use App\Project\Domain\Project;
 use App\Project\Domain\ProjectRepository;
+use App\Project\Domain\Reach;
 use App\Sales\Domain\Order;
 use App\Sales\Domain\Quote;
 use App\Sales\Domain\SalesRepository;
@@ -81,7 +82,7 @@ final class TenantReads
     /** @return list<Project> */
     public function projects(StaffIdentity $staff, string $tenantId, ?string $productCode, AccessMotive $motive): array
     {
-        return $this->across($staff, $tenantId, $productCode, $motive, 'projects', fn (Product $product): array => $this->projects->listForTenant($tenantId, $product->id, self::PAGE, 0));
+        return $this->across($staff, $tenantId, $productCode, $motive, 'projects', fn (Product $product): array => $this->projects->listForTenant($tenantId, $product->id, Reach::everything(), self::PAGE, 0));
     }
 
     /**

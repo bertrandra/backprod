@@ -32,6 +32,24 @@ final class ProjectRoute
         return self::contextFor($request, 'projects.write');
     }
 
+    /**
+     * Whether this caller reaches every project the organisation holds.
+     *
+     * `tenant.manage`, the administrator's (2026-09-30): they already read
+     * every subscription on the organisation screen, and an administrator
+     * who cannot see the work cannot take it back when somebody leaves.
+     * Everybody else reaches the projects of the subscriptions covering
+     * them — which for most people is their own, and for a colleague on
+     * somebody's seat is that seat's.
+     *
+     * Named here rather than written at twelve call sites, so the rule has
+     * one spelling and a controller cannot quietly use a different one.
+     */
+    public static function seesEverything(RequestContext $context): bool
+    {
+        return $context->can('tenant.manage');
+    }
+
     public static function projectId(ServerRequestInterface $request): string
     {
         return self::attribute($request, 'projectId');

@@ -4942,6 +4942,11 @@ export interface components {
             schema_version: number;
             /** Format: uuid */
             created_by: string | null;
+            /**
+             * Format: uuid
+             * @description Whose subscription pays for this project, and therefore who reaches it: that person, whoever is on their subscription today, and the organisation's administrator. Not the same person as `created_by` when a colleague works on somebody's seat — the work stays with the seat when the colleague is removed. Null where the holder's account was erased (§30), which leaves the project reachable by the administrator alone.
+             */
+            holder_user_id: string | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */

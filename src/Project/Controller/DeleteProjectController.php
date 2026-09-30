@@ -38,6 +38,8 @@ final class DeleteProjectController implements RouteHandler
         $this->projects->delete(
             $context->tenantId,
             $context->productId,
+            $context->userId,
+            ProjectRoute::seesEverything($context),
             ProjectRoute::projectId($request),
             $context->userId,
         );

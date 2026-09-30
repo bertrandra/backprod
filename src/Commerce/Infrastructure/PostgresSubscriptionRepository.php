@@ -1214,6 +1214,55 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         return array_map($this->toSubscription(...), $rows);
     }
 
+    public function holdersCovering(string $tenantId, string $productId, string $userId): array
+    {
+        if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId) || !Uuid::isValid($userId)) {
+            return [];
+        }
+
+        // Two ways to be covered, in one query rather than two round trips:
+        // holding the subscription, or having been added to it. `DISTINCT`
+        // because somebody can be both on the same owner's subscription —
+        // which `add()` refuses today (`ALREADY_THE_OWNER`) and which a row
+        // written before it did could still show.
+        //
+        // Ordered with the caller's own holding first, so a caller who holds
+        // a seat and is also on a colleague's reads as themselves first.
+        $rows = $this->connection->fetchFirstColumn(
+            <<<'SQL'
+                -- The ordering expression is selected too, because
+                -- PostgreSQL refuses a SELECT DISTINCT ordered by anything
+                -- that is not in its list. It changes no row: it is a
+                -- function of a column already there.
+                SELECT DISTINCT s.owner_user_id, (s.owner_user_id = :userId) AS own
+                  FROM subscriptions s
+                 WHERE s.tenant_id = :tenantId
+                   AND s.product_id = :productId
+                   AND s.status = 'ACTIVE'
+                   AND s.owner_user_id IS NOT NULL
+                   AND (
+                         s.owner_user_id = :userId
+                         OR EXISTS (
+                              SELECT 1 FROM subscription_members m
+                               WHERE m.subscription_id = s.id AND m.user_id = :userId
+                            )
+                       )
+                 ORDER BY own DESC, s.owner_user_id
+                SQL,
+            ['tenantId' => $tenantId, 'productId' => $productId, 'userId' => $userId],
+        );
+
+        $holders = [];
+
+        foreach ($rows as $holder) {
+            if (is_string($holder)) {
+                $holders[] = $holder;
+            }
+        }
+
+        return $holders;
+    }
+
     public function scheduleCancellation(
         Subscription $subscription,
         CancellationDecision $decision,

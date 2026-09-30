@@ -2851,6 +2851,7 @@
           "description",
           "schema_version",
           "created_by",
+          "holder_user_id",
           "created_at",
           "updated_at",
           "deleted_at"
@@ -2879,6 +2880,11 @@
               "null"
             ],
             "format": "uuid"
+          },
+          "holder_user_id": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "Whose subscription pays for this project, and therefore who reaches it: that person, whoever is on their subscription today, and the organisation's administrator. Not the same person as `created_by` when a colleague works on somebody's seat — the work stays with the seat when the colleague is removed. Null where the holder's account was erased (§30), which leaves the project reachable by the administrator alone."
           },
           "created_at": {
             "type": "string",

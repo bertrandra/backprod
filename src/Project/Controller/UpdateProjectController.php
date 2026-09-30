@@ -46,6 +46,8 @@ final class UpdateProjectController implements RouteHandler
         $project = $this->projects->update(
             $context->tenantId,
             $context->productId,
+            $context->userId,
+            ProjectRoute::seesEverything($context),
             ProjectRoute::projectId($request),
             $changes,
         );

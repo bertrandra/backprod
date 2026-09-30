@@ -16,23 +16,31 @@ namespace App\Project\Domain;
 interface ProjectRepository
 {
     /**
+     * **`$reach` is required and has no default** (2026-09-30). A project
+     * belongs to the person whose subscription paid for it, and a read that
+     * could forget to say whose is the read this platform already shipped:
+     * `(tenant_id, product_id)` and nothing else, for nine months, with the
+     * column to filter on sitting unused in the table.
+     *
      * @return list<Project>
      */
     public function listForTenant(
         string $tenantId,
         string $productId,
+        Reach $reach,
         int $limit,
         int $offset,
         bool $deleted = false,
     ): array;
 
-    public function countForTenant(string $tenantId, string $productId, bool $deleted = false): int;
+    public function countForTenant(string $tenantId, string $productId, Reach $reach, bool $deleted = false): int;
 
     /**
-     * Null covers both "no such project" and "not yours" — they must be
-     * indistinguishable, or an id becomes a way to probe other tenants.
+     * Null covers "no such project", "not yours" and "not reachable by you" —
+     * they must be indistinguishable, or an id becomes a way to probe other
+     * tenants, and now other colleagues.
      */
-    public function find(string $tenantId, string $productId, string $projectId): ?Project;
+    public function find(string $tenantId, string $productId, string $projectId, Reach $reach): ?Project;
 
     /**
      * Returns the project as stored, not as submitted: the document has been

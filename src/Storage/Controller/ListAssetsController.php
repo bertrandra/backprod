@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Storage\Controller;
 
+use App\Project\Service\ProjectWorkspace;
 use App\Shared\Http\PageRequest;
 use App\Shared\Http\RouteHandler;
 use App\Storage\Domain\Asset;
@@ -17,14 +18,18 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 final class ListAssetsController implements RouteHandler
 {
-    public function __construct(private readonly Assets $assets)
-    {
+    public function __construct(
+        private readonly Assets $assets,
+        private readonly ProjectWorkspace $projects,
+    ) {
     }
 
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
         $context = AssetRoute::readable($request);
         $query = $request->getQueryParams();
+
+        AssetRoute::reachableProject($this->projects, $context, AssetRoute::id($request, 'projectId'));
 
         $page = $this->assets->list(
             $context->tenantId,

@@ -32,6 +32,8 @@ final class RestoreProjectController implements RouteHandler
         $project = $this->projects->restore(
             $context->tenantId,
             $context->productId,
+            $context->userId,
+            ProjectRoute::seesEverything($context),
             ProjectRoute::projectId($request),
             $body->requiredString('version_id', 64),
             $context->userId,

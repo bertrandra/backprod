@@ -27,8 +27,8 @@ final class ProjectPresenter
     /**
      * @return array{
      *     id: string, name: string, description: string|null, schema_version: int,
-     *     created_by: string|null, created_at: string, updated_at: string,
-     *     deleted_at: string|null
+     *     created_by: string|null, holder_user_id: string|null,
+     *     created_at: string, updated_at: string, deleted_at: string|null
      * }
      */
     public static function summary(Project $project): array
@@ -42,6 +42,12 @@ final class ProjectPresenter
             'description' => $project->description,
             'schema_version' => $project->schemaVersion,
             'created_by' => $project->createdBy,
+            // Whose subscription pays for it (2026-09-30). Not the same person
+            // as `created_by` when a colleague works on somebody's seat, and
+            // the administrator — who reaches every project the organisation
+            // holds — needs the list to say whose each one is or it is a
+            // jumble. Null where the holder's account was erased (Â§30).
+            'holder_user_id' => $project->holderUserId,
             'created_at' => self::moment($project->createdAt),
             'updated_at' => self::moment($project->updatedAt),
             // Null on every live project, which is every project a client sees
