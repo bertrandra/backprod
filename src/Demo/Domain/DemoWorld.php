@@ -100,12 +100,15 @@ final class DemoWorld
             'order' => 10,
             'base' => 1_500,
             'app_url' => 'https://plan.raillard.org',
-            // Two versions since Plan 2.2.0, which saves in schema 2 because of
-            // the façade survey. Both, and not just the new one: a document
-            // written by an earlier release is still a document its owner opens,
-            // and a product that stopped accepting the version it wrote last
-            // month would refuse its own customers' work.
-            'schema_versions' => [1, 2],
+            // Schema 2 since Plan 2.2.0 (the façade survey), schema 3 since the
+            // roofs deduced from BD TOPO (Plan's `MD/spec-toit-ign.md`: a hipped
+            // roof on every IGN building, and one on the demonstration's house).
+            // All three, and not just the newest: a document written by an
+            // earlier release is still a document its owner opens, and a product
+            // that stopped accepting the version it wrote last month would refuse
+            // its own customers' work. Plan's `contrat/plan-produit.json` is
+            // where this list comes from.
+            'schema_versions' => [1, 2, 3],
             // What `docs/plan-service.md` §11 says Plan meters: its documents.
             'meters' => ['plan.documents' => ['name' => 'Plan documents', 'unit' => 'documents', 'starter' => 20, 'pro' => 200]],
             // The seven Plan proposes (its `src/plateforme/capacites.ts`). The
@@ -1103,11 +1106,11 @@ final class DemoWorld
      */
     public const PROJECTS = [
         [
-            // Plan's own demonstration project, exported from 2.2.0 and
-            // stored as it was given. Written in **schema 1** although the
-            // product accepts 1 and 2, which is the ordinary case and worth
-            // demonstrating: a release that writes a new version still has to
-            // open what earlier ones wrote.
+            // Plan's own demonstration project: the `demo_project` of Plan's
+            // `contrat/plan-produit.json`, stored as it was given. Written in
+            // **schema 3** since its house carries a hipped roof, which only
+            // schema 3 describes; before that it was schema 1, and Plan still
+            // opens that — its migrations read every earlier version.
             'tenant' => 'acme', 'product' => 'plan', 'by' => 'acme-user1',
             'name' => 'Parcelle AE 101',
             'description' => 'La parcelle au Vésinet : cadastre, PLU, terrasse bois sur vis de fondation, cheminements et arbres.',
