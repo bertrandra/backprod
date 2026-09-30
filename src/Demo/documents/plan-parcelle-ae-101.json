@@ -1,6 +1,6 @@
 {
     "app_version": "2.2.0",
-    "schema_version": 1,
+    "schema_version": 3,
     "document": {
         "objects": [
             {
@@ -631,6 +631,12 @@
                 "priority": 2,
                 "locked": true,
                 "elevation": 6,
+                "toit": {
+                    "forme": "croupes",
+                    "hauteur": 3,
+                    "angleFaitage": 0,
+                    "source": "saisie"
+                },
                 "textureVerticale": null,
                 "textureHorizontale": null,
                 "hidden": false,
