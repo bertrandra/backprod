@@ -130,6 +130,27 @@ interface SubscriptionRepository
      */
     public function membersOf(string $subscriptionId): array;
 
+    /**
+     * How many of a subscription's places are taken (2026-09-30).
+     *
+     * Its holder and its members, minus whoever administers the
+     * organisation: an administrator takes no place, the holder included.
+     * Asked of the repository rather than counted from `membersOf()`, so the
+     * quota that refuses somebody and the `places_used` a screen shows are
+     * one number — a figure a customer paid for, computed twice, eventually
+     * disagrees.
+     */
+    public function placesUsedBy(string $subscriptionId): int;
+
+    /**
+     * Whether this person administers the subscription's organisation.
+     *
+     * The same rule `placesUsedBy()` excludes them by, asked about one person
+     * — because the quota has to answer it before somebody is added, and
+     * counting them afterwards to find out would mean adding them first.
+     */
+    public function administersSubscription(string $subscriptionId, string $userId): bool;
+
     /** Idempotent: adding somebody twice is once. */
     public function addMember(string $subscriptionId, string $userId, ?string $addedBy): void;
 

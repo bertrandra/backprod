@@ -1214,6 +1214,35 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         return array_map($this->toSubscription(...), $rows);
     }
 
+    public function placesUsedBy(string $subscriptionId): int
+    {
+        if (!Uuid::isValid($subscriptionId)) {
+            return 0;
+        }
+
+        $used = $this->connection->fetchOne(
+            sprintf('SELECT %s FROM subscriptions s WHERE s.id = :id', PlacesUsedSql::count('s')),
+            ['id' => $subscriptionId],
+        );
+
+        return is_numeric($used) ? (int) $used : 0;
+    }
+
+    public function administersSubscription(string $subscriptionId, string $userId): bool
+    {
+        if (!Uuid::isValid($subscriptionId) || !Uuid::isValid($userId)) {
+            return false;
+        }
+
+        return $this->connection->fetchOne(
+            sprintf(
+                'SELECT %s FROM subscriptions s WHERE s.id = :id',
+                PlacesUsedSql::administers(':userId', 's'),
+            ),
+            ['id' => $subscriptionId, 'userId' => $userId],
+        ) === true;
+    }
+
     public function holdersCovering(string $tenantId, string $productId, string $userId): array
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId) || !Uuid::isValid($userId)) {

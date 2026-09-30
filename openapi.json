@@ -1088,7 +1088,7 @@
           },
           "places_used": {
             "type": "integer",
-            "description": "The holder plus everybody they have added."
+            "description": "The holder plus everybody they have added, **minus whoever administers the organisation** (2026-09-30). A `TENANT_ADMIN` takes no place, the holder included: they administer the organisation, and being added to a colleague's subscription to help with the work is not what the offer sold seats for. An organisation that appoints five administrators therefore gives itself five free places — the operator's decision, not an oversight. The same figure the quota is compared against when somebody is added, composed from the same SQL, so a screen and a refusal cannot disagree."
           }
         }
       },

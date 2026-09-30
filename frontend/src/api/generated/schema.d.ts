@@ -4353,7 +4353,7 @@ export interface components {
             current_period_end: string | null;
             /** @description How many people the offer covers, counting the holder. Null means unlimited; 1 means the offer sells no `users` feature, which covers the holder alone. The two are different facts and are not both null here. */
             places_sold: number | null;
-            /** @description The holder plus everybody they have added. */
+            /** @description The holder plus everybody they have added, **minus whoever administers the organisation** (2026-09-30). A `TENANT_ADMIN` takes no place, the holder included: they administer the organisation, and being added to a colleague's subscription to help with the work is not what the offer sold seats for. An organisation that appoints five administrators therefore gives itself five free places — the operator's decision, not an oversight. The same figure the quota is compared against when somebody is added, composed from the same SQL, so a screen and a refusal cannot disagree. */
             places_used: number;
         };
         Subscription: {
