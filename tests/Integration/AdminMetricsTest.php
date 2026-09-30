@@ -355,14 +355,23 @@ final class AdminMetricsTest extends DatabaseApiTestCase
     {
         return $this->id(
             <<<'SQL'
-                INSERT INTO subscriptions (tenant_id, product_id, offer_version_id, status, started_at)
-                VALUES (:tenant, :product, :version, 'ACTIVE', now())
+                -- `subscriber_kind` and an owner, because that is the shape
+                -- the tenant surface produces: every subscription is somebody's
+                -- seat (ADR-055). A row naming nobody is skipped by
+                -- `holdersCovering()` and counted as nobody by `PlacesUsedSql`,
+                -- so a fixture without one exercises a path production does not.
+                INSERT INTO subscriptions
+                    (tenant_id, product_id, offer_version_id, status, started_at,
+                     subscriber_kind, subscriber_user_id, owner_user_id)
+                VALUES (:tenant, :product, :version, 'ACTIVE', now(),
+                        'USER', :owner, :owner)
                 RETURNING id
                 SQL,
             [
                 'tenant' => $this->tenant,
                 'product' => $this->product,
                 'version' => $this->offerVersion,
+                'owner' => $this->member,
             ],
         );
     }
