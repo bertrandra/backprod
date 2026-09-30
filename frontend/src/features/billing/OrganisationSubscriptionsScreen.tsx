@@ -5,9 +5,16 @@ import { ListFilterBar } from '@/features/billing/ListFilterBar';
 import { isFiltered, type ListFilter } from '@/queries/listFilter';
 import { useOrganisation } from '@/queries/organisation';
 import { useSession } from '@/queries/session';
-import { SUBSCRIPTION_STATUSES, useOrganisationSubscriptions, type HeldSubscription } from '@/queries/subscription';
+import {
+  SUBSCRIPTION_STATUSES,
+  useJoinSubscription,
+  useLeaveSubscription,
+  useOrganisationSubscriptions,
+  type HeldSubscription,
+} from '@/queries/subscription';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
+import { Button } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { PageHeader } from '@/ui/Page';
 import { SkeletonRows } from '@/ui/Skeleton';
@@ -139,6 +146,9 @@ export function OrganisationSubscriptionsScreen() {
             <Th numeric>{t("Places")}</Th>
             <Th>{t("Owed until")}</Th>
             <Th>{t("State")}</Th>
+            {/* The administrator's own place, and nothing about anybody
+                else's: who a subscription covers is its owner's decision. */}
+            <Th>{t("Me")}</Th>
           </THead>
           <TBody>
             {rows.map((one) => (
@@ -202,7 +212,55 @@ function HeldRow({ held }: { held: HeldSubscription }) {
           {held.live ? t("live") : held.status.toLowerCase()}
         </span>
       </Td>
+      <Td>
+        <OwnPlace held={held} />
+      </Td>
     </TR>
+  );
+}
+
+/**
+ * Whether the administrator is on this subscription (2026-09-30).
+ *
+ * The one thing they may change about somebody else's: themselves, and
+ * nobody else. Who a subscription covers otherwise is its owner's decision,
+ * and this screen does not offer it.
+ *
+ * `includes_me` is the server's answer, like `live` and `places_used` beside
+ * it. A screen working it out from a members list it fetched separately would
+ * disagree the moment either went stale.
+ *
+ * Nothing is offered on a subscription that has ended: there is no coverage
+ * to join, and the row is there as a record.
+ */
+function OwnPlace({ held }: { held: HeldSubscription }) {
+  const join = useJoinSubscription();
+  const leave = useLeaveSubscription();
+
+  if (!held.live) {
+    return null;
+  }
+
+  if (held.includes_me) {
+    return (
+      <Button
+        variant="secondary"
+        pending={leave.isPending}
+        onClick={() => leave.mutate(held.id)}
+        data-testid="leave"
+      >
+        {t("Take myself off")}</Button>
+    );
+  }
+
+  return (
+    <Button
+      variant="secondary"
+      pending={join.isPending}
+      onClick={() => join.mutate(held.id)}
+      data-testid="join"
+    >
+      {t("Put myself on")}</Button>
   );
 }
 

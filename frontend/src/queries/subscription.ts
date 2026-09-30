@@ -97,6 +97,77 @@ export function useOrganisationSubscriptions(enabled = true, limit = 50, offset 
   });
 }
 
+/**
+ * An administrator puts themselves on one of the organisation's
+ * subscriptions, and takes themselves off again (2026-09-30).
+ *
+ * **No body and no id.** The only person either call can name is the caller,
+ * which is what keeps this from being management of somebody else's list —
+ * who a subscription covers otherwise stays its owner's decision.
+ *
+ * **Never optimistic**, and not because money moves: `places_used` and
+ * `includes_me` are both the server's answers, and painting them here would
+ * be a second opinion about a number a customer paid for. Invalidate and let
+ * the server say.
+ */
+function useOwnSeatOnSubscription(call: (subscriptionId: string) => Promise<void>) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: call,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.subscription.organisation }),
+        // What the caller is entitled to changes with it: being on a
+        // subscription is what being entitled by it means.
+        queryClient.invalidateQueries({ queryKey: keys.subscription.entitlements }),
+      ]);
+    },
+  });
+}
+
+export function useJoinSubscription() {
+  const client = useApiClient();
+
+  return useOwnSeatOnSubscription(async (subscriptionId: string) => {
+    const { error, response } = await client.POST(
+      '/api/v1/organisation/subscriptions/{subscriptionId}/me',
+      {
+        ...ambientParams(sessionSnapshot),
+        params: {
+          ...ambientParams(sessionSnapshot).params,
+          path: { subscriptionId },
+        },
+      },
+    );
+
+    if (error !== undefined) {
+      throw toApiError(response.status, error);
+    }
+  });
+}
+
+export function useLeaveSubscription() {
+  const client = useApiClient();
+
+  return useOwnSeatOnSubscription(async (subscriptionId: string) => {
+    const { error, response } = await client.DELETE(
+      '/api/v1/organisation/subscriptions/{subscriptionId}/me',
+      {
+        ...ambientParams(sessionSnapshot),
+        params: {
+          ...ambientParams(sessionSnapshot).params,
+          path: { subscriptionId },
+        },
+      },
+    );
+
+    if (error !== undefined) {
+      throw toApiError(response.status, error);
+    }
+  });
+}
+
 export function useSubscription(enabled = true) {
   const client = useApiClient();
 

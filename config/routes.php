@@ -41,6 +41,8 @@ use App\Commerce\Controller\CancelSubscriptionController;
 use App\Commerce\Controller\ChangeOfferController;
 use App\Commerce\Controller\CreateOfferController;
 use App\Commerce\Controller\CreateOfferVersionController;
+use App\Commerce\Controller\JoinSubscriptionController;
+use App\Commerce\Controller\LeaveSubscriptionController;
 use App\Commerce\Controller\ListEntitlementsController;
 use App\Commerce\Controller\ListFeaturesController;
 use App\Commerce\Controller\ListOffersController;
@@ -363,6 +365,13 @@ return static function (RouteCollector $routes): void {
     // Who in the organisation holds what (2026-09-25): the administrator's
     // read, beside the caller's own above.
     $routes->addRoute('GET', '/api/v1/organisation/subscriptions', ListOrganisationSubscriptionsController::class);
+    // And the one thing an administrator may change about somebody else's
+    // subscription: whether they are on it themselves (2026-09-30). No body,
+    // because the only person it can name is the caller — who a subscription
+    // covers otherwise stays its owner's decision. It costs the customer
+    // nothing, because an administrator takes no place.
+    $routes->addRoute('POST', '/api/v1/organisation/subscriptions/{subscriptionId}/me', JoinSubscriptionController::class);
+    $routes->addRoute('DELETE', '/api/v1/organisation/subscriptions/{subscriptionId}/me', LeaveSubscriptionController::class);
     $routes->addRoute('POST', '/api/v1/subscription/change-offer', ChangeOfferController::class);
     // What that change would cost, before it is made (spec §7). The same
     // calculation with nothing written, so the catalogue's figure is the one

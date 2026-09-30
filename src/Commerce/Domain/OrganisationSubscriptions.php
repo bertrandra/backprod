@@ -41,7 +41,7 @@ interface OrganisationSubscriptions
      *
      * @return list<HeldSubscription>
      */
-    public function of(string $tenantId, string $productId, int $limit, int $offset, ?string $holder = null, ?string $status = null, ?string $from = null, ?string $to = null): array;
+    public function of(string $tenantId, string $productId, string $callerId, int $limit, int $offset, ?string $holder = null, ?string $status = null, ?string $from = null, ?string $to = null): array;
 
     /** How many there are in total, under the same filter, for the page the caller is on. */
     public function countOf(string $tenantId, string $productId, ?string $holder = null, ?string $status = null, ?string $from = null, ?string $to = null): int;

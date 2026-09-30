@@ -121,6 +121,96 @@ final class SubscriptionPeople
      * organisation's — live, or there is nothing to manage.
      */
     /**
+     * An administrator puts **themselves** on one of the organisation's
+     * subscriptions (2026-09-30).
+     *
+     * **Themselves and nobody else.** There is no id in the request and none
+     * in this signature: the only person it can be is the caller, so there is
+     * nothing to supply and nothing to check one against — the same shape
+     * taking out a seat already has, and for the same reason. Who else a
+     * subscription covers stays its owner's decision, which is what
+     * `owned()` says and what this deliberately does not touch.
+     *
+     * **The subscription is verified against the caller's own context**, never
+     * taken on trust: an id arrives from a client, and one belonging to
+     * another organisation would otherwise be joinable by anybody holding
+     * `tenant.manage` anywhere.
+     *
+     * **No quota check**, because an administrator takes no place. Without
+     * that rule this one would spend a seat the customer paid for every time
+     * an administrator went to help.
+     *
+     * @return array{member: SubscriptionMember, invited: bool}
+     */
+    public function joinAsAdministrator(
+        string $tenantId,
+        string $productId,
+        string $callerId,
+        string $subscriptionId,
+    ): array {
+        $subscription = $this->ofThisOrganisation($tenantId, $productId, $subscriptionId);
+
+        if ($subscription->ownerUserId === $callerId) {
+            throw new ConflictException('ALREADY_THE_OWNER', 'The owner is covered already.');
+        }
+
+        $this->subscriptions->addMember($subscription->id, $callerId, $callerId);
+
+        foreach ($this->subscriptions->membersOf($subscription->id) as $member) {
+            if ($member->userId === $callerId) {
+                // Never invited: an administrator has an account already,
+                // which is how they came to be administering anything.
+                return ['member' => $member, 'invited' => false];
+            }
+        }
+
+        throw new NotFoundException('The person could not be added.', [], 'MEMBER_NOT_FOUND');
+    }
+
+    /** And takes themselves off again. Idempotent, like every other removal. */
+    public function leaveAsAdministrator(
+        string $tenantId,
+        string $productId,
+        string $callerId,
+        string $subscriptionId,
+    ): void {
+        $subscription = $this->ofThisOrganisation($tenantId, $productId, $subscriptionId);
+
+        $this->subscriptions->removeMember($subscription->id, $callerId);
+    }
+
+    /**
+     * The subscription that id names, if it is one this organisation holds on
+     * this product and has not ended.
+     *
+     * `PAST_DUE` is admitted: arrears suspend coverage (ADR-060) and are not
+     * an exit, so an administrator may still put themselves on a subscription
+     * the organisation is behind on — which is very often exactly when
+     * somebody needs to go and look.
+     */
+    private function ofThisOrganisation(string $tenantId, string $productId, string $subscriptionId): Subscription
+    {
+        $subscription = $this->subscriptions->findById($subscriptionId);
+
+        if (
+            $subscription === null
+            || $subscription->tenantId !== $tenantId
+            || $subscription->productId !== $productId
+            || !in_array($subscription->status, [Subscription::ACTIVE, Subscription::PAST_DUE], true)
+        ) {
+            // One answer for "no such subscription", "not this organisation's"
+            // and "over" — or an id becomes a way to probe other tenants.
+            throw new NotFoundException(
+                'This organisation holds no live subscription with that id.',
+                [],
+                'NO_SUBSCRIPTION',
+            );
+        }
+
+        return $subscription;
+    }
+
+    /**
      * Refuses when the subscription's places are all taken.
      *
      * **An administrator takes no place** (2026-09-30), so somebody named by

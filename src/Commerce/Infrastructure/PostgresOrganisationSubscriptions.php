@@ -66,7 +66,7 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
         return is_numeric($total) ? (int) $total : 0;
     }
 
-    public function of(string $tenantId, string $productId, int $limit, int $offset, ?string $holder = null, ?string $status = null, ?string $from = null, ?string $to = null): array
+    public function of(string $tenantId, string $productId, string $callerId, int $limit, int $offset, ?string $holder = null, ?string $status = null, ?string $from = null, ?string $to = null): array
     {
         if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId)) {
             return [];
@@ -94,7 +94,11 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
                        -- place), not a missing answer.
                        coalesce(g.granted, false) AS places_granted,
                        g.limit_value              AS places_limit,
-                       {$placesUsed} AS places_used
+                       {$placesUsed} AS places_used,
+                       (s.owner_user_id = :callerId OR EXISTS (
+                             SELECT 1 FROM subscription_members me
+                              WHERE me.subscription_id = s.id AND me.user_id = :callerId
+                           )) AS includes_me
                   FROM subscriptions s
                   JOIN offer_versions v ON v.id = s.offer_version_id
                   JOIN offers o         ON o.id = v.offer_id
@@ -124,6 +128,7 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
             [
                 'tenantId' => $tenantId,
                 'productId' => $productId,
+                'callerId' => $callerId,
                 'usersFeature' => Places::USERS_FEATURE,
                 'limit' => $limit,
                 'offset' => $offset,
@@ -161,6 +166,7 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
                     // holder counts as one; an administrator counts as none,
                     // whichever of the two they are.
                     Row::integer($row, 'places_used'),
+                    Row::boolean($row, 'includes_me'),
                 );
             },
             $rows,

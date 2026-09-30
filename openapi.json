@@ -1003,6 +1003,7 @@
           "current_period_end",
           "places_sold",
           "places_used",
+          "includes_me",
           "live"
         ],
         "properties": {
@@ -1085,6 +1086,10 @@
             "type": "integer",
             "nullable": true,
             "description": "How many people the offer covers, counting the holder. Null means unlimited; 1 means the offer sells no `users` feature, which covers the holder alone. The two are different facts and are not both null here."
+          },
+          "includes_me": {
+            "type": "boolean",
+            "description": "Whether the person asking is on this subscription — its holder, or one of the people on it. Derived on read, like `live` beside it: a screen working it out from a members list it fetched separately would disagree the moment either went stale. It is what decides which of the two buttons an administrator is offered, and the only thing they may change about somebody else's subscription."
           },
           "places_used": {
             "type": "integer",
@@ -15517,6 +15522,50 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
+        }
+      }
+    },
+    "/api/v1/organisation/subscriptions/{subscriptionId}/me": {
+      "post": {
+        "tags": ["Subscription"],
+        "operationId": "joinSubscription",
+        "summary": "An administrator puts themselves on one of the organisation's subscriptions",
+        "description": "The one thing an administrator may change about somebody else's subscription: whether they are on it themselves (2026-09-30). **There is no body**, and that is the design rather than an omission — the only person this can add is the caller, so there is no id to supply and nothing to check one against, the same shape taking out a seat has. Who else a subscription covers stays its owner's decision and this does not touch it. **No quota is spent**: a `TENANT_ADMIN` takes no place, which is what makes going to look cost the customer nothing. `tenant.manage`, the same permission that shows the register. A subscription that is not this organisation's, not on this product, or over, answers 404 — one answer, or an id becomes a way to probe other tenants. `PAST_DUE` is admitted: arrears are not an exit, and behind on the bill is very often when somebody needs to go and look.",
+        "parameters": [
+          {"$ref": "#/components/parameters/ProductHeader"},
+          {"$ref": "#/components/parameters/TenantHeader"},
+          {"name": "subscriptionId", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {
+          "201": {
+            "description": "The membership row, as the people list shows it.",
+            "content": {"application/json": {"schema": {"type": "object", "required": ["member"], "properties": {"member": {"$ref": "#/components/schemas/SubscriptionMember"}}}}}
+          },
+          "404": {"description": "`NO_SUBSCRIPTION` — this organisation holds no live subscription with that id.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "409": {"description": "`ALREADY_THE_OWNER` — the holder is covered already.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "401": {"$ref": "#/components/responses/Unauthenticated"},
+          "403": {"$ref": "#/components/responses/PermissionDenied"},
+          "429": {"$ref": "#/components/responses/TooManyRequests"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      },
+      "delete": {
+        "tags": ["Subscription"],
+        "operationId": "leaveSubscription",
+        "summary": "And takes themselves back off",
+        "description": "Idempotent, like every other removal here: taking yourself off something you are not on is nothing, not an error. The entitlement goes with the row. An administrator removes themselves and nobody else — the owner's list is untouched.",
+        "parameters": [
+          {"$ref": "#/components/parameters/ProductHeader"},
+          {"$ref": "#/components/parameters/TenantHeader"},
+          {"name": "subscriptionId", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {
+          "204": {"description": "Off it, or never on it."},
+          "404": {"description": "`NO_SUBSCRIPTION` — this organisation holds no live subscription with that id.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "401": {"$ref": "#/components/responses/Unauthenticated"},
+          "403": {"$ref": "#/components/responses/PermissionDenied"},
+          "429": {"$ref": "#/components/responses/TooManyRequests"},
+          "500": {"$ref": "#/components/responses/InternalError"}
         }
       }
     },

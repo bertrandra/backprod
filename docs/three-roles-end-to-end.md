@@ -55,7 +55,7 @@ filtre oublié une élévation de privilège.
 | Il facture | non | **oui** — c'est son organisation qui émet | non, sauf les ventes de la plateforme |
 | Il travaille dans le produit | oui, si un abonnement le couvre | oui, aux mêmes conditions | non |
 | Permissions | 21 | 30 | 20 (dont 5 côté `admin.*`) |
-| Opérations atteignables | 7 propres + 70 partagées + 17 sans permission = **94** | 34 propres + 70 partagées + 17 sans permission = **121** | **81** |
+| Opérations atteignables | 7 propres + 70 partagées + 17 sans permission = **94** | 36 propres + 70 partagées + 17 sans permission = **123** | **81** |
 
 Les 10 permissions que l'administrateur a en plus sont `billing.manage`,
 `catalog.manage`, `jobs.manage`, `members.manage`, `payments.manage`,
@@ -402,6 +402,7 @@ démonstration l'affirme à voix haute pour cette raison.
 | `showCurrentTenant`, `showTenantUsage` | Rien. L'organisation et sa consommation contre les quotas. |
 | `updateCurrentTenant` | Le nom, la politique d'adhésion et ses domaines, le **produit d'ouverture**. Le `slug` n'est pas modifiable : il figure peut-être déjà dans des références stockées. Un produit que l'organisation ne détient pas est refusé **400**. |
 | `listOrganisationSubscriptions` | Rien. Le registre de ce que ses gens tiennent, paginé, les vivants d'abord. `tenant.manage` et non `subscription.manage` — ce dernier, un USER le tient aussi. |
+| `joinSubscription`, `leaveSubscription` | Se met et se retire **lui-même** d'une souscription de son organisation (2026-09-30). Aucun corps : la seule personne que ça nomme est l'appelant. Qui d'autre elle couvre reste la décision de son titulaire, et ça ne dépense aucune place. |
 | `updateSkin` | Couleurs et libellés de la marque. |
 | `uploadSkinLogo`, `deleteSkinLogo` | Pose ou retire le logo. |
 
@@ -703,21 +704,21 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
 ```text
                                           opérations
   atteignables par un USER seul                    7    billing.pay
-  atteignables par un TENANT_ADMIN seul           34
+  atteignables par un TENANT_ADMIN seul           36
   partagées par les deux                          70
   sans permission, tout membre                    17
   ─────────────────────────────────────────────────
-  surface locataire                              128
+  surface locataire                              130
 
   PLATFORM_ADMIN                                  81
   publiques, sans compte                           7
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          227
+  total                                          229
 ```
 
-Dont **109 lectures** et **118 écritures**. Chaque écriture a sa ligne dans les
+Dont **109 lectures** et **120 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

@@ -10,6 +10,7 @@ use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
 use PHPUnit\Framework\Attributes\CoversNothing;
+use Psr\Http\Message\ResponseInterface;
 
 /**
  * `GET /organisation/subscriptions` — who holds what, and how full each one
@@ -46,6 +47,17 @@ final class OrganisationSubscriptionsTest extends DatabaseApiTestCase
         // Dee is on no subscription, and that is the point: somebody the
         // organisation has but nobody bought for contributes no row.
         $this->person('sub-dee', 'dee@acme.test', 'Dee');
+
+        // The product has to be assigned before anybody can be a member of
+        // the tenant on it (ADR-047).
+        $this->connection->executeStatement(
+            'INSERT INTO tenant_products (tenant_id, product_id) VALUES (:t, :p)',
+            ['t' => $this->tenant, 'p' => $this->product],
+        );
+
+        $this->role($this->admin, 'TENANT_ADMIN');
+        $this->role($this->holder, 'USER');
+        $this->role($this->colleague, 'USER');
 
         $this->override([
             AuthProvider::class => new FakeAuthProvider([
@@ -276,6 +288,147 @@ final class OrganisationSubscriptionsTest extends DatabaseApiTestCase
             self::assertSame(400, $response->getStatusCode(), $query);
         }
     }
+
+    // --- An administrator puts themselves on one (2026-09-30) ---------------
+
+    public function testTheAdministratorPutsHerselfOnAColleaguesSubscription(): void
+    {
+        $subscription = $this->subscribe($this->offer('team', 'Team', 4_000, 2), $this->holder);
+
+        self::assertSame(201, $this->join($subscription)->getStatusCode());
+
+        $row = $this->rowFor($subscription);
+        self::assertTrue($row['includes_me'] ?? null);
+
+        // And she is on it as far as the subscription is concerned, which is
+        // what being on one is for.
+        self::assertSame(1, $this->connection->fetchOne(
+            'SELECT count(*) FROM subscription_members WHERE subscription_id = :s AND user_id = :u',
+            ['s' => $subscription, 'u' => $this->admin],
+        ));
+    }
+
+    public function testJoiningSpendsNoPlace(): void
+    {
+        // Two places: Bo and one other. Without the exemption Ada would take
+        // the second, and the seat Bo paid for would be gone the moment an
+        // administrator went to look.
+        $subscription = $this->subscribe($this->offer('team', 'Team', 4_000, 2), $this->holder);
+
+        $before = $this->rowFor($subscription)['places_used'] ?? null;
+        self::assertSame(201, $this->join($subscription)->getStatusCode());
+
+        self::assertSame($before, $this->rowFor($subscription)['places_used'] ?? null);
+
+        // And Bo can still fill the place he bought.
+        $added = $this->request(
+            'POST',
+            '/api/v1/subscription/people',
+            $this->headersFor('bo-token'),
+            $this->json(['seat' => true, 'user_id' => $this->colleague]),
+        );
+
+        self::assertSame(201, $added->getStatusCode(), (string) $added->getBody());
+    }
+
+    public function testSheTakesHerselfOffAgainAndTwiceIsOnce(): void
+    {
+        $subscription = $this->subscribe($this->offer('team', 'Team', 4_000, 2), $this->holder);
+        $this->join($subscription);
+
+        self::assertSame(204, $this->leave($subscription)->getStatusCode());
+        self::assertFalse($this->rowFor($subscription)['includes_me'] ?? null);
+
+        // Idempotent, like every other removal here: taking yourself off
+        // something you are not on is nothing, not an error.
+        self::assertSame(204, $this->leave($subscription)->getStatusCode());
+    }
+
+    public function testAMemberMayNotUseItEvenHoldingSubscriptionManage(): void
+    {
+        $subscription = $this->subscribe($this->offer('team', 'Team', 4_000, 2), $this->holder);
+
+        // Bo holds `subscription.manage` — a USER really does, because it is
+        // what lets a seat holder manage their own seat. It is not this.
+        self::assertSame(403, $this->request(
+            'POST',
+            '/api/v1/organisation/subscriptions/' . $subscription . '/me',
+            $this->headersFor('bo-token'),
+        )->getStatusCode());
+    }
+
+    public function testASubscriptionThisOrganisationDoesNotHoldIsNotFound(): void
+    {
+        $elsewhere = $this->id("INSERT INTO tenants (name, slug) VALUES ('Globex', 'globex') RETURNING id");
+        $stranger = $this->person('sub-eve', 'eve@globex.test', 'Eve');
+
+        $tenant = $this->tenant;
+        $this->tenant = $elsewhere;
+        $theirs = $this->subscribe($this->offer('other', 'Other', 1_000, 2), $stranger);
+        $this->tenant = $tenant;
+
+        // One answer for "no such subscription", "not this organisation's"
+        // and "over" — or an id becomes a way to probe other tenants.
+        $refused = $this->join($theirs);
+        self::assertSame(404, $refused->getStatusCode());
+        self::assertSame('NO_SUBSCRIPTION', $this->errorOf($refused)['code'] ?? null);
+    }
+
+    public function testTheHolderIsCoveredAlready(): void
+    {
+        $hers = $this->subscribe($this->offer('team', 'Team', 4_000, 2), $this->admin);
+
+        $refused = $this->join($hers);
+        self::assertSame(409, $refused->getStatusCode());
+        self::assertSame('ALREADY_THE_OWNER', $this->errorOf($refused)['code'] ?? null);
+    }
+
+    private function join(string $subscriptionId): ResponseInterface
+    {
+        return $this->request(
+            'POST',
+            '/api/v1/organisation/subscriptions/' . $subscriptionId . '/me',
+            $this->headersFor('ada-token'),
+        );
+    }
+
+    private function leave(string $subscriptionId): ResponseInterface
+    {
+        return $this->request(
+            'DELETE',
+            '/api/v1/organisation/subscriptions/' . $subscriptionId . '/me',
+            $this->headersFor('ada-token'),
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rowFor(string $subscriptionId): array
+    {
+        foreach ($this->read() as $row) {
+            if (($row['id'] ?? null) === $subscriptionId) {
+                return $row;
+            }
+        }
+
+        self::fail('The register does not list ' . $subscriptionId . '.');
+    }
+
+    /** A real role row: the places rule reads `tenant_member_roles`, in SQL. */
+    private function role(string $userId, string $code): void
+    {
+        $this->connection->executeStatement(
+            'INSERT INTO tenant_members (tenant_id, user_id, product_id) VALUES (:t, :u, :p)',
+            ['t' => $this->tenant, 'u' => $userId, 'p' => $this->product],
+        );
+        $this->connection->executeStatement(
+            'INSERT INTO tenant_member_roles (tenant_id, user_id, product_id, role_id)'
+            . ' SELECT :t, :u, :p, id FROM roles WHERE code = :c',
+            ['t' => $this->tenant, 'u' => $userId, 'p' => $this->product, 'c' => $code],
+        );
+    }
+
     /**
      * @return array{subscriptions: list<array<string, mixed>>, total: int}
      */

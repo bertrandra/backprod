@@ -42,6 +42,7 @@ function held(overrides: Record<string, unknown> = {}) {
     current_period_end: '2026-10-25T10:00:00Z',
     places_sold: 3,
     places_used: 2,
+    includes_me: false,
     ...overrides,
   };
 }
@@ -234,5 +235,71 @@ describe('the filter above the register', () => {
       const last = requests.filter((request) => request.path === '/api/v1/organisation/subscriptions').at(-1);
       expect(last?.query).toEqual({ limit: 50, offset: 0, person: 'u-2', status: 'PAST_DUE' });
     });
+  });
+});
+
+describe("the administrator's own place", () => {
+  it('offers to put herself on a subscription she is not on, and names it', async () => {
+    const { client, requests } = recordingClient({
+      ...stubsFor([held({ id: 's-bo' })]),
+      'POST /api/v1/organisation/subscriptions/{subscriptionId}/me': { data: { member: {} } },
+    });
+
+    renderWith(<OrganisationSubscriptionsScreen />, client, ADMIN);
+
+    fireEvent.click(await waitFor(() => screen.getByTestId('join')));
+
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (request) => request.path === '/api/v1/organisation/subscriptions/{subscriptionId}/me',
+        ),
+      ).toBe(true),
+    );
+
+    const sent = requests.find(
+      (request) => request.path === '/api/v1/organisation/subscriptions/{subscriptionId}/me',
+    );
+
+    // The id travels in the path and nothing travels in the body: the only
+    // person this can add is the caller, so there is nobody to name.
+    expect(sent?.pathParams).toEqual({ subscriptionId: 's-bo' });
+    expect(sent?.body).toBeUndefined();
+  });
+
+  it('offers to take herself off one she is on', async () => {
+    const { client, requests } = recordingClient({
+      ...stubsFor([held({ id: 's-bo', includes_me: true })]),
+      'DELETE /api/v1/organisation/subscriptions/{subscriptionId}/me': {},
+    });
+
+    renderWith(<OrganisationSubscriptionsScreen />, client, ADMIN);
+
+    // One button or the other, never both: `includes_me` is the server's
+    // answer and the screen only reads it.
+    expect(screen.queryByTestId('join')).toBeNull();
+    fireEvent.click(await waitFor(() => screen.getByTestId('leave')));
+
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (request) => request.path === '/api/v1/organisation/subscriptions/{subscriptionId}/me',
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it('offers neither on a subscription that has ended', async () => {
+    renderWith(
+      <OrganisationSubscriptionsScreen />,
+      clientFor([held({ id: 's-gone', live: false, status: 'CANCELLED' })]),
+      ADMIN,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('state')).toBeTruthy());
+
+    // There is no coverage to join. The row is there as a record.
+    expect(screen.queryByTestId('join')).toBeNull();
+    expect(screen.queryByTestId('leave')).toBeNull();
   });
 });
