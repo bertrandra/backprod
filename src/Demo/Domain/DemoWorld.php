@@ -1082,13 +1082,22 @@ final class DemoWorld
      * had declared its schema version. Atlas's is the platform's own
      * workspace with something in it.
      *
-     * **One of Plan's is a real Plan document** (2026-09-29), named by file
-     * rather than written inline. The three others carry a place-holder, and
-     * that is a statement of what is known rather than a decision: Plan
-     * exported one demonstration project, and it is the parcel at Le Vésinet.
-     * Giving the same cadastral record to a terrace in Lyon and one in
-     * Villeurbanne would make the demonstration say something untrue about
-     * its own data, which is worse than a project that does not open.
+     * **A project carries a document its product exported, or none at all**
+     * (2026-09-30). One of Plan's is real, named by file rather than written
+     * inline; every other document here is `[]`, which is exactly what a
+     * project created through the Projects screen carries — the shape belongs
+     * to the product and this platform may not invent it (§4, §16).
+     *
+     * They used to carry `['parcelle' => 'BC 42', …]` and `['source' =>
+     * 'demo']`, which looked like data and was read by nothing. The operator
+     * found out by clicking them: a project in a format no product knows does
+     * not open, and it is indistinguishable from one that is broken. Empty is
+     * honest and it is the same case a new project already is — whatever
+     * opens one opens the other.
+     *
+     * Giving the real Le Vésinet record to a terrace in Lyon was the other
+     * way out, and it is worse: the demonstration would say something untrue
+     * about its own data.
      *
      * @var list<array{tenant: string, product: string, by: string, name: string, description: string, document?: array<string, mixed>, document_file?: string}>
      */
@@ -1112,19 +1121,19 @@ final class DemoWorld
             'tenant' => 'acme', 'product' => 'plan', 'by' => 'acme-user2',
             'name' => 'Abri de jardin — parcelle AE 101',
             'description' => 'Dalle et abri 12 m² au fond de la parcelle, à vérifier contre le PLU.',
-            'document' => ['parcelle' => 'AE 101', 'commune' => 'Le Vésinet', 'surface_m2' => 12, 'source' => 'demo'],
+            'document' => [],
         ],
         [
             'tenant' => 'initech', 'product' => 'plan', 'by' => 'initech-user1',
             'name' => 'Terrasse du restaurant',
             'description' => 'Terrasse de 60 m² sur lambourdes, accès PMR, Lyon 2e.',
-            'document' => ['parcelle' => 'BC 42', 'commune' => 'Lyon', 'surface_m2' => 60, 'source' => 'demo'],
+            'document' => [],
         ],
         [
             'tenant' => 'acme', 'product' => 'atlas', 'by' => 'acme-user1',
             'name' => 'North wall',
             'description' => 'The scaffolding job.',
-            'document' => ['source' => 'demo'],
+            'document' => [],
         ],
         [
             // By `globex-user1`, who bought the Starter seat it is counted
@@ -1135,7 +1144,7 @@ final class DemoWorld
             'tenant' => 'globex', 'product' => 'boreas', 'by' => 'globex-user1',
             'name' => 'Site survey',
             'description' => 'First pass at the Globex yard.',
-            'document' => ['source' => 'demo'],
+            'document' => [],
         ],
         [
             // The free period's one project (2026-09-27), by the person trying
@@ -1146,7 +1155,7 @@ final class DemoWorld
             'tenant' => 'globex', 'product' => 'plan', 'by' => 'globex-user2',
             'name' => 'Terrasse à l’essai',
             'description' => 'Cinq jours pour voir si Plan fait le travail : terrasse 18 m², Villeurbanne.',
-            'document' => ['parcelle' => 'AK 7', 'commune' => 'Villeurbanne', 'surface_m2' => 18, 'source' => 'demo'],
+            'document' => [],
         ],
     ];
 

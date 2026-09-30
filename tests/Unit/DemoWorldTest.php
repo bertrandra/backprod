@@ -83,6 +83,35 @@ final class DemoWorldTest extends TestCase
      * So the file is checked here rather than discovered there, against the
      * same policy the workspace applies.
      */
+    /**
+     * No demonstration project invents a document.
+     *
+     * A project's document belongs to its product, and this platform may not
+     * invent one (§4, §16) — not in a form, and not in a seeded world either.
+     * The rows here used to carry `['parcelle' => 'BC 42', …]`, which looked
+     * like data, was read by nothing, and was in the format of no product: on
+     * screen it is indistinguishable from a project that is broken, which is
+     * how the operator found it.
+     *
+     * So a project carries a document its product exported — named by file —
+     * or nothing at all, which is exactly what a project created through the
+     * Projects screen carries. Whatever opens one opens the other.
+     */
+    public function testNoProjectInventsADocument(): void
+    {
+        foreach (DemoWorld::PROJECTS as $draft) {
+            // One assertion and not two branches: a project naming a file must
+            // not also write a document � that would be two documents for one
+            // project � and one naming none must not invent one. Empty is the
+            // answer in both cases.
+            self::assertSame(
+                [],
+                $draft['document'] ?? [],
+                $draft['name'] . ' invents a document. A project carries what its product exported, or nothing.',
+            );
+        }
+    }
+
     public function testEveryDocumentNamedByFileIsOneThePlatformWouldStore(): void
     {
         $checked = 0;
