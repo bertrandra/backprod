@@ -69,8 +69,12 @@ final class DemoPageTest extends DatabaseApiTestCase
         );
         // Acme subscribes to it.
         $this->connection->executeStatement(
-            "INSERT INTO subscriptions (tenant_id, product_id, offer_version_id, status, current_period_start, current_period_end) VALUES (:t, :p, :v, 'ACTIVE', now(), now() + interval '30 days')",
-            ['t' => $this->acme, 'p' => $this->atlas, 'v' => $version],
+            // Ada's seat, not an unowned row: the tenant surface sells seats
+            // only (ADR-055), and a subscription naming nobody is a shape this
+            // platform no longer makes.
+            'INSERT INTO subscriptions (tenant_id, product_id, offer_version_id, status, current_period_start, current_period_end, subscriber_kind, subscriber_user_id, owner_user_id)'
+            . " VALUES (:t, :p, :v, 'ACTIVE', now(), now() + interval '30 days', 'USER', :owner, :owner)",
+            ['t' => $this->acme, 'p' => $this->atlas, 'v' => $version, 'owner' => $ada],
         );
 
         $ola = $this->person('sub-ola', 'ola@platform.test', 'Ola');
