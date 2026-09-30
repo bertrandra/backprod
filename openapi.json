@@ -508,7 +508,7 @@
         "properties": {
           "block": {
             "type": "string",
-            "enum": ["HEADLINE", "PROBLEM", "STEPS", "USE_CASE", "QUOTE", "PROOF", "QUESTION"],
+            "enum": ["HEADLINE", "PROBLEM", "STEPS", "USE_CASE", "QUOTE", "PROOF", "DEMO", "QUESTION"],
             "description": "PRICING is absent and must stay absent: it is a position in the order and reads the catalogue. One HEADLINE per page."
           },
           "position": {
@@ -542,7 +542,7 @@
         "required": ["id", "block", "position", "content", "translations", "asset_id", "image"],
         "properties": {
           "id": { "type": "string", "format": "uuid" },
-          "block": { "type": "string", "enum": ["HEADLINE", "PROBLEM", "STEPS", "USE_CASE", "QUOTE", "PROOF", "QUESTION"] },
+          "block": { "type": "string", "enum": ["HEADLINE", "PROBLEM", "STEPS", "USE_CASE", "QUOTE", "PROOF", "DEMO", "QUESTION"] },
           "position": { "type": "integer" },
           "content": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
           "asset_id": {
@@ -603,7 +603,7 @@
       "ShowcaseSectionOrder": {
         "type": "array",
         "description": "The order a product reads its showcase sections in (2026-09-28). A **permutation**: every section exactly once, `PRICING` included.\n\nThis is a different fact from a block's `position`, which orders the rows *within* one band — three steps, two use cases. This orders the bands themselves, and there is one of it per product.\n\n`PRICING` appears here and in no request that writes a band, deliberately: it is a section that reads the catalogue and has no row anybody writes, because a row for it would be a row somebody could type a price into. Its place in the order is the one thing about it an operator decides.",
-        "items": { "type": "string", "enum": ["HEADLINE", "PROBLEM", "STEPS", "USE_CASE", "QUOTE", "PROOF", "PRICING", "QUESTION"] }
+        "items": { "type": "string", "enum": ["HEADLINE", "PROBLEM", "STEPS", "USE_CASE", "QUOTE", "PROOF", "DEMO", "PRICING", "QUESTION"] }
       },
       "Showcase": {
         "type": "object",
@@ -631,7 +631,7 @@
               "required": ["id", "block", "position", "content"],
               "properties": {
                 "id": { "type": "string", "format": "uuid" },
-                "block": { "type": "string", "enum": ["HEADLINE", "PROBLEM", "STEPS", "USE_CASE", "QUOTE", "PROOF", "QUESTION"] },
+                "block": { "type": "string", "enum": ["HEADLINE", "PROBLEM", "STEPS", "USE_CASE", "QUOTE", "PROOF", "DEMO", "QUESTION"] },
                 "position": { "type": "integer" },
                 "content": { "$ref": "#/components/schemas/ShowcaseBlockContent" },
                 "image": {

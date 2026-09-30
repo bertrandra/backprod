@@ -453,6 +453,15 @@ final class DemoWorld
                     'it' => ['eyebrow' => 'Il risultato', 'title' => 'La stessa particella, prima e dopo.'],
                 ],
             ],
+            'DEMO' => [
+                'content' => ['eyebrow' => 'Try it', 'title' => 'Open it and move a corner.'],
+                'translations' => [
+                    'fr' => ['eyebrow' => 'Essayez', 'title' => 'Ouvrez-la et déplacez un coin.'],
+                    'es' => ['eyebrow' => 'Pruébelo', 'title' => 'Ábrala y mueva una esquina.'],
+                    'de' => ['eyebrow' => 'Probieren Sie es', 'title' => 'Öffnen Sie sie und verschieben Sie eine Ecke.'],
+                    'it' => ['eyebrow' => 'Provatela', 'title' => 'Apritela e spostate un angolo.'],
+                ],
+            ],
             'PROOF' => [
                 'content' => ['eyebrow' => 'The proof', 'title' => 'The sheet that comes out, as it comes out.'],
                 'translations' => [
@@ -691,6 +700,30 @@ final class DemoWorld
                     'es' => ['quote' => 'El presupuesto sale esa misma tarde, del mismo dibujo. He dejado de redibujar en la mesa de la cocina.', 'author' => 'Responsable de una empresa de paisajismo de tres personas'],
                     'de' => ['quote' => 'Das Angebot geht noch am selben Abend raus, aus derselben Zeichnung. Ich zeichne nicht mehr am Küchentisch nach.', 'author' => 'Inhaber eines Garten- und Landschaftsbaubetriebs mit drei Leuten'],
                     'it' => ['quote' => 'Il preventivo parte la sera stessa, dallo stesso disegno. Ho smesso di ridisegnare al tavolo di cucina.', 'author' => 'Titolare di un’impresa di giardinaggio di tre persone'],
+                ],
+            ],
+            [
+                // Plan, running on the page that sells it (2026-09-30). The
+                // address is the product's own — the same origin `app_url`
+                // names — and `{width}` / `{height}` are the platform's
+                // tokens: the page puts in the pixels it drew at, and nothing
+                // here knows that Plan calls its parameters `x` and `y`.
+                //
+                // **It needs `--embed https://plan.raillard.org` at build
+                // time**, or `frame-src 'self'` refuses the frame and the band
+                // shows its caption over an empty box. Silently, which is why
+                // the build says what it allowed.
+                'block' => 'DEMO',
+                'content' => [
+                    'caption' => 'The terrace, in three dimensions, in your browser. Nothing to install.',
+                    'embed_url' => 'https://plan.raillard.org/?mode=demo&x={width}&y={height}&heureauto=y&hrsstart=7&hrsend=19&duree=10&orthophoto=y',
+                    'ratio' => '4:3',
+                ],
+                'translations' => [
+                    'fr' => ['caption' => 'La terrasse, en trois dimensions, dans votre navigateur. Rien à installer.'],
+                    'es' => ['caption' => 'La terraza, en tres dimensiones, en su navegador. Nada que instalar.'],
+                    'de' => ['caption' => 'Die Terrasse, dreidimensional, in Ihrem Browser. Nichts zu installieren.'],
+                    'it' => ['caption' => 'La terrazza, in tre dimensioni, nel vostro browser. Niente da installare.'],
                 ],
             ],
             [

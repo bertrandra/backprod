@@ -52,6 +52,10 @@ final class ShowcaseBlocks
         ShowcaseBlock::STEPS => ['required' => ['title'], 'optional' => ['body', 'alt']],
         ShowcaseBlock::USE_CASE => ['required' => ['who'], 'optional' => ['before', 'after', 'alt']],
         ShowcaseBlock::PROOF => ['required' => ['caption'], 'optional' => ['alt']],
+        // `DEMO` carries a caption, and then either an address to embed
+        // or a picture — never both, which {@see self::oneOrTheOther()}
+        // refuses. `alt` describes the picture when there is one.
+        ShowcaseBlock::DEMO => ['required' => ['caption'], 'optional' => ['alt']],
         // `QUESTION` has no `alt` because it carries no picture (2026-09-28):
         // a field this endpoint stored and no band rendered is what the loop
         // below refuses on the way in, and it would be the same hole the
@@ -72,6 +76,42 @@ final class ShowcaseBlocks
     private const CODES = [
         ShowcaseBlock::PROBLEM => ['icon' => ShowcaseBlock::ICONS],
     ];
+
+    /**
+     * Fields that are an **address** (2026-09-30).
+     *
+     * Like a code in both the ways that matter here: English-only, because
+     * an address has no French, and validated rather than merely bounded.
+     * Unlike one in the way that matters most — it is not a closed set, and
+     * it is the single field on this page whose value a stranger's browser
+     * will go and *fetch*. Everything else is plain text the platform
+     * renders itself.
+     *
+     * @var array<string, list<string>>
+     */
+    private const ADDRESSES = [
+        ShowcaseBlock::DEMO => ['embed_url'],
+    ];
+
+    /**
+     * The longest address stored. Generous for query parameters an embedded
+     * application wants, short of somewhere to hide a payload.
+     */
+    private const LONGEST_ADDRESS = 1_000;
+
+    /**
+     * What the page substitutes into an address before it loads it.
+     *
+     * The operator writes `…&x={width}&y={height}…`; the page puts in the
+     * pixels it actually rendered at. **The tokens are the platform's and
+     * the parameter names are the product's** — Plan calls them `x` and `y`,
+     * and nothing here knows that. A shared component naming one product's
+     * query parameters is UR5, which `gate:products` forbids in PHP and
+     * which has no gate on this side.
+     *
+     * @var list<string>
+     */
+    public const TOKENS = ['{width}', '{height}'];
 
     /** Long enough for a paragraph, short enough that nobody pastes a book. */
     private const LONGEST = 2_000;
@@ -172,6 +212,24 @@ final class ShowcaseBlocks
             throw self::invalid($index, 'asset_id', 'the id of a picture uploaded to this product, or null');
         }
 
+        $content = self::content($raw->content ?? null, $kind, $index, true);
+
+        // One or the other, decided with the operator (2026-09-30): a row
+        // shows the product working or a picture of it, and a row carrying
+        // both would leave the screen choosing — which is a decision about
+        // somebody's shop window made in a component.
+        if ($kind === ShowcaseBlock::DEMO) {
+            $embeds = isset($content['embed_url']);
+
+            if ($embeds === ($assetId !== null)) {
+                throw self::invalid(
+                    $index,
+                    'content.embed_url',
+                    $embeds ? 'an address or a picture, not both' : 'an address, or a picture by asset_id',
+                );
+            }
+        }
+
         return new ShowcaseBlock(
             // Ignored on the way in: the story is replaced wholly, so a
             // block's id is the database's to mint and never the client's
@@ -179,7 +237,7 @@ final class ShowcaseBlocks
             '',
             $kind,
             $position,
-            self::content($raw->content ?? null, $kind, $index, true),
+            $content,
             self::translations($raw->translations ?? null, $kind, $index),
             $assetId,
         );
@@ -196,7 +254,8 @@ final class ShowcaseBlocks
 
         $shape = self::FIELDS[$kind];
         $codes = $english ? array_keys(self::CODES[$kind] ?? []) : [];
-        $known = [...$shape['required'], ...$shape['optional'], ...$codes];
+        $addresses = $english ? self::ADDRESSES[$kind] ?? [] : [];
+        $known = [...$shape['required'], ...$shape['optional'], ...$codes, ...$addresses];
         $content = [];
 
         foreach ($known as $field) {
@@ -218,6 +277,10 @@ final class ShowcaseBlocks
 
             if ($allowed !== null && !in_array($value, $allowed, true)) {
                 throw self::invalid($index, 'content.' . $field, 'one of ' . implode(', ', $allowed));
+            }
+
+            if (in_array($field, self::ADDRESSES[$kind] ?? [], true)) {
+                self::assertAnAddress(trim($value), $field, $index);
             }
 
             $content[$field] = trim($value);
@@ -245,6 +308,48 @@ final class ShowcaseBlocks
         }
 
         return $content;
+    }
+
+    /**
+     * An address this platform will put in a frame.
+     *
+     * **`https` and nothing else.** Not because http is merely untidy: the
+     * page is served over https, so an http frame is blocked as mixed
+     * content — silently, which is the failure this whole band has to be
+     * careful about — and every other scheme a browser knows (`javascript:`,
+     * `data:`, `blob:`) is a way to run somebody else's code inside a page
+     * this platform serves.
+     *
+     * **No credentials in it.** `https://user:pass@host/` is a valid URL and
+     * a secret in a field five languages get translated from.
+     *
+     * The tokens are replaced by a digit before parsing: braces are not
+     * valid in a URL, so a parser would refuse the very thing an operator is
+     * meant to write. What is stored is what they wrote.
+     */
+    private static function assertAnAddress(string $value, string $field, int $index): void
+    {
+        if (mb_strlen($value) > self::LONGEST_ADDRESS) {
+            throw self::invalid($index, 'content.' . $field, sprintf('an https address of at most %d characters', self::LONGEST_ADDRESS));
+        }
+
+        $parseable = str_replace(self::TOKENS, '1', $value);
+        $parts = parse_url($parseable);
+
+        if (
+            $parts === false
+            || ($parts['scheme'] ?? null) !== 'https'
+            || ($parts['host'] ?? '') === ''
+            || isset($parts['user'], $parts['pass'])
+            || isset($parts['user'])
+            || filter_var($parseable, FILTER_VALIDATE_URL) === false
+        ) {
+            throw self::invalid(
+                $index,
+                'content.' . $field,
+                'an https address, with no credentials in it; write ' . implode(' and ', self::TOKENS) . ' where the size goes',
+            );
+        }
     }
 
     /**

@@ -383,6 +383,28 @@ minute after you typed the line, when signing in to find out would be a detour.
 
 ---
 
+## A product that shows itself on its own page
+
+A showcase's **Try it** band embeds the product from the product's own origin,
+and `frame-src` in the deployed `.htaccess` lists `'self'` and the payment
+provider. Anything else is refused — **silently**: nothing on screen, one line
+in a console, and a shop window with a hole in it.
+
+So the origin is named when the bundle is built:
+
+```sh
+DEFAULT_PRODUCT=plan bash bin/build-dist.sh --payment-provider stripe \
+    --embed https://plan.raillard.org
+```
+
+Repeatable, once per origin. `bin/verify-dist.sh` prints what the bundle will
+allow (`frames allowed from: …`) so it can be checked before uploading rather
+than discovered by looking at the page.
+
+An operator who adds a **Try it** row to a product whose origin is not in that
+list has to rebuild. Nothing in the console can warn them: a cross-origin
+frame tells the page that hosts it nothing at all.
+
 ## What runs where
 
 | | Where | Notes |

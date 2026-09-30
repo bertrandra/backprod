@@ -14,6 +14,7 @@
 #
 # Usage:
 #   DEFAULT_PRODUCT=atlas bin/build-dist.sh [--out DIR] [--skip-gates] [--slim-fonts]
+#                                        [--payment-provider stripe] [--embed ORIGIN]...
 #
 # **No keys, and nothing to configure at build time.** U11 required a Supabase URL
 # and anon key, because the browser fetched its token from one. U12 issues tokens
@@ -34,18 +35,25 @@ OUT="$ROOT/dist"
 SKIP_GATES=0
 SLIM_FONTS=0
 
+# Defaults before the loop, because `--embed` accumulates into this one and a
+# default set afterwards would quietly discard every flag the caller passed.
+DEFAULT_PRODUCT="${DEFAULT_PRODUCT:-}"
+PAYMENT_PROVIDER="${PAYMENT_PROVIDER:-}"
+EMBED_ORIGINS="${EMBED_ORIGINS:-}"
+
 while [ $# -gt 0 ]; do
     case "$1" in
         --out) OUT="$2"; shift 2 ;;
         --skip-gates) SKIP_GATES=1; shift ;;
         --slim-fonts) SLIM_FONTS=1; shift ;;
         --payment-provider) PAYMENT_PROVIDER="$2"; shift 2 ;;
+        # Repeatable: a platform hosting three products that each show
+        # themselves names three origins.
+        --embed) EMBED_ORIGINS="${EMBED_ORIGINS} $2"; shift 2 ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
 done
 
-DEFAULT_PRODUCT="${DEFAULT_PRODUCT:-}"
-PAYMENT_PROVIDER="${PAYMENT_PROVIDER:-}"
 
 # The page talks to this origin for everything that is this platform's, and to
 # the payment provider for the one thing that must not be (ADR-048): the card
@@ -67,6 +75,26 @@ case "$PAYMENT_PROVIDER" in
         ;;
     *) echo "Unknown payment provider: $PAYMENT_PROVIDER (stripe, or none)" >&2; exit 2 ;;
 esac
+
+# What a showcase's DEMO band may put in a frame (2026-09-30).
+#
+# A product that shows itself on its own page is embedded from its own origin,
+# which is not this one — plan.raillard.org beside the platform (ADR-051) — and
+# `frame-src 'self'` refuses it. **Silently**: nothing on screen, one line in a
+# console nobody reads, and a shop window with a hole in it.
+#
+# So it is named here, as the payment provider is, and for the same reason: a
+# header written into `.htaccess` at build time cannot be derived from a
+# database the build never sees. Checked rather than pasted — browsers ignore a
+# path in `frame-src`, and a scheme other than https is a frame that will not
+# load over https anyway.
+for origin in $EMBED_ORIGINS; do
+    case "$origin" in
+        https://*/*) echo "An embed origin carries no path: $origin" >&2; exit 2 ;;
+        https://*) FRAME_SRC="$FRAME_SRC $origin" ;;
+        *) echo "An embed origin must be https://host: $origin" >&2; exit 2 ;;
+    esac
+done
 
 VERSION="$(git -C "$ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)"
 STAGE="$(mktemp -d)"

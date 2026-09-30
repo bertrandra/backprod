@@ -1,3 +1,4 @@
+import { DEMO_RATIOS, type DemoRatio } from './DemoBand';
 import type { Showcase } from '@/queries/showcase';
 
 import { isProblemIcon } from './meta';
@@ -86,6 +87,25 @@ export function contentFrom(showcase: Showcase | null | undefined): ShowcaseCont
       const caption = text(c.caption);
 
       return caption === null ? null : { caption };
+    }),
+    demos: pick('DEMO', (c) => {
+      const caption = text(c.caption);
+      // The caption is what a reader gets whatever the browser decides about
+      // the frame, so a row without one is not a row.
+      if (caption === null) {
+        return null;
+      }
+
+      const ratio = text(c.ratio);
+
+      return {
+        caption,
+        embedUrl: text(c.embed_url),
+        // Checked against the set rather than trusted: the backend validates
+        // it, and a value this did not recognise would index an object with
+        // undefined and reserve a box of nothing.
+        ratio: ratio !== null && ratio in DEMO_RATIOS ? (ratio as DemoRatio) : null,
+      };
     }),
     questions: pick('QUESTION', (c) => {
       const question = text(c.question);

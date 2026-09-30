@@ -28,6 +28,7 @@ final class ShowcaseBlock
     public const QUOTE = 'QUOTE';
     public const USE_CASE = 'USE_CASE';
     public const PROOF = 'PROOF';
+    public const DEMO = 'DEMO';
     public const QUESTION = 'QUESTION';
 
     /**
@@ -47,6 +48,7 @@ final class ShowcaseBlock
         self::USE_CASE,
         self::QUOTE,
         self::PROOF,
+        self::DEMO,
         self::QUESTION,
     ];
 

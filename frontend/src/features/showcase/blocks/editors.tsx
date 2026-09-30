@@ -2,6 +2,7 @@ import { TranslatedField, type Translated } from '@/ui/TranslatedField';
 import { Field, inputClass } from '@/ui/Field';
 import { t } from '@/i18n';
 
+import { DEMO_RATIO_NAMES } from './DemoBand';
 import { AUTHORED_BANDS, BAND_META, PROBLEM_ICONS, type AuthoredBandKind } from './meta';
 
 /** The icon codes, for the one field that offers a list rather than a box. */
@@ -93,6 +94,26 @@ export const BAND_FIELDS: Record<AuthoredBandKind, readonly BandField[]> = {
     PICTURE_DESCRIPTION,
   ],
   PROOF: [{ name: 'caption', label: 'Caption', required: true, long: true }, PICTURE_DESCRIPTION],
+  // The address is offered beside the picture and not instead of it: the
+  // server refuses a row carrying both, so an operator who fills the two
+  // is told which to drop rather than having one silently win.
+  DEMO: [
+    { name: 'caption', label: 'Caption', required: true, hint: 'Read whatever the browser decides about the frame, so it says what this shows.' },
+    {
+      name: 'embed_url',
+      label: 'Address to embed',
+      required: false,
+      hint: 'An https address. Write {width} and {height} where its size goes — the page puts in the pixels it drew at. Leave empty to show a picture instead.',
+    },
+    {
+      name: 'ratio',
+      label: 'Shape',
+      required: false,
+      choices: DEMO_RATIO_NAMES,
+      hint: 'The box reserved before anything loads. 4:3 for most drawings, 16:9 for video.',
+    },
+    PICTURE_DESCRIPTION,
+  ],
   QUESTION: [
     { name: 'question', label: 'Question', required: true },
     { name: 'answer', label: 'Answer', required: true, long: true },

@@ -7,6 +7,7 @@ import type { BandKind } from './meta';
 import { HeadlineBand } from './HeadlineBand';
 import { PricingBand } from './PricingBand';
 import { ProblemBand } from './ProblemBand';
+import { DemoBand } from './DemoBand';
 import { ProofBand } from './ProofBand';
 import { QuestionsBand } from './QuestionsBand';
 import { QuoteBand } from './QuoteBand';
@@ -104,6 +105,10 @@ export const BAND_VIEWS: Record<BandKind, BandEntry> = {
   PROOF: {
     speaks: (p) => p.content.proof.length > 0,
     view: (p) => <ProofBand rows={p.content.proof} heading={heading(p, 'PROOF')} />,
+  },
+  DEMO: {
+    speaks: (p) => p.content.demos.length > 0,
+    view: (p) => <DemoBand rows={p.content.demos} heading={heading(p, 'DEMO')} />,
   },
   PRICING: {
     speaks: () => true,

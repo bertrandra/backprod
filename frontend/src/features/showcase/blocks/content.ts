@@ -13,6 +13,7 @@
  * treat them alike.
  */
 
+import type { DemoRatio } from './DemoBand';
 import type { ProblemIcon } from './meta';
 
 /** A picture, once step 4 attaches one. Null everywhere until then. */
@@ -65,6 +66,21 @@ export interface ProofRow {
   readonly caption: string;
 }
 
+/**
+ * A band that shows the product working (2026-09-30).
+ *
+ * `embedUrl` and `image` are one or the other and never both, which the
+ * backend refuses rather than the screen choosing. The address may carry
+ * `{width}` and `{height}`, which {@link DemoBand} replaces with the pixels
+ * it actually rendered at.
+ */
+export interface DemoRow {
+  readonly caption: string;
+  readonly embedUrl: string | null;
+  /** The shape to reserve, when the operator named one. */
+  readonly ratio: DemoRatio | null;
+}
+
 export interface QuestionRow {
   readonly question: string;
   readonly answer: string;
@@ -91,6 +107,7 @@ export interface ShowcaseContent {
   readonly useCases: readonly ShowcaseRow<UseCaseRow>[];
   readonly quotes: readonly ShowcaseRow<QuoteRow>[];
   readonly proof: readonly ShowcaseRow<ProofRow>[];
+  readonly demos: readonly ShowcaseRow<DemoRow>[];
   readonly questions: readonly ShowcaseRow<QuestionRow>[];
   /**
    * Each band's own heading, keyed by section (2026-09-28).
@@ -116,6 +133,7 @@ export const NO_CONTENT: ShowcaseContent = {
   useCases: [],
   quotes: [],
   proof: [],
+  demos: [],
   questions: [],
   headings: {},
 };

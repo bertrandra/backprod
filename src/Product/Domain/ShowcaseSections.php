@@ -54,6 +54,7 @@ final class ShowcaseSections
         ShowcaseBlock::USE_CASE,
         ShowcaseBlock::QUOTE,
         ShowcaseBlock::PROOF,
+        ShowcaseBlock::DEMO,
         self::PRICING,
         ShowcaseBlock::QUESTION,
     ];

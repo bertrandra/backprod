@@ -60,6 +60,7 @@ const FULL: ShowcaseContent = {
   steps: [row('s1', { title: 'Draw the parcel', body: null }), row('s2', { title: 'The terrace follows', body: null })],
   useCases: [row('u1', { who: 'A landscaper', before: 'An afternoon of redrawing', after: 'Three minutes' })],
   proof: [row('p1', { caption: 'The plan, as it prints' })],
+  demos: [row('d1', { caption: 'The terrace, in three dimensions', embedUrl: 'https://plan.example/?x={width}&y={height}', ratio: '4:3' })],
   questions: [row('q1', { question: 'Can I cancel?', answer: 'Yes, at the end of the period.' })],
 };
 
@@ -70,6 +71,7 @@ const EMPTY: ShowcaseContent = {
   useCases: [],
   quotes: [],
   proof: [],
+  demos: [],
   questions: [],
   headings: {},
 };
@@ -332,6 +334,7 @@ describe('the order the page is read in', () => {
         sections={[
           'QUESTION',
           'PRICING',
+          'DEMO',
           'PROOF',
           'QUOTE',
           'USE_CASE',
@@ -349,9 +352,9 @@ describe('the order the page is read in', () => {
   });
 
   it('puts a band the order forgot back in its compiled place', () => {
-    // An order stored before `QUESTION` existed. The band is appended
-    // rather than dropped: the alternative is a band invisible on every
-    // product until somebody re-saves each one by hand.
+    // An order stored before `DEMO` and `QUESTION` existed. They are
+    // appended rather than dropped: the alternative is a band invisible on
+    // every product until somebody re-saves each one by hand.
     const { container } = render(
       <Showcase
         productName="Plan"
@@ -371,6 +374,7 @@ describe('the order the page is read in', () => {
       BAND_META.USE_CASE.anchor,
       BAND_META.QUOTE.anchor,
       BAND_META.PROOF.anchor,
+      BAND_META.DEMO.anchor,
       BAND_META.QUESTION.anchor,
     ]);
   });
@@ -392,6 +396,7 @@ describe('the order the page is read in', () => {
         sections={[
           'QUESTION',
           'PRICING',
+          'DEMO',
           'PROOF',
           'QUOTE',
           'USE_CASE',
@@ -408,7 +413,7 @@ describe('the order the page is read in', () => {
     const targets = [...container.querySelectorAll('nav a')].map((link) => link.getAttribute('href'));
 
     expect(targets).toEqual(
-      ['QUESTION', 'PRICING', 'PROOF', 'QUOTE', 'USE_CASE', 'STEPS', 'PROBLEM', 'HEADLINE'].map(
+      ['QUESTION', 'PRICING', 'DEMO', 'PROOF', 'QUOTE', 'USE_CASE', 'STEPS', 'PROBLEM', 'HEADLINE'].map(
         (kind) => `#${BAND_META[kind as keyof typeof BAND_META].anchor}`,
       ),
     );
