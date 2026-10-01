@@ -7,8 +7,11 @@ namespace App\Job\Infrastructure;
 use App\Job\Domain\Job;
 use App\Job\Domain\JobRepository;
 use App\Job\Domain\QueueLiveness;
+use App\Job\Domain\Schedule;
 use App\Shared\Database\Row;
 use App\Shared\Database\Uuid;
+use DateTimeImmutable;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\ParameterType;
@@ -247,6 +250,49 @@ final class PostgresJobRepository implements JobRepository
         // reports int|string, and leaning on PHP's string-to-number juggling
         // to compare it is the kind of thing that is right until it is not.
         return (is_numeric($affected) ? (int) $affected : 0) > 0;
+    }
+
+    public function scheduleHistory(array $types): array
+    {
+        // The clock first, and from here rather than from PHP: every other time
+        // this table compares — `run_after`, `leased_until`, the lapsed lease a
+        // claim reclaims — is PostgreSQL's, and a host whose two clocks differ
+        // by an hour must not be able to make a daily sweep run twice.
+        $at = $this->connection->fetchOne('SELECT now()');
+
+        if (!is_string($at)) {
+            throw new RuntimeException('Failed to read the database clock.');
+        }
+
+        $last = [];
+        $outstanding = [];
+
+        if ($types !== []) {
+            $rows = $this->connection->fetchAllAssociative(
+                <<<'SQL'
+                    SELECT type,
+                           max(created_at) AS last,
+                           count(*) FILTER (WHERE status IN ('QUEUED', 'RUNNING')) AS pending
+                      FROM jobs
+                     WHERE idempotency_key = :key
+                       AND type IN (:types)
+                     GROUP BY type
+                    SQL,
+                ['key' => Schedule::KEY, 'types' => $types],
+                ['types' => ArrayParameterType::STRING],
+            );
+
+            foreach ($rows as $row) {
+                $type = Row::string($row, 'type');
+                $last[$type] = Row::timestamp($row, 'last');
+
+                if (Row::integer($row, 'pending') > 0) {
+                    $outstanding[] = $type;
+                }
+            }
+        }
+
+        return ['at' => new DateTimeImmutable($at), 'last' => $last, 'outstanding' => $outstanding];
     }
 
     public function beginRun(): string

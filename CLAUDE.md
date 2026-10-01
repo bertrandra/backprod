@@ -641,6 +641,42 @@ recipient can mute is one an attacker can mute.
 Never put a secret, a token, payment data or an exception trace in a
 notification payload. A channel leaves the platform.
 
+## Jobs and the schedule
+
+Full specification in `docs/adr/ADR-067-the-platform-schedules-its-own-recurring-work.md`.
+
+**A handler is not work until something enqueues it.** Nine were registered and
+eight had no caller at all, so every sweep, every webhook delivery and every
+notification was written, wired, tested and never ran — the platform could not
+send a single notice for a month. Each had tests calling `handle()` directly, and
+passing, which is precisely what cannot see the gap.
+
+So every type is declared in `Job\Domain\Schedule`, in exactly one of two lists:
+
+```text
+PERIODIC    the platform runs it, and the smallest gap between two runs
+ON_DEMAND   somebody asks for it, and the entry names who
+```
+
+`JobScheduleTest` compares both lists against the handlers the container wires,
+**both ways**. Adding a handler fails the build until it says which kind it is;
+declaring a type nothing handles fails it too. The same shape as
+`docs/ui-api-coverage.json`: mapped to a caller, or to a written reason for
+having none. A test that calls a handler proves it works and never proves it
+runs, so when you add one, add the case that calls what cron calls.
+
+`JobRunner::runOnce()` schedules **before** it claims, so work due this minute
+runs this minute. One crontab line is still the whole schedule (ADR-027): a
+second one would put part of this platform's behaviour where no gate can see it.
+Without that line nothing recurring happens at all.
+
+An interval is a minimum gap and never a time of day — there is nowhere to
+express one, and every periodic handler reads dates rather than clocks. The gap
+is counted from the last scheduling rather than the last finish, so drift stays
+bounded by one cron period. The pile-up is bounded by `jobs_pending_key_unique`
+and never by a check: one constant key per type, so two overlapping passes cannot
+both queue one.
+
 ## Platform staff vs tenant membership
 
 Full specification in `docs/architecture-v2.md` §12.2.

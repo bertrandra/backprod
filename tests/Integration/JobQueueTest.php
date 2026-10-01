@@ -11,6 +11,7 @@ use App\Job\Domain\JobStatus;
 use App\Job\Infrastructure\PostgresJobRepository;
 use App\Job\Service\JobHandlers;
 use App\Job\Service\JobRunner;
+use App\Job\Service\JobScheduler;
 use App\Shared\Logging\ErrorLogLogger;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use RuntimeException;
@@ -197,7 +198,18 @@ final class JobQueueTest extends DatabaseTestCase
 
         $outcome = $this->runner()->runOnce();
 
-        self::assertSame(['claimed' => 2, 'succeeded' => 1, 'failed' => 1], $outcome);
+        // Exact rather than a handful of assertSames, so a key added to the
+        // outcome has to be acknowledged here (2026-10-01).
+        self::assertSame(
+            [
+                'claimed' => 2,
+                'succeeded' => 1,
+                'failed' => 1,
+                'scheduled' => [],
+                'unschedulable' => [],
+            ],
+            $outcome,
+        );
 
         // R10: a stopped cron and a quiet queue look identical without this.
         $run = $this->connection->fetchAssociative(
@@ -251,9 +263,24 @@ final class JobQueueTest extends DatabaseTestCase
 
     private function runner(): JobRunner
     {
+        $handlers = $this->demoHandlers();
+        $logger = new ErrorLogLogger();
+
         return new JobRunner(
             $this->jobs,
-            new JobHandlers([
+            $handlers,
+            $logger,
+            // No schedule at all: these cases are about claiming and running,
+            // and a pass that also queued nine platform sweeps would be
+            // answering a second question. What the scheduler does with a real
+            // one is JobScheduleTest's business.
+            new JobScheduler($this->jobs, $handlers, $logger, []),
+        );
+    }
+
+    private function demoHandlers(): JobHandlers
+    {
+        return new JobHandlers([
                 new class () implements JobHandler {
                     public function type(): string
                     {
@@ -276,9 +303,7 @@ final class JobQueueTest extends DatabaseTestCase
                         throw new RuntimeException('the handler exploded');
                     }
                 },
-            ]),
-            new ErrorLogLogger(),
-        );
+        ]);
     }
 
     private function enqueue(string $type, int $priority = 0): void
