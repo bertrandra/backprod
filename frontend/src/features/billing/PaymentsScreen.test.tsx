@@ -57,6 +57,10 @@ function payment(overrides: Record<string, unknown> = {}) {
     invoice_number: '2026-000004',
     customer_name: 'Ada Lovelace',
     customer_email: 'ada@acme.test',
+    // Whether the bill is settled, whatever became of this attempt. False by
+    // default, because a failed attempt on a bill still owed is the case that
+    // needs no softening — there is something to do.
+    invoice_settled: false,
     // The member it is for (2026-09-27), by the platform's own rule.
     person: { user_id: 'u-ada', name: 'Ada Lovelace', email: 'ada@acme.test' },
     ...overrides,
@@ -88,6 +92,46 @@ describe('a failed payment', () => {
     await waitFor(() => expect(screen.getByTestId('failure')).toBeTruthy());
     expect(screen.getByTestId('failure').textContent).toContain('The card was declined.');
     expect(screen.getByTestId('failure').textContent).toContain('card_declined');
+
+    // Nothing softens it while the bill is owed: there is something to do.
+    expect(screen.queryByTestId('settled-anyway')).toBeNull();
+  });
+
+  it('says there is nothing to do when the invoice has since been paid', async () => {
+    // The commonest sequence there is: this card was declined, a later one
+    // went through. The attempt stays failed because it is the record of what
+    // happened (ADR-034), and until 2026-10-01 the screen showed a red refusal
+    // against a bill already settled with nothing to say so.
+    renderAtRoute(
+      <PaymentsScreen />,
+      clientFor([payment({ invoice_settled: true })]),
+      { path: '/payments' },
+    );
+
+    const said = await waitFor(() => screen.getByTestId('settled-anyway'));
+
+    expect(said.textContent).toMatch(/has since been paid/i);
+    // Beside the refusal, never instead of it: the refusal is true, and
+    // somebody quoting a code to their bank still needs it.
+    expect(screen.getByTestId('failure').textContent).toContain('card_declined');
+  });
+
+  it('says nothing about settlement on an attempt that did not fail', async () => {
+    renderAtRoute(
+      <PaymentsScreen />,
+      clientFor([payment({
+        status: 'SUCCEEDED',
+        settled: true,
+        invoice_settled: true,
+        failure_code: null,
+        failure_reason: null,
+      })]),
+      { path: '/payments' },
+    );
+
+    await waitFor(() => expect(screen.getByTestId('payment-details')).toBeTruthy());
+    expect(screen.queryByTestId('settled-anyway')).toBeNull();
+    expect(screen.queryByTestId('failure')).toBeNull();
   });
 
   it('says when it was started and when it failed, to the minute, and what it was for', async () => {

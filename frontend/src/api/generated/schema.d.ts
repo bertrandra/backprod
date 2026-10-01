@@ -5695,6 +5695,14 @@ export interface components {
             customer_name: string | null;
             /** @description The address on the document — the person's for a seat, the billing address otherwise. Null where the snapshot carries neither. */
             customer_email: string | null;
+            /**
+             * @description Whether the document this attempt was against is **paid**, whatever became of the attempt itself (2026-10-01).
+             *
+             *     A *failed* payment on a settled invoice is the ordinary shape of a retry that worked: the first card was declined, a later one went through, and the first attempt stays `FAILED` for ever because it is the record of what happened (ADR-034). Without this a customer saw a red refusal against a bill they had already paid, with nothing on the row to say so.
+             *
+             *     The invoice's own status, never derived from a sibling attempt: a screen concluding "paid" from another payment would answer a question the server answers, and would be wrong the moment a credit note moved the document. Null when the attempt names no invoice.
+             */
+            invoice_settled: boolean | null;
             person: components["schemas"]["DocumentPerson"];
         };
         /** @description What the page needs to *use* a `client_secret` (ADR-048): which provider, the key that loads its own component, and whether any of this moves real money. Null when there is no payment to make (a free offer) or when the provider has no page-side part (the stub). `publishable_key` is designed by the provider to sit in a page and is not a secret — it belongs in the contract rather than in a build variable, which would freeze one deployment’s key into a bundle another deployment reuses. */
