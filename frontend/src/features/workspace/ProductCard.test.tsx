@@ -49,7 +49,7 @@ function clientFor(
   products: unknown[],
   subscription: unknown,
   extra: Record<string, Stub> = {},
-  own: { seat?: unknown; organisation_subscribed?: boolean } = {},
+  own: { seat?: unknown; organisation_subscribed?: boolean; coverage?: unknown } = {},
 ) {
   return stubClient({
     'GET /api/v1/me': { data: session },
@@ -59,6 +59,7 @@ function clientFor(
         subscription,
         seat: own.seat ?? null,
         organisation_subscribed: own.organisation_subscribed ?? subscription !== null,
+        coverage: own.coverage ?? null,
         history: [],
         events: [],
       },
@@ -176,6 +177,31 @@ describe('the product card', () => {
     expect(await screen.findByTestId('subscription-withheld')).toBeTruthy();
     expect(screen.queryByTestId('subscription-none')).toBeNull();
   });
+  it('says a colleague’s subscription covers them, rather than that there is none', async () => {
+    // Somebody added to a colleague's seat holds none of their own. The card
+    // said "No subscription on this product yet" to them too — to a person
+    // whose projects load on the very same screen.
+    renderAtRoute(
+      <ProjectsScreen />,
+      clientFor(READER, [PLAN], null, {}, {
+        seat: null,
+        organisation_subscribed: false,
+        coverage: {
+          subscription_id: 'sub-9',
+          status: 'ACTIVE',
+          current_period_end: null,
+          own: false,
+        },
+      }),
+      { path: '/projects', product: 'plan' },
+    );
+
+    const said = await screen.findByTestId('covered-by-a-colleague');
+
+    expect(said.textContent).toMatch(/colleague/i);
+    expect(screen.queryByTestId('subscription-none')).toBeNull();
+  });
+
   it('has no door for a product whose screens are this workspace, and says when nothing is subscribed', async () => {
     renderAtRoute(<ProjectsScreen />, clientFor(READER, [ATLAS, PLAN], null), { path: '/projects', product: 'atlas' });
 

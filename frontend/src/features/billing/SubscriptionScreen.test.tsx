@@ -112,7 +112,7 @@ function subscription(overrides: Record<string, unknown> = {}) {
 function stubsFor(
   extra: Record<string, Stub | (() => Stub)> = {},
   sub: unknown = subscription(),
-  options: { seat?: unknown; session?: unknown; organisation_subscribed?: boolean } = {},
+  options: { seat?: unknown; session?: unknown; organisation_subscribed?: boolean; coverage?: unknown } = {},
 ): Stubs {
   return {
     'GET /api/v1/me': { data: options.session ?? SUBSCRIBER },
@@ -124,6 +124,10 @@ function stubsFor(
         // caller may see it (ADR-053). Defaults to what `sub` implies, so
         // every case that does not care reads as it did.
         organisation_subscribed: options.organisation_subscribed ?? sub !== null,
+        // What actually covers the caller, whoever holds it (2026-10-01).
+        // Null unless a case says otherwise, which is the state of somebody
+        // on nothing — the genuine empty state this must not swallow.
+        coverage: options.coverage ?? null,
         history: [],
         events: [],
       },
@@ -260,6 +264,89 @@ describe('with no subscription', () => {
     renderWith(<SubscriptionScreen />, clientFor({}, null));
 
     await waitFor(() => expect(screen.getByText(/no subscription/i)).toBeTruthy());
+  });
+});
+
+describe('covered by a colleague', () => {
+  const covered = (status = 'ACTIVE') => ({
+    subscription_id: 'sub-9',
+    status,
+    current_period_end: '2026-12-01T00:00:00Z',
+    own: false,
+  });
+
+  it('says what covers them instead of inviting them to buy what they sit on', async () => {
+    // The commonest case on this screen and the one it had no words for:
+    // somebody added to a colleague's seat holds none of their own, and since
+    // ADR-055 their organisation holds none either. Every branch answered
+    // "Nothing is subscribed in this product yet. An offer from the catalogue
+    // starts one" — to a person working inside a subscription.
+    renderWith(
+      <SubscriptionScreen />,
+      stubClient(stubsFor({}, null, { session: MEMBER, coverage: covered() })),
+    );
+
+    const panel = await waitFor(() => screen.getByTestId('covered-by-a-colleague'));
+
+    expect(panel.textContent).toMatch(/take one of its places/i);
+    expect(screen.queryByText(/nothing is subscribed/i)).toBeNull();
+    expect(screen.queryByText(/^No subscription$/i)).toBeNull();
+  });
+
+  it('carries no price, because the offer and its terms are the holder’s', async () => {
+    renderWith(
+      <SubscriptionScreen />,
+      stubClient(stubsFor({}, null, { session: MEMBER, coverage: covered() })),
+    );
+
+    await waitFor(() => screen.getByTestId('covered-by-a-colleague'));
+
+    // ADR-053 keeps the offer, the price, the terms and the history for
+    // whoever manages it, and a seat is a more personal object than an
+    // organisation's was. The server sends none of it; nothing here invents it.
+    expect(screen.queryByTestId('periodicity')).toBeNull();
+    expect(screen.queryByTestId('commitment')).toBeNull();
+    expect(screen.queryByRole('button', { name: /cancel…/i })).toBeNull();
+  });
+
+  it('explains the shut workshop when the holder is behind on the bill', async () => {
+    // `PAST_DUE` reaches this screen deliberately: the colleague finds the
+    // product suspended and this is the only thing that can say why.
+    renderWith(
+      <SubscriptionScreen />,
+      stubClient(stubsFor({}, null, { session: MEMBER, coverage: covered('PAST_DUE') })),
+    );
+
+    const panel = await waitFor(() => screen.getByTestId('covered-by-a-colleague'));
+
+    expect(panel.getAttribute('data-status')).toBe('PAST_DUE');
+    expect(panel.textContent).toMatch(/unpaid invoice/i);
+  });
+
+  it('is not shown to the holder, who is covered by their own', async () => {
+    // `own` is the whole distinction this field carries, and getting it
+    // backwards tells somebody a colleague can take away the thing they are
+    // paying for — and hides the controls that are actually theirs.
+    renderWith(
+      <SubscriptionScreen />,
+      stubClient(
+        stubsFor({}, null, {
+          seat: subscription({ id: 'seat-1', subscriber: { kind: 'USER', user_id: 'u-1' } }),
+          session: MEMBER,
+          coverage: { ...covered(), subscription_id: 'seat-1', own: true },
+        }),
+      ),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('your-seat')).toBeTruthy());
+    expect(screen.queryByTestId('covered-by-a-colleague')).toBeNull();
+  });
+
+  it('still shows the genuine empty state to somebody on nothing', async () => {
+    renderWith(<SubscriptionScreen />, stubClient(stubsFor({}, null, { session: MEMBER })));
+
+    await waitFor(() => expect(screen.getByText(/nothing is subscribed/i)).toBeTruthy());
+    expect(screen.queryByTestId('covered-by-a-colleague')).toBeNull();
   });
 });
 

@@ -102,6 +102,36 @@ final class SubscriptionPresenter
     }
 
     /**
+     * What covers somebody, said without disclosing what it cost.
+     *
+     * Deliberately not {@see self::one()}. A seat is bought by a person with
+     * their own card, and a colleague who was added to it has no business
+     * reading its price, its terms or its history — ADR-053 keeps those for
+     * whoever manages the subscription, and this is a more personal object
+     * than the organisation's was. What a covered colleague needs is that
+     * they are covered, by whom, and whether anything is wrong with it.
+     *
+     * **It does not name the holder**, and that is a decision rather than an
+     * omission: who inside an organisation is paying for whom is a disclosure,
+     * and this read exists to stop a falsehood, not to settle that question.
+     * `own` is the distinction a screen actually needs — whether this is
+     * something the caller can cancel or something a colleague can take back.
+     * If naming the holder turns out to be wanted, it is one LEFT JOIN away
+     * and should be argued for on its own.
+     *
+     * @return array<string, mixed>
+     */
+    public static function coverage(Subscription $subscription, bool $own): array
+    {
+        return [
+            'subscription_id' => $subscription->id,
+            'status' => $subscription->status,
+            'current_period_end' => $subscription->currentPeriodEnd?->format(DATE_ATOM),
+            'own' => $own,
+        ];
+    }
+
+    /**
      * @param list<Subscription> $subscriptions
      *
      * @return list<array<string, mixed>>

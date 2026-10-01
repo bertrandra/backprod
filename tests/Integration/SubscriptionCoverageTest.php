@@ -265,6 +265,85 @@ final class SubscriptionCoverageTest extends DatabaseApiTestCase
         self::assertSame('ACTIVE', $subscription['status'] ?? null);
     }
 
+    // --- What covers you, whoever holds it -----------------------------------
+
+    public function testACoveredColleagueIsToldWhatCoversThemRatherThanThatThereIsNothing(): void
+    {
+        // The commonest situation on this screen, and the one it had no words
+        // for until 2026-10-01: somebody added to a colleague's subscription
+        // holds none of their own, and since ADR-055 their organisation holds
+        // none either. `subscription` was null, `seat` was null,
+        // `organisation_subscribed` was false — so the screen said "Nothing is
+        // subscribed in this product yet. An offer from the catalogue starts
+        // one" to a person working inside one and occupying a paid place.
+        $this->subscribe();
+        self::assertSame(201, $this->addPerson($this->colleague)->getStatusCode());
+
+        $body = $this->decode($this->request('GET', '/api/v1/subscription', $this->headers('bo-token')));
+        $coverage = $body['coverage'] ?? null;
+
+        self::assertIsArray($coverage, 'a covered colleague is told what covers them');
+        self::assertSame('ACTIVE', $coverage['status'] ?? null);
+        self::assertFalse($coverage['own'] ?? null, 'a colleague holds it, so it is theirs to take back');
+        self::assertArrayHasKey('subscription_id', $coverage);
+    }
+
+    public function testCoverageCarriesNoPriceNoOfferAndNoTerms(): void
+    {
+        // A seat is bought by a person with their own card, and ADR-053 keeps
+        // the offer, the price, the terms and the history for whoever manages
+        // it. This read exists to stop a falsehood, not to widen disclosure —
+        // and it does not name the holder either, which is a decision.
+        $this->subscribe();
+        self::assertSame(201, $this->addPerson($this->colleague)->getStatusCode());
+
+        $coverage = $this->decode($this->request('GET', '/api/v1/subscription', $this->headers('bo-token')))['coverage'] ?? null;
+
+        self::assertIsArray($coverage);
+        self::assertSame(
+            ['current_period_end', 'own', 'status', 'subscription_id'],
+            self::sorted(array_keys($coverage)),
+        );
+    }
+
+    public function testTheHolderReadsItAsTheirOwn(): void
+    {
+        // Ada holds it, so `own` is true: something she can cancel, not
+        // something a colleague can take away. That is the one distinction a
+        // screen needs from this field, which is why the holder is not named.
+        $this->subscribe();
+
+        $coverage = $this->decode($this->request('GET', '/api/v1/subscription', $this->headers('ada-token')))['coverage'] ?? null;
+
+        self::assertIsArray($coverage);
+        self::assertTrue($coverage['own'] ?? null);
+    }
+
+    public function testSomebodyOnNothingIsCoveredByNothing(): void
+    {
+        // The genuine empty state, which must survive the fix: a member of the
+        // organisation who is on no subscription at all is told nothing covers
+        // them, and that is true.
+        $this->subscribe();
+
+        $body = $this->decode($this->request('GET', '/api/v1/subscription', $this->headers('bo-token')));
+
+        self::assertArrayHasKey('coverage', $body);
+        self::assertNull($body['coverage']);
+    }
+
+    /**
+     * @param list<string> $keys
+     *
+     * @return list<string>
+     */
+    private static function sorted(array $keys): array
+    {
+        sort($keys);
+
+        return $keys;
+    }
+
     /**
      * The read is not gated on coverage, and this is why.
      *

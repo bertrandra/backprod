@@ -62,6 +62,13 @@ export function ProductCard() {
   // answers to one question.
   const withheld = current === null && subscription.data?.organisation_subscribed === true;
 
+  // Covered by a colleague's seat, which is neither of the two above and is
+  // the commonest case there is: somebody added to a colleague's subscription
+  // holds none of their own. The card said "No subscription on this product
+  // yet" to them too.
+  const covered = subscription.data?.coverage ?? null;
+  const byAColleague = current === null && covered !== null && !covered.own;
+
   const appUrl = product.app_url ?? null;
 
   return (
@@ -89,6 +96,11 @@ export function ProductCard() {
           // A refusal or a failure is not "no subscription": said as the
           // absence of an answer, and the Subscription screen says why.
           <p className="text-xs text-subtle" data-testid="subscription-unknown">{t("The subscription could not be read.")}</p>
+        ) : byAColleague && covered !== null ? (
+          <p className="flex flex-wrap items-center gap-2 text-xs" data-testid="covered-by-a-colleague">
+            <span className={pill(tone(covered.status))} data-status={covered.status}>{covered.status}</span>
+            <span className="text-subtle">{t("on a colleague’s subscription")}</span>
+          </p>
         ) : withheld ? (
           <p className="text-xs text-subtle" data-testid="subscription-withheld">
             {t("Your organisation has a subscription and you are not on it. Whoever manages it can add you.")}
