@@ -607,17 +607,30 @@ describe('a change of plan that waits (spec §4)', () => {
     );
   });
 
-  it('shows the waiting change to a member, without the button that undoes it', async () => {
+  it('offers the holder the button that undoes it, member or not', async () => {
+    // It asserted the opposite: a member saw the waiting change and not the
+    // control, because the subscription was the *organisation's* and undoing a
+    // change on it bound everybody. One subscription is left (2026-10-01) and
+    // it is the caller's own — bought with their card — so withholding the
+    // control would leave them with a change they cannot withdraw, which §4.2
+    // calls a cancellation in disguise.
+    //
+    // Hiding is still courtesy and the API is still the authority; what has
+    // changed is which side of the line this control is on.
     renderWith(
       <SubscriptionScreen />,
       stubClient(stubsFor({}, subscription({ pending: PENDING }), { session: MEMBER })),
     );
 
     await waitFor(() => expect(screen.getByTestId('pending-change')).toBeTruthy());
-    // Hiding is courtesy; the API is the authority. What a member must not be
-    // shown is a control that binds the organisation.
-    expect(screen.queryByTestId('cancel-pending-change')).toBeNull();
+    expect(screen.getByTestId('cancel-pending-change')).toBeTruthy();
   });
+
+  // A case stood here asserting the button is withheld from somebody a
+  // colleague's subscription merely covers. It cannot be built: a covered
+  // non-holder has no subscription on this screen at all, so there is no
+  // waiting change for them to see. What they do see is asserted in "covered
+  // by a colleague" above, which is the whole of it.
 });
 
 describe('the people a subscription covers (2026-09-19)', () => {

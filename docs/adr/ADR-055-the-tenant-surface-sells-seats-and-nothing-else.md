@@ -1,6 +1,10 @@
 # ADR-055 — The tenant surface sells seats, and nothing else
 
-**Status:** accepted, 2026-09-25.
+**Status:** accepted, 2026-09-25. **Completed** by
+[ADR-066](ADR-066-every-subscription-is-a-seat.md) on 2026-10-01: this decision
+stopped *selling* the other kind and left the column, the value object and four
+optional arguments that defaulted to it. They are gone, and the subscriber is a
+required person everywhere.
 **Amends:** §13.1's two subscriber kinds as a *sales* matter; `Sales::order`,
 `Checkout::open`, the `seat` field on `openCheckoutSession`, and the five
 tenant quote operations, which are withdrawn.
