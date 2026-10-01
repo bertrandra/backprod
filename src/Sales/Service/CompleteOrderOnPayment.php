@@ -66,15 +66,13 @@ final class CompleteOrderOnPayment implements InvoicePaid
         // PostgreSQL. The index still stands behind this for two deliveries
         // landing in the same instant — that one is a 500 the provider
         // retries, and the retry reads the row.
-        $live = $order->subscriber->isSeat()
-            ? $this->liveSeat($invoice->tenantId, $invoice->productId, (string) $order->subscriber->userId)
-            : $this->subscriptions->findActive($invoice->tenantId, $invoice->productId);
+        $live = $this->liveSeat($invoice->tenantId, $invoice->productId, $order->subscriberUserId);
 
         if ($live !== null) {
             $this->sales->applyHoldOrder(
                 $order,
                 [
-                    'reason' => $order->subscriber->isSeat() ? Sales::SEAT_ALREADY_ACTIVE : Sales::SUBSCRIPTION_ALREADY_ACTIVE,
+                    'reason' => Sales::SEAT_ALREADY_ACTIVE,
                     'subscription_id' => $live->id,
                 ],
                 null,
@@ -101,12 +99,8 @@ final class CompleteOrderOnPayment implements InvoicePaid
      */
     private function liveSeat(string $tenantId, string $productId, string $userId): ?Subscription
     {
-        foreach ($this->subscriptions->liveFor($tenantId, $productId, $userId) as $held) {
-            if ($held->subscriber->isSeat()) {
-                return $held;
-            }
-        }
-
-        return null;
+        // `liveFor` answers with what this person holds, and every
+        // subscription is a seat since 2026-10-01 — so the first is the one.
+        return $this->subscriptions->liveFor($tenantId, $productId, $userId)[0] ?? null;
     }
 }

@@ -94,7 +94,7 @@ final class ChargeOnEarlyTermination implements EarlyTerminationCharge
         $parties = $this->parties->forSale(
             $subscription->tenantId,
             $subscription->productId,
-            $subscription->subscriber,
+            $subscription->subscriberUserId,
         );
 
         // One moment for the whole charge. Reading the clock twice could land

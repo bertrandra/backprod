@@ -190,7 +190,7 @@ final class PastDueTest extends DatabaseApiTestCase
         self::assertInstanceOf(Subscriptions::class, $subscriptions);
 
         try {
-            $subscriptions->subscribe($this->tenant, $this->product, $this->offer, $this->owner);
+            $subscriptions->subscribe($this->tenant, $this->product, $this->offer, $this->owner, $this->owner);
             self::fail('a suspended subscription must still hold its scope');
         } catch (ConflictException $refused) {
             self::assertSame('ALREADY_SUBSCRIBED', $refused->errorCode());
@@ -625,7 +625,7 @@ final class PastDueTest extends DatabaseApiTestCase
         $subscriptions = $this->container()->get(Subscriptions::class);
         self::assertInstanceOf(Subscriptions::class, $subscriptions);
 
-        return $subscriptions->subscribe($this->tenant, $this->product, $this->offer, $this->owner)->id;
+        return $subscriptions->subscribe($this->tenant, $this->product, $this->offer, $this->owner, $this->owner)->id;
     }
 
     /**

@@ -859,7 +859,7 @@ final class FiscalChainTest extends DatabaseApiTestCase
 
         self::assertInstanceOf(Subscriptions::class, $subscriptions);
 
-        $subscriptions->subscribe($this->tenant, $this->product, $this->offer, $this->user);
+        $subscriptions->subscribe($this->tenant, $this->product, $this->offer, $this->user, $this->user);
     }
 
     /**

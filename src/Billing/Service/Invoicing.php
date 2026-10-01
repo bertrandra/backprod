@@ -136,7 +136,7 @@ final class Invoicing
         // It refuses before a number is allocated, which is what matters:
         // numbering is gapless, so a document raised by mistake cannot simply
         // be deleted.
-        $parties = $this->parties->forSale($tenantId, $productId, $subscription->subscriber);
+        $parties = $this->parties->forSale($tenantId, $productId, $subscription->subscriberUserId);
 
         $version = $subscription->offer->version;
 

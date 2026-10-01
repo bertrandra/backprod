@@ -158,7 +158,7 @@ final class Freemium
             $offer,
             $period->endsFrom(new DateTimeImmutable()),
             $actorUserId,
-            Subscriber::user($actorUserId),
+            $actorUserId,
         );
     }
 }

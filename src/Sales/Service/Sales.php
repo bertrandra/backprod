@@ -172,7 +172,7 @@ final class Sales
 
         $this->refuseWhileSeated($tenantId, $productId, $actorUserId);
 
-        $subscriber = Subscriber::user($actorUserId);
+        $subscriber = $actorUserId;
 
         // Priced under the regime the invoice will be issued under
         // (2026-09-26): the organisation selling a seat to one of its own
@@ -225,7 +225,7 @@ final class Sales
     private function refuseWhileSeated(string $tenantId, string $productId, string $userId): void
     {
         foreach ($this->subscriptions->liveFor($tenantId, $productId, $userId) as $live) {
-            if ($live->subscriber->isSeat() && $live->status === 'ACTIVE') {
+            if ($live->status === 'ACTIVE') {
                 throw new ConflictException(
                     self::SEAT_ALREADY_ACTIVE,
                     'You already hold a live seat on this product. Change it from the subscription rather than buying a second one.',

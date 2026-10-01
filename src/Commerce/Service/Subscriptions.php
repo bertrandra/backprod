@@ -87,29 +87,36 @@ final class Subscriptions
         return $subscription === null ? [] : $this->subscriptions->events($subscription);
     }
 
+    /**
+     * Starts a seat for a named person, without a sale.
+     *
+     * **No customer reaches this.** `POST /subscription` went with ADR-056: it
+     * started a subscription with no invoice and no payment, which is ADR-024
+     * broken, and any member held the permission for it. What is left is the
+     * platform's own door — a grant, a migration, a deployment being seeded —
+     * and the fixtures that stand in for those, which is why it is here and
+     * behind no route.
+     *
+     * **The person is required** (2026-10-01). It was optional and defaulted
+     * to the organisation, which is the sale ADR-055 stopped: since ADR-053 an
+     * organisation's subscription covers nobody by itself, so a caller who
+     * forgot the argument started a subscription somebody paid for that
+     * entitled no one. `Reach` is a required argument for the same reason.
+     */
     public function subscribe(
         string $tenantId,
         string $productId,
         string $offerId,
         ?string $actorUserId,
-        ?Subscriber $subscriber = null,
+        string $subscriberUserId,
     ): Subscription {
-        $subscriber ??= Subscriber::tenant();
-
-        // A seat and the tenant's own subscription are different scopes, so
-        // "already subscribed" is a different question for each. The unique
-        // indexes are what actually decide under concurrency; this refusal is
-        // the message a client can act on.
-        $existing = $subscriber->isSeat()
-            ? $this->seatOf($tenantId, $productId, (string) $subscriber->userId)
-            : $this->current($tenantId, $productId);
-
-        if ($existing !== null) {
+        // The unique index is what actually decides under concurrency — two
+        // simultaneous requests both read "none yet" and both write. This
+        // refusal is the message a client can act on.
+        if ($this->seatOf($tenantId, $productId, $subscriberUserId) !== null) {
             throw new ConflictException(
                 'ALREADY_SUBSCRIBED',
-                $subscriber->isSeat()
-                    ? 'This person already holds a seat for this product.'
-                    : 'This tenant already has a subscription for this product.',
+                'This person already holds a seat for this product.',
             );
         }
 
@@ -121,7 +128,7 @@ final class Subscriptions
             $offer,
             $offer->version->periodEndFrom(new DateTimeImmutable()),
             $actorUserId,
-            $subscriber,
+            $subscriberUserId,
         );
     }
 
@@ -129,12 +136,12 @@ final class Subscriptions
      * What covers this person, whoever holds it (2026-10-01).
      *
      * Their own seat if they hold one, else the colleague's they were added
-     * to. Until today `GET /subscription` could only ask two questions — the
+     * to. Until then `GET /subscription` could only ask two questions — the
      * organisation's subscription, and the caller's own seat — and the
      * ordinary colleague on somebody else's seat is neither. They were told
      * "No subscription. Nothing is subscribed in this product yet. An offer
-     * from the catalogue starts one", while working inside a subscription
-     * and occupying a place somebody is paying for.
+     * from the catalogue starts one", while working inside a subscription and
+     * occupying a place somebody is paying for.
      */
     public function coveringPerson(string $tenantId, string $productId, string $userId): ?Subscription
     {
@@ -147,7 +154,7 @@ final class Subscriptions
     public function seatOf(string $tenantId, string $productId, string $userId): ?Subscription
     {
         foreach ($this->subscriptions->liveFor($tenantId, $productId, $userId) as $subscription) {
-            if ($subscription->subscriber->isSeat()) {
+            if ($subscription->subscriberUserId === $userId) {
                 return $subscription;
             }
         }
@@ -175,7 +182,7 @@ final class Subscriptions
      */
     public function coversPerson(Subscription $subscription, string $userId): bool
     {
-        if ($subscription->ownerUserId === $userId || $subscription->subscriber->userId === $userId) {
+        if ($subscription->ownerUserId === $userId || $subscription->subscriberUserId === $userId) {
             return true;
         }
 
@@ -641,7 +648,7 @@ final class Subscriptions
             return;
         }
 
-        $subscriber = $subscription->subscriber->userId ?? $subscription->tenantId;
+        $subscriber = $subscription->subscriberUserId;
 
         if (!$this->subscriptions->hasHadFreemium($subscription->productId, $subscriber)) {
             return;

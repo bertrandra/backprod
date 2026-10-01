@@ -556,7 +556,7 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
 
         self::assertInstanceOf(Subscriptions::class, $subscriptions);
 
-        return $subscriptions->subscribe($this->tenant, $this->product, $offerId, $this->user);
+        return $subscriptions->subscribe($this->tenant, $this->product, $offerId, $this->user, $this->user);
     }
 
     private function createProject(string $name): ResponseInterface

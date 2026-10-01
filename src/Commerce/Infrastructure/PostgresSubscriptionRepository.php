@@ -139,7 +139,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         SubscribedOffer $offer,
         ?DateTimeImmutable $periodEnd,
         ?string $actorUserId,
-        ?Subscriber $subscriber = null,
+        string $subscriberUserId,
     ): Subscription {
         try {
             return $this->connection->transactional(
@@ -149,7 +149,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     $offer,
                     $periodEnd,
                     $actorUserId,
-                    $subscriber,
+                    $subscriberUserId,
                 ),
             );
         } catch (UniqueConstraintViolationException $violation) {
@@ -187,7 +187,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         SubscribedOffer $offer,
         ?DateTimeImmutable $periodEnd,
         ?string $actorUserId,
-        ?Subscriber $subscriber = null,
+        string $subscriberUserId,
     ): Subscription {
         // The terms are copied from the version as values, not referenced.
         // Repricing or re-terming the offer tomorrow must not change one
@@ -195,18 +195,17 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         // rule (§25) applied to the contract (§13.1).
         $terms = $offer->version->terms;
         $startedAt = new DateTimeImmutable();
-        $subscriber = $subscriber ?? Subscriber::tenant();
 
         $id = $this->connection->fetchOne(
             <<<'SQL'
                 INSERT INTO subscriptions
                     (tenant_id, product_id, offer_version_id, current_period_end,
-                     subscriber_kind, subscriber_user_id, owner_user_id,
+                     subscriber_user_id, owner_user_id,
                      term_months, term_ends_at, commitment_months, commitment_ends_at,
                      cancellation_policy, renewal, early_termination, notice_days,
                      is_freemium)
                 VALUES (:tenantId, :productId, :versionId, :periodEnd,
-                        :subscriberKind, :subscriberUserId, :ownerUserId,
+                        :subscriberUserId, :ownerUserId,
                         :termMonths, :termEndsAt, :commitmentMonths, :commitmentEndsAt,
                         :cancellationPolicy, :renewal, :earlyTermination, :noticeDays,
                         :freemium)
@@ -217,12 +216,12 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                 'productId' => $productId,
                 'versionId' => $offer->version->id,
                 'periodEnd' => self::moment($periodEnd),
-                'subscriberKind' => $subscriber->kind,
-                'subscriberUserId' => $subscriber->userId,
-                // The owner (2026-09-19): the person a seat is for, else
-                // whoever activated it — the administrator who bought the
-                // organisation's, or nobody for a subscription a job started.
-                'ownerUserId' => $subscriber->isSeat() ? $subscriber->userId : $actorUserId,
+                'subscriberUserId' => $subscriberUserId,
+                // The owner (2026-09-19): the person the seat is for.
+                // It read "else whoever activated it" while an organisation
+                // could subscribe; with one kind left there is no else, and
+                // `$actorUserId` keeps its other job — the trail.
+                'ownerUserId' => $subscriberUserId,
                 'termMonths' => $terms->termMonths,
                 'termEndsAt' => self::moment($terms->termEndsFrom($startedAt)),
                 'commitmentMonths' => $terms->commitmentMonths,
@@ -1457,10 +1456,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                 ),
                 $version,
             ),
-            Subscriber::of(
-                Row::string($row, 'subscriber_kind'),
-                Row::nullableString($row, 'subscriber_user_id'),
-            ),
+            Row::string($row, 'subscriber_user_id'),
             new SubscriptionTerms(
                 Row::nullableInteger($row, 'term_months'),
                 Row::integer($row, 'commitment_months'),

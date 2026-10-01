@@ -59,7 +59,7 @@ interface SalesRepository
      * writes cannot be separated.
      *
      * @param list<InvoiceLine> $lines
-     * @param Subscriber|null   $subscriber who the subscription will bind; null is the organisation
+     * @param string            $subscriberUserId who the subscription will bind — a person, always (2026-10-01)
      */
     public function placeOrder(
         string $tenantId,
@@ -68,7 +68,7 @@ interface SalesRepository
         string $offerVersionId,
         array $lines,
         ?string $actorUserId,
-        ?Subscriber $subscriber = null,
+        string $subscriberUserId,
     ): Order;
 
     /**

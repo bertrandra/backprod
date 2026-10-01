@@ -371,7 +371,7 @@ final class DemoSeeder
                     array_keys($freemium),
                     static fn (int $i): bool => !$freemium[$i]->isFreemium
                         || $freemium[$i]->ownerUserId !== $structure->user(DemoWorld::FREEMIUM[$i]['holder'])
-                        || $freemium[$i]->subscriber->userId !== $structure->user(DemoWorld::FREEMIUM[$i]['holder']),
+                        || $freemium[$i]->subscriberUserId !== $structure->user(DemoWorld::FREEMIUM[$i]['holder']),
                 ) === [],
             // And it covers them, which is the whole of it: five free days that
             // opened no workspace would be a card on a page. Asked through the

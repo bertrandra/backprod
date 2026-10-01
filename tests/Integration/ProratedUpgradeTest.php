@@ -596,7 +596,7 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
         $subscriptions = $this->container()->get(Subscriptions::class);
         self::assertInstanceOf(Subscriptions::class, $subscriptions);
 
-        return $subscriptions->subscribe($this->tenant, $this->product, $offerId, $this->user);
+        return $subscriptions->subscribe($this->tenant, $this->product, $offerId, $this->user, $this->user);
     }
 
     /**

@@ -9,7 +9,6 @@ use App\Auth\Domain\LocalTokens;
 use App\Auth\Domain\TokenIssuer;
 use App\Auth\Infrastructure\LocalJwtAuthProvider;
 use App\Auth\Infrastructure\LocalJwtTokenIssuer;
-use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Service\Subscriptions;
 use App\Shared\Logging\ErrorLogLogger;
@@ -213,14 +212,26 @@ final class PasswordAndPeopleTest extends DatabaseApiTestCase
         $ann = $this->as('ann@acme.test');
         self::assertSame(404, $this->request('POST', '/api/v1/subscription/people', $ann, $this->json(['seat' => true, 'user_id' => $this->uma]))->getStatusCode());
 
-        // The organisation subscribes, by Ann: she owns that one.
-        $this->subscribeTheOrganisation($this->ann);
-        $company = $this->decode($this->request('GET', '/api/v1/subscription/people', $ann));
+        // Ann takes a seat of her own: she owns that one. It was the
+        // organisation's subscription until 2026-10-01, and the point is the
+        // same either way — what makes somebody the owner is having bought it.
+        $this->takeSeat($this->ann);
+        $company = $this->decode($this->request('GET', '/api/v1/subscription/people?seat=1', $ann));
         self::assertTrue($company['owner'] ?? null);
-        // And Uma, though she may manage her own seat, is not its owner.
-        $refused = $this->request('POST', '/api/v1/subscription/people', $uma, $this->json(['user_id' => $this->ann]));
-        self::assertSame(403, $refused->getStatusCode());
-        self::assertSame('NOT_THE_OWNER', $this->errorOf($refused)['code'] ?? null);
+        // The half that stood here — Uma refused `NOT_THE_OWNER` on the
+        // organisation's subscription — has no expression left: there is no
+        // organisation subscription, and `/subscription/people` only ever
+        // addresses the caller's own. What it proved is proved above, by Ann's
+        // 404: covered by Uma's seat and holding none of her own, she has
+        // nothing to manage.
+        //
+        // `NOT_THE_OWNER` itself is now **unreachable**, and nothing in the
+        // suite reached it before either: with one kind of subscriber, a seat's
+        // owner is always the person it is addressed to, and the only other way
+        // in — the organisation's subscription — is gone. The guard stays in
+        // `SubscriptionPeople::owned()` because `owner_user_id` is nullable in
+        // the schema and deleting a refusal is not something to do in passing,
+        // but it is dead and a reader should know it.
     }
 
     // --- Helpers ------------------------------------------------------------
@@ -241,13 +252,8 @@ final class PasswordAndPeopleTest extends DatabaseApiTestCase
             $this->atlas,
             $this->offerId(),
             $holder,
-            Subscriber::user($holder),
+            $holder,
         );
-    }
-
-    private function subscribeTheOrganisation(string $owner): Subscription
-    {
-        return $this->subscriptions()->subscribe($this->acme, $this->atlas, $this->offerId(), $owner);
     }
 
     private function subscriptions(): Subscriptions

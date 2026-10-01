@@ -61,7 +61,6 @@ final class WhoSellsAndWhoBuys
 {
     public function __construct(
         private readonly BillingProfileRepository $profiles,
-        private readonly SupplierIdentity $supplier,
         private readonly UserRepository $users,
         private readonly Taxation $taxation,
     ) {
@@ -75,7 +74,7 @@ final class WhoSellsAndWhoBuys
      * @throws ConflictException BILLING_NOT_CONFIGURED when the platform sells
      *                           and the product has no billing identity
      */
-    public function forSale(string $tenantId, string $productId, Subscriber $subscriber): InvoiceParties
+    public function forSale(string $tenantId, string $productId, string $buyerUserId): InvoiceParties
     {
         $profile = $this->profiles->find($tenantId);
 
@@ -90,18 +89,19 @@ final class WhoSellsAndWhoBuys
 
         $organisation = $profile->snapshot();
 
-        if (!$subscriber->isSeat()) {
-            $supplier = $this->supplier->forProduct($productId);
-
-            return new InvoiceParties(
-                null,
-                $supplier,
-                $organisation,
-                SupplierIdentity::jurisdictionOf($supplier),
-                $this->taxation->platformSelling($tenantId, $productId),
-            );
-        }
-
+        // A branch stood here until 2026-10-01 for the organisation's own
+        // subscription — the platform selling to the company, with the
+        // product's billing identity as supplier and the platform's own
+        // jurisdiction. Nothing has been able to create one since ADR-055 and
+        // the column that said one existed is gone, so every sale this
+        // resolves is a seat: the organisation selling to one of its own
+        // people, in its own country, with the product's identity nowhere on
+        // the document.
+        //
+        // That is also why the check below is not a formality. The supplier
+        // is the customer's own company, so the fallback the removed branch
+        // provided — the platform's country — is gone with it, and a company
+        // that has not said where it sells from cannot sell.
         if ($profile->countryCode === null) {
             // The organisation is the supplier here, and a supplier with no
             // country cannot say under which regime it sells. Guessing was
@@ -150,7 +150,7 @@ final class WhoSellsAndWhoBuys
         return new InvoiceParties(
             $tenantId,
             $organisation,
-            $this->customer($subscriber, $organisation),
+            $this->customer($buyerUserId, $organisation),
             $profile->countryCode,
             new TaxableSale(
                 SupplierTaxSettings::forOrganisation(
@@ -178,13 +178,9 @@ final class WhoSellsAndWhoBuys
      *
      * @return array<string, mixed>
      */
-    private function customer(Subscriber $subscriber, array $organisation): array
+    private function customer(string $buyerUserId, array $organisation): array
     {
-        if ($subscriber->userId === null) {
-            return $organisation;
-        }
-
-        $person = $this->users->find($subscriber->userId);
+        $person = $this->users->find($buyerUserId);
 
         if ($person === null) {
             return $organisation;

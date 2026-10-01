@@ -52,7 +52,7 @@ final class InvoiceThenSubscribe implements OrderFulfilment
         // Who sells and who buys, decided in one place since 2026-09-25 —
         // and it refuses before anything is written, because numbering is
         // gapless and a document raised by mistake cannot be deleted.
-        $parties = $this->parties->forSale($order->tenantId, $order->productId, $order->subscriber);
+        $parties = $this->parties->forSale($order->tenantId, $order->productId, $order->subscriberUserId);
 
         $offer = SubscribedOffer::from(
             $this->catalogue->offerOnSale($order->productId, $this->offerIdFor($order)),
@@ -141,7 +141,7 @@ final class InvoiceThenSubscribe implements OrderFulfilment
             $offer,
             $offer->version->periodEndFrom($now),
             $order->placedBy,
-            $order->subscriber,
+            $order->subscriberUserId,
         );
 
         // The invoice was raised before the subscription existed, so it could

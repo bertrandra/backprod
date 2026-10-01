@@ -156,6 +156,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             $this->product,
             $this->proOffer,
             $this->user,
+            $this->user,
         );
 
         self::assertSame(Subscription::ACTIVE, $subscription->status);
@@ -194,6 +195,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             $this->product,
             $this->freeOffer,
             $this->user,
+            $this->user,
         ));
 
         self::assertSame(409, $error->statusCode());
@@ -215,6 +217,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             $this->tenant,
             $this->product,
             $this->proOffer,
+            $this->user,
             $this->user,
         ));
 
@@ -432,7 +435,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
      */
     public function testAMoveUpThatCostsNothingRaisesNoInvoice(): void
     {
-        $this->subscriptions()->subscribe($this->tenant, $this->product, $this->belowFreeOffer, $this->user);
+        $this->subscriptions()->subscribe($this->tenant, $this->product, $this->belowFreeOffer, $this->user, $this->user);
 
         $after = $this->changeTo($this->freeOffer);
 
@@ -716,6 +719,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             $this->product,
             $this->longCommitmentOffer,
             $this->user,
+            $this->user,
         );
 
         self::assertSame(24, $committed->terms->commitmentMonths);
@@ -746,6 +750,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             $this->tenant,
             $this->product,
             $this->longCommitmentOffer,
+            $this->user,
             $this->user,
         );
 
@@ -847,7 +852,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         $this->subscribeToPro();
         $this->subscriptions()->cancel($this->tenant, $this->product, true, $this->user);
 
-        $again = $this->subscriptions()->subscribe($this->tenant, $this->product, $this->freeOffer, $this->user);
+        $again = $this->subscriptions()->subscribe($this->tenant, $this->product, $this->freeOffer, $this->user, $this->user);
 
         self::assertSame(Subscription::ACTIVE, $again->status);
         self::assertCount(2, $this->subscriptions()->history($this->tenant, $this->product));
@@ -909,12 +914,12 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
 
     private function subscribeToPro(): Subscription
     {
-        return $this->subscriptions()->subscribe($this->tenant, $this->product, $this->proOffer, $this->user);
+        return $this->subscriptions()->subscribe($this->tenant, $this->product, $this->proOffer, $this->user, $this->user);
     }
 
     private function subscribeToFree(): Subscription
     {
-        return $this->subscriptions()->subscribe($this->tenant, $this->product, $this->freeOffer, $this->user);
+        return $this->subscriptions()->subscribe($this->tenant, $this->product, $this->freeOffer, $this->user, $this->user);
     }
 
     /**

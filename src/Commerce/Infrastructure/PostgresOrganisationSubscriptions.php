@@ -147,7 +147,6 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
                 return new HeldSubscription(
                     Row::string($row, 'id'),
                     Row::string($row, 'status'),
-                    Row::string($row, 'subscriber_kind'),
                     $owner,
                     Row::nullableString($row, 'holder_name'),
                     Row::nullableString($row, 'holder_email'),

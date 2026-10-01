@@ -415,7 +415,7 @@ final class SubscriptionCoverageTest extends DatabaseApiTestCase
 
         self::assertInstanceOf(Subscriptions::class, $subscriptions);
 
-        $subscriptions->subscribe($this->tenant, $this->product, $this->offer, $this->owner);
+        $subscriptions->subscribe($this->tenant, $this->product, $this->offer, $this->owner, $this->owner);
     }
 
     private function addPerson(string $userId): ResponseInterface

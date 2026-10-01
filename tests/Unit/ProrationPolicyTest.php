@@ -398,7 +398,7 @@ final class ProrationPolicyTest extends TestCase
                 new Plan('plan', 'STARTER', 'Starter', 10),
                 $this->version($billingPeriod, 1_000, 0),
             ),
-            Subscriber::tenant(),
+            'user-1',
             $terms,
             Subscription::ACTIVE,
             new DateTimeImmutable($start),

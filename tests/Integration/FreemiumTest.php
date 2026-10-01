@@ -474,7 +474,7 @@ final class FreemiumTest extends DatabaseApiTestCase
             $this->product,
             $this->pricedOffer,
             $this->user,
-            Subscriber::user($this->user),
+            $this->user,
         );
 
         $moved = $this->subscriptions()->scheduleChange(
@@ -570,7 +570,7 @@ final class FreemiumTest extends DatabaseApiTestCase
      */
     public function testRenewalEndsWhatWasSoldAsEndingAtItsTerm(): void
     {
-        $before = $this->subscriptions()->subscribe($this->tenant, $this->product, $this->freemiumOffer, $this->user);
+        $before = $this->subscriptions()->subscribe($this->tenant, $this->product, $this->freemiumOffer, $this->user, $this->user);
 
         self::assertSame('ENDS_AT_TERM', $before->terms->renewal);
 
@@ -608,7 +608,7 @@ final class FreemiumTest extends DatabaseApiTestCase
 
     public function testAnOfferThatRenewsStillRenews(): void
     {
-        $before = $this->subscriptions()->subscribe($this->tenant, $this->product, $this->pricedOffer, $this->user);
+        $before = $this->subscriptions()->subscribe($this->tenant, $this->product, $this->pricedOffer, $this->user, $this->user);
         $after = $this->subscriptions()->renew($this->tenant, $this->product);
 
         self::assertSame(Subscription::ACTIVE, $after->status);
@@ -627,7 +627,7 @@ final class FreemiumTest extends DatabaseApiTestCase
     {
         // A paid plan sold as ending at its term — an ordinary fixed-term
         // contract, which is where this rule bites outside the free period.
-        $this->subscriptions()->subscribe($this->tenant, $this->product, $this->fixedTermOffer, $this->user);
+        $this->subscriptions()->subscribe($this->tenant, $this->product, $this->fixedTermOffer, $this->user, $this->user);
 
         // Down to the free tier, which is a lower rank, so the change is
         // deferred to the end of the paid period — and that end is the very
@@ -659,7 +659,7 @@ final class FreemiumTest extends DatabaseApiTestCase
      */
     public function testAFreePeriodReachedByAScheduledChangeIsSpent(): void
     {
-        $this->subscriptions()->subscribe($this->tenant, $this->product, $this->pricedOffer, $this->user);
+        $this->subscriptions()->subscribe($this->tenant, $this->product, $this->pricedOffer, $this->user, $this->user);
 
         $this->subscriptions()->scheduleChange(
             $this->tenant,
@@ -685,7 +685,7 @@ final class FreemiumTest extends DatabaseApiTestCase
      */
     public function testAFreePlanThatRenewsIsNotAFreePeriod(): void
     {
-        $this->subscriptions()->subscribe($this->tenant, $this->product, $this->pricedOffer, $this->user);
+        $this->subscriptions()->subscribe($this->tenant, $this->product, $this->pricedOffer, $this->user, $this->user);
 
         $this->subscriptions()->scheduleChange(
             $this->tenant,

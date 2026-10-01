@@ -148,7 +148,7 @@ final class SubscriptionTest extends TestCase
             // The subscriptions these cases are about are month-to-month, as
             // every subscription was before §13.1: the tenant subscribes, and
             // nothing commits it.
-            Subscriber::tenant(),
+            'user-1',
             SubscriptionTerms::openEnded(),
             $status,
             new DateTimeImmutable('2026-03-01T00:00:00+00:00'),
