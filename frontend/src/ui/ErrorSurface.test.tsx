@@ -35,6 +35,68 @@ describe('a failure on screen', () => {
     expect(screen.getByText(/upgrade/i)).toBeTruthy();
   });
 
+  // --- an absence is not a failure (2026-10-01) ------------------------------
+
+  it('renders a missing record as an absence rather than a fault', () => {
+    // Reported by the operator in their own words: "a message for no record is
+    // not an error so it should not be in red — no need for try again." The
+    // cause was here and not on any screen: the wording table had no entry for
+    // an absence, so every one of them fell through to a red alert headed
+    // "Something went wrong" with a retry that could not change the answer.
+    render(
+      <ErrorSurface
+        error={new ApiError(404, 'SHOWCASE_NOT_FOUND', 'No such page.', {}, 'req-1')}
+        onRetry={() => undefined}
+      />,
+    );
+
+    // Not an alert: a screen reader announcing "nothing here yet" as one
+    // interrupts for no reason.
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('status')).toBeTruthy();
+
+    // The server's own sentence is the whole answer; the headline calling it a
+    // fault is the part that misled.
+    expect(screen.getByText('No such page.')).toBeTruthy();
+    expect(screen.queryByText(/something went wrong/i)).toBeNull();
+
+    // And no retry: it asks the same question and gets the same answer.
+    expect(screen.queryByRole('button', { name: /try again/i })).toBeNull();
+  });
+
+  it('reads both of the platform’s conventions for an absence', () => {
+    // `*_NOT_FOUND` and `NO_*`, matched as shapes rather than listed: a list is
+    // a second place to remember, and the eighteenth code would go on reading
+    // as a crash until somebody added it.
+    for (const code of ['INVOICE_NOT_FOUND', 'NOT_FOUND', 'NO_SEAT', 'NO_SUBSCRIPTION']) {
+      const { unmount } = render(
+        <ErrorSurface error={new ApiError(404, code, 'Nothing there.', {}, 'r')} onRetry={() => undefined} />,
+      );
+
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.queryByRole('button', { name: /try again/i })).toBeNull();
+      unmount();
+    }
+  });
+
+  it('keeps a chosen wording even where the code looks like an absence', () => {
+    // `SUBSCRIPTION_REQUIRED` and `NO_TENANT_ACCESS` are refusals with wording
+    // of their own, and that wording is what sends somebody to the right
+    // person. The table wins over the shape.
+    render(<ErrorSurface error={new ApiError(403, 'NO_TENANT_ACCESS', 'x', {}, 'r')} onRetry={() => undefined} />);
+
+    expect(screen.getByRole('alert')).toBeTruthy();
+    expect(screen.getByText('You do not have access to this organisation')).toBeTruthy();
+  });
+
+  it('still shouts about a real failure', () => {
+    render(<ErrorSurface error={new ApiError(500, 'INTERNAL_ERROR', 'Boom.', {}, 'r')} onRetry={() => undefined} />);
+
+    expect(screen.getByRole('alert')).toBeTruthy();
+    expect(screen.getByText('Something went wrong')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy();
+  });
+
   it('quotes the request id, because the server log is keyed by it', () => {
     render(<ErrorSurface error={new ApiError(500, 'INTERNAL_ERROR', 'x', {}, 'req-abc')} />);
 

@@ -9,7 +9,6 @@ use App\Notification\Domain\Category;
 use App\Notification\Service\Notifications;
 use App\Product\Domain\ProductRegistry;
 use App\Shared\Exceptions\ConflictException;
-use App\Shared\Exceptions\NotFoundException;
 use App\Tax\Domain\CustomerTaxProfile;
 use App\Tax\Domain\RegimeDecision;
 use App\Tax\Domain\SupplierTaxSettings;
@@ -563,14 +562,11 @@ final class Taxation
         return VatRegime::all();
     }
 
-    public function requireProfile(string $tenantId): CustomerTaxProfile
-    {
-        $profile = $this->tax->findProfile($tenantId);
-
-        if ($profile === null) {
-            throw new NotFoundException('This tenant has no tax profile.', [], 'TAX_PROFILE_NOT_FOUND');
-        }
-
-        return $profile;
-    }
+    // `requireProfile()` stood here and raised `TAX_PROFILE_NOT_FOUND` when a
+    // tenant had filed no fiscal profile. Nothing called it — not a route, not
+    // a service, not a test — so the code it raised was a refusal no caller
+    // could ever meet, and `findProfile()` answering null is what every real
+    // path reads. Removed on 2026-10-01 while sweeping for absences rendered as
+    // failures: it was the only candidate the sweep turned up in the backend,
+    // and it turned out to be unreachable rather than wrong.
 }

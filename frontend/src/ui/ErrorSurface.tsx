@@ -23,6 +23,32 @@ import { t } from '@/i18n';
  * that is careless cannot leak through it either.
  */
 
+/**
+ * Codes that mean **there is no such record**, which is not a failure.
+ *
+ * Reported in 2026-10-01 by the operator, in their own words: "a message for no
+ * record is not an error so it should not be in red — no need for try again."
+ * They were right, and the reason was here rather than on any one screen: the
+ * table below has no entry for an absence, so every one of them fell through to
+ * a red `role="alert"` headed **"Something went wrong"**, with a *Try again*
+ * button that could not change the answer. A thing that has never been created
+ * reads as a thing that broke.
+ *
+ * So an absence is rendered as an absence: neutral, no alert role, and no
+ * retry — pressing it asks the same question and gets the same answer.
+ *
+ * Matched on the platform's own two conventions (`*_NOT_FOUND` and `NO_*`)
+ * rather than on a list of codes, because a list is a second place to remember:
+ * the eighteenth `*_NOT_FOUND` code would go on reading as a crash until
+ * somebody added it here, and nothing would say so.
+ *
+ * It is not "any 404". `NO_CONSENT` and `NO_ENDPOINT` are absences too; what
+ * decides is the shape of the answer, not the status.
+ */
+function isAnAbsence(code: string): boolean {
+  return code.endsWith('_NOT_FOUND') || code === 'NOT_FOUND' || code.startsWith('NO_');
+}
+
 /** Wording this application chooses, by code, where the API's is not enough. */
 const WORDING: Record<string, { title: string; hint?: string }> = {
   UNAUTHENTICATED: {
@@ -145,25 +171,34 @@ export function ErrorSurface({ error, onRetry }: { error: unknown; onRetry?: () 
 
   const code = api?.code ?? 'UNKNOWN';
   const chosen = WORDING[code];
-  // The wording is data (a table by code) and translated where it is said.
-  const title = t(chosen?.title ?? 'Something went wrong');
+  const absence = chosen === undefined && isAnAbsence(code);
+
+  // The wording is data (a table by code) and translated where it is said. An
+  // absence keeps the server's own sentence and drops the "something went
+  // wrong" above it: "No such page." is the whole answer, and a headline
+  // calling it a fault is the part that misleads.
+  const title = absence ? null : t(chosen?.title ?? 'Something went wrong');
   const message = t(api?.message ?? 'The request could not be completed.');
   const details = api === null ? [] : detailLines(api.details);
+  const tone = absence ? 'text-muted' : 'text-danger';
 
   return (
     <div
-      role="alert"
-      className={panel('danger')}
+      // No alert for an absence: a screen reader announcing "nothing here yet"
+      // as an alert interrupts for no reason.
+      role={absence ? 'status' : 'alert'}
+      data-absence={absence ? 'yes' : undefined}
+      className={panel(absence ? 'neutral' : 'danger')}
     >
-      <p className="font-medium text-danger">{title}</p>
-      <p className="mt-1 text-danger">{message}</p>
+      {title !== null && <p className="font-medium text-danger">{title}</p>}
+      <p className={absence ? tone : 'mt-1 text-danger'}>{message}</p>
 
       {chosen?.hint !== undefined && (
         <p className="mt-1 text-danger">{t(chosen.hint)}</p>
       )}
 
       {details.length > 0 && (
-        <ul className="mt-2 list-inside list-disc text-danger">
+        <ul className={'mt-2 list-inside list-disc ' + tone}>
           {details.map((line) => (
             <li key={line}>{line}</li>
           ))}
@@ -171,7 +206,9 @@ export function ErrorSurface({ error, onRetry }: { error: unknown; onRetry?: () 
       )}
 
       <div className="mt-3 flex items-center gap-3">
-        {onRetry !== undefined && (
+        {/* No retry on an absence: it asks the same question and gets the same
+            answer, and offering it suggests the answer might change. */}
+        {onRetry !== undefined && !absence && (
           <button
             type="button"
             onClick={onRetry}
@@ -182,7 +219,7 @@ export function ErrorSurface({ error, onRetry }: { error: unknown; onRetry?: () 
 
         {api !== null && api.requestId !== '' && (
           // Selectable, because the point of it is being pasted into a report.
-          <code className="select-all text-xs text-danger">
+          <code className={'select-all text-xs ' + tone}>
             {t("request")}{' '}{api.requestId}
           </code>
         )}
