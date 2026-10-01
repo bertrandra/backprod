@@ -135,7 +135,13 @@ export const APP_NAV: readonly NavSection[] = [
         // uses that id, and ids stay unique across the whole tree so that a
         // highlighted entry is unambiguous.
         id: 'platform-catalogue',
-        label: 'Catalogue',
+        // **"Pricing", not "Catalogue"** (2026-10-01). The tenant entry below
+        // is also called Catalogue — one is for buying, this one is for
+        // deciding what things cost — and in a console of fourteen screens the
+        // operator went looking for offer authoring under the wrong one and
+        // concluded there was no screen for it. The id already had to be
+        // disambiguated; the label did too.
+        label: 'Pricing',
         to: '/console/catalogue',
         scope: 'platform',
         permission: 'staff.catalog.manage',

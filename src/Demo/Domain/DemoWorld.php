@@ -119,7 +119,13 @@ final class DemoWorld
                 'plan.cadastre' => ['name' => 'Cadastral import (IGN)', 'from' => 'starter'],
                 'plan.ortho' => ['name' => 'Aerial imagery (IGN)', 'from' => 'pro'],
                 'plan.plu' => ['name' => 'Planning rules (PLU)', 'from' => 'pro'],
-                'plan.3d' => ['name' => '3D view and GLB viewer', 'from' => 'pro'],
+                // **From the first paid plan** (2026-10-01): the operator's own
+                // answer when asked which offers include it — all of them. It is
+                // what the product *is*, and a Plan that could not be looked at
+                // in three dimensions is a different product. `from: 'pro'` sold
+                // it as a step up, which is a decision about tiers rather than
+                // about what Plan does.
+                'plan.3d' => ['name' => '3D view and GLB viewer', 'from' => 'starter'],
                 'plan.export.dxf' => ['name' => 'DXF export', 'from' => 'pro'],
                 'plan.export.dossier' => ['name' => 'Client PDF dossier', 'from' => 'scale'],
                 // The one that takes away rather than gives (2026-09-23). Every other capability
@@ -145,7 +151,11 @@ final class DemoWorld
                     // One person, one project — what the operator asked for. The quotas are the
                     // platform's own codes, so the workspace enforces them: `max_projects` is what
                     // it asks before storing a project and `users` what bounds the people covered.
-                    'grants' => ['users' => 1, 'max_projects' => 1, 'plan.terrasse' => null],
+                    //
+                    // And the 3D view, because a free period that cannot show what
+                    // the product is shows nothing (2026-10-01). It is outside the
+                    // ladder, so it is named here rather than inherited.
+                    'grants' => ['users' => 1, 'max_projects' => 1, 'plan.terrasse' => null, 'plan.3d' => null],
                 ],
                 // Somebody who consults a plan and never draws one. Sold per seat, so a colleague
                 // who reads costs a fraction of one who works.
