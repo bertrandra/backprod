@@ -164,13 +164,19 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
         self::assertSame(['minor_units' => 580, 'currency' => 'EUR'], $invoice['vat'] ?? null);
         self::assertSame(['minor_units' => 3480, 'currency' => 'EUR'], $invoice['gross'] ?? null);
 
+        // **The organisation sells, and the person buys** (ADR-057, and since
+        // 2026-10-01 there is no other sale). It asserted Atlas SAS — the
+        // product's own billing identity — against Acme SARL, which was the
+        // platform charging the company for its subscription. A seat is Acme
+        // charging one of its own people, so Acme is the supplier and the
+        // product's identity is nowhere on the document.
         $supplier = $invoice['supplier'] ?? null;
         self::assertIsArray($supplier);
-        self::assertSame('Atlas SAS', $supplier['legal_name'] ?? null);
+        self::assertSame('Acme SARL', $supplier['legal_name'] ?? null);
 
         $customer = $invoice['customer'] ?? null;
         self::assertIsArray($customer);
-        self::assertSame('Acme SARL', $customer['legal_name'] ?? null);
+        self::assertSame('sub-alice@example.test', $customer['legal_name'] ?? null);
 
         // Filed per rate, per jurisdiction — which is how a VAT return is
         // filed, and why the tax is stored rather than recomputed.
@@ -251,15 +257,19 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
 
         $this->saveProfile(['legal_name' => 'Acme Renamed SAS', 'city' => 'Marseille']);
 
-        $customer = $this->decode(
+        // The organisation's profile is the **supplier** on a seat's invoice
+        // (ADR-057), so that is where the snapshot rule is checked since
+        // 2026-10-01. It asserted the customer because the sale it described
+        // was the platform charging the company; the rule itself has not moved
+        // — a company moving office must not rewrite documents its accountant
+        // has already filed.
+        $supplier = $this->decode(
             $this->request('GET', '/api/v1/billing/invoices/' . $invoiceId, $this->headers()),
-        )['customer'] ?? null;
+        )['supplier'] ?? null;
 
-        self::assertIsArray($customer);
-        // A customer moving office must not rewrite invoices their
-        // accountant has already filed.
-        self::assertSame('Acme SARL', $customer['legal_name'] ?? null);
-        self::assertSame('Paris', $customer['city'] ?? null);
+        self::assertIsArray($supplier);
+        self::assertSame('Acme SARL', $supplier['legal_name'] ?? null);
+        self::assertSame('Paris', $supplier['city'] ?? null);
     }
 
     public function testNumbersAreSequentialAndGapless(): void
@@ -407,7 +417,21 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
         self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM invoices'));
     }
 
-    public function testAProductWithNoBillingIdentityCannotInvoice(): void
+    /**
+     * A seat does not read the product's billing identity, so its absence does
+     * not stop one.
+     *
+     * This asserted the opposite until 2026-10-01: no identity, no invoice. It
+     * was true of the sale it described — the platform charging the company, on
+     * a document the product's identity signs — and ADR-057 already said a seat
+     * is different: "a seat never reads the product's billing identity: it does
+     * not appear on the document, so it may not gate the sale".
+     *
+     * With the organisation's subscription gone, the seat is the only sale left
+     * and that sentence is the whole rule. What *does* stop an invoice is the
+     * organisation having no billing profile, which the case below asserts.
+     */
+    public function testAProductWithNoBillingIdentityStillInvoicesASeat(): void
     {
         $this->saveProfile();
         $this->subscribe();
@@ -419,9 +443,8 @@ final class InvoiceEndpointsTest extends DatabaseApiTestCase
 
         $response = $this->issue();
 
-        self::assertSame(409, $response->getStatusCode());
-        self::assertSame('BILLING_NOT_CONFIGURED', $this->errorOf($response)['code'] ?? null);
-        self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM invoices'));
+        self::assertSame(201, $response->getStatusCode(), (string) $response->getBody());
+        self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM invoices'));
     }
 
     public function testInvoicesArePagedAndBounded(): void

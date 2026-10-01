@@ -241,7 +241,7 @@ final class ProductKeysTest extends DatabaseApiTestCase
         $bearer = $this->bearer(['product.usage.write', 'product.entitlements.read']);
         $path = '/api/v1/product/tenants/' . $this->acme . '/usage';
 
-        $first = $this->asProduct('POST', $path, $bearer, ['feature' => 'plan.documents', 'quantity' => 1, 'idempotency_key' => 'doc-1:created']);
+        $first = $this->asProduct('POST', $path, $bearer, ['user_id' => $this->ada, 'feature' => 'plan.documents', 'quantity' => 1, 'idempotency_key' => 'doc-1:created']);
         self::assertSame(201, $first->getStatusCode());
         $answer = $this->decode($first);
         self::assertTrue($answer['recorded'] ?? null);
@@ -249,22 +249,22 @@ final class ProductKeysTest extends DatabaseApiTestCase
         self::assertSame(2, $answer['limit'] ?? null);
 
         // The same fact again — a retry — is not a second document.
-        $again = $this->asProduct('POST', $path, $bearer, ['feature' => 'plan.documents', 'quantity' => 1, 'idempotency_key' => 'doc-1:created']);
+        $again = $this->asProduct('POST', $path, $bearer, ['user_id' => $this->ada, 'feature' => 'plan.documents', 'quantity' => 1, 'idempotency_key' => 'doc-1:created']);
         self::assertSame(200, $again->getStatusCode());
         self::assertFalse($this->decode($again)['recorded'] ?? null);
         self::assertSame(1, $this->decode($again)['used'] ?? null);
 
-        self::assertSame(201, $this->asProduct('POST', $path, $bearer, ['feature' => 'plan.documents', 'quantity' => 1, 'idempotency_key' => 'doc-2:created'])->getStatusCode());
+        self::assertSame(201, $this->asProduct('POST', $path, $bearer, ['user_id' => $this->ada, 'feature' => 'plan.documents', 'quantity' => 1, 'idempotency_key' => 'doc-2:created'])->getStatusCode());
 
         // The third would cross the limit: refused, and nothing written.
-        $refused = $this->asProduct('POST', $path, $bearer, ['feature' => 'plan.documents', 'quantity' => 1, 'idempotency_key' => 'doc-3:created']);
+        $refused = $this->asProduct('POST', $path, $bearer, ['user_id' => $this->ada, 'feature' => 'plan.documents', 'quantity' => 1, 'idempotency_key' => 'doc-3:created']);
         self::assertSame(403, $refused->getStatusCode());
         self::assertSame('QUOTA_EXCEEDED', $this->errorOf($refused)['code'] ?? null);
         self::assertSame(2, $this->connection->fetchOne('SELECT count(*) FROM product_usage'));
 
         // Giving one back makes room: the sum of the deltas is the level.
-        self::assertSame(201, $this->asProduct('POST', $path, $bearer, ['feature' => 'plan.documents', 'quantity' => -1, 'idempotency_key' => 'doc-1:deleted'])->getStatusCode());
-        self::assertSame(201, $this->asProduct('POST', $path, $bearer, ['feature' => 'plan.documents', 'quantity' => 1, 'idempotency_key' => 'doc-3:created'])->getStatusCode());
+        self::assertSame(201, $this->asProduct('POST', $path, $bearer, ['user_id' => $this->ada, 'feature' => 'plan.documents', 'quantity' => -1, 'idempotency_key' => 'doc-1:deleted'])->getStatusCode());
+        self::assertSame(201, $this->asProduct('POST', $path, $bearer, ['user_id' => $this->ada, 'feature' => 'plan.documents', 'quantity' => 1, 'idempotency_key' => 'doc-3:created'])->getStatusCode());
 
         // What was reported is what the entitlement route now reads as usage.
         $usage = $this->decode($this->asProduct('GET', '/api/v1/product/tenants/' . $this->acme . '/entitlements', $bearer))['usage'] ?? null;
@@ -277,9 +277,9 @@ final class ProductKeysTest extends DatabaseApiTestCase
         self::assertSame(0, $documents['remaining'] ?? null);
 
         // A feature the tenant holds no quota on is a limit of nothing.
-        self::assertSame(403, $this->asProduct('POST', $path, $bearer, ['feature' => 'plan.exports', 'quantity' => 1, 'idempotency_key' => 'x'])->getStatusCode());
+        self::assertSame(403, $this->asProduct('POST', $path, $bearer, ['user_id' => $this->ada, 'feature' => 'plan.exports', 'quantity' => 1, 'idempotency_key' => 'x'])->getStatusCode());
         // And a zero delta says nothing.
-        self::assertSame(400, $this->asProduct('POST', $path, $bearer, ['feature' => 'plan.documents', 'quantity' => 0, 'idempotency_key' => 'y'])->getStatusCode());
+        self::assertSame(400, $this->asProduct('POST', $path, $bearer, ['user_id' => $this->ada, 'feature' => 'plan.documents', 'quantity' => 0, 'idempotency_key' => 'y'])->getStatusCode());
     }
 
     // --- What the product says it has built (2026-09-24) ------------------------
