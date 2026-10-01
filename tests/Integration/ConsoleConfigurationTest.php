@@ -7,11 +7,14 @@ namespace App\Tests\Integration;
 use App\Auth\Domain\AuthProvider;
 use App\Payment\Infrastructure\StubPaymentProvider;
 use App\Payment\Service\PaymentProviders;
+use App\Product\Domain\ManifestAnswer;
+use App\Product\Domain\ProductManifests;
 use App\Project\Service\SchemaVersionPolicy;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
+use App\Tests\Support\RecordingProductManifests;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
 
@@ -49,6 +52,8 @@ use Psr\Http\Message\ResponseInterface;
 final class ConsoleConfigurationTest extends DatabaseApiTestCase
 {
     private const SECRET = 'configuration-test-secret';
+
+    private RecordingProductManifests $host;
 
     /**
      * @var array<string, string>
@@ -94,6 +99,11 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
             ]),
 
             PaymentProviders::class => new PaymentProviders([new StubPaymentProvider(self::SECRET)]),
+
+            // The product's own host, replaced. Nothing in this suite reaches
+            // the network, and a product that answers differently is a line
+            // in a test rather than a server somebody has to run.
+            ProductManifests::class => $this->host = new RecordingProductManifests(),
         ]);
 
         // Created through the console, not by SQL: this is the product an
@@ -638,6 +648,142 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
         );
     }
 
+    // --- What the product says about itself ----------------------------------
+    //
+    // The list above is a copy, made by hand, of a fact the product owns. It has
+    // fallen behind twice and both times every save was refused, so the product
+    // is now asked — and the answer is shown, never applied.
+
+    public function testAProductWithNoAddressIsNotEvenAsked(): void
+    {
+        // Created through the console, so no `app_url`: it runs inside this
+        // shell and there is nowhere to send a request. A fact about the
+        // deployment rather than a failure of one, and the transport must not
+        // be troubled with a URL that does not exist.
+        $read = $this->decode($this->manifest());
+
+        self::assertArrayHasKey('declared', $read);
+        self::assertNull($read['declared']);
+        self::assertSame(ManifestAnswer::NO_ADDRESS, $read['error'] ?? null);
+        self::assertSame([], $this->host->asked);
+    }
+
+    public function testTheDeclaredVersionsAreShownBesideWhatIsStored(): void
+    {
+        $this->givenTheProductRunsBeside();
+        $this->setVersions([1]);
+
+        $this->host->serves(['product' => 'atlas', 'app_version' => '2.3.0', 'schema_versions' => [1, 2, 3]]);
+
+        $read = $this->decode($this->manifest());
+
+        $declared = $read['declared'] ?? null;
+        self::assertIsArray($declared);
+
+        self::assertSame([1, 2, 3], $declared['schema_versions'] ?? null);
+        self::assertSame('2.3.0', $declared['app_version'] ?? null);
+        self::assertSame([1], $read['project_schema_versions'] ?? null);
+        // What applying would add, which is the only thing the screen acts on.
+        self::assertSame([2, 3], $read['adds'] ?? null);
+        self::assertArrayHasKey('error', $read);
+        self::assertNull($read['error']);
+
+        // Asked at the address staff configured, about the product asked for.
+        self::assertSame(
+            [['url' => 'https://atlas.example.test', 'code' => 'atlas']],
+            $this->host->asked,
+        );
+    }
+
+    public function testReadingTheManifestWritesNothing(): void
+    {
+        // The whole arrangement rests on this. A fetch that wrote would let the
+        // product's own host re-open a version the platform had deliberately
+        // retired, and `app_url` is one staff field away from pointing
+        // somewhere else.
+        $this->givenTheProductRunsBeside();
+        $this->setVersions([1]);
+
+        $this->host->serves(['product' => 'atlas', 'schema_versions' => [1, 2, 3]]);
+        $this->manifest();
+
+        self::assertSame([1], $this->itemIn($this->show(), 'project_schema_versions'));
+        // And nothing in the trail either: this read changed nothing to record.
+        self::assertSame(['CONFIGURE_SCHEMA_VERSIONS'], $this->configurationActions());
+    }
+
+    public function testAnOperatorAheadOfTheProductIsOfferedNothing(): void
+    {
+        // Somebody added a version the product has not announced. The console
+        // is the authority over this list, which is the whole point of its
+        // being configuration — nobody is asked to undo their own decision.
+        $this->givenTheProductRunsBeside();
+        $this->setVersions([1, 2, 3, 4]);
+
+        $this->host->serves(['product' => 'atlas', 'schema_versions' => [1, 2, 3]]);
+
+        self::assertSame([], $this->decode($this->manifest())['adds'] ?? null);
+    }
+
+    public function testNothingProposesARemoval(): void
+    {
+        // The product has moved past schema 1 and no longer names it. Retiring
+        // a version refuses edits on documents customers already hold
+        // (ADR-018), so it stays a decision somebody makes — never one a
+        // remote file suggests and a button performs.
+        $this->givenTheProductRunsBeside();
+        $this->setVersions([1, 2]);
+
+        $this->host->serves(['product' => 'atlas', 'schema_versions' => [2, 3]]);
+
+        $read = $this->decode($this->manifest());
+
+        self::assertSame([3], $read['adds'] ?? null);
+        self::assertSame([1, 2], $read['project_schema_versions'] ?? null);
+    }
+
+    public function testAManifestForAnotherProductIsRefusedRatherThanUsed(): void
+    {
+        // An `app_url` copied between two products, or a staging address left
+        // in place. Mapping one product's versions onto another's
+        // configuration is silent and entirely plausible.
+        $this->givenTheProductRunsBeside();
+
+        $this->host->serves(['product' => 'plan', 'schema_versions' => [1, 2, 3]]);
+
+        $read = $this->decode($this->manifest());
+
+        self::assertArrayHasKey('declared', $read);
+        self::assertNull($read['declared']);
+        self::assertSame(ManifestAnswer::WRONG_PRODUCT, $read['error'] ?? null);
+        self::assertSame([], $read['adds'] ?? null);
+    }
+
+    public function testAHostThatSaysNothingIsNotAFailure(): void
+    {
+        // The ordinary state of most products, and of a single-page app
+        // answering its index for every path. A screen showing a red failure
+        // for each of them teaches its operator to ignore the one that matters.
+        $this->givenTheProductRunsBeside();
+        $this->host->fails(ManifestAnswer::NOT_SERVED);
+
+        $read = $this->decode($this->manifest());
+
+        self::assertSame(200, $this->manifest()->getStatusCode());
+        self::assertArrayHasKey('declared', $read);
+        self::assertNull($read['declared']);
+        self::assertSame(ManifestAnswer::NOT_SERVED, $read['error'] ?? null);
+    }
+
+    public function testTheManifestIsForWhoeverMayChangeTheList(): void
+    {
+        // The same permission as the write beside it: the answer exists to be
+        // acted on by the same person, and it discloses the address and the
+        // release of a product this platform runs.
+        self::assertSame(403, $this->manifest('sam-token', 403)->getStatusCode());
+        self::assertSame(401, $this->manifest(null, 401)->getStatusCode());
+        self::assertSame(404, $this->manifest('ola-token', 404, 'nosuch')->getStatusCode());
+    }
     /**
      * Plan, offer, published version — all through the console, as ADR-043's own
      * test does. Returns the offer id.
@@ -765,6 +911,37 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
             '/api/v1/staff/configuration/project-schema-versions?product=atlas',
             ['Authorization' => 'Bearer ola-token'],
             $this->json(['supported' => $supported]),
+        );
+
+        self::assertSame($expected, $response->getStatusCode(), (string) $response->getBody());
+
+        return $response;
+    }
+
+    /**
+     * The product gains an address of its own, the way staff give it one.
+     *
+     * Written here rather than through an endpoint because `app_url` belongs to
+     * the product directory and not to this desk — what is under test is what
+     * the console does with an address, not how the address got there.
+     */
+    private function givenTheProductRunsBeside(string $url = 'https://atlas.example.test'): void
+    {
+        $this->connection->executeStatement(
+            'UPDATE products SET app_url = :url WHERE id = :id',
+            ['url' => $url, 'id' => $this->product],
+        );
+    }
+
+    private function manifest(
+        ?string $token = 'ola-token',
+        int $expected = 200,
+        string $product = 'atlas',
+    ): ResponseInterface {
+        $response = $this->request(
+            'GET',
+            '/api/v1/staff/configuration/product-manifest?product=' . $product,
+            $token === null ? [] : ['Authorization' => 'Bearer ' . $token],
         );
 
         self::assertSame($expected, $response->getStatusCode(), (string) $response->getBody());

@@ -13446,6 +13446,63 @@
         }
       }
     },
+    "/api/v1/staff/configuration/product-manifest": {
+      "get": {
+        "tags": ["Staff"],
+        "operationId": "showProductManifest",
+        "summary": "What a product says about itself",
+        "description": "A product is the authority on its own document format — it writes the migrations and ships the spec — and `project_schema_versions` beside this is a copy of that fact, made by hand, by whoever remembered. The copy has fallen behind twice, and both times every save was refused `UNSUPPORTED_SCHEMA_VERSION` and it looked like a bug in the product.\n\nSo a product deployed beside the platform may serve a manifest at `/.well-known/product.json` under its own `app_url`:\n\n```json\n{\"product\": \"plan\", \"app_version\": \"2.3.0\", \"schema_versions\": [1, 2, 3]}\n```\n\nThis fetches it and **writes nothing**. The answer carries what the product declares, what the database holds, and `adds` — what applying would add. Applying is a second, deliberate `PUT /staff/configuration/project-schema-versions`, which is what keeps the console the authority over a list a remote file only proposes: a fetch that wrote would let the product's own host re-open a version the platform had deliberately retired (ADR-018), and `app_url` is one staff field away from pointing somewhere else.\n\n`adds` never proposes a removal. Retiring a version refuses edits on documents customers already hold, and that stays a decision somebody makes.\n\n**This read leaves the host**, unlike every other staff read, so it is its own operation rather than part of `showStaffConfiguration` — a product whose server is down must not make the billing settings unopenable. At worst it takes ten seconds.",
+        "parameters": [
+          {"name": "product", "in": "query", "required": true, "description": "The product code to ask. A staff route resolves no product of its own — a platform role grants no membership.", "schema": {"type": "string", "maxLength": 64}}
+        ],
+        "responses": {
+          "200": {
+            "description": "What the product answered, including when it answered nothing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["product", "declared", "error", "project_schema_versions", "adds"],
+                  "properties": {
+                    "product": {
+                      "type": "object",
+                      "required": ["id", "code", "name", "app_url"],
+                      "properties": {
+                        "id": {"type": "string", "format": "uuid"},
+                        "code": {"type": "string"},
+                        "name": {"type": "string"},
+                        "app_url": {"type": ["string", "null"], "description": "The address this was asked at. Null for a product that runs inside this shell, which is then answered `NO_ADDRESS` rather than fetched."}
+                      }
+                    },
+                    "declared": {
+                      "type": ["object", "null"],
+                      "description": "Null whenever the product did not answer with a manifest; `error` then says which silence it was. Present alongside `error` in every answer rather than one replacing the other, so a screen binds to one shape.",
+                      "required": ["app_version", "schema_versions"],
+                      "properties": {
+                        "app_version": {"type": ["string", "null"], "description": "Shown to an operator; decides nothing, and so is not required of a manifest."},
+                        "schema_versions": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"type": "integer", "minimum": 1}, "description": "Deduplicated and ascending, cleaned the same way a stored row is — so a manifest and the configuration it is compared against mean the same thing by a version."}
+                      }
+                    },
+                    "error": {
+                      "type": ["string", "null"],
+                      "enum": ["UNREACHABLE", "TIMEOUT", "TLS", "NOT_SERVED", "NOT_A_MANIFEST", "WRONG_PRODUCT", "NO_ADDRESS", null],
+                      "description": "The class of silence, never a message — a message can quote the URL, and this is rendered on a screen and written into a notification. `NOT_SERVED` is the ordinary state of a product that has not implemented the manifest, including a single-page app answering its index for every path, and is not a fault. `WRONG_PRODUCT` means the manifest named a different product than the one asked about: an `app_url` copied between two products, or a staging address left in place."
+                    },
+                    "project_schema_versions": {"type": "array", "items": {"type": "integer", "minimum": 1}, "description": "What the database holds today, read through the same tolerant path a project write uses."},
+                    "adds": {"type": "array", "items": {"type": "integer", "minimum": 1}, "description": "What applying the manifest would add, and nothing it would remove. Empty when the product declared nothing or when the database is already ahead of it — an operator who added a version the product has not announced is not asked to undo their own decision."}
+                  }
+                }
+              }
+            }
+          },
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "401": {"$ref": "#/components/responses/Unauthenticated"},
+          "403": {"$ref": "#/components/responses/PermissionDenied"},
+          "429": {"$ref": "#/components/responses/TooManyRequests"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v1/staff/conversations": {
       "get": {
         "tags": [

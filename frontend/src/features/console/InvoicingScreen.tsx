@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import {
   useProductConfiguration,
+  useProductManifest,
   useSetBillingIdentity,
   useSetProjectSchemaVersions,
   useSetTaxSettings,
@@ -361,6 +362,14 @@ function SchemaVersionsForm({
     >
       {save.error !== null && <ErrorSurface error={save.error} />}
 
+      <WhatTheProductDeclares
+        productCode={productCode}
+        versions={versions}
+        onAdd={(adding) =>
+          setVersions([...versions, ...adding].sort((left, right) => left - right))
+        }
+      />
+
       {versions.length === 0 && (
         <p data-testid="accepts-no-version" role="alert" className={notice('danger')}>
           {tx("This product accepts no document version, so every project saved against it refuses with {code}. Add the versions its releases write.", {
@@ -438,6 +447,114 @@ function SchemaVersionsForm({
         </FormActions>
       </FormCard>
     </Section>
+  );
+}
+
+/**
+ * What the product itself says it accepts.
+ *
+ * The list above is a copy, made by hand, of a fact the product owns — it
+ * writes the migrations and ships the spec. The copy has fallen behind twice,
+ * and both times every save was refused `UNSUPPORTED_SCHEMA_VERSION` and it
+ * looked like a bug in the product. This is where the two can be seen at once.
+ *
+ * **It proposes and never applies.** Pressing the button puts the missing
+ * versions into the list above, and saving is still the form's own button — so
+ * what gets stored is what the operator can see, and a remote file never
+ * decides a list the platform is the authority over. It is also why nothing
+ * here offers to *remove* a version the product no longer names: retiring one
+ * refuses edits on documents customers already hold, which is a decision
+ * somebody makes rather than one a fetch suggests.
+ *
+ * **Silence is the ordinary answer.** Most products serve no manifest, and a
+ * product that runs inside this shell has no address to ask. Neither is a
+ * fault, and showing a red failure for each would teach an operator to ignore
+ * the one that matters — so only `WRONG_PRODUCT` is called out, because it
+ * means an `app_url` is pointing at somebody else.
+ */
+function WhatTheProductDeclares({
+  productCode,
+  versions,
+  onAdd,
+}: {
+  productCode: string;
+  versions: number[];
+  onAdd: (adding: number[]) => void;
+}) {
+  const asked = useProductManifest(productCode);
+
+  if (asked.isPending) {
+    return <SkeletonRows rows={1} />;
+  }
+
+  // The request itself failed — not the product's silence, which arrives as a
+  // 200 with an `error` code. A console whose own call broke says so.
+  if (asked.error !== null || asked.data === undefined) {
+    return <ErrorSurface error={asked.error} />;
+  }
+
+  const { declared, error, adds, product } = asked.data;
+
+  if (declared === null) {
+    return (
+      <p
+        data-testid="product-declares-nothing"
+        className={notice(error === 'WRONG_PRODUCT' ? 'danger' : 'neutral')}
+      >
+        {error === 'WRONG_PRODUCT'
+          ? tx("The host at {url} serves a manifest for a different product. Check this product's address before trusting anything else on this screen.", {
+              url: <code>{product.app_url ?? ''}</code>,
+            })
+          : t("This product does not say which versions it accepts. The list below is the only answer, and it has to be kept by hand.")}{' '}
+        <RefetchManifest asked={asked} />
+      </p>
+    );
+  }
+
+  // Already in the list the operator is editing, which is not the same as
+  // already stored: they may have added it a moment ago and not saved yet.
+  const outstanding = adds.filter((version) => !versions.includes(version));
+
+  return (
+    <div data-testid="product-manifest" className={notice(outstanding.length > 0 ? 'warning' : 'neutral')}>
+      <p>
+        {tx("{name} declares {versions}{release}.", {
+          name: <strong>{product.name}</strong>,
+          versions: <span data-testid="declared-versions">{declared.schema_versions.join(', ')}</span>,
+          release: declared.app_version === null ? '' : ` (${declared.app_version})`,
+        })}{' '}
+        {outstanding.length === 0
+          ? t("The list already covers it.")
+          : t("The list below does not cover all of it, so a save in a version it is missing is refused.")}{' '}
+        <RefetchManifest asked={asked} />
+      </p>
+
+      {outstanding.length > 0 && (
+        <p className="mt-3">
+          <Button
+            type="button"
+            variant="secondary"
+            data-testid="adopt-declared-versions"
+            onClick={() => onAdd(outstanding)}
+          >
+            {t("Add {versions} to the list", { versions: outstanding.join(', ') })}</Button>
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Asking again, for the minute after a release of the product goes out. */
+function RefetchManifest({ asked }: { asked: ReturnType<typeof useProductManifest> }) {
+  return (
+    <button
+      type="button"
+      data-testid="ask-the-product-again"
+      disabled={asked.isFetching}
+      className="text-muted underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+      onClick={() => void asked.refetch()}
+    >
+      {asked.isFetching ? t("Asking…") : t("Ask again")}</button>
   );
 }
 

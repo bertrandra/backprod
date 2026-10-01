@@ -1868,6 +1868,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/configuration/product-manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What a product says about itself
+         * @description A product is the authority on its own document format — it writes the migrations and ships the spec — and `project_schema_versions` beside this is a copy of that fact, made by hand, by whoever remembered. The copy has fallen behind twice, and both times every save was refused `UNSUPPORTED_SCHEMA_VERSION` and it looked like a bug in the product.
+         *
+         *     So a product deployed beside the platform may serve a manifest at `/.well-known/product.json` under its own `app_url`:
+         *
+         *     ```json
+         *     {"product": "plan", "app_version": "2.3.0", "schema_versions": [1, 2, 3]}
+         *     ```
+         *
+         *     This fetches it and **writes nothing**. The answer carries what the product declares, what the database holds, and `adds` — what applying would add. Applying is a second, deliberate `PUT /staff/configuration/project-schema-versions`, which is what keeps the console the authority over a list a remote file only proposes: a fetch that wrote would let the product's own host re-open a version the platform had deliberately retired (ADR-018), and `app_url` is one staff field away from pointing somewhere else.
+         *
+         *     `adds` never proposes a removal. Retiring a version refuses edits on documents customers already hold, and that stays a decision somebody makes.
+         *
+         *     **This read leaves the host**, unlike every other staff read, so it is its own operation rather than part of `showStaffConfiguration` — a product whose server is down must not make the billing settings unopenable. At worst it takes ten seconds.
+         */
+        get: operations["showProductManifest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/conversations": {
         parameters: {
             query?: never;
@@ -10365,6 +10397,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showProductManifest: {
+        parameters: {
+            query: {
+                /** @description The product code to ask. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What the product answered, including when it answered nothing. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        product: {
+                            /** Format: uuid */
+                            id: string;
+                            code: string;
+                            name: string;
+                            /** @description The address this was asked at. Null for a product that runs inside this shell, which is then answered `NO_ADDRESS` rather than fetched. */
+                            app_url: string | null;
+                        };
+                        /** @description Null whenever the product did not answer with a manifest; `error` then says which silence it was. Present alongside `error` in every answer rather than one replacing the other, so a screen binds to one shape. */
+                        declared: {
+                            /** @description Shown to an operator; decides nothing, and so is not required of a manifest. */
+                            app_version: string | null;
+                            /** @description Deduplicated and ascending, cleaned the same way a stored row is — so a manifest and the configuration it is compared against mean the same thing by a version. */
+                            schema_versions: number[];
+                        } | null;
+                        /**
+                         * @description The class of silence, never a message — a message can quote the URL, and this is rendered on a screen and written into a notification. `NOT_SERVED` is the ordinary state of a product that has not implemented the manifest, including a single-page app answering its index for every path, and is not a fault. `WRONG_PRODUCT` means the manifest named a different product than the one asked about: an `app_url` copied between two products, or a staging address left in place.
+                         * @enum {string|null}
+                         */
+                        error: "UNREACHABLE" | "TIMEOUT" | "TLS" | "NOT_SERVED" | "NOT_A_MANIFEST" | "WRONG_PRODUCT" | "NO_ADDRESS" | null;
+                        /** @description What the database holds today, read through the same tolerant path a project write uses. */
+                        project_schema_versions: number[];
+                        /** @description What applying the manifest would add, and nothing it would remove. Empty when the product declared nothing or when the database is already ahead of it — an operator who added a version the product has not announced is not asked to undo their own decision. */
+                        adds: number[];
+                    };
                 };
             };
             401: components["responses"]["Unauthenticated"];

@@ -131,12 +131,14 @@ use App\Product\Domain\ProductAssets;
 use App\Product\Domain\ProductCapabilities;
 use App\Product\Domain\ProductDirectory;
 use App\Product\Domain\ProductKeys;
+use App\Product\Domain\ProductManifests;
 use App\Product\Domain\ProductRegistry;
 use App\Product\Domain\ProductRepository;
 use App\Product\Domain\ProductSettings;
 use App\Product\Domain\ProductShowcase;
 use App\Product\Domain\ProductUsageLedger;
 use App\Product\Domain\TenantHoldings;
+use App\Product\Infrastructure\CurlProductManifests;
 use App\Product\Infrastructure\PostgresProductAccessLog;
 use App\Product\Infrastructure\PostgresProductAssets;
 use App\Product\Infrastructure\PostgresProductCapabilities;
@@ -380,6 +382,7 @@ return static function (array $overrides = []): ContainerInterface {
         WebhookEndpoints::class => autowire(PostgresWebhookEndpoints::class)
             ->constructorParameter('key', $env('WEBHOOK_SECRET_KEY')),
         WebhookTransport::class => autowire(CurlWebhookTransport::class),
+        ProductManifests::class => autowire(CurlProductManifests::class),
         ProductUsageLedger::class => autowire(PostgresProductUsage::class),
         ReportedUsage::class => autowire(PostgresProductUsage::class),
         TenantHoldings::class => autowire(PostgresTenantHoldings::class),

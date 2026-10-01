@@ -96,6 +96,12 @@ final class SchemaDrift
     /**
      * What is in the first list and not the second, deduplicated and ordered.
      *
+     * Public because the console asks the same question in different words:
+     * applying what a product's manifest declares adds exactly this, and a
+     * screen computing it its own way would eventually offer to add something
+     * the preflight did not consider missing. One subtraction, one place — the
+     * rule `PlacesUsedSql` exists for, in a much smaller key.
+     *
      * `array_diff` keeps the original keys and would hand a caller a list with
      * holes in it, which `json_encode` then writes as an object.
      *
@@ -104,7 +110,7 @@ final class SchemaDrift
      *
      * @return list<int>
      */
-    private static function missing(array $wanted, array $held): array
+    public static function missing(array $wanted, array $held): array
     {
         $missing = [];
 

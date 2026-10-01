@@ -41,6 +41,38 @@ const TAX = {
   currency: 'EUR',
 };
 
+/**
+ * What a product with no address of its own answers: it runs inside this shell,
+ * so there is nowhere to ask. The default here because it is what the console's
+ * own `POST /staff/products` makes, and what every case below is really about.
+ */
+const NOT_ASKED = {
+  'GET /api/v1/staff/configuration/product-manifest': {
+    data: {
+      product: { ...PRODUCT, app_url: null },
+      declared: null,
+      error: 'NO_ADDRESS',
+      project_schema_versions: [1],
+      adds: [],
+    },
+  },
+};
+
+/** The same answer from a product that does run beside the platform. */
+function declaring(declared: number[], stored: number[], adds: number[], error: string | null = null) {
+  return {
+    'GET /api/v1/staff/configuration/product-manifest': {
+      data: {
+        product: { ...PRODUCT, app_url: 'https://atlas.example.test' },
+        declared: error === null ? { app_version: '2.3.0', schema_versions: declared } : null,
+        error,
+        project_schema_versions: stored,
+        adds,
+      },
+    },
+  };
+}
+
 const ROUTE = {
   path: '/console/invoicing',
   initial: '/console/invoicing',
@@ -62,6 +94,7 @@ function clientFor(extra: Stubs = {}) {
       data: { billing_supplier: CONFIGURED_SUPPLIER },
     },
     'PUT /api/v1/staff/configuration/tax': { data: { tax: TAX } },
+    ...NOT_ASKED,
     ...extra,
   });
 }
@@ -331,6 +364,7 @@ describe('the accepted document versions', () => {
       'PUT /api/v1/staff/configuration/project-schema-versions': {
         data: { project_schema_versions: versions },
       },
+      ...NOT_ASKED,
     };
   }
 
@@ -426,5 +460,137 @@ describe('the accepted document versions', () => {
 
     fireEvent.change(entry, { target: { value: '3' } });
     expect(add().disabled).toBe(false);
+  });
+});
+
+describe('what the product says about itself', () => {
+  function configured(versions: number[]) {
+    return {
+      'GET /api/v1/staff/configuration': {
+        data: {
+          product: PRODUCT,
+          billing_supplier: CONFIGURED_SUPPLIER,
+          tax: TAX,
+          project_schema_versions: versions,
+          can_invoice: true,
+          missing: [],
+        },
+      },
+      'PUT /api/v1/staff/configuration/project-schema-versions': {
+        data: { project_schema_versions: versions },
+      },
+    };
+  }
+
+  it('shows what the product declares beside what is stored', async () => {
+    renderAtRoute(
+      <InvoicingScreen />,
+      stubClient({ ...configured([1]), ...declaring([1, 2, 3], [1], [2, 3]) }),
+      ROUTE,
+    );
+
+    const panel = await waitFor(() => screen.getByTestId('product-manifest'));
+
+    expect(screen.getByTestId('declared-versions').textContent).toBe('1, 2, 3');
+    // The release, so somebody can tell a stale answer from a current one.
+    expect(panel.textContent).toMatch(/2\.3\.0/);
+    expect(panel.textContent).toMatch(/does not cover all of it/i);
+  });
+
+  it('proposes and never applies, so what is stored is what the operator could see', async () => {
+    const { client, requests } = recordingClient({
+      ...configured([1]),
+      ...declaring([1, 2, 3], [1], [2, 3]),
+    });
+
+    renderAtRoute(<InvoicingScreen />, client, ROUTE);
+
+    fireEvent.click(await waitFor(() => screen.getByTestId('adopt-declared-versions')));
+
+    // Nothing has been sent. The versions are in the list on screen, and the
+    // form's own Save is still what writes them — a remote file may propose a
+    // list and must not decide one.
+    expect(
+      requests.some(
+        (request) => request.path === '/api/v1/staff/configuration/project-schema-versions',
+      ),
+    ).toBe(false);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('schema-versions').textContent).toMatch(/1.*2.*3/s),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Save the accepted versions/i }));
+
+    await waitFor(() =>
+      expect(
+        requests.find(
+          (request) => request.path === '/api/v1/staff/configuration/project-schema-versions',
+        )?.body,
+      ).toEqual({ supported: [1, 2, 3] }),
+    );
+  });
+
+  it('stops offering what is already in the list, so pressing twice cannot duplicate it', async () => {
+    // `adds` is what the *server* said was missing, and it does not change when
+    // the operator adds a version here — the list on screen is unsaved. A panel
+    // reading it alone would keep the button, and a second press would append
+    // the same versions again.
+    renderAtRoute(
+      <InvoicingScreen />,
+      stubClient({ ...configured([1]), ...declaring([1, 2, 3], [1], [2, 3]) }),
+      ROUTE,
+    );
+
+    fireEvent.click(await waitFor(() => screen.getByTestId('adopt-declared-versions')));
+
+    await waitFor(() => expect(screen.queryByTestId('adopt-declared-versions')).toBeNull());
+    expect(screen.getAllByRole('listitem').map((item) => item.getAttribute('data-version'))).toEqual(
+      ['1', '2', '3'],
+    );
+  });
+
+  it('offers nothing when the stored list already covers what the product declares', async () => {
+    renderAtRoute(
+      <InvoicingScreen />,
+      stubClient({ ...configured([1, 2, 3, 4]), ...declaring([1, 2, 3], [1, 2, 3, 4], []) }),
+      ROUTE,
+    );
+
+    const panel = await waitFor(() => screen.getByTestId('product-manifest'));
+
+    expect(panel.textContent).toMatch(/already covers it/i);
+    expect(screen.queryByTestId('adopt-declared-versions')).toBeNull();
+  });
+
+  it('treats a product that says nothing as ordinary, not as a failure', async () => {
+    // Most products serve no manifest, and a single-page app answers its index
+    // for every path. A red failure for each of those teaches an operator to
+    // ignore the one that matters.
+    renderAtRoute(
+      <InvoicingScreen />,
+      stubClient({ ...configured([1]), ...declaring([], [1], [], 'NOT_SERVED') }),
+      ROUTE,
+    );
+
+    const said = await waitFor(() => screen.getByTestId('product-declares-nothing'));
+
+    expect(said.textContent).toMatch(/does not say which versions it accepts/i);
+    expect(said.className).not.toMatch(/danger/);
+  });
+
+  it('calls out a manifest that names another product, because an address is pointing at somebody else', async () => {
+    renderAtRoute(
+      <InvoicingScreen />,
+      stubClient({ ...configured([1]), ...declaring([], [1], [], 'WRONG_PRODUCT') }),
+      ROUTE,
+    );
+
+    const said = await waitFor(() => screen.getByTestId('product-declares-nothing'));
+
+    expect(said.textContent).toMatch(/different product/i);
+    // The address, so it is visible which host answered.
+    expect(said.textContent).toMatch(/atlas\.example\.test/);
+    expect(said.className).toMatch(/danger/);
   });
 });
