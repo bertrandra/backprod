@@ -205,7 +205,6 @@ use App\Tenant\Domain\JoinRequests;
 use App\Tenant\Domain\TenantMemberRepository;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Domain\TenantRepository;
-use App\Tenant\Infrastructure\MemberUsageSource;
 use App\Tenant\Infrastructure\PostgresDefaultTenant;
 use App\Tenant\Infrastructure\PostgresJoinRequests;
 use App\Tenant\Infrastructure\PostgresTenantMemberRepository;
@@ -576,9 +575,38 @@ return static function (array $overrides = []): ContainerInterface {
         //
         // A quota with no source is reported as unmetered rather than
         // enforced against a number nobody produced.
+        // `max_users => MemberUsageSource` stood on the next line and was
+        // removed on 2026-10-01, when the quota meters were put on screen and
+        // this one had to be explained. It was wrong twice over.
+        //
+        // The code first: no offer grants `max_users`. The platform's word for
+        // the people a subscription covers is `users`, which is what
+        // `Places::USERS_FEATURE` declares, what every offer grants and what
+        // `PlacesUsedSql` enforces. `max_users` lives in the specification's
+        // prose and lived here, and nowhere else — so `measures('max_users')`
+        // answered true about a feature nobody can hold, while
+        // `measures('users')` answered false about the most carefully counted
+        // number on the platform. ADR-020's note that "max_users is metered but
+        // nothing enforces it yet" had become exactly backwards.
+        //
+        // And the set second, which is why this is a removal and not a rename.
+        // It counted `tenant_members` rows, and that is not the set the quota
+        // bounds: it counts administrators, who take no place, and members on
+        // no subscription at all, who hold no entitlement from their
+        // membership (ADR-053). Pointed at `users`, it would have put a third
+        // answer on screen beside the two `PlacesUsedSql` already keeps in
+        // agreement.
+        //
+        // `users` is also not a tenant-wide quantity, which is the deeper
+        // reason it is not here. This meter answers per `(tenant, product)`;
+        // places are sold and taken **per subscription**. An organisation
+        // holding two subscriptions of three places has six places and a
+        // tenant-wide limit of three, so a meter would read "6 of 3" and alarm
+        // somebody who is entirely within their allowance. The number belongs
+        // where it already is: `places_sold` / `places_used`, per subscription,
+        // on the organisation screen.
         UsageMeter::class => create(UsageMeter::class)->constructor([
             ProjectWorkspace::QUOTA => get(ProjectUsageSource::class),
-            MemberUsageSource::QUOTA => get(MemberUsageSource::class),
         ], get(ReportedUsage::class)),
 
         // --- Storage (§15, non-negotiable #9) --------------------------------

@@ -81,6 +81,27 @@ async function workspace(page: Page, session: Record<string, unknown> = SESSION)
     route.fulfill({ json: { configuration: { project_schema_versions: { supported: [7] } } } }),
   );
 
+  // What the plan allows, and how much is left (2026-10-01). Stubbed so a real
+  // browser renders the meter: the screen falls back to no meter when this call
+  // fails, which is right — and would let the whole feature go unexercised here.
+  await page.route(/\/api\/v1\/tenants\/current\/usage$/, (route) =>
+    route.fulfill({
+      json: {
+        usage: [
+          {
+            feature: 'max_projects',
+            name: 'Projects',
+            unit: 'projects',
+            limit: 3,
+            unlimited: false,
+            metered: true,
+            used: 1,
+            remaining: 2,
+          },
+        ],
+      },
+    }),
+  );
   await page.route(/\/api\/v1\/projects(\?|$)/, (route) =>
     route.fulfill({ json: { projects: [PROJECT], total: 1, limit: 25, offset: 0 } }),
   );
@@ -201,5 +222,37 @@ test.describe('a project on a phone', () => {
     );
 
     expect(overflows).toBe(false);
+  });
+
+  test('shows the project allowance, and its bar fits the phone', async ({ page }) => {
+    // A bar whose width is an inline percentage is exactly the kind of thing
+    // jsdom cannot judge: it has no layout, so "33%" of nothing is nothing.
+    await page.setViewportSize({ width: 375, height: 720 });
+    await workspace(page);
+
+    await page.goto('/projects?product=atlas');
+
+    await expect(page.getByTestId('project-quota')).toBeVisible();
+    await expect(page.getByTestId('quota-figure')).toHaveText('1 of 3 projects');
+
+    const fill = page.getByTestId('quota-fill');
+    const track = await fill.evaluate((node) => {
+      const parent = node.parentElement;
+
+      return {
+        inside: parent === null ? -1 : node.getBoundingClientRect().width - parent.getBoundingClientRect().width,
+        drawn: node.getBoundingClientRect().width,
+      };
+    });
+
+    // Drawn, and not past its track.
+    expect(track.drawn).toBeGreaterThan(0);
+    expect(track.inside).toBeLessThanOrEqual(0);
+
+    const overflowsList = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    );
+
+    expect(overflowsList).toBe(false);
   });
 });

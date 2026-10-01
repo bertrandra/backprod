@@ -8,6 +8,7 @@ import { keys } from './keys';
 import { toApiError } from './session';
 
 export type Tenant = Schemas['Tenant'];
+export type QuotaUsage = Schemas['QuotaUsage'];
 
 export function useOrganisation(enabled = true) {
   const client = useApiClient();
@@ -33,17 +34,26 @@ export function useOrganisation(enabled = true) {
 /**
  * Usage against quota.
  *
- * The contract types each row as an open object, so this hands back what the API
- * sent rather than inventing a shape the contract does not promise. A screen
- * reading a field the API stopped sending is a bug worth having visible, not one
- * to paper over with a guessed interface.
+ * This docblock used to explain that the contract typed each row as an open
+ * object, so the hook handed back what the API sent rather than inventing a
+ * shape — reasonable, and it hid the actual problem. `additionalProperties:
+ * true` is not a shape the contract declines to promise; it is a shape nobody
+ * wrote down. The server had been answering eight named fields since M4, the
+ * same eight the bootstrap a product reads already typed in full, and a screen
+ * could read none of them because the generated client said `unknown`. A
+ * missing field is a field missing **from OpenAPI** (CLAUDE.md): the answer was
+ * to fix the contract, which `QuotaUsage` now does for both operations at once.
+ *
+ * `enabled` is the caller's: the workspace asks for this to draw one meter, and
+ * on a product whose offer sells no quota there is nothing to ask about.
  */
-export function useTenantUsage() {
+export function useTenantUsage(enabled = true) {
   const client = useApiClient();
 
   return useQuery({
     queryKey: keys.organisation.usage,
-    queryFn: async (): Promise<readonly Record<string, unknown>[]> => {
+    enabled,
+    queryFn: async (): Promise<readonly QuotaUsage[]> => {
       const { data, error, response } = await client.GET(
         '/api/v1/tenants/current/usage',
         ambientParams(sessionSnapshot),

@@ -16,11 +16,12 @@ import {
   type Entitlement,
   type Subscription,
 } from '@/queries/subscription';
-import { useOrganisation } from '@/queries/organisation';
+import { useOrganisation, useTenantUsage } from '@/queries/organisation';
 import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { Meter } from '@/ui/Meter';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { notice, pill, type Tone } from '@/ui/tone';
@@ -67,6 +68,12 @@ export function SubscriptionScreen() {
   const subscription = useSubscription();
   const schedule = useSchedule();
   const entitlements = useEntitlements();
+  // What has been counted against each quota (2026-10-01). A separate query
+  // because it is a separate question — what the offer allows is on the
+  // subscription, what has been used is measured — and because this screen
+  // stays useful when the meter is the half that fails.
+  const usage = useTenantUsage();
+  const quotas = new Map((usage.data ?? []).map((quota) => [quota.feature, quota]));
   const offers = useOffers();
   const changeOffer = useChangeOffer();
   const scheduleChange = useScheduleOfferChange();
@@ -298,30 +305,45 @@ export function SubscriptionScreen() {
             description={t("This offer grants nothing yet, which is a configuration answer rather than an error.")}
           />
         ) : (
-          <ul className="space-y-1 text-sm">
-            {entitlements.data.map((entitlement) => (
-              <li
-                key={entitlement.feature}
-                data-entitlement={entitlement.feature}
-                className="flex flex-wrap gap-2"
-              >
-                <span className="min-w-0 flex-1">{entitlement.name}</span>
-                <span className="text-muted">
-                  {/* `limit` null means two different things and `unlimited`
-                      says which — so both are read rather than one guessed. */}
-                  {entitlement.kind === 'BOOLEAN'
-                    ? t("included")
-                    : entitlement.unlimited
-                      ? t("unlimited")
-                      : `${String(entitlement.limit ?? 0)}${entitlement.unit === null ? '' : ` ${entitlement.unit}`}`}
-                </span>
-                <span className="text-xs text-subtle">
-                  {entitlement.source === 'GRANT'
-                    ? (entitlement.valid_until === null ? t("provided by the platform") : t("provided by the platform until {until}", { until: entitlement.valid_until.slice(0, 10) }))
-                    : t("from {source}", { source: entitlement.source })}
-                </span>
-              </li>
-            ))}
+          <ul className="space-y-4 text-sm">
+            {entitlements.data.map((entitlement) => {
+              // The quota's own reading, where the server has one. A quota
+              // without it renders as it did before this screen had meters —
+              // the limit alone — so a usage query that is still loading or has
+              // failed costs the list nothing. It is a second question, and the
+              // answer to the first one is already here.
+              const quota = quotas.get(entitlement.feature);
+
+              return (
+                <li key={entitlement.feature} data-entitlement={entitlement.feature}>
+                  {quota === undefined ? (
+                    <div className="flex flex-wrap gap-2">
+                      <span className="min-w-0 flex-1">{entitlement.name}</span>
+                      <span className="text-muted">
+                        {/* `limit` null means two different things and
+                            `unlimited` says which — so both are read rather
+                            than one guessed. */}
+                        {entitlement.kind === 'BOOLEAN'
+                          ? t("included")
+                          : entitlement.unlimited
+                            ? t("unlimited")
+                            : `${String(entitlement.limit ?? 0)}${entitlement.unit === null ? '' : ` ${entitlement.unit}`}`}
+                      </span>
+                    </div>
+                  ) : (
+                    <Meter quota={quota} />
+                  )}
+
+                  {/* A paragraph and not a span: it follows a block now, and
+                      an inline element after one reads as a stray line. */}
+                  <p className="text-xs text-subtle">
+                    {entitlement.source === 'GRANT'
+                      ? (entitlement.valid_until === null ? t("provided by the platform") : t("provided by the platform until {until}", { until: entitlement.valid_until.slice(0, 10) }))
+                      : t("from {source}", { source: entitlement.source })}
+                  </p>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

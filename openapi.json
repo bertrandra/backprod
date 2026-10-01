@@ -1536,6 +1536,61 @@
           }
         }
       },
+      "QuotaUsage": {
+        "type": "object",
+        "description": "What has been counted against one quota. Declared once and read by both operations that answer it: `showTenantUsage`, and the bootstrap a product reads. Typed in two places it would drift, and the figure a customer is refused on is not one to have two shapes of.",
+        "required": [
+          "feature",
+          "name",
+          "unit",
+          "limit",
+          "unlimited",
+          "metered",
+          "used",
+          "remaining"
+        ],
+        "properties": {
+          "feature": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Null means two different things, so `unlimited` says which - the same pair as on `Entitlement`."
+          },
+          "unlimited": {
+            "type": "boolean"
+          },
+          "metered": {
+            "type": "boolean",
+            "description": "Whether anything actually counts this. False means the limit beside it is recorded and not enforced, which is why `used` may be null while a limit is set: reporting 0 used would tell a customer their limit is being enforced when nothing is enforcing it."
+          },
+          "used": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "remaining": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Null when unlimited or unmetered - in both cases there is no number to give, and zero would be a lie. Never negative: an overrun reads as nothing left, and the refusal stays the server's to make."
+          }
+        }
+      },
       "PartySnapshot": {
         "type": "object",
         "description": "Supplier or customer **as they were when the document was issued**, copied rather than referenced (§25). A later change of address must not rewrite an invoice already sent, and an RGPD erasure deliberately leaves this standing. For a seat (§13.1), the customer carries `person: {name, email}` — whom the organisation’s invoice is for — copied in at issue like the rest (2026-09-19).",
@@ -10021,49 +10076,9 @@
                     },
                     "usage": {
                       "type": "array",
-                      "description": "One row per quota, with what has been counted against it — the same rows `showTenantUsage` shows.",
+                      "description": "One row per quota, with what has been counted against it.",
                       "items": {
-                        "type": "object",
-                        "required": [
-                          "feature",
-                          "name",
-                          "unit",
-                          "limit",
-                          "unlimited",
-                          "metered",
-                          "used",
-                          "remaining"
-                        ],
-                        "properties": {
-                          "feature": {
-                            "type": "string"
-                          },
-                          "name": {
-                            "type": "string"
-                          },
-                          "unit": {
-                            "type": "string",
-                            "nullable": true
-                          },
-                          "limit": {
-                            "type": "integer",
-                            "nullable": true
-                          },
-                          "unlimited": {
-                            "type": "boolean"
-                          },
-                          "metered": {
-                            "type": "boolean"
-                          },
-                          "used": {
-                            "type": "integer",
-                            "nullable": true
-                          },
-                          "remaining": {
-                            "type": "integer",
-                            "nullable": true
-                          }
-                        }
+                        "$ref": "#/components/schemas/QuotaUsage"
                       }
                     },
                     "token_expires_at": {
@@ -18196,9 +18211,9 @@
                   "properties": {
                     "usage": {
                       "type": "array",
+                      "description": "One row per quota, with what has been counted against it.",
                       "items": {
-                        "type": "object",
-                        "additionalProperties": true
+                        "$ref": "#/components/schemas/QuotaUsage"
                       }
                     }
                   }

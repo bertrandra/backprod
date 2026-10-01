@@ -152,8 +152,21 @@ found it.
 - Nothing marks a lapsed subscription `EXPIRED`. Because access is decided by
   the clock, that sweep is tidiness rather than correctness — it belongs with
   the same M7 scheduler.
-- `max_users` is metered but nothing enforces it yet: no endpoint consumes a
+- ~~`max_users` is metered but nothing enforces it yet: no endpoint consumes a
   member seat through `QuotaPolicy`. The meter is wired so the usage endpoint
-  is truthful; the enforcement point belongs with the invitation flow.
+  is truthful; the enforcement point belongs with the invitation flow.~~
+  **Backwards by 2026-10-01, and the wiring is gone.** The enforcement arrived
+  (ADR-053, then `Places` and `PlacesUsedSql`) under the platform's actual word
+  for it, which is `users` — so the quota was enforced rigorously while
+  `max_users` stayed metered and ungranted, and the meter answered about a
+  feature no offer can hold. Removed when the meters were put on screen and
+  this row had to be explained: it also counted `tenant_members`, which is not
+  the set the quota bounds (an administrator takes no place, and a member on no
+  subscription holds no entitlement from the membership). The number lives per
+  subscription as `places_sold` / `places_used`, because places are sold per
+  subscription and not per tenant — a tenant-wide meter would read "6 of 3" for
+  an organisation holding two subscriptions of three and be right about
+  nothing. `config/container.php` carries the full reasoning beside the line
+  that was deleted.
 - Proration is absent. Changing offers moves entitlements immediately and
   leaves the period alone; the money side is M6.

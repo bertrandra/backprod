@@ -15,6 +15,7 @@ import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { Meters } from '@/ui/Meter';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { t } from '@/i18n';
 import { tx } from '@/i18n/react';
@@ -258,26 +259,11 @@ export function OrganisationScreen() {
             description={t("Usage appears here once this organisation starts consuming a quota.")}
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <tbody>
-                {usage.data.map((row, index) => (
-                  <tr key={index} className="border-b border-line">
-                    {Object.entries(row).map(([key, value]) => (
-                      <td key={key} className="py-2 pr-4 align-top">
-                        <span className="text-subtle">{key.replaceAll('_', ' ')}</span>{' '}
-                        <span className="font-medium">
-                          {typeof value === 'string' || typeof value === 'number'
-                            ? String(value)
-                            : '—'}
-                        </span>
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          // Was a table of every key of every row — `feature max_projects name
+          // Projects unit projects limit 3 unlimited false metered true used 1
+          // remaining 2` — which is what reading an untyped row leaves you able
+          // to render. The figures were right and unreadable.
+          <Meters quotas={usage.data} />
         )}
       </section>
     </div>

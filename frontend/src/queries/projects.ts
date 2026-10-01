@@ -40,6 +40,47 @@ export type ProjectVersion = Schemas['ProjectVersion'];
  * The contract accepts only the exact string `true`, so a mistyped query string
  * answers the question it looks like rather than a different one.
  */
+/**
+ * The quota's feature code, named once in the frontend.
+ *
+ * The platform's word for how many projects a tenant may keep, matching
+ * `ProjectWorkspace::QUOTA` on the server. A platform convention and not a
+ * product's: one list of features, the same word everywhere, which is what
+ * ADR-052 is about — so this is not the `if (product === …)` the gates forbid,
+ * it is the shared vocabulary both sides already agreed on.
+ */
+export const PROJECTS_QUOTA = 'max_projects';
+
+/**
+ * What changes when the number of projects changes.
+ *
+ * The list, for its `total` and its ordering — and the usage meter, which
+ * counts projects (2026-10-01). Written as one function because there are four
+ * ways to move that number (create, delete, restore, duplicate) and a fifth
+ * will be added by somebody reading only one of the other four: the meter would
+ * then be right three times out of four, which is worse than being absent,
+ * because a figure that is usually right is one nobody re-checks.
+ *
+ * A rename deliberately does not call it. It invalidates the same list, for
+ * `updated_at`, and moves no count.
+ *
+ * Invalidated and never adjusted here. The count is tenant-wide and a
+ * colleague's project moves it too, so a number decremented in JavaScript is
+ * right until somebody else creates one — and then it is wrong with nothing to
+ * correct it (U3's rule, and the reason an unread badge is not decremented
+ * locally either).
+ */
+async function refreshProjectCount(
+  queryClient: ReturnType<typeof useQueryClient>,
+  ...also: readonly (readonly unknown[])[]
+): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: keys.projects.lists }),
+    queryClient.invalidateQueries({ queryKey: keys.organisation.usage }),
+    ...also.map((key) => queryClient.invalidateQueries({ queryKey: key })),
+  ]);
+}
+
 export function useProjects(limit = 25, offset = 0, deleted = false) {
   const client = useApiClient();
 
@@ -115,7 +156,7 @@ export function useCreateProject() {
       // detail cache is correct immediately, while the list's `total` and
       // ordering are the server's to recompute.
       queryClient.setQueryData(keys.projects.one(project.id), project);
-      await queryClient.invalidateQueries({ queryKey: keys.projects.lists });
+      await refreshProjectCount(queryClient);
     },
   });
 }
@@ -153,7 +194,7 @@ export function useUndeleteProject() {
     },
     onSuccess: async (project) => {
       queryClient.setQueryData(keys.projects.one(project.id), project);
-      await queryClient.invalidateQueries({ queryKey: keys.projects.lists });
+      await refreshProjectCount(queryClient);
     },
   });
 }
@@ -204,10 +245,7 @@ export function useDeleteProject() {
     // comes back marked deleted, and a project that simply vanished would leave
     // nobody anywhere to restore it from.
     onSuccess: async (_result, projectId) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: keys.projects.lists }),
-        queryClient.invalidateQueries({ queryKey: keys.projects.one(projectId) }),
-      ]);
+      await refreshProjectCount(queryClient, keys.projects.one(projectId));
     },
   });
 }
@@ -233,7 +271,7 @@ export function useDuplicateProject() {
     },
     onSuccess: async (copy) => {
       queryClient.setQueryData(keys.projects.one(copy.id), copy);
-      await queryClient.invalidateQueries({ queryKey: keys.projects.lists });
+      await refreshProjectCount(queryClient);
     },
   });
 }

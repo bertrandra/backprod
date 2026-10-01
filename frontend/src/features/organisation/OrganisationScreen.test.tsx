@@ -137,3 +137,60 @@ describe('who may join', () => {
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
   });
 });
+
+/**
+ * Usage, as a figure rather than as a dump.
+ *
+ * This section rendered every key of every row into a table cell — `feature
+ * max_projects name Projects unit projects limit 3 unlimited false metered true
+ * used 1 remaining 2` — which is what reading an untyped row leaves you able to
+ * render. Nothing exercised it, because the only fixture answered `usage: []`
+ * and took the empty branch; the figures were right and unreadable, and the
+ * operator reported not being able to see what their plan allowed.
+ */
+describe('usage', () => {
+  const usagePath = 'GET /api/v1/tenants/current/usage';
+
+  const rows = [
+    { feature: 'max_projects', name: 'Projects', unit: 'projects', limit: 3, unlimited: false, metered: true, used: 1, remaining: 2 },
+    { feature: 'max_storage', name: 'Storage', unit: 'GB', limit: 10, unlimited: false, metered: false, used: null, remaining: null },
+  ];
+
+  it('shows a meter per quota, in the order the server gave them', async () => {
+    const { client } = recordingClient({
+      'GET /api/v1/me': { data: SESSION },
+      'GET /api/v1/tenants/current': { data: { tenant: ACME } },
+      [usagePath]: { data: { usage: rows } },
+      'GET /api/v1/products': {
+        data: { products: HELD, default: null, memberships: [], pending_memberships: [] },
+      },
+    });
+
+    renderWith(<OrganisationScreen />, client);
+
+    await waitFor(() => expect(screen.getByTestId('quota-meters')).toBeTruthy());
+
+    const order = Array.from(
+      screen.getByTestId('quota-meters').querySelectorAll('[data-quota]'),
+    ).map((node) => node.getAttribute('data-quota'));
+
+    expect(order).toEqual(['max_projects', 'max_storage']);
+
+    // The counted one has its bar; the one nothing counts says so rather than
+    // reporting a zero, which would tell the organisation a limit is being
+    // watched when nothing is watching it.
+    expect(screen.getAllByRole('progressbar').length).toBe(1);
+    expect(screen.getByText(/nothing is enforcing it/i)).toBeTruthy();
+
+    // And none of the row's field names reach the screen any more.
+    expect(screen.queryByText(/unlimited false/i)).toBeNull();
+    expect(screen.queryByText(/remaining/i)).toBeNull();
+  });
+
+  it('says nothing is metered yet without looking broken', async () => {
+    renderWith(<OrganisationScreen />, clientFor().client);
+
+    await waitFor(() => expect(screen.getByText('Nothing metered yet')).toBeTruthy());
+    expect(screen.queryByTestId('quota-meters')).toBeNull();
+  });
+});

@@ -194,6 +194,20 @@ async function stubbed(page: Page) {
     route.fulfill({ json: { on: '2026-03-15T00:00:00Z', rates: [] } }),
   );
 
+  // The quota meters (2026-10-01). Stubbed so axe actually audits them: an
+  // unstubbed call means no meter renders, and the bar — the one new graphic
+  // on these screens, with a `progressbar` role and three aria values — would
+  // go through this audit without ever being on the page.
+  await page.route(/\/api\/v1\/tenants\/current\/usage$/, (route) =>
+    route.fulfill({
+      json: {
+        usage: [
+          { feature: 'max_projects', name: 'Projects', unit: 'projects', limit: 3, unlimited: false, metered: true, used: 1, remaining: 2 },
+          { feature: 'max_storage', name: 'Storage', unit: 'GB', limit: 10, unlimited: false, metered: false, used: null, remaining: null },
+        ],
+      },
+    }),
+  );
   await page.route(/\/api\/v1\/billing\/profile$/, (route) =>
     route.fulfill({ json: { profile: { legal_name: 'Acme Ltd' } } }),
   );

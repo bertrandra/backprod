@@ -5,7 +5,8 @@ import { useState } from 'react';
 import { z } from 'zod';
 
 import { addressFor } from '@/app/frame/ProductSwitcher';
-import { useCreateProject, useDeleteProject, useProjects, useUndeleteProject } from '@/queries/projects';
+import { useTenantUsage } from '@/queries/organisation';
+import { PROJECTS_QUOTA, useCreateProject, useDeleteProject, useProjects, useUndeleteProject } from '@/queries/projects';
 import { supportedSchemaVersions, useCurrentProduct, useProductConfiguration } from '@/queries/catalogue';
 import type { Product } from '@/queries/catalogue';
 import type { ProjectSummary } from '@/queries/projects';
@@ -13,6 +14,7 @@ import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
+import { Meter } from '@/ui/Meter';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { PageHeader } from '@/ui/Page';
 import { currentLocale, t } from '@/i18n';
@@ -68,6 +70,17 @@ export function ProjectsScreen() {
   const create = useCreateProject();
   const product = useCurrentProduct();
   const remove = useDeleteProject();
+  // How many projects the plan allows, and how many are left (2026-10-01).
+  // Asked for by the operator, who had a limit of one and met it as an
+  // unexplained refusal on submit.
+  const usage = useTenantUsage();
+  const quota = usage.data?.find((row) => row.feature === PROJECTS_QUOTA) ?? null;
+  // `remaining === 0` and not `used >= limit`: the server answers how many are
+  // left, and it is the same answer that refuses the next one. Subtracting here
+  // would be a second answer to the question the first one already settles, and
+  // the two would differ the moment a quota is unmetered or unlimited — where
+  // `remaining` is null and a subtraction would read as zero.
+  const full = quota !== null && quota.remaining === 0;
   // Which row is asking to be sure. One at a time, by id rather than a flag
   // on the row, so opening a second closes the first — two rows offering
   // "Delete" in red at once is how the wrong one gets clicked.
@@ -111,6 +124,24 @@ export function ProjectsScreen() {
       />
 
       {!showingBin && <ProductCard />}
+
+      {/* Not while the bin is open: a deleted project is not counted, so the
+          meter would be answering a question the screen is not asking. */}
+      {!showingBin && quota !== null && (
+        <section data-testid="project-quota" className="space-y-1">
+          <Meter quota={quota} />
+
+          {/* Said because the two numbers on this screen differ and a customer
+              who notices has no way to know why. The heading counts the
+              projects this person can reach (ADR-064); the quota counts every
+              project in the organisation, because that is what the feature
+              sells — otherwise an organisation would hold as many projects as
+              it has people on the same allowance of one. */}
+          <p className="text-xs text-subtle">
+            {t("Counted across the whole organisation, including projects other people hold.")}
+          </p>
+        </section>
+      )}
 
       {undelete.error !== null && <ErrorSurface error={undelete.error} />}
       {remove.error !== null && <ErrorSurface error={remove.error} />}
@@ -181,6 +212,29 @@ export function ProjectsScreen() {
 
         {configuration.isPending ? (
           <SkeletonRows rows={2} />
+        ) : full ? (
+          // Gently, and before the click. The API refuses regardless — this
+          // screen is never the authority (CLAUDE.md: hiding is courtesy only)
+          // — but a form that submits into a refusal teaches somebody that the
+          // application is broken, when what is true is that they have used
+          // what they bought. Nothing red: reaching a limit you paid for is
+          // not a fault.
+          //
+          // Both ways out are named, because they are different decisions and
+          // only the customer knows which one they want.
+          <EmptyState
+            title={t("You are using every project your plan allows")}
+            description={t("Deleting one frees its place, and it stays in the bin with its versions and assets. A plan with a larger allowance is the other way.")}
+            action={
+              <Link
+                to="/subscription"
+                data-testid="quota-full-subscription"
+                className="underline decoration-dotted"
+              >
+                {t("See the subscription")}
+              </Link>
+            }
+          />
         ) : versions.length === 0 ? (
           // Said plainly rather than shown as a failure, because nothing has
           // failed: this product has not declared which document shapes it
