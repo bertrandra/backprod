@@ -159,8 +159,15 @@ export function SubscriptionScreen() {
     //
     // No price, no offer, no terms: those belong to whoever manages it
     // (ADR-053), and the server does not send them.
-    const covered = subscription.data.coverage;
-    const byAColleague = covered !== null && !covered.own;
+    // `?? null`, which is not decoration. The contract requires `coverage`, so
+    // the type says it is there — but a *stub* that predates the field sends a
+    // body without it, and `undefined !== null` let that through to
+    // `covered.own` and threw. The Vitest stubs were updated with this change
+    // and the Playwright ones were not, so every local test passed and CI took
+    // the Subscription screen down. A field the type promises is still a field
+    // some caller will omit.
+    const covered = subscription.data.coverage ?? null;
+    const byAColleague = covered !== null && covered.own === false;
 
     return (
       <div className="max-w-3xl space-y-6">
