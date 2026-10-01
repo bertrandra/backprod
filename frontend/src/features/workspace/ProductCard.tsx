@@ -43,7 +43,25 @@ export function ProductCard() {
     return null;
   }
 
-  const current = subscription.data?.subscription ?? null;
+  // **The person's own seat first** (2026-10-01). This read only the
+  // organisation's subscription, and since ADR-055 the tenant surface sells
+  // seats only — so the ordinary customer, who bought a seat for themselves,
+  // was told "No subscription on this product yet" on the screen they land on,
+  // while holding one. `seat` is in the same response and is never withheld,
+  // because it is theirs.
+  //
+  // The organisation's is the fallback and not the headline: somebody covered
+  // by it holds no seat of their own, and that is what they should see.
+  const seat = subscription.data?.seat ?? null;
+  const organisation = subscription.data?.subscription ?? null;
+  const current = seat ?? organisation;
+
+  // There is one and it is not theirs — withheld by the server from a member
+  // it does not cover (ADR-053). Without this the card would say "none" and
+  // the Subscription screen would say "you are not on it", which is two
+  // answers to one question.
+  const withheld = current === null && subscription.data?.organisation_subscribed === true;
+
   const appUrl = product.app_url ?? null;
 
   return (
@@ -71,15 +89,28 @@ export function ProductCard() {
           // A refusal or a failure is not "no subscription": said as the
           // absence of an answer, and the Subscription screen says why.
           <p className="text-xs text-subtle" data-testid="subscription-unknown">{t("The subscription could not be read.")}</p>
+        ) : withheld ? (
+          <p className="text-xs text-subtle" data-testid="subscription-withheld">
+            {t("Your organisation has a subscription and you are not on it. Whoever manages it can add you.")}
+          </p>
         ) : current === null ? (
           <p className="text-xs text-subtle" data-testid="subscription-none">
             {t("No subscription on this product yet.")}
           </p>
         ) : (
-          <p className="flex flex-wrap items-center gap-2 text-xs" data-testid="subscription-summary">
+          <p
+            className="flex flex-wrap items-center gap-2 text-xs"
+            data-testid="subscription-summary"
+            data-scope={seat !== null ? 'seat' : 'organisation'}
+          >
             <span className={pill(tone(current.status))} data-status={current.status}>{current.status}</span>
             <span>
               {current.offer.name} · {current.offer.plan.name}
+            </span>
+            {/* Whose it is, because the two are bought and cancelled by
+                different people and the card is a summary somebody acts on. */}
+            <span className="text-subtle">
+              {seat !== null ? t("your seat") : t("the organisation’s")}
             </span>
             {current.current_period_end !== null && (
               <span className="text-subtle">

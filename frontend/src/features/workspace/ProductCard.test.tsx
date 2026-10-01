@@ -44,11 +44,25 @@ const SUBSCRIPTION = {
   owner_user_id: null,
 };
 
-function clientFor(session: unknown, products: unknown[], subscription: unknown, extra: Record<string, Stub> = {}) {
+function clientFor(
+  session: unknown,
+  products: unknown[],
+  subscription: unknown,
+  extra: Record<string, Stub> = {},
+  own: { seat?: unknown; organisation_subscribed?: boolean } = {},
+) {
   return stubClient({
     'GET /api/v1/me': { data: session },
     'GET /api/v1/products': { data: { products, default: null, memberships: [], pending: [] } },
-    'GET /api/v1/subscription': { data: { subscription, seat: null, history: [], events: [] } },
+    'GET /api/v1/subscription': {
+      data: {
+        subscription,
+        seat: own.seat ?? null,
+        organisation_subscribed: own.organisation_subscribed ?? subscription !== null,
+        history: [],
+        events: [],
+      },
+    },
     'GET /api/v1/projects': { data: { projects: [], total: 0, limit: 25, offset: 0 } },
     'GET /api/v1/products/{productId}/configuration': { data: { configuration: { project_schema_versions: { supported: [1] } } } },
     ...extra,
@@ -88,6 +102,80 @@ describe('the product card', () => {
     expect([...target.searchParams.keys()]).toEqual(['product']);
   });
 
+  it('shows the seat the person holds, which is the only thing the tenant surface sells', async () => {
+    // The bug this closes: the card read the *organisation's* subscription
+    // alone, and since ADR-055 the tenant surface sells seats only. So the
+    // ordinary customer — somebody who bought a seat for themselves — landed
+    // on Projects and was told "No subscription on this product yet" while
+    // holding one.
+    const seat = {
+      ...SUBSCRIPTION,
+      id: 'seat-1',
+      subscriber: { kind: 'USER', user_id: 'u-1' },
+    };
+
+    renderAtRoute(
+      <ProjectsScreen />,
+      clientFor(READER, [PLAN], null, {}, { seat, organisation_subscribed: false }),
+      { path: '/projects', product: 'plan' },
+    );
+
+    const summary = await screen.findByTestId('subscription-summary');
+
+    expect(screen.queryByTestId('subscription-none')).toBeNull();
+    expect(summary.getAttribute('data-scope')).toBe('seat');
+    expect(summary.textContent).toContain('Pro monthly');
+    // Whose it is, because a seat and the organisation's are bought and
+    // cancelled by different people.
+    expect(summary.textContent).toContain('your seat');
+  });
+
+  it('prefers the seat over the organisation’s, because the seat is theirs', async () => {
+    const seat = {
+      ...SUBSCRIPTION,
+      id: 'seat-1',
+      subscriber: { kind: 'USER', user_id: 'u-1' },
+      offer: { ...SUBSCRIPTION.offer, name: 'Pro yearly' },
+    };
+
+    renderAtRoute(
+      <ProjectsScreen />,
+      clientFor(READER, [PLAN], SUBSCRIPTION, {}, { seat }),
+      { path: '/projects', product: 'plan' },
+    );
+
+    const summary = await screen.findByTestId('subscription-summary');
+
+    expect(summary.getAttribute('data-scope')).toBe('seat');
+    expect(summary.textContent).toContain('Pro yearly');
+  });
+
+  it('falls back to the organisation’s for somebody it covers, and says so', async () => {
+    renderAtRoute(
+      <ProjectsScreen />,
+      clientFor(READER, [PLAN], SUBSCRIPTION, {}, { seat: null }),
+      { path: '/projects', product: 'plan' },
+    );
+
+    const summary = await screen.findByTestId('subscription-summary');
+
+    expect(summary.getAttribute('data-scope')).toBe('organisation');
+    expect(summary.textContent).toContain('the organisation');
+  });
+
+  it('tells somebody left off their organisation’s subscription, rather than saying there is none', async () => {
+    // The server withholds it from a member it does not cover (ADR-053) and
+    // says so with the flag. Shown as "none" here, the card would disagree
+    // with the Subscription screen, which says "you are not on it".
+    renderAtRoute(
+      <ProjectsScreen />,
+      clientFor(READER, [PLAN], null, {}, { seat: null, organisation_subscribed: true }),
+      { path: '/projects', product: 'plan' },
+    );
+
+    expect(await screen.findByTestId('subscription-withheld')).toBeTruthy();
+    expect(screen.queryByTestId('subscription-none')).toBeNull();
+  });
   it('has no door for a product whose screens are this workspace, and says when nothing is subscribed', async () => {
     renderAtRoute(<ProjectsScreen />, clientFor(READER, [ATLAS, PLAN], null), { path: '/projects', product: 'atlas' });
 

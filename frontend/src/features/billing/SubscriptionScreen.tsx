@@ -132,28 +132,40 @@ export function SubscriptionScreen() {
     // their organisation already pays for.
     const withheld = subscription.data.organisation_subscribed === true;
 
+    // **Nothing is said about an organisation's subscription to somebody who
+    // holds a seat** (2026-10-01). This used to read "No subscription for the
+    // organisation — your seat is yours alone. An offer from the catalogue,
+    // bought for the organisation, starts one for everyone", and that purchase
+    // has not existed since ADR-055: the tenant surface sells seats only,
+    // `Sales::order()` has no argument for the other sale, and ADR-056 removed
+    // the endpoint that started one. So the screen named an absence nobody can
+    // fill and told somebody how to fill it.
+    //
+    // An organisation subscription is still a row a deployment may hold, which
+    // is why the branch above still renders one. What is gone is the empty
+    // state for it: an absence that cannot be ended is not news.
+    const nothingToSay = seat !== null && !withheld;
+
     return (
       <div className="max-w-3xl space-y-6">
         <h1 className="text-2xl font-semibold">{t("Subscription")}</h1>
         <Held organisation={organisation.data?.name ?? null} session={session ?? null} />
         {arrears}
         {ownSeat}
-        <EmptyState
-          title={
-            withheld
-              ? t("You are not on your organisation’s subscription")
-              : seat === null
-                ? t("No subscription")
-                : t("No subscription for the organisation")
-          }
-          description={
-            withheld
-              ? t("Your organisation has one, and it covers a set number of people. Whoever manages it can add you to it.")
-              : seat === null
-                ? t("Nothing is subscribed in this product yet. An offer from the catalogue starts one.")
-                : t("Your seat is yours alone. An offer from the catalogue, bought for the organisation, starts one for everyone.")
-          }
-        />
+        {!nothingToSay && (
+          <EmptyState
+            title={
+              withheld
+                ? t("You are not on your organisation’s subscription")
+                : t("No subscription")
+            }
+            description={
+              withheld
+                ? t("Your organisation has one, and it covers a set number of people. Whoever manages it can add you to it.")
+                : t("Nothing is subscribed in this product yet. An offer from the catalogue starts one.")
+            }
+          />
+        )}
         {provided.length > 0 && <ProvidedByThePlatform entitlements={provided} />}
       </div>
     );
