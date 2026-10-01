@@ -4677,6 +4677,7 @@
               "invoice_number",
               "customer_name",
               "customer_email",
+              "invoice_settled",
               "person"
             ],
             "properties": {
@@ -4700,6 +4701,10 @@
                   "null"
                 ],
                 "description": "The address on the document — the person's for a seat, the billing address otherwise. Null where the snapshot carries neither."
+              },
+              "invoice_settled": {
+                "type": ["boolean", "null"],
+                "description": "Whether the document this attempt was against is **paid**, whatever became of the attempt itself (2026-10-01).\n\nA *failed* payment on a settled invoice is the ordinary shape of a retry that worked: the first card was declined, a later one went through, and the first attempt stays `FAILED` for ever because it is the record of what happened (ADR-034). Without this a customer saw a red refusal against a bill they had already paid, with nothing on the row to say so.\n\nThe invoice's own status, never derived from a sibling attempt: a screen concluding \"paid\" from another payment would answer a question the server answers, and would be wrong the moment a credit note moved the document. Null when the attempt names no invoice."
               },
               "person": {
                 "$ref": "#/components/schemas/DocumentPerson"

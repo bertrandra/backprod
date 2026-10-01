@@ -213,6 +213,62 @@ final class PaymentWebhookTest extends DatabaseApiTestCase
         self::assertSame('ISSUED', $this->statusOfInvoice());
     }
 
+    /**
+     * A failed attempt on an invoice somebody has since paid says so.
+     *
+     * The commonest sequence there is: a card is declined, the customer tries
+     * another, the second goes through. The first attempt stays `FAILED` for
+     * ever because it is the record of what happened (ADR-034) — and the
+     * payments screen showed a red refusal against a bill already settled, with
+     * nothing on the row to say there was nothing to do.
+     *
+     * `invoice_settled` is the **invoice's** status, read beside the payment. A
+     * screen concluding it from a sibling attempt would answer a question the
+     * document answers, and would be wrong the moment a credit note moved it.
+     */
+    public function testAFailedAttemptSaysWhenTheInvoiceHasSinceBeenPaid(): void
+    {
+        $failed = $this->startedReference();
+
+        self::assertSame(200, $this->deliver([
+            'id' => 'evt_declined',
+            'type' => 'payment.failed',
+            'payment_id' => $failed,
+            'failure_code' => 'card_declined',
+            'failure_reason' => 'The card was declined.',
+        ])->getStatusCode());
+
+        // While the bill is owed, nothing softens the refusal: there *is*
+        // something to do.
+        self::assertFalse($this->listedPayment($failed)['invoice_settled'] ?? null);
+
+        // A second attempt, which works. `startedReference()` cannot be used
+        // twice — it reads `SELECT provider_payment_id FROM payments` with no
+        // order, so with two rows it answers whichever PostgreSQL hands back
+        // first, and delivering a success for the already-failed one is
+        // deferred rather than applied.
+        self::assertSame(201, $this->startPayment()->getStatusCode());
+
+        $paid = $this->connection->fetchOne(
+            'SELECT provider_payment_id FROM payments ORDER BY created_at DESC, id DESC LIMIT 1',
+        );
+        self::assertIsString($paid);
+
+        self::assertSame(200, $this->deliver([
+            'id' => 'evt_second',
+            'type' => 'payment.succeeded',
+            'payment_id' => $paid,
+        ])->getStatusCode());
+
+        self::assertSame('PAID', $this->statusOfInvoice());
+
+        // The failed attempt is still failed — and now says the bill is not.
+        $row = $this->listedPayment($failed);
+        self::assertSame('FAILED', $row['status'] ?? null);
+        self::assertTrue($row['invoice_settled'] ?? null);
+        self::assertSame('card_declined', $row['failure_code'] ?? null, 'the refusal is still on the record');
+    }
+
     public function testAFailureWithNoReasonStillRecords(): void
     {
         $reference = $this->startedReference();
@@ -1062,6 +1118,31 @@ final class PaymentWebhookTest extends DatabaseApiTestCase
         self::assertIsString($status);
 
         return $status;
+    }
+
+    /**
+     * One payment as the list answers it, which is the shape the screen reads.
+     *
+     * The list rather than the single read, because `invoice_settled` comes
+     * from the invoice beside the payment and the list is where that join
+     * lives.
+     *
+     * @return array<string, mixed>
+     */
+    private function listedPayment(string $providerReference): array
+    {
+        $body = $this->decode($this->request('GET', '/api/v1/billing/payments', $this->headers()));
+        $payments = $body['payments'] ?? null;
+        self::assertIsArray($payments);
+
+        foreach ($payments as $payment) {
+            if (is_array($payment) && ($payment['provider_payment_id'] ?? null) === $providerReference) {
+                /** @var array<string, mixed> $payment */
+                return $payment;
+            }
+        }
+
+        self::fail('no payment in the list carries the reference ' . $providerReference);
     }
 
     private function statusOfInvoice(): string

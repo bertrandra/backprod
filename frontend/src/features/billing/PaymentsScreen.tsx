@@ -15,6 +15,7 @@ import {
   useRetryPayment,
   type StartedPayment,
   type Payment,
+  type CollectedPayment,
 } from '@/queries/payments';
 import { useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
@@ -303,18 +304,39 @@ export function PaymentsScreen() {
  * Both the code and the reason, because they answer different questions: the
  * code is what to quote to the provider, the reason is what to tell the person.
  */
-function Failure({ payment }: { payment: Payment }) {
+function Failure({ payment }: { payment: CollectedPayment }) {
   if (payment.failure_code === null && payment.failure_reason === null) {
     return null;
   }
 
+  // **Settled by something else** (2026-10-01). A failed attempt on a paid
+  // invoice is the ordinary shape of a retry that worked: this card was
+  // declined, a later one went through, and this row stays failed for ever
+  // because it is the record of what happened (ADR-034).
+  //
+  // Shown next to the refusal rather than instead of it — the refusal is true
+  // and a customer quoting a code to their bank still needs it — and the
+  // sentence is what stops them acting on a bill they have already paid.
+  //
+  // The server's answer, never derived from a sibling row on this screen: that
+  // would be a second answer to a question the invoice already answers, and
+  // wrong the moment a credit note moves the document.
+  const settled = payment.invoice_settled === true;
+
   return (
-    <p data-testid="failure" className="mt-1 text-xs text-danger">
-      {payment.failure_reason ?? t("The attempt failed.")}
-      {payment.failure_code !== null && (
-        <span className="text-subtle"> ({payment.failure_code})</span>
+    <>
+      <p data-testid="failure" className="mt-1 text-xs text-danger">
+        {payment.failure_reason ?? t("The attempt failed.")}
+        {payment.failure_code !== null && (
+          <span className="text-subtle"> ({payment.failure_code})</span>
+        )}
+      </p>
+      {settled && (
+        <p data-testid="settled-anyway" className="mt-1 text-xs text-muted">
+          {t("Nothing to do: this invoice has since been paid. This attempt stays failed because it is the record of what happened.")}
+        </p>
       )}
-    </p>
+    </>
   );
 }
 

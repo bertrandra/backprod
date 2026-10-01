@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Payment\Infrastructure;
 
+use App\Billing\Domain\InvoiceStatus;
 use App\Payment\Domain\Collected;
 use App\Payment\Domain\CollectedInvoices;
 use App\Shared\Database\Row;
@@ -45,6 +46,7 @@ final class PostgresCollectedInvoices implements CollectedInvoices
             <<<'SQL'
                 SELECT id,
                        number,
+                       status,
                        customer_snapshot->>'legal_name' AS customer_name,
                        coalesce(
                            customer_snapshot->'person'->>'email',
@@ -70,6 +72,10 @@ final class PostgresCollectedInvoices implements CollectedInvoices
                 Row::nullableString($row, 'number'),
                 Row::nullableString($row, 'customer_name'),
                 Row::nullableString($row, 'customer_email'),
+                // The document's own word. `PAID` and nothing else: ISSUED is
+                // owed, VOID was never owed, and a partially credited invoice
+                // is still owed what is left.
+                Row::string($row, 'status') === InvoiceStatus::PAID,
             );
         }
 

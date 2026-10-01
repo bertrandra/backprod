@@ -32,6 +32,22 @@ final class Collected
         public readonly ?string $number,
         public readonly ?string $customerName,
         public readonly ?string $customerEmail,
+        /**
+         * Whether the document is settled (2026-10-01).
+         *
+         * Reported because a **failed** attempt on a paid invoice is the
+         * ordinary shape of a retry that worked: the first card was declined,
+         * the second went through, and the first attempt stays failed for ever
+         * because it is the record of what happened (ADR-034). Without this the
+         * payments list showed a customer a red "card declined" against a bill
+         * they had already paid, and gave them no way to tell.
+         *
+         * The invoice's own status, read beside the payment and not derived
+         * from it: a screen that concluded "paid" from a sibling attempt would
+         * be answering a question the server already answers, and would get it
+         * wrong the moment a refund or a credit note moved the document.
+         */
+        public readonly bool $settled,
     ) {
     }
 }

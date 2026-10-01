@@ -68,6 +68,13 @@ final class PaymentPresenter
             'invoice_number' => $collected?->number,
             'customer_name' => $collected?->customerName,
             'customer_email' => $collected?->customerEmail,
+            // Whether the bill is settled, whatever became of *this* attempt
+            // (2026-10-01). A failed attempt on a paid invoice is a retry that
+            // worked, and a screen showing the refusal without this alarms a
+            // customer about a bill they have already paid. Null when the
+            // attempt names no document — a subscription's payment with no
+            // invoice raised yet.
+            'invoice_settled' => $collected?->settled,
             'subscription_id' => $payment->subscriptionId,
             'provider' => $payment->provider,
             'provider_payment_id' => $payment->providerPaymentId,
