@@ -24,6 +24,7 @@ import { Button, Field, inputClass } from '@/ui/Field';
 import { Amount } from '@/ui/Money';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { notice, pill, type Tone } from '@/ui/tone';
+import { When } from '@/ui/When';
 import { PageHeader } from '@/ui/Page';
 import { Whose } from '@/ui/Whose';
 
@@ -146,13 +147,53 @@ export function SubscriptionScreen() {
     // state for it: an absence that cannot be ended is not news.
     const nothingToSay = seat !== null && !withheld;
 
+    // **Covered by a colleague's subscription** (2026-10-01). The commonest
+    // case on this screen, and the one it had no words for: somebody added to
+    // a colleague's seat holds none of their own, their organisation has
+    // none, and so every branch above answered "nothing is subscribed, an
+    // offer from the catalogue starts one" — to a person working inside a
+    // subscription and occupying a place their colleague pays for.
+    //
+    // No price, no offer, no terms: those belong to whoever manages it
+    // (ADR-053), and the server does not send them.
+    // `?? null`, which is not decoration. The contract requires `coverage`, so
+    // the type says it is there — but a *stub* that predates the field sends a
+    // body without it, and `undefined !== null` let that through to
+    // `covered.own` and threw. The Vitest stubs were updated with this change
+    // and the Playwright ones were not, so every local test passed and CI took
+    // the Subscription screen down. A field the type promises is still a field
+    // some caller will omit.
+    const covered = subscription.data.coverage ?? null;
+    const byAColleague = covered !== null && covered.own === false;
+
     return (
       <div className="max-w-3xl space-y-6">
         <h1 className="text-2xl font-semibold">{t("Subscription")}</h1>
         <Held organisation={organisation.data?.name ?? null} session={session ?? null} />
         {arrears}
         {ownSeat}
-        {!nothingToSay && (
+
+        {byAColleague && covered !== null && (
+          <section
+            data-testid="covered-by-a-colleague"
+            data-status={covered.status}
+            className="space-y-2 rounded-card border border-line bg-surface p-4 shadow-raise"
+          >
+            <h2 className="text-base font-semibold">{t("A colleague's subscription covers you")}</h2>
+            <p className="text-sm text-muted">
+              {covered.status === 'PAST_DUE'
+                ? t("It has an unpaid invoice, so this product is suspended until it is settled. Whoever holds it can pay it.")
+                : t("You work on their subscription and take one of its places. Whoever holds it can take it back, and can tell you what it covers.")}
+            </p>
+            {covered.current_period_end !== null && (
+              <p className="text-xs text-subtle">
+                {t("Runs until")} <When at={covered.current_period_end} />
+              </p>
+            )}
+          </section>
+        )}
+
+        {!nothingToSay && !byAColleague && (
           <EmptyState
             title={
               withheld

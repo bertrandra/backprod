@@ -126,6 +126,22 @@ final class Subscriptions
     }
 
     /**
+     * What covers this person, whoever holds it (2026-10-01).
+     *
+     * Their own seat if they hold one, else the colleague's they were added
+     * to. Until today `GET /subscription` could only ask two questions — the
+     * organisation's subscription, and the caller's own seat — and the
+     * ordinary colleague on somebody else's seat is neither. They were told
+     * "No subscription. Nothing is subscribed in this product yet. An offer
+     * from the catalogue starts one", while working inside a subscription
+     * and occupying a place somebody is paying for.
+     */
+    public function coveringPerson(string $tenantId, string $productId, string $userId): ?Subscription
+    {
+        return $this->subscriptions->coveringPerson($tenantId, $productId, $userId);
+    }
+
+    /**
      * The seat a person holds for a product, if any.
      */
     public function seatOf(string $tenantId, string $productId, string $userId): ?Subscription

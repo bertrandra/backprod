@@ -124,6 +124,24 @@ interface SubscriptionRepository
     public function holdersCovering(string $tenantId, string $productId, string $userId): array;
 
     /**
+     * The live subscription that covers this person, if any (2026-10-01).
+     *
+     * Their own if they hold one, else the colleague's they were added to —
+     * the question `GET /subscription` could not ask, and so answered "none"
+     * to every colleague on somebody else's seat while they were working
+     * inside it.
+     *
+     * `ACTIVE` and `PAST_DUE` both, unlike {@see self::holdersCovering()}:
+     * that one decides what work is reachable and arrears shut the workshop
+     * (ADR-060), while this answers "what am I on" — and somebody whose
+     * colleague is behind on the bill needs telling precisely then.
+     *
+     * Their own first, so a person holding a seat and sitting on a
+     * colleague's reads as themselves.
+     */
+    public function coveringPerson(string $tenantId, string $productId, string $userId): ?Subscription;
+
+    /**
      * The people a subscription covers beside its owner (2026-09-19).
      *
      * @return list<SubscriptionMember>

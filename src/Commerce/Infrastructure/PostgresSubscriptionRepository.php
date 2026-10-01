@@ -1214,6 +1214,41 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         return array_map($this->toSubscription(...), $rows);
     }
 
+    public function coveringPerson(string $tenantId, string $productId, string $userId): ?Subscription
+    {
+        if (!Uuid::isValid($tenantId) || !Uuid::isValid($productId) || !Uuid::isValid($userId)) {
+            return null;
+        }
+
+        // The same three ways in as the entitlement query, composed from the
+        // same place: somebody told "you have no subscription" by this read
+        // while the workshop lets them in is exactly the disagreement
+        // {@see CoversPersonSql} exists to prevent.
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT ' . self::COLUMNS . ' ' . self::FROM
+            . ' WHERE s.tenant_id = :tenantId AND s.product_id = :productId'
+            . " AND s.status IN ('ACTIVE', 'PAST_DUE')"
+            . ' AND ' . CoversPersonSql::clause('s', ':userId')
+            // Theirs first, then the oldest, so the answer does not move
+            // between two colleagues' subscriptions from one read to the next.
+            //
+            // **The first half is not proven.** It needs somebody holding a
+            // seat *and* sitting on a colleague's, which nothing in the suite
+            // builds and which removing the clause leaves every test green.
+            // It is kept because the answer decides whether a screen offers
+            // "cancel" or "ask whoever holds it", and reading as a guest while
+            // holding your own would be the wrong one — but a reader should
+            // know no test defends it.
+            . ' ORDER BY (s.owner_user_id = CAST(:userId AS uuid)) DESC NULLS LAST, s.started_at'
+            . ' LIMIT 1',
+            ['tenantId' => $tenantId, 'productId' => $productId, 'userId' => $userId],
+        );
+
+        $row = $rows[0] ?? null;
+
+        return $row === null ? null : $this->toSubscription($row);
+    }
+
     public function placesUsedBy(string $subscriptionId): int
     {
         if (!Uuid::isValid($subscriptionId)) {
@@ -1258,26 +1293,24 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         // Ordered with the caller's own holding first, so a caller who holds
         // a seat and is also on a colleague's reads as themselves first.
         $rows = $this->connection->fetchFirstColumn(
-            <<<'SQL'
-                -- The ordering expression is selected too, because
-                -- PostgreSQL refuses a SELECT DISTINCT ordered by anything
-                -- that is not in its list. It changes no row: it is a
-                -- function of a column already there.
-                SELECT DISTINCT s.owner_user_id, (s.owner_user_id = :userId) AS own
-                  FROM subscriptions s
-                 WHERE s.tenant_id = :tenantId
-                   AND s.product_id = :productId
-                   AND s.status = 'ACTIVE'
-                   AND s.owner_user_id IS NOT NULL
-                   AND (
-                         s.owner_user_id = :userId
-                         OR EXISTS (
-                              SELECT 1 FROM subscription_members m
-                               WHERE m.subscription_id = s.id AND m.user_id = :userId
-                            )
-                       )
-                 ORDER BY own DESC, s.owner_user_id
-                SQL,
+            // The ordering expression is selected too, because PostgreSQL
+            // refuses a SELECT DISTINCT ordered by anything that is not in
+            // its list. It changes no row: it is a function of a column
+            // already there.
+            //
+            // The coverage test is {@see CoversPersonSql}'s, since
+            // 2026-10-01. It was written here by hand before that, and was
+            // already the odd one out: it asked about the owner and the
+            // members and not about `subscriber_user_id`, so the three
+            // places that decide who a subscription covers did not agree.
+            'SELECT DISTINCT s.owner_user_id, (s.owner_user_id = :userId) AS own'
+            . ' FROM subscriptions s'
+            . ' WHERE s.tenant_id = :tenantId'
+            . ' AND s.product_id = :productId'
+            . " AND s.status = 'ACTIVE'"
+            . ' AND s.owner_user_id IS NOT NULL'
+            . ' AND ' . CoversPersonSql::clause('s', ':userId')
+            . ' ORDER BY own DESC, s.owner_user_id',
             ['tenantId' => $tenantId, 'productId' => $productId, 'userId' => $userId],
         );
 

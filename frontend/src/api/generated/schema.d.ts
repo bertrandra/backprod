@@ -11833,6 +11833,25 @@ export interface operations {
                          *     Here so that `subscription: null` can be told apart: a member who is not on their organisation's subscription would otherwise be shown the same answer as a tenant that has never bought anything, and invited to buy what their organisation already has. It is also the one fact in this response that genuinely concerns them — it explains why they can reach no work, and who to ask.
                          */
                         organisation_subscribed: boolean;
+                        /**
+                         * @description **What actually covers the caller** (2026-10-01): their own seat if they hold one, else the colleague's subscription they were added to.
+                         *
+                         *     The two fields beside it answer narrower questions — `subscription` is the organisation's and `seat` is the caller's own — and the ordinary colleague on somebody else's seat is neither. The tenant surface has sold no organisation subscription since ADR-055, so `subscription` is null; they hold none of their own, so `seat` is null. This screen therefore told somebody working inside a subscription, and occupying a place their colleague pays for, that nothing was subscribed and an offer from the catalogue would start one.
+                         *
+                         *     Never withheld: being covered is the caller's own fact. It carries **no offer, no price, no terms and no history** — those belong to whoever manages the subscription (ADR-053), and a seat is a more personal object than an organisation's was. It also does not name the holder, which is a decision rather than an omission: who inside an organisation pays for whom is a disclosure, and `own` is the distinction a screen needs.
+                         *
+                         *     `ACTIVE` and `PAST_DUE` both, unlike the coverage that decides what work is reachable: arrears shut the workshop (ADR-060), and somebody whose colleague is behind on the bill needs telling precisely then.
+                         */
+                        coverage: {
+                            /** Format: uuid */
+                            subscription_id: string;
+                            /** @description `ACTIVE` or `PAST_DUE`. The platform's word, never derived from a date. */
+                            status: string;
+                            /** Format: date-time */
+                            current_period_end: string | null;
+                            /** @description Whether the caller holds it. False means a colleague does — something they can have taken away rather than something they can cancel. */
+                            own: boolean;
+                        } | null;
                         history: components["schemas"]["Subscription"][];
                         events: components["schemas"]["SubscriptionEvent"][];
                         /** @description The caller’s own live seat on this product, or null (§13.1, 2026-09-18). Apart from `subscription`, the organisation’s, because the two bind different parties: a member may hold a seat at an organisation that also subscribes. */

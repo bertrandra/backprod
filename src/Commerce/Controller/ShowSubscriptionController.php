@@ -44,6 +44,20 @@ final class ShowSubscriptionController implements RouteHandler
 
         $seat = $this->subscriptions->seatOf($context->tenantId, $context->productId, $context->userId);
 
+        // **What actually covers them** (2026-10-01). The two reads above
+        // answer "the organisation's" and "your own", and the ordinary
+        // colleague on somebody else's seat is neither: `current` is null
+        // because the tenant surface has sold no organisation subscription
+        // since ADR-055, and `seat` is null because they hold none. So this
+        // screen told a person working inside a subscription, and occupying a
+        // place somebody pays for, that nothing was subscribed and an offer
+        // from the catalogue would start one.
+        $covering = $this->subscriptions->coveringPerson(
+            $context->tenantId,
+            $context->productId,
+            $context->userId,
+        );
+
         // Whose answer this is (2026-09-25, ADR-053). A member sees what
         // concerns them, and an organisation's subscription concerns the
         // people it covers — not everybody who happens to have joined.
@@ -72,6 +86,14 @@ final class ShowSubscriptionController implements RouteHandler
             // has. It is also the one thing here that genuinely concerns
             // them: it explains why they can reach no work.
             'organisation_subscribed' => $current !== null,
+            // Said whoever it belongs to, and withheld from nobody: being
+            // covered is the caller's own fact. It carries no price, no offer
+            // and no history — those are the holder's (ADR-053), and a seat is
+            // a more personal object than an organisation's subscription was.
+            'coverage' => $covering === null ? null : SubscriptionPresenter::coverage(
+                $covering,
+                $covering->ownerUserId === $context->userId,
+            ),
             // The caller's own seat, beside the organisation's (2026-09-18):
             // what the catalogue offers to buy depends on both. Always
             // theirs, so never withheld.

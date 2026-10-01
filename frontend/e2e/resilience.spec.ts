@@ -87,6 +87,7 @@ async function online(
         // than an undefined one, which is a crash once the answer lands and a
         // frame test that fails only under load.
         subscription: null,
+        coverage: null,
         unread: 0,
         total: 1,
         limit: 25,

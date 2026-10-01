@@ -152,6 +152,27 @@ final class PastDueTest extends DatabaseApiTestCase
     }
 
     /**
+     * And the person covered by it is still told what covers them.
+     *
+     * `coveringPerson` admits PAST_DUE where the coverage deciding what work
+     * is reachable refuses it (ADR-060), and that asymmetry is the point: the
+     * holder's colleague finds the workshop shut, and this screen is the only
+     * thing that can say why. Answering "nothing covers you" precisely then
+     * would send them to buy what they already sit on.
+     */
+    public function testACoveredColleagueIsStillToldWhileTheHolderIsInArrears(): void
+    {
+        $subscription = $this->subscribe();
+        $this->overdueInvoice($subscription, days: 2);
+        $this->collect();
+
+        $coverage = $this->decode($this->get('/api/v1/subscription', 'ada-token'))['coverage'] ?? null;
+
+        self::assertIsArray($coverage);
+        self::assertSame('PAST_DUE', $coverage['status'] ?? null);
+    }
+
+    /**
      * Arrears is not an exit, so it does not free the scope.
      *
      * The two partial unique indexes read `status = 'ACTIVE'` before today, so a

@@ -31,28 +31,28 @@ final class PostgresEntitlementRepository implements EntitlementRepository
      * exclusive, matching the offer's commercial window — one convention for
      * "is this in force", not two.
      */
-    private const IN_FORCE = <<<'SQL'
-        e.tenant_id = :tenantId
-          AND e.product_id = :productId
-          AND e.valid_from <= now()
-          AND (e.valid_until IS NULL OR e.valid_until > now())
-          AND NOT EXISTS (
-                SELECT 1
-                  FROM subscriptions s
-                 WHERE s.id = e.subscription_id
-                   AND CASE
-                         WHEN CAST(:userId AS uuid) IS NULL
-                           THEN s.subscriber_kind = 'USER'
-                         ELSE s.owner_user_id IS DISTINCT FROM CAST(:userId AS uuid)
-                              AND s.subscriber_user_id IS DISTINCT FROM CAST(:userId AS uuid)
-                              AND NOT EXISTS (
-                                    SELECT 1 FROM subscription_members m
-                                     WHERE m.subscription_id = s.id
-                                       AND m.user_id = CAST(:userId AS uuid)
-                                  )
-                       END
-              )
-        SQL;
+    /**
+     * A method rather than a constant, since 2026-10-01: the exclusion is
+     * composed from {@see CoversPersonSql}, and a constant cannot call
+     * anything. What it costs is a pair of brackets at two call sites; what
+     * it buys is that the query deciding whether a workshop opens and the
+     * query answering "what am I on" cannot drift apart.
+     */
+    private static function inForce(): string
+    {
+        return 'e.tenant_id = :tenantId'
+            . ' AND e.product_id = :productId'
+            . ' AND e.valid_from <= now()'
+            . ' AND (e.valid_until IS NULL OR e.valid_until > now())'
+            . ' AND NOT EXISTS ('
+            . '       SELECT 1 FROM subscriptions s'
+            . '        WHERE s.id = e.subscription_id'
+            . '          AND CASE'
+            . "                WHEN CAST(:userId AS uuid) IS NULL THEN s.subscriber_kind = 'USER'"
+            . '                ELSE ' . CoversPersonSql::excludes('s', ':userId')
+            . '              END'
+            . '     )';
+    }
 
     /**
      * Why that NOT EXISTS is written the way it is (§13.1).
@@ -125,7 +125,7 @@ final class PostgresEntitlementRepository implements EntitlementRepository
         $codes = $this->connection->fetchFirstColumn(
             'SELECT DISTINCT f.code FROM entitlements e
              JOIN features f ON f.id = e.feature_id
-             WHERE ' . self::IN_FORCE . '
+             WHERE ' . self::inForce() . '
              ORDER BY f.code',
             ['tenantId' => $tenantId, 'productId' => $productId, 'userId' => $userId],
         );
@@ -153,7 +153,7 @@ final class PostgresEntitlementRepository implements EntitlementRepository
                     e.limit_value, e.source, e.valid_until
                FROM entitlements e
                JOIN features f ON f.id = e.feature_id
-              WHERE ' . self::IN_FORCE . '
+              WHERE ' . self::inForce() . '
               ORDER BY ' . self::MOST_GENEROUS_FIRST,
             ['tenantId' => $tenantId, 'productId' => $productId, 'userId' => $userId],
         );
