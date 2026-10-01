@@ -131,7 +131,10 @@ function payment(state: Chain) {
 function subscription(state: Chain) {
   return state.paid
     ? {
-        subscription: {
+        // The caller's own, since `subscriber_kind` went (2026-10-01): the
+        // screen reads `seat`, and `subscription` — the organisation's — is
+        // not a field any more.
+        seat: {
           id: '88888888-8888-4888-8888-888888888888',
           status: 'ACTIVE',
           current_period_start: '2026-01-03T10:00:00Z',
@@ -146,10 +149,14 @@ function subscription(state: Chain) {
             version: { billing_period: 'MONTHLY', price: MONEY.net },
           },
         },
-        seat: null,
-        coverage: null,
+        coverage: {
+          subscription_id: '88888888-8888-4888-8888-888888888888',
+          status: 'ACTIVE',
+          current_period_end: '2026-02-03T10:00:00Z',
+          own: true,
+        },
       }
-    : { subscription: null, seat: null, coverage: null };
+    : { seat: null, coverage: null };
 }
 
 async function chain(page: Page): Promise<Chain> {

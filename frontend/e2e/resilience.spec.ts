@@ -86,7 +86,7 @@ async function online(
         // A shape the subscription screen can read: no subscription, rather
         // than an undefined one, which is a crash once the answer lands and a
         // frame test that fails only under load.
-        subscription: null,
+        seat: null,
         coverage: null,
         unread: 0,
         total: 1,

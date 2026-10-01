@@ -202,7 +202,7 @@ async function stubbed(page: Page) {
     // `coverage` is required by the contract, so a stub that omits it is
     // lying about the answer — and it was that lie, not the screen, that took
     // this route down when the field arrived (2026-10-01).
-    route.fulfill({ json: { subscription: null, seat: null, coverage: null } }),
+    route.fulfill({ json: { seat: null, coverage: null } }),
   );
 
   // The catalogue names its product in the header; the catch-all's empty
