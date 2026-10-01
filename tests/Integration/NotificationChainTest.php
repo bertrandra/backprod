@@ -6,6 +6,7 @@ namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
 use App\Job\Domain\Job;
+use App\Job\Service\JobRunner;
 use App\Notification\Domain\Category;
 use App\Notification\Domain\Channel;
 use App\Notification\Domain\NotificationRepository;
@@ -68,6 +69,57 @@ final class NotificationChainTest extends DatabaseApiTestCase
                 ),
             ]),
         ]);
+    }
+
+    // --- that anything is sent at all ------------------------------------
+
+    /**
+     * Nothing in this file called the runner until 2026-10-01, and that is how
+     * the platform shipped for a month unable to send a single notification.
+     *
+     * Every other case here calls `DispatchNotifications::handle()` directly —
+     * reasonable, since what is being tested is the gate, the suppression and
+     * the unique index. But the handler was registered in the container and
+     * **enqueued by nobody**, so all of it worked and none of it ran: the rows
+     * were written correctly and no mail, and no screen notice, ever reached
+     * anybody. A test that calls the handler cannot see that, because calling
+     * the handler is the step that was missing.
+     *
+     * So this one calls what cron calls, and nothing else (ADR-067).
+     */
+    public function testACronPassAloneGetsANotificationSent(): void
+    {
+        $this->raise('payment.failed', Category::BILLING, [Channel::SCREEN]);
+
+        self::assertSame(['PENDING', null], $this->deliveryState(Channel::SCREEN));
+
+        $runner = $this->container()->get(JobRunner::class);
+        self::assertInstanceOf(JobRunner::class, $runner);
+
+        // The whole of it. No handler is reached for, no job is enqueued by
+        // hand: a pass schedules `notify.dispatch`, claims it in the same pass
+        // and runs it.
+        $outcome = $runner->runOnce(100);
+
+        self::assertContains('notify.dispatch', $outcome['scheduled']);
+        self::assertSame([], $outcome['unschedulable']);
+        self::assertSame(['SENT', null], $this->deliveryState(Channel::SCREEN));
+    }
+
+    public function testEverySweepSurvivesAnEmptyPlatform(): void
+    {
+        // The pass above queues all nine types against a database holding one
+        // tenant, one product and one notification. A sweep that threw on
+        // finding nothing would make the pass exit non-zero every minute on a
+        // new deployment — and the operator would reasonably conclude the queue
+        // was broken rather than idle.
+        $runner = $this->container()->get(JobRunner::class);
+        self::assertInstanceOf(JobRunner::class, $runner);
+
+        $outcome = $runner->runOnce(100);
+
+        self::assertSame(0, $outcome['failed']);
+        self::assertSame($outcome['claimed'], $outcome['succeeded']);
     }
 
     // --- what must not be sent -------------------------------------------

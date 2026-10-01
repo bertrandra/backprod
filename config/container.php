@@ -87,11 +87,13 @@ use App\Entitlement\Domain\UsageMeter;
 use App\Finance\Domain\FinancialPeriods;
 use App\Finance\Infrastructure\PostgresFinancialPeriods;
 use App\Job\Domain\JobRepository;
+use App\Job\Domain\Schedule;
 use App\Job\Infrastructure\PostgresJobRepository;
 use App\Job\Service\CollectOverdueInvoices;
 use App\Job\Service\ExpireQuotes;
 use App\Job\Service\ExpireSubscriptions;
 use App\Job\Service\JobHandlers;
+use App\Job\Service\JobScheduler;
 use App\Job\Service\RollUpFinancials;
 use App\Job\Service\SendRenewalNotices;
 use App\Job\Service\SweepRateLimits;
@@ -653,6 +655,20 @@ return static function (array $overrides = []): ContainerInterface {
                 [$quotes, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $dunning, $rateLimits, $webhooks],
             ),
         ),
+
+        // What puts the recurring half of that list on the queue (ADR-067).
+        // Until 2026-10-01 nothing did: eight of the nine handlers above had no
+        // caller at all, so every sweep, every drain and every notice was
+        // written, wired, tested and never run — including `notify.dispatch`,
+        // which is why no notification this platform composed was ever
+        // delivered.
+        //
+        // The map is wired rather than read from the constant inside the
+        // service, which is how `JobHandlers` and `UsageMeter` are built too:
+        // one declaration in the domain, one line of assembly here, and a test
+        // can ask what a scheduler does with no schedule at all.
+        JobScheduler::class => autowire(JobScheduler::class)
+            ->constructorParameter('periodic', Schedule::PERIODIC),
 
         NotificationRepository::class => autowire(PostgresNotificationRepository::class),
 

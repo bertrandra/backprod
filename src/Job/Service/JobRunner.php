@@ -40,15 +40,35 @@ final class JobRunner
         private readonly JobRepository $jobs,
         private readonly JobHandlers $handlers,
         private readonly LoggerInterface $logger,
+        private readonly JobScheduler $schedule,
     ) {
     }
 
     /**
-     * @return array{claimed: int, succeeded: int, failed: int}
+     * Schedule what is due, then claim and run.
+     *
+     * **In this order, and in this method** (ADR-067). The platform's recurring
+     * work was declared by nothing and enqueued by nobody, so eight of nine
+     * handlers never ran — and putting the fix in `bin/run-jobs.php` would have
+     * left it out of a persistent worker looping this method, which is the one
+     * future D3 asks this class to keep possible.
+     *
+     * Scheduling first means work due this minute is claimable by this pass:
+     * `run_after` defaults to now, so a notification written at 10:00:30 goes
+     * out at 10:01 rather than waiting for the pass after the one that queued
+     * it.
+     *
+     * The batch is unchanged and still bounds the pass. Nine types cannot
+     * starve it — two are drains that hold at most one outstanding job each,
+     * and the rest are daily.
+     *
+     * @return array{claimed: int, succeeded: int, failed: int, scheduled: list<string>, unschedulable: list<string>}
      */
     public function runOnce(int $batch = self::DEFAULT_BATCH): array
     {
         $runId = $this->jobs->beginRun();
+
+        $scheduled = $this->schedule->schedule();
         $claimed = $this->jobs->claim($batch, self::LEASE_SECONDS);
 
         $succeeded = 0;
@@ -64,7 +84,17 @@ final class JobRunner
 
         $this->jobs->finishRun($runId, count($claimed), $succeeded, $failed);
 
-        return ['claimed' => count($claimed), 'succeeded' => $succeeded, 'failed' => $failed];
+        return [
+            'claimed' => count($claimed),
+            'succeeded' => $succeeded,
+            'failed' => $failed,
+            'scheduled' => $scheduled['enqueued'],
+            // The two kinds of trouble the scheduler reports, together: both
+            // mean recurring work did not reach the queue, and the caller's job
+            // is to make that visible rather than to tell them apart. Which one
+            // it was is in the log, with the type.
+            'unschedulable' => [...$scheduled['unhandled'], ...$scheduled['failed']],
+        ];
     }
 
     private function run(Job $job): bool

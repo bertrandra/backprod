@@ -81,6 +81,43 @@ interface JobRepository
     public function cancel(Job $job): bool;
 
     /**
+     * When the scheduler last enqueued each of `$types`, and what time it is.
+     *
+     * Facts, not a decision: whether a gap has elapsed is {@see
+     * \App\Job\Service\JobScheduler}'s to judge, because that is a rule and not
+     * a row. What the repository owns is the clock — `at` comes from the same
+     * database as `created_at`, `run_after` and `leased_until`, so a host whose
+     * PHP and PostgreSQL disagree about the time cannot make a daily sweep run
+     * twice or not at all.
+     *
+     * Only the scheduler's own rows count, which is what
+     * `Schedule::KEY` selects: somebody running a sweep by hand from the
+     * console has done that work, but letting it postpone the night's pass
+     * would make a manual look-see silently skip a day.
+     *
+     * A type absent from `last` has never been scheduled, which is different
+     * from having been scheduled long ago only in that there is nothing to
+     * subtract from.
+     *
+     * `outstanding` is the types with a job of their own still QUEUED or
+     * RUNNING. Those need no second one, and `enqueue()` would not make one:
+     * `jobs_pending_key_unique` refuses and the adapter hands back the job that
+     * exists, which is the right answer and indistinguishable from having
+     * queued something. Reading it here is what lets a pass say truthfully that
+     * it queued nothing, so the cron line printing a type is news rather than
+     * noise.
+     *
+     * The read is not a lock and does not pretend to be. Two passes can both
+     * see nothing outstanding; the index is still what makes that safe, as it is
+     * for two callers of `POST /jobs`.
+     *
+     * @param list<string> $types
+     *
+     * @return array{at: \DateTimeImmutable, last: array<string, \DateTimeImmutable>, outstanding: list<string>}
+     */
+    public function scheduleHistory(array $types): array;
+
+    /**
      * Opens a record of one pass of the runner, and returns its id.
      *
      * This is what makes a stopped cron distinguishable from a quiet queue
