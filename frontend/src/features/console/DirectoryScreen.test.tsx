@@ -287,20 +287,24 @@ describe('a subscription in the console', () => {
     );
   });
 
-  it('says the organisation for a subscription that names nobody', async () => {
+  it('says nobody rather than borrowing the organisation’s name', async () => {
+    // It read "says the organisation for a subscription that names nobody",
+    // about a `TENANT` row — the kind that legitimately had no person. That
+    // kind is gone (2026-10-01) and `subscriber_user_id` is NOT NULL, so a
+    // nameless row can only be one whose *holder* was never recorded, which
+    // the column has always allowed. The answer is still not to borrow Acme's
+    // name: a company shown as a holder reads as a person called Acme.
     renderAtRoute(
       <DirectoryScreen />,
       clientFor({
         'GET /api/v1/admin/subscriptions': page('subscriptions', [
-          { ...seat, subscriber_kind: 'TENANT', owner_user_id: null, holder_name: null, holder_email: null },
+          { ...seat, owner_user_id: null, holder_name: null, holder_email: null },
         ]),
       }),
       at('subscriptions'),
     );
 
-    // Said, not borrowed: naming Acme as the holder of Acme's own
-    // subscription would read as a person called Acme.
-    await waitFor(() => expect(document.querySelector('[data-holder="tenant"]')).not.toBeNull());
+    await waitFor(() => expect(document.querySelector('[data-holder="unrecorded"]')).not.toBeNull());
     expect(document.querySelector('[data-holder="person"]')).toBeNull();
   });
 

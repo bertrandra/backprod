@@ -38,7 +38,9 @@ final class CheckoutPresenter
             // said which offer left the person unsure they had bought anything.
             'description' => $order->lines[0]->description ?? null,
             // And for whom: the organisation, or the person's own seat (§13.1).
-            'seat' => $order->subscriber->isSeat(),
+            // Every order buys a seat since 2026-10-01; kept so a client
+            // reading it does not have to change the day it stopped varying.
+            'seat' => true,
         ];
     }
 

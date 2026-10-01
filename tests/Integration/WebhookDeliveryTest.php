@@ -158,7 +158,11 @@ final class WebhookDeliveryTest extends DatabaseApiTestCase
         // surface stopped producing at ADR-055, so the payload a product
         // actually receives never looked like this. `gate:fixtures` is what
         // found it.
-        self::assertSame(['kind' => 'USER', 'user_id' => $this->ada], $detail['subscriber'] ?? null);
+        // The envelope named a kind beside the person until 2026-10-01.
+        // There is one kind, so it names the person — which is the field a
+        // product reading this ever acted on.
+        self::assertSame($this->ada, $detail['subscriber_user_id'] ?? null);
+        self::assertArrayNotHasKey('subscriber', $detail);
         // Never money, never a credential.
         self::assertStringNotContainsString('price', $sent['body']);
         self::assertStringNotContainsString('bwh_', $sent['body']);
@@ -182,8 +186,8 @@ final class WebhookDeliveryTest extends DatabaseApiTestCase
         // A second product's subscription is that product's news, and a
         // product with no address hears nothing: Atlas has none.
         $this->connection->executeStatement(
-            'INSERT INTO subscriptions (tenant_id, product_id, offer_version_id, status, current_period_start, current_period_end, subscriber_kind, subscriber_user_id, owner_user_id)'
-            . " SELECT :t, :p, v.id, 'ACTIVE', now(), now() + interval '30 days', 'USER', :owner, :owner FROM offer_versions v LIMIT 1",
+            'INSERT INTO subscriptions (tenant_id, product_id, offer_version_id, status, current_period_start, current_period_end, subscriber_user_id, owner_user_id)'
+            . " SELECT :t, :p, v.id, 'ACTIVE', now(), now() + interval '30 days', :owner, :owner FROM offer_versions v LIMIT 1",
             ['t' => $this->acme, 'p' => $this->atlas, 'owner' => $this->ada],
         );
         $this->connection->executeStatement(
@@ -430,8 +434,8 @@ final class WebhookDeliveryTest extends DatabaseApiTestCase
         );
 
         return $this->id(
-            'INSERT INTO subscriptions (tenant_id, product_id, offer_version_id, status, current_period_start, current_period_end, subscriber_kind, subscriber_user_id, owner_user_id)'
-            . " VALUES (:t, :p, :v, 'ACTIVE', now(), now() + interval '30 days', 'USER', :owner, :owner) RETURNING id",
+            'INSERT INTO subscriptions (tenant_id, product_id, offer_version_id, status, current_period_start, current_period_end, subscriber_user_id, owner_user_id)'
+            . " VALUES (:t, :p, :v, 'ACTIVE', now(), now() + interval '30 days', :owner, :owner) RETURNING id",
             ['t' => $this->acme, 'p' => $this->plan, 'v' => $version, 'owner' => $this->ada],
         );
     }

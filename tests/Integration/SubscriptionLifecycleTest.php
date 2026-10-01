@@ -156,6 +156,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             $this->product,
             $this->proOffer,
             $this->user,
+            $this->user,
         );
 
         self::assertSame(Subscription::ACTIVE, $subscription->status);
@@ -166,10 +167,10 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         // bought, and the context chain reads exactly these.
         self::assertSame(
             ['advanced_3d', 'max_projects'],
-            $this->entitlements()->capabilitiesFor($this->tenant, $this->product),
+            $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user),
         );
 
-        $limits = $this->entitlements()->entitlementsFor($this->tenant, $this->product);
+        $limits = $this->entitlements()->entitlementsFor($this->tenant, $this->product, $this->user);
         self::assertSame(50, $limits[1]->limit);
         self::assertSame('SUBSCRIPTION', $limits[1]->source);
     }
@@ -178,7 +179,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
     {
         $this->subscribeToPro();
 
-        $events = $this->subscriptions()->events($this->tenant, $this->product);
+        $events = $this->subscriptions()->events($this->tenant, $this->product, $this->user);
 
         self::assertCount(1, $events);
         self::assertSame(SubscriptionEvent::ACTIVATED, $events[0]->type);
@@ -193,6 +194,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             $this->tenant,
             $this->product,
             $this->freeOffer,
+            $this->user,
             $this->user,
         ));
 
@@ -216,6 +218,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             $this->product,
             $this->proOffer,
             $this->user,
+            $this->user,
         ));
 
         self::assertSame(404, $error->statusCode());
@@ -233,7 +236,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
     {
         $this->subscribeToPro();
 
-        self::assertNotSame([], $this->entitlements()->capabilitiesFor($this->tenant, $this->product));
+        self::assertNotSame([], $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user));
 
         // Move the period into the past, exactly as time passing would.
         $this->connection->executeStatement(
@@ -264,11 +267,11 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         );
         self::assertSame(
             [],
-            $this->entitlements()->capabilitiesFor($this->tenant, $this->product),
+            $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user),
             'and the tenant is entitled to nothing anyway',
         );
         self::assertNull(
-            $this->subscriptions()->current($this->tenant, $this->product),
+            $this->subscriptions()->current($this->tenant, $this->product, $this->user),
             'and the service reports no live subscription',
         );
     }
@@ -281,7 +284,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         $firstEnd = $subscription->currentPeriodEnd;
         self::assertNotNull($firstEnd);
 
-        $renewed = $this->subscriptions()->renew($this->tenant, $this->product);
+        $renewed = $this->subscriptions()->renew($this->tenant, $this->product, $this->user);
 
         self::assertNotNull($renewed->currentPeriodEnd);
         self::assertGreaterThan($firstEnd, $renewed->currentPeriodEnd);
@@ -297,7 +300,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         // subscription that is still being paid for.
         self::assertSame(
             ['advanced_3d', 'max_projects'],
-            $this->entitlements()->capabilitiesFor($this->tenant, $this->product),
+            $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user),
         );
         self::assertSame(
             $renewed->currentPeriodEnd->format(DATE_ATOM),
@@ -316,9 +319,9 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
 
         self::assertSame('pro', $upgraded->offer->code);
         self::assertSame(50, $this->limitFor('max_projects'));
-        self::assertContains('advanced_3d', $this->entitlements()->capabilitiesFor($this->tenant, $this->product));
+        self::assertContains('advanced_3d', $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user));
 
-        $latest = $this->subscriptions()->events($this->tenant, $this->product)[0];
+        $latest = $this->subscriptions()->events($this->tenant, $this->product, $this->user)[0];
         self::assertSame(SubscriptionEvent::OFFER_CHANGED, $latest->type);
         self::assertSame(Subscriptions::UPGRADE, $latest->detail->direction ?? null);
     }
@@ -432,7 +435,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
      */
     public function testAMoveUpThatCostsNothingRaisesNoInvoice(): void
     {
-        $this->subscriptions()->subscribe($this->tenant, $this->product, $this->belowFreeOffer, $this->user);
+        $this->subscriptions()->subscribe($this->tenant, $this->product, $this->belowFreeOffer, $this->user, $this->user);
 
         $after = $this->changeTo($this->freeOffer);
 
@@ -459,7 +462,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         // Still on Pro, still with Pro's grants, still until the same date.
         self::assertSame('pro', $after->offer->code);
         self::assertSame(50, $this->limitFor('max_projects'));
-        self::assertContains('advanced_3d', $this->entitlements()->capabilitiesFor($this->tenant, $this->product));
+        self::assertContains('advanced_3d', $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user));
         self::assertSame(
             $before->currentPeriodEnd?->format(DATE_ATOM),
             $after->currentPeriodEnd?->format(DATE_ATOM),
@@ -475,7 +478,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         );
         self::assertSame($this->user, $after->pending->requestedBy);
 
-        $latest = $this->subscriptions()->events($this->tenant, $this->product)[0];
+        $latest = $this->subscriptions()->events($this->tenant, $this->product, $this->user)[0];
         self::assertSame(SubscriptionEvent::CHANGE_SCHEDULED, $latest->type);
     }
 
@@ -516,7 +519,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         self::assertSame(3, $this->limitFor('max_projects'));
         self::assertSame(
             ['max_projects'],
-            $this->entitlements()->capabilitiesFor($this->tenant, $this->product),
+            $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user),
             'the boolean capability the pro offer granted is gone, now that the period it was paid for has passed',
         );
 
@@ -525,7 +528,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         self::assertNotNull($applied->currentPeriodEnd);
         self::assertGreaterThan($applied->currentPeriodStart, $applied->currentPeriodEnd);
 
-        $latest = $this->subscriptions()->events($this->tenant, $this->product)[0];
+        $latest = $this->subscriptions()->events($this->tenant, $this->product, $this->user)[0];
         self::assertSame(SubscriptionEvent::OFFER_CHANGED, $latest->type);
         self::assertSame(Subscriptions::DOWNGRADE, $latest->detail->direction ?? null);
         self::assertSame('AT_RENEWAL', $latest->detail->applied ?? null);
@@ -553,7 +556,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             ['tenant' => $this->tenant],
         );
 
-        $renewed = $this->subscriptions()->renew($this->tenant, $this->product);
+        $renewed = $this->subscriptions()->renew($this->tenant, $this->product, $this->user);
 
         self::assertSame('pro', $renewed->offer->code, 'renewed on the same offer');
         self::assertNotNull($renewed->pending, 'and the change is still waiting');
@@ -573,7 +576,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         self::assertNull($kept->pending);
         self::assertSame('pro', $kept->offer->code);
 
-        $latest = $this->subscriptions()->events($this->tenant, $this->product)[0];
+        $latest = $this->subscriptions()->events($this->tenant, $this->product, $this->user)[0];
         self::assertSame(SubscriptionEvent::CHANGE_CANCELLED, $latest->type);
 
         // Renewal now reconducts the same offer: there is nothing left to
@@ -716,6 +719,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             $this->product,
             $this->longCommitmentOffer,
             $this->user,
+            $this->user,
         );
 
         self::assertSame(24, $committed->terms->commitmentMonths);
@@ -747,6 +751,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
             $this->product,
             $this->longCommitmentOffer,
             $this->user,
+            $this->user,
         );
 
         $error = $this->refusal(fn (): Subscription => $this->changeTo($this->shortTermOffer));
@@ -755,7 +760,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         self::assertSame('COMMITMENT_OUTLASTS_TERM', $error->errorCode());
 
         // And nothing moved: the subscription is still the one it was.
-        $unchanged = $this->subscriptions()->current($this->tenant, $this->product);
+        $unchanged = $this->subscriptions()->current($this->tenant, $this->product, $this->user);
         self::assertSame('pro-committed', $unchanged?->offer->code);
     }
 
@@ -795,11 +800,11 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         self::assertTrue($cancelled->cancelAtPeriodEnd);
         self::assertNotSame(
             [],
-            $this->entitlements()->capabilitiesFor($this->tenant, $this->product),
+            $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user),
             'still entitled until the period ends',
         );
 
-        $latest = $this->subscriptions()->events($this->tenant, $this->product)[0];
+        $latest = $this->subscriptions()->events($this->tenant, $this->product, $this->user)[0];
         self::assertSame(SubscriptionEvent::CANCELLATION_SCHEDULED, $latest->type);
     }
 
@@ -811,8 +816,8 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
 
         self::assertSame(Subscription::CANCELLED, $cancelled->status);
         self::assertNotNull($cancelled->endedAt);
-        self::assertSame([], $this->entitlements()->capabilitiesFor($this->tenant, $this->product));
-        self::assertNull($this->subscriptions()->current($this->tenant, $this->product));
+        self::assertSame([], $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user));
+        self::assertNull($this->subscriptions()->current($this->tenant, $this->product, $this->user));
     }
 
     public function testResumingWithdrawsAScheduledCancellation(): void
@@ -847,7 +852,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         $this->subscribeToPro();
         $this->subscriptions()->cancel($this->tenant, $this->product, true, $this->user);
 
-        $again = $this->subscriptions()->subscribe($this->tenant, $this->product, $this->freeOffer, $this->user);
+        $again = $this->subscriptions()->subscribe($this->tenant, $this->product, $this->freeOffer, $this->user, $this->user);
 
         self::assertSame(Subscription::ACTIVE, $again->status);
         self::assertCount(2, $this->subscriptions()->history($this->tenant, $this->product));
@@ -880,7 +885,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         self::assertContains('free', $onSale);
 
         // …and still completely legible to the tenant who bought it.
-        $reloaded = $this->subscriptions()->current($this->tenant, $this->product);
+        $reloaded = $this->subscriptions()->current($this->tenant, $this->product, $this->user);
         self::assertNotNull($reloaded);
         self::assertSame('pro', $reloaded->offer->code);
         self::assertSame(2900, $reloaded->offer->version->priceMinorUnits);
@@ -890,7 +895,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
 
         // And the tenant is still entitled: withdrawing an offer from sale
         // does not cancel the people already on it.
-        self::assertNotSame([], $this->entitlements()->capabilitiesFor($this->tenant, $this->product));
+        self::assertNotSame([], $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user));
     }
 
     public function testASubscribedOfferVersionCannotBeDeleted(): void
@@ -909,12 +914,12 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
 
     private function subscribeToPro(): Subscription
     {
-        return $this->subscriptions()->subscribe($this->tenant, $this->product, $this->proOffer, $this->user);
+        return $this->subscriptions()->subscribe($this->tenant, $this->product, $this->proOffer, $this->user, $this->user);
     }
 
     private function subscribeToFree(): Subscription
     {
-        return $this->subscriptions()->subscribe($this->tenant, $this->product, $this->freeOffer, $this->user);
+        return $this->subscriptions()->subscribe($this->tenant, $this->product, $this->freeOffer, $this->user, $this->user);
     }
 
     /**
@@ -927,7 +932,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
      */
     private function renewAtTheBoundary(): Subscription
     {
-        return $this->subscriptions()->renew($this->tenant, $this->product);
+        return $this->subscriptions()->renew($this->tenant, $this->product, $this->user);
     }
 
     /**
@@ -1039,7 +1044,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
 
     private function limitFor(string $featureCode): ?int
     {
-        foreach ($this->entitlements()->entitlementsFor($this->tenant, $this->product) as $entitlement) {
+        foreach ($this->entitlements()->entitlementsFor($this->tenant, $this->product, $this->user) as $entitlement) {
             if ($entitlement->featureCode === $featureCode) {
                 return $entitlement->limit;
             }
@@ -1050,7 +1055,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
 
     private function sourceFor(string $featureCode): ?string
     {
-        foreach ($this->entitlements()->entitlementsFor($this->tenant, $this->product) as $entitlement) {
+        foreach ($this->entitlements()->entitlementsFor($this->tenant, $this->product, $this->user) as $entitlement) {
             if ($entitlement->featureCode === $featureCode) {
                 return $entitlement->source;
             }

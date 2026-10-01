@@ -340,14 +340,21 @@ monthly is one 24-month commitment billed 24 times, not 24 one-month
 subscriptions. Confusing the two lets a customer walk out of a two-year
 contract after a month.
 
-A subscriber is a tenant or a named user:
+**A subscriber is a person.** `subscriptions.subscriber_user_id` is NOT NULL and
+there is no other kind; `subscriber_kind` was dropped on 2026-10-01 (ADR-066)
+along with the `Subscriber` value object that carried it.
 
-```text
-subscriber_kind = TENANT   the organisation is the contracting party
-subscriber_kind = USER     one person is (a seat)
-```
+It held two values from 2026-09-04 and only one of them was reachable from
+ADR-055 onwards, which left four production defaults quietly falling back to the
+organisation for any caller that forgot an optional argument. That is not
+harmless: since ADR-053 an organisation's subscription covers nobody by itself,
+so such a subscription would be paid for and entitle no one, the buyer included.
+Naming the subscriber is a **required argument** everywhere now, so a caller
+that forgets does not compile — the same rule `Reach` is required for, and for
+the same reason.
 
-**The tenant surface sells the second one only** (ADR-055, 2026-09-25). A
+**The tenant surface sells a seat, and that is all there is** (ADR-055,
+2026-09-25). A
 person decides to use a product and buys a seat for themselves; the
 organisation administers and reads what its people hold. `Sales::order()` has
 no argument for the other sale and `openCheckoutSession` no field for it, so
@@ -366,8 +373,21 @@ buy-out alike. A seat never reads the product's billing identity: it does not
 appear on the document, so it may not gate the sale, and an organisation that
 has not said which country it sells from does not sell.
 
-`TENANT` is still a column and still carries the rows a deployment already
-has. What no longer exists is a way for a customer to buy one.
+**What that removal costs, said plainly** (ADR-066). The platform no longer
+sells to a company at all, so the only sale it resolves is domestic — the
+organisation, in its own country, to one of its own people. `REVERSE_CHARGE` is
+therefore unreachable by any sale, which §25.3 already implied ("reverse charge
+is a cross-border mechanism and cannot arise on" a seat) but which nothing had
+had to act on. The regime stays implemented and proved where it is decided
+(`TaxRuleTest`), and the fiscal fact that records one is still refused without a
+verified number. What is gone is a sale that reaches it.
+
+And the **tenant-wide** entitlement question — naming nobody, asking what the
+organisation itself bought — now answers nothing, because an organisation buys
+nothing. So every reader names somebody: the usage read, the quota check, and a
+product reporting usage, which takes a `user_id` for exactly this reason. That is
+§13.1's own rule — every gate asks about the same person — arriving where it had
+not yet been applied.
 
 **Buying covers people; membership does not** (ADR-053, 2026-09-25). Either
 kind entitles the same set: the person who took it out, plus those they have

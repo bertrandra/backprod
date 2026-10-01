@@ -61,7 +61,16 @@ final class Order
         public readonly ?DateTimeImmutable $completedAt,
         public readonly DateTimeImmutable $createdAt,
         public readonly array $lines,
-        public readonly Subscriber $subscriber = new Subscriber(Subscriber::TENANT, null),
+        /**
+         * Who the order buys for — a person, always (2026-10-01).
+         *
+         * It defaulted to the organisation until today, which is the sale
+         * ADR-055 stopped and ADR-056 removed the door to. The default
+         * outlived both, so an order built without naming anybody bound a
+         * subscription that covers nobody (ADR-053) and would have been paid
+         * for by somebody who got nothing.
+         */
+        public readonly string $subscriberUserId,
         /**
          * Who placed it (2026-09-25). The column has recorded this since
          * orders existed; the value object did not carry it, so nothing

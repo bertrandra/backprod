@@ -264,7 +264,6 @@ function Subscriptions({ status }: { status: string }) {
                   one tenant read as three identical rows and the operator
                   could not tell whose was whose. */}
               <Holder
-                kind={subscription.subscriber_kind}
                 name={subscription.holder_name}
                 email={subscription.holder_email}
               />
@@ -508,21 +507,16 @@ function Settled({ payment }: { payment: AdminPayment }) {
  * holder of Acme's own subscription would read as a person called Acme.
  */
 function Holder({
-  kind,
   name,
   email,
 }: {
-  kind: string | undefined;
   name: string | null | undefined;
   email: string | null | undefined;
 }) {
-  if (kind !== 'USER') {
-    return (
-      <span data-holder="tenant" className="text-xs text-subtle">
-        {t("the organisation")}</span>
-    );
-  }
-
+  // It took a `kind` and answered "the organisation" for a `TENANT` row until
+  // 2026-10-01. Every subscription is a seat now, so there is always a person
+  // — and when their name is missing the row below says so rather than
+  // attributing it to the company.
   const who = name ?? email ?? null;
 
   return (

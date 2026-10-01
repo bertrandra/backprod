@@ -75,7 +75,7 @@ final class SalesPresenter
             'created_at' => self::moment($order->createdAt),
             'lines' => InvoicePresenter::lines($order->lines),
             // For whom (§13.1, 2026-09-19): the organisation, or the person's own seat.
-            'seat' => $order->subscriber->isSeat(),
+            'seat' => true,
         ];
     }
 

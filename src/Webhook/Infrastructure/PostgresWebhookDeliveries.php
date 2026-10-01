@@ -65,7 +65,7 @@ final class PostgresWebhookDeliveries implements WebhookDeliveries
                 <<<'SQL'
                     SELECT e.id, e.type, e.occurred_at,
                            s.id AS subscription_id, s.tenant_id, s.product_id, s.status, s.current_period_end,
-                           s.subscriber_kind, s.subscriber_user_id, o.code AS offer_code,
+                           s.subscriber_user_id, o.code AS offer_code,
                            (p.active AND p.webhook_url IS NOT NULL) AS addressed
                       FROM subscription_events e
                       JOIN subscriptions s ON s.id = e.subscription_id
@@ -98,7 +98,11 @@ final class PostgresWebhookDeliveries implements WebhookDeliveries
                         'status' => Row::string($row, 'status'),
                         'offer' => Row::string($row, 'offer_code'),
                         'current_period_end' => Row::nullableTimestamp($row, 'current_period_end')?->format(DATE_ATOM),
-                        'subscriber' => ['kind' => Row::string($row, 'subscriber_kind'), 'user_id' => $userId],
+                        // One kind left since 2026-10-01, so the envelope
+                        // names the person and not a variant. A product reading
+                        // `subscriber.kind` gets nothing; the field it wants is
+                        // beside it and was always the one that mattered.
+                        'subscriber_user_id' => $userId,
                     ],
                 ];
 

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Auth\Domain\AuthProvider;
-use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Infrastructure\PostgresEntitlementRepository;
 use App\Commerce\Service\Subscriptions;
@@ -132,9 +131,9 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
      */
     public function testTheSamePersonCannotTakeTwoSeats(): void
     {
-        $this->subscribeTo($this->anytimeOffer, seat: true);
+        $this->subscribeTo($this->anytimeOffer);
 
-        $again = $this->refusal(fn (): Subscription => $this->subscribeTo($this->anytimeOffer, seat: true));
+        $again = $this->refusal(fn (): Subscription => $this->subscribeTo($this->anytimeOffer));
 
         self::assertSame(409, $again->statusCode());
         self::assertSame('ALREADY_SUBSCRIBED', $again->errorCode());
@@ -144,14 +143,31 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
      * A tenant subscription and a seat are different scopes, so holding one
      * does not block the other.
      */
-    public function testASeatAndATenantSubscriptionCoexist(): void
+    public function testTwoPeopleEachHoldASeatAndNeitherBlocksTheOther(): void
     {
+        // This read "a seat and a tenant subscription coexist" until
+        // 2026-10-01, which was about the two partial unique indexes not
+        // standing in each other's way. One kind of subscriber leaves one
+        // index, and the invariant that matters is the one it still bounds:
+        // per person, not per organisation.
         $this->subscribeTo($this->anytimeOffer);
-        $this->subscribeTo($this->anytimeOffer, seat: true);
+        $this->subscribeTo($this->anytimeOffer, $this->colleague);
 
         self::assertSame(
             2,
             $this->rowsMatching("SELECT count(*) FROM subscriptions WHERE status = 'ACTIVE'"),
+        );
+    }
+
+    public function testThesamePersonCannotHoldTwoSeatsOnOneProduct(): void
+    {
+        // What the index does bound, and it is the index that decides: two
+        // simultaneous requests both read "none yet" and both write.
+        $this->subscribeTo($this->anytimeOffer);
+
+        self::assertSame(
+            'ALREADY_SUBSCRIBED',
+            $this->refusal(fn (): Subscription => $this->subscribeTo($this->anytimeOffer))->errorCode(),
         );
     }
 
@@ -296,7 +312,7 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
      */
     public function testASeatEntitlesItsHolderAndNobodyElse(): void
     {
-        $this->subscribeTo($this->anytimeOffer, seat: true);
+        $this->subscribeTo($this->anytimeOffer);
 
         $mine = $this->decode($this->request('GET', '/api/v1/me/entitlements', $this->headers()));
         self::assertSame(['advanced_3d', 'max_projects'], $mine['capabilities'] ?? null);
@@ -318,7 +334,7 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
      */
     public function testASeatsQuotaIsFoundForItsHolder(): void
     {
-        $this->subscribeTo($this->anytimeOffer, seat: true);
+        $this->subscribeTo($this->anytimeOffer);
 
         $quotas = new QuotaPolicy(
             new PostgresEntitlementRepository($this->connection),
@@ -350,25 +366,30 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
     public function testASeatIsCancelledOnItsOwn(): void
     {
         $this->subscribeTo($this->anytimeOffer);
-        $this->subscribeTo($this->anytimeOffer, seat: true);
+        $this->subscribeTo($this->anytimeOffer, $this->colleague);
 
         $body = $this->decode($this->cancelSeat());
 
-        $subscriber = $body['subscriber'] ?? null;
-        self::assertIsArray($subscriber);
-        self::assertSame('USER', $subscriber['kind'] ?? null);
+        self::assertSame($this->user, $body['subscriber_user_id'] ?? null);
         self::assertSame('AT_PERIOD_END', $this->cancellationIn($body)['effect'] ?? null);
 
-        // The tenant's subscription is untouched: two scopes, two decisions.
+        // The colleague's is untouched. It was the organisation's subscription
+        // this asserted about until 2026-10-01 — two scopes, two decisions —
+        // and with one kind the sentence that survives is the one that was
+        // always the point: cancelling yours does not cancel anybody else's.
         self::assertSame(1, $this->rowsMatching(
-            "SELECT count(*) FROM subscriptions
-              WHERE subscriber_kind = 'TENANT' AND NOT cancel_at_period_end",
+            'SELECT count(*) FROM subscriptions
+              WHERE subscriber_user_id = :user AND NOT cancel_at_period_end',
+            ['user' => $this->colleague],
         ));
     }
 
     public function testCancellingASeatNobodyHoldsSaysSo(): void
     {
-        $this->subscribeTo($this->anytimeOffer);
+        // The colleague's, so the caller holds none. It was the organisation's
+        // until 2026-10-01, which served the same purpose: a subscription
+        // exists on this product and it is not the caller's.
+        $this->subscribeTo($this->anytimeOffer, $this->colleague);
 
         $refused = $this->cancelSeat();
 
@@ -382,7 +403,7 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
      */
     public function testTheScheduleEndpointAnswersAboutTheSeatToo(): void
     {
-        $this->subscribeTo($this->anytimeOffer, seat: true);
+        $this->subscribeTo($this->anytimeOffer);
 
         $view = $this->decode(
             $this->request('GET', '/api/v1/subscription/schedule?seat=1', $this->headers()),
@@ -391,9 +412,7 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
         $subscription = $view['subscription'] ?? null;
         self::assertIsArray($subscription);
 
-        $subscriber = $subscription['subscriber'] ?? null;
-        self::assertIsArray($subscriber);
-        self::assertSame('USER', $subscriber['kind'] ?? null);
+        self::assertSame($this->user, $subscription['subscriber_user_id'] ?? null);
     }
 
     /**
@@ -481,18 +500,22 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
      * member, which is ADR-055's. What it did is still what the platform does
      * when it holds a subscription itself, so the fixture calls that.
      */
-    private function subscribeTo(string $offerId, bool $seat = false): Subscription
+    private function subscribeTo(string $offerId, ?string $holder = null): Subscription
     {
         $subscriptions = $this->container()->get(Subscriptions::class);
 
         self::assertInstanceOf(Subscriptions::class, $subscriptions);
 
+        // It took a `bool $seat` until 2026-10-01 and chose between a seat and
+        // the organisation's own subscription. There is one kind left, so what
+        // varies is **who holds it** — which is what the tests using two
+        // subscriptions at once were really about.
         return $subscriptions->subscribe(
             $this->tenant,
             $this->product,
             $offerId,
             $this->user,
-            $seat ? Subscriber::user($this->user) : Subscriber::tenant(),
+            $holder ?? $this->user,
         );
     }
 
@@ -535,9 +558,10 @@ final class SubscriptionCommitmentTest extends DatabaseApiTestCase
         return (int) $amount;
     }
 
-    private function rowsMatching(string $sql): int
+    /** @param array<string, mixed> $parameters */
+    private function rowsMatching(string $sql, array $parameters = []): int
     {
-        $count = $this->connection->fetchOne($sql);
+        $count = $this->connection->fetchOne($sql, $parameters);
 
         self::assertIsNumeric($count);
 

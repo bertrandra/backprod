@@ -49,17 +49,23 @@ function clientFor(
   products: unknown[],
   subscription: unknown,
   extra: Record<string, Stub> = {},
-  own: { seat?: unknown; organisation_subscribed?: boolean; coverage?: unknown } = {},
+  own: { seat?: unknown; coverage?: unknown } = {},
 ) {
+  // The third argument was the *organisation's* subscription. One kind is left
+  // (2026-10-01), so it is the caller's own — which is what every case that
+  // passed it meant: "the subscription this card is about".
+  const seat = own.seat ?? subscription;
+
   return stubClient({
     'GET /api/v1/me': { data: session },
     'GET /api/v1/products': { data: { products, default: null, memberships: [], pending: [] } },
     'GET /api/v1/subscription': {
       data: {
-        subscription,
-        seat: own.seat ?? null,
-        organisation_subscribed: own.organisation_subscribed ?? subscription !== null,
-        coverage: own.coverage ?? null,
+        seat,
+        coverage: own.coverage
+          ?? (seat === null
+            ? null
+            : { subscription_id: 'sub-1', status: 'ACTIVE', current_period_end: null, own: true }),
         history: [],
         events: [],
       },
@@ -75,7 +81,7 @@ describe('the product card', () => {
     vi.unstubAllGlobals();
   });
 
-  it('names where the product lives, what the organisation holds, and opens it the way the switcher does', async () => {
+  it('names where the product lives, what the person holds, and opens it the way the switcher does', async () => {
     const assign = vi.fn();
     vi.stubGlobal('location', { ...window.location, assign, search: '', href: 'http://localhost/projects' });
 
@@ -86,7 +92,8 @@ describe('the product card', () => {
     expect(screen.getByTestId('product-address').textContent).toContain('plan.example.test');
 
     // The subscription as the server answered it — status, offer, plan, the
-    // period end — never a date turned into a verdict here.
+    // period end — never a date turned into a verdict here. It was the
+    // organisation's until 2026-10-01 and is the person's own.
     const summary = await screen.findByTestId('subscription-summary');
     expect(summary.querySelector('[data-status]')?.getAttribute('data-status')).toBe('ACTIVE');
     expect(summary.textContent).toContain('Pro monthly');
@@ -117,7 +124,7 @@ describe('the product card', () => {
 
     renderAtRoute(
       <ProjectsScreen />,
-      clientFor(READER, [PLAN], null, {}, { seat, organisation_subscribed: false }),
+      clientFor(READER, [PLAN], null, {}, { seat }),
       { path: '/projects', product: 'plan' },
     );
 
@@ -151,30 +158,29 @@ describe('the product card', () => {
     expect(summary.textContent).toContain('Pro yearly');
   });
 
-  it('falls back to the organisation’s for somebody it covers, and says so', async () => {
+  it('says a colleague covers them where it used to name the organisation', async () => {
+    // Two cases stood here: a fallback to the organisation's subscription for
+    // somebody it covered, and a notice for a member left off it. Neither has
+    // a subject since `subscriber_kind` went (2026-10-01) — an organisation
+    // holds nothing. What replaces both is the colleague's seat, which is what
+    // actually covers people and which the case below asserts.
     renderAtRoute(
       <ProjectsScreen />,
-      clientFor(READER, [PLAN], SUBSCRIPTION, {}, { seat: null }),
+      clientFor(READER, [PLAN], null, {}, {
+        seat: null,
+        coverage: {
+          subscription_id: 'sub-9',
+          status: 'ACTIVE',
+          current_period_end: null,
+          own: false,
+        },
+      }),
       { path: '/projects', product: 'plan' },
     );
 
-    const summary = await screen.findByTestId('subscription-summary');
+    const said = await screen.findByTestId('covered-by-a-colleague');
 
-    expect(summary.getAttribute('data-scope')).toBe('organisation');
-    expect(summary.textContent).toContain('the organisation');
-  });
-
-  it('tells somebody left off their organisation’s subscription, rather than saying there is none', async () => {
-    // The server withholds it from a member it does not cover (ADR-053) and
-    // says so with the flag. Shown as "none" here, the card would disagree
-    // with the Subscription screen, which says "you are not on it".
-    renderAtRoute(
-      <ProjectsScreen />,
-      clientFor(READER, [PLAN], null, {}, { seat: null, organisation_subscribed: true }),
-      { path: '/projects', product: 'plan' },
-    );
-
-    expect(await screen.findByTestId('subscription-withheld')).toBeTruthy();
+    expect(said.textContent).toMatch(/colleague/i);
     expect(screen.queryByTestId('subscription-none')).toBeNull();
   });
   it('says a colleague’s subscription covers them, rather than that there is none', async () => {
@@ -185,7 +191,6 @@ describe('the product card', () => {
       <ProjectsScreen />,
       clientFor(READER, [PLAN], null, {}, {
         seat: null,
-        organisation_subscribed: false,
         coverage: {
           subscription_id: 'sub-9',
           status: 'ACTIVE',

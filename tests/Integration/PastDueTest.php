@@ -143,7 +143,7 @@ final class PastDueTest extends DatabaseApiTestCase
         $this->collect();
 
         $body = $this->decode($this->get('/api/v1/subscription', 'ada-token'));
-        $current = $body['subscription'] ?? null;
+        $current = $body['seat'] ?? null;
 
         self::assertIsArray($current);
         self::assertSame('PAST_DUE', $current['status'] ?? null);
@@ -190,7 +190,7 @@ final class PastDueTest extends DatabaseApiTestCase
         self::assertInstanceOf(Subscriptions::class, $subscriptions);
 
         try {
-            $subscriptions->subscribe($this->tenant, $this->product, $this->offer, $this->owner);
+            $subscriptions->subscribe($this->tenant, $this->product, $this->offer, $this->owner, $this->owner);
             self::fail('a suspended subscription must still hold its scope');
         } catch (ConflictException $refused) {
             self::assertSame('ALREADY_SUBSCRIBED', $refused->errorCode());
@@ -421,18 +421,22 @@ final class PastDueTest extends DatabaseApiTestCase
      * two rows about one invoice. Attempting per row would put two payment
      * intents against one document and the customer would find both.
      */
-    public function testEveryAdministratorIsToldAndTheMoneyIsAskedForOnce(): void
+    public function testOnlyTheDebtorIsChasedAndTheMoneyIsAskedForOnce(): void
     {
+        // It chased the organisation's administrators too, because the
+        // organisation could be the contracting party and therefore the
+        // debtor. Since 2026-10-01 it cannot: a seat is the organisation
+        // *selling* to one of its own people, so the company is the creditor
+        // and the person owes. Telling the administrators would be telling the
+        // wrong people about a colleague's unpaid bill.
         $subscription = $this->subscribe();
-        // A second administrator, in the database this time: the recipient of a
-        // chase is resolved in SQL off the subscription's own tenant.
         $this->administratorInTheDatabase($this->colleague);
         $invoice = $this->overdueInvoice($subscription, days: 2);
 
         $pass = $this->collect();
 
-        self::assertSame(2, $pass['chased'] ?? null, 'Ada owns it, Bo administers');
-        self::assertSame(2, $this->noticesRaised());
+        self::assertSame(1, $pass['chased'] ?? null, 'Ada owes it; Bo merely administers');
+        self::assertSame(1, $this->noticesRaised());
         self::assertSame(1, $this->attemptsOn($invoice), 'one debt, one attempt');
     }
 
@@ -441,8 +445,19 @@ final class PastDueTest extends DatabaseApiTestCase
      * reaches nobody must not read as nothing to collect. The suspension still
      * stands: the money is owed whether or not there is an address.
      */
-    public function testADebtWithNobodyToTellIsCountedAndStillSuspends(): void
+    public function testADebtAlwaysHasSomebodyToTellAndStillSuspends(): void
     {
+        // This built a debt with no recipient — owner cleared, roles deleted —
+        // because an organisation's subscription could owe money with nobody
+        // able to act on the notice, and an unmet obligation had to be counted
+        // rather than read as a quiet success (R11).
+        //
+        // `subscriber_user_id` is NOT NULL since 2026-10-01, so the debtor is
+        // on the row and `unaddressed` is structurally zero. The counter stays
+        // in the pass — a nightly job that could not say "I had nobody to
+        // tell" is the shape R11 warns about — but it cannot fire today, and
+        // this is what says so. The suspension is the half that still matters:
+        // it does not wait on anybody being told.
         $subscription = $this->subscribe();
         $this->connection->executeStatement(
             'UPDATE subscriptions SET owner_user_id = NULL WHERE id = :id',
@@ -453,9 +468,12 @@ final class PastDueTest extends DatabaseApiTestCase
 
         $pass = $this->collect();
 
-        self::assertSame(1, $pass['unaddressed'] ?? null);
+        self::assertSame(0, $pass['unaddressed'] ?? null, 'the debtor is on the row');
         self::assertSame(1, $pass['suspended'] ?? null);
-        self::assertSame(0, $this->noticesRaised());
+        // One notice, where it asserted none: there was nobody to tell when the
+        // organisation could owe the money and had no administrator. The debtor
+        // is a person now and the person is on the row.
+        self::assertSame(1, $this->noticesRaised());
     }
 
     // --- 4. the schedule is the product's ------------------------------------
@@ -625,7 +643,7 @@ final class PastDueTest extends DatabaseApiTestCase
         $subscriptions = $this->container()->get(Subscriptions::class);
         self::assertInstanceOf(Subscriptions::class, $subscriptions);
 
-        return $subscriptions->subscribe($this->tenant, $this->product, $this->offer, $this->owner)->id;
+        return $subscriptions->subscribe($this->tenant, $this->product, $this->offer, $this->owner, $this->owner)->id;
     }
 
     /**

@@ -27,7 +27,11 @@ interface SubscriptionRepository
      * expired subscription is still stored, and is returned by history()
      * rather than here.
      */
-    public function findActive(string $tenantId, string $productId): ?Subscription;
+    // `findActive(tenant, product)` stood here until 2026-10-01 and answered
+    // with the organisation's own subscription. There is no such row any more,
+    // and there is no single "the subscription" in a scope either: each person
+    // holds their own. Every caller names somebody now — `seatOf` through the
+    // service, or `coveringPerson` when the question is what covers them.
 
     /**
      * Every subscription the tenant has held for a product, newest first.
@@ -50,7 +54,7 @@ interface SubscriptionRepository
         SubscribedOffer $offer,
         ?DateTimeImmutable $periodEnd,
         ?string $actorUserId,
-        ?Subscriber $subscriber = null,
+        string $subscriberUserId,
     ): Subscription;
 
     /**
@@ -67,7 +71,7 @@ interface SubscriptionRepository
         SubscribedOffer $offer,
         ?DateTimeImmutable $periodEnd,
         ?string $actorUserId,
-        ?Subscriber $subscriber = null,
+        string $subscriberUserId,
     ): Subscription;
 
     /**

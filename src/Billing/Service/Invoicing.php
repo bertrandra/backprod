@@ -117,7 +117,12 @@ final class Invoicing
      */
     public function issueForSubscription(string $tenantId, string $productId, ?string $actorUserId): Invoice
     {
-        $subscription = $this->subscriptions->current($tenantId, $productId);
+        // The actor's own, since 2026-10-01: there is no organisation
+        // subscription to invoice, and raising a document against the wrong
+        // person's is not a mistake a gapless series lets you take back.
+        $subscription = $actorUserId === null
+            ? null
+            : $this->subscriptions->current($tenantId, $productId, $actorUserId);
 
         if ($subscription === null) {
             throw new NotFoundException(
@@ -136,7 +141,7 @@ final class Invoicing
         // It refuses before a number is allocated, which is what matters:
         // numbering is gapless, so a document raised by mistake cannot simply
         // be deleted.
-        $parties = $this->parties->forSale($tenantId, $productId, $subscription->subscriber);
+        $parties = $this->parties->forSale($tenantId, $productId, $subscription->subscriberUserId);
 
         $version = $subscription->offer->version;
 

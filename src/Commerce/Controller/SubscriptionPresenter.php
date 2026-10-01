@@ -43,13 +43,11 @@ final class SubscriptionPresenter
             'cancel_at_period_end' => $subscription->cancelAtPeriodEnd,
             'cancel_effective_at' => self::nullableMoment($subscription->cancelEffectiveAt),
             'cancelled_at' => self::nullableMoment($subscription->cancelledAt),
-            // Who is bound, and by what (§13.1). The terms are the ones
-            // snapshotted when this was taken out, not the offer's current
-            // ones — which is the whole point of snapshotting them.
-            'subscriber' => [
-                'kind' => $subscription->subscriber->kind,
-                'user_id' => $subscription->subscriber->userId,
-            ],
+            // Who is bound (§13.1) — a person, always, since 2026-10-01.
+            // It was an object carrying a kind until then, and the other kind
+            // has been unreachable since ADR-055; a field that cannot vary is
+            // one a client branches on for nothing.
+            'subscriber_user_id' => $subscription->subscriberUserId,
             // Who activated it and manages its people (2026-09-19).
             'owner_user_id' => $subscription->ownerUserId,
             'terms' => [

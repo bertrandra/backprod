@@ -132,9 +132,13 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
 
         self::assertSame('UPGRADE', $change['direction'] ?? null);
         self::assertSame('IMMEDIATE', $change['effect'] ?? null);
-        $credit = $this->aboutSame(2_320, $change['credit_minor_units'] ?? null, 'two thirds of €34.80');
-        self::assertSame(11_880, $change['charge_minor_units'] ?? null, '€99.00 plus 20% VAT');
-        $this->aboutSame(9_560, $change['net_minor_units'] ?? null, '11 880 less the credit');
+        // Without VAT since 2026-10-01: the organisation sells this seat and
+        // has not declared itself registered, so €29.00 is 2 900 on the
+        // document and €99.00 is 9 900. It read 2 320 / 11 880 / 9 560 while
+        // the platform sold to the company and charged 20%.
+        $credit = $this->aboutSame(1_933, $change['credit_minor_units'] ?? null, 'two thirds of €29.00');
+        self::assertSame(9_900, $change['charge_minor_units'] ?? null, '€99.00, and no VAT on this sale');
+        $this->aboutSame(7_967, $change['net_minor_units'] ?? null, '9 900 less the credit');
 
         // 2. The credit went back on the card — a refund against the payment
         // that collected the period, never a negative line on a document.
@@ -159,8 +163,13 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
 
         self::assertSame($credit, Row::integer($note, 'gross_minor_units'), 'the gross is the money that moved');
         self::assertSame($credit, $net + $vat, 'credit_notes_gross_is_net_plus_vat, in its own words');
-        $this->aboutSame(1_933, $net, 'the base taken back out at the recorded rate');
-        $this->aboutSame(387, $vat, 'and the VAT is the remainder, never a second rounding');
+        // The whole credit is base and the VAT is zero, because the sale
+        // carried none: the organisation sells this seat and is not registered
+        // (ADR-057). It read 1 933 / 387 while the platform sold to the company
+        // at 20%, and the rule it was written for — the gross is exact and the
+        // base absorbs the rounding — is what the line above still asserts.
+        $this->aboutSame(1_933, $net, 'the base is the whole of it, there being no VAT');
+        self::assertSame(0, $vat, 'no VAT on this sale, so nothing to apportion');
         self::assertIsString($note['number'] ?? null, 'a credit note has a legal number');
 
         // The fiscal fact is reversed, in the period the correction is made in,
@@ -171,24 +180,33 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
         );
         self::assertSame(-$net, Row::integer($reversal, 'taxable_base'));
         self::assertSame(-$vat, Row::integer($reversal, 'vat_amount'));
-        self::assertSame(2_000, Row::integer($reversal, 'vat_rate'), 'the rate the invoice recorded, not today’s');
+        // Zero, and it is still "the rate the invoice recorded": this sale
+        // carried no VAT, so the reversal carries none either. The rule the
+        // assertion exists for is that the reversal copies the rate rather than
+        // recomputing it with today's — which a zero proves as well as a 2 000
+        // did, and the fiscal chain's own suite proves at 2 000.
+        self::assertSame(0, Row::integer($reversal, 'vat_rate'), 'the rate the invoice recorded, not today’s');
 
         // 4. The new period is invoiced through the normal chain: a second
-        // document, numbered in the same series, for €99.00 + VAT.
+        // document, numbered in the same series, for €99.00.
         $invoice = $this->newestRow(
             'SELECT id, number, gross_minor_units, status, period_start, period_end'
             . ' FROM invoices ORDER BY issued_at DESC, number DESC LIMIT 1',
         );
         self::assertSame($change['charge_invoice_id'] ?? null, $invoice['id'] ?? null);
-        self::assertSame(11_880, Row::integer($invoice, 'gross_minor_units'));
+        self::assertSame(9_900, Row::integer($invoice, 'gross_minor_units'));
         self::assertSame('ISSUED', $invoice['status'] ?? null);
-        self::assertSame('2026-000002', $invoice['number'] ?? null, 'gapless, in the platform’s own series');
+        // The organisation's series, not the platform's: a seat is Acme
+        // selling, so the number is continuous within Acme's own sequence
+        // (ADR-057, `issuer_tenant_id`). The assertion is the same because the
+        // sequence starts in the same place; the reason it holds has changed.
+        self::assertSame('2026-000002', $invoice['number'] ?? null, 'gapless, in the issuer’s own series');
 
         // 5. The anchor reset, and the invoice bills exactly the period it
         // opened.
         $subscription = $this->decode(
             $this->request('GET', '/api/v1/subscription', $this->headers()),
-        )['subscription'] ?? null;
+        )['seat'] ?? null;
         self::assertIsArray($subscription);
         self::assertSame('pro', $this->field($subscription, 'offer', 'code'));
         self::assertSame(
@@ -220,7 +238,7 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
 
         self::assertSame(0, $change['charge_minor_units'] ?? null);
         self::assertNull($change['charge_invoice_id'] ?? null);
-        $owed = $this->aboutSame(-2_320, $change['net_minor_units'] ?? null, 'the customer is owed, not charged');
+        $owed = $this->aboutSame(-1_933, $change['net_minor_units'] ?? null, 'the customer is owed, not charged');
 
         // One invoice in the world: the one that was paid. The move raised none.
         self::assertSame(1, $this->rowsMatching('SELECT count(*) FROM invoices'));
@@ -247,7 +265,7 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
 
         $first = $this->decode($this->changeTo($this->proOffer))['change'] ?? null;
         self::assertIsArray($first);
-        $this->aboutSame(2_320, $first['credit_minor_units'] ?? null, 'two thirds of €34.80');
+        $this->aboutSame(1_933, $first['credit_minor_units'] ?? null, 'two thirds of €29.00');
 
         // Pay the invoice the first move raised, so there is money behind the
         // period it opened, and move on ten days again.
@@ -257,9 +275,9 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
         $second = $this->decode($this->changeTo($this->committedOffer))['change'] ?? null;
         self::assertIsArray($second);
 
-        // Two thirds of €118.80 — the period the first upgrade opened and its
-        // customer paid for.
-        $this->aboutSame(7_920, $second['credit_minor_units'] ?? null, 'two thirds of €118.80');
+        // Two thirds of €99.00 — the period the first upgrade opened and its
+        // customer paid for. It read €118.80 while that sale carried 20% VAT.
+        $this->aboutSame(6_600, $second['credit_minor_units'] ?? null, 'two thirds of €99.00');
 
         self::assertSame(2, $this->rowsMatching('SELECT count(*) FROM refunds'));
         self::assertSame(2, $this->rowsMatching('SELECT count(*) FROM credit_notes'));
@@ -298,7 +316,7 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
 
         self::assertSame(0, $change['credit_minor_units'] ?? null);
         self::assertNull($change['credit_refund_id'] ?? null);
-        self::assertSame(11_880, $change['net_minor_units'] ?? null, 'the whole new period is payable');
+        self::assertSame(9_900, $change['net_minor_units'] ?? null, 'the whole new period is payable');
         self::assertContains(
             'Nothing has been collected for the current period, so there is no unconsumed value to give back.',
             $this->reasonsOf($change),
@@ -369,7 +387,7 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
 
         $after = $this->decode(
             $this->request('GET', '/api/v1/subscription', $this->headers()),
-        )['subscription'] ?? null;
+        )['seat'] ?? null;
         self::assertIsArray($after);
 
         self::assertSame(24, $this->field($after, 'terms', 'commitment_months'));
@@ -407,7 +425,7 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
         self::assertSame(0, $this->rowsMatching('SELECT count(*) FROM invoices'));
 
         $still = $this->decode($this->request('GET', '/api/v1/subscription', $this->headers()));
-        self::assertSame('negotiated', $this->field($still, 'subscription', 'offer', 'code'));
+        self::assertSame('negotiated', $this->field($still, 'seat', 'offer', 'code'));
     }
 
     /**
@@ -522,7 +540,7 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
         self::assertSame($paid, $refund['payment_id'] ?? null);
         self::assertSame($credit, Row::integer($refund, 'amount_minor_units'));
         self::assertSame(
-            ['pro', 'USER'],
+            ['pro', $this->user],
             [
                 $this->connection->fetchOne(
                     'SELECT o.code FROM subscriptions s'
@@ -530,7 +548,7 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
                     . ' JOIN offers o ON o.id = v.offer_id WHERE s.id = :id',
                     ['id' => $seat->id],
                 ),
-                $this->connection->fetchOne('SELECT subscriber_kind FROM subscriptions WHERE id = :id', ['id' => $seat->id]),
+                $this->connection->fetchOne('SELECT subscriber_user_id FROM subscriptions WHERE id = :id', ['id' => $seat->id]),
             ],
         );
     }
@@ -596,7 +614,7 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
         $subscriptions = $this->container()->get(Subscriptions::class);
         self::assertInstanceOf(Subscriptions::class, $subscriptions);
 
-        return $subscriptions->subscribe($this->tenant, $this->product, $offerId, $this->user);
+        return $subscriptions->subscribe($this->tenant, $this->product, $offerId, $this->user, $this->user);
     }
 
     /**
@@ -883,6 +901,13 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
             'PUT',
             '/api/v1/tax/profile',
             $this->headers(),
+            // Not registered, deliberately, and the file's own figures depend
+            // on it: a seat is the organisation selling to one of its own
+            // people, Acme has never declared itself a taxable person, and a
+            // small business charges no VAT (ADR-057). Declaring it registered
+            // adds 20% to every amount below — which I did on 2026-10-01 while
+            // chasing the organisation's subscription out of this file, and
+            // which was the wrong half to change.
             $this->json(['customer_kind' => 'B2C', 'country_code' => 'FR']),
         )->getStatusCode());
     }

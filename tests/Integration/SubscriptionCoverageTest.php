@@ -168,30 +168,38 @@ final class SubscriptionCoverageTest extends DatabaseApiTestCase
     }
 
     /**
-     * The tenant-wide question is unchanged, and this is the assertion that
-     * would have caught the way this change could have gone wrong silently.
+     * The tenant-wide question answers nothing, and every reader names
+     * somebody instead (2026-10-01).
      *
-     * Naming nobody asks what the *organisation* bought. That answer is what
-     * usage is measured against and what the console shows, and neither is
-     * about any one person. Written without the `CASE` in `IN_FORCE`,
-     * `IS DISTINCT FROM NULL` is true of every subscription and this answer
-     * would have emptied — quotas, staff screens and readiness all reading
-     * zero, with nothing failing loudly.
+     * This read "the tenant-wide answer still says what the organisation
+     * bought", and it was written to catch that answer emptying — "quotas,
+     * staff screens and readiness all reading zero, with nothing failing
+     * loudly". It did its job: removing `subscriber_kind` emptied it, and this
+     * case is what said so.
+     *
+     * Naming nobody asks what the **organisation** bought, and an organisation
+     * cannot buy anything since ADR-055. So the honest answer is none — and
+     * the fix is not to redefine the question but to stop asking it: the usage
+     * read, the quota check and a product reporting usage all name a person
+     * now, which is §13.1's rule that every gate asks about the same somebody.
      */
-    public function testTheTenantWideAnswerStillSaysWhatTheOrganisationBought(): void
+    public function testTheTenantWideAnswerIsEmptyAndEveryReaderNamesSomebody(): void
     {
         $this->subscribe();
 
         $entitlements = $this->container()->get(EntitlementRepository::class);
         self::assertInstanceOf(EntitlementRepository::class, $entitlements);
 
-        $wide = $entitlements->capabilitiesFor($this->tenant, $this->product);
-        sort($wide);
+        // Nobody named: nothing the organisation itself bought.
+        self::assertSame([], $entitlements->capabilitiesFor($this->tenant, $this->product));
 
-        self::assertSame(['advanced_3d', 'max_projects', 'users'], $wide);
+        // The holder named: everything their seat sells.
+        $theirs = $entitlements->capabilitiesFor($this->tenant, $this->product, $this->owner);
+        sort($theirs);
+        self::assertSame(['advanced_3d', 'max_projects', 'users'], $theirs);
 
-        // And coverage is a different question from that one: the colleague
-        // is not covered even though the organisation holds all three.
+        // And coverage is a different question again: the colleague is not
+        // covered even though the seat holds all three.
         self::assertFalse($entitlements->coverageFor($this->tenant, $this->product, $this->colleague)->covers());
         self::assertTrue($entitlements->coverageFor($this->tenant, $this->product, $this->owner)->covers());
     }
@@ -236,33 +244,44 @@ final class SubscriptionCoverageTest extends DatabaseApiTestCase
      * organisation's offer, its price, its terms and everything it granted,
      * because `subscription.read` is carried by every member.
      */
-    public function testAMemberNotOnItIsToldThereIsOneAndNotWhatItCosts(): void
+    public function testAMemberOnNothingIsToldTheOfferAndItsPriceAreNotTheirs(): void
     {
+        // This read "a member not on it is told there is one and not what it
+        // costs", about the *organisation's* subscription — which cannot exist
+        // since ADR-055, and whose two fields went with `subscriber_kind` on
+        // 2026-10-01. What survives is the half that was always the point: the
+        // offer, the price, the terms and the record answer to whoever bought
+        // the thing, and a colleague on nothing gets none of it.
         $this->subscribe();
 
         $body = $this->decode($this->request('GET', '/api/v1/subscription', $this->headers('bo-token')));
 
-        // `??` would hide the difference between null and absent, and null
-        // is the answer under test — so the key is asserted separately.
-        self::assertArrayHasKey('subscription', $body);
-        self::assertNull($body['subscription'], 'the offer, its price and its terms are withheld');
-        // But not the *fact*, which is the one thing here that concerns
-        // them: it says why they can reach nothing, and who to ask.
-        self::assertTrue($body['organisation_subscribed'] ?? null);
+        // `??` would hide the difference between null and absent, and null is
+        // the answer under test — so the key is asserted separately.
+        self::assertArrayHasKey('seat', $body);
+        self::assertNull($body['seat'], 'they hold none');
+        self::assertArrayHasKey('coverage', $body);
+        self::assertNull($body['coverage'], 'and nothing covers them');
         self::assertSame([], $body['history'] ?? null);
         self::assertSame([], $body['events'] ?? null);
     }
 
-    public function testTheSamePersonSeesItOnceTheyAreOnIt(): void
+    public function testTheSamePersonIsCoveredOnceTheyAreOnIt(): void
     {
         $this->subscribe();
         self::assertSame(201, $this->addPerson($this->colleague)->getStatusCode());
 
         $body = $this->decode($this->request('GET', '/api/v1/subscription', $this->headers('bo-token')));
-        $subscription = $body['subscription'] ?? null;
+        $coverage = $body['coverage'] ?? null;
 
-        self::assertIsArray($subscription);
-        self::assertSame('ACTIVE', $subscription['status'] ?? null);
+        self::assertIsArray($coverage);
+        self::assertSame('ACTIVE', $coverage['status'] ?? null);
+        self::assertFalse($coverage['own'] ?? null, 'the holder is a colleague');
+        // Still not the offer or the price: being covered is not owning.
+        // `??` cannot tell a present null from an absent key, which is the
+        // whole distinction here — so the key is asserted on its own.
+        self::assertArrayHasKey('seat', $body);
+        self::assertNull($body['seat']);
     }
 
     // --- What covers you, whoever holds it -----------------------------------
@@ -360,12 +379,13 @@ final class SubscriptionCoverageTest extends DatabaseApiTestCase
 
         $body = $this->decode($response);
 
-        self::assertArrayHasKey('subscription', $body);
-        self::assertNull($body['subscription']);
-        self::assertFalse($body['organisation_subscribed'] ?? null, 'there is none, and they are told so plainly');
+        self::assertArrayHasKey('seat', $body);
+        self::assertNull($body['seat']);
+        self::assertArrayHasKey('coverage', $body);
+        self::assertNull($body['coverage'], 'there is none, and they are told so plainly');
     }
 
-    public function testAnAdministratorSeesTheOrganisationsTermsWhetherOrNotItCoversThem(): void
+    public function testAnAdministratorReadsTheRecordOfWhatTheyHold(): void
     {
         $this->subscribe();
 
@@ -373,7 +393,7 @@ final class SubscriptionCoverageTest extends DatabaseApiTestCase
         // and events answer to whoever may manage, and to nobody else.
         $mine = $this->decode($this->request('GET', '/api/v1/subscription', $this->headers('ada-token')));
 
-        self::assertIsArray($mine['subscription'] ?? null);
+        self::assertIsArray($mine['seat'] ?? null);
         self::assertNotSame([], $mine['events'] ?? null, 'the activation is on the record');
     }
 
@@ -415,7 +435,7 @@ final class SubscriptionCoverageTest extends DatabaseApiTestCase
 
         self::assertInstanceOf(Subscriptions::class, $subscriptions);
 
-        $subscriptions->subscribe($this->tenant, $this->product, $this->offer, $this->owner);
+        $subscriptions->subscribe($this->tenant, $this->product, $this->offer, $this->owner, $this->owner);
     }
 
     private function addPerson(string $userId): ResponseInterface

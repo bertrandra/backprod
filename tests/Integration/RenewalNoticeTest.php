@@ -99,32 +99,47 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
     }
 
     /**
-     * A tenant with nobody who can act on the notice is an unmet obligation,
-     * not an empty queue. It is counted so it cannot read as a quiet success
-     * — which is the exact shape of the failure R11 warns about.
+     * A subscription always has somebody to tell, since 2026-10-01.
+     *
+     * This read "a tenant with no administrator is counted rather than
+     * skipped": a subscription whose contracting party was the *organisation*
+     * had nobody to notify unless somebody held `TENANT_ADMIN`, and an
+     * obligation with no recipient had to be counted so it could not read as a
+     * quiet success (R11).
+     *
+     * `subscriber_user_id` is NOT NULL now, so the recipient is on the row and
+     * `unaddressed` is structurally zero. The counter stays in the pass — a
+     * nightly job that could not say "I had nobody to tell" is the shape R11
+     * warns about, and the day a notice is owed to somebody other than the
+     * holder it will be needed again — but a reader should know it cannot fire
+     * today, and this is what says so.
      */
-    public function testATenantWithNoAdministratorIsCountedRatherThanSkipped(): void
+    public function testEverySubscriptionHasSomebodyToTell(): void
     {
         $this->connection->executeStatement('DELETE FROM tenant_member_roles');
         $this->tenantSubscription(endsInDays: 10, noticeDays: 30);
 
         $pass = $this->sweep();
 
-        self::assertSame(0, $pass['raised'] ?? null);
-        self::assertSame(1, $pass['unaddressed'] ?? null);
+        self::assertSame(1, $pass['raised'] ?? null, 'the holder is on the row, roles or no roles');
+        self::assertSame(0, $pass['unaddressed'] ?? null);
     }
 
     // --- and what must ---------------------------------------------------------
 
-    public function testTheAdministratorsAreToldBeforeATenantSubscriptionRenews(): void
+    public function testTheHolderIsToldBeforeTheirSubscriptionRenews(): void
     {
+        // It was the organisation's administrators who were told, because the
+        // organisation was the contracting party. Since 2026-10-01 there is
+        // one party and it is a person: a tacit renewal is notified to whoever
+        // agreed to it, which is the only thing §13.1 ever asked for.
         $this->tenantSubscription(endsInDays: 10, noticeDays: 30);
 
         self::assertSame(1, $this->sweep()['raised'] ?? null);
 
         $notice = $this->newestNotice();
         self::assertSame('subscription.renewal_notice', $notice['type'] ?? null);
-        self::assertSame($this->admin, $notice['recipient_user_id'] ?? null);
+        self::assertSame($this->seatHolder, $notice['recipient_user_id'] ?? null);
         // Kept as it was sent: "what did we say?" is half the question.
         // Counted rather than read back, because a driver's idea of a
         // PostgreSQL boolean is not something this test should depend on.
@@ -134,10 +149,15 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
     }
 
     /**
-     * A member without the role cannot cancel the subscription, so telling
-     * them is not telling anybody who can act.
+     * A colleague cannot cancel somebody else's subscription, so telling them
+     * is not telling anybody who can act — and it would also be telling them
+     * what a colleague pays and when.
+     *
+     * It read "a member without the role", about an administrator's role over
+     * the organisation's subscription. With one party the test is the same
+     * sentence about a different relationship.
      */
-    public function testAMemberWhoIsNotAnAdministratorIsNotTold(): void
+    public function testAColleagueWhoDoesNotHoldItIsNotTold(): void
     {
         $this->tenantSubscription(endsInDays: 10, noticeDays: 30);
         $this->sweep();
@@ -243,17 +263,19 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
 
     private function tenantSubscription(int $endsInDays, int $noticeDays, string $renewal = 'AUTO_RENEW'): string
     {
-        return $this->subscription('TENANT', null, $endsInDays, $noticeDays, $renewal);
+        // It said 'TENANT' and named nobody until 2026-10-01. The case it
+        // serves is about the renewal clock rather than about who contracted,
+        // so it keeps its meaning with a holder put on it.
+        return $this->subscription($this->seatHolder, $endsInDays, $noticeDays, $renewal);
     }
 
     private function seatSubscription(int $endsInDays, int $noticeDays): string
     {
-        return $this->subscription('USER', $this->seatHolder, $endsInDays, $noticeDays);
+        return $this->subscription($this->seatHolder, $endsInDays, $noticeDays);
     }
 
     private function subscription(
-        string $kind,
-        ?string $subscriberUserId,
+        string $subscriberUserId,
         int $endsInDays,
         int $noticeDays,
         string $renewal = 'AUTO_RENEW',
@@ -264,10 +286,10 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
         return $this->id(
             <<<'SQL'
                 INSERT INTO subscriptions
-                    (tenant_id, product_id, offer_version_id, status, subscriber_kind,
+                    (tenant_id, product_id, offer_version_id, status,
                      subscriber_user_id, started_at, current_period_start,
                      term_months, term_ends_at, notice_days, renewal)
-                VALUES (:tenant, :product, :version, 'ACTIVE', :kind,
+                VALUES (:tenant, :product, :version, 'ACTIVE',
                         CAST(:subscriber AS uuid),
                         now() - interval '400 days', now() - interval '400 days',
                         12, now() + make_interval(days => :endsIn), :noticeDays, :renewal)
@@ -277,7 +299,6 @@ final class RenewalNoticeTest extends DatabaseApiTestCase
                 'tenant' => $this->tenant,
                 'product' => $this->product,
                 'version' => $this->offerVersion,
-                'kind' => $kind,
                 'subscriber' => $subscriberUserId,
                 'endsIn' => $endsInDays,
                 'noticeDays' => $noticeDays,

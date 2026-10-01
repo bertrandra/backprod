@@ -116,7 +116,7 @@ final class PostgresAdminDirectory implements AdminDirectory
                        -- only the organisation was describing the world as it
                        -- was before that: three seats in Acme looked like
                        -- three identical rows.
-                       s.subscriber_kind, s.owner_user_id,
+                       s.owner_user_id,
                        hu.display_name AS holder_name, hu.email AS holder_email
                   FROM subscriptions s
                   JOIN tenants t ON t.id = s.tenant_id

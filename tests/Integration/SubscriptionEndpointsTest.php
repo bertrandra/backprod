@@ -99,8 +99,8 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
         self::assertSame(200, $response->getStatusCode());
 
         $body = $this->decode($response);
-        self::assertArrayHasKey('subscription', $body);
-        self::assertNull($body['subscription']);
+        self::assertArrayHasKey('seat', $body);
+        self::assertNull($body['seat']);
         self::assertSame([], $body['history'] ?? null);
     }
 
@@ -248,8 +248,11 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
         self::assertIsArray($change);
         self::assertSame('UPGRADE', $change['direction'] ?? null);
         self::assertSame(0, $change['credit_minor_units'] ?? null);
-        self::assertSame(3_480, $change['charge_minor_units'] ?? null, '€29.00 plus 20% French VAT');
-        self::assertSame(3_480, $change['net_minor_units'] ?? null);
+        // No VAT: the organisation sells this seat (ADR-057) and has never
+        // declared itself a taxable person, so a small business charges none.
+        // It read 3 480 while the platform sold to the company at 20%.
+        self::assertSame(2_900, $change['charge_minor_units'] ?? null, '€29.00, and no VAT on this sale');
+        self::assertSame(2_900, $change['net_minor_units'] ?? null);
         self::assertIsString($change['charge_invoice_id'] ?? null);
         self::assertNull($change['credit_refund_id'] ?? null);
     }
@@ -300,9 +303,9 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
         self::assertTrue($up['accepted'] ?? null);
         self::assertSame('UPGRADE', $up['direction'] ?? null);
         self::assertSame('IMMEDIATE', $up['effect'] ?? null);
-        self::assertSame(3_480, $up['charge_minor_units'] ?? null);
+        self::assertSame(2_900, $up['charge_minor_units'] ?? null);
         self::assertSame(0, $up['credit_minor_units'] ?? null);
-        self::assertSame(3_480, $up['net_minor_units'] ?? null);
+        self::assertSame(2_900, $up['net_minor_units'] ?? null);
         self::assertIsString($up['new_period_end'] ?? null);
         self::assertSame('change.prorated_now', $up['rule_id'] ?? null);
 
@@ -412,7 +415,7 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
     {
         $subscription = $this->decode(
             $this->request('GET', '/api/v1/subscription', $this->headers()),
-        )['subscription'] ?? null;
+        )['seat'] ?? null;
 
         self::assertIsArray($subscription);
 
@@ -556,7 +559,7 @@ final class SubscriptionEndpointsTest extends DatabaseApiTestCase
 
         self::assertInstanceOf(Subscriptions::class, $subscriptions);
 
-        return $subscriptions->subscribe($this->tenant, $this->product, $offerId, $this->user);
+        return $subscriptions->subscribe($this->tenant, $this->product, $offerId, $this->user, $this->user);
     }
 
     private function createProject(string $name): ResponseInterface

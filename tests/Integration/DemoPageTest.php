@@ -72,8 +72,8 @@ final class DemoPageTest extends DatabaseApiTestCase
             // Ada's seat, not an unowned row: the tenant surface sells seats
             // only (ADR-055), and a subscription naming nobody is a shape this
             // platform no longer makes.
-            'INSERT INTO subscriptions (tenant_id, product_id, offer_version_id, status, current_period_start, current_period_end, subscriber_kind, subscriber_user_id, owner_user_id)'
-            . " VALUES (:t, :p, :v, 'ACTIVE', now(), now() + interval '30 days', 'USER', :owner, :owner)",
+            'INSERT INTO subscriptions (tenant_id, product_id, offer_version_id, status, current_period_start, current_period_end, subscriber_user_id, owner_user_id)'
+            . " VALUES (:t, :p, :v, 'ACTIVE', now(), now() + interval '30 days', :owner, :owner)",
             ['t' => $this->acme, 'p' => $this->atlas, 'v' => $version, 'owner' => $ada],
         );
 

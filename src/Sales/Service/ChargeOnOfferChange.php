@@ -72,7 +72,7 @@ final class ChargeOnOfferChange implements ChangeCharge
         $parties = $this->parties->forSale(
             $subscription->tenantId,
             $subscription->productId,
-            $subscription->subscriber,
+            $subscription->subscriberUserId,
         );
 
         return self::lineFor($parties, $offer, $at, $this->taxation)->gross->minorUnits;
@@ -93,7 +93,7 @@ final class ChargeOnOfferChange implements ChangeCharge
         $parties = $this->parties->forSale(
             $subscription->tenantId,
             $subscription->productId,
-            $subscription->subscriber,
+            $subscription->subscriberUserId,
         );
 
         $line = self::lineFor($parties, $offer, $now, $this->taxation);

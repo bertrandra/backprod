@@ -9,7 +9,6 @@ use App\Commerce\Domain\CancellationPolicy;
 use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Domain\Plan;
 use App\Commerce\Domain\SubscribedOffer;
-use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionTerms;
 use DateTimeImmutable;
@@ -23,7 +22,6 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(CancellationPolicy::class)]
 #[CoversClass(CancellationDecision::class)]
 #[CoversClass(SubscriptionTerms::class)]
-#[CoversClass(Subscriber::class)]
 final class CancellationPolicyTest extends TestCase
 {
     private const NOW = '2026-09-04';
@@ -181,35 +179,6 @@ final class CancellationPolicyTest extends TestCase
 
     // --- who contracted, which is no longer who is entitled ----------------
 
-    /**
-     * Two tests stood here until 2026-09-25, and one of them asserted that a
-     * tenant subscription "entitles everyone". It was green the morning the
-     * operator discovered that anybody added to an organisation could read
-     * every project in it — green, and proving something the platform had
-     * been wrong to do.
-     *
-     * ADR-053 made both kinds cover the person who subscribed and those they
-     * added, so the subscriber kind now says who the **contracting party**
-     * is and nothing about entitlement. `Subscriber::entitles()` is gone
-     * with the rule it carried; who a subscription covers is asked of
-     * `Subscriptions::coversPerson()` and proved in `SubscriptionCoverageTest`
-     * against the database, where the members are a real table.
-     */
-    public function testTheSubscriberKindSaysWhoContractedAndNothingMore(): void
-    {
-        $seat = Subscriber::user('alice');
-
-        self::assertTrue($seat->isSeat());
-        self::assertSame('alice', $seat->userId);
-
-        $organisation = Subscriber::tenant();
-
-        self::assertFalse($organisation->isSeat());
-        // Nobody is named: the organisation contracted, and which people it
-        // covers is a different table and a different question.
-        self::assertNull($organisation->userId);
-    }
-
     // --- Terms with no computable period end ---------------------------------
 
     /**
@@ -319,7 +288,7 @@ final class CancellationPolicyTest extends TestCase
             'tenant',
             'product',
             new SubscribedOffer('offer', 'pro', 'Pro', new Plan('plan', 'PRO', 'Pro', 10), $version),
-            Subscriber::tenant(),
+            'user-1',
             $terms,
             Subscription::ACTIVE,
             $started,

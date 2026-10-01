@@ -79,7 +79,6 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
             <<<SQL
                 SELECT s.id,
                        s.status,
-                       s.subscriber_kind,
                        s.current_period_end,
                        s.owner_user_id,
                        u.display_name AS holder_name,
@@ -147,7 +146,6 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
                 return new HeldSubscription(
                     Row::string($row, 'id'),
                     Row::string($row, 'status'),
-                    Row::string($row, 'subscriber_kind'),
                     $owner,
                     Row::nullableString($row, 'holder_name'),
                     Row::nullableString($row, 'holder_email'),

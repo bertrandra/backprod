@@ -52,7 +52,23 @@ final class Subscription
         public readonly string $tenantId,
         public readonly string $productId,
         public readonly SubscribedOffer $offer,
-        public readonly Subscriber $subscriber,
+        /**
+         * Who contracted — a person, always (2026-10-01).
+         *
+         * It was a {@see Subscriber} carrying a kind until today, and the
+         * other kind has been unreachable since ADR-055: the tenant surface
+         * sells seats, `Sales::order()` has no argument for the organisation's
+         * sale and ADR-056 removed the endpoint that started one. What the
+         * variant left behind was four optional arguments defaulting to it,
+         * and since ADR-053 an organisation's subscription covers nobody by
+         * itself — so a caller that forgot one created a subscription somebody
+         * paid for that entitled no one, buyer included.
+         *
+         * A required string, so a caller that forgets does not compile. The
+         * same rule `Reach` is a required argument for, and for the same
+         * reason: an argument you may omit is one that eventually is.
+         */
+        public readonly string $subscriberUserId,
         public readonly SubscriptionTerms $terms,
         public readonly string $status,
         public readonly DateTimeImmutable $startedAt,

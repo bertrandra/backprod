@@ -31,7 +31,12 @@ final class ListEntitlementsController implements RouteHandler
 
         return new JsonResponse([
             'entitlements' => SubscriptionPresenter::entitlements(
-                $this->entitlements->all($context->tenantId, $context->productId),
+                // The caller's, since 2026-10-01: naming nobody asks what the
+                // *organisation* bought, and an organisation buys nothing now
+                // (ADR-066). This read is what a person's own screens gate on,
+                // so it has to be about them — §13.1's rule that every gate
+                // asks about the same somebody.
+                $this->entitlements->all($context->tenantId, $context->productId, $context->userId),
             ),
         ], 200);
     }

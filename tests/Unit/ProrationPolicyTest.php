@@ -10,7 +10,6 @@ use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Domain\Plan;
 use App\Commerce\Domain\ProrationPolicy;
 use App\Commerce\Domain\SubscribedOffer;
-use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionTerms;
 use DateTimeImmutable;
@@ -398,7 +397,7 @@ final class ProrationPolicyTest extends TestCase
                 new Plan('plan', 'STARTER', 'Starter', 10),
                 $this->version($billingPeriod, 1_000, 0),
             ),
-            Subscriber::tenant(),
+            'user-1',
             $terms,
             Subscription::ACTIVE,
             new DateTimeImmutable($start),

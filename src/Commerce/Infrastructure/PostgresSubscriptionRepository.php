@@ -50,7 +50,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         s.id, s.tenant_id, s.product_id, s.offer_version_id, s.status,
         s.started_at, s.current_period_start, s.current_period_end,
         s.cancel_at_period_end, s.cancelled_at, s.ended_at,
-        s.subscriber_kind, s.subscriber_user_id,
+        s.subscriber_user_id,
         s.term_months, s.term_ends_at, s.commitment_months, s.commitment_ends_at,
         s.cancellation_policy, s.renewal, s.early_termination, s.notice_days,
         s.cancel_effective_at, s.owner_user_id, s.is_freemium,
@@ -90,36 +90,6 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
     {
     }
 
-    /**
-     * The organisation's own subscription, whether or not it is entitling.
-     *
-     * `status IN ('ACTIVE', 'PAST_DUE')` since 2026-09-27, and the two
-     * partial unique indexes are written with the same pair: a subscription
-     * suspended for non-payment is still the one this tenant holds. Read as
-     * `ACTIVE` alone, the screen would show "no subscription" to somebody who
-     * has one and owes for it — offering them a fresh purchase instead of the
-     * invoice — and the commerce layer would let them buy a second one, which
-     * the index would then refuse with a 500.
-     *
-     * Whether it *entitles* is a different question, asked by
-     * {@see Subscription::isLiveAt()} and by the entitlement queries, and it
-     * answers no.
-     */
-    public function findActive(string $tenantId, string $productId): ?Subscription
-    {
-        $row = $this->connection->fetchAssociative(
-            'SELECT ' . self::COLUMNS . ' ' . self::FROM . <<<'SQL'
-                 WHERE s.tenant_id = :tenantId
-                   AND s.product_id = :productId
-                   AND s.status IN ('ACTIVE', 'PAST_DUE')
-                   AND s.subscriber_kind = 'TENANT'
-                SQL,
-            ['tenantId' => $tenantId, 'productId' => $productId],
-        );
-
-        return $row === false ? null : $this->toSubscription($row);
-    }
-
     public function history(string $tenantId, string $productId): array
     {
         $rows = $this->connection->fetchAllAssociative(
@@ -139,7 +109,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         SubscribedOffer $offer,
         ?DateTimeImmutable $periodEnd,
         ?string $actorUserId,
-        ?Subscriber $subscriber = null,
+        string $subscriberUserId,
     ): Subscription {
         try {
             return $this->connection->transactional(
@@ -149,7 +119,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     $offer,
                     $periodEnd,
                     $actorUserId,
-                    $subscriber,
+                    $subscriberUserId,
                 ),
             );
         } catch (UniqueConstraintViolationException $violation) {
@@ -187,7 +157,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         SubscribedOffer $offer,
         ?DateTimeImmutable $periodEnd,
         ?string $actorUserId,
-        ?Subscriber $subscriber = null,
+        string $subscriberUserId,
     ): Subscription {
         // The terms are copied from the version as values, not referenced.
         // Repricing or re-terming the offer tomorrow must not change one
@@ -195,18 +165,17 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         // rule (§25) applied to the contract (§13.1).
         $terms = $offer->version->terms;
         $startedAt = new DateTimeImmutable();
-        $subscriber = $subscriber ?? Subscriber::tenant();
 
         $id = $this->connection->fetchOne(
             <<<'SQL'
                 INSERT INTO subscriptions
                     (tenant_id, product_id, offer_version_id, current_period_end,
-                     subscriber_kind, subscriber_user_id, owner_user_id,
+                     subscriber_user_id, owner_user_id,
                      term_months, term_ends_at, commitment_months, commitment_ends_at,
                      cancellation_policy, renewal, early_termination, notice_days,
                      is_freemium)
                 VALUES (:tenantId, :productId, :versionId, :periodEnd,
-                        :subscriberKind, :subscriberUserId, :ownerUserId,
+                        :subscriberUserId, :ownerUserId,
                         :termMonths, :termEndsAt, :commitmentMonths, :commitmentEndsAt,
                         :cancellationPolicy, :renewal, :earlyTermination, :noticeDays,
                         :freemium)
@@ -217,12 +186,12 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                 'productId' => $productId,
                 'versionId' => $offer->version->id,
                 'periodEnd' => self::moment($periodEnd),
-                'subscriberKind' => $subscriber->kind,
-                'subscriberUserId' => $subscriber->userId,
-                // The owner (2026-09-19): the person a seat is for, else
-                // whoever activated it — the administrator who bought the
-                // organisation's, or nobody for a subscription a job started.
-                'ownerUserId' => $subscriber->isSeat() ? $subscriber->userId : $actorUserId,
+                'subscriberUserId' => $subscriberUserId,
+                // The owner (2026-09-19): the person the seat is for.
+                // It read "else whoever activated it" while an organisation
+                // could subscribe; with one kind left there is no else, and
+                // `$actorUserId` keeps its other job — the trail.
+                'ownerUserId' => $subscriberUserId,
                 'termMonths' => $terms->termMonths,
                 'termEndsAt' => self::moment($terms->termEndsFrom($startedAt)),
                 'commitmentMonths' => $terms->commitmentMonths,
@@ -664,7 +633,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     [],
                 );
 
-                return $this->requireActive($subscription->tenantId, $subscription->productId);
+                return $this->requireActive($subscription);
             },
         );
     }
@@ -705,7 +674,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     ['periodEnd' => self::moment($periodEnd), 'id' => $subscription->id],
                 );
 
-                return $this->requireActive($subscription->tenantId, $subscription->productId);
+                return $this->requireActive($subscription);
             },
         );
     }
@@ -799,17 +768,13 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                        s.notice_days, r.user_id AS recipient_user_id
                   FROM subscriptions s
                   LEFT JOIN LATERAL (
+                        -- The person the subscription is addressed to, and
+                        -- nobody else. A second branch fell back to the
+                        -- organisation's administrators when the *organisation*
+                        -- was the contracting party; that party is gone with
+                        -- `subscriber_kind` (2026-10-01), and a tacit renewal
+                        -- is notified to whoever agreed to it.
                         SELECT s.subscriber_user_id AS user_id
-                         WHERE s.subscriber_kind = 'USER'
-                           AND s.subscriber_user_id IS NOT NULL
-                        UNION
-                        SELECT tmr.user_id
-                          FROM tenant_member_roles tmr
-                          JOIN roles ro ON ro.id = tmr.role_id
-                         WHERE s.subscriber_kind = 'TENANT'
-                           AND tmr.tenant_id = s.tenant_id
-                           AND tmr.product_id = s.product_id
-                           AND ro.code = 'TENANT_ADMIN'
                        ) r ON TRUE
                  WHERE s.status = 'ACTIVE'
                    AND s.renewal = 'AUTO_RENEW'
@@ -874,19 +839,17 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                         -- so an owner who is also an administrator is chased
                         -- once.
                         SELECT s.subscriber_user_id AS user_id
-                         WHERE s.subscriber_kind = 'USER'
-                           AND s.subscriber_user_id IS NOT NULL
                         UNION
                         SELECT s.owner_user_id
                          WHERE s.owner_user_id IS NOT NULL
-                        UNION
-                        SELECT tmr.user_id
-                          FROM tenant_member_roles tmr
-                          JOIN roles ro ON ro.id = tmr.role_id
-                         WHERE s.subscriber_kind = 'TENANT'
-                           AND tmr.tenant_id = s.tenant_id
-                           AND tmr.product_id = s.product_id
-                           AND ro.code = 'TENANT_ADMIN'
+                        -- A third branch chased the organisation's
+                        -- administrators when the *organisation* owed the
+                        -- money. It cannot owe any since ADR-055: a seat is
+                        -- the organisation selling to one of its own people,
+                        -- so the company is the creditor here and the debtor
+                        -- is the person. Chasing the administrators for a
+                        -- colleague's own purchase would be telling the wrong
+                        -- people about somebody's unpaid bill.
                        ) r ON TRUE
                  WHERE s.status IN ('ACTIVE', 'PAST_DUE')
                    AND i.status = 'ISSUED'
@@ -1205,8 +1168,8 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                  WHERE s.tenant_id = :tenantId
                    AND s.product_id = :productId
                    AND s.status IN ('ACTIVE', 'PAST_DUE')
-                   AND (s.subscriber_kind = 'TENANT' OR s.subscriber_user_id = :userId)
-                 ORDER BY s.subscriber_kind, s.started_at DESC
+                   AND s.subscriber_user_id = :userId
+                 ORDER BY s.started_at DESC
                 SQL,
             ['tenantId' => $tenantId, 'productId' => $productId, 'userId' => $userId],
         );
@@ -1423,9 +1386,24 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         );
     }
 
-    private function requireActive(string $tenantId, string $productId): Subscription
+    /**
+     * The row again, after the change that touched it.
+     *
+     * **By id since 2026-10-01**, and that is a fix rather than a rename. It
+     * read the active subscription of the `(tenant, product)` scope, which was
+     * the right row only while a scope held one — so with seats it could have
+     * answered with somebody else's, and the method's own message ("the
+     * subscription vanished") would never have fired to say so.
+     */
+    private function requireActive(Subscription $subscription): Subscription
     {
-        $subscription = $this->findActive($tenantId, $productId);
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT ' . self::COLUMNS . ' ' . self::FROM . ' WHERE s.id = :id',
+            ['id' => $subscription->id],
+        );
+
+        $row = $rows[0] ?? null;
+        $subscription = $row === null ? null : $this->toSubscription($row);
 
         if ($subscription === null) {
             throw new RuntimeException('The subscription vanished during the change that created it.');
@@ -1457,10 +1435,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                 ),
                 $version,
             ),
-            Subscriber::of(
-                Row::string($row, 'subscriber_kind'),
-                Row::nullableString($row, 'subscriber_user_id'),
-            ),
+            Row::string($row, 'subscriber_user_id'),
             new SubscriptionTerms(
                 Row::nullableInteger($row, 'term_months'),
                 Row::integer($row, 'commitment_months'),

@@ -10,7 +10,6 @@ use App\Billing\Domain\Money;
 use App\Billing\Infrastructure\DocumentPersonSql;
 use App\Billing\Infrastructure\DocumentWindowSql;
 use App\Commerce\Domain\OfferLineDetails;
-use App\Commerce\Domain\Subscriber;
 use App\Sales\Domain\Order;
 use App\Sales\Domain\OrderFulfilment;
 use App\Sales\Domain\Quote;
@@ -50,7 +49,7 @@ final class PostgresSalesRepository implements SalesRepository
     private const ORDER_COLUMNS = <<<'SQL'
         id, tenant_id, product_id, quote_id, offer_version_id, subscription_id,
         invoice_id, status, currency, net_minor_units, vat_minor_units,
-        gross_minor_units, completed_at, created_at, subscriber_kind, subscriber_user_id,
+        gross_minor_units, completed_at, created_at, subscriber_user_id,
         placed_by
         SQL;
 
@@ -294,13 +293,12 @@ final class PostgresSalesRepository implements SalesRepository
         string $offerVersionId,
         array $lines,
         ?string $actorUserId,
-        ?Subscriber $subscriber = null,
+        string $subscriberUserId,
     ): Order {
         if ($lines === []) {
             throw new RuntimeException('An order must have at least one line.');
         }
 
-        $subscriber ??= Subscriber::tenant();
 
         return $this->connection->transactional(function () use (
             $tenantId,
@@ -309,7 +307,7 @@ final class PostgresSalesRepository implements SalesRepository
             $offerVersionId,
             $lines,
             $actorUserId,
-            $subscriber,
+            $subscriberUserId,
         ): Order {
             [$currency, $net, $vat] = self::totals($lines);
 
@@ -326,9 +324,9 @@ final class PostgresSalesRepository implements SalesRepository
                     INSERT INTO orders
                         (tenant_id, product_id, quote_id, offer_version_id, status, currency,
                          net_minor_units, vat_minor_units, gross_minor_units, placed_by,
-                         subscriber_kind, subscriber_user_id)
+                         subscriber_user_id)
                     VALUES (:tenantId, :productId, :quote, :version, 'PENDING', :currency,
-                            :net, :vat, :gross, :actor, :subscriberKind, :subscriberUserId)
+                            :net, :vat, :gross, :actor, :subscriberUserId)
                     RETURNING id
                     SQL,
                 [
@@ -341,8 +339,7 @@ final class PostgresSalesRepository implements SalesRepository
                     'vat' => $vat,
                     'gross' => $net + $vat,
                     'actor' => $actorUserId,
-                    'subscriberKind' => $subscriber->kind,
-                    'subscriberUserId' => $subscriber->userId,
+                    'subscriberUserId' => $subscriberUserId,
                 ],
             );
 
@@ -730,7 +727,7 @@ final class PostgresSalesRepository implements SalesRepository
                     Row::nullableTimestamp($row, 'completed_at'),
                     Row::timestamp($row, 'created_at'),
                     self::describedAs($lines[$id] ?? [], $version, $offer),
-                    Subscriber::of(Row::string($row, 'subscriber_kind'), Row::nullableString($row, 'subscriber_user_id')),
+                    Row::string($row, 'subscriber_user_id'),
                     Row::nullableString($row, 'placed_by'),
                 );
             },

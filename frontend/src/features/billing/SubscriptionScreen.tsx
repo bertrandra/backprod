@@ -31,7 +31,6 @@ import { Whose } from '@/ui/Whose';
 import { CancellationOutcome, ChangeOutcome } from './decisions';
 import { SubscriptionPeople } from './SubscriptionPeople';
 import { currentLocale, t } from '@/i18n';
-import { tx } from '@/i18n/react';
 import { billingPeriod } from '@/ui/period';
 
 /**
@@ -80,10 +79,19 @@ export function SubscriptionScreen() {
   const [offerId, setOfferId] = useState('');
 
   const mayManage = can(session, 'subscription.manage');
-  // The organisation's subscription binds everyone; acting on it is offered
-  // with the organisation's view. Courtesy, as every gate here is — the API
-  // is the authority.
-  const mayManageOrganisation = mayManage && can(session, 'billing.manage');
+
+  // **Whoever holds it may act on it** (2026-10-01), and this is not a
+  // loosening. The controls sat behind `subscription.manage` because the
+  // subscription on this screen was the *organisation's*: changing or
+  // cancelling it bound everybody, so it answered to a role. A seat binds one
+  // person and is bought with their own card, and the panel that gave them
+  // those controls — `YourSeat` — went when the two panels became one.
+  //
+  // Without this a seat is a trap: the holder can take one out and not give it
+  // up, which is the thing §13.1 names as not being a subscription at all.
+  // Courtesy, as every gate here is — the API decides, and `cancel` with no id
+  // can only mean the caller's own.
+  const mayAct = mayManage || (subscription.data?.coverage?.own ?? false);
 
   if (subscription.isPending) {
     return <SkeletonRows rows={8} />;
@@ -93,8 +101,11 @@ export function SubscriptionScreen() {
     return <ErrorSurface error={subscription.error} onRetry={() => void subscription.refetch()} />;
   }
 
-  const current = subscription.data.subscription;
+  // One subscription a person can have on a product, and it is theirs:
+  // `subscription` — the organisation's — went with `subscriber_kind` on
+  // 2026-10-01, because nothing has been able to create one since ADR-055.
   const seat = subscription.data.seat ?? null;
+  const current = seat;
 
   // The banner of spec §2.2, for whichever contract is suspended — built here
   // rather than inside either branch below, because a seat can be in arrears
@@ -103,22 +114,17 @@ export function SubscriptionScreen() {
   // state and invites them to buy what they already own.
   const arrears = (
     <>
-      {seat !== null && seat.status === 'PAST_DUE' && <PaymentFailed subscription={seat} scope="seat" />}
-      {current !== null && current.status === 'PAST_DUE' && (
-        <PaymentFailed subscription={current} scope="organisation" />
-      )}
+      {seat !== null && seat.status === 'PAST_DUE' && <PaymentFailed subscription={seat} />}
+      {/* A second banner stood here for the organisation's subscription,
+          because a seat and the organisation's could be in arrears at once.
+          There is one contract (2026-10-01), so there is one banner. */}
     </>
   );
 
-  const ownSeat = seat === null ? null : (
-    <YourSeat
-      seat={seat}
-      mayManage={mayManage}
-      pending={cancel.isPending}
-      error={cancel.error}
-      onCancel={() => cancel.mutate({ seat: true })}
-    />
-  );
+  // `YourSeat` stood here and rendered the caller's seat **beside** the
+  // organisation's subscription — two contracts, two panels. With one
+  // subscription it and the section below are the same thing twice, which is
+  // what every duplicated status, people-count and arrears banner was.
 
   if (current === null) {
     // No subscription — but possibly something the platform gave
@@ -126,12 +132,10 @@ export function SubscriptionScreen() {
     // must not read as "nothing".
     const provided = (entitlements.data ?? []).filter((entitlement) => entitlement.source === 'GRANT');
 
-    // **There is one, and it is not theirs** (2026-09-25, ADR-053). The
-    // server withholds an organisation's subscription from a member it does
-    // not cover, and says so with this flag — without which this screen
-    // would tell them nothing is subscribed and invite them to buy what
-    // their organisation already pays for.
-    const withheld = subscription.data.organisation_subscribed === true;
+    // `withheld` stood here — "your organisation has one and you are not on
+    // it" — and the organisation cannot have one any more. What replaced the
+    // fact it carried is `coverage` below, which says what *does* cover you
+    // and is about the person rather than about the company.
 
     // **Nothing is said about an organisation's subscription to somebody who
     // holds a seat** (2026-10-01). This used to read "No subscription for the
@@ -142,10 +146,9 @@ export function SubscriptionScreen() {
     // the endpoint that started one. So the screen named an absence nobody can
     // fill and told somebody how to fill it.
     //
-    // An organisation subscription is still a row a deployment may hold, which
-    // is why the branch above still renders one. What is gone is the empty
-    // state for it: an absence that cannot be ended is not news.
-    const nothingToSay = seat !== null && !withheld;
+    // `nothingToSay` guarded against naming that absence to a seat holder.
+    // With one kind of subscription the holder never reaches this branch at
+    // all — `current` is their seat — so the guard has nothing left to do.
 
     // **Covered by a colleague's subscription** (2026-10-01). The commonest
     // case on this screen, and the one it had no words for: somebody added to
@@ -171,7 +174,6 @@ export function SubscriptionScreen() {
         <h1 className="text-2xl font-semibold">{t("Subscription")}</h1>
         <Held organisation={organisation.data?.name ?? null} session={session ?? null} />
         {arrears}
-        {ownSeat}
 
         {byAColleague && covered !== null && (
           <section
@@ -193,18 +195,10 @@ export function SubscriptionScreen() {
           </section>
         )}
 
-        {!nothingToSay && !byAColleague && (
+        {!byAColleague && (
           <EmptyState
-            title={
-              withheld
-                ? t("You are not on your organisation’s subscription")
-                : t("No subscription")
-            }
-            description={
-              withheld
-                ? t("Your organisation has one, and it covers a set number of people. Whoever manages it can add you to it.")
-                : t("Nothing is subscribed in this product yet. An offer from the catalogue starts one.")
-            }
+            title={t("No subscription")}
+            description={t("Nothing is subscribed in this product yet. An offer from the catalogue starts one.")}
           />
         )}
         {provided.length > 0 && <ProvidedByThePlatform entitlements={provided} />}
@@ -235,8 +229,6 @@ export function SubscriptionScreen() {
       <Held organisation={organisation.data?.name ?? null} session={session ?? null} />
 
       {arrears}
-
-      {ownSeat}
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -286,7 +278,7 @@ export function SubscriptionScreen() {
       {pending !== null && (
         <PendingChange
           pending={pending}
-          mayManage={mayManageOrganisation}
+          mayManage={mayAct}
           pendingRequest={cancelScheduled.isPending}
           error={cancelScheduled.error}
           onCancel={() => cancelScheduled.mutate()}
@@ -338,7 +330,7 @@ export function SubscriptionScreen() {
           anybody, managed by whoever activated it. */}
       <SubscriptionPeople seat={false} />
 
-      {mayManageOrganisation && (
+      {mayAct && (
         <>
           <section className="space-y-3 border-t border-line pt-6">
             <h2 className="text-xl font-semibold">{t("Change offer")}</h2>
@@ -498,115 +490,6 @@ function Held({
   );
 }
 
-/**
- * The caller's own seat (§13.1): what it is, when it is paid to, and what its
- * holder may do with it.
- *
- * This said "no offer change — a seat is exchanged by ending one and buying
- * another", and since 2026-09-27 that is no longer true: `changeOffer`,
- * `previewOfferChange` and the pending pair all take a `seat` flag, and a seat
- * is in fact the **only** subscription the tenant surface can sell (ADR-055) —
- * so those operations reached nothing a customer could hold until they did.
- * The hooks here carry the flag; the screen that offers the choice per offer is
- * the catalogue (spec §7, étape 7), which is where a price list belongs rather
- * than beside one subscription.
- */
-function YourSeat({
-  seat,
-  mayManage,
-  pending,
-  error,
-  onCancel,
-}: {
-  seat: Subscription;
-  mayManage: boolean;
-  pending: boolean;
-  error: unknown;
-  onCancel: () => void;
-}) {
-  const [confirming, setConfirming] = useState(false);
-
-  return (
-    <section data-testid="your-seat" data-status={seat.status} className="space-y-3 rounded-card border border-line bg-surface p-4 shadow-raise">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-xl font-semibold">{t("Your seat")}</h2>
-        <span className={pill(statusTone(seat.status))}>{seat.status}</span>
-        {seat.cancel_at_period_end && (
-          <span data-testid="seat-cancelling" className="text-xs text-subtle">
-            {t("ends")}{seat.cancel_effective_at === null
-              ? t(" at the period boundary")
-              : ` on ${new Date(seat.cancel_effective_at).toLocaleDateString(currentLocale())}`}
-          </span>
-        )}
-      </div>
-
-      <p className="text-sm">
-        {tx("{offer} · {plan} — yours alone, paid with your own card.", { offer: <span className="font-medium">{seat.offer.name}</span>, plan: seat.offer.plan.name })}
-      </p>
-
-      <dl className="grid gap-3 text-sm sm:grid-cols-2">
-        <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">{t("Billed")}</dt>
-          <dd>
-            {billingPeriod(seat.offer.version.billing_period)} · <Amount money={seat.offer.version.price} />
-          </dd>
-          <dd className="text-xs text-subtle">
-            {t("period")}{' '}{new Date(seat.current_period_start).toLocaleDateString(currentLocale())} —{' '}
-            {seat.current_period_end === null ? 'open' : new Date(seat.current_period_end).toLocaleDateString(currentLocale())}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs uppercase tracking-wide text-subtle">{t("Commitment")}</dt>
-          <dd>
-            {seat.terms === null || seat.terms === undefined ? (
-              <span className="text-subtle">{t("None recorded")}</span>
-            ) : (
-              <TermsSummary terms={seat.terms} />
-            )}
-          </dd>
-        </div>
-      </dl>
-
-      {/* The people the seat covers (2026-09-19): its holder owns it. */}
-      <SubscriptionPeople seat />
-
-      {mayManage && !seat.cancel_at_period_end && (
-        <div className="space-y-2">
-          {error !== null && error !== undefined && <ErrorSurface error={error} />}
-          {confirming ? (
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="danger" pending={pending} onClick={onCancel} data-testid="cancel-seat">
-                {t("Give up your seat")}</Button>
-              <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>
-                {t("Keep it")}</Button>
-            </div>
-          ) : (
-            <Button type="button" variant="danger" onClick={() => setConfirming(true)}>
-              {t("Give up your seat…")}</Button>
-          )}
-          <p className="text-xs text-muted">
-            {t("The cancellation policy decides when it ends; what it decided is shown once asked.")}</p>
-        </div>
-      )}
-    </section>
-  );
-}
-
-/**
- * A change of plan that has not happened yet (spec §4).
- *
- * Two things, and neither is optional. The **sentence**, because a customer
- * who chose a cheaper plan and saw nothing change would reasonably think the
- * choice was lost; and the **button**, because a future change that cannot be
- * undone is a cancellation in disguise — somebody with twenty days of the
- * higher plan in front of them changes their mind, and §4.2 calls withdrawing
- * it a retention feature before a technical one.
- *
- * The date and the plan are the server's answer. Nothing here derives when
- * the change lands from `current_period_end`: that would be a second answer
- * to a question the response already carries, and the two would disagree the
- * moment a period moved.
- */
 function PendingChange({
   pending,
   mayManage,
@@ -748,13 +631,16 @@ function statusTone(status: string): Tone {
  * the invoice screen refuses regardless. Hiding the link would only hide the
  * remedy from the person who needs it.
  */
-function PaymentFailed({ subscription, scope }: { subscription: Subscription; scope: 'seat' | 'organisation' }) {
+function PaymentFailed({ subscription }: { subscription: Subscription }) {
   const since = subscription.past_due_since;
   const invoiceId = subscription.past_due_invoice_id;
-  const whose = scope === 'seat' ? t("Your seat") : t("Your organisation’s subscription");
+  // It took a `scope` and said "your seat" or "your organisation's
+  // subscription", because both could be in arrears at once. One contract is
+  // left (2026-10-01), so there is one thing to name.
+  const whose = t("Your subscription");
 
   return (
-    <section data-testid={`past-due-${scope}`} className={notice('danger')}>
+    <section data-testid="past-due" className={notice('danger')}>
       <h2 className="text-base font-semibold">{t("Payment failed")}</h2>
       <p className="mt-1">
         {since === null

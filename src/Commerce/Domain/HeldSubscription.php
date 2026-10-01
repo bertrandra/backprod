@@ -26,8 +26,6 @@ final class HeldSubscription
     public function __construct(
         public readonly string $id,
         public readonly string $status,
-        /** `USER` for a seat, `TENANT` for an organisation's own — §13.1. */
-        public readonly string $subscriberKind,
         /**
          * Who bought it. Null only for a row from before ownership was
          * recorded (2026-09-25 fixed the sales chain that left it empty), and

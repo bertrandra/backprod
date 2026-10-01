@@ -80,7 +80,6 @@ final class ListOrganisationSubscriptionsController implements RouteHandler
                 static fn (HeldSubscription $one): array => [
                     'id' => $one->id,
                     'status' => $one->status,
-                    'subscriber_kind' => $one->subscriberKind,
                     'live' => $one->isLiveAt($now),
                     'holder' => $one->holderUserId === null ? null : [
                         'user_id' => $one->holderUserId,
