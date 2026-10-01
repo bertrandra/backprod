@@ -178,12 +178,9 @@ final class FreemiumTest extends DatabaseApiTestCase
         self::assertSame('ACTIVE', $subscription['status'] ?? null);
         self::assertSame($this->user, $subscription['owner_user_id'] ?? null);
 
-        // A seat, addressed to the caller — never the organisation, which is
-        // the sale the tenant surface stopped making (ADR-055).
-        $subscriber = $subscription['subscriber'] ?? null;
-        self::assertIsArray($subscriber);
-        self::assertSame('USER', $subscriber['kind'] ?? null);
-        self::assertSame($this->user, $subscriber['user_id'] ?? null);
+        // Addressed to the caller. It asserted a `kind` beside this until
+        // 2026-10-01; there is one kind, so what is left to say is who.
+        self::assertSame($this->user, $subscription['subscriber_user_id'] ?? null);
 
         // It stops at its term, and it has no term in months — five days is
         // the period, written once and never rolled (§6.3).

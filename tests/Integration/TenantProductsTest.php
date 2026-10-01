@@ -390,9 +390,9 @@ final class TenantProductsTest extends DatabaseApiTestCase
         $this->connection->executeStatement(
             <<<'SQL'
                 INSERT INTO subscriptions
-                    (tenant_id, product_id, offer_version_id, status, subscriber_kind,
+                    (tenant_id, product_id, offer_version_id, status, subscriber_user_id,
                      started_at, current_period_start, current_period_end, ended_at)
-                VALUES (:tenant, :product, :version, :status, 'TENANT',
+                VALUES (:tenant, :product, :version, :status, :holder,
                         now() - interval '40 days', now() - interval '40 days',
                         CAST(:periodEnd AS timestamptz),
                         CASE WHEN :status = 'ACTIVE' THEN NULL ELSE now() - interval '1 day' END)
@@ -402,6 +402,10 @@ final class TenantProductsTest extends DatabaseApiTestCase
                 'product' => $productId,
                 'version' => $version,
                 'status' => $status,
+                // Every subscription names a person since 2026-10-01, and this
+                // fixture named none: it was a `TENANT` row, which the schema
+                // no longer has a column for.
+                'holder' => $this->ada,
                 'periodEnd' => (new \DateTimeImmutable($periodEnd))->format(\DateTimeInterface::ATOM),
             ],
         );

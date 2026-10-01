@@ -177,8 +177,12 @@ final class SalesChainTest extends DatabaseApiTestCase
         // the assertion was on the other key.
         $mine = $this->decode($this->request('GET', '/api/v1/subscription', $this->headers()));
         self::assertIsArray($mine['seat'] ?? null);
-        self::assertArrayHasKey('subscription', $mine);
-        self::assertNull($mine['subscription']);
+        // The other key was the organisation's and went with `subscriber_kind`
+        // on 2026-10-01, because nothing could create one. What stands beside
+        // the seat now is `coverage`, which is about the person.
+        $coverage = $mine['coverage'] ?? null;
+        self::assertIsArray($coverage);
+        self::assertTrue($coverage['own'] ?? null, 'they bought it themselves');
 
         // Said directly, and not only through the read above: the person who
         // paid is one of the people it covers, which is what makes the work

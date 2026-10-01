@@ -96,7 +96,11 @@ final class OrganisationSubscriptionsTest extends DatabaseApiTestCase
         $row = $rows[0];
 
         self::assertSame($subscription, $row['id'] ?? null);
-        self::assertSame('USER', $row['subscriber_kind'] ?? null);
+        // The row no longer says which kind, because there is one
+        // (2026-10-01). What it says instead is whose.
+        $holder = $row['holder'] ?? null;
+        self::assertIsArray($holder);
+        self::assertSame($this->holder, $holder['user_id'] ?? null);
         self::assertTrue($row['live'] ?? null);
         self::assertSame('Pro', $row['offer_name'] ?? null);
         self::assertSame(['minor_units' => 2900, 'currency' => 'EUR'], $row['price'] ?? null);
@@ -500,9 +504,9 @@ final class OrganisationSubscriptionsTest extends DatabaseApiTestCase
             <<<'SQL'
                 INSERT INTO subscriptions
                     (tenant_id, product_id, offer_version_id, status, started_at,
-                     current_period_start, current_period_end, subscriber_kind, owner_user_id, subscriber_user_id)
+                     current_period_start, current_period_end, owner_user_id, subscriber_user_id)
                 VALUES (:tenant, :product, :version, 'ACTIVE', now(), now(), now() + interval '30 days',
-                        'USER', :owner, :owner)
+                        :owner, :owner)
                 RETURNING id
                 SQL,
             ['tenant' => $this->tenant, 'product' => $this->product, 'version' => $offerVersionId, 'owner' => $owner],

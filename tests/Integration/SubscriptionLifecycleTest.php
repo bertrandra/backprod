@@ -167,10 +167,10 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         // bought, and the context chain reads exactly these.
         self::assertSame(
             ['advanced_3d', 'max_projects'],
-            $this->entitlements()->capabilitiesFor($this->tenant, $this->product),
+            $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user),
         );
 
-        $limits = $this->entitlements()->entitlementsFor($this->tenant, $this->product);
+        $limits = $this->entitlements()->entitlementsFor($this->tenant, $this->product, $this->user);
         self::assertSame(50, $limits[1]->limit);
         self::assertSame('SUBSCRIPTION', $limits[1]->source);
     }
@@ -236,7 +236,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
     {
         $this->subscribeToPro();
 
-        self::assertNotSame([], $this->entitlements()->capabilitiesFor($this->tenant, $this->product));
+        self::assertNotSame([], $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user));
 
         // Move the period into the past, exactly as time passing would.
         $this->connection->executeStatement(
@@ -267,7 +267,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         );
         self::assertSame(
             [],
-            $this->entitlements()->capabilitiesFor($this->tenant, $this->product),
+            $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user),
             'and the tenant is entitled to nothing anyway',
         );
         self::assertNull(
@@ -300,7 +300,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         // subscription that is still being paid for.
         self::assertSame(
             ['advanced_3d', 'max_projects'],
-            $this->entitlements()->capabilitiesFor($this->tenant, $this->product),
+            $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user),
         );
         self::assertSame(
             $renewed->currentPeriodEnd->format(DATE_ATOM),
@@ -319,7 +319,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
 
         self::assertSame('pro', $upgraded->offer->code);
         self::assertSame(50, $this->limitFor('max_projects'));
-        self::assertContains('advanced_3d', $this->entitlements()->capabilitiesFor($this->tenant, $this->product));
+        self::assertContains('advanced_3d', $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user));
 
         $latest = $this->subscriptions()->events($this->tenant, $this->product, $this->user)[0];
         self::assertSame(SubscriptionEvent::OFFER_CHANGED, $latest->type);
@@ -462,7 +462,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         // Still on Pro, still with Pro's grants, still until the same date.
         self::assertSame('pro', $after->offer->code);
         self::assertSame(50, $this->limitFor('max_projects'));
-        self::assertContains('advanced_3d', $this->entitlements()->capabilitiesFor($this->tenant, $this->product));
+        self::assertContains('advanced_3d', $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user));
         self::assertSame(
             $before->currentPeriodEnd?->format(DATE_ATOM),
             $after->currentPeriodEnd?->format(DATE_ATOM),
@@ -519,7 +519,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         self::assertSame(3, $this->limitFor('max_projects'));
         self::assertSame(
             ['max_projects'],
-            $this->entitlements()->capabilitiesFor($this->tenant, $this->product),
+            $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user),
             'the boolean capability the pro offer granted is gone, now that the period it was paid for has passed',
         );
 
@@ -800,7 +800,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         self::assertTrue($cancelled->cancelAtPeriodEnd);
         self::assertNotSame(
             [],
-            $this->entitlements()->capabilitiesFor($this->tenant, $this->product),
+            $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user),
             'still entitled until the period ends',
         );
 
@@ -816,7 +816,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
 
         self::assertSame(Subscription::CANCELLED, $cancelled->status);
         self::assertNotNull($cancelled->endedAt);
-        self::assertSame([], $this->entitlements()->capabilitiesFor($this->tenant, $this->product));
+        self::assertSame([], $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user));
         self::assertNull($this->subscriptions()->current($this->tenant, $this->product, $this->user));
     }
 
@@ -895,7 +895,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
 
         // And the tenant is still entitled: withdrawing an offer from sale
         // does not cancel the people already on it.
-        self::assertNotSame([], $this->entitlements()->capabilitiesFor($this->tenant, $this->product));
+        self::assertNotSame([], $this->entitlements()->capabilitiesFor($this->tenant, $this->product, $this->user));
     }
 
     public function testASubscribedOfferVersionCannotBeDeleted(): void
@@ -1044,7 +1044,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
 
     private function limitFor(string $featureCode): ?int
     {
-        foreach ($this->entitlements()->entitlementsFor($this->tenant, $this->product) as $entitlement) {
+        foreach ($this->entitlements()->entitlementsFor($this->tenant, $this->product, $this->user) as $entitlement) {
             if ($entitlement->featureCode === $featureCode) {
                 return $entitlement->limit;
             }
@@ -1055,7 +1055,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
 
     private function sourceFor(string $featureCode): ?string
     {
-        foreach ($this->entitlements()->entitlementsFor($this->tenant, $this->product) as $entitlement) {
+        foreach ($this->entitlements()->entitlementsFor($this->tenant, $this->product, $this->user) as $entitlement) {
             if ($entitlement->featureCode === $featureCode) {
                 return $entitlement->source;
             }

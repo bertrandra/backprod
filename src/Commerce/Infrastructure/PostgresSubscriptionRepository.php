@@ -90,36 +90,6 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
     {
     }
 
-    /**
-     * The organisation's own subscription, whether or not it is entitling.
-     *
-     * `status IN ('ACTIVE', 'PAST_DUE')` since 2026-09-27, and the two
-     * partial unique indexes are written with the same pair: a subscription
-     * suspended for non-payment is still the one this tenant holds. Read as
-     * `ACTIVE` alone, the screen would show "no subscription" to somebody who
-     * has one and owes for it — offering them a fresh purchase instead of the
-     * invoice — and the commerce layer would let them buy a second one, which
-     * the index would then refuse with a 500.
-     *
-     * Whether it *entitles* is a different question, asked by
-     * {@see Subscription::isLiveAt()} and by the entitlement queries, and it
-     * answers no.
-     */
-    public function findActive(string $tenantId, string $productId): ?Subscription
-    {
-        $row = $this->connection->fetchAssociative(
-            'SELECT ' . self::COLUMNS . ' ' . self::FROM . <<<'SQL'
-                 WHERE s.tenant_id = :tenantId
-                   AND s.product_id = :productId
-                   AND s.status IN ('ACTIVE', 'PAST_DUE')
-                   AND s.subscriber_kind = 'TENANT'
-                SQL,
-            ['tenantId' => $tenantId, 'productId' => $productId],
-        );
-
-        return $row === false ? null : $this->toSubscription($row);
-    }
-
     public function history(string $tenantId, string $productId): array
     {
         $rows = $this->connection->fetchAllAssociative(
@@ -798,17 +768,13 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                        s.notice_days, r.user_id AS recipient_user_id
                   FROM subscriptions s
                   LEFT JOIN LATERAL (
+                        -- The person the subscription is addressed to, and
+                        -- nobody else. A second branch fell back to the
+                        -- organisation's administrators when the *organisation*
+                        -- was the contracting party; that party is gone with
+                        -- `subscriber_kind` (2026-10-01), and a tacit renewal
+                        -- is notified to whoever agreed to it.
                         SELECT s.subscriber_user_id AS user_id
-                         WHERE s.subscriber_kind = 'USER'
-                           AND s.subscriber_user_id IS NOT NULL
-                        UNION
-                        SELECT tmr.user_id
-                          FROM tenant_member_roles tmr
-                          JOIN roles ro ON ro.id = tmr.role_id
-                         WHERE s.subscriber_kind = 'TENANT'
-                           AND tmr.tenant_id = s.tenant_id
-                           AND tmr.product_id = s.product_id
-                           AND ro.code = 'TENANT_ADMIN'
                        ) r ON TRUE
                  WHERE s.status = 'ACTIVE'
                    AND s.renewal = 'AUTO_RENEW'
@@ -873,19 +839,17 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                         -- so an owner who is also an administrator is chased
                         -- once.
                         SELECT s.subscriber_user_id AS user_id
-                         WHERE s.subscriber_kind = 'USER'
-                           AND s.subscriber_user_id IS NOT NULL
                         UNION
                         SELECT s.owner_user_id
                          WHERE s.owner_user_id IS NOT NULL
-                        UNION
-                        SELECT tmr.user_id
-                          FROM tenant_member_roles tmr
-                          JOIN roles ro ON ro.id = tmr.role_id
-                         WHERE s.subscriber_kind = 'TENANT'
-                           AND tmr.tenant_id = s.tenant_id
-                           AND tmr.product_id = s.product_id
-                           AND ro.code = 'TENANT_ADMIN'
+                        -- A third branch chased the organisation's
+                        -- administrators when the *organisation* owed the
+                        -- money. It cannot owe any since ADR-055: a seat is
+                        -- the organisation selling to one of its own people,
+                        -- so the company is the creditor here and the debtor
+                        -- is the person. Chasing the administrators for a
+                        -- colleague's own purchase would be telling the wrong
+                        -- people about somebody's unpaid bill.
                        ) r ON TRUE
                  WHERE s.status IN ('ACTIVE', 'PAST_DUE')
                    AND i.status = 'ISSUED'
