@@ -579,13 +579,6 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
         ]);
 
         $this->subscribeTheOrganisation($offer);
-
-        // No issuer yet: an invoice with a blank issuer is not an invoice.
-        $refused = $this->request('POST', '/api/v1/billing/invoices', $this->buyerHeaders());
-
-        self::assertSame(409, $refused->getStatusCode());
-        self::assertSame('BILLING_NOT_CONFIGURED', $this->errorOf($refused)['code'] ?? null);
-
         $this->setIssuer(self::ISSUER);
 
         $issued = $this->request('POST', '/api/v1/billing/invoices', $this->buyerHeaders());
@@ -603,12 +596,26 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
 
         $decoded = json_decode($supplier, true);
         self::assertIsArray($decoded);
-        self::assertSame('Atlas SAS', $decoded['legal_name'] ?? null);
-        self::assertSame('FR12345678901', $decoded['vat_number'] ?? null);
 
-        // And it is the platform's series, not Acme's (ADR-054).
-        self::assertNull(
+        // **Acme, not Atlas SAS.** This asserted the console's issuer on the
+        // document and the platform's own series, and it was right about the
+        // sale it described: the platform charging the company for its
+        // subscription. Since ADR-066 there is no such sale — the row the
+        // fixture writes by hand is the last trace of one — so the only
+        // document any sale produces is a seat's, which Acme issues to one of
+        // its own people (ADR-057).
+        //
+        // The console's `billing_supplier` is therefore on **no** document the
+        // tenant surface can produce. It is still stored, still read back, and
+        // still what the platform's own invoice would name if anything raised
+        // one. Nothing does. That is worth a test saying so rather than a
+        // screen configuring something nobody reads.
+        self::assertSame('Acme SARL', $decoded['legal_name'] ?? null);
+
+        self::assertSame(
+            $this->tenant,
             $this->connection->fetchOne('SELECT issuer_tenant_id FROM invoices WHERE id = :id', ['id' => $invoiceId]),
+            'the organisation issues it, so the number belongs to its own series (ADR-054)',
         );
     }
 

@@ -106,7 +106,10 @@ final class DemoResetTest extends DatabaseApiTestCase
         );
         self::assertSame(
             $held,
-            $this->rowCount("SELECT count(*) FROM subscriptions WHERE subscriber_kind = 'USER' AND status = 'ACTIVE'"),
+            // Every live row names its person. It read `subscriber_kind = 'USER'`
+            // until 2026-10-01; the column is gone and `subscriber_user_id` is
+            // NOT NULL, so this counts the same rows by the fact that survived.
+            $this->rowCount("SELECT count(*) FROM subscriptions WHERE subscriber_user_id IS NOT NULL AND status = 'ACTIVE'"),
         );
         // And exactly one of them is free, raising no document at all (§6.3):
         // the invoices counted above are the sold seats' and nobody else's.

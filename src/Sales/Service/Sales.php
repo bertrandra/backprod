@@ -134,10 +134,12 @@ final class Sales
      * nowhere to express the other sale, which is the only way "we sell seats"
      * is a fact rather than a habit.
      *
-     * The platform keeps the concept: `subscriber_kind = TENANT` is still a
-     * column, still carries the rows a deployment already has, and is still
-     * what `Subscriptions::subscribe` writes when something else calls it.
-     * What no longer exists is a way for a customer to buy one.
+     * The platform kept the *concept* of the other sale until 2026-10-01,
+     * when ADR-066 dropped the column that recorded it: with no way for a
+     * customer to buy one and no row that could say so, what was left was a
+     * variant nothing constructed and four optional arguments defaulting to it.
+     * `Subscriptions::subscribe` is still the platform's own door — a grant, a
+     * migration, a world being seeded — and it names a person now.
      *
      * @throws ConflictException SEAT_NEEDS_A_PERSON | SEAT_ALREADY_ACTIVE
      */
