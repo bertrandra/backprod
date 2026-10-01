@@ -252,13 +252,15 @@ final class SubscriptionPeople
 
     private function managed(string $tenantId, string $productId, string $callerId, bool $seat): Subscription
     {
-        $subscription = $seat
-            ? $this->lifecycle->seatOf($tenantId, $productId, $callerId)
-            : $this->lifecycle->current($tenantId, $productId);
+        // `$seat` chose between the caller's seat and the organisation's own
+        // subscription until 2026-10-01. There is one kind left, so it decides
+        // nothing and only the first answer remains; the flag stays in the
+        // request until removing it from the API is done on its own.
+        $subscription = $this->lifecycle->seatOf($tenantId, $productId, $callerId);
 
         if ($subscription === null) {
             throw new NotFoundException(
-                $seat ? 'You hold no live seat on this product.' : 'The organisation has no live subscription to this product.',
+                'You hold no live seat on this product.',
                 [],
                 'NO_SUBSCRIPTION',
             );

@@ -49,9 +49,17 @@ final class Subscriptions
     ) {
     }
 
-    public function current(string $tenantId, string $productId): ?Subscription
+    /**
+     * What this person holds, if anything (2026-10-01 takes the person).
+     *
+     * It asked the scope until then — "the organisation's subscription" — and
+     * that row cannot exist since ADR-055. There is no single subscription in a
+     * `(tenant, product)` any more: each person holds their own, so every
+     * question about one names somebody.
+     */
+    public function current(string $tenantId, string $productId, string $userId): ?Subscription
     {
-        $subscription = $this->subscriptions->findActive($tenantId, $productId);
+        $subscription = $this->seatOf($tenantId, $productId, $userId);
 
         // Held, not live: a subscription whose period ended is reported as no
         // subscription, because the status column may not have caught up and
@@ -80,9 +88,9 @@ final class Subscriptions
     /**
      * @return list<SubscriptionEvent>
      */
-    public function events(string $tenantId, string $productId): array
+    public function events(string $tenantId, string $productId, string $userId): array
     {
-        $subscription = $this->subscriptions->findActive($tenantId, $productId);
+        $subscription = $this->seatOf($tenantId, $productId, $userId);
 
         return $subscription === null ? [] : $this->subscriptions->events($subscription);
     }
@@ -793,10 +801,10 @@ final class Subscriptions
         ?string $actorUserId,
         bool $seat,
     ): Subscription {
-        if (!$seat) {
-            return $this->requireCurrent($tenantId, $productId);
-        }
-
+        // The `!$seat` branch answered with the organisation's own
+        // subscription and is gone with it (2026-10-01). The flag survives in
+        // the request for now and decides nothing; removing it from the API is
+        // its own change, because a client sends it.
         $held = $actorUserId === null
             ? null
             : $this->seatOf($tenantId, $productId, $actorUserId);
@@ -814,7 +822,7 @@ final class Subscriptions
 
     public function resume(string $tenantId, string $productId, ?string $actorUserId): Subscription
     {
-        $subscription = $this->requireCurrent($tenantId, $productId);
+        $subscription = $this->requireCurrent($tenantId, $productId, $actorUserId);
 
         if (!$subscription->cancelAtPeriodEnd) {
             throw new ConflictException(
@@ -856,9 +864,9 @@ final class Subscriptions
      * written and tested rather than waiting on a scheduler — a renewal path
      * first exercised in production is a renewal path nobody has seen work.
      */
-    public function renew(string $tenantId, string $productId): Subscription
+    public function renew(string $tenantId, string $productId, string $holderUserId): Subscription
     {
-        $subscription = $this->requireCurrent($tenantId, $productId);
+        $subscription = $this->requireCurrent($tenantId, $productId, $holderUserId);
         $from = $subscription->currentPeriodEnd ?? new DateTimeImmutable();
 
         // A cancellation already due is not something renewal may roll past.
@@ -934,9 +942,9 @@ final class Subscriptions
      * silently cut short terms that were negotiated precisely because they
      * do not fit a month.
      */
-    private function requireCurrent(string $tenantId, string $productId): Subscription
+    private function requireCurrent(string $tenantId, string $productId, ?string $userId): Subscription
     {
-        $subscription = $this->current($tenantId, $productId);
+        $subscription = $userId === null ? null : $this->current($tenantId, $productId, $userId);
 
         if ($subscription === null) {
             throw new NotFoundException(

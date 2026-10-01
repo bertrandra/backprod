@@ -6,7 +6,6 @@ namespace App\Billing\Service;
 
 use App\Billing\Domain\BillingProfileRepository;
 use App\Billing\Domain\InvoiceParties;
-use App\Commerce\Domain\Subscriber;
 use App\Shared\Exceptions\ConflictException;
 use App\Tax\Domain\CustomerTaxProfile;
 use App\Tax\Domain\SupplierTaxSettings;

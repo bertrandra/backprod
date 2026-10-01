@@ -10,7 +10,6 @@ use App\Commerce\Domain\OfferVersion;
 use App\Commerce\Domain\Plan;
 use App\Commerce\Domain\ProrationPolicy;
 use App\Commerce\Domain\SubscribedOffer;
-use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionTerms;
 use DateTimeImmutable;

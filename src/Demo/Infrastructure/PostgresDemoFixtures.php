@@ -404,7 +404,6 @@ final class PostgresDemoFixtures implements DemoFixtures
                 SELECT count(*) FROM subscriptions
                 WHERE is_freemium
                   AND status = 'ACTIVE'
-                  AND subscriber_kind = 'USER'
                   AND renewal = 'ENDS_AT_TERM'
                   AND term_months IS NULL
                   AND current_period_end > now() + CAST(:short AS interval)

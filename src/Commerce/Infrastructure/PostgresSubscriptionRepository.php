@@ -50,7 +50,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         s.id, s.tenant_id, s.product_id, s.offer_version_id, s.status,
         s.started_at, s.current_period_start, s.current_period_end,
         s.cancel_at_period_end, s.cancelled_at, s.ended_at,
-        s.subscriber_kind, s.subscriber_user_id,
+        s.subscriber_user_id,
         s.term_months, s.term_ends_at, s.commitment_months, s.commitment_ends_at,
         s.cancellation_policy, s.renewal, s.early_termination, s.notice_days,
         s.cancel_effective_at, s.owner_user_id, s.is_freemium,
@@ -663,7 +663,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     [],
                 );
 
-                return $this->requireActive($subscription->tenantId, $subscription->productId);
+                return $this->requireActive($subscription);
             },
         );
     }
@@ -704,7 +704,7 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                     ['periodEnd' => self::moment($periodEnd), 'id' => $subscription->id],
                 );
 
-                return $this->requireActive($subscription->tenantId, $subscription->productId);
+                return $this->requireActive($subscription);
             },
         );
     }
@@ -1204,8 +1204,8 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                  WHERE s.tenant_id = :tenantId
                    AND s.product_id = :productId
                    AND s.status IN ('ACTIVE', 'PAST_DUE')
-                   AND (s.subscriber_kind = 'TENANT' OR s.subscriber_user_id = :userId)
-                 ORDER BY s.subscriber_kind, s.started_at DESC
+                   AND s.subscriber_user_id = :userId
+                 ORDER BY s.started_at DESC
                 SQL,
             ['tenantId' => $tenantId, 'productId' => $productId, 'userId' => $userId],
         );
@@ -1422,9 +1422,24 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         );
     }
 
-    private function requireActive(string $tenantId, string $productId): Subscription
+    /**
+     * The row again, after the change that touched it.
+     *
+     * **By id since 2026-10-01**, and that is a fix rather than a rename. It
+     * read the active subscription of the `(tenant, product)` scope, which was
+     * the right row only while a scope held one — so with seats it could have
+     * answered with somebody else's, and the method's own message ("the
+     * subscription vanished") would never have fired to say so.
+     */
+    private function requireActive(Subscription $subscription): Subscription
     {
-        $subscription = $this->findActive($tenantId, $productId);
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT ' . self::COLUMNS . ' ' . self::FROM . ' WHERE s.id = :id',
+            ['id' => $subscription->id],
+        );
+
+        $row = $rows[0] ?? null;
+        $subscription = $row === null ? null : $this->toSubscription($row);
 
         if ($subscription === null) {
             throw new RuntimeException('The subscription vanished during the change that created it.');

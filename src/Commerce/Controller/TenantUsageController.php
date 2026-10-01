@@ -30,7 +30,7 @@ final class TenantUsageController implements RouteHandler
         $context->requirePermission('entitlements.read');
 
         return new JsonResponse(
-            ['usage' => $this->entitlements->usage($context->tenantId, $context->productId)],
+            ['usage' => $this->entitlements->usage($context->tenantId, $context->productId, $context->userId)],
             200,
         );
     }

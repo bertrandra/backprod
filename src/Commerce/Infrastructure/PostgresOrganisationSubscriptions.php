@@ -79,7 +79,6 @@ final class PostgresOrganisationSubscriptions implements OrganisationSubscriptio
             <<<SQL
                 SELECT s.id,
                        s.status,
-                       s.subscriber_kind,
                        s.current_period_end,
                        s.owner_user_id,
                        u.display_name AS holder_name,

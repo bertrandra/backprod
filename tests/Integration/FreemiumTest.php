@@ -10,7 +10,6 @@ use App\Commerce\Domain\CancellationDecision;
 use App\Commerce\Domain\CancellationPolicy;
 use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\ProrationPolicy;
-use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
 use App\Commerce\Domain\SubscriptionEvent;
 use App\Commerce\Infrastructure\OfferVersionLoader;
@@ -574,7 +573,7 @@ final class FreemiumTest extends DatabaseApiTestCase
 
         self::assertSame('ENDS_AT_TERM', $before->terms->renewal);
 
-        $after = $this->subscriptions()->renew($this->tenant, $this->product);
+        $after = $this->subscriptions()->renew($this->tenant, $this->product, $this->user);
 
         self::assertSame(Subscription::EXPIRED, $after->status);
         // The period is not pushed out: it ended when it ended, and the row
@@ -609,7 +608,7 @@ final class FreemiumTest extends DatabaseApiTestCase
     public function testAnOfferThatRenewsStillRenews(): void
     {
         $before = $this->subscriptions()->subscribe($this->tenant, $this->product, $this->pricedOffer, $this->user, $this->user);
-        $after = $this->subscriptions()->renew($this->tenant, $this->product);
+        $after = $this->subscriptions()->renew($this->tenant, $this->product, $this->user);
 
         self::assertSame(Subscription::ACTIVE, $after->status);
         self::assertNotNull($before->currentPeriodEnd);
@@ -641,7 +640,7 @@ final class FreemiumTest extends DatabaseApiTestCase
 
         self::assertNotNull($scheduled->pending);
 
-        $after = $this->subscriptions()->renew($this->tenant, $this->product);
+        $after = $this->subscriptions()->renew($this->tenant, $this->product, $this->user);
 
         self::assertSame(Subscription::ACTIVE, $after->status);
         self::assertSame('tier', $after->offer->code);
@@ -668,7 +667,7 @@ final class FreemiumTest extends DatabaseApiTestCase
             $this->user,
         );
 
-        $after = $this->subscriptions()->renew($this->tenant, $this->product);
+        $after = $this->subscriptions()->renew($this->tenant, $this->product, $this->user);
 
         self::assertSame('freemium', $after->offer->code);
         self::assertTrue($after->isFreemium, 'the right is consumed, so the row has to say so');
@@ -694,7 +693,7 @@ final class FreemiumTest extends DatabaseApiTestCase
             $this->user,
         );
 
-        $after = $this->subscriptions()->renew($this->tenant, $this->product);
+        $after = $this->subscriptions()->renew($this->tenant, $this->product, $this->user);
 
         self::assertSame('tier', $after->offer->code);
         self::assertFalse($after->isFreemium);

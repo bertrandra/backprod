@@ -311,15 +311,20 @@ final class DemoSeeder
                 array_keys($subscriptions),
                 static fn (int $i): bool => $subscriptions[$i]->ownerUserId !== $structure->user(DemoWorld::SEATS[$i]['holder']),
             ) === [],
-            // Nothing sold to an organisation (2026-09-25). The platform can
-            // still do it; this world does not, and an accident that put one
-            // back would otherwise show up only as a screen looking wrong.
-            'no organisation subscribed to anything' => array_filter(
+            // Every subscription belongs to the person named as its holder.
+            // This asked "nothing sold to an organisation" until 2026-10-01,
+            // which the schema now answers by construction — `subscriber_kind`
+            // is gone. What is still worth asserting is the other half: each
+            // seat is held by the person the world says holds it, so an
+            // accident that bound one to somebody else fails here rather than
+            // showing up as a screen looking wrong.
+            'every seat belongs to its named holder' => array_filter(
                 DemoWorld::SEATS,
                 fn (array $seat): bool => $this->subscriptions->current(
                     $structure->tenant($seat['tenant']),
                     $structure->product($seat['product']),
-                ) !== null,
+                    $structure->user($seat['holder']),
+                ) === null,
             ) === [],
             'every invoice has a legal number' => array_filter(
                 $invoices,

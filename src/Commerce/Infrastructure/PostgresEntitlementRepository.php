@@ -48,7 +48,16 @@ final class PostgresEntitlementRepository implements EntitlementRepository
             . '       SELECT 1 FROM subscriptions s'
             . '        WHERE s.id = e.subscription_id'
             . '          AND CASE'
-            . "                WHEN CAST(:userId AS uuid) IS NULL THEN s.subscriber_kind = 'USER'"
+            // Naming nobody asks what the *organisation* bought, and since
+            // 2026-10-01 every subscription is a seat — so the tenant-wide
+            // answer excludes all of them, which is what `TRUE` says here. It
+            // read `s.subscriber_kind = 'USER'` and meant the same thing while
+            // the other kind existed.
+            //
+            // That answer is now always empty, which is why the usage read and
+            // the quota check both name the caller: a figure a customer paid
+            // for has to be about somebody.
+            . '                WHEN CAST(:userId AS uuid) IS NULL THEN TRUE'
             . '                ELSE ' . CoversPersonSql::excludes('s', ':userId')
             . '              END'
             . '     )';

@@ -10,7 +10,6 @@ use App\Billing\Domain\Money;
 use App\Billing\Infrastructure\DocumentPersonSql;
 use App\Billing\Infrastructure\DocumentWindowSql;
 use App\Commerce\Domain\OfferLineDetails;
-use App\Commerce\Domain\Subscriber;
 use App\Sales\Domain\Order;
 use App\Sales\Domain\OrderFulfilment;
 use App\Sales\Domain\Quote;

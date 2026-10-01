@@ -27,22 +27,35 @@ final class TenantEntitlements
     /**
      * @return list<Entitlement>
      */
-    public function all(string $tenantId, string $productId): array
+    public function all(string $tenantId, string $productId, ?string $userId = null): array
     {
-        return $this->entitlements->entitlementsFor($tenantId, $productId);
+        return $this->entitlements->entitlementsFor($tenantId, $productId, $userId);
     }
 
     /**
-     * One row per quota the tenant holds. Boolean capabilities are absent:
-     * there is nothing to count, and a usage line for them would be noise.
+     * One row per quota, and **it names the caller since 2026-10-01**.
+     *
+     * Boolean capabilities are absent: there is nothing to count, and a usage
+     * line for them would be noise.
+     *
+     * The tenant-wide question — naming nobody — asks what the *organisation*
+     * bought, and since ADR-055 the answer is nothing: every subscription is a
+     * seat. So this read answered with an empty list, and the Usage section of
+     * the Organisation screen showed nothing to a customer whose quota is being
+     * enforced.
+     *
+     * Resolved for the person, measured tenant-wide — exactly what
+     * {@see \App\Entitlement\Domain\QuotaPolicy::assertMayConsume()} does, and
+     * for the reason §13.1 gives: both gates have to ask about the same person,
+     * or the screen shows a limit the refusal does not use.
      *
      * @return list<array<string, mixed>>
      */
-    public function usage(string $tenantId, string $productId): array
+    public function usage(string $tenantId, string $productId, ?string $userId = null): array
     {
         $usage = [];
 
-        foreach ($this->all($tenantId, $productId) as $entitlement) {
+        foreach ($this->all($tenantId, $productId, $userId) as $entitlement) {
             if (!$entitlement->isQuota()) {
                 continue;
             }
