@@ -147,8 +147,9 @@ function subscription(state: Chain) {
           },
         },
         seat: null,
+        coverage: null,
       }
-    : { subscription: null, seat: null };
+    : { subscription: null, seat: null, coverage: null };
 }
 
 async function chain(page: Page): Promise<Chain> {

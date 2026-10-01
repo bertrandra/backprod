@@ -342,6 +342,29 @@ describe('covered by a colleague', () => {
     expect(screen.queryByTestId('covered-by-a-colleague')).toBeNull();
   });
 
+  it('survives an answer with no coverage field at all', async () => {
+    // What CI caught and every local test missed: the Vitest stubs gained the
+    // field with the change and the Playwright ones did not, so a body without
+    // it reached `undefined !== null`, then `covered.own`, and the Subscription
+    // screen threw — taking the accessibility and sales-chain runs with it.
+    //
+    // The contract requires `coverage`, so the type says this cannot happen.
+    // The type is about what the server sends; a stub, an old client and a
+    // proxy are not the server.
+    const stubs = stubsFor({}, null, { session: MEMBER });
+    const answer = stubs['GET /api/v1/subscription'];
+    const body = typeof answer === 'object' && answer !== null && 'data' in answer ? answer.data : null;
+    const withoutCoverage = { ...(body as Record<string, unknown>) };
+    delete withoutCoverage.coverage;
+
+    renderWith(
+      <SubscriptionScreen />,
+      stubClient({ ...stubs, 'GET /api/v1/subscription': { data: withoutCoverage } }),
+    );
+
+    await waitFor(() => expect(screen.getByText(/nothing is subscribed/i)).toBeTruthy());
+  });
+
   it('still shows the genuine empty state to somebody on nothing', async () => {
     renderWith(<SubscriptionScreen />, stubClient(stubsFor({}, null, { session: MEMBER })));
 
