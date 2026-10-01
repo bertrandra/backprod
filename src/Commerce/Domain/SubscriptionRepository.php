@@ -298,7 +298,57 @@ interface SubscriptionRepository
      * job that notices is M7; this exists so the behaviour is written and
      * tested rather than waiting on a scheduler.
      */
-    public function renew(Subscription $subscription, ?DateTimeImmutable $periodEnd): Subscription;
+    /**
+     * Moves a subscription into its next paid period, and bills for it.
+     *
+     * `$alsoBill` is **required** (ADR-068). This method moved the period and
+     * the entitlements forward and raised nothing, which was invisible only
+     * because its one caller was a service method with no endpoint and no job:
+     * the moment anything renewed on its own, every period after the first
+     * would have been given away. An argument you can omit is one that
+     * eventually is — the rule `Reach` is required for, and the one ADR-066
+     * restated about optional subscribers. It runs on this method's own
+     * transaction, so the period and the document commit together or not at
+     * all.
+     *
+     * **Conditioned on the period it was asked about.** The update refuses when
+     * `current_period_end` has already moved, so two overlapping passes cannot
+     * bill one period twice — claimed by the statement rather than by a prior
+     * read both of them would pass. A caller that loses the race gets
+     * `RENEWAL_ALREADY_APPLIED` and nothing is billed.
+     */
+    public function renew(
+        Subscription $subscription,
+        ?DateTimeImmutable $periodEnd,
+        callable $alsoBill,
+    ): Subscription;
+
+    /**
+     * Subscriptions whose paid period ends within `$leadDays` (ADR-068).
+     *
+     * **Before the period ends, never after.** Selecting what has already
+     * lapsed would put this in a race with `expireLapsed()` over exactly the
+     * same rows — both run daily, and whichever won would decide whether a
+     * customer kept their subscription. A subscription still inside its period
+     * is not lapsed, so the sweep never sees it.
+     *
+     * `ACTIVE` only, deliberately. A `PAST_DUE` subscription owes for the period
+     * it already had and is in the dunning pass's hands; raising a second
+     * invoice against a suspended service would compound a debt somebody is
+     * already being chased for.
+     *
+     * Stops at the term: a period ending *at* `term_ends_at` is the last one,
+     * and what follows it is tacit renewal of a commitment, which is a decision
+     * and not something cron takes.
+     *
+     * `$leadDays` bounds the read and does not decide anything: a product's own
+     * lead is a product's, so a caller passes the longest any product could have
+     * chosen and each row carries `daysUntilEnd` for the handler to judge
+     * against that product's answer. The same shape the overdue read has.
+     *
+     * @return list<DueRenewal>
+     */
+    public function dueForRenewal(int $limit, int $leadDays): array;
 
     /**
      * Ends one subscription whose period is up and which nothing renews

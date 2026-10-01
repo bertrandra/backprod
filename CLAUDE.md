@@ -583,9 +583,34 @@ check one against.
 is quietly extended beyond the date the customer was given. A deferral
 further out does not block anything — it is only due once its date arrives.
 
-Renewal does not silently re-arm the commitment. Tacit renewal requires
-notifying the customer beforehand — that notice is a notification, and
-whether it was attempted must be answerable.
+**A period renewal and a term renewal are two different things** (ADR-068), and
+conflating them is the expensive mistake:
+
+```text
+current_period_end   the paid period rolls      the contract running
+term_ends_at         the term rolls             a new contract, tacitly
+```
+
+`subscription.renewal` rolls periods **inside** a term and stops at it. Renewal
+does not silently re-arm the commitment: tacit renewal of a term requires
+notifying the customer beforehand — that notice is a notification, and whether it
+was attempted must be answerable — and its deadline varies by member state, so
+nothing automatic rolls a term. R11 stays open for that half and for no other.
+
+**Renewing bills, and billing is a required argument of it.** `renew()` moved the
+period and the entitlements forward and raised no invoice at all, which was
+invisible only while its one caller was a service method with no endpoint and no
+job. One period, at the price the **version the subscription snapshotted** sold —
+a renewal is where ADR-033's promise is actually tested — taxed at today's rate,
+on the renewal's own transaction, through `RenewalCharge` and never a special
+path.
+
+**It is off until an operator chooses it** (`product_configuration`, never a
+constant) and it renews **before** the period ends, not after. Renewing what has
+lapsed races `sweep.subscriptions` over the same rows, and whichever won would
+decide whether somebody kept their subscription. One period is billed once by the
+statement that moves it — conditioned on the period it was asked about — never by
+a check two overlapping passes would both pass.
 
 ## Notifications
 

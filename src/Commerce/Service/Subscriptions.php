@@ -13,6 +13,7 @@ use App\Commerce\Domain\ChangeCredit;
 use App\Commerce\Domain\ChangeDecision;
 use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\ProrationPolicy;
+use App\Commerce\Domain\RenewalCharge;
 use App\Commerce\Domain\SubscribedOffer;
 use App\Commerce\Domain\Subscriber;
 use App\Commerce\Domain\Subscription;
@@ -42,6 +43,7 @@ final class Subscriptions
         private readonly Catalogue $catalogue,
         private readonly CancellationPolicy $policy,
         private readonly EarlyTerminationCharge $charges,
+        private readonly RenewalCharge $renewals,
         private readonly AuditLog $audit,
         private readonly ProrationPolicy $proration,
         private readonly ChangeCredit $credit,
@@ -914,9 +916,64 @@ final class Subscriptions
             return $this->subscriptions->expire($subscription, SubscriptionTerms::ENDS_AT_TERM);
         }
 
+        // The term is reached, and what follows a term is tacit renewal of a
+        // commitment — a decision somebody takes, with a notice whose deadline
+        // `SendRenewalNotices` says is unconfirmed (ADR-068). Nothing automatic
+        // rolls past here.
+        if ($subscription->hasReachedTermAt($from)) {
+            throw new ConflictException(
+                'TERM_REACHED',
+                'This subscription has reached its term; renewing it is a decision, not a roll.',
+                ['term_ends_at' => $subscription->termEndsAt?->format(DATE_ATOM)],
+            );
+        }
+
+        $periodEnd = $subscription->offer->version->periodEndFrom($from);
+
+        if ($periodEnd === null) {
+            // A CUSTOM billing period has no length, so there is no period to
+            // roll into and no period to price — the same refusal the buy-out
+            // makes, for the same reason. Before this method billed, it rolled
+            // such a subscription into an open-ended period for nothing.
+            throw new ConflictException(
+                'RENEWAL_NOT_PRICEABLE',
+                'These terms have no billing period, so a renewal cannot be priced.',
+                ['billing_period' => $subscription->offer->version->billingPeriod],
+            );
+        }
+
+        // A period that would run past the term is not a period the customer
+        // bought. Refused rather than shortened: billing a whole period for a
+        // part of one overcharges, and capping the end would sell service past
+        // the contract. The subscription reaches its term and the decision
+        // above applies.
+        if ($subscription->termEndsAt !== null && $periodEnd > $subscription->termEndsAt) {
+            throw new ConflictException(
+                'RENEWAL_WOULD_PASS_TERM',
+                'The next period would end after the term, so it is not one to roll into.',
+                [
+                    'term_ends_at' => $subscription->termEndsAt->format(DATE_ATOM),
+                    'period_would_end_at' => $periodEnd->format(DATE_ATOM),
+                ],
+            );
+        }
+
         return $this->subscriptions->renew(
             $subscription,
-            $subscription->offer->version->periodEndFrom($from),
+            $periodEnd,
+            // On the renewal's own transaction (ADR-068). The period moving and
+            // the invoice for it are one fact: a period extended unbilled is
+            // revenue given away, and an invoice for a period the subscription
+            // never got is a customer charged for nothing.
+            //
+            // No actor: nobody did this, the clock did — the same `null` the
+            // expiry event carries.
+            fn (Subscription $renewed): string => $this->renewals->applyRenewal(
+                $renewed,
+                $from,
+                $periodEnd,
+                null,
+            ),
         );
     }
 

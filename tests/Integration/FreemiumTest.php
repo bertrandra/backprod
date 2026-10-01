@@ -27,6 +27,7 @@ use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
 use App\Tests\Support\NothingWasCollected;
 use App\Tests\Support\RecordingChangeCharge;
+use App\Tests\Support\RecordingRenewalCharge;
 use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
@@ -75,9 +76,13 @@ final class FreemiumTest extends DatabaseApiTestCase
     private string $freeTierOffer = '';
     private string $fixedTermOffer = '';
 
+    private RecordingRenewalCharge $renewal;
+
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->renewal = new RecordingRenewalCharge();
 
         $this->product = $this->id(
             "INSERT INTO products (code, name, active) VALUES ('atlas', 'Atlas', true) RETURNING id",
@@ -600,6 +605,12 @@ final class FreemiumTest extends DatabaseApiTestCase
                 ['id' => $after->id],
             ),
         );
+
+        // And nothing was billed (ADR-068). Renewing raises an invoice now, so a
+        // free period whose renewal stops must raise none — five free days
+        // retaken every five days is a product given away, and five free days
+        // *invoiced* every five days is worse than that.
+        self::assertSame([], $this->renewal->billed);
     }
 
     public function testAnOfferThatRenewsStillRenews(): void
@@ -611,6 +622,19 @@ final class FreemiumTest extends DatabaseApiTestCase
         self::assertNotNull($before->currentPeriodEnd);
         self::assertNotNull($after->currentPeriodEnd);
         self::assertGreaterThan($before->currentPeriodEnd, $after->currentPeriodEnd);
+
+        // Once, and for the period that is starting (ADR-068). Billed from the
+        // old period's end rather than from `now()`: a renewal that runs an hour
+        // late must not charge from the hour it ran.
+        self::assertCount(1, $this->renewal->billed);
+        self::assertSame(
+            [
+                'subscriptionId' => $after->id,
+                'periodStart' => $before->currentPeriodEnd->format('Y-m-d'),
+                'periodEnd' => $after->currentPeriodEnd->format('Y-m-d'),
+            ],
+            $this->renewal->billed[0],
+        );
     }
 
     /**
@@ -748,6 +772,13 @@ final class FreemiumTest extends DatabaseApiTestCase
                     TestCase::fail('A free period charged for leaving.');
                 }
             },
+            // Recorded rather than refused on contact (ADR-068), because this
+            // file holds both cases: a free period whose renewal stops and must
+            // bill nothing, and — `testAnOfferThatRenewsStillRenews` — a paid
+            // offer which renews and must bill exactly once. A double that
+            // failed on contact would have made the second case unwritable,
+            // which is how it was noticed.
+            $this->renewal,
             new PostgresAuditLog($this->connection),
             // The real arithmetic: a free period leaving for a paid plan is
             // priced by it (§6.2), and a double would measure the double.

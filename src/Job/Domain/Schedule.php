@@ -105,6 +105,13 @@ final class Schedule
         'subscription.dunning' => self::DAILY,
         // A notice before tacit renewal, whose lead time is `notice_days`.
         'subscription.renewal_notice' => self::DAILY,
+        // Rolling a paid period, and billing for it (ADR-068). Declared before
+        // the sweep below as a courtesy and not as a guarantee: it renews what
+        // is *about* to end while the sweep expires what already has, so the two
+        // never hold the same row and the order between them decides nothing.
+        // Ordering them would have been the fix for a race; not sharing rows is
+        // the fix for there being one.
+        'subscription.renewal' => self::DAILY,
         'sweep.quotes' => self::DAILY,
         'sweep.subscriptions' => self::DAILY,
         // "The ordinary nightly case" is this handler's own words, and it

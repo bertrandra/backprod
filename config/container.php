@@ -57,6 +57,7 @@ use App\Commerce\Domain\EarlyTerminationCharge;
 use App\Commerce\Domain\OfferAuthoringRepository;
 use App\Commerce\Domain\OfferLineDetails;
 use App\Commerce\Domain\OrganisationSubscriptions;
+use App\Commerce\Domain\RenewalCharge;
 use App\Commerce\Domain\StorefrontListing;
 use App\Commerce\Domain\StorefrontSettings;
 use App\Commerce\Domain\SubscriptionPlaces;
@@ -94,6 +95,7 @@ use App\Job\Service\ExpireQuotes;
 use App\Job\Service\ExpireSubscriptions;
 use App\Job\Service\JobHandlers;
 use App\Job\Service\JobScheduler;
+use App\Job\Service\RenewSubscriptions;
 use App\Job\Service\RollUpFinancials;
 use App\Job\Service\SendRenewalNotices;
 use App\Job\Service\SweepRateLimits;
@@ -162,6 +164,7 @@ use App\Sales\Domain\SalesRepository;
 use App\Sales\Infrastructure\PostgresSalesRepository;
 use App\Sales\Service\ChargeOnEarlyTermination;
 use App\Sales\Service\ChargeOnOfferChange;
+use App\Sales\Service\ChargeOnRenewal;
 use App\Sales\Service\CompleteOrderOnPayment;
 use App\Sales\Service\InvoiceThenSubscribe;
 use App\Shared\Context\RequestContextMiddleware;
@@ -463,6 +466,10 @@ return static function (array $overrides = []): ContainerInterface {
         // numbered, taxed document. Bound here rather than called directly so
         // subscriptions never learn how an invoice is made.
         EarlyTerminationCharge::class => autowire(ChargeOnEarlyTermination::class),
+        // The next paid period, billed like any other sale (ADR-068). `renew()`
+        // moved the period and the entitlements and raised nothing at all, which
+        // was invisible only while nothing called it.
+        RenewalCharge::class => autowire(ChargeOnRenewal::class),
 
         // Moving up a plan, and the two halves of what that costs (spec §3).
         // Both are ports for the same reason the one above is: subscriptions
@@ -651,8 +658,9 @@ return static function (array $overrides = []): ContainerInterface {
                 CollectOverdueInvoices $dunning,
                 SweepRateLimits $rateLimits,
                 DeliverWebhooks $webhooks,
+                RenewSubscriptions $renewals,
             ): JobHandlers => new JobHandlers(
-                [$quotes, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $dunning, $rateLimits, $webhooks],
+                [$quotes, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $dunning, $rateLimits, $webhooks, $renewals],
             ),
         ),
 
