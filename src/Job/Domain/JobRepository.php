@@ -128,6 +128,21 @@ interface JobRepository
     public function finishRun(string $runId, int $claimed, int $succeeded, int $failed): void;
 
     /**
+     * Deletes what the queue has finished with ({@see Retention}).
+     *
+     * Bounded per table, so a pass that has half a million rows to get through
+     * converges over several instead of holding locks for as long as one
+     * statement takes. The counts are returned rather than logged, so a handler
+     * can report whether it is still catching up.
+     *
+     * Nothing unfinished is touched — not a queued or running job, and not an
+     * unfinished run, which is the only record that a pass died mid-flight.
+     *
+     * @return array{jobs: int, runs: int}
+     */
+    public function prune(int $succeededDays, int $failedDays, int $runDays, int $limit): array;
+
+    /**
      * Whether the queue is still being polled, and whether it is keeping up.
      *
      * R10's question. A quiet queue and a cron that stopped firing are

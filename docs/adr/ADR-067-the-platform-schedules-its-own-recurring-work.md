@@ -140,9 +140,17 @@ the crontab line goes in rather than after.
   one line of assembly in the container, and a test can ask what a scheduler does
   with no schedule at all. Not a defaulted argument — ADR-066's lesson is that an
   argument you can omit is one that eventually is.
-- **Still not solved:** nothing prunes `jobs`. The table grows for ever and the
-  new index grows with it. That was true before this and is more visible now that
-  nine rows a day are added by the platform itself.
+- ~~**Still not solved:** nothing prunes `jobs`. The table grows for ever and the
+  new index grows with it.~~ **Solved on 2026-10-01** by `sweep.jobs`
+  ({@see \App\Job\Domain\Retention}), which this ADR made worth doing: the
+  platform now enqueues rows by itself, and `job_runs` takes one per cron pass —
+  1 440 a day, half a million a year, to carry a question only ever asked about
+  the last few minutes. A failure is kept six times longer than a success because
+  it is the only account of what went wrong and the question arrives late; nothing
+  unfinished is pruned, including an unfinished *run*, which is the only record
+  that a pass died mid-flight. The windows are constants rather than
+  configuration, because the act is an irreversible delete and changing a constant
+  is a commit somebody reviews.
 - **Accepted narrowly:** if an overlapping pass's job finishes between the
   outstanding read and the insert, the adapter throws rather than inventing an
   answer, and the scheduler reports that type as unschedulable although the work

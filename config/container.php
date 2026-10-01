@@ -88,6 +88,7 @@ use App\Entitlement\Domain\UsageMeter;
 use App\Finance\Domain\FinancialPeriods;
 use App\Finance\Infrastructure\PostgresFinancialPeriods;
 use App\Job\Domain\JobRepository;
+use App\Job\Domain\Retention;
 use App\Job\Domain\Schedule;
 use App\Job\Infrastructure\PostgresJobRepository;
 use App\Job\Service\CollectOverdueInvoices;
@@ -95,6 +96,7 @@ use App\Job\Service\ExpireQuotes;
 use App\Job\Service\ExpireSubscriptions;
 use App\Job\Service\JobHandlers;
 use App\Job\Service\JobScheduler;
+use App\Job\Service\PruneJobs;
 use App\Job\Service\RenewSubscriptions;
 use App\Job\Service\RollUpFinancials;
 use App\Job\Service\SendRenewalNotices;
@@ -659,8 +661,9 @@ return static function (array $overrides = []): ContainerInterface {
                 SweepRateLimits $rateLimits,
                 DeliverWebhooks $webhooks,
                 RenewSubscriptions $renewals,
+                PruneJobs $prune,
             ): JobHandlers => new JobHandlers(
-                [$quotes, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $dunning, $rateLimits, $webhooks, $renewals],
+                [$quotes, $subscriptions, $exports, $notify, $rollup, $renewalNotices, $dunning, $rateLimits, $webhooks, $renewals, $prune],
             ),
         ),
 
@@ -677,6 +680,12 @@ return static function (array $overrides = []): ContainerInterface {
         // can ask what a scheduler does with no schedule at all.
         JobScheduler::class => autowire(JobScheduler::class)
             ->constructorParameter('periodic', Schedule::PERIODIC),
+
+        // How long the queue keeps what it has done. Assembled here for the same
+        // reason the schedule is: one declaration in the domain, and a test can
+        // ask what a bounded pass does without reaching the bound.
+        PruneJobs::class => autowire(PruneJobs::class)
+            ->constructorParameter('retention', Retention::platform()),
 
         NotificationRepository::class => autowire(PostgresNotificationRepository::class),
 

@@ -114,6 +114,11 @@ final class Schedule
         'subscription.renewal' => self::DAILY,
         'sweep.quotes' => self::DAILY,
         'sweep.subscriptions' => self::DAILY,
+        // The queue tidying up after itself ({@see Retention}). Last in the
+        // list because it reads what the others have finished doing, and daily
+        // because a bounded pass converges in a few days rather than needing to
+        // run often.
+        'sweep.jobs' => self::DAILY,
         // "The ordinary nightly case" is this handler's own words, and it
         // upserts over the open month rather than appending, so running it
         // again is a correction and never a duplicate.
