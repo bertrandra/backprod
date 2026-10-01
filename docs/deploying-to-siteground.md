@@ -327,6 +327,22 @@ It names each capability and the consequence of its absence, reaches the
 database, and refuses a schema behind its migrations. It never prints a secret —
 only whether one is present.
 
+It also says which project document schema versions each product accepts, and
+refuses a deployment whose products cannot accept the documents they are about
+to be sent:
+
+```
+  schemas:  atlas 1 | boreas 1 | ceres 1 | delos 1 | plan 1,2,3
+```
+
+That list lives in the database (ADR-018: a second product declares its own as
+a row, and no code learns either product's name), so **a deployment never
+rewrites it** — the list a database was seeded with is the list it keeps. Ship a
+release of a product that saves in a newer version and every save is refused
+`UNSUPPORTED_SCHEMA_VERSION`, which reads to everybody as a bug in the product.
+This has happened twice. The fix is the console — *Invoicing*, the product, its
+project schema versions — and this is the check that asks for it beforehand.
+
 **No SSH on your plan?** Use cron, which every plan has. Site Tools → Devs →
 Cron Jobs, add a one-off job:
 

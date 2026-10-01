@@ -3,8 +3,12 @@
 declare(strict_types=1);
 
 use App\Auth\Infrastructure\LocalJwtTokenIssuer;
+use App\Demo\Domain\DemoWorld;
 use App\Job\Domain\JobRepository;
 use App\Job\Domain\QueueLiveness;
+use App\Project\Domain\SchemaDrift;
+use App\Project\Domain\SchemaVersions;
+use App\Project\Service\SchemaVersionPolicy;
 use Doctrine\DBAL\Connection;
 use Dotenv\Dotenv;
 use Psr\Container\ContainerInterface;
@@ -31,6 +35,13 @@ use Psr\Container\ContainerInterface;
  * configured is the normal state and a script that exited non-zero would be
  * noise. `--strict` is what a deploy pipeline runs: there, a missing signing
  * secret is not a warning.
+ *
+ * **Not only the environment.** Two of the promises nothing checked turned out
+ * to live in the database rather than in `.env`: whether the job runner has
+ * ever run (R10), and whether each product accepts the document versions the
+ * code it is being deployed with will send it (ADR-018). Both are invisible in
+ * exactly the way a missing secret is — the deployment starts cleanly, answers
+ * `/health` with `ok`, and refuses work it looks able to do.
  *
  * It never prints a secret. It prints whether one is present, which is the only
  * thing an operator needs and the only thing safe to put in a deploy log (§31).
@@ -185,6 +196,19 @@ $queue = null;
  */
 $sideloaded = [];
 
+/**
+ * Which document schema versions each active product accepts, as the database
+ * answers — and which ones this deployment's code expects it to.
+ *
+ * `stored` is the configuration row, read with the same reader every project
+ * write uses. `declared` is what this code says the product accepts, or null
+ * for a product the code has never heard of. `documents` is the versions the
+ * product already has projects written in.
+ *
+ * @var array<string, array{stored: list<int>, declared: ?list<int>, documents: list<int>}>
+ */
+$schemas = [];
+
 if (configured('DATABASE_DSN')) {
     try {
         $containerFactory = require __DIR__ . '/../config/container.php';
@@ -218,6 +242,82 @@ if (configured('DATABASE_DSN')) {
             /** @var JobRepository $jobs */
             $jobs = $container->get(JobRepository::class);
             $queue = $jobs->liveness();
+        }
+
+        // Which versions each product accepts. That list is configuration and
+        // not a constant, deliberately (ADR-018, non-negotiable #10): a second
+        // product declares its own as a row, and no code learns either
+        // product's name. The price is a fact the code and the database can
+        // hold differently, and nothing ever compared them — a database keeps
+        // the list it was seeded with, so shipping a release that accepts one
+        // more version changes nothing until somebody opens the console.
+        //
+        // That gap has cost this platform twice, the same way both times:
+        // Plan's 2.2.0 saving in schema 2 against a list of [1], and its roofs
+        // saving in schema 3 against [1, 2]. Each looked like a bug in Plan.
+        if ($migrationsPending === 0) {
+            $declarations = $connection->fetchAllAssociative(
+                <<<'SQL'
+                SELECT p.code, c.value
+                  FROM products p
+                  LEFT JOIN product_configuration c
+                         ON c.product_id = p.id AND c.key = :key
+                 WHERE p.active
+                 ORDER BY p.code
+                SQL,
+                ['key' => SchemaVersionPolicy::CONFIGURATION_KEY],
+            );
+
+            foreach ($declarations as $row) {
+                $code = $row['code'] ?? null;
+
+                if (!is_string($code)) {
+                    continue;
+                }
+
+                // The configuration reader itself, never a second one written
+                // here: the whole question is whether this deployment and this
+                // database agree, and a preflight parsing the row its own way
+                // could answer yes while every project write answered no.
+                $value = $row['value'] ?? null;
+                $stored = SchemaVersions::read(
+                    is_string($value) ? json_decode($value, true) : $value,
+                );
+
+                // `DemoWorld` is what seeded this database — `composer run
+                // demo:seed`, the console's reset and the host's setup page all
+                // build their world from it — so it is this code's declaration
+                // of what each product accepts, not a fixture borrowed for the
+                // occasion. A product created in the console is not in it, and
+                // there is then nothing to compare, rather than a default to be
+                // mistaken for an opinion.
+                $schemas[$code] = [
+                    'stored' => $stored,
+                    'declared' => isset(DemoWorld::PRODUCTS[$code]) ? DemoWorld::schemaVersionsFor($code) : null,
+                    'documents' => [],
+                ];
+            }
+
+            // What is already written. A list narrowed below a version some
+            // document is stored in leaves its owner able to open that document
+            // and unable to save it — the same failure, arriving from the other
+            // direction and from the console rather than from a deployment.
+            $written = $connection->fetchAllAssociative(<<<'SQL'
+                SELECT p.code, pr.schema_version
+                  FROM projects pr
+                  JOIN products p ON p.id = pr.product_id
+                 GROUP BY p.code, pr.schema_version
+                 ORDER BY p.code, pr.schema_version
+                SQL);
+
+            foreach ($written as $row) {
+                $code = $row['code'] ?? null;
+                $version = $row['schema_version'] ?? null;
+
+                if (is_string($code) && isset($schemas[$code]) && is_numeric($version)) {
+                    $schemas[$code]['documents'][] = (int) $version;
+                }
+            }
         }
 
         // A product deployed beside the platform, without both halves of the
@@ -304,6 +404,82 @@ if ($queue instanceof QueueLiveness) {
     printf("  queue:    %s\n", implode(', ', $queueNotes));
 }
 
+/**
+ * One product each, and what it will accept.
+ *
+ * @var list<string>
+ */
+$schemaNotes = [];
+
+/**
+ * Why this deployment is not ready to be sent documents — each a whole
+ * sentence, because `--strict` prints them with nothing around them.
+ *
+ * @var list<string>
+ */
+$schemaDrift = [];
+
+/**
+ * The products those sentences are about, which is not their number: one
+ * product can be wrong in two ways at once, and saying "3 products" about two
+ * of them would be this report making its own small mistake about counting.
+ *
+ * @var array<string, true>
+ */
+$schemaDriftProducts = [];
+
+/**
+ * What each reason reads as. The deciding is {@see SchemaDrift}'s, which is
+ * what lets it be sabotaged in a unit test rather than demonstrated once by
+ * hand against a database somebody has to set up first; the speaking is this
+ * script's, because prose belongs to whoever is doing it.
+ *
+ * @var array<string, string>
+ */
+$schemaSays = [
+    SchemaDrift::DECLARES_NOTHING => '%1$s has declared no schema versions, so it accepts no project of any version.',
+    SchemaDrift::BEHIND_THE_CODE => '%1$s accepts %2$s, and this deployment expects it to accept %3$s as well.',
+    SchemaDrift::DOCUMENTS_REFUSED => '%1$s stores documents in schema %3$s, which it does not accept: their owners can open them and cannot save them.',
+];
+
+foreach ($schemas as $code => $product) {
+    $schemaNotes[] = sprintf(
+        '%s %s',
+        $code,
+        $product['stored'] === [] ? 'nothing' : implode(',', $product['stored']),
+    );
+
+    foreach (SchemaDrift::of($product['stored'], $product['declared'], $product['documents']) as $finding) {
+        $schemaDrift[] = sprintf(
+            $schemaSays[$finding['reason']] ?? '%1$s: %2$s',
+            $code,
+            implode(', ', $product['stored']),
+            implode(', ', $finding['versions']),
+        );
+
+        $schemaDriftProducts[$code] = true;
+    }
+}
+
+if ($schemaNotes !== []) {
+    printf("  schemas:  %s\n", implode(' | ', $schemaNotes));
+}
+
+if ($schemaDrift !== []) {
+    printf(
+        "\n  WARNING: %s\n\n%s\n\n"
+        . "  The accepted list lives in the database and no deployment rewrites it, so\n"
+        . "  shipping the code is not the fix. The console writes it: Invoicing, then the\n"
+        . "  product, then its project schema versions. A document of a version a product\n"
+        . "  does not accept is refused UNSUPPORTED_SCHEMA_VERSION, and that refusal reads\n"
+        . "  to everybody as a bug in the product.\n",
+        count($schemaDriftProducts) === 1
+            ? 'a product cannot accept the documents it is about to be sent.'
+            : sprintf('%d products cannot accept the documents they are about to be sent.', count($schemaDriftProducts)),
+        implode("\n", array_map(static fn (string $line): string => '    ' . $line, $schemaDrift)),
+    );
+}
+
 if ($sideloaded !== []) {
     $origins = [];
     $domains = [];
@@ -370,6 +546,23 @@ if ($strict && $missingRequired !== []) {
     fwrite(STDERR, "Each of these defaults to off for a good reason, and each default is safe.\n");
     fwrite(STDERR, "What is not safe is a production deployment that starts cleanly, answers\n");
     fwrite(STDERR, "/health with ok, and quietly does almost nothing.\n");
+    exit(1);
+}
+
+// After the missing secrets rather than before them: a deployment that can
+// neither sign a link nor send mail has a more fundamental problem than a
+// product's version list, and whichever check runs first is the one an
+// operator reads.
+if ($strict && $schemaDrift !== []) {
+    fwrite(STDERR, "FAIL: a product cannot accept the documents it is about to be sent.\n\n");
+
+    foreach ($schemaDrift as $line) {
+        fwrite(STDERR, '  ' . $line . "\n");
+    }
+
+    fwrite(STDERR, "\nThis is not a capability that is merely absent. The product saves, the save is\n");
+    fwrite(STDERR, "refused, and the refusal looks like a bug in the product. Name the versions in\n");
+    fwrite(STDERR, "the console before deploying the release that writes them.\n");
     exit(1);
 }
 
