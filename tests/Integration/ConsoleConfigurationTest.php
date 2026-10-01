@@ -635,9 +635,9 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
             <<<'SQL'
                 INSERT INTO subscriptions
                     (tenant_id, product_id, offer_version_id, status, started_at,
-                     current_period_start, current_period_end, subscriber_kind, owner_user_id)
+                     current_period_start, current_period_end, subscriber_user_id, owner_user_id)
                 VALUES (:tenant, :product, :version, 'ACTIVE', now(), now(), now() + interval '30 days',
-                        'TENANT', :owner)
+                        :owner, :owner)
                 SQL,
             [
                 'tenant' => $this->tenant,

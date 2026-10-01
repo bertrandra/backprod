@@ -112,22 +112,26 @@ function subscription(overrides: Record<string, unknown> = {}) {
 function stubsFor(
   extra: Record<string, Stub | (() => Stub)> = {},
   sub: unknown = subscription(),
-  options: { seat?: unknown; session?: unknown; organisation_subscribed?: boolean; coverage?: unknown } = {},
+  options: { seat?: unknown; session?: unknown; coverage?: unknown } = {},
 ): Stubs {
+  // `sub` was the *organisation's* subscription and `seat` the caller's own.
+  // One kind of subscription is left (2026-10-01), so `sub` is the caller's —
+  // every case that passed it meant "the subscription this screen is about".
+  const seat = options.seat ?? sub;
+
   return {
     'GET /api/v1/me': { data: options.session ?? SUBSCRIBER },
     'GET /api/v1/subscription': {
       data: {
-        subscription: sub,
-        seat: options.seat ?? null,
-        // Whether one exists at all, which is not the same as whether this
-        // caller may see it (ADR-053). Defaults to what `sub` implies, so
-        // every case that does not care reads as it did.
-        organisation_subscribed: options.organisation_subscribed ?? sub !== null,
-        // What actually covers the caller, whoever holds it (2026-10-01).
-        // Null unless a case says otherwise, which is the state of somebody
-        // on nothing — the genuine empty state this must not swallow.
-        coverage: options.coverage ?? null,
+        seat,
+        // What covers the caller, whoever holds it. Derived from the seat when
+        // a case does not say otherwise, because holding one is being covered
+        // by it — and null when there is none, which is the genuine empty
+        // state this must not swallow.
+        coverage: options.coverage
+          ?? (seat === null
+            ? null
+            : { subscription_id: 'sub-1', status: 'ACTIVE', current_period_end: null, own: true }),
         history: [],
         events: [],
       },
@@ -338,7 +342,7 @@ describe('covered by a colleague', () => {
       ),
     );
 
-    await waitFor(() => expect(screen.getByTestId('your-seat')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('subscription-status')).toBeTruthy());
     expect(screen.queryByTestId('covered-by-a-colleague')).toBeNull();
   });
 
@@ -353,7 +357,7 @@ describe('covered by a colleague', () => {
 describe('a seat of one\'s own (§13.1)', () => {
   const seat = () => subscription({ id: 'seat-1', subscriber: { kind: 'USER', user_id: 'u-1' } });
 
-  it('is shown to its holder beside the organisation\'s subscription, and given up with the flag', async () => {
+  it('is given up with the flag, which is the only thing that names whose it is', async () => {
     const { client, requests } = recordingClient(
       stubsFor(
         {
@@ -368,22 +372,23 @@ describe('a seat of one\'s own (§13.1)', () => {
 
     renderWith(<SubscriptionScreen />, client);
 
-    await waitFor(() => expect(screen.getByTestId('your-seat')).toBeTruthy());
-    expect(screen.getByTestId('your-seat').textContent).toContain('Pro monthly');
-    // The organisation's is still shown — it is what entitles everyone —
-    // and none of its controls are: those are the administrator's.
+    await waitFor(() => expect(screen.getByTestId('subscription-status')).toBeTruthy());
+    // The offer's name is in the section's header, not in the status pill.
     expect(screen.getByTestId('periodicity')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /cancel…/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /^change$/i })).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: /give up your seat…/i }));
-    fireEvent.click(screen.getByTestId('cancel-seat'));
+    // One control, where there were two: "give up your seat" sat on the
+    // panel beside the organisation's subscription, and both are gone
+    // (2026-10-01). What the request carries is the decision and not whose —
+    // the server knows, because the caller has one subscription.
+    fireEvent.click(screen.getByRole('button', { name: /cancel…/i }));
+    fireEvent.click(screen.getByRole('button', { name: /cancel the subscription/i }));
 
-    // A flag, never an id: whose seat it is, the server already knows.
     await waitFor(() =>
-      expect(requests.filter((request) => request.path === '/api/v1/subscription/cancel').map((request) => request.body)).toEqual([
-        { seat: true },
-      ]),
+      expect(
+        requests
+          .filter((request) => request.path === '/api/v1/subscription/cancel')
+          .map((request) => request.body),
+      ).toEqual([{ immediately: false }]),
     );
   });
 
@@ -396,35 +401,25 @@ describe('a seat of one\'s own (§13.1)', () => {
     // and then explained how to fill it.
     renderWith(<SubscriptionScreen />, stubClient(stubsFor({}, null, { seat: seat(), session: MEMBER })));
 
-    await waitFor(() => expect(screen.getByTestId('your-seat')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('subscription-status')).toBeTruthy());
 
     expect(screen.queryByText(/no subscription/i)).toBeNull();
     expect(screen.queryByText(/bought for the organisation/i)).toBeNull();
   });
 
-  it('still says when the organisation has one the holder is not on', async () => {
-    // Withheld is not the same absence (ADR-053), and it is the one fact that
-    // genuinely concerns them: it explains why they can reach no work and who
-    // to ask. Hiding the empty state must not hide this.
-    renderWith(
-      <SubscriptionScreen />,
-      stubClient(
-        stubsFor({}, null, { seat: seat(), session: MEMBER, organisation_subscribed: true }),
-      ),
-    );
-
-    await waitFor(() => expect(screen.getByTestId('your-seat')).toBeTruthy());
-    expect(screen.getByText(/not on your organisation/i)).toBeTruthy();
-  });
-
-  it('is not shown to someone who holds none', async () => {
-    renderWith(<SubscriptionScreen />, clientFor());
+  it('is the screen’s own section, not a second panel beside it', async () => {
+    // `YourSeat` rendered the caller's seat **beside** the organisation's
+    // subscription: two contracts, two panels. One contract is left
+    // (2026-10-01), so the seat *is* the section below — and rendering both
+    // showed every status, people count and arrears banner twice.
+    renderWith(<SubscriptionScreen />, stubClient(stubsFor({}, seat(), { session: MEMBER })));
 
     await waitFor(() => expect(screen.getByTestId('periodicity')).toBeTruthy());
+
     expect(screen.queryByTestId('your-seat')).toBeNull();
+    expect(screen.getAllByTestId('subscription-status')).toHaveLength(1);
   });
 });
-
 /**
  * Spec §4: a move to a **lower** plan changes nothing today.
  *
@@ -693,7 +688,7 @@ describe('someone who may only read', () => {
       stubClient({
         'GET /api/v1/me': { data: { ...SESSION, permissions: ['subscription.read'] } },
         'GET /api/v1/subscription': {
-          data: { subscription: subscription(), history: [], events: [] },
+          data: { seat: subscription(), coverage: null, history: [], events: [] },
         },
         'GET /api/v1/subscription/schedule': {
           data: { subscription: subscription(), if_cancelled_now: DECISION },
@@ -786,7 +781,7 @@ describe('an unpaid invoice (spec §5.1)', () => {
   it('shows the banner, dates it, and links to the invoice to settle', async () => {
     renderSuspended(clientFor({}, suspended()));
 
-    const banner = await waitFor(() => screen.getByTestId('past-due-organisation'));
+    const banner = await waitFor(() => screen.getByTestId('past-due'));
 
     expect(banner.textContent).toMatch(/payment failed/i);
     // The remedy is a document, never a plan: this refusal is answered by
@@ -801,7 +796,7 @@ describe('an unpaid invoice (spec §5.1)', () => {
     // from `current_period_start` would print a date the server never gave.
     renderSuspended(clientFor({}, suspended({ past_due_since: null })));
 
-    const banner = await waitFor(() => screen.getByTestId('past-due-organisation'));
+    const banner = await waitFor(() => screen.getByTestId('past-due'));
 
     expect(banner.textContent).toMatch(/payment failed/i);
     expect(banner.textContent).not.toMatch(/since/i);
@@ -818,15 +813,18 @@ describe('an unpaid invoice (spec §5.1)', () => {
       session: MEMBER,
     })));
 
-    await waitFor(() => expect(screen.getByTestId('past-due-seat')).toBeTruthy());
-    expect(screen.queryByTestId('past-due-organisation')).toBeNull();
+    // It asserted the seat's banner was shown and the organisation's was
+    // not — two banners, two contracts. One is left, so what is left to say is
+    // that it is shown once.
+    await waitFor(() => expect(screen.getByTestId('past-due')).toBeTruthy());
+    expect(screen.getAllByTestId('past-due')).toHaveLength(1);
   });
 
   it('is absent while nothing is owed', async () => {
     renderWith(<SubscriptionScreen />, clientFor());
 
     await waitFor(() => expect(screen.getByTestId('periodicity')).toBeTruthy());
-    expect(screen.queryByTestId('past-due-organisation')).toBeNull();
-    expect(screen.queryByTestId('past-due-seat')).toBeNull();
+    expect(screen.queryByTestId('past-due')).toBeNull();
+    expect(screen.queryByTestId('past-due')).toBeNull();
   });
 });

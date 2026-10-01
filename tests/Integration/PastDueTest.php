@@ -470,7 +470,10 @@ final class PastDueTest extends DatabaseApiTestCase
 
         self::assertSame(0, $pass['unaddressed'] ?? null, 'the debtor is on the row');
         self::assertSame(1, $pass['suspended'] ?? null);
-        self::assertSame(0, $this->noticesRaised());
+        // One notice, where it asserted none: there was nobody to tell when the
+        // organisation could owe the money and had no administrator. The debtor
+        // is a person now and the person is on the row.
+        self::assertSame(1, $this->noticesRaised());
     }
 
     // --- 4. the schedule is the product's ------------------------------------

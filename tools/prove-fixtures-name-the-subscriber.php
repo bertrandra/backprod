@@ -12,12 +12,12 @@ declare(strict_types=1);
  * a test that proves nothing about the running platform.
  *
  * `subscriptions` is where that bites. The real chain writes sixteen columns;
- * a fixture that writes five has no `subscriber_kind` and no `owner_user_id`
- * — a shape the tenant surface has not produced since ADR-055, where every
- * subscription is addressed to somebody. Such a row is skipped by
- * `holdersCovering()`, counted as nobody by `PlacesUsedSql` and attributed to
- * nobody by `DocumentPersonSql`, so a test built on one exercises the
- * null-holder path while production exercises the other.
+ * a fixture that writes five names nobody — a shape the tenant surface has not
+ * produced since ADR-055, where every subscription is addressed to somebody.
+ * Such a row is skipped by `holdersCovering()`, counted as nobody by
+ * `PlacesUsedSql` and attributed to nobody by `DocumentPersonSql`, so a test
+ * built on one exercises the null-holder path while production exercises the
+ * other.
  *
  * It has already cost this repository twice in one week: a test that built
  * memberships in memory while the places rule reads `tenant_member_roles` in
@@ -25,12 +25,18 @@ declare(strict_types=1);
  * fixture with no holder went unreachable the day holders started deciding
  * reachability.
  *
- * **`subscriber_kind` and not `owner_user_id`**, deliberately. A `TENANT`
- * subscription legitimately names nobody — the column still carries the rows
- * a deployment already has — so demanding an owner would refuse an honest
- * fixture. Demanding the *kind* asks the author to decide which of the two
- * they are building and to say so, which is the fact everything downstream
- * reads.
+ * **It asked for `subscriber_kind` until 2026-10-01**, and that was the right
+ * question while there were two kinds: a `TENANT` row legitimately named
+ * nobody, so demanding a person would have refused an honest fixture, and
+ * demanding the kind made the author say which of the two they were building.
+ *
+ * There is one kind now and the column is gone, so the question is simply
+ * **who**: `subscriber_user_id`, which the schema makes NOT NULL. The gate
+ * survives its own subject because what it was ever about is a fixture
+ * building a row the application cannot — and PostgreSQL now refuses the row
+ * outright, which makes this a second lock on the same door rather than the
+ * only one. It is kept for the reason it was written: a column constraint says
+ * *refused*, and this says *which fixture, on which line*.
  *
  * Exit 0 means every fixture names its subscriber.
  */
@@ -86,12 +92,12 @@ foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($tests)) a
     foreach ($matches[1] as $index => [$columns, $at]) {
         ++$checked;
 
-        if (str_contains(strtolower($columns), 'subscriber_kind')) {
+        if (str_contains(strtolower($columns), 'subscriber_user_id')) {
             continue;
         }
 
         $offences[] = sprintf(
-            '%s:%d  the %s INSERT INTO subscriptions names no subscriber_kind',
+            '%s:%d  the %s INSERT INTO subscriptions names no subscriber_user_id',
             $path,
             substr_count(substr($contents, 0, $at), "\n") + 1,
             ordinal($index + 1),
@@ -123,11 +129,11 @@ if ($offences !== []) {
         fwrite(STDERR, '  ' . $offence . "\n");
     }
 
-    fwrite(STDERR, "\nEvery subscription this platform makes says whether it is one person's\n");
-    fwrite(STDERR, "seat or the organisation's (ADR-055). A fixture that does not is a row\n");
-    fwrite(STDERR, "the application never produces, and a test built on one proves nothing\n");
-    fwrite(STDERR, "about the running platform. Add subscriber_kind, and an owner_user_id\n");
-    fwrite(STDERR, "with it when the kind is USER.\n");
+    fwrite(STDERR, "\nEvery subscription this platform makes is one person's seat (ADR-055,\n");
+    fwrite(STDERR, "and since 2026-10-01 the schema says so too). A fixture that names\n");
+    fwrite(STDERR, "nobody is a row the application never produces, and a test built on one\n");
+    fwrite(STDERR, "proves nothing about the running platform. Add subscriber_user_id, and\n");
+    fwrite(STDERR, "owner_user_id with it unless the case is about a row that has none.\n");
 
     exit(1);
 }
