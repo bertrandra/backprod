@@ -44,6 +44,37 @@ final class DemoWorldTest extends TestCase
      * drift — a demonstration payment claiming a provider that never saw it
      * — and this is where they are held together.
      */
+    /**
+     * The 3D view is on every Plan offer, because it is what Plan is.
+     *
+     * The operator's own answer, asked which offers include it: all of them. It
+     * was `from: 'pro'` until 2026-10-01 — a decision about tiers that read as
+     * a decision about the product, and a free period that could not show the
+     * thing it exists to show.
+     *
+     * Asserted against the declaration rather than a seeded world, because the
+     * declaration is what a reader changes: `from` on the ladder, and a named
+     * grant on each plan beside it.
+     */
+    public function testTheThreeDimensionalViewIsOnEveryPlanOffer(): void
+    {
+        $plan = DemoWorld::PRODUCTS['plan'];
+
+        // The lowest rung of the ladder, so starter, pro and scale all inherit
+        // it — that is what `from` means.
+        self::assertSame('starter', $plan['capabilities']['plan.3d']['from']);
+
+        // And each plan outside the ladder names it, because nothing is
+        // inherited there.
+        foreach ($plan['plans'] as $code => $extra) {
+            self::assertArrayHasKey(
+                'plan.3d',
+                $extra['grants'],
+                sprintf('the %s plan should include the 3D view', $code),
+            );
+        }
+    }
+
     public function testEveryDemonstrationPaymentNamesTheProviderThatDidNotTakeIt(): void
     {
         self::assertSame(StubPaymentProvider::NAME, DemoWorld::PAYMENT_PROVIDER);
