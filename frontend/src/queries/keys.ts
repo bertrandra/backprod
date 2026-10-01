@@ -255,6 +255,14 @@ export const keys = {
      */
     configuration: (product: string) => ['staff', 'configuration', product] as const,
     /**
+     * What the product itself says it accepts, fetched from the product's own
+     * host. Its own key and not part of `configuration`, because this is the
+     * only staff read that leaves this server: a product whose host is down
+     * must not make the billing settings unopenable, and the two have very
+     * different reasons to be refetched.
+     */
+    productManifest: (product: string) => ['staff', 'product-manifest', product] as const,
+    /**
      * What a product still needs before it can sell. Invalidated by every write
      * that could advance the chain, because the whole point is that it is
      * current — a stale chain tells somebody to do what they just did.

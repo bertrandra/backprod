@@ -231,7 +231,7 @@
     },
     "console.admin.invoicing": {
       "authority": "platform",
-      "$comment": "A product's configuration desk. ADR-042 gave the console a way to create a product and ADR-043 a way to price it, and a checkout against one created that way still refused with BILLING_NOT_CONFIGURED: an invoice must name its issuer, and the issuer lives in product_configuration, which only the demo seeder ever wrote. Three named keys rather than a JSONB editor, because every key in that table is read by code that names it and a typo would store configuration nothing reads. The third, project_schema_versions, closed the same hole one layer down (2026-09-29): creating a product wrote no configuration at all, and a product that has declared no versions accepts no project of any version. It sits here and not on the Products screen because showStaffConfiguration is the read that carries it, and two screens fetching one desk is how two answers to one question start.",
+      "$comment": "A product's configuration desk. ADR-042 gave the console a way to create a product and ADR-043 a way to price it, and a checkout against one created that way still refused with BILLING_NOT_CONFIGURED: an invoice must name its issuer, and the issuer lives in product_configuration, which only the demo seeder ever wrote. Three named keys rather than a JSONB editor, because every key in that table is read by code that names it and a typo would store configuration nothing reads. The third, project_schema_versions, closed the same hole one layer down (2026-09-29): creating a product wrote no configuration at all, and a product that has declared no versions accepts no project of any version. It sits here and not on the Products screen because showStaffConfiguration is the read that carries it, and two screens fetching one desk is how two answers to one question start. showProductManifest joined it on 2026-10-01 and is a fourth kind of thing: the only staff read that leaves this host. The product serves what it accepts at its own /.well-known/product.json, the screen shows that beside what the database holds, and applying stays the deliberate PUT — a fetch that wrote would let a product\u0027s host re-open a version the platform had retired. It is fetched on its own and never with the configuration beside it, so a product whose server is down does not make the billing settings unopenable.",
       "routes": [
         "/console/invoicing"
       ],
@@ -239,7 +239,8 @@
         "showStaffConfiguration",
         "setBillingIdentity",
         "setTaxSettings",
-        "setProjectSchemaVersions"
+        "setProjectSchemaVersions",
+        "showProductManifest"
       ]
     },
     "console.admin.metrics": {

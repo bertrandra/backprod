@@ -577,6 +577,7 @@ construire son menu) et `updateStaffProfile` (son nom affiché et sa langue).
 | `setBillingIdentity` | Dit **qui vend** ce produit. Sans elle, aucune facture de la plateforme ne peut être levée. |
 | `setTaxSettings` | Pays, OSS, nature de la prestation, devise — et depuis 2026-09-26, assujettissement. |
 | `setProjectSchemaVersions` | Quelles versions de document le produit accepte. Sans elle, un produit créé ici n'en acceptait aucune et refusait tout projet (2026-09-29). |
+| `showProductManifest` | Rien, et c'est la seule lecture du personnel qui **quitte cet hôte** : elle demande au produit, à son propre `app_url`, quelles versions il accepte. Elle n'écrit pas — appliquer reste la ligne au-dessus, parce qu'un fichier distant peut proposer une liste et ne doit pas en décider une. |
 | `showProductReadiness` | Rien. Ce qui manque encore à un produit pour être vendable. |
 | `showProductStory`, `writeProductStory` | Lit et écrit la page publique, en brouillon. |
 | `publishProductStory` | La rend visible aux inconnus. |
@@ -710,15 +711,15 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
   ─────────────────────────────────────────────────
   surface locataire                              130
 
-  PLATFORM_ADMIN                                  81
+  PLATFORM_ADMIN                                  82
   publiques, sans compte                           7
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          229
+  total                                          230
 ```
 
-Dont **109 lectures** et **120 écritures**. Chaque écriture a sa ligne dans les
+Dont **110 lectures** et **120 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

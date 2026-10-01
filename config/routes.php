@@ -190,6 +190,7 @@ use App\Staff\Controller\ShowConfigurationController;
 use App\Staff\Controller\ShowDemoPageController;
 use App\Staff\Controller\ShowMailTemplatesController;
 use App\Staff\Controller\ShowNavigationSetupController;
+use App\Staff\Controller\ShowProductManifestController;
 use App\Staff\Controller\ShowReadinessController;
 use App\Staff\Controller\ShowSignUpSettingsController;
 use App\Staff\Controller\ShowStaffNavigationController;
@@ -773,6 +774,19 @@ return static function (RouteCollector $routes): void {
         'PUT',
         '/api/v1/staff/configuration/project-schema-versions',
         SetProjectSchemaVersionsController::class,
+    );
+
+    // And the product's own answer to the same question (2026-10-01). The list
+    // above is a copy, made by hand, of a fact the product owns — it writes the
+    // migrations and ships the spec — and the copy has fallen behind twice,
+    // both times refusing every save and looking like a bug in the product.
+    // This fetches what the product declares at its own `app_url`; applying it
+    // stays the deliberate PUT above, because a remote file may propose a list
+    // and must not decide one.
+    $routes->addRoute(
+        'GET',
+        '/api/v1/staff/configuration/product-manifest',
+        ShowProductManifestController::class,
     );
 
     // The platform's own menu setup (2026-09-17): what the shell shows each

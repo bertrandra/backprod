@@ -1924,6 +1924,49 @@ export function useProductConfiguration(productCode: string | null) {
 }
 
 /**
+ * What the product itself says it accepts.
+ *
+ * A product is the authority on its own document format — it writes the
+ * migrations and ships the spec — and `project_schema_versions` is a copy of
+ * that fact, made by hand, by whoever remembered. The copy has fallen behind
+ * twice, and both times every save was refused and it looked like a bug in the
+ * product.
+ *
+ * **Read and shown, never applied by itself.** Applying is a separate call to
+ * `useSetProjectSchemaVersions`, pressed by a person, which is what keeps the
+ * console the authority over a list a remote file only proposes.
+ *
+ * `retry: false`, which is unusual here and deliberate: a product that did not
+ * answer *is* the answer, and retrying three times at ten seconds each would
+ * make an unreachable product cost half a minute to find out about. `staleTime`
+ * is a minute because the answer changes when the product is deployed, not
+ * while somebody reads the screen — and a refetch button is right there for the
+ * moment after a deploy, which is the only moment it matters.
+ */
+export function useProductManifest(productCode: string | null) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.productManifest(productCode ?? ''),
+    enabled: productCode !== null && productCode !== '',
+    retry: false,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error, response } = await client.GET(
+        '/api/v1/staff/configuration/product-manifest',
+        { params: { query: { product: productCode ?? '' } } },
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+  });
+}
+
+/**
  * Both writes invalidate the same read, which carries `can_invoice`.
  *
  * Never an optimistic update. What an invoice will name is not a field to

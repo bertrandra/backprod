@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Staff\Service;
 
 use App\Billing\Domain\SupplierDetails;
+use App\Product\Domain\ManifestAnswer;
 use App\Product\Domain\Product;
+use App\Product\Domain\ProductManifests;
 use App\Product\Domain\ProductRepository;
 use App\Product\Domain\ProductSettings;
+use App\Project\Domain\SchemaDrift;
 use App\Project\Domain\SchemaVersions;
 use App\Project\Service\SchemaVersionPolicy;
 use App\Shared\Exceptions\BadRequestException;
@@ -64,6 +67,7 @@ final class ConfigurationDesk
     public function __construct(
         private readonly ProductSettings $settings,
         private readonly ProductRepository $products,
+        private readonly ProductManifests $manifests,
         private readonly StaffAccessLog $trail,
     ) {
     }
@@ -174,6 +178,63 @@ final class ConfigurationDesk
         $this->record($staff, $product, 'CONFIGURE_TAX', $tax->toConfiguration());
 
         return $tax;
+    }
+
+    /**
+     * What the product itself says it accepts, asked of the product.
+     *
+     * A product is the authority on its own document format — it writes the
+     * migrations and ships the spec — and the platform's list is a copy of that
+     * fact, made by hand, once, by whoever remembered. The copy has fallen
+     * behind twice, and both times every save was refused and it looked like a
+     * bug in the product.
+     *
+     * **Read, shown, and never applied here.** This answers a GET and writes
+     * nothing: the operator sees what the product declares beside what the
+     * database holds, and applies the difference with
+     * {@see self::setSchemaVersions()} if they want it. A fetch that wrote
+     * would hand the product's own host the ability to re-open a version the
+     * platform had deliberately retired (ADR-018) and to reconfigure a product
+     * nobody was looking at — and `app_url` is one staff field away from
+     * pointing somewhere else.
+     *
+     * **Adding only.** `missing` is what applying would add; it never proposes
+     * a removal, because removing a version refuses edits on documents
+     * customers already hold, and that is a decision somebody makes rather than
+     * one a remote file proposes.
+     *
+     * Not recorded in the trail: this reads the platform's own product and
+     * changes nothing (non-negotiable #21 traces staff crossing into a
+     * *tenant's* data, and the writer beside it is what gets recorded).
+     *
+     * @return array{product: Product, answer: ManifestAnswer, stored: list<int>, missing: list<int>}
+     */
+    public function manifest(string $productCode): array
+    {
+        $product = $this->product($productCode);
+
+        $stored = SchemaVersions::read(
+            $this->settings->all($product->id)[SchemaVersionPolicy::CONFIGURATION_KEY] ?? null,
+        );
+
+        $answer = $product->appUrl === null || trim($product->appUrl) === ''
+            // Nothing is fetched for a product that runs inside this shell.
+            // There is no host to ask, which is a fact about the deployment
+            // rather than a failure of one.
+            ? ManifestAnswer::failed(ManifestAnswer::NO_ADDRESS)
+            : $this->manifests->of($product->appUrl, $product->code);
+
+        return [
+            'product' => $product,
+            'answer' => $answer,
+            'stored' => $stored,
+            // The same subtraction the preflight composes, from the same place:
+            // a screen offering to add something `bin/preflight.php` did not
+            // consider missing would be two answers to one question.
+            'missing' => $answer->manifest === null
+                ? []
+                : SchemaDrift::missing($answer->manifest->schemaVersions, $stored),
+        ];
     }
 
     /**
