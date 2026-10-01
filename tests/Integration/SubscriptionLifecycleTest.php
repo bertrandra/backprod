@@ -23,6 +23,7 @@ use App\Shared\Database\Row;
 use App\Shared\Exceptions\HttpException;
 use App\Tests\Support\NothingWasCollected;
 use App\Tests\Support\RecordingChangeCharge;
+use App\Tests\Support\RecordingRenewalCharge;
 use DateTimeImmutable;
 use Doctrine\DBAL\Exception\DriverException;
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -64,6 +65,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
     private string $belowFreeOffer = '';
 
     private RecordingChangeCharge $charge;
+    private RecordingRenewalCharge $renewal;
 
     private NothingWasCollected $credit;
 
@@ -72,6 +74,7 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
         parent::setUp();
 
         $this->charge = new RecordingChangeCharge();
+        $this->renewal = new RecordingRenewalCharge();
         $this->credit = new NothingWasCollected();
 
         $this->product = $this->seedProduct('atlas');
@@ -989,6 +992,11 @@ final class SubscriptionLifecycleTest extends DatabaseTestCase
                     TestCase::fail('An open-ended subscription charged for leaving.');
                 }
             },
+            // Renewing bills (ADR-068), and the period it bills for is the one
+            // thing these scenarios need to be able to assert about it — a
+            // renewal billed from `now()` rather than from the period that ended
+            // charges the wrong days and nothing downstream would notice.
+            $this->renewal,
             // The real trail against the real database: a cancellation that
             // is not recorded is one nobody can be held to (§30), and a
             // double here would only prove the double writes nothing.

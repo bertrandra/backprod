@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commerce\Infrastructure;
 
 use App\Commerce\Domain\CancellationDecision;
+use App\Commerce\Domain\DueRenewal;
 use App\Commerce\Domain\Feature;
 use App\Commerce\Domain\OfferGrant;
 use App\Commerce\Domain\OfferVersion;
@@ -638,23 +639,93 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
         );
     }
 
-    public function renew(Subscription $subscription, ?DateTimeImmutable $periodEnd): Subscription
+    public function dueForRenewal(int $limit, int $leadDays): array
     {
+        $rows = $this->connection->fetchAllAssociative(
+            <<<'SQL'
+                SELECT s.id, s.tenant_id, s.product_id, s.subscriber_user_id,
+                       s.current_period_end,
+                       -- The same expression the overdue read uses, so the two
+                       -- cannot come to disagree about what a day is.
+                       floor(
+                           extract(epoch FROM s.current_period_end - now()) / 86400
+                       )::int AS days_until_end
+                  FROM subscriptions s
+                 WHERE s.status = 'ACTIVE'
+                   AND s.current_period_end IS NOT NULL
+                   -- Still inside the period, which is what keeps this and
+                   -- `expireLapsed()` off the same rows.
+                   AND s.current_period_end > now()
+                   AND s.current_period_end <= now() + make_interval(days => :lead)
+                   -- Nothing the customer has already asked to end.
+                   AND s.cancel_at_period_end = false
+                   AND (s.cancel_effective_at IS NULL
+                        OR s.cancel_effective_at > s.current_period_end)
+                   -- A period ending at the term is the last one; what follows
+                   -- is tacit renewal, and that is a decision.
+                   AND (s.term_ends_at IS NULL OR s.current_period_end < s.term_ends_at)
+                 ORDER BY s.current_period_end
+                 LIMIT :limit
+                SQL,
+            ['lead' => $leadDays, 'limit' => $limit],
+        );
+
+        return array_map(
+            static fn (array $row): DueRenewal => new DueRenewal(
+                Row::string($row, 'id'),
+                Row::string($row, 'tenant_id'),
+                Row::string($row, 'product_id'),
+                Row::string($row, 'subscriber_user_id'),
+                Row::timestamp($row, 'current_period_end'),
+                Row::integer($row, 'days_until_end'),
+            ),
+            $rows,
+        );
+    }
+
+    public function renew(
+        Subscription $subscription,
+        ?DateTimeImmutable $periodEnd,
+        callable $alsoBill,
+    ): Subscription {
         return $this->connection->transactional(
-            function () use ($subscription, $periodEnd): Subscription {
+            function () use ($subscription, $periodEnd, $alsoBill): Subscription {
+                $from = $subscription->currentPeriodEnd;
+
                 // The new period starts where the old one ended, not at now():
                 // renewing an hour late must not leave the tenant unentitled
                 // for that hour, nor silently shorten what they paid for.
-                $this->connection->executeStatement(
+                //
+                // Conditioned on the period this was asked about, so two
+                // overlapping passes cannot both roll it — and, since billing
+                // happens below, cannot both invoice it. The statement decides,
+                // not a prior read both of them would pass.
+                $moved = $this->connection->executeStatement(
                     <<<'SQL'
                         UPDATE subscriptions
                            SET current_period_start = coalesce(current_period_end, now()),
                                current_period_end = :periodEnd,
                                updated_at = now()
                          WHERE id = :id
+                           AND current_period_end IS NOT DISTINCT FROM :from
                         SQL,
-                    ['periodEnd' => self::moment($periodEnd), 'id' => $subscription->id],
+                    [
+                        'periodEnd' => self::moment($periodEnd),
+                        'from' => self::moment($from),
+                        'id' => $subscription->id,
+                    ],
                 );
+
+                if ($moved === 0) {
+                    // Somebody else renewed it between the read and here.
+                    // Nothing is billed, and the transaction rolls back
+                    // whatever this one had started.
+                    throw new ConflictException(
+                        'RENEWAL_ALREADY_APPLIED',
+                        'This period has already been renewed.',
+                        ['subscription_id' => $subscription->id],
+                    );
+                }
 
                 $this->record(
                     $subscription->id,
@@ -673,6 +744,12 @@ final class PostgresSubscriptionRepository implements SubscriptionRepository, Su
                         SQL,
                     ['periodEnd' => self::moment($periodEnd), 'id' => $subscription->id],
                 );
+
+                // On this transaction, after the move and after the guard: a
+                // period extended unbilled is revenue given away, and an
+                // invoice for a period the subscription never got is a customer
+                // charged for nothing. Neither may be observable.
+                $alsoBill($subscription);
 
                 return $this->requireActive($subscription);
             },
