@@ -697,7 +697,6 @@
   "No sentence contains that, in any language. Clear the search to see the rest.": "Ninguna frase contiene eso, en ningún idioma. Borre la búsqueda para ver el resto.",
   "No staff member has crossed a tenant boundary yet.": "Ningún miembro del personal ha cruzado aún el límite de una organización.",
   "No subscription": "Sin suscripción",
-  "No subscription for the organisation": "Sin suscripción para la organización",
   "No subscription on this product yet.": "Todavía no hay suscripción en este producto.",
   "No subscriptions": "Sin suscripciones",
   "No such checkout": "No existe tal pago",
@@ -1140,6 +1139,7 @@
   "The order it is read in": "El orden de lectura",
   "the organisation": "la organización",
   "The organisation already has a live subscription to this product": "La organización ya tiene una suscripción activa a este producto",
+  "the organisation’s": "el de la organización",
   "The owner": "El propietario",
   "The page a newcomer reads at this product's address: what it does, how it works, who it is for. Written here and nowhere else — a customer never writes it, because one customer's words would be read by all the others.": "La página que un recién llegado lee en la dirección de este producto: qué hace, cómo funciona, para quién es. Se escribe aquí y en ningún otro sitio: nunca por un cliente, porque las palabras de uno las leerían todos los demás.",
   "The payment could not be started": "El pago no pudo iniciarse",
@@ -1395,6 +1395,7 @@
   "Your email address is confirmed. Sign in below.": "Su dirección de correo está confirmada. Inicie sesión abajo.",
   "Your invoices and payments are still available, so you can settle it from here. Access returns as soon as the payment is confirmed.": "Sus facturas y sus pagos siguen disponibles: puede liquidarla desde aquí. El acceso vuelve en cuanto se confirme el pago.",
   "Your name": "Su nombre",
+  "Your organisation has a subscription and you are not on it. Whoever manages it can add you.": "Su organización tiene una suscripción y usted no está en ella. Quien la gestiona puede añadirle.",
   "Your organisation has no billing address yet": "Su organización aún no tiene dirección de facturación",
   "Your organisation has one, and it covers a set number of people. Whoever manages it can add you to it.": "Su organización tiene una, y cubre un número determinado de personas. Quien la gestione puede añadirle.",
   "Your organisation has one, and it covers a set number of people. Whoever manages it can add you, on Subscription › People.": "Su organización tiene una, y cubre un número determinado de personas. Quien la gestione puede añadirle, en Suscripción › Personas.",
@@ -1409,6 +1410,5 @@
   "your seat": "su plaza",
   "Your seat": "Su plaza",
   "Your seat has started; what it entitles you to is yours now.": "Su plaza ha comenzado; lo que le da derecho es suyo ahora.",
-  "Your seat is yours alone. An offer from the catalogue, bought for the organisation, starts one for everyone.": "Su plaza es solo suya. Una oferta del catálogo, comprada para la organización, inicia una para todos.",
   "Your subscription is suspended for non-payment": "Su suscripción está suspendida por falta de pago"
 }

@@ -112,11 +112,22 @@ function subscription(overrides: Record<string, unknown> = {}) {
 function stubsFor(
   extra: Record<string, Stub | (() => Stub)> = {},
   sub: unknown = subscription(),
-  options: { seat?: unknown; session?: unknown } = {},
+  options: { seat?: unknown; session?: unknown; organisation_subscribed?: boolean } = {},
 ): Stubs {
   return {
     'GET /api/v1/me': { data: options.session ?? SUBSCRIBER },
-    'GET /api/v1/subscription': { data: { subscription: sub, seat: options.seat ?? null, history: [], events: [] } },
+    'GET /api/v1/subscription': {
+      data: {
+        subscription: sub,
+        seat: options.seat ?? null,
+        // Whether one exists at all, which is not the same as whether this
+        // caller may see it (ADR-053). Defaults to what `sub` implies, so
+        // every case that does not care reads as it did.
+        organisation_subscribed: options.organisation_subscribed ?? sub !== null,
+        history: [],
+        events: [],
+      },
+    },
     'GET /api/v1/subscription/schedule': {
       data: { subscription: sub, if_cancelled_now: DECISION },
     },
@@ -289,11 +300,34 @@ describe('a seat of one\'s own (§13.1)', () => {
     );
   });
 
-  it('stands alone when the organisation has none', async () => {
+  it('stands alone when the organisation has none, and says nothing about an absence nobody can end', async () => {
+    // This used to assert the opposite: "No subscription for the organisation
+    // — your seat is yours alone. An offer from the catalogue, bought for the
+    // organisation, starts one for everyone." That purchase has not existed
+    // since ADR-055 — `Sales::order()` has no argument for it and ADR-056
+    // removed the endpoint — so the screen named an absence nobody can fill
+    // and then explained how to fill it.
     renderWith(<SubscriptionScreen />, stubClient(stubsFor({}, null, { seat: seat(), session: MEMBER })));
 
     await waitFor(() => expect(screen.getByTestId('your-seat')).toBeTruthy());
-    expect(screen.getByText(/no subscription for the organisation/i)).toBeTruthy();
+
+    expect(screen.queryByText(/no subscription/i)).toBeNull();
+    expect(screen.queryByText(/bought for the organisation/i)).toBeNull();
+  });
+
+  it('still says when the organisation has one the holder is not on', async () => {
+    // Withheld is not the same absence (ADR-053), and it is the one fact that
+    // genuinely concerns them: it explains why they can reach no work and who
+    // to ask. Hiding the empty state must not hide this.
+    renderWith(
+      <SubscriptionScreen />,
+      stubClient(
+        stubsFor({}, null, { seat: seat(), session: MEMBER, organisation_subscribed: true }),
+      ),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('your-seat')).toBeTruthy());
+    expect(screen.getByText(/not on your organisation/i)).toBeTruthy();
   });
 
   it('is not shown to someone who holds none', async () => {
