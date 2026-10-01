@@ -269,12 +269,11 @@ final class SalesChainTest extends DatabaseApiTestCase
     {
         $orderId = $this->orderedId();
 
+        // The kind was asserted beside the person until 2026-10-01. One kind
+        // left, so the row says who and nothing else.
         self::assertSame(
-            ['USER', $this->user],
-            [
-                $this->connection->fetchOne('SELECT subscriber_kind FROM orders WHERE id = :id', ['id' => $orderId]),
-                $this->connection->fetchOne('SELECT subscriber_user_id FROM orders WHERE id = :id', ['id' => $orderId]),
-            ],
+            $this->user,
+            $this->connection->fetchOne('SELECT subscriber_user_id FROM orders WHERE id = :id', ['id' => $orderId]),
         );
 
         // And nothing raised a quote on the way: the routes are gone, so the

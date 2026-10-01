@@ -15,6 +15,7 @@ use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
 use App\Tests\Support\FakeAuthProvider;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
+use Throwable;
 
 /**
  * The §37.4 fiscal scenarios, through the real pipeline and the real database.
@@ -317,7 +318,7 @@ final class FiscalChainTest extends DatabaseApiTestCase
 
     public function testInvoicingWritesTheFiscalFactInTheSameTransaction(): void
     {
-        $this->saveTaxProfile(['country_code' => 'FR', 'customer_kind' => 'B2C']);
+        $this->saveTaxProfile(['country_code' => 'FR', 'customer_kind' => 'B2B', 'taxable_person' => true, 'vat_number' => 'FR12345678901']);
         $this->saveBillingProfile();
         $this->subscribe();
 
@@ -348,29 +349,78 @@ final class FiscalChainTest extends DatabaseApiTestCase
         self::assertSame($vat['minor_units'] ?? null, $fact['vat_amount'] ?? null);
     }
 
-    public function testAReverseChargedSaleLeavesAFactThatSaysSo(): void
+    /**
+     * Reverse charge is no longer reachable by any sale, and the row that
+     * records one is still refused unless the number was verified.
+     *
+     * This drove a reverse-charged sale through the chain until 2026-10-01.
+     * It cannot: the only sale the platform makes is a seat, which is the
+     * organisation selling to one of its own people in its own country —
+     * domestic by construction, as §25.3 already said. Reverse charge is a
+     * cross-border mechanism and cannot arise on one.
+     *
+     * So the regime itself is proved where it is decided (`TaxRuleTest`), and
+     * what is left here is the half nothing else covers: the **fiscal fact**,
+     * and the constraint standing behind it. A verified number is what makes
+     * reverse charge lawful, and the platform refuses the row rather than
+     * trusting whoever wrote it — `vat_transactions_reverse_charge_needs_verification`,
+     * since the first fiscal migration. ADR-057's rule is that the regime is
+     * decided between the parties the document names, and this is the floor
+     * under it.
+     */
+    public function testAReverseChargedFactIsRefusedWithoutAVerifiedNumber(): void
     {
-        $this->saveTaxProfile([
-            'country_code' => 'DE',
-            'customer_kind' => 'B2B',
-            'taxable_person' => true,
-            'vat_number' => 'DE123456781',
-        ]);
-        $this->saveBillingProfile(['country_code' => 'DE']);
+        // A real invoice, because a fiscal fact must name exactly one document
+        // (`vat_transactions_names_one_document`). Without it the first insert
+        // below would be refused by *that* constraint and the test would read
+        // as proving the verified-number one — a refusal caught for the wrong
+        // reason is worse than none.
+        $this->saveTaxProfile(['country_code' => 'FR', 'customer_kind' => 'B2B', 'taxable_person' => true, 'vat_number' => 'FR12345678901']);
+        $this->saveBillingProfile();
         $this->subscribe();
+        $invoice = $this->decode($this->request('POST', '/api/v1/billing/invoices', $this->headers()))['id'] ?? null;
+        self::assertIsString($invoice);
+        $this->connection->executeStatement('DELETE FROM vat_transactions');
 
-        self::assertSame(
-            201,
-            $this->request('POST', '/api/v1/billing/invoices', $this->headers())->getStatusCode(),
+        $row = static fn (string $status): string => sprintf(
+            <<<'SQL'
+                INSERT INTO vat_transactions
+                    (tenant_id, product_id, invoice_id, transaction_date, vat_regime, rule_id,
+                     country, supply_type, vat_rate, taxable_base, vat_amount,
+                     currency, reverse_charge, customer_tax_status)
+                SELECT :tenant, :product, :invoice, now(), 'REVERSE_CHARGE', 'eu.b2b.reverse_charge',
+                       'DE', 'DIGITAL_SERVICES', 0, 10000, 0,
+                       'EUR', true, '%s'
+                SQL,
+            $status,
         );
 
-        $fact = $this->firstFact();
-        self::assertSame('REVERSE_CHARGE', $fact['vat_regime'] ?? null);
-        self::assertTrue($fact['reverse_charge'] ?? null);
-        self::assertSame(0, $fact['vat_amount'] ?? null);
-        // The database refuses reverse charge on anything but a verified
-        // number, so this row existing is itself the proof.
-        self::assertSame('VERIFIED', $fact['customer_tax_status'] ?? null);
+        $parameters = ['tenant' => $this->tenant, 'product' => $this->product, 'invoice' => $invoice];
+
+        // Presented and not checked is exactly the state §25.3 says must not
+        // be reverse-charged: VIES unreachable is not a yes.
+        $refused = null;
+
+        try {
+            $this->connection->executeStatement($row('PRESENTED'), $parameters);
+        } catch (Throwable $violation) {
+            $refused = $violation->getMessage();
+        }
+
+        self::assertIsString($refused, 'reverse charge on an unverified number is refused by the database');
+        // **Which** constraint, because a refusal caught for the wrong reason
+        // proves nothing — and this test did exactly that on its first
+        // writing, tripping `names_one_document` instead.
+        self::assertStringContainsString('vat_transactions_reverse_charge_needs_verification', $refused);
+
+        // And verified goes in, so the refusal above is the constraint rather
+        // than the statement being wrong.
+        $this->connection->executeStatement($row('VERIFIED'), $parameters);
+
+        self::assertSame(
+            1,
+            $this->rowsMatching("SELECT count(*) FROM vat_transactions WHERE vat_regime = 'REVERSE_CHARGE'"),
+        );
     }
 
     public function testChangingARateMovesNoVatAlreadyInvoiced(): void
@@ -460,13 +510,13 @@ final class FiscalChainTest extends DatabaseApiTestCase
 
     public function testAPeriodHoldingTwoCurrenciesCannotBeClosed(): void
     {
-        $this->saveTaxProfile(['country_code' => 'FR', 'customer_kind' => 'B2C']);
+        $this->saveTaxProfile(['country_code' => 'FR', 'customer_kind' => 'B2B', 'taxable_person' => true, 'vat_number' => 'FR12345678901']);
         $this->saveBillingProfile();
         $this->subscribe();
         $this->request('POST', '/api/v1/billing/invoices', $this->headers());
 
         $this->connection->executeStatement(
-            'UPDATE vat_transactions SET transaction_date = current_date - 3',
+            'UPDATE vat_transactions SET transaction_date = current_date - 3, issuer_tenant_id = NULL',
         );
 
         // A second fact in the same window, in another currency.
@@ -555,7 +605,7 @@ final class FiscalChainTest extends DatabaseApiTestCase
 
     public function testAClosedPeriodReportsWhatItDeclaredNotWhatIsThereNow(): void
     {
-        $this->saveTaxProfile(['country_code' => 'FR', 'customer_kind' => 'B2C']);
+        $this->saveTaxProfile(['country_code' => 'FR', 'customer_kind' => 'B2B', 'taxable_person' => true, 'vat_number' => 'FR12345678901']);
         $this->saveBillingProfile();
         $this->subscribe();
         $this->request('POST', '/api/v1/billing/invoices', $this->headers());
@@ -566,7 +616,7 @@ final class FiscalChainTest extends DatabaseApiTestCase
             . " VALUES ('FR', 'MONTHLY', current_date - 5, current_date - 1) RETURNING id",
         );
         $this->connection->executeStatement(
-            'UPDATE vat_transactions SET transaction_date = current_date - 3',
+            'UPDATE vat_transactions SET transaction_date = current_date - 3, issuer_tenant_id = NULL',
         );
 
         $closed = $this->closedDeclaration($period);

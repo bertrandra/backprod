@@ -522,7 +522,7 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
         self::assertSame($paid, $refund['payment_id'] ?? null);
         self::assertSame($credit, Row::integer($refund, 'amount_minor_units'));
         self::assertSame(
-            ['pro', 'USER'],
+            ['pro', $this->user],
             [
                 $this->connection->fetchOne(
                     'SELECT o.code FROM subscriptions s'
@@ -530,7 +530,7 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
                     . ' JOIN offers o ON o.id = v.offer_id WHERE s.id = :id',
                     ['id' => $seat->id],
                 ),
-                $this->connection->fetchOne('SELECT subscriber_kind FROM subscriptions WHERE id = :id', ['id' => $seat->id]),
+                $this->connection->fetchOne('SELECT subscriber_user_id FROM subscriptions WHERE id = :id', ['id' => $seat->id]),
             ],
         );
     }
@@ -883,7 +883,18 @@ final class ProratedUpgradeTest extends DatabaseApiTestCase
             'PUT',
             '/api/v1/tax/profile',
             $this->headers(),
-            $this->json(['customer_kind' => 'B2C', 'country_code' => 'FR']),
+            // Registered, and said so (2026-10-01). This profile answered for
+            // the tenant as the platform's *customer*; since a seat is the
+            // organisation selling to one of its own people, it answers for the
+            // **supplier** too — and a company that has not said it is a taxable
+            // person reads as a small business and charges no VAT, which would
+            // quietly take 20% off every figure below.
+            $this->json([
+                'customer_kind' => 'B2B',
+                'country_code' => 'FR',
+                'taxable_person' => true,
+                'vat_number' => 'FR12345678901',
+            ]),
         )->getStatusCode());
     }
 

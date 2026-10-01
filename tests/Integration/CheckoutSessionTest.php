@@ -321,10 +321,10 @@ final class CheckoutSessionTest extends DatabaseApiTestCase
 
         // The subscription the seat started binds the person (§13.1).
         $bound = $this->connection->fetchAssociative(
-            'SELECT subscriber_kind, subscriber_user_id FROM subscriptions WHERE id = :id',
+            'SELECT subscriber_user_id FROM subscriptions WHERE id = :id',
             ['id' => $read['subscription_id']],
         );
-        self::assertSame(['subscriber_kind' => 'USER', 'subscriber_user_id' => $this->user], $bound);
+        self::assertSame(['subscriber_user_id' => $this->user], $bound);
 
         // One row, and it is hers. Nothing was sold to Acme: since
         // 2026-09-25 the checkout has no way to express that sale.
