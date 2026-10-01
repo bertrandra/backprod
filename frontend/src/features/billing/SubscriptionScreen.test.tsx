@@ -242,6 +242,12 @@ describe('cancelling', () => {
 describe('entitlements', () => {
   it('distinguishes an unlimited quota from a missing limit', async () => {
     // `limit` null means two different things and `unlimited` says which.
+    //
+    // No usage is stubbed here, so this is also the fallback: a quota whose
+    // reading has not arrived — or whose query failed — renders as it did
+    // before this screen had meters. What the offer allows is already here;
+    // what has been used is a second question, and losing the answer to it
+    // must not cost the list.
     renderWith(
       <SubscriptionScreen />,
       clientFor({
@@ -260,6 +266,73 @@ describe('entitlements', () => {
     await waitFor(() => expect(screen.getByText('unlimited')).toBeTruthy());
     expect(screen.getByText('5 seats')).toBeTruthy();
     expect(screen.getByText('included')).toBeTruthy();
+    // And no bar, because nothing answered how much is used.
+    expect(screen.queryByRole('progressbar')).toBeNull();
+  });
+
+  /**
+   * What the plan allows, beside what has been used (2026-10-01).
+   *
+   * Asked for by the operator, who had bought a plan and could not see either.
+   * The figures had been in the contract since M4 and `usage` was typed
+   * `additionalProperties: true`, so the generated client handed back `unknown`
+   * and no screen could read a field of it.
+   */
+  it('shows the reading beside the allowance, where there is one', async () => {
+    renderWith(
+      <SubscriptionScreen />,
+      clientFor({
+        'GET /api/v1/entitlements': {
+          data: {
+            entitlements: [
+              { feature: 'projects', name: 'Projects', kind: 'QUOTA', unit: 'projects', limit: 3, unlimited: false, source: 'SUBSCRIPTION', valid_until: null },
+              { feature: 'gis', name: 'GIS', kind: 'BOOLEAN', unit: null, limit: null, unlimited: false, source: 'OVERRIDE', valid_until: null },
+            ],
+          },
+        },
+        'GET /api/v1/tenants/current/usage': {
+          data: {
+            usage: [
+              { feature: 'projects', name: 'Projects', unit: 'projects', limit: 3, unlimited: false, metered: true, used: 2, remaining: 1 },
+            ],
+          },
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByRole('progressbar')).toBeTruthy());
+
+    expect(screen.getByTestId('quota-figure').textContent).toBe('2 of 3 projects');
+    expect(screen.getByText('1 projects left.')).toBeTruthy();
+
+    // The source stays on the row: where an entitlement came from is a
+    // different fact from how much of it is left, and a negotiated override is
+    // the one somebody needs to see.
+    expect(screen.getByText('from SUBSCRIPTION')).toBeTruthy();
+
+    // A boolean has nothing to meter and keeps its one word.
+    expect(screen.getByText('included')).toBeTruthy();
+  });
+
+  it('keeps the list when only the reading fails', async () => {
+    // The usage call answers 404 here (unstubbed). A screen that had made the
+    // two questions one would show an error instead of the entitlements, which
+    // is the half that still has an answer.
+    renderWith(
+      <SubscriptionScreen />,
+      clientFor({
+        'GET /api/v1/entitlements': {
+          data: {
+            entitlements: [
+              { feature: 'projects', name: 'Projects', kind: 'QUOTA', unit: 'projects', limit: 3, unlimited: false, source: 'SUBSCRIPTION', valid_until: null },
+            ],
+          },
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByText('3 projects')).toBeTruthy());
+    expect(screen.queryByRole('progressbar')).toBeNull();
   });
 });
 

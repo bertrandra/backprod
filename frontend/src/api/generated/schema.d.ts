@@ -4592,6 +4592,20 @@ export interface components {
             /** Format: date-time */
             valid_until: string | null;
         };
+        /** @description What has been counted against one quota. Declared once and read by both operations that answer it: `showTenantUsage`, and the bootstrap a product reads. Typed in two places it would drift, and the figure a customer is refused on is not one to have two shapes of. */
+        QuotaUsage: {
+            feature: string;
+            name: string;
+            unit: string | null;
+            /** @description Null means two different things, so `unlimited` says which - the same pair as on `Entitlement`. */
+            limit: number | null;
+            unlimited: boolean;
+            /** @description Whether anything actually counts this. False means the limit beside it is recorded and not enforced, which is why `used` may be null while a limit is set: reporting 0 used would tell a customer their limit is being enforced when nothing is enforcing it. */
+            metered: boolean;
+            used: number | null;
+            /** @description Null when unlimited or unmetered - in both cases there is no number to give, and zero would be a lie. Never negative: an overrun reads as nothing left, and the refusal stays the server's to make. */
+            remaining: number | null;
+        };
         /** @description Supplier or customer **as they were when the document was issued**, copied rather than referenced (§25). A later change of address must not rewrite an invoice already sent, and an RGPD erasure deliberately leaves this standing. For a seat (§13.1), the customer carries `person: {name, email}` — whom the organisation’s invoice is for — copied in at issue like the rest (2026-09-19). */
         PartySnapshot: {
             [key: string]: unknown;
@@ -8451,17 +8465,8 @@ export interface operations {
                         capabilities: string[];
                         /** @description What the tenant holds on this product, with limits — the same rows `listEntitlements` shows. */
                         entitlements: components["schemas"]["Entitlement"][];
-                        /** @description One row per quota, with what has been counted against it — the same rows `showTenantUsage` shows. */
-                        usage: {
-                            feature: string;
-                            name: string;
-                            unit: string | null;
-                            limit: number | null;
-                            unlimited: boolean;
-                            metered: boolean;
-                            used: number | null;
-                            remaining: number | null;
-                        }[];
+                        /** @description One row per quota, with what has been counted against it. */
+                        usage: components["schemas"]["QuotaUsage"][];
                         /**
                          * Format: date-time
                          * @description When the bearer this was answered for stops being accepted — cache no longer than this. Null when the token carries no expiry, which a product treats as “do not cache”.
@@ -13333,9 +13338,8 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        usage: {
-                            [key: string]: unknown;
-                        }[];
+                        /** @description One row per quota, with what has been counted against it. */
+                        usage: components["schemas"]["QuotaUsage"][];
                     };
                 };
             };

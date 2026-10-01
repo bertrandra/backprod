@@ -333,3 +333,127 @@ describe('the deleted projects', () => {
     expect(screen.getByText(/versions, its assets and its jobs intact/i)).toBeTruthy();
   });
 });
+
+/**
+ * How many projects the plan allows, and the refusal before the click.
+ *
+ * Reported by the operator, who had an allowance of one and met it as an
+ * unexplained failure on submit. Two numbers now sit on this screen and they
+ * are different numbers: the heading counts the projects this person can reach
+ * (ADR-064), the quota counts every project in the organisation, because that
+ * is what the feature sells. The screen says so, or somebody notices and
+ * reports a bug.
+ */
+const quota = (over: Record<string, unknown> = {}): Stub => ({
+  data: {
+    usage: [
+      {
+        feature: 'max_projects',
+        name: 'Projects',
+        unit: 'projects',
+        limit: 3,
+        unlimited: false,
+        metered: true,
+        used: 1,
+        remaining: 2,
+        ...over,
+      },
+    ],
+  },
+});
+
+describe('the project allowance', () => {
+  const usagePath = 'GET /api/v1/tenants/current/usage';
+
+  it('shows what the plan allows and what is left', async () => {
+    render(clientFor({ [usagePath]: quota() }));
+
+    // The form waits on the product's configuration, which answers after the
+    // quota does — so the button is what tells us the screen has settled.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create project' })).toBeTruthy());
+
+    expect(screen.getByTestId('project-quota')).toBeTruthy();
+    expect(screen.getByTestId('quota-figure').textContent).toBe('1 of 3 projects');
+    expect(screen.getByText('2 projects left.')).toBeTruthy();
+    // The caveat, because the heading says "1 in this product" beside it and a
+    // customer who notices the two disagree has no way to know why.
+    expect(screen.getByText(/across the whole organisation/i)).toBeTruthy();
+
+  });
+
+  it('refuses gently when every place is used, and names both ways out', async () => {
+    render(clientFor({ [usagePath]: quota({ used: 3, remaining: 0 }) }));
+
+    await waitFor(() =>
+      expect(screen.getByText('You are using every project your plan allows')).toBeTruthy(),
+    );
+
+    // No form to submit into a refusal.
+    expect(screen.queryByRole('button', { name: 'Create project' })).toBeNull();
+    // Deleting frees a place — true, because only live projects are counted.
+    expect(screen.getByText(/frees its place/i)).toBeTruthy();
+    expect(
+      screen.getByTestId('quota-full-subscription').getAttribute('href'),
+    ).toContain('/subscription');
+
+    // Nothing red: reaching a limit you paid for is not a fault.
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('keeps the form when the allowance is unknown', async () => {
+    // The usage call is deliberately not stubbed, so it answers 404. Hiding the
+    // form here would withhold a capability on a missing answer — and this
+    // screen is never the authority anyway (the API refuses regardless), so the
+    // failure has to fall the generous way.
+    render(clientFor());
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create project' })).toBeTruthy());
+    expect(screen.queryByTestId('project-quota')).toBeNull();
+  });
+
+  it('keeps the form on an unlimited allowance', async () => {
+    render(clientFor({ [usagePath]: quota({ unlimited: true, limit: null, remaining: null }) }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create project' })).toBeTruthy());
+    expect(screen.getByTestId('project-quota')).toBeTruthy();
+  });
+
+  it('shows no meter where the offer sells no project quota', async () => {
+    // An offer may sell seats and no projects at all. The row is simply absent,
+    // and absence is not a zero.
+    render(
+      clientFor({
+        [usagePath]: {
+          data: {
+            usage: [
+              {
+                feature: 'users',
+                name: 'Users',
+                unit: 'users',
+                limit: 3,
+                unlimited: false,
+                metered: false,
+                used: null,
+                remaining: null,
+              },
+            ],
+          },
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create project' })).toBeTruthy());
+    expect(screen.queryByTestId('project-quota')).toBeNull();
+  });
+
+  it('shows no meter in the bin', async () => {
+    // A deleted project is not counted, so the meter would be answering a
+    // question the screen is not asking.
+    render(clientFor({ [usagePath]: quota() }));
+
+    fireEvent.click(await waitFor(() => screen.getByTestId('toggle-bin')));
+
+    await waitFor(() => expect(screen.getByText('Deleted projects')).toBeTruthy());
+    expect(screen.queryByTestId('project-quota')).toBeNull();
+  });
+});
