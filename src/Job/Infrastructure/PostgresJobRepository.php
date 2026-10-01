@@ -324,6 +324,54 @@ final class PostgresJobRepository implements JobRepository
         );
     }
 
+    public function prune(int $succeededDays, int $failedDays, int $runDays, int $limit): array
+    {
+        // `IN (SELECT ... LIMIT)` rather than `DELETE ... LIMIT`, which
+        // PostgreSQL does not have. The inner select is ordered oldest first so
+        // repeated passes work through the backlog in a definite order instead
+        // of sampling it.
+        $jobs = $this->connection->executeStatement(
+            <<<'SQL'
+                DELETE FROM jobs
+                 WHERE id IN (
+                    SELECT id FROM jobs
+                     WHERE finished_at IS NOT NULL
+                       AND (
+                            (status = 'SUCCEEDED'
+                             AND finished_at < now() - make_interval(days => :succeeded))
+                         OR (status IN ('FAILED', 'CANCELLED')
+                             AND finished_at < now() - make_interval(days => :failed))
+                       )
+                     ORDER BY finished_at
+                     LIMIT :limit
+                 )
+                SQL,
+            ['succeeded' => $succeededDays, 'failed' => $failedDays, 'limit' => $limit],
+        );
+
+        // Finished runs only. An unfinished one is a pass that died, and
+        // `liveness()` reports it with its age precisely so somebody can look —
+        // deleting it would erase the evidence and answer "healthy".
+        $runs = $this->connection->executeStatement(
+            <<<'SQL'
+                DELETE FROM job_runs
+                 WHERE id IN (
+                    SELECT id FROM job_runs
+                     WHERE finished_at IS NOT NULL
+                       AND finished_at < now() - make_interval(days => :days)
+                     ORDER BY finished_at
+                     LIMIT :limit
+                 )
+                SQL,
+            ['days' => $runDays, 'limit' => $limit],
+        );
+
+        // DBAL types an affected-row count as int|string, because some drivers
+        // report more rows than a 32-bit int holds. Neither of these can:
+        // both are bounded by `:limit`.
+        return ['jobs' => (int) $jobs, 'runs' => (int) $runs];
+    }
+
     public function liveness(): QueueLiveness
     {
         // One statement rather than five round trips, and every number is
