@@ -93,8 +93,11 @@ export function SubscriptionScreen() {
     return <ErrorSurface error={subscription.error} onRetry={() => void subscription.refetch()} />;
   }
 
-  const current = subscription.data.subscription;
+  // One subscription a person can have on a product, and it is theirs:
+  // `subscription` — the organisation's — went with `subscriber_kind` on
+  // 2026-10-01, because nothing has been able to create one since ADR-055.
   const seat = subscription.data.seat ?? null;
+  const current = seat;
 
   // The banner of spec §2.2, for whichever contract is suspended — built here
   // rather than inside either branch below, because a seat can be in arrears
@@ -126,12 +129,10 @@ export function SubscriptionScreen() {
     // must not read as "nothing".
     const provided = (entitlements.data ?? []).filter((entitlement) => entitlement.source === 'GRANT');
 
-    // **There is one, and it is not theirs** (2026-09-25, ADR-053). The
-    // server withholds an organisation's subscription from a member it does
-    // not cover, and says so with this flag — without which this screen
-    // would tell them nothing is subscribed and invite them to buy what
-    // their organisation already pays for.
-    const withheld = subscription.data.organisation_subscribed === true;
+    // `withheld` stood here — "your organisation has one and you are not on
+    // it" — and the organisation cannot have one any more. What replaced the
+    // fact it carried is `coverage` below, which says what *does* cover you
+    // and is about the person rather than about the company.
 
     // **Nothing is said about an organisation's subscription to somebody who
     // holds a seat** (2026-10-01). This used to read "No subscription for the
@@ -142,10 +143,9 @@ export function SubscriptionScreen() {
     // the endpoint that started one. So the screen named an absence nobody can
     // fill and told somebody how to fill it.
     //
-    // An organisation subscription is still a row a deployment may hold, which
-    // is why the branch above still renders one. What is gone is the empty
-    // state for it: an absence that cannot be ended is not news.
-    const nothingToSay = seat !== null && !withheld;
+    // `nothingToSay` guarded against naming that absence to a seat holder.
+    // With one kind of subscription the holder never reaches this branch at
+    // all — `current` is their seat — so the guard has nothing left to do.
 
     // **Covered by a colleague's subscription** (2026-10-01). The commonest
     // case on this screen, and the one it had no words for: somebody added to
@@ -186,18 +186,10 @@ export function SubscriptionScreen() {
           </section>
         )}
 
-        {!nothingToSay && !byAColleague && (
+        {!byAColleague && (
           <EmptyState
-            title={
-              withheld
-                ? t("You are not on your organisation’s subscription")
-                : t("No subscription")
-            }
-            description={
-              withheld
-                ? t("Your organisation has one, and it covers a set number of people. Whoever manages it can add you to it.")
-                : t("Nothing is subscribed in this product yet. An offer from the catalogue starts one.")
-            }
+            title={t("No subscription")}
+            description={t("Nothing is subscribed in this product yet. An offer from the catalogue starts one.")}
           />
         )}
         {provided.length > 0 && <ProvidedByThePlatform entitlements={provided} />}

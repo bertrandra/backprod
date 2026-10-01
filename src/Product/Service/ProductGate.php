@@ -98,6 +98,7 @@ final class ProductGate
     public function reportUsage(
         ProductKey $key,
         string $tenantId,
+        string $userId,
         string $feature,
         int $quantity,
         string $idempotencyKey,
@@ -107,7 +108,16 @@ final class ProductGate
         $productId = $key->productId;
         $entitlement = null;
 
-        foreach ($this->entitlements->entitlementsFor($tenantId, $productId) as $candidate) {
+        // **The person's, since 2026-10-01.** This asked the tenant-wide
+        // question — what the *organisation* bought — and every subscription
+        // is a seat now, so that answer is empty and every report would have
+        // been refused `QUOTA_EXCEEDED(0, 0)`.
+        //
+        // Naming the person is also the rule §13.1 states for every other
+        // gate: the quota that refuses and the limit a screen shows have to be
+        // about the same somebody, or a product is told it is over a limit
+        // nobody is holding.
+        foreach ($this->entitlements->entitlementsFor($tenantId, $productId, $userId) as $candidate) {
             if ($candidate->featureCode === $feature && $candidate->isQuota()) {
                 $entitlement = $candidate;
 

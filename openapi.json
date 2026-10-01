@@ -910,30 +910,6 @@
           }
         }
       },
-      "Subscriber": {
-        "type": "object",
-        "required": [
-          "kind",
-          "user_id"
-        ],
-        "description": "Who is bound. A seat names the person; a tenant subscription does not.",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "enum": [
-              "TENANT",
-              "USER"
-            ]
-          },
-          "user_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          }
-        }
-      },
       "SubscriptionTerms": {
         "type": "object",
         "description": "What a subscription commits to (§13.1). The distinction this exists to hold is the one that costs the most to lose: **the payment period is not the commitment**. A 24-month subscription billed monthly is one 24-month commitment billed 24 times, not 24 one-month subscriptions in a row.",
@@ -994,7 +970,6 @@
         "required": [
           "id",
           "status",
-          "subscriber_kind",
           "holder",
           "offer_name",
           "plan_name",
@@ -1020,14 +995,6 @@
               "EXPIRED"
             ],
             "description": "The row's own state. Not the same question as `live`: `PAST_DUE` is a subscription whose invoice went unpaid past the product's schedule (ADR-060)."
-          },
-          "subscriber_kind": {
-            "type": "string",
-            "enum": [
-              "TENANT",
-              "USER"
-            ],
-            "description": "Who contracted (§13.1). The tenant surface has sold only USER since 2026-09-25; a TENANT row is one a deployment already had, or one the platform granted."
           },
           "live": {
             "type": "boolean",
@@ -1109,7 +1076,7 @@
           "cancel_at_period_end",
           "cancel_effective_at",
           "cancelled_at",
-          "subscriber",
+          "subscriber_user_id",
           "terms",
           "ended_at",
           "owner_user_id",
@@ -1194,8 +1161,10 @@
             ],
             "format": "date-time"
           },
-          "subscriber": {
-            "$ref": "#/components/schemas/Subscriber"
+          "subscriber_user_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Who contracted (§13.1) — a person, always, since 2026-10-01. It was an object carrying a `kind` until then, and the other kind has been unreachable since ADR-055: the tenant surface sells seats, `Sales::order()` has no argument for the organisation's sale and ADR-056 removed the endpoint that started one. A field that cannot vary is one a client branches on for nothing."
           },
           "terms": {
             "$ref": "#/components/schemas/SubscriptionTerms"
@@ -3988,14 +3957,6 @@
           "product_code": {
             "type": "string",
             "description": "Which product this subscription is on. The platform is multi-product and this list was not saying which (2026-09-26)."
-          },
-          "subscriber_kind": {
-            "type": "string",
-            "enum": [
-              "TENANT",
-              "USER"
-            ],
-            "description": "Who contracted (§13.1). `USER` is a seat, which since ADR-055 is everything the tenant surface sells — so a console naming only the organisation described the world as it was before that: three seats in one tenant looked like three identical rows."
           },
           "owner_user_id": {
             "type": [
@@ -15733,8 +15694,6 @@
                 "schema": {
                   "type": "object",
                   "required": [
-                    "subscription",
-                    "organisation_subscribed",
                     "coverage",
                     "history",
                     "events",
@@ -15742,24 +15701,9 @@
                     "freemium_used"
                   ],
                   "properties": {
-                    "subscription": {
-                      "oneOf": [
-                        {
-                          "$ref": "#/components/schemas/Subscription"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ],
-                      "description": "The organisation's, when it is the caller's to read: they may manage it, or it covers them (ADR-053). Null otherwise — including when there is none."
-                    },
-                    "organisation_subscribed": {
-                      "type": "boolean",
-                      "description": "Whether the organisation has a live subscription to this product, whether or not the caller is one of the people it covers (2026-09-25).\n\nHere so that `subscription: null` can be told apart: a member who is not on their organisation's subscription would otherwise be shown the same answer as a tenant that has never bought anything, and invited to buy what their organisation already has. It is also the one fact in this response that genuinely concerns them — it explains why they can reach no work, and who to ask."
-                    },
                     "coverage": {
                       "type": ["object", "null"],
-                      "description": "**What actually covers the caller** (2026-10-01): their own seat if they hold one, else the colleague's subscription they were added to.\n\nThe two fields beside it answer narrower questions — `subscription` is the organisation's and `seat` is the caller's own — and the ordinary colleague on somebody else's seat is neither. The tenant surface has sold no organisation subscription since ADR-055, so `subscription` is null; they hold none of their own, so `seat` is null. This screen therefore told somebody working inside a subscription, and occupying a place their colleague pays for, that nothing was subscribed and an offer from the catalogue would start one.\n\nNever withheld: being covered is the caller's own fact. It carries **no offer, no price, no terms and no history** — those belong to whoever manages the subscription (ADR-053), and a seat is a more personal object than an organisation's was. It also does not name the holder, which is a decision rather than an omission: who inside an organisation pays for whom is a disclosure, and `own` is the distinction a screen needs.\n\n`ACTIVE` and `PAST_DUE` both, unlike the coverage that decides what work is reachable: arrears shut the workshop (ADR-060), and somebody whose colleague is behind on the bill needs telling precisely then.",
+                      "description": "**What actually covers the caller** (2026-10-01): their own seat if they hold one, else the colleague's subscription they were added to.\n\n`seat` beside it answers the narrower question — the one the caller holds — and the ordinary colleague on somebody else's seat holds none. Two further fields stood here until 2026-10-01: `subscription`, the organisation's own, and `organisation_subscribed`, which said one existed when it was withheld. Both lost their subject with `subscriber_kind`: nothing has been able to create an organisation subscription since ADR-055, so the first was permanently null and the second permanently false, and the empty state they fed told somebody working inside a subscription to go and buy what they already had.\n\nNever withheld: being covered is the caller's own fact. It carries **no offer, no price, no terms and no history** — those belong to whoever manages the subscription (ADR-053), and a seat is a more personal object than an organisation's was. It also does not name the holder, which is a decision rather than an omission: who inside an organisation pays for whom is a disclosure, and `own` is the distinction a screen needs.\n\n`ACTIVE` and `PAST_DUE` both, unlike the coverage that decides what work is reachable: arrears shut the workshop (ADR-060), and somebody whose colleague is behind on the bill needs telling precisely then.",
                       "required": ["subscription_id", "status", "current_period_end", "own"],
                       "properties": {
                         "subscription_id": {"type": "string", "format": "uuid"},
@@ -20729,7 +20673,7 @@
         "description": "Before the work, so the platform can refuse it (ADR-051 §4, §38.3): `quantity` is a signed delta and the sum of the deltas is the level; `idempotency_key` is the product’s own name for the fact, so a retried report counts once (200, `recorded: false`). Refused `403 QUOTA_EXCEEDED` when the tenant’s entitlement does not cover the delta — or holds no quota on the feature at all. Scope `product.usage.write`.",
         "security": [{ "productKey": [] }],
         "parameters": [{ "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["feature", "quantity", "idempotency_key"], "properties": { "feature": { "type": "string", "maxLength": 100 }, "quantity": { "type": "integer", "minimum": -1000000, "maximum": 1000000, "description": "A non-zero delta." }, "idempotency_key": { "type": "string", "maxLength": 200 }, "period_start": { "type": "string", "format": "date", "nullable": true }, "period_end": { "type": "string", "format": "date", "nullable": true } } } } } },
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["user_id", "feature", "quantity", "idempotency_key"], "properties": { "user_id": { "type": "string", "maxLength": 64, "description": "Whose quota this is (2026-10-01). Required, and not optional with a tenant-wide fallback: every subscription is a seat, so there is no organisation-wide quota to fall back on — and an absent field silently meaning \"nobody\" is the shape that let a subscription be created for no one. The quota resolved here is the same one `QuotaPolicy` refuses on, which is §13.1\u0027s rule that both gates ask about the same person." }, "feature": { "type": "string", "maxLength": 100 }, "quantity": { "type": "integer", "minimum": -1000000, "maximum": 1000000, "description": "A non-zero delta." }, "idempotency_key": { "type": "string", "maxLength": 200 }, "period_start": { "type": "string", "format": "date", "nullable": true }, "period_end": { "type": "string", "format": "date", "nullable": true } } } } } },
         "responses": {
           "201": { "description": "Recorded.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProductUsageAnswer" } } } },
           "200": { "description": "Already recorded under this key; nothing written.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProductUsageAnswer" } } } },

@@ -50,24 +50,18 @@ export function ProductCard() {
   // while holding one. `seat` is in the same response and is never withheld,
   // because it is theirs.
   //
-  // The organisation's is the fallback and not the headline: somebody covered
-  // by it holds no seat of their own, and that is what they should see.
-  const seat = subscription.data?.seat ?? null;
-  const organisation = subscription.data?.subscription ?? null;
-  const current = seat ?? organisation;
+  // It read the *organisation's* subscription and nothing else, and the
+  // organisation has not been able to hold one since ADR-055 — so the
+  // ordinary customer, who bought a seat for themselves, landed here and was
+  // told they had bought nothing. The field it read is gone with
+  // `subscriber_kind` (2026-10-01).
+  const current = subscription.data?.seat ?? null;
 
-  // There is one and it is not theirs — withheld by the server from a member
-  // it does not cover (ADR-053). Without this the card would say "none" and
-  // the Subscription screen would say "you are not on it", which is two
-  // answers to one question.
-  const withheld = current === null && subscription.data?.organisation_subscribed === true;
-
-  // Covered by a colleague's seat, which is neither of the two above and is
-  // the commonest case there is: somebody added to a colleague's subscription
-  // holds none of their own. The card said "No subscription on this product
-  // yet" to them too.
+  // Covered by a colleague's seat: somebody added to one holds none of their
+  // own, which is the commonest case there is and the other half of what the
+  // card used to get wrong.
   const covered = subscription.data?.coverage ?? null;
-  const byAColleague = current === null && covered !== null && !covered.own;
+  const byAColleague = current === null && covered !== null && covered.own === false;
 
   const appUrl = product.app_url ?? null;
 
@@ -101,10 +95,6 @@ export function ProductCard() {
             <span className={pill(tone(covered.status))} data-status={covered.status}>{covered.status}</span>
             <span className="text-subtle">{t("on a colleague’s subscription")}</span>
           </p>
-        ) : withheld ? (
-          <p className="text-xs text-subtle" data-testid="subscription-withheld">
-            {t("Your organisation has a subscription and you are not on it. Whoever manages it can add you.")}
-          </p>
         ) : current === null ? (
           <p className="text-xs text-subtle" data-testid="subscription-none">
             {t("No subscription on this product yet.")}
@@ -113,17 +103,13 @@ export function ProductCard() {
           <p
             className="flex flex-wrap items-center gap-2 text-xs"
             data-testid="subscription-summary"
-            data-scope={seat !== null ? 'seat' : 'organisation'}
+            data-scope="seat"
           >
             <span className={pill(tone(current.status))} data-status={current.status}>{current.status}</span>
             <span>
               {current.offer.name} · {current.offer.plan.name}
             </span>
-            {/* Whose it is, because the two are bought and cancelled by
-                different people and the card is a summary somebody acts on. */}
-            <span className="text-subtle">
-              {seat !== null ? t("your seat") : t("the organisation’s")}
-            </span>
+            <span className="text-subtle">{t("your seat")}</span>
             {current.current_period_end !== null && (
               <span className="text-subtle">
                 {current.cancel_at_period_end ? t("ends") : t("renews")} <When at={current.current_period_end} />

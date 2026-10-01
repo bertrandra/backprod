@@ -34,6 +34,11 @@ final class ProductTenantUsageController implements RouteHandler
         $tenantId = ProductKeyRoute::tenant($request, $this->gate, ProductScope::USAGE_WRITE);
 
         $body = JsonBody::of($request);
+        // Whose quota this is. Required rather than optional (2026-10-01):
+        // with every subscription a seat there is no organisation-wide quota
+        // to fall back on, and an optional field whose absence silently meant
+        // "nobody" is the shape this whole change exists to remove.
+        $userId = $body->requiredString('user_id', 64);
         $feature = $body->requiredString('feature', 100);
         $quantity = $body->requiredInt('quantity', -1_000_000);
         $key = $body->requiredString('idempotency_key', 200);
@@ -45,6 +50,7 @@ final class ProductTenantUsageController implements RouteHandler
         $answer = $this->gate->reportUsage(
             $context->key,
             $tenantId,
+            $userId,
             $feature,
             $quantity,
             $key,

@@ -4353,13 +4353,6 @@ export interface components {
             /** @description Null only in principle — an offer is presented once a sellable version exists — but typed honestly rather than asserted away. */
             version: components["schemas"]["OfferVersion"] | null;
         };
-        /** @description Who is bound. A seat names the person; a tenant subscription does not. */
-        Subscriber: {
-            /** @enum {string} */
-            kind: "TENANT" | "USER";
-            /** Format: uuid */
-            user_id: string | null;
-        };
         /** @description What a subscription commits to (§13.1). The distinction this exists to hold is the one that costs the most to lose: **the payment period is not the commitment**. A 24-month subscription billed monthly is one 24-month commitment billed 24 times, not 24 one-month subscriptions in a row. */
         SubscriptionTerms: {
             /** @description How long the contract runs. Null is open-ended. */
@@ -4383,11 +4376,6 @@ export interface components {
              * @enum {string}
              */
             status: "ACTIVE" | "PAST_DUE" | "CANCELLED" | "EXPIRED";
-            /**
-             * @description Who contracted (§13.1). The tenant surface has sold only USER since 2026-09-25; a TENANT row is one a deployment already had, or one the platform granted.
-             * @enum {string}
-             */
-            subscriber_kind: "TENANT" | "USER";
             /** @description Active and inside the period that was paid for. Derived server-side from the clock, like `open` on a quote was: a screen recomputing it from `current_period_end` would disagree with the server a second later. */
             live: boolean;
             /** @description Who bought it. Null only for a row from before ownership was recorded — said plainly rather than attributed to somebody. */
@@ -4447,7 +4435,11 @@ export interface components {
             cancel_effective_at: string | null;
             /** Format: date-time */
             cancelled_at: string | null;
-            subscriber: components["schemas"]["Subscriber"];
+            /**
+             * Format: uuid
+             * @description Who contracted (§13.1) — a person, always, since 2026-10-01. It was an object carrying a `kind` until then, and the other kind has been unreachable since ADR-055: the tenant surface sells seats, `Sales::order()` has no argument for the organisation's sale and ADR-056 removed the endpoint that started one. A field that cannot vary is one a client branches on for nothing.
+             */
+            subscriber_user_id: string;
             terms: components["schemas"]["SubscriptionTerms"];
             /** Format: date-time */
             ended_at: string | null;
@@ -5393,11 +5385,6 @@ export interface components {
             currency?: string;
             /** @description Which product this subscription is on. The platform is multi-product and this list was not saying which (2026-09-26). */
             product_code?: string;
-            /**
-             * @description Who contracted (§13.1). `USER` is a seat, which since ADR-055 is everything the tenant surface sells — so a console naming only the organisation described the world as it was before that: three seats in one tenant looked like three identical rows.
-             * @enum {string}
-             */
-            subscriber_kind?: "TENANT" | "USER";
             /**
              * Format: uuid
              * @description Who bought it. Null only for a row from before ownership was recorded.
@@ -11825,18 +11812,10 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        /** @description The organisation's, when it is the caller's to read: they may manage it, or it covers them (ADR-053). Null otherwise — including when there is none. */
-                        subscription: components["schemas"]["Subscription"] | null;
-                        /**
-                         * @description Whether the organisation has a live subscription to this product, whether or not the caller is one of the people it covers (2026-09-25).
-                         *
-                         *     Here so that `subscription: null` can be told apart: a member who is not on their organisation's subscription would otherwise be shown the same answer as a tenant that has never bought anything, and invited to buy what their organisation already has. It is also the one fact in this response that genuinely concerns them — it explains why they can reach no work, and who to ask.
-                         */
-                        organisation_subscribed: boolean;
                         /**
                          * @description **What actually covers the caller** (2026-10-01): their own seat if they hold one, else the colleague's subscription they were added to.
                          *
-                         *     The two fields beside it answer narrower questions — `subscription` is the organisation's and `seat` is the caller's own — and the ordinary colleague on somebody else's seat is neither. The tenant surface has sold no organisation subscription since ADR-055, so `subscription` is null; they hold none of their own, so `seat` is null. This screen therefore told somebody working inside a subscription, and occupying a place their colleague pays for, that nothing was subscribed and an offer from the catalogue would start one.
+                         *     `seat` beside it answers the narrower question — the one the caller holds — and the ordinary colleague on somebody else's seat holds none. Two further fields stood here until 2026-10-01: `subscription`, the organisation's own, and `organisation_subscribed`, which said one existed when it was withheld. Both lost their subject with `subscriber_kind`: nothing has been able to create an organisation subscription since ADR-055, so the first was permanently null and the second permanently false, and the empty state they fed told somebody working inside a subscription to go and buy what they already had.
                          *
                          *     Never withheld: being covered is the caller's own fact. It carries **no offer, no price, no terms and no history** — those belong to whoever manages the subscription (ADR-053), and a seat is a more personal object than an organisation's was. It also does not name the holder, which is a decision rather than an omission: who inside an organisation pays for whom is a disclosure, and `own` is the distinction a screen needs.
                          *
@@ -14966,6 +14945,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** @description Whose quota this is (2026-10-01). Required, and not optional with a tenant-wide fallback: every subscription is a seat, so there is no organisation-wide quota to fall back on — and an absent field silently meaning "nobody" is the shape that let a subscription be created for no one. The quota resolved here is the same one `QuotaPolicy` refuses on, which is §13.1's rule that both gates ask about the same person. */
+                    user_id: string;
                     feature: string;
                     /** @description A non-zero delta. */
                     quantity: number;
