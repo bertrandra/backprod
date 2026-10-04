@@ -15,10 +15,10 @@ use Psr\Http\Message\ResponseInterface;
  * What a customer has, read by the platform — through the real pipeline
  * and the real database, for every one of the six reads.
  *
- * The claims are the same for each: refused without a motive; refused to a
- * tenant administrator (#22); 404 for a tenant nobody knows; recorded with
- * the motive and the product; narrowed to one product by code; and across
- * every product the tenant holds otherwise — never another tenant's rows.
+ * The claims are the same for each: answered without a motive and recorded
+ * nowhere (ADR-069); refused to a tenant administrator (#22); 404 for a
+ * tenant nobody knows; narrowed to one product by code; and across every
+ * product the tenant holds otherwise — never another tenant's rows.
  */
 #[CoversNothing]
 final class StaffTenantReadsTest extends DatabaseApiTestCase
@@ -106,29 +106,19 @@ final class StaffTenantReadsTest extends DatabaseApiTestCase
     }
 
     #[DataProvider('reads')]
-    public function testEachReadAnswersAnEnvelopeAndIsRecordedWithItsMotive(string $segment, string $key): void
+    public function testEachReadAnswersAnEnvelope(string $segment, string $key): void
     {
         $response = $this->read($this->acme, $segment, 'atlas');
 
         self::assertSame(200, $response->getStatusCode());
         self::assertIsArray($this->decode($response)[$key] ?? null);
-
-        $row = $this->connection->fetchAssociative(
-            'SELECT tenant_id, product_id, action, purpose FROM staff_access_log WHERE resource_type = :resource',
-            ['resource' => $segment],
-        );
-        self::assertIsArray($row);
-        self::assertSame($this->acme, $row['tenant_id'] ?? null);
-        self::assertSame($this->atlas, $row['product_id'] ?? null);
-        self::assertSame('READ', $row['action'] ?? null);
-        self::assertSame('SUPPORT_REQUEST', $row['purpose'] ?? null);
     }
 
     #[DataProvider('reads')]
     public function testEachReadIsFencedTheSameWay(string $segment): void
     {
-        $bare = $this->request('GET', '/api/v1/staff/tenants/' . $this->acme . '/' . $segment, ['Authorization' => 'Bearer sam-token']);
-        self::assertSame(422, $bare->getStatusCode());
+        // ADR-069: the console reads without a motive, and nothing asks for one.
+        self::assertSame(200, $this->read($this->acme, $segment)->getStatusCode());
         self::assertSame(403, $this->read($this->acme, $segment, null, 'ada-token')->getStatusCode());
         self::assertSame(404, $this->read('00000000-0000-0000-0000-000000000000', $segment)->getStatusCode());
     }
@@ -142,26 +132,13 @@ final class StaffTenantReadsTest extends DatabaseApiTestCase
         self::assertIsArray($profile);
         // Nothing declared yet: a private customer until it says otherwise.
         self::assertSame('B2C', $profile['customer_kind'] ?? null);
-        self::assertSame(1, $this->rowCount("SELECT count(*) FROM staff_access_log WHERE resource_type = 'tax_profile' AND action = 'READ'"));
     }
 
     private function read(string $tenantId, string $segment, ?string $product = null, string $token = 'sam-token'): ResponseInterface
     {
         $path = '/api/v1/staff/tenants/' . $tenantId . '/' . $segment . ($product === null ? '' : '?product=' . $product);
 
-        return $this->request('GET', $path, [
-            'Authorization' => 'Bearer ' . $token,
-            'X-Access-Purpose' => 'SUPPORT_REQUEST',
-            'X-Access-Reason' => 'ticket HELP-4182',
-        ]);
-    }
-
-    private function rowCount(string $sql): int
-    {
-        $count = $this->connection->fetchOne($sql);
-        self::assertIsNumeric($count);
-
-        return (int) $count;
+        return $this->request('GET', $path, ['Authorization' => 'Bearer ' . $token]);
     }
 
     /**

@@ -11,9 +11,6 @@ use App\Messaging\Domain\ParticipantKind;
 use App\Shared\Exceptions\ConflictException;
 use App\Shared\Exceptions\ForbiddenException;
 use App\Shared\Exceptions\NotFoundException;
-use App\Staff\Domain\AccessMotive;
-use App\Staff\Domain\StaffAccess;
-use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffIdentity;
 use App\Staff\Domain\StaffPermission;
 
@@ -25,11 +22,6 @@ use App\Staff\Domain\StaffPermission;
  * member never does — and merging them would put that difference inside an
  * `if`, which is the shape a cross-tenant leak takes.
  *
- * Every read here records itself, as in {@see \App\Staff\Service\StaffDesk}:
- * the pairing lives in the service so that reading a customer's thread
- * without leaving a trace is not something a controller can forget to
- * prevent (non-negotiable #21).
- *
  * Only SUPPORT threads are reachable at all. The repository filters on kind
  * in SQL, so an INTERNAL conversation is not "refused" here — it is never
  * returned to be refused.
@@ -38,7 +30,6 @@ final class SupportDesk
 {
     public function __construct(
         private readonly ConversationRepository $conversations,
-        private readonly StaffAccessLog $trail,
     ) {
     }
 
@@ -49,17 +40,6 @@ final class SupportDesk
     {
         $conversations = $this->conversations->listSupport($tenantId, $limit, $offset);
 
-        $this->trail->record(new StaffAccess(
-            $staff->userId,
-            $tenantId,
-            null,
-            'LIST',
-            'conversation',
-            null,
-            StaffPermission::SUPPORT_READ,
-            ['returned' => count($conversations)],
-        ));
-
         return [
             'conversations' => $conversations,
             'total' => $this->conversations->countSupport($tenantId),
@@ -69,30 +49,13 @@ final class SupportDesk
     }
 
     /**
-     * One thread, and why somebody opened it (R14).
-     *
-     * The motive is required here and not on the listing above, and the contract
-     * itself draws that line: a conversation's `tenant_id` appears on the detail
-     * and not on the list, so skimming the queue reveals no customer while
-     * opening a thread reveals which company is asking and what about.
+     * One thread. A conversation's `tenant_id` appears on the detail and not
+     * on the list, so skimming the queue reveals no customer while opening a
+     * thread reveals which company is asking and what about.
      */
-    public function show(StaffIdentity $staff, string $conversationId, AccessMotive $motive): Conversation
+    public function show(StaffIdentity $staff, string $conversationId): Conversation
     {
-        $conversation = $this->require($staff, $conversationId, StaffPermission::SUPPORT_READ);
-
-        $this->trail->record(new StaffAccess(
-            $staff->userId,
-            $conversation->tenantId,
-            $conversation->productId,
-            'READ',
-            'conversation',
-            $conversation->id,
-            StaffPermission::SUPPORT_READ,
-            [],
-            $motive,
-        ));
-
-        return $conversation;
+        return $this->require($staff, $conversationId, StaffPermission::SUPPORT_READ);
     }
 
     /**
@@ -103,17 +66,6 @@ final class SupportDesk
         $conversation = $this->require($staff, $conversationId, StaffPermission::SUPPORT_READ);
 
         $messages = $this->conversations->messages($conversation->id, $sinceSeq, $limit);
-
-        $this->trail->record(new StaffAccess(
-            $staff->userId,
-            $conversation->tenantId,
-            $conversation->productId,
-            'READ',
-            'message',
-            $conversation->id,
-            StaffPermission::SUPPORT_READ,
-            ['returned' => count($messages), 'since_seq' => $sinceSeq],
-        ));
 
         return ['messages' => $messages, 'since_seq' => $sinceSeq, 'limit' => $limit];
     }
@@ -142,24 +94,12 @@ final class SupportDesk
 
         $this->conversations->addParticipant($conversation->id, $staff->userId, ParticipantKind::STAFF);
 
-        $message = $this->conversations->post(
+        return $this->conversations->post(
             $conversation->id,
             $staff->userId,
             ParticipantKind::STAFF,
             $body,
         );
-
-        $this->trail->record(new StaffAccess(
-            $staff->userId,
-            $conversation->tenantId,
-            $conversation->productId,
-            'WRITE',
-            'message',
-            $message->id,
-            StaffPermission::SUPPORT_RESPOND,
-        ));
-
-        return $message;
     }
 
     public function close(StaffIdentity $staff, string $conversationId): Conversation
@@ -167,16 +107,6 @@ final class SupportDesk
         $conversation = $this->require($staff, $conversationId, StaffPermission::SUPPORT_RESPOND);
 
         $this->conversations->close($conversation->id);
-
-        $this->trail->record(new StaffAccess(
-            $staff->userId,
-            $conversation->tenantId,
-            $conversation->productId,
-            'CLOSE',
-            'conversation',
-            $conversation->id,
-            StaffPermission::SUPPORT_RESPOND,
-        ));
 
         $closed = $this->conversations->findSupport($conversation->id);
 

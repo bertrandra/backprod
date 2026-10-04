@@ -50,7 +50,6 @@ final class PostgresNavigationProbe implements NavigationProbe
         'directory' => 'SELECT 1 FROM users',
         'queue' => 'SELECT 1 FROM jobs',
         'audit' => 'SELECT 1 FROM audit_log',
-        'access-log' => 'SELECT 1 FROM staff_access_log',
     ];
 
     public function __construct(private readonly Connection $connection)

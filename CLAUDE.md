@@ -730,8 +730,15 @@ holding both would turn a forgotten filter into privilege escalation.
 
 Staff routes live under `/api/v1/staff/*`, take the tenant as an explicit
 parameter, and are authorized by the platform role — never by the parameter.
-Every staff access to tenant data writes an audit row: who, when, which
-tenant, which resource, on what grounds.
+
+**Staff read without a reason, and nothing is recorded** (ADR-069,
+2026-10-05). This used to read *"every staff access to tenant data writes an
+audit row"* — non-negotiable #21, with R14's motive headers on every read of a
+customer's data. The operator consults their customers directly and chose to
+drop both the reason and the record, reads and changes alike;
+`staff_access_log` was dropped with its history. The permission check on every
+staff route is unchanged, and so is #22. Do not reintroduce a motive prompt or
+a write to a trail without the operator deciding it again.
 
 Never put `if (isStaff)` inside a tenant controller. The two surfaces are
 separate end to end — routes, permissions, controllers.

@@ -19,9 +19,7 @@ use Psr\Http\Message\ServerRequestInterface;
  * this product — and a second identical request is the same state, which is
  * what a console toggle clicked twice on a slow connection needs.
  *
- * No motive header, like the delegation beside it: nothing of the customer's
- * is revealed, what changes is what they may reach, and the trail records
- * who decided it. `staff.tenants.manage`, so PLATFORM_ADMIN alone — a
+ * `staff.tenants.manage`, so PLATFORM_ADMIN alone — a
  * support engineer able to hand a customer a product is one able to hand
  * them a bill for it.
  */

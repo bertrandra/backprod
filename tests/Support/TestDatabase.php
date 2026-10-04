@@ -32,7 +32,7 @@ final class TestDatabase
      */
     private const TABLES = 'platform_settings, rate_limit_counters, erasure_requests, assets, job_runs, jobs, '
         . 'messages, conversation_participants, conversations, '
-        . 'staff_access_log, platform_staff, '
+        . 'platform_staff, '
         . 'einvoice_events, einvoice_transmissions, order_lines, orders, '
         . 'quote_lines, quotes, credit_note_lines, credit_notes, payment_events, refunds, '
         . 'payments, financial_events, tax_records, invoice_lines, invoices, '

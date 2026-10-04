@@ -40,7 +40,7 @@ final class AdminPermission
     /**
      * PLATFORM_ADMIN alone, because of `/admin/users`: it is the only admin
      * surface that returns personal data, and a list of every person on the
-     * platform answers no support question. Support already has the audited
+     * platform answers no support question. Support already has the
      * per-tenant read it needs at `/staff/tenants/{id}`.
      */
     public const DIRECTORY_READ = 'admin.directory.read';

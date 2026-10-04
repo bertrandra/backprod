@@ -40,9 +40,7 @@ final class Reach
      * The administrator's (`tenant.manage`), decided with the operator on
      * 2026-09-30: they already read every subscription on the organisation
      * screen, and an administrator who cannot see the work cannot take it
-     * back when somebody leaves. No audit row: non-negotiable #21 traces
-     * **staff** crossing into a customer's data, and this is the customer's
-     * own administrator inside their own organisation.
+     * back when somebody leaves.
      */
     public static function everything(): self
     {

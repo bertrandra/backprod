@@ -114,9 +114,6 @@ final class WebhookDeliveryTest extends DatabaseApiTestCase
         self::assertIsString($listed);
         self::assertStringNotContainsString($secret, $listed);
         self::assertStringNotContainsString('"secret"', $listed);
-
-        self::assertSame(1, $this->connection->fetchOne("SELECT count(*) FROM staff_access_log WHERE action = 'SET_WEBHOOK_URL'"));
-        self::assertSame(1, $this->connection->fetchOne("SELECT count(*) FROM staff_access_log WHERE action = 'ISSUE_WEBHOOK_SECRET'"));
     }
 
     public function testASubscriptionEventIsCollectedSignedAndDeliveredOnce(): void
@@ -292,7 +289,6 @@ final class WebhookDeliveryTest extends DatabaseApiTestCase
         self::assertIsArray($delivery);
         self::assertArrayHasKey('parked_at', $delivery);
         self::assertNull($delivery['parked_at']);
-        self::assertSame(1, $this->connection->fetchOne("SELECT count(*) FROM staff_access_log WHERE action = 'RETRY_WEBHOOK'"));
 
         $this->wire->answer(204);
         self::assertSame(['collected' => 0, 'delivered' => 1, 'failed' => 0, 'parked' => 0], $this->pass());

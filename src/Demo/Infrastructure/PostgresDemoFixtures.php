@@ -58,7 +58,7 @@ final class PostgresDemoFixtures implements DemoFixtures
         // A product beside the platform (ADR-051): its keys, what they read,
         // what they reported, what it was told.
         'product_usage', 'product_access_log', 'product_credentials', 'webhook_deliveries',
-        'staff_access_log', 'platform_staff',
+        'platform_staff',
         'erasure_requests', 'audit_log', 'financial_events',
         'revenue_periods', 'offer_revenue_periods', 'renewal_periods',
         'tenant_member_roles', 'tenant_members', 'tenant_products', 'tenants',

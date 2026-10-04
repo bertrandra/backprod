@@ -24,8 +24,7 @@ final class StaffIdentity
      * @param list<string> $roles
      * @param list<string> $permissions
      * @param ?string      $email       null once erased (§26); the identity
-     *                                  outlives the person's details so the
-     *                                  access log keeps naming a user id
+     *                                  outlives the person's details
      * @param ?string      $displayName what the shell shows next to the
      *                                  initial in the account menu
      * @param string       $locale      the language they read in (ADR-050),

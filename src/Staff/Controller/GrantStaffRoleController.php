@@ -22,7 +22,7 @@ use Psr\Http\Message\ServerRequestInterface;
  * a permission that is otherwise about staff, and answer it for any address
  * anybody cared to try. The console has `/admin/users` for finding somebody,
  * behind `admin.directory.read`, where looking up a person is the declared
- * purpose and is recorded as such.
+ * purpose.
  *
  * Returns the whole roster, not the one row: the screen's next state is the
  * list, and the caller should not have to guess it from a 201.

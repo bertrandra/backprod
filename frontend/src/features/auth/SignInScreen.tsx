@@ -22,8 +22,7 @@ import { LanguageSelect } from '@/i18n/LanguageSelect';
  * an API operation and `ui-spec.md` never named a sign-in screen to cover.
  *
  * **A route exists, and nothing links to it.** `SignInGate` renders this *instead
- * of* the shell for whatever URL was asked for, the way `AccessMotiveGate` renders
- * instead of a tenant detail — so a deep link survives signing in with nothing to
+ * of* the shell for whatever URL was asked for — so a deep link survives signing in with nothing to
  * remember and nothing to restore. `/sign-in` exists so the screen is addressable
  * and so its coverage area can declare a route, not because anybody is sent there.
  *

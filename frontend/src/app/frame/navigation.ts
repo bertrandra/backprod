@@ -206,7 +206,6 @@ export const APP_NAV: readonly NavSection[] = [
       { id: 'staff', label: 'Staff', to: '/console/staff', scope: 'platform', permission: 'staff.grant' },
       { id: 'queue', label: 'Queue', to: '/console/queue', scope: 'platform', permission: 'admin.health.read' },
       { id: 'audit', label: 'Audit', to: '/console/audit', scope: 'platform', permission: 'admin.audit.read', secondary: true },
-      { id: 'access-log', label: 'Access log', to: '/console/access-log', scope: 'platform', permission: 'staff.access_log.read', secondary: true },
       // Its own entry and its own permission: reading the directory and erasing
       // somebody out of it are not the same authority.
       { id: 'erasure', label: 'Erasure', to: '/console/erasure', scope: 'platform', permission: 'admin.privacy.erase', secondary: true },

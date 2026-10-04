@@ -14,10 +14,7 @@ use App\Commerce\Domain\Plan;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Shared\Exceptions\NotFoundException;
-use App\Staff\Domain\StaffAccess;
-use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffIdentity;
-use App\Staff\Domain\StaffPermission;
 
 /**
  * The platform's own catalogue, authored by the platform.
@@ -33,11 +30,6 @@ use App\Staff\Domain\StaffPermission;
  * tenant-side delegation keeps its meaning as ADR-040 describes it — a
  * *lending*, for a reseller who maintains their own price list — rather than
  * being the only way in.
- *
- * **Reads are not recorded; writes are.** Non-negotiable #21 traces staff
- * crossing into a *tenant's* data, and a price list is the platform's own.
- * What is recorded is every act that changes what can be sold, because
- * "who put this price on sale?" is a question an auditor eventually asks.
  */
 final class CatalogueDesk
 {
@@ -46,7 +38,6 @@ final class CatalogueDesk
         private readonly OfferAuthoringRepository $offers,
         private readonly CatalogueRepository $catalogue,
         private readonly ProductRepository $products,
-        private readonly StaffAccessLog $trail,
     ) {
     }
 
@@ -82,15 +73,7 @@ final class CatalogueDesk
         string $name,
         int $rank,
     ): Plan {
-        $product = $this->product($productCode);
-        $plan = $this->administration->createPlan($product->id, $code, $name, $rank);
-
-        $this->record($staff, $product, 'CREATE', 'plan', $plan->id, [
-            'code' => $plan->code,
-            'rank' => $plan->rank,
-        ]);
-
-        return $plan;
+        return $this->administration->createPlan($this->product($productCode)->id, $code, $name, $rank);
     }
 
     public function updatePlan(
@@ -100,24 +83,11 @@ final class CatalogueDesk
         ?string $name,
         ?int $rank,
     ): Plan {
-        $product = $this->product($productCode);
-        $plan = $this->administration->updatePlan($product->id, $planId, $name, $rank);
+        $plan = $this->administration->updatePlan($this->product($productCode)->id, $planId, $name, $rank);
 
         if ($plan === null) {
             throw new NotFoundException('Plan not found.', [], 'PLAN_NOT_FOUND');
         }
-
-        // A reorder is recorded as its own act. Which plan sits above which is
-        // what an upgrade is measured by, so moving one is a commercial
-        // decision and not a cosmetic edit.
-        $this->record(
-            $staff,
-            $product,
-            $rank === null ? 'RENAME' : 'REORDER',
-            'plan',
-            $plan->id,
-            ['name' => $plan->name, 'rank' => $plan->rank],
-        );
 
         return $plan;
     }
@@ -130,12 +100,7 @@ final class CatalogueDesk
         string $planId,
         OfferDraft $draft,
     ): OfferCandidate {
-        $product = $this->product($productCode);
-        $offer = $this->offers->createOffer($product->id, $code, $name, $planId, $draft);
-
-        $this->record($staff, $product, 'CREATE', 'offer', $offer->id, ['code' => $offer->code]);
-
-        return $offer;
+        return $this->offers->createOffer($this->product($productCode)->id, $code, $name, $planId, $draft);
     }
 
     /**
@@ -148,17 +113,7 @@ final class CatalogueDesk
         string $name,
         ?array $translations = null,
     ): OfferCandidate {
-        $product = $this->product($productCode);
-        $offer = $this->offers->renameOffer($product->id, $offerId, $name, $translations);
-
-        // The languages it now says something in, not what it says in them:
-        // a trail answers "who changed this, and roughly what".
-        $this->record($staff, $product, 'RENAME', 'offer', $offerId, [
-            'name' => $name,
-            'translated' => array_keys($offer->translations),
-        ]);
-
-        return $offer;
+        return $this->offers->renameOffer($this->product($productCode)->id, $offerId, $name, $translations);
     }
 
     public function addVersion(
@@ -167,24 +122,16 @@ final class CatalogueDesk
         string $offerId,
         OfferDraft $draft,
     ): OfferCandidate {
-        $product = $this->product($productCode);
-        $offer = $this->offers->addVersion($product->id, $offerId, $draft);
-
-        $this->record($staff, $product, 'DRAFT_VERSION', 'offer', $offerId, [
-            'price_minor_units' => $draft->priceMinorUnits,
-            'currency' => $draft->currency,
-        ]);
-
-        return $offer;
+        return $this->offers->addVersion($this->product($productCode)->id, $offerId, $draft);
     }
 
     /**
      * Moves a draft version to ACTIVE, which is the act that puts a price on
      * sale.
      *
-     * The loudest thing in this file, and the one the trail exists for: every
-     * quote, order and subscription written from here on prices against it,
-     * and ADR-033 makes it frozen the moment it happens.
+     * The loudest thing in this file: every quote, order and subscription
+     * written from here on prices against it, and ADR-033 makes it frozen
+     * the moment it happens.
      */
     public function publish(
         StaffIdentity $staff,
@@ -192,12 +139,7 @@ final class CatalogueDesk
         string $offerId,
         int $version,
     ): OfferCandidate {
-        $product = $this->product($productCode);
-        $offer = $this->offers->publishVersion($product->id, $offerId, $version);
-
-        $this->record($staff, $product, 'PUBLISH', 'offer', $offerId, ['version' => $version]);
-
-        return $offer;
+        return $this->offers->publishVersion($this->product($productCode)->id, $offerId, $version);
     }
 
     /**
@@ -232,28 +174,4 @@ final class CatalogueDesk
         return $product;
     }
 
-    /**
-     * @param array<string, mixed> $detail
-     */
-    private function record(
-        StaffIdentity $staff,
-        Product $product,
-        string $action,
-        string $resourceType,
-        string $resourceId,
-        array $detail,
-    ): void {
-        $this->trail->record(new StaffAccess(
-            $staff->userId,
-            // No tenant: a catalogue belongs to a product, and naming a
-            // customer here would invent one this decision was not about.
-            null,
-            $product->id,
-            $action,
-            $resourceType,
-            $resourceId,
-            StaffPermission::CATALOG_MANAGE,
-            $detail,
-        ));
-    }
 }

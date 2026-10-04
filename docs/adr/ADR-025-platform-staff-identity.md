@@ -1,6 +1,6 @@
 # ADR-025 — Platform staff is a second axis, not a bigger role
 
-**Status:** accepted
+**Status:** accepted; what it says about the access trail and the motive is superseded by [ADR-069](ADR-069-the-console-reads-without-a-reason-and-records-nothing.md) (2026-10-05)
 **Decides:** how an identity acts across tenants, and what that costs
 **Relates to:** Architecture V2 §12, §12.2, §25.2, non-negotiables #8, #19,
 #21, #22; extends [ADR-015](ADR-015-tenant-resolution.md)

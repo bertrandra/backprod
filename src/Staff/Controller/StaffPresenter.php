@@ -8,7 +8,6 @@ use App\Product\Domain\Product;
 use App\Product\Domain\ProductKey;
 use App\Staff\Domain\GrantedEntitlement;
 use App\Staff\Domain\GrantedFeature;
-use App\Staff\Domain\StaffAccessEntry;
 use App\Staff\Domain\StaffIdentity;
 use App\Staff\Domain\StaffMember;
 use App\Staff\Domain\TenantAccount;
@@ -193,27 +192,6 @@ final class StaffPresenter
             // the platform's answer, so it is on the staff shape and not on
             // the `Tenant` a tenant reads about itself.
             'products' => array_map(self::product(...), $account->products),
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    public static function accessEntry(StaffAccessEntry $entry): array
-    {
-        return [
-            'id' => $entry->id,
-            'staff_user_id' => $entry->staffUserId,
-            'tenant_id' => $entry->tenantId,
-            'product_id' => $entry->productId,
-            'action' => $entry->action,
-            'resource_type' => $entry->resourceType,
-            'resource_id' => $entry->resourceId,
-            'permission' => $entry->permission,
-            'detail' => $entry->detail,
-            'occurred_at' => $entry->occurredAt
-                ->setTimezone(new DateTimeZone('UTC'))
-                ->format(DateTimeInterface::RFC3339),
         ];
     }
 }

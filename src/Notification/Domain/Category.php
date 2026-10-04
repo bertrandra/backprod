@@ -36,9 +36,8 @@ final class Category
      * Security notices cannot be switched off.
      *
      * A notice the recipient can mute is a notice an attacker can mute — and
-     * an attacker who has the account can change preferences. This is the
-     * counterpart of non-negotiable #21: staff access to tenant data is never
-     * silent, and neither is a new sign-in. Non-negotiable #24.
+     * an attacker who has the account can change preferences. A new sign-in
+     * is never silent. Non-negotiable #24.
      */
     public static function isMutable(string $category): bool
     {

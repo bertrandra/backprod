@@ -166,10 +166,9 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
 
     public function testAnUnknownProductIsANotFoundAndNotAServerError(): void
     {
-        // The audit trail's `product_id` is a foreign key to `products`, so a
-        // row written for a product that does not exist would fail the insert
-        // and turn this 404 into a 500 — which is what happened the first time
-        // a test asked the products desk for a product that was not there.
+        // A product that does not exist is a 404, never a 500 — which is what
+        // happened the first time a test asked the products desk for a
+        // product that was not there.
         $response = $this->request(
             'GET',
             '/api/v1/staff/configuration?product=nope',
@@ -325,8 +324,6 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
         self::assertSame('oss_registered', $this->refusedField($response));
     }
 
-    // --- The trail -----------------------------------------------------------
-
     // --- The document versions the product accepts ---------------------------
 
     public function testAProductAnAdministratorMadeAcceptsNoDocumentVersion(): void
@@ -411,56 +408,6 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
         );
 
         self::assertSame(403, $response->getStatusCode());
-    }
-
-    public function testWritesAreRecordedAndReadsAreNot(): void
-    {
-        $this->show();
-        $this->show();
-
-        // A price list and a fiscal identity are the platform's own, so looking
-        // at them crosses no tenant boundary (non-negotiable #21). A row per
-        // look would bury the decisions among them.
-        self::assertSame([], $this->configurationActions());
-
-        $this->setIssuer(self::ISSUER);
-        $this->setTax([
-            'country' => 'FR',
-            'oss_registered' => true,
-            'supply_type' => 'DIGITAL_SERVICES',
-            'currency' => 'EUR',
-        ]);
-
-        self::assertSame(['CONFIGURE_BILLING', 'CONFIGURE_TAX'], $this->configurationActions());
-    }
-
-    public function testTheTrailNamesWhoTheProductNowInvoicesAs(): void
-    {
-        $this->setIssuer(self::ISSUER);
-
-        $detail = $this->connection->fetchOne(
-            "SELECT detail::text FROM staff_access_log WHERE action = 'CONFIGURE_BILLING'",
-        );
-
-        self::assertIsString($detail);
-
-        $decoded = json_decode($detail, true);
-
-        self::assertIsArray($decoded);
-        // "Why does the January batch name a different issuer?" is answerable
-        // only from a trail that recorded the name.
-        self::assertSame('Atlas SAS', $decoded['legal_name'] ?? null);
-        self::assertSame('FR', $decoded['country_code'] ?? null);
-    }
-
-    public function testARefusedWriteLeavesNoRowClaimingItHappened(): void
-    {
-        $partial = self::ISSUER;
-        unset($partial['country_code']);
-
-        $this->setIssuer($partial, 'ola-token', 400);
-
-        self::assertSame([], $this->configurationActions());
     }
 
     // --- The whole point -----------------------------------------------------
@@ -715,8 +662,6 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
         $this->manifest();
 
         self::assertSame([1], $this->itemIn($this->show(), 'project_schema_versions'));
-        // And nothing in the trail either: this read changed nothing to record.
-        self::assertSame(['CONFIGURE_SCHEMA_VERSIONS'], $this->configurationActions());
     }
 
     public function testAnOperatorAheadOfTheProductIsOfferedNothing(): void
@@ -956,28 +901,6 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
         return $response;
     }
 
-    /**
-     * @return list<string>
-     */
-    private function configurationActions(): array
-    {
-        $rows = $this->connection->fetchFirstColumn(
-            <<<'SQL'
-                SELECT action FROM staff_access_log
-                 WHERE resource_type = 'product_configuration'
-                 ORDER BY action
-                SQL,
-        );
-
-        $actions = [];
-
-        foreach ($rows as $action) {
-            self::assertIsString($action);
-            $actions[] = $action;
-        }
-
-        return $actions;
-    }
 
     /**
      * Which field a `VALIDATION_FAILED` names.

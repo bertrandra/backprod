@@ -18,9 +18,6 @@ use Psr\Http\Message\ServerRequestInterface;
  * product, and a page of organisations, each with the palette it wears in each
  * product it holds. A product it does not hold has no cell. The same rows the
  * organisation's own screen writes. `staff.design.manage`.
- *
- * No motive header: which palette an organisation wears is configuration the
- * platform shares in, not the organisation's own data.
  */
 final class ListPaletteAssignmentsController implements RouteHandler
 {

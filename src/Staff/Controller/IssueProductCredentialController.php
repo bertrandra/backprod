@@ -20,7 +20,7 @@ use Psr\Http\Message\ServerRequestInterface;
  * once; the platform stores its hash and cannot say it again. A label says
  * which deployment holds it, the scopes say what it may do, and it expires
  * in a year unless told otherwise — the console says which keys have thirty
- * days left. `staff.products.manage`, and trailed as ISSUE_PRODUCT_KEY.
+ * days left. `staff.products.manage`.
  */
 final class IssueProductCredentialController implements RouteHandler
 {

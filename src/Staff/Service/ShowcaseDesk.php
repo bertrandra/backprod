@@ -9,10 +9,7 @@ use App\Product\Domain\ProductShowcase;
 use App\Product\Domain\PublishedShowcase;
 use App\Product\Domain\ShowcaseBlock;
 use App\Shared\Exceptions\NotFoundException;
-use App\Staff\Domain\StaffAccess;
-use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffIdentity;
-use App\Staff\Domain\StaffPermission;
 
 /**
  * The story a product tells, written by the platform (2026-09-24,
@@ -22,19 +19,12 @@ use App\Staff\Domain\StaffPermission;
  * customer would be read by every other customer of the same product, which
  * is why this is a `/staff/*` surface under `staff.products.manage` and
  * there is no tenant-side equivalent to lend it to.
- *
- * **Writes are recorded, reads are not**, the same rule as the catalogue
- * and the feature list: non-negotiable #21 traces staff crossing into a
- * *tenant's* data, and a product's own shop window is nobody's tenant. What
- * is recorded is every act that changes what a stranger reads, because
- * "who published this?" is a question somebody eventually asks.
  */
 final class ShowcaseDesk
 {
     public function __construct(
         private readonly ProductShowcase $showcase,
         private readonly ProductDirectory $products,
-        private readonly StaffAccessLog $trail,
     ) {
     }
 
@@ -83,19 +73,6 @@ final class ShowcaseDesk
         $product = $this->product($productId);
         $written = $this->showcase->replace($productId, $blocks, $sections, $headings);
 
-        // The bands it now has and the languages they say something in —
-        // not what they say. A trail answers "who changed this, and roughly
-        // what", and four paragraphs of marketing copy in an audit row is
-        // neither readable nor anybody's business later.
-        //
-        // The order goes in only when this request named one, so the trail
-        // tells reordering the page apart from writing a sentence in it.
-        $this->record($staff, $product->id, 'WRITE', [
-            'blocks' => array_map(static fn (ShowcaseBlock $block): string => $block->block, $written),
-            'translated' => self::languages($written),
-        ] + ($sections === null ? [] : ['sections' => $sections])
-            + ($headings === null ? [] : ['headings' => array_keys($headings)]));
-
         return [
             'code' => $product->code,
             'blocks' => $written,
@@ -108,42 +85,14 @@ final class ShowcaseDesk
 
     public function publish(StaffIdentity $staff, string $productId, bool $published): ?PublishedShowcase
     {
-        $product = $this->product($productId);
-        $answer = $this->showcase->publish($productId, $published);
+        $this->product($productId);
 
-        // Publishing and withdrawing are different acts in the trail. "Who
-        // put this in front of strangers, and when did it come down" is one
-        // question with two answers, and a column of WRITE rows holds
-        // neither.
-        $this->record($staff, $product->id, $published ? 'PUBLISH' : 'WITHDRAW', []);
-
-        return $answer;
+        return $this->showcase->publish($productId, $published);
     }
 
     private function publishedAt(string $code): ?\DateTimeImmutable
     {
         return $this->showcase->published($code)?->publishedAt;
-    }
-
-    /**
-     * @param list<ShowcaseBlock> $blocks
-     *
-     * @return list<string>
-     */
-    private static function languages(array $blocks): array
-    {
-        $locales = [];
-
-        foreach ($blocks as $block) {
-            foreach (array_keys($block->translations) as $locale) {
-                $locales[$locale] = true;
-            }
-        }
-
-        $written = array_keys($locales);
-        sort($written);
-
-        return $written;
     }
 
     /**
@@ -164,25 +113,5 @@ final class ShowcaseDesk
         }
 
         throw new NotFoundException('Unknown product.', [], 'PRODUCT_NOT_FOUND');
-    }
-
-    /**
-     * @param array<string, mixed> $detail
-     */
-    private function record(StaffIdentity $staff, string $productId, string $action, array $detail): void
-    {
-        $this->trail->record(new StaffAccess(
-            $staff->userId,
-            // No tenant: a product's shop window is the platform's own, and
-            // naming a customer here would invent one this decision was not
-            // about.
-            null,
-            $productId,
-            $action,
-            'showcase',
-            $productId,
-            StaffPermission::PRODUCTS_MANAGE,
-            $detail,
-        ));
     }
 }

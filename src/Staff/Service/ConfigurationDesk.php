@@ -15,10 +15,7 @@ use App\Project\Domain\SchemaVersions;
 use App\Project\Service\SchemaVersionPolicy;
 use App\Shared\Exceptions\BadRequestException;
 use App\Shared\Exceptions\NotFoundException;
-use App\Staff\Domain\StaffAccess;
-use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffIdentity;
-use App\Staff\Domain\StaffPermission;
 use App\Tax\Domain\SupplierTaxSettings;
 
 /**
@@ -55,12 +52,6 @@ use App\Tax\Domain\SupplierTaxSettings;
  * configuration nothing reads — which on screen is indistinguishable from
  * configuration that did not save. A third named key is the shape that rule
  * prescribes; an arbitrary-key writer is what it forbids.
- *
- * **Reads are not recorded; writes are.** Non-negotiable #21 traces staff
- * crossing into a *tenant's* data, and a product's own fiscal identity is the
- * platform's. What is recorded is every change to it, because an invoice carries
- * a snapshot of this taken at the moment it was raised, and "why does the
- * January batch name a different issuer?" is answerable only from a trail.
  */
 final class ConfigurationDesk
 {
@@ -68,7 +59,6 @@ final class ConfigurationDesk
         private readonly ProductSettings $settings,
         private readonly ProductRepository $products,
         private readonly ProductManifests $manifests,
-        private readonly StaffAccessLog $trail,
     ) {
     }
 
@@ -146,14 +136,6 @@ final class ConfigurationDesk
             $details->snapshot(),
         );
 
-        // The legal name and the country, not the whole document: those two are
-        // what changed the meaning of every invoice raised afterwards, and an
-        // address correction reads as noise beside them.
-        $this->record($staff, $product, 'CONFIGURE_BILLING', [
-            'legal_name' => $details->snapshot()['legal_name'],
-            'country_code' => $details->countryCode(),
-        ]);
-
         return $details;
     }
 
@@ -172,10 +154,6 @@ final class ConfigurationDesk
             SupplierTaxSettings::CONFIGURATION_KEY,
             $tax->toConfiguration(),
         );
-
-        // Recorded in full: all four decide how a cross-border sale is taxed,
-        // and getting one wrong is a VAT return filed in the wrong country.
-        $this->record($staff, $product, 'CONFIGURE_TAX', $tax->toConfiguration());
 
         return $tax;
     }
@@ -202,10 +180,6 @@ final class ConfigurationDesk
      * a removal, because removing a version refuses edits on documents
      * customers already hold, and that is a decision somebody makes rather than
      * one a remote file proposes.
-     *
-     * Not recorded in the trail: this reads the platform's own product and
-     * changes nothing (non-negotiable #21 traces staff crossing into a
-     * *tenant's* data, and the writer beside it is what gets recorded).
      *
      * @return array{product: Product, answer: ManifestAnswer, stored: list<int>, missing: list<int>}
      */
@@ -238,12 +212,9 @@ final class ConfigurationDesk
     }
 
     /**
-     * Sets which project document schema versions the product accepts.
-     *
-     * **Recorded in full**, like the tax settings and unlike the billing
-     * address: every element decides whether a document a customer is about to
-     * save is accepted or refused, and "why did every save start failing on the
-     * 14th?" is answerable only from a trail that kept the list.
+     * Sets which project document schema versions the product accepts:
+     * every element decides whether a document a customer is about to save is
+     * accepted or refused.
      *
      * @return list<int>
      */
@@ -260,8 +231,6 @@ final class ConfigurationDesk
             $versions->toConfiguration(),
         );
 
-        $this->record($staff, $product, 'CONFIGURE_SCHEMA_VERSIONS', $versions->toConfiguration());
-
         return $versions->versions;
     }
 
@@ -276,22 +245,4 @@ final class ConfigurationDesk
         return $product;
     }
 
-    /**
-     * @param array<string, mixed> $detail
-     */
-    private function record(StaffIdentity $staff, Product $product, string $action, array $detail): void
-    {
-        $this->trail->record(new StaffAccess(
-            $staff->userId,
-            // No tenant: this is the product's own fiscal identity, and naming
-            // a customer here would invent one the decision was not about.
-            null,
-            $product->id,
-            $action,
-            'product_configuration',
-            $product->id,
-            StaffPermission::PRODUCTS_MANAGE,
-            $detail,
-        ));
-    }
 }

@@ -211,11 +211,7 @@ final class TenantProductsTest extends DatabaseApiTestCase
         self::assertCount(1, $tenants);
         self::assertSame(['atlas', 'boreas'], $this->codesOf($tenants[0]));
 
-        $read = $this->decode($this->request('GET', '/api/v1/staff/tenants/' . $this->tenant, [
-            'Authorization' => 'Bearer sam-token',
-            'X-Access-Purpose' => 'SUPPORT_REQUEST',
-            'X-Access-Reason' => 'ticket-4711',
-        ]));
+        $read = $this->decode($this->request('GET', '/api/v1/staff/tenants/' . $this->tenant, ['Authorization' => 'Bearer sam-token']));
         self::assertSame(['atlas', 'boreas'], $this->codesOf($read['tenant'] ?? []));
     }
 
@@ -240,31 +236,6 @@ final class TenantProductsTest extends DatabaseApiTestCase
         self::assertSame(404, $this->assign($this->boreas, 'ola-token', $missing)->getStatusCode());
         self::assertSame(404, $this->assign($missing, 'ola-token')->getStatusCode());
         self::assertSame(404, $this->unassign($missing, 'ola-token')->getStatusCode());
-    }
-
-    // --- The trail -----------------------------------------------------------
-
-    public function testEveryDecisionIsOnTheTrailWithTheProductItConcerned(): void
-    {
-        $this->assign($this->boreas, 'ola-token');
-        $this->unassign($this->boreas, 'ola-token');
-
-        $rows = $this->connection->fetchAllAssociative(
-            <<<'SQL'
-                SELECT action, tenant_id, product_id, permission
-                  FROM staff_access_log
-                 WHERE action IN ('ASSIGN_PRODUCT', 'UNASSIGN_PRODUCT')
-                 ORDER BY occurred_at, action
-                SQL,
-        );
-
-        self::assertSame(
-            [
-                ['ASSIGN_PRODUCT', $this->tenant, $this->boreas, 'staff.tenants.manage'],
-                ['UNASSIGN_PRODUCT', $this->tenant, $this->boreas, 'staff.tenants.manage'],
-            ],
-            array_map(static fn (array $row): array => array_values($row), $rows),
-        );
     }
 
     // --- Helpers -------------------------------------------------------------

@@ -17,8 +17,7 @@ use Psr\Http\Message\ServerRequestInterface;
  *
  * Read-only by construction: there is no POST beside it. A platform role
  * never grants a membership and never edits one (non-negotiable #22); what
- * it may do is *see* them, with a reason, on the record — which is what
- * lets a support engineer answer "why can't my colleague sign in?" without
+ * it may do is *see* them — which is what lets a support engineer answer "why can't my colleague sign in?" without
  * a database prompt.
  *
  * `product` is a code, optional: absent, every product the tenant holds;
@@ -41,7 +40,6 @@ final class ListTenantMembersController implements RouteHandler
             $context->identity,
             StaffRoute::id($request, 'tenantId'),
             is_string($product) && trim($product) !== '' ? strtolower(trim($product)) : null,
-            StaffRoute::motive($request),
         );
 
         return new JsonResponse(['members' => array_map(StaffPresenter::tenantMember(...), $members)], 200);

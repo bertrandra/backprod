@@ -15,7 +15,7 @@ use Psr\Http\Message\ServerRequestInterface;
  * GET /api/v1/staff/tenants/{tenantId}/products/{productId}/entitlement —
  * what the platform gave, or null. Read with `staff.tenants.read`, like the
  * tenant itself: a grant is the platform's own decision, not the
- * customer's data, so no motive is asked for.
+ * customer's data.
  */
 final class ShowTenantEntitlementController implements RouteHandler
 {

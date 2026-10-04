@@ -13,9 +13,8 @@ use Psr\Http\Message\ServerRequestInterface;
 /**
  * GET /api/v1/staff/me.
  *
- * Reads no tenant data, so it writes no access row: #21 is about crossing
- * the boundary, and telling somebody what they themselves hold crosses
- * nothing. It exists so "why was I refused?" is answerable without a support
+ * Reads no tenant data: telling somebody what they themselves hold crosses
+ * no boundary. It exists so "why was I refused?" is answerable without a support
  * round trip.
  *
  * Wrapped in `staff`, as the contract has always said. The presenter used to

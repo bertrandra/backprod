@@ -170,8 +170,6 @@ final class PalettesTest extends DatabaseApiTestCase
         self::assertSame($edited, $this->palettes(self::OLA)['test-autumn']);
         // Edited in place, and still last.
         self::assertSame('test-autumn', array_key_last($this->palettes(self::OLA)));
-
-        self::assertSame(2, $this->connection->fetchOne("SELECT count(*) FROM staff_access_log WHERE action = 'SAVE_PALETTE'"));
     }
 
     public function testNobodyElseChangesAPalette(): void
@@ -225,7 +223,6 @@ final class PalettesTest extends DatabaseApiTestCase
         self::assertSame('midnight-indigo', $this->at($this->call('GET', '/api/v1/tenant/palette', null, self::RAJ), 'palette', 'name'));
 
         self::assertSame(1, $this->connection->fetchOne('SELECT count(*) FROM tenant_palettes'));
-        self::assertSame(1, $this->connection->fetchOne("SELECT count(*) FROM staff_access_log WHERE action = 'ASSIGN_PALETTE'"));
 
         // Null is the platform's own design, from either door.
         self::assertNull($this->at($this->call('PUT', '/api/v1/tenant/palette', ['palette' => null], self::ADA), 'palette'));

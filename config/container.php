@@ -180,7 +180,6 @@ use App\Shared\Http\MiddlewarePipeline;
 use App\Shared\Http\Router;
 use App\Shared\Logging\ErrorLogLogger;
 use App\Shared\Throttle\RateLimitMiddleware;
-use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffRepository;
 use App\Staff\Domain\StaffRoster;
 use App\Staff\Domain\TenantDirectory;
@@ -188,7 +187,6 @@ use App\Staff\Domain\TenantGrants;
 use App\Staff\Domain\TenantMembers;
 use App\Staff\Domain\TenantProducts;
 use App\Staff\Domain\TranslationDesk;
-use App\Staff\Infrastructure\PostgresStaffAccessLog;
 use App\Staff\Infrastructure\PostgresStaffRepository;
 use App\Staff\Infrastructure\PostgresStaffRoster;
 use App\Staff\Infrastructure\PostgresTenantDirectory;
@@ -756,7 +754,6 @@ return static function (array $overrides = []): ContainerInterface {
 
         StaffRepository::class => autowire(PostgresStaffRepository::class),
         StaffRoster::class => autowire(PostgresStaffRoster::class),
-        StaffAccessLog::class => autowire(PostgresStaffAccessLog::class),
         TenantDirectory::class => autowire(PostgresTenantDirectory::class),
         TenantProducts::class => autowire(PostgresTenantProducts::class),
         TranslationDesk::class => autowire(PostgresTranslationDesk::class),

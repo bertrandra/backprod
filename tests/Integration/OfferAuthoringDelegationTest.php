@@ -164,11 +164,7 @@ final class OfferAuthoringDelegationTest extends DatabaseApiTestCase
         // Sam reaches the tenant read — that is what SUPPORT_ADMIN is for —
         // and the flag travels with it, so the console can answer "may they
         // edit their prices?" without being able to decide it.
-        $read = $this->request('GET', '/api/v1/staff/tenants/' . $this->tenant, [
-            'Authorization' => 'Bearer sam-token',
-            'X-Access-Purpose' => 'SUPPORT_REQUEST',
-            'X-Access-Reason' => 'ticket HELP-4182',
-        ]);
+        $read = $this->request('GET', '/api/v1/staff/tenants/' . $this->tenant, ['Authorization' => 'Bearer sam-token']);
 
         self::assertSame(200, $read->getStatusCode());
         self::assertFalse($this->tenantIn($read)['may_author_offers']);
@@ -230,42 +226,6 @@ final class OfferAuthoringDelegationTest extends DatabaseApiTestCase
         $response = $this->lend(true, 'ola-token', '00000000-0000-0000-0000-000000000000');
 
         self::assertSame(404, $response->getStatusCode());
-    }
-
-    // --- The trail -----------------------------------------------------------
-
-    public function testTheDecisionIsRecordedAgainstWhoMadeIt(): void
-    {
-        $this->lend(true, 'ola-token');
-        $this->lend(false, 'ola-token');
-
-        $actions = $this->connection->fetchFirstColumn(
-            <<<'SQL'
-                SELECT action FROM staff_access_log
-                 WHERE staff_user_id = :user AND tenant_id = :tenant
-                 ORDER BY occurred_at, action
-                SQL,
-            ['user' => $this->admin, 'tenant' => $this->tenant],
-        );
-
-        // Two distinct actions rather than one "UPDATE" twice: somebody
-        // reading the log later is asking which way it went, and a row that
-        // only says the field was touched cannot answer that.
-        self::assertContains('DELEGATE', $actions);
-        self::assertContains('REVOKE_DELEGATION', $actions);
-    }
-
-    public function testTheTrailNamesThePermissionTheDecisionWasMadeUnder(): void
-    {
-        $this->lend(true, 'ola-token');
-
-        $permission = $this->connection->fetchOne(
-            "SELECT permission FROM staff_access_log WHERE action = 'DELEGATE'",
-        );
-
-        // "On what grounds?" is the question a log without this can never
-        // answer (non-negotiable #21).
-        self::assertSame('staff.tenants.manage', $permission);
     }
 
     // --- Helpers -------------------------------------------------------------

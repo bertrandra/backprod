@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { useConsoleStore } from '@/state/console';
@@ -88,13 +88,6 @@ function stubs(extra: Stubs = {}): Stubs {
   };
 }
 
-async function giveAMotive(): Promise<void> {
-  await waitFor(() => expect(screen.getByTestId('access-motive')).toBeTruthy());
-  fireEvent.change(screen.getByLabelText('Purpose'), { target: { value: 'SUPPORT_REQUEST' } });
-  fireEvent.change(screen.getByLabelText('Reference'), { target: { value: 'ticket HELP-4182' } });
-  fireEvent.click(screen.getByRole('button', { name: /^Open / }));
-}
-
 const render = (client: ReturnType<typeof stubClient>, tab?: string) =>
   renderAtRoute(<TenantWorkspaceScreen tenantId="t-1" />, client, {
     path: '/console/tenants/t-1',
@@ -102,31 +95,22 @@ const render = (client: ReturnType<typeof stubClient>, tab?: string) =>
   });
 
 beforeEach(() => {
-  useConsoleStore.setState({ motives: {}, productCode: null });
+  useConsoleStore.setState({ productCode: null });
 });
 
 describe('opening a customer', () => {
-  it('reads nothing until a reason is given, then keeps it for that customer', async () => {
+  it('opens the customer directly, with no reason asked or sent (ADR-069)', async () => {
     const { client, requests } = recordingClient(stubs());
     render(client);
 
-    await waitFor(() => expect(screen.getByTestId('access-motive')).toBeTruthy());
-    expect(requests.filter((r) => r.path.includes('/staff/tenants/{'))).toHaveLength(0);
-
-    await giveAMotive();
-
     await waitFor(() => expect(screen.getByTestId('tenant-workspace')).toBeTruthy());
     expect(screen.getByRole('heading', { name: 'Acme Ltd' })).toBeTruthy();
-    const read = requests.find((r) => r.path === '/api/v1/staff/tenants/{tenantId}');
-    expect((read?.header as Record<string, string> | undefined)?.['X-Access-Purpose']).toBe('SUPPORT_REQUEST');
-    // Kept for this customer, and only this one.
-    expect(useConsoleStore.getState().motives['t-1']?.reference).toBe('ticket HELP-4182');
-    expect(useConsoleStore.getState().motives['t-2']).toBeUndefined();
+    expect(screen.queryByLabelText('Purpose')).toBeNull();
+    expect(requests.find((r) => r.path === '/api/v1/staff/tenants/{tenantId}')?.header).toBeUndefined();
   });
 
   it('shows what the customer holds, and points writes back to the list', async () => {
     render(stubClient(stubs()));
-    await giveAMotive();
 
     await waitFor(() => expect(screen.getByTestId('tab-overview')).toBeTruthy());
     expect(document.querySelector('[data-product="atlas"]')).not.toBeNull();
@@ -140,7 +124,6 @@ describe('opening a customer', () => {
 describe('the members tab', () => {
   it('lists each person with roles and products, erased people by their absence of a name', async () => {
     render(stubClient(stubs()), 'members');
-    await giveAMotive();
 
     await waitFor(() => expect(screen.getByTestId('tab-members')).toBeTruthy());
     expect(document.querySelector('[data-member="u-ada"]')?.textContent).toContain('TENANT_ADMIN');
@@ -152,7 +135,6 @@ describe('the members tab', () => {
     useConsoleStore.setState({ productCode: 'boreas' });
     const { client, requests } = recordingClient(stubs());
     render(client, 'members');
-    await giveAMotive();
 
     await waitFor(() => expect(screen.getByTestId('tab-members')).toBeTruthy());
     expect(screen.getByTestId('narrowed-to').textContent).toContain('Boreas');
@@ -165,7 +147,6 @@ describe('the members tab', () => {
     useConsoleStore.setState({ productCode: 'delos' });
     const { client, requests } = recordingClient(stubs());
     render(client, 'members');
-    await giveAMotive();
 
     await waitFor(() => expect(screen.getByTestId('tab-members')).toBeTruthy());
     expect(screen.queryByTestId('narrowed-to')).toBeNull();
@@ -178,7 +159,6 @@ describe('the finance tabs', () => {
     useConsoleStore.setState({ productCode: 'atlas' });
     const { client, requests } = recordingClient(stubs());
     render(client, 'invoices');
-    await giveAMotive();
 
     await waitFor(() => expect(screen.getByTestId('tab-invoices')).toBeTruthy());
     expect(screen.getByText('2026-000001')).toBeTruthy();
@@ -188,7 +168,6 @@ describe('the finance tabs', () => {
 
   it('show subscriptions with periodicity and commitment apart', async () => {
     render(stubClient(stubs()), 'subscriptions');
-    await giveAMotive();
 
     await waitFor(() => expect(screen.getByTestId('tab-subscriptions')).toBeTruthy());
     expect(document.querySelector('[data-subscription="sub-1"]')?.textContent).toMatch(/period ends/);
@@ -198,7 +177,6 @@ describe('the finance tabs', () => {
   it('tell a role without the finance permission why, instead of failing', async () => {
     const { client, requests } = recordingClient(stubs({ 'GET /api/v1/staff/me': { data: SUPPORT } }));
     render(client, 'invoices');
-    await giveAMotive();
 
     await waitFor(() => expect(screen.getByText('Not yours to read')).toBeTruthy());
     expect(requests.find((r) => r.path === '/api/v1/admin/invoices')).toBeUndefined();
@@ -212,20 +190,16 @@ describe('the rest of what a customer has', () => {
     ['jobs', 'tab-jobs', 'job-row', 'export.project'],
   ])('%s: the same rows the customer sees, and nothing that acts', async (tab, testId, rowId, text) => {
     render(stubClient(stubs()), tab);
-    await giveAMotive();
 
     await waitFor(() => expect(screen.getByTestId(testId)).toBeTruthy());
     expect(screen.getByTestId(rowId).textContent).toContain(text);
-    // Read-only: the only buttons are the tabs and the motive's own Change —
-    // nothing that acts on the customer.
-    expect(
-      screen.queryAllByRole('button').filter((b) => b.getAttribute('role') !== 'tab' && b.textContent !== 'Change'),
-    ).toHaveLength(0);
+    // Read-only: the only buttons are the tabs — nothing that acts on the
+    // customer.
+    expect(screen.queryAllByRole('button').filter((b) => b.getAttribute('role') !== 'tab')).toHaveLength(0);
   });
 
   it('sales shows orders and quotes side by side', async () => {
     render(stubClient(stubs()), 'sales');
-    await giveAMotive();
 
     await waitFor(() => expect(screen.getByTestId('tab-sales')).toBeTruthy());
     expect(screen.getByTestId('order-row').textContent).toContain('COMPLETED');
@@ -234,7 +208,6 @@ describe('the rest of what a customer has', () => {
 
   it('tax shows the fiscal identity, with verification as a dated fact', async () => {
     render(stubClient(stubs()), 'tax');
-    await giveAMotive();
 
     await waitFor(() => expect(screen.getByTestId('tab-tax')).toBeTruthy());
     expect(screen.getByTestId('tab-tax').textContent).toContain('Business (B2B)');
@@ -245,22 +218,19 @@ describe('the rest of what a customer has', () => {
   it('conversations lists support threads, narrowed to this customer', async () => {
     const { client, requests } = recordingClient(stubs());
     render(client, 'conversations');
-    await giveAMotive();
 
     await waitFor(() => expect(screen.getByTestId('tab-conversations')).toBeTruthy());
     expect(screen.getByTestId('thread-row').textContent).toContain('Cannot sign in');
     expect(requests.find((r) => r.path === '/api/v1/staff/conversations')?.query).toMatchObject({ tenant_id: 't-1' });
   });
 
-  it('every per-product tab sends the picked product and the motive', async () => {
+  it('every per-product tab sends the picked product', async () => {
     useConsoleStore.setState({ productCode: 'boreas' });
     const { client, requests } = recordingClient(stubs());
     render(client, 'payments');
-    await giveAMotive();
 
     await waitFor(() => expect(screen.getByTestId('tab-payments')).toBeTruthy());
     const read = requests.find((r) => r.path === '/api/v1/staff/tenants/{tenantId}/payments');
     expect(read?.query).toEqual({ product: 'boreas' });
-    expect((read?.header as Record<string, string> | undefined)?.['X-Access-Purpose']).toBe('SUPPORT_REQUEST');
   });
 });

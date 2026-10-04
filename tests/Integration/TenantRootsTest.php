@@ -144,9 +144,6 @@ final class TenantRootsTest extends DatabaseApiTestCase
         $roles = $me['roles'] ?? null;
         self::assertIsArray($roles);
         self::assertContains('TENANT_ADMIN', $roles);
-
-        // Recorded.
-        self::assertSame(1, $this->rowCount("SELECT count(*) FROM staff_access_log WHERE action = 'CREATE' AND resource_type = 'tenant'"));
     }
 
     public function testASlugIsAnAddressAndSoIsCheckedAsOne(): void
@@ -262,14 +259,6 @@ final class TenantRootsTest extends DatabaseApiTestCase
         }
 
         return $codes;
-    }
-
-    private function rowCount(string $sql): int
-    {
-        $count = $this->connection->fetchOne($sql);
-        self::assertIsNumeric($count);
-
-        return (int) $count;
     }
 
     /**

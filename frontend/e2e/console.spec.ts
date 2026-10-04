@@ -25,7 +25,6 @@ const STAFF = {
     permissions: [
       'staff.self.read',
       'staff.tenants.read',
-      'staff.access_log.read',
       'support.read',
       'support.respond',
       'admin.finance.read',
@@ -111,10 +110,6 @@ async function consoleStubs(page: Page) {
     }),
   );
 
-  await page.route(/\/api\/v1\/staff\/access-log/, (route) =>
-    route.fulfill({ json: { entries: [], total: 0, limit: 50, offset: 0 } }),
-  );
-
   await page.route(/\/api\/v1\/admin\/users/, (route) =>
     route.fulfill({
       json: { users: [PRESENT_USER, ERASED_USER], total: 2, limit: 25, offset: 0 },
@@ -143,10 +138,9 @@ test.describe('one shell, two authorities', () => {
     await consoleStubs(page);
     await page.goto('/console/tenants');
 
-    // The band is the standing reminder of non-negotiable #21: a read that
-    // crosses into a customer's data is recorded. The badge names the roles it
-    // will be recorded under.
-    await expect(page.getByTestId('platform-band')).toContainText('crosses into a tenant');
+    // The badge names the platform roles this person acts under. (The band that
+    // said every read was recorded went with the access log, ADR-069.)
+    await expect(page.getByTestId('platform-band')).toHaveCount(0);
     await expect(page.getByTestId('platform-badge')).toContainText('PLATFORM_ADMIN');
 
     // Region E watches *the tenant's* jobs, which is a tenant this person may
@@ -154,7 +148,7 @@ test.describe('one shell, two authorities', () => {
     await expect(page.locator('[data-region="status-strip"]')).toHaveCount(0);
   });
 
-  test('a tenant route carries neither the band nor a borrowed badge', async ({ page }) => {
+  test('a tenant route carries no borrowed badge', async ({ page }) => {
     await page.route(/\/api\/v1\/me$/, (route) => route.fulfill({ json: TENANT_SESSION }));
     await page.route(/\/api\/v1\/products$/, (route) =>
       route.fulfill({
@@ -167,7 +161,6 @@ test.describe('one shell, two authorities', () => {
 
     await page.goto('/projects?product=atlas');
 
-    await expect(page.locator('[data-testid="platform-band"]')).toHaveCount(0);
     // No platform role was granted in this fixture, so nothing names one. This
     // is the leak that matters: a tenant session must never light up a platform
     // affordance.

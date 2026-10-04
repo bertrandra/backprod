@@ -257,7 +257,6 @@ ont été retirées.)
 | `staff.products.manage` | oui | non | non | non |
 | `staff.catalog.manage` | oui | non | non | non |
 | `staff.grant` | oui | non | non | non |
-| `staff.access_log.read` | oui | non | non | non |
 | `staff.navigation.manage` (choisir les entrées de menu par public) | oui | non | non | non |
 | `staff.mail.manage` (modifier les gabarits de mail, envoyer un test) | oui | non | non | non |
 | `staff.design.manage` (modifier les palettes, et choisir celle que porte chaque organisation dans chaque produit) | oui | non | non | non |

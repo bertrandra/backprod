@@ -202,7 +202,7 @@ export interface paths {
         };
         /**
          * Every tenant, with its operational standing
-         * @description Distinct from `/staff/tenants`, which support uses to answer one customer's question and which writes an access-log row for having looked. This is the operations view: every tenant with the counts that say whether an account is healthy, and nothing from inside any of them.
+         * @description Distinct from `/staff/tenants`, which support uses to answer one customer's question. This is the operations view: every tenant with the counts that say whether an account is healthy, and nothing from inside any of them.
          *
          *     Requires `admin.directory.read`.
          */
@@ -1828,26 +1828,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/staff/access-log": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * What staff have read
-         * @description The evidence for #21. Append-only, and readable by staff who hold the permission for it.
-         */
-        get: operations["listAccessLog"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/staff/configuration/project-schema-versions": {
         parameters: {
             query?: never;
@@ -1858,7 +1838,7 @@ export interface paths {
         get?: never;
         /**
          * Set which project document schema versions a product accepts
-         * @description Non-negotiable #10 makes the accepted versions per-product configuration, and creating a product writes a row in `products` and none in `product_configuration` — so a product created through the console accepted no project of any version, and nothing on the platform could change it. That is the hole ADR-042 found in the billing identity, one layer down, and this is the same answer: a third named key rather than a JSONB editor. **PUT rather than PATCH**, like the two keys beside it: the list is one answer, and retiring a version means sending the list without it. An empty list is refused — a product that accepts nothing is one nobody has configured, not one somebody saved. Recorded in `staff_access_log` as `CONFIGURE_SCHEMA_VERSIONS` in full, because every element decides whether a document a customer is about to save is taken or refused.
+         * @description Non-negotiable #10 makes the accepted versions per-product configuration, and creating a product writes a row in `products` and none in `product_configuration` — so a product created through the console accepted no project of any version, and nothing on the platform could change it. That is the hole ADR-042 found in the billing identity, one layer down, and this is the same answer: a third named key rather than a JSONB editor. **PUT rather than PATCH**, like the two keys beside it: the list is one answer, and retiring a version means sending the list without it. An empty list is refused — a product that accepts nothing is one nobody has configured, not one somebody saved.
          */
         put: operations["setProjectSchemaVersions"];
         post?: never;
@@ -1929,9 +1909,9 @@ export interface paths {
         };
         /**
          * One support thread with its messages
-         * @description Requires a motive (R14). A conversation’s tenant appears on this detail and not on the list, so this is where the boundary is actually crossed.
+         * @description A conversation’s tenant appears on this detail and not on the list, so this is where the boundary is actually crossed.
          *
-         *     Carries the tenant and product it belongs to, because a staff surface resolves neither of its own. Every read is recorded.
+         *     Carries the tenant and product it belongs to, because a staff surface resolves neither of its own.
          */
         get: operations["showSupportConversation"];
         put?: never;
@@ -1970,7 +1950,7 @@ export interface paths {
         put?: never;
         /**
          * Reply as support
-         * @description Recorded as a write in the access log, and authored as STAFF — which the message's own foreign key enforces.
+         * @description Authored as STAFF — which the message's own foreign key enforces.
          */
         post: operations["postSupportMessage"];
         delete?: never;
@@ -2076,13 +2056,13 @@ export interface paths {
         };
         /**
          * Every tenant
-         * @description The one listing that crosses the boundary by design. Reading it is recorded (#21).
+         * @description The one listing that crosses the boundary by design.
          */
         get: operations["listTenantsForStaff"];
         put?: never;
         /**
          * Make an organisation
-         * @description The only way an organisation comes to exist since sign-up stopped making them (2026-09-17): name, slug — its address, `hostname/{slug}/`, a lowercase word that is not one of the application's own paths — the products it holds by code, and optionally its first administrator, an existing user given TENANT_ADMIN on every product assigned. Recorded in the access log. Requires `staff.tenants.manage`.
+         * @description The only way an organisation comes to exist since sign-up stopped making them (2026-09-17): name, slug — its address, `hostname/{slug}/`, a lowercase word that is not one of the application's own paths — the products it holds by code, and optionally its first administrator, an existing user given TENANT_ADMIN on every product assigned. Requires `staff.tenants.manage`.
          */
         post: operations["createTenantForStaff"];
         delete?: never;
@@ -2100,9 +2080,9 @@ export interface paths {
         };
         /**
          * One tenant, as staff
-         * @description Requires a motive (R14): opening one customer reveals that customer’s data. Listing customers does not, and requires none — a platform that demanded a ticket reference to page through a list would teach its staff to type "support" into everything.
+         * @description Opening one customer: the platform role authorises it, and nothing more is asked (2026-10-05 — the console reads without a reason, and nothing is recorded).
          *
-         *     The tenant arrives as an explicit parameter rather than from a membership — there is none — so the handler must justify it, and the read is written to the access log in the same transaction.
+         *     The tenant arrives as an explicit parameter rather than from a membership — there is none — and the platform role, never the parameter, is what authorises the read.
          */
         get: operations["showTenantForStaff"];
         put?: never;
@@ -2127,7 +2107,7 @@ export interface paths {
         get?: never;
         /**
          * Lend the catalogue to a tenant, or take it back
-         * @description PUT because it states a desired state rather than an act: sending the same value twice is the state asked for both times. No motive header, unlike the tenant read beside it — this reveals no customer data, it changes what a customer may do, and the trail records who decided.
+         * @description PUT because it states a desired state rather than an act: sending the same value twice is the state asked for both times. It reveals no customer data; it changes what a customer may do.
          */
         put: operations["setTenantOfferAuthoring"];
         post?: never;
@@ -2147,7 +2127,7 @@ export interface paths {
         get?: never;
         /**
          * Give a tenant a product
-         * @description PUT with no body: the address states the desired state — this tenant holds this product — and a second identical request is the same state. Every current member of the tenant becomes a member of the product, with the roles they hold in the organisation (ADR-047). No motive header, like the delegation beside it: nothing of the customer’s is revealed, and the trail records who decided. `staff.tenants.manage`.
+         * @description PUT with no body: the address states the desired state — this tenant holds this product — and a second identical request is the same state. Every current member of the tenant becomes a member of the product, with the roles they hold in the organisation (ADR-047). Like the delegation beside it, nothing of the customer’s is revealed. `staff.tenants.manage`.
          */
         put: operations["assignTenantProduct"];
         post?: never;
@@ -2170,12 +2150,12 @@ export interface paths {
         };
         /**
          * What the platform gave a tenant on a product
-         * @description The grant in force or lapsed on this product, or null when nothing was granted. `staff.tenants.read`, and no motive header: a grant is the platform’s own decision, not the customer’s data.
+         * @description The grant in force or lapsed on this product, or null when nothing was granted. `staff.tenants.read`: a grant is the platform’s own decision, not the customer’s data.
          */
         get: operations["showTenantEntitlement"];
         /**
          * Give a tenant its entitlement to a product, without a sale
-         * @description A pilot, a partner, an internal organisation, the operator’s own default tenant: the platform administrator grants the entitlement directly. The body states the whole grant and replaces whatever grant there was — PUT, so the same request twice is the same grant. `plan` is a shorthand for the grants of that plan’s most recently activated offer version; `features` add to it or override it, feature by feature (“the Pro plan, but with more projects”). At least one feature must result; to take everything away, withdraw. `staff.tenants.manage`, and the access log carries the feature list — a grant is a commercial decision somebody should be able to trace. Buying stays the ordinary road; this is the other one.
+         * @description A pilot, a partner, an internal organisation, the operator’s own default tenant: the platform administrator grants the entitlement directly. The body states the whole grant and replaces whatever grant there was — PUT, so the same request twice is the same grant. `plan` is a shorthand for the grants of that plan’s most recently activated offer version; `features` add to it or override it, feature by feature (“the Pro plan, but with more projects”). At least one feature must result; to take everything away, withdraw. `staff.tenants.manage`. Buying stays the ordinary road; this is the other one.
          */
         put: operations["grantTenantEntitlement"];
         post?: never;
@@ -2198,7 +2178,7 @@ export interface paths {
         };
         /**
          * Who belongs to a tenant, read-only
-         * @description Every member of the tenant once, with their roles and the products they are on — or only those on one product when `product` names it. Read-only by construction: a platform role never grants or edits a membership (non-negotiable #22); it may see them, with a reason, on the record (R14). Requires `staff.tenants.read`.
+         * @description Every member of the tenant once, with their roles and the products they are on — or only those on one product when `product` names it. Read-only by construction: a platform role never grants or edits a membership (non-negotiable #22); it may see them. Requires `staff.tenants.read`.
          */
         get: operations["listTenantMembersForStaff"];
         put?: never;
@@ -2218,7 +2198,7 @@ export interface paths {
         };
         /**
          * Every payment a customer made, read from the console
-         * @description The same rows the customer's own screen reads, across every product the tenant holds or on the one `product` names — read-only, behind `staff.tenants.read`, with the motive R14 asks for, and recorded in the access log. A platform role never becomes a member (#22); it may see, with a reason.
+         * @description The same rows the customer's own screen reads, across every product the tenant holds or on the one `product` names — read-only, behind `staff.tenants.read`. A platform role never becomes a member (#22); it may see.
          */
         get: operations["listTenantPaymentsForStaff"];
         put?: never;
@@ -2238,7 +2218,7 @@ export interface paths {
         };
         /**
          * Every order a customer placed, read from the console
-         * @description The same rows the customer's own screen reads, across every product the tenant holds or on the one `product` names — read-only, behind `staff.tenants.read`, with the motive R14 asks for, and recorded in the access log. A platform role never becomes a member (#22); it may see, with a reason.
+         * @description The same rows the customer's own screen reads, across every product the tenant holds or on the one `product` names — read-only, behind `staff.tenants.read`. A platform role never becomes a member (#22); it may see.
          */
         get: operations["listTenantOrdersForStaff"];
         put?: never;
@@ -2258,7 +2238,7 @@ export interface paths {
         };
         /**
          * Every quote a customer was sent, read from the console
-         * @description The same rows the customer's own screen reads, across every product the tenant holds or on the one `product` names — read-only, behind `staff.tenants.read`, with the motive R14 asks for, and recorded in the access log. A platform role never becomes a member (#22); it may see, with a reason.
+         * @description The same rows the customer's own screen reads, across every product the tenant holds or on the one `product` names — read-only, behind `staff.tenants.read`. A platform role never becomes a member (#22); it may see.
          */
         get: operations["listTenantQuotesForStaff"];
         put?: never;
@@ -2278,7 +2258,7 @@ export interface paths {
         };
         /**
          * A customer's projects, read from the console
-         * @description The same rows the customer's own screen reads, across every product the tenant holds or on the one `product` names — read-only, behind `staff.tenants.read`, with the motive R14 asks for, and recorded in the access log. A platform role never becomes a member (#22); it may see, with a reason.
+         * @description The same rows the customer's own screen reads, across every product the tenant holds or on the one `product` names — read-only, behind `staff.tenants.read`. A platform role never becomes a member (#22); it may see.
          */
         get: operations["listTenantProjectsForStaff"];
         put?: never;
@@ -2298,7 +2278,7 @@ export interface paths {
         };
         /**
          * A customer's jobs, read from the console
-         * @description The same rows the customer's own screen reads, across every product the tenant holds or on the one `product` names — read-only, behind `staff.tenants.read`, with the motive R14 asks for, and recorded in the access log. A platform role never becomes a member (#22); it may see, with a reason.
+         * @description The same rows the customer's own screen reads, across every product the tenant holds or on the one `product` names — read-only, behind `staff.tenants.read`. A platform role never becomes a member (#22); it may see.
          */
         get: operations["listTenantJobsForStaff"];
         put?: never;
@@ -2318,7 +2298,7 @@ export interface paths {
         };
         /**
          * A customer's fiscal identity, read from the console
-         * @description Who the customer is for VAT — kind, country, VAT number and its verification — as the customer's own tax screen reads it. Not per product: a tenant has one. Read-only, behind `staff.tenants.read`, with the motive R14 asks for, recorded.
+         * @description Who the customer is for VAT — kind, country, VAT number and its verification — as the customer's own tax screen reads it. Not per product: a tenant has one. Read-only, behind `staff.tenants.read`.
          */
         get: operations["showTenantTaxProfileForStaff"];
         put?: never;
@@ -3366,7 +3346,7 @@ export interface paths {
         };
         /**
          * Which palette each organisation wears, product by product
-         * @description The matrix: every product, and a page of organisations (by name), each with the palette it wears in each product **it holds** — a product it does not hold has no cell. One row per tenant and product, written from either door — the console's matrix (`assignPalette`) or the organisation's own screen (`selectTenantPalette`) — so each sees what the other chose. No motive header: which palette an organisation wears is configuration the platform shares in, not the organisation's own data. `staff.design.manage`, which PLATFORM_ADMIN alone holds.
+         * @description The matrix: every product, and a page of organisations (by name), each with the palette it wears in each product **it holds** — a product it does not hold has no cell. One row per tenant and product, written from either door — the console's matrix (`assignPalette`) or the organisation's own screen (`selectTenantPalette`) — so each sees what the other chose. `staff.design.manage`, which PLATFORM_ADMIN alone holds.
          */
         get: operations["listPaletteAssignments"];
         put?: never;
@@ -4097,7 +4077,7 @@ export interface paths {
          * Set who this product's invoices say is issuing them
          * @description **PUT rather than PATCH**, unlike every other write in this console. The mandatory mentions are one document: a supplier that stops being liable for VAT has to be able to *remove* its VAT number, and under "omitted means leave it" removing anything would be impossible. Sending the whole identity makes clearing a field the same act as changing one.
          *
-         *     An incomplete identity is **refused rather than stored**. The console exists to make invoicing possible, and saving something that cannot invoice while answering 200 is how a broken form looks like a working one — the failure would surface later, to a customer, at the checkout. Recorded in `staff_access_log` as `CONFIGURE_BILLING`, because an invoice carries a snapshot of this taken when it was raised.
+         *     An incomplete identity is **refused rather than stored**. The console exists to make invoicing possible, and saving something that cannot invoice while answering 200 is how a broken form looks like a working one — the failure would surface later, to a customer, at the checkout.
          */
         put: operations["setBillingIdentity"];
         post?: never;
@@ -4117,7 +4097,7 @@ export interface paths {
         get?: never;
         /**
          * Set the supplier's own fiscal position
-         * @description §25.3 keeps everything qualifying the supplier fiscally a human decision, configured and never derived. **Every field is required**: the reader of this key defaults what it cannot find, which is right for a document written before a field existed and wrong for a form — a screen omitting `oss_registered` would silently switch the OSS regime off. Recorded in `staff_access_log` as `CONFIGURE_TAX` in full, because all four decide how a cross-border sale is taxed and getting one wrong is a VAT return filed in the wrong country.
+         * @description §25.3 keeps everything qualifying the supplier fiscally a human decision, configured and never derived. **Every field is required**: the reader of this key defaults what it cannot find, which is right for a document written before a field existed and wrong for a form — a screen omitting `oss_registered` would silently switch the OSS regime off.
          */
         put: operations["setTaxSettings"];
         post?: never;
@@ -4141,7 +4121,7 @@ export interface paths {
         get: operations["showNavigationSetup"];
         /**
          * Replace the menu setup
-         * @description Replaced whole, never patched: every audience must be present, because one left out would be one the screen forgot, and defaulting it here to "everything" would silently un-hide what somebody chose to hide. Every replacement is recorded in the access log with the document it wrote. Requires `staff.navigation.manage`.
+         * @description Replaced whole, never patched: every audience must be present, because one left out would be one the screen forgot, and defaulting it here to "everything" would silently un-hide what somebody chose to hide. Requires `staff.navigation.manage`.
          */
         put: operations["setNavigationSetup"];
         post?: never;
@@ -5397,33 +5377,6 @@ export interface components {
              */
             status: "ACTIVE" | "PENDING";
         };
-        /** @description Non-negotiable #21: a staff read of a tenant's data is never silent. Written in the same transaction as the read it records. */
-        StaffAccessEntry: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            staff_user_id: string;
-            /** Format: uuid */
-            tenant_id: string | null;
-            /** Format: uuid */
-            product_id: string | null;
-            action: string;
-            resource_type: string | null;
-            resource_id: string | null;
-            permission: string | null;
-            detail: {
-                [key: string]: unknown;
-            };
-            /** Format: date-time */
-            occurred_at: string;
-            /**
-             * @description Why the read happened (R14). Null on rows written before R14, and on reads that cross no boundary — listing a queue, reading this log. Null means "not recorded", never "no reason".
-             * @enum {string|null}
-             */
-            purpose: "SUPPORT_REQUEST" | "BILLING_INVESTIGATION" | "INCIDENT" | "SECURITY_REVIEW" | "LEGAL_REQUEST" | null;
-            /** @description The specific reference the person gave. */
-            reason: string | null;
-        };
         Job: {
             /** Format: uuid */
             id: string;
@@ -6254,14 +6207,6 @@ export interface components {
         /** @description Page size. A value outside the range is refused with 400 VALIDATION_FAILED rather than clamped. */
         DirectoryLimit: number;
         DirectoryOffset: number;
-        /**
-         * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
-         *
-         *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
-         */
-        AccessPurpose: "SUPPORT_REQUEST" | "BILLING_INVESTIGATION" | "INCIDENT" | "SECURITY_REVIEW" | "LEGAL_REQUEST";
-        /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
-        AccessReason: string;
         /**
          * @description The language to answer in, on the reads a stranger makes. A header and not `?lang=`, which ADR-050 removed on 2026-09-23: a query parameter travels in a link, so a page somebody shared would impose a language on whoever opened it next. A header cannot be shared by accident — it is the reader saying which language they are reading in, now. Absent or unknown answers English, which is the key and the fallback everywhere on this platform.
          *
@@ -10510,40 +10455,6 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    listAccessLog: {
-        parameters: {
-            query?: {
-                /** @description How many to return. */
-                limit?: components["parameters"]["Limit"];
-                /** @description How many to skip. */
-                offset?: components["parameters"]["Offset"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description A page of access entries. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        entries: components["schemas"]["StaffAccessEntry"][];
-                        total: number;
-                        limit: number;
-                        offset: number;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
     setProjectSchemaVersions: {
         parameters: {
             query: {
@@ -10682,16 +10593,7 @@ export interface operations {
     showSupportConversation: {
         parameters: {
             query?: never;
-            header: {
-                /**
-                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
-                 *
-                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
-                 */
-                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
-                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
-                "X-Access-Reason": components["parameters"]["AccessReason"];
-            };
+            header?: never;
             path: {
                 conversationId: string;
             };
@@ -10717,15 +10619,6 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
@@ -11120,16 +11013,7 @@ export interface operations {
     showTenantForStaff: {
         parameters: {
             query?: never;
-            header: {
-                /**
-                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
-                 *
-                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
-                 */
-                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
-                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
-                "X-Access-Reason": components["parameters"]["AccessReason"];
-            };
+            header?: never;
             path: {
                 tenantId: string;
             };
@@ -11151,15 +11035,6 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
@@ -11511,16 +11386,7 @@ export interface operations {
                 /** @description A product code the tenant holds. A code it does not hold lists nobody, which is the true answer. */
                 product?: string;
             };
-            header: {
-                /**
-                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
-                 *
-                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
-                 */
-                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
-                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
-                "X-Access-Reason": components["parameters"]["AccessReason"];
-            };
+            header?: never;
             path: {
                 tenantId: string;
             };
@@ -11542,15 +11408,6 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
@@ -11561,16 +11418,7 @@ export interface operations {
                 /** @description A product code the tenant holds; absent, every product it holds. A code it does not hold lists nothing, which is the true answer. */
                 product?: string;
             };
-            header: {
-                /**
-                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
-                 *
-                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
-                 */
-                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
-                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
-                "X-Access-Reason": components["parameters"]["AccessReason"];
-            };
+            header?: never;
             path: {
                 tenantId: string;
             };
@@ -11592,15 +11440,6 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
@@ -11611,16 +11450,7 @@ export interface operations {
                 /** @description A product code the tenant holds; absent, every product it holds. A code it does not hold lists nothing, which is the true answer. */
                 product?: string;
             };
-            header: {
-                /**
-                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
-                 *
-                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
-                 */
-                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
-                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
-                "X-Access-Reason": components["parameters"]["AccessReason"];
-            };
+            header?: never;
             path: {
                 tenantId: string;
             };
@@ -11642,15 +11472,6 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
@@ -11661,16 +11482,7 @@ export interface operations {
                 /** @description A product code the tenant holds; absent, every product it holds. A code it does not hold lists nothing, which is the true answer. */
                 product?: string;
             };
-            header: {
-                /**
-                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
-                 *
-                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
-                 */
-                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
-                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
-                "X-Access-Reason": components["parameters"]["AccessReason"];
-            };
+            header?: never;
             path: {
                 tenantId: string;
             };
@@ -11692,15 +11504,6 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
@@ -11711,16 +11514,7 @@ export interface operations {
                 /** @description A product code the tenant holds; absent, every product it holds. A code it does not hold lists nothing, which is the true answer. */
                 product?: string;
             };
-            header: {
-                /**
-                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
-                 *
-                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
-                 */
-                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
-                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
-                "X-Access-Reason": components["parameters"]["AccessReason"];
-            };
+            header?: never;
             path: {
                 tenantId: string;
             };
@@ -11742,15 +11536,6 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
@@ -11761,16 +11546,7 @@ export interface operations {
                 /** @description A product code the tenant holds; absent, every product it holds. A code it does not hold lists nothing, which is the true answer. */
                 product?: string;
             };
-            header: {
-                /**
-                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
-                 *
-                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
-                 */
-                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
-                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
-                "X-Access-Reason": components["parameters"]["AccessReason"];
-            };
+            header?: never;
             path: {
                 tenantId: string;
             };
@@ -11792,15 +11568,6 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
@@ -11808,16 +11575,7 @@ export interface operations {
     showTenantTaxProfileForStaff: {
         parameters: {
             query?: never;
-            header: {
-                /**
-                 * @description Why this read is happening, as the log can count it (R14). Non-negotiable #21 requires a staff access to be traced, motivated and never silent: the permission is the *authority* for the read, and this is the *reason*.
-                 *
-                 *     A small enumeration on purpose. A free-text field alone collects "support" a thousand times and proves nothing; this is the half that can be counted, and X-Access-Reason is the half that is specific.
-                 */
-                "X-Access-Purpose": components["parameters"]["AccessPurpose"];
-                /** @description The specific thing being looked into — a ticket reference, or a sentence. Eight characters minimum, because "x" is not a reason and a field that accepted it would collect nothing while looking like a control. */
-                "X-Access-Reason": components["parameters"]["AccessReason"];
-            };
+            header?: never;
             path: {
                 tenantId: string;
             };
@@ -11839,15 +11597,6 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
             404: components["responses"]["NotFound"];
-            /** @description No motive was given, the purpose is not one the platform records, or the reference is too short to mean anything. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };
@@ -14871,17 +14620,17 @@ export interface operations {
                 "application/json": {
                     /**
                      * Format: uri
-                     * @description Where the product lives when deployed beside the platform (ADR-051 §3); null clears it. https only, no query, no fragment — the shell appends `?product=` itself. Recorded in the trail as SET_APP_URL.
+                     * @description Where the product lives when deployed beside the platform (ADR-051 §3); null clears it. https only, no query, no fragment — the shell appends `?product=` itself.
                      */
                     app_url?: string | null;
                     /**
                      * Format: uri
-                     * @description Where the platform delivers signed events (ADR-051 §5); null stops delivering. https only, no fragment, no credentials. Recorded in the trail as SET_WEBHOOK_URL.
+                     * @description Where the platform delivers signed events (ADR-051 §5); null stops delivering. https only, no fragment, no credentials.
                      */
                     webhook_url?: string | null;
                     name?: string;
                     active?: boolean;
-                    /** @description Moves the product in every list of products. Absent leaves it where it is, and there is no way to clear it: a product always sits somewhere, and « nowhere » is not an answer. Recorded in the trail as SET_DISPLAY_ORDER, because it changes what other people see first. */
+                    /** @description Moves the product in every list of products. Absent leaves it where it is, and there is no way to clear it: a product always sits somewhere, and « nowhere » is not an answer. */
                     display_order?: number;
                 };
             };

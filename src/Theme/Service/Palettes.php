@@ -7,10 +7,7 @@ namespace App\Theme\Service;
 use App\Product\Domain\ProductRepository;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Validation\Uuid;
-use App\Staff\Domain\StaffAccess;
-use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffIdentity;
-use App\Staff\Domain\StaffPermission;
 use App\Tenant\Domain\DefaultTenant;
 use App\Tenant\Domain\TenantRepository;
 use App\Theme\Domain\Palette;
@@ -30,15 +27,13 @@ use App\Theme\Domain\ThemeDocument;
  * **Which palette an organisation wears is one fact with two doors.** The
  * console assigns it from the matrix; the organisation's administrator
  * changes it on their own screen. Both write the same row, so each sees what
- * the other chose. A staff write leaves a trail row, like every staff write
- * that reaches a tenant.
+ * the other chose.
  */
 final class Palettes
 {
     public function __construct(
         private readonly PaletteRepository $palettes,
         private readonly TenantPaletteRepository $tenants,
-        private readonly StaffAccessLog $trail,
         private readonly TenantRepository $organisations,
         private readonly DefaultTenant $default,
         private readonly ProductRepository $products,
@@ -58,13 +53,7 @@ final class Palettes
      */
     public function save(StaffIdentity $staff, string $name, array $document): Palette
     {
-        $palette = $this->palettes->save(PaletteName::of($name), ThemeDocument::fromArray($document));
-
-        // Every organisation wearing it changes with it, so who changed it is
-        // worth being able to answer.
-        $this->trail->record(new StaffAccess($staff->userId, null, null, 'SAVE_PALETTE', 'palette', null, StaffPermission::DESIGN_MANAGE, ['palette' => $palette->name]));
-
-        return $palette;
+        return $this->palettes->save(PaletteName::of($name), ThemeDocument::fromArray($document));
     }
 
     public function assignments(int $limit, int $offset): PaletteAssignments
@@ -75,20 +64,7 @@ final class Palettes
     /** The console's door: any organisation, any product it holds. */
     public function assign(StaffIdentity $staff, string $tenantId, string $productId, ?string $name): ?Palette
     {
-        $palette = $this->choose($tenantId, $productId, $name, $staff->userId);
-
-        $this->trail->record(new StaffAccess(
-            $staff->userId,
-            $tenantId,
-            $productId,
-            'ASSIGN_PALETTE',
-            'tenant_palette',
-            $tenantId,
-            StaffPermission::DESIGN_MANAGE,
-            ['palette' => $palette?->name],
-        ));
-
-        return $palette;
+        return $this->choose($tenantId, $productId, $name, $staff->userId);
     }
 
     /** The organisation's door: its own tenant and product, from its context. */

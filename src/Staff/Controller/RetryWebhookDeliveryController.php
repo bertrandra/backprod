@@ -14,7 +14,7 @@ use Psr\Http\Message\ServerRequestInterface;
 /**
  * POST /api/v1/staff/products/{productId}/webhook-deliveries/{deliveryId}/retry
  * — a parked delivery, back on the queue and due now (ADR-051 §5). The
- * next cron pass sends it. Trailed as RETRY_WEBHOOK. `staff.products.manage`.
+ * next cron pass sends it. `staff.products.manage`.
  */
 final class RetryWebhookDeliveryController implements RouteHandler
 {

@@ -146,7 +146,6 @@ use App\Staff\Controller\GrantStaffRoleController;
 use App\Staff\Controller\GrantTenantEntitlementController;
 use App\Staff\Controller\IssueProductCredentialController;
 use App\Staff\Controller\IssueWebhookSecretController;
-use App\Staff\Controller\ListAccessLogController;
 use App\Staff\Controller\ListPaletteAssignmentsController;
 use App\Staff\Controller\ListPalettesController;
 use App\Staff\Controller\ListPlatformFeaturesController;
@@ -841,11 +840,9 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/staff/palette-assignments', ListPaletteAssignmentsController::class);
     $routes->addRoute('PUT', '/api/v1/staff/tenants/{tenantId}/products/{productId}/palette', AssignPaletteController::class);
 
-    $routes->addRoute('GET', '/api/v1/staff/access-log', ListAccessLogController::class);
-
     // Admin / operations (§10.1). Same platform identity as /staff, a
-    // different audience and a different permission: support reads the staff
-    // access trail, operations reads the platform's audit trail. Nothing
+    // different audience and a different permission: operations reads the
+    // platform's audit trail. Nothing
     // under here is reachable with a tenant membership.
     $routes->addRoute('GET', '/api/v1/admin/audit', ListAuditController::class);
 

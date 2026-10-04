@@ -17,7 +17,7 @@ use Psr\Http\Message\ServerRequestInterface;
  * GET /api/v1/staff/tenants.
  *
  * The one listing in the platform that is not scoped to a tenant, which is
- * why it lives behind a platform role and leaves a row in the trail.
+ * why it lives behind a platform role.
  */
 final class ListTenantsController implements RouteHandler
 {

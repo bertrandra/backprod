@@ -31,11 +31,9 @@ export function ConsoleContext() {
   const narrowTo = useConsoleStore((state) => state.narrowTo);
 
   const tenantId = tenantIdIn(pathname);
-  const motive = useConsoleStore((state) => (tenantId === null ? null : (state.motives[tenantId] ?? null)));
-  // Named from the read the workspace already made under its motive — the
-  // bar never opens a customer on its own account, so an unopened tenant is
-  // shown by the list's name, which reveals nothing the list did not.
-  const opened = useStaffTenant(tenantId, motive);
+  // The same read the workspace makes, so the bar names the customer and the
+  // products it holds from one cached answer.
+  const opened = useStaffTenant(tenantId);
 
   const listed = tenants.data?.tenants.find((tenant) => tenant.id === tenantId) ?? null;
   const tenantName = opened.data?.name ?? listed?.name ?? null;

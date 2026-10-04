@@ -16,11 +16,7 @@ use App\Sales\Domain\Order;
 use App\Sales\Domain\Quote;
 use App\Sales\Domain\SalesRepository;
 use App\Shared\Exceptions\NotFoundException;
-use App\Staff\Domain\AccessMotive;
-use App\Staff\Domain\StaffAccess;
-use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffIdentity;
-use App\Staff\Domain\StaffPermission;
 use App\Staff\Domain\TenantDirectory;
 use App\Staff\Domain\TenantProducts;
 use App\Tax\Domain\CustomerTaxProfile;
@@ -34,9 +30,7 @@ use App\Tax\Service\Taxation;
  * write beside any of them. What staff may change about a customer lives
  * in {@see StaffDesk} and is short. A platform role never becomes a member
  * (non-negotiable #22): these reads take the tenant as an explicit
- * parameter, are authorised by the platform role, and every one writes an
- * access-log row with the motive R14 asks for — the miss included, because
- * somebody probing for ids is exactly who would rather it were not kept.
+ * parameter and are authorised by the platform role.
  *
  * **Through the tenant's own repositories**, with the tenant named rather
  * than resolved from a membership. Each of those reads is per (tenant,
@@ -57,32 +51,31 @@ final class TenantReads
         private readonly Taxation $taxation,
         private readonly ProjectRepository $projects,
         private readonly JobRepository $jobs,
-        private readonly StaffAccessLog $trail,
     ) {
     }
 
     /** @return list<Payment> */
-    public function payments(StaffIdentity $staff, string $tenantId, ?string $productCode, AccessMotive $motive): array
+    public function payments(StaffIdentity $staff, string $tenantId, ?string $productCode): array
     {
-        return $this->across($staff, $tenantId, $productCode, $motive, 'payments', fn (Product $product): array => $this->payments->listForTenant($tenantId, $product->id, self::PAGE, 0));
+        return $this->across($tenantId, $productCode, fn (Product $product): array => $this->payments->listForTenant($tenantId, $product->id, self::PAGE, 0));
     }
 
     /** @return list<Order> */
-    public function orders(StaffIdentity $staff, string $tenantId, ?string $productCode, AccessMotive $motive): array
+    public function orders(StaffIdentity $staff, string $tenantId, ?string $productCode): array
     {
-        return $this->across($staff, $tenantId, $productCode, $motive, 'orders', fn (Product $product): array => $this->sales->listOrders($tenantId, $product->id, self::PAGE, 0));
+        return $this->across($tenantId, $productCode, fn (Product $product): array => $this->sales->listOrders($tenantId, $product->id, self::PAGE, 0));
     }
 
     /** @return list<Quote> */
-    public function quotes(StaffIdentity $staff, string $tenantId, ?string $productCode, AccessMotive $motive): array
+    public function quotes(StaffIdentity $staff, string $tenantId, ?string $productCode): array
     {
-        return $this->across($staff, $tenantId, $productCode, $motive, 'quotes', fn (Product $product): array => $this->sales->listQuotes($tenantId, $product->id, self::PAGE, 0));
+        return $this->across($tenantId, $productCode, fn (Product $product): array => $this->sales->listQuotes($tenantId, $product->id, self::PAGE, 0));
     }
 
     /** @return list<Project> */
-    public function projects(StaffIdentity $staff, string $tenantId, ?string $productCode, AccessMotive $motive): array
+    public function projects(StaffIdentity $staff, string $tenantId, ?string $productCode): array
     {
-        return $this->across($staff, $tenantId, $productCode, $motive, 'projects', fn (Product $product): array => $this->projects->listForTenant($tenantId, $product->id, Reach::everything(), self::PAGE, 0));
+        return $this->across($tenantId, $productCode, fn (Product $product): array => $this->projects->listForTenant($tenantId, $product->id, Reach::everything(), self::PAGE, 0));
     }
 
     /**
@@ -91,12 +84,10 @@ final class TenantReads
      *
      * @return list<Job>
      */
-    public function jobs(StaffIdentity $staff, string $tenantId, ?string $productCode, AccessMotive $motive): array
+    public function jobs(StaffIdentity $staff, string $tenantId, ?string $productCode): array
     {
-        $tenant = $this->open($staff, $tenantId, 'jobs', $motive);
+        $tenant = $this->open($tenantId);
         $narrowed = $this->narrow($tenant, $productCode);
-
-        $this->recordRead($staff, $tenant, $narrowed, 'jobs', $productCode, $motive);
 
         if ($productCode !== null && $narrowed === null) {
             return [];
@@ -110,18 +101,16 @@ final class TenantReads
      * tenant has one — so the product picker does not apply, and is not
      * pretended to.
      */
-    public function taxProfile(StaffIdentity $staff, string $tenantId, AccessMotive $motive): CustomerTaxProfile
+    public function taxProfile(StaffIdentity $staff, string $tenantId): CustomerTaxProfile
     {
-        $tenant = $this->open($staff, $tenantId, 'tax_profile', $motive);
-
-        $this->recordRead($staff, $tenant, null, 'tax_profile', null, $motive);
+        $tenant = $this->open($tenantId);
 
         return $this->taxation->profileFor($tenant->id);
     }
 
     /**
      * The read, once per product the tenant holds — or once, on the one the
-     * code names — with the access recorded first. A code the tenant does
+     * code names. A code the tenant does
      * not hold reads nothing: nobody is on it here, which is the true
      * answer, and never somebody else's rows.
      *
@@ -131,12 +120,10 @@ final class TenantReads
      *
      * @return list<T>
      */
-    private function across(StaffIdentity $staff, string $tenantId, ?string $productCode, AccessMotive $motive, string $resource, callable $read): array
+    private function across(string $tenantId, ?string $productCode, callable $read): array
     {
-        $tenant = $this->open($staff, $tenantId, $resource, $motive);
+        $tenant = $this->open($tenantId);
         $narrowed = $this->narrow($tenant, $productCode);
-
-        $this->recordRead($staff, $tenant, $narrowed, $resource, $productCode, $motive);
 
         if ($productCode !== null) {
             return $narrowed === null ? [] : $read($narrowed);
@@ -153,23 +140,11 @@ final class TenantReads
         return $rows;
     }
 
-    private function open(StaffIdentity $staff, string $tenantId, string $resource, AccessMotive $motive): \App\Tenant\Domain\Tenant
+    private function open(string $tenantId): \App\Tenant\Domain\Tenant
     {
         $tenant = $this->tenants->find($tenantId);
 
         if ($tenant === null) {
-            $this->trail->record(new StaffAccess(
-                $staff->userId,
-                null,
-                null,
-                'READ_MISS',
-                $resource,
-                $tenantId,
-                StaffPermission::TENANTS_READ,
-                [],
-                $motive,
-            ));
-
             throw new NotFoundException('Tenant not found.', [], 'TENANT_NOT_FOUND');
         }
 
@@ -189,20 +164,5 @@ final class TenantReads
         }
 
         return null;
-    }
-
-    private function recordRead(StaffIdentity $staff, \App\Tenant\Domain\Tenant $tenant, ?Product $narrowed, string $resource, ?string $productCode, AccessMotive $motive): void
-    {
-        $this->trail->record(new StaffAccess(
-            $staff->userId,
-            $tenant->id,
-            $narrowed?->id,
-            'READ',
-            $resource,
-            $tenant->id,
-            StaffPermission::TENANTS_READ,
-            $productCode === null ? [] : ['product' => $productCode],
-            $motive,
-        ));
     }
 }

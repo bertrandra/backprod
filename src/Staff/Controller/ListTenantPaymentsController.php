@@ -15,8 +15,8 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
- * GET /api/v1/staff/tenants/{tenantId}/payments[?product=code] — read-only,
- * with a motive, on the record (R14). See {@see TenantReads}.
+ * GET /api/v1/staff/tenants/{tenantId}/payments[?product=code] — read-only.
+ * See {@see TenantReads}.
  *
  * The same shape the customer's own screen reads, presented by the same
  * presenter: the console sees what the customer sees, no more and no less.
@@ -41,7 +41,6 @@ final class ListTenantPaymentsController implements RouteHandler
             $context->identity,
             $tenantId,
             is_string($product) && trim($product) !== '' ? strtolower(trim($product)) : null,
-            StaffRoute::motive($request),
         );
 
         // The same extra read the customer's own screen makes (2026-09-26):
@@ -49,10 +48,9 @@ final class ListTenantPaymentsController implements RouteHandler
         // "whose payment is this?" is the question a support call opens with.
         //
         // The tenant here is the **path's**, which is the one the permission
-        // was checked against and the one the access log names. A staff route
-        // is authorized by the platform role and never by the parameter, so
-        // reading these documents under any other tenant would be reading
-        // outside what was authorized and recorded.
+        // was checked against. A staff route is authorized by the platform
+        // role and never by the parameter, so reading these documents under
+        // any other tenant would be reading outside what was authorized.
         $collected = $this->collected->of($tenantId, PaymentPresenter::invoicesOf($rows));
 
         // And the member each one is for (2026-09-27), under the same tenant.

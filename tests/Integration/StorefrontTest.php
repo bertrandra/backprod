@@ -406,7 +406,7 @@ final class StorefrontTest extends DatabaseApiTestCase
 
     // --- Who decides what is advertised -------------------------------------
 
-    public function testAdvertisingIsAPlatformDecisionAndIsRecorded(): void
+    public function testAdvertisingIsAPlatformDecision(): void
     {
         $response = $this->request(
             'PUT',
@@ -423,15 +423,6 @@ final class StorefrontTest extends DatabaseApiTestCase
         );
         sort($codes);
         self::assertSame(['pro-monthly', 'reseller'], $codes);
-
-        $trail = $this->connection->fetchAssociative(
-            "SELECT action, permission FROM staff_access_log WHERE resource_type = 'offer'",
-        );
-
-        self::assertIsArray($trail);
-        self::assertSame('ADVERTISE', $trail['action']);
-        // "On what grounds?" — the question a trail without this cannot answer.
-        self::assertSame('staff.catalog.manage', $trail['permission']);
     }
 
     public function testWithdrawingStopsAdvertisingWithoutStoppingSelling(): void

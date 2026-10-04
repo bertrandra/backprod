@@ -35,7 +35,7 @@ use Psr\Http\Message\ResponseInterface;
  *
  * A read, and only a read: writing goes back through `renameFeature`,
  * `renameStaffOffer` and `writeProductStory`, which already carry the
- * permission, the validation and the trail. The tests below go through those,
+ * permission and the validation. The tests below go through those,
  * because a desk whose count is right and whose write is unreachable is a desk
  * that cannot finish anything.
  */

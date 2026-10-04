@@ -17,7 +17,7 @@ use Psr\Http\Message\ServerRequestInterface;
  * The tenant is named in the path, which is the one place this platform lets
  * a client do that (ADR-015 forbids it everywhere else). It is not the
  * exception it appears to be: the path names the tenant, the platform role
- * authorises the read, and the read is recorded either way.
+ * authorises the read.
  */
 final class ShowTenantController implements RouteHandler
 {
@@ -32,7 +32,6 @@ final class ShowTenantController implements RouteHandler
         $tenant = $this->desk->tenant(
             $context->identity,
             StaffRoute::id($request, 'tenantId'),
-            StaffRoute::motive($request),
         );
 
         // Wrapped under `tenant`, as the contract says and as every other

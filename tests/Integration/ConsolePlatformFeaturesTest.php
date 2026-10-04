@@ -185,53 +185,6 @@ final class ConsolePlatformFeaturesTest extends DatabaseApiTestCase
         self::assertSame(['legacy_export'], $this->sellableFeatures());
     }
 
-    public function testRetiringAndRenamingAreDifferentActsInTheTrail(): void
-    {
-        $featureId = $this->featureId($this->createFeature([
-            'code' => 'legacy_export', 'name' => 'Legacy export', 'kind' => 'BOOLEAN',
-        ]));
-
-        $this->patchFeature($featureId, ['name' => 'Legacy exports']);
-        $this->patchFeature($featureId, ['name' => 'Legacy exports', 'active' => false]);
-        $this->patchFeature($featureId, ['name' => 'Legacy exports', 'active' => true]);
-
-        // An auditor reading a column of RENAME rows would never find the day
-        // a product lost the ability to sell something.
-        self::assertSame(
-            ['CREATE', 'RENAME', 'RETIRE', 'REINSTATE'],
-            $this->connection->fetchFirstColumn(
-                "SELECT action FROM staff_access_log WHERE resource_type = 'feature' ORDER BY occurred_at, id",
-            ),
-        );
-    }
-
-    /**
-     * The list is the platform's own, so the trail names neither a tenant nor
-     * a product — and answers for its own permission.
-     */
-    public function testWritingTheListIsRecordedUnderItsOwnPermissionAndNoScope(): void
-    {
-        $this->createFeature(['code' => 'projects', 'name' => 'Projects', 'kind' => 'QUOTA', 'unit' => 'projects']);
-
-        $row = $this->connection->fetchAssociative(
-            "SELECT tenant_id, product_id, permission FROM staff_access_log WHERE resource_type = 'feature'",
-        );
-
-        self::assertIsArray($row);
-        self::assertNull($row['tenant_id']);
-        self::assertNull($row['product_id']);
-        self::assertSame('staff.features.manage', $row['permission']);
-    }
-
-    public function testMerelyReadingTheListIsNotRecorded(): void
-    {
-        $this->list();
-
-        // #21 traces staff crossing into a *tenant's* data. This list belongs
-        // to nobody's tenant.
-        self::assertSame(0, $this->connection->fetchOne('SELECT count(*) FROM staff_access_log'));
-    }
-
     // --- Five languages -----------------------------------------------------------
 
     /**

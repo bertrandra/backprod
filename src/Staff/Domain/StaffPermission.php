@@ -17,7 +17,6 @@ final class StaffPermission
 {
     public const SELF_READ = 'staff.self.read';
     public const TENANTS_READ = 'staff.tenants.read';
-    public const ACCESS_LOG_READ = 'staff.access_log.read';
     public const SUPPORT_READ = 'support.read';
     public const SUPPORT_RESPOND = 'support.respond';
 

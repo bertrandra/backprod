@@ -32,7 +32,7 @@ use Psr\Http\Message\ServerRequestInterface;
  *
  * **A read and only a read.** Writing goes back through the operations that
  * own each row — `renameFeature`, `renameStaffOffer`, `writeProductStory` —
- * which already carry their permission, their validation and their trail. A
+ * which already carry their permission and their validation. A
  * second way to write the same rows is the drift the gates exist to prevent.
  *
  * ## Two permissions, and the desk answers with whichever ones you hold

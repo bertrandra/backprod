@@ -31,8 +31,7 @@ use stdClass;
  * feature rather than a seat. That rule stays the default; this is how the
  * platform says it means the other thing. `staff.tenants.manage`, like assigning the product — a
  * support engineer able to hand a customer a product's features is one able
- * to give away what the platform sells. No motive header: nothing of the
- * customer's is read, and the trail carries what was given.
+ * to give away what the platform sells.
  */
 final class GrantTenantEntitlementController implements RouteHandler
 {

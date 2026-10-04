@@ -35,7 +35,6 @@ import { PaletteChoiceScreen } from '@/features/palettes/PaletteChoiceScreen';
 import { JobsScreen } from '@/features/workspace/JobsScreen';
 import { ProjectScreen } from '@/features/workspace/ProjectScreen';
 import { ProjectsScreen } from '@/features/workspace/ProjectsScreen';
-import { AccessLogScreen } from '@/features/console/AccessLogScreen';
 import { AuditScreen } from '@/features/console/AuditScreen';
 import { CatalogueScreen as ConsoleCatalogueScreen } from '@/features/console/CatalogueScreen';
 import { DirectoryScreen } from '@/features/console/DirectoryScreen';
@@ -127,7 +126,6 @@ const PLATFORM_SCREEN_ROUTES: readonly { path: string; component: () => React.JS
   { path: '/console/readiness', component: ReadinessScreen },
   { path: '/console/tenants', component: StaffTenantsScreen },
   { path: '/console/conversations', component: SupportConversationsScreen },
-  { path: '/console/access-log', component: AccessLogScreen },
   { path: '/console/metrics', component: MetricsScreen },
   { path: '/console/directory', component: DirectoryScreen },
   { path: '/console/products', component: ProductsScreen },

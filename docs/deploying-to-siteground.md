@@ -462,7 +462,7 @@ fuller list; these are the ones specific to shipping it this way.
   with support that PostgreSQL databases are included before trusting it, rather
   than discovering the gap during an incident.
 - **1 GB per database**, at least on the plans checked when this was written.
-  Nothing here is close to that yet, but `staff_access_log`, `notifications` and
+  Nothing here is close to that yet, but `notifications` and
   the invoice tables grow without bound — worth a retention or export routine
   before it becomes the reason a write starts failing.
 - **One JS bundle.** 726 kB, 200 kB gzipped, cached forever after the first load.
