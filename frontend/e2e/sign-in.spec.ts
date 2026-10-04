@@ -137,7 +137,15 @@ test.describe('arriving with no session', () => {
     //
     // Thirty screens each explaining a 401 is still the alternative being ruled
     // out, and that is what this now checks.
-    expect(apiCalls).toEqual(['/api/v1/auth/refresh']);
+    //
+    // Since 2026-10-05 the form also wears the organisation's palette, so it
+    // reads the public organisation and its palette. Those are public reads —
+    // asked of nobody's session — and not behind the gate: the gate's question
+    // is still asked once, and nothing that needs a session is asked at all.
+    const isPublic = (path: string) => path.startsWith('/api/v1/public/');
+
+    expect(apiCalls.filter((path) => !isPublic(path))).toEqual(['/api/v1/auth/refresh']);
+    expect(apiCalls.filter(isPublic).every((path) => ['/api/v1/public/tenant', '/api/v1/public/palette'].includes(path))).toBe(true);
   });
 
   test('signing in from the landing page, with no product in the address, opens the application rather than a blank screen', async ({ page }) => {

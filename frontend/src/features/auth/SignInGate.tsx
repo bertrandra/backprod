@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 
 import { DemoPage } from '@/features/demo/DemoPage';
 import { Storefront } from '@/features/storefront/Storefront';
+import { useVisitorPalette } from '@/app/frame/useTenantPalette';
 import { atRoot } from '@/app/root';
 import { useSessionStore } from '@/state/session';
 
@@ -43,6 +44,12 @@ export function SignInGate({ children }: { children: ReactNode }) {
   const status = useSessionStore((state) => state.status);
   const root = useSessionStore((state) => state.root);
   const [wantsToSignIn, setWantsToSignIn] = useState(false);
+  const demo = window.location.pathname === '/demo' || window.location.pathname === '/demo/';
+
+  // Every signed-out page wears the organisation's palette for the product
+  // (2026-10-05) — the storefront, the form, and the pages between. Signed in,
+  // the shell paints it; the demonstration page belongs to no organisation.
+  useVisitorPalette(status !== 'signed-in' && !demo);
 
   // The choice lasts one sign-in. Somebody who clicked "Sign in" on the
   // storefront, worked, and signed out is back on the landing page and
@@ -96,7 +103,7 @@ export function SignInGate({ children }: { children: ReactNode }) {
 
   // The demonstration page is public and global (2026-09-18): `demo` is a
   // reserved first segment, so it is never an organisation's root.
-  if (window.location.pathname === '/demo' || window.location.pathname === '/demo/') {
+  if (demo) {
     return <DemoPage />;
   }
 
