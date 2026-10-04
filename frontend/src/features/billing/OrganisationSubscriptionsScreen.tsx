@@ -123,7 +123,7 @@ export function OrganisationSubscriptionsScreen() {
             {t("{count} live of {total}", { count: living, total: held.data.total })}
           </span>
         }
-        description={t("What each person in this organisation holds on this product, and how many of the places their offer sells are taken. Buying is theirs; this is the record of it.")}
+        description={t("What each person in this organisation holds on this product, and how many of the places their offer sells are taken. Administrators of the organisation take no place: they are covered for free and not counted. Buying is theirs; this is the record of it.")}
       />
 
       <ListFilterBar
@@ -265,7 +265,9 @@ function OwnPlace({ held }: { held: HeldSubscription }) {
 }
 
 /**
- * Places taken out of places sold — and the two nulls that are not the same
+ * Places taken out of places sold, administrators not counted — they take no
+ * place (2026-09-30), and the server's `places_used` already leaves them out.
+ * And the two nulls that are not the same
  * null (§13.1). `places_sold` is null only for an offer that covers everybody;
  * an offer selling no `users` feature sends 1, because a subscription is one
  * person's unless it says otherwise.
@@ -275,7 +277,7 @@ function Places({ held }: { held: HeldSubscription }) {
   const full = sold !== null && sold !== undefined && held.places_used >= sold;
 
   return (
-    <span data-testid="places" data-full={full}>
+    <span data-testid="places" data-full={full} title={t("Administrators of the organisation take no place.")}>
       {held.places_used}
       {' / '}
       {sold === null || sold === undefined ? (

@@ -2550,7 +2550,7 @@ export interface paths {
         put?: never;
         /**
          * The owner adds somebody to the subscription
-         * @description `subscription.manage`, and the owner alone — whoever activated it (2026-09-19). A member of the organisation by `user_id`, or anybody by `email`: an address with no account gets one, a live USER membership of the organisation on every product it holds, and an invitation link (seven days) to set a password; an address with an account is added, and made a member if it was not one. Within the offer's `users` quota, which counts the owner.
+         * @description `subscription.manage`, and the owner alone — whoever activated it (2026-09-19). A member of the organisation by `user_id`, or anybody by `email`: an address with no account gets one, a live USER membership of the organisation on every product it holds, and an invitation link (seven days) to set a password; an address with an account is added, and made a member if it was not one. Within the offer's `users` quota, which counts the owner — and never an administrator: somebody holding TENANT_ADMIN on this tenant and product takes no place, so naming one by `user_id` is accepted even when every place is taken (2026-09-30).
          */
         post: operations["addSubscriptionPerson"];
         delete?: never;
@@ -6084,6 +6084,8 @@ export interface components {
             display_name: string | null;
             /** Format: date-time */
             added_at: string;
+            /** @description Whether this person administers the organisation on this product (TENANT_ADMIN) — and so takes no place (2026-09-30): covered for free, not counted against `quota`. */
+            administrator: boolean;
         };
         /** @description Who a subscription covers and how many it may (2026-09-19). The quota is the offer’s `users` feature, counting the owner; 1 when the offer sold none — a seat is one person’s unless it says otherwise; null for unlimited. */
         SubscriptionPeople: {
@@ -6094,6 +6096,10 @@ export interface components {
             /** @description Whether the caller is the owner, and so may add and remove people. */
             owner: boolean;
             quota: number | null;
+            /** @description How many places are taken (2026-10-05): the owner and the people added, **administrators excluded** — anybody holding TENANT_ADMIN on this subscription's tenant and product takes no place. The same count the server refuses an addition by (`PEOPLE_QUOTA_REACHED`), so a screen never counts on its own. */
+            places_used: number;
+            /** @description Whether the owner administers the organisation on this product, and so takes no place either. */
+            owner_administrator: boolean;
             members: components["schemas"]["SubscriptionMember"][];
         };
         /** @description The words one kind of mail says (2026-09-19): what stands today, the default it may go back to, and the placeholders it may use — `{link}`, `{email}` — which are filled from the notice when it is sent. */
@@ -12309,7 +12315,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `PEOPLE_QUOTA_REACHED` — every place the offer sold is taken; `ALREADY_THE_OWNER`. */
+            /** @description `PEOPLE_QUOTA_REACHED` — every place the offer sold is taken (administrators not counted); `ALREADY_THE_OWNER`. */
             409: {
                 headers: {
                     [name: string]: unknown;

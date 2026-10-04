@@ -7,6 +7,7 @@ import { useAddPerson, usePeople, useRemovePerson } from '@/queries/subscription
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { SkeletonRows } from '@/ui/Skeleton';
+import { pill } from '@/ui/tone';
 import { t } from '@/i18n';
 
 /**
@@ -18,6 +19,18 @@ import { t } from '@/i18n';
  * members or by address. Somebody added by address who has no account gets
  * one and a link to set their password; that is said when it happens,
  * because the person will not otherwise know why a mail arrived.
+ *
+ * **The count is the server's** (2026-10-05): `places_used`, the same number
+ * the server refuses an addition by. It used to be `members + 1`, counted
+ * here, which knew nothing of the rule that **an administrator of the
+ * organisation takes no place** — so a subscription with an administrator on
+ * it read as full while the server would still add somebody. Administrators
+ * are now marked as such, and the rule is said under the list.
+ *
+ * Full, the member picker stays: an administrator can still be added, for
+ * free. Adding by address goes — somebody invited by address is never an
+ * administrator — and anybody else is refused by the server
+ * (`PEOPLE_QUOTA_REACHED`), whose answer is shown.
  *
  * Read by anybody who may read the subscription; the controls are the
  * owner's, and the server refuses everybody else (`NOT_THE_OWNER`), so the
@@ -46,9 +59,10 @@ export function SubscriptionPeople({ seat }: { seat: boolean }) {
   }
 
   const current = people.data;
-  const taken = current.members.length + 1;
+  const taken = current.places_used;
   const quota = current.quota;
   const full = quota !== null && taken >= quota;
+  const administrators = current.members.filter((member) => member.administrator).length + (current.owner_administrator ? 1 : 0);
   const mayManage = current.owner && can(session, 'subscription.manage');
   const ownerId = current.owner_user_id;
   const candidates = (members.data ?? []).filter(
@@ -63,7 +77,7 @@ export function SubscriptionPeople({ seat }: { seat: boolean }) {
       <div className="flex flex-wrap items-baseline gap-2">
         <h2 className="text-xl font-semibold">{t("People")}</h2>
         <span className="text-sm text-muted" data-testid="people-count">
-          {quota === null ? t("{value} covered, no limit", { value: String(taken) }) : t("{value} of {value_} covered", { value: String(taken), value_: String(quota) })}
+          {quota === null ? t("{value} places taken, no limit", { value: String(taken) }) : t("{value} of {value_} places taken", { value: String(taken), value_: String(quota) })}
         </span>
       </div>
 
@@ -77,6 +91,7 @@ export function SubscriptionPeople({ seat }: { seat: boolean }) {
         <li className="flex flex-wrap items-center gap-2">
           <span className="min-w-0 flex-1">{current.owner ? t("You") : t("The owner")}</span>
           <span className="text-xs text-subtle">{t("owner")}</span>
+          {current.owner_administrator && <FreePlace />}
         </li>
         {current.members.map((member) => (
           <li key={member.user_id} data-person={member.user_id} className="flex flex-wrap items-center gap-2">
@@ -86,6 +101,7 @@ export function SubscriptionPeople({ seat }: { seat: boolean }) {
                 <span className="text-xs text-subtle"> · {member.email}</span>
               )}
             </span>
+            {member.administrator && <FreePlace />}
             {mayManage && (
               <Button
                 type="button"
@@ -99,6 +115,17 @@ export function SubscriptionPeople({ seat }: { seat: boolean }) {
         ))}
       </ul>
 
+      {/* Said always, not only when it applies: the rule is what makes the
+          count readable, and an owner deciding whom to add needs it before
+          an administrator is on the list. */}
+      <p data-testid="administrators-free" className="text-xs text-muted">
+        {administrators === 0
+          ? t("Administrators of the organisation take no place: adding one is free, and does not count against the places this offer sold.")
+          : t(administrators === 1
+              ? "{count} administrator of the organisation is covered here and takes no place: administrators are free, and do not count against the places this offer sold."
+              : "{count} administrators of the organisation are covered here and take no place: administrators are free, and do not count against the places this offer sold.", { count: String(administrators) })}
+      </p>
+
       {lastInvited !== null && (
         <p data-testid="person-invited" role="status" className="text-xs text-muted">
           {t("{email} had no account: one was made, and a link to choose a password has been sent to that address. It is good for seven days.", { email: lastInvited })}
@@ -107,7 +134,7 @@ export function SubscriptionPeople({ seat }: { seat: boolean }) {
 
       {remove.error !== null && <ErrorSurface error={remove.error} />}
 
-      {mayManage && !full && (
+      {mayManage && (!full || candidates.length > 0) && (
         <div className="max-w-md space-y-3" data-testid="add-person">
           {add.error !== null && <ErrorSurface error={add.error} />}
 
@@ -144,6 +171,7 @@ export function SubscriptionPeople({ seat }: { seat: boolean }) {
             </div>
           )}
 
+          {!full && (
           <div className="flex flex-wrap items-end gap-2">
             <Field id="person-email" label={t("Or anybody, by email")} hint={t("Somebody with no account gets one, and a link to choose a password.")}>
               <input
@@ -173,13 +201,23 @@ export function SubscriptionPeople({ seat }: { seat: boolean }) {
             >
               {t("Add by email")}</Button>
           </div>
+          )}
         </div>
       )}
 
       {mayManage && full && (
         <p data-testid="people-full" className="text-xs text-muted">
-          {t("Every place this offer sold is taken. Remove somebody to add another, or change the offer.")}</p>
+          {t("Every place this offer sold is taken. Remove somebody to add another, or change the offer — an administrator of the organisation can still be added, since administrators take no place.")}</p>
       )}
     </section>
+  );
+}
+
+/** "Administrator · free": this person takes no place (2026-09-30). */
+function FreePlace() {
+  return (
+    <span className={pill('info')} data-testid="free-place">
+      {t("administrator · takes no place")}
+    </span>
   );
 }

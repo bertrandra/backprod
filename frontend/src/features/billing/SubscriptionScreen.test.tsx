@@ -735,7 +735,9 @@ describe('the people a subscription covers (2026-09-19)', () => {
     owner_user_id: 'u-1',
     owner: true,
     quota: 3,
-    members: [{ user_id: 'u-9', email: 'bo@acme.test', display_name: 'Bo', added_at: '2026-09-19T08:00:00Z' }],
+    places_used: 2,
+    owner_administrator: false,
+    members: [{ user_id: 'u-9', email: 'bo@acme.test', display_name: 'Bo', added_at: '2026-09-19T08:00:00Z', administrator: false }],
   };
 
   it('is shown to the owner with the quota, and adds by email, saying an account was made', async () => {
@@ -745,7 +747,7 @@ describe('the people a subscription covers (2026-09-19)', () => {
         'GET /api/v1/tenants/current/members': { data: { members: [] } },
         'POST /api/v1/subscription/people': {
           status: 201,
-          data: { member: { user_id: 'u-10', email: 'cy@elsewhere.test', display_name: null, added_at: '2026-09-19T09:00:00Z' }, invited: true },
+          data: { member: { user_id: 'u-10', email: 'cy@elsewhere.test', display_name: null, added_at: '2026-09-19T09:00:00Z', administrator: false }, invited: true },
         },
       }),
     );
@@ -753,7 +755,7 @@ describe('the people a subscription covers (2026-09-19)', () => {
     renderWith(<SubscriptionScreen />, client);
 
     await waitFor(() => expect(screen.getByTestId('subscription-people')).toBeTruthy());
-    expect(screen.getByTestId('people-count').textContent).toBe('2 of 3 covered');
+    expect(screen.getByTestId('people-count').textContent).toBe('2 of 3 places taken');
     expect(screen.getByText('Bo')).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText(/or anybody, by email/i), { target: { value: 'cy@elsewhere.test' } });
@@ -786,7 +788,68 @@ describe('the people a subscription covers (2026-09-19)', () => {
     );
 
     await waitFor(() => expect(screen.getByTestId('people-full')).toBeTruthy());
+    // No member left to pick, and nobody invited by address is ever an
+    // administrator: nothing to add.
     expect(screen.queryByTestId('add-person')).toBeNull();
+    expect(screen.getByTestId('people-full').textContent).toMatch(/administrator of the organisation can still be added/);
+  });
+
+  /**
+   * An administrator takes no place (2026-09-30), and the screen says so
+   * (2026-10-05). The count is the server's `places_used`, which leaves them
+   * out: the screen used to count `members + 1` and read the subscription
+   * full while the server would still add somebody.
+   */
+  it('counts what the server counts, and marks an administrator as taking no place', async () => {
+    const withAnAdministrator = {
+      ...PEOPLE,
+      quota: 2,
+      // The owner and Bo are on it; Ada administers the organisation, so the
+      // server counts two places, not three.
+      places_used: 2,
+      members: [
+        ...PEOPLE.members,
+        { user_id: 'u-11', email: 'ada@acme.test', display_name: 'Ada', added_at: '2026-09-20T08:00:00Z', administrator: true },
+      ],
+    };
+    renderWith(<SubscriptionScreen />, stubClient(stubsFor({ 'GET /api/v1/subscription/people': { data: withAnAdministrator } })));
+
+    await waitFor(() => expect(screen.getByTestId('subscription-people')).toBeTruthy());
+    expect(screen.getByTestId('people-count').textContent).toBe('2 of 2 places taken');
+    expect(screen.getByTestId('free-place').closest('[data-person]')?.getAttribute('data-person')).toBe('u-11');
+    expect(screen.getByTestId('administrators-free').textContent).toMatch(/1 administrator of the organisation is covered here and takes no place/);
+  });
+
+  it('says the rule even before any administrator is on it', async () => {
+    renderWith(<SubscriptionScreen />, stubClient(stubsFor({ 'GET /api/v1/subscription/people': { data: PEOPLE } })));
+
+    await waitFor(() => expect(screen.getByTestId('administrators-free')).toBeTruthy());
+    expect(screen.getByTestId('administrators-free').textContent).toMatch(/administrators of the organisation take no place/i);
+    expect(screen.queryByTestId('free-place')).toBeNull();
+  });
+
+  it('keeps the member picker when full, so an administrator can still be added', async () => {
+    const full = {
+      ...PEOPLE,
+      quota: 2,
+      places_used: 2,
+    };
+    renderWith(
+      <SubscriptionScreen />,
+      stubClient(
+        stubsFor({
+          'GET /api/v1/subscription/people': { data: full },
+          'GET /api/v1/tenants/current/members': {
+            data: { members: [{ user_id: 'u-12', email: 'cy@acme.test', display_name: 'Cy', status: 'ACTIVE', roles: ['TENANT_ADMIN'], products: [] }] },
+          },
+        }),
+      ),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('add-person')).toBeTruthy());
+    expect(screen.getByLabelText('A member of the organisation')).toBeTruthy();
+    // By address, never: an invited address is never an administrator.
+    expect(screen.queryByTestId('invite-person')).toBeNull();
   });
 });
 
