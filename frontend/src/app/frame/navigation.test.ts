@@ -305,6 +305,24 @@ describe('where signing in lands', () => {
     expect(firstEntry(sections)?.to).toBe('/console/products');
   });
 
+  it('is All subscriptions for an organisation administrator, and still Projects for a member', () => {
+    expect(firstEntry(visibleNav(APP_NAV, asTenant(['projects.read', 'billing.read', 'tenant.manage'])))?.to).toBe(
+      '/organisation/subscriptions',
+    );
+    // A member holds no `tenant.manage`: the entry is not theirs, so their
+    // work leads, as before.
+    expect(firstEntry(visibleNav(APP_NAV, asTenant(['projects.read', 'billing.read'])))?.to).toBe('/projects');
+  });
+
+  it('lands somebody who administers both on the platform, which leads the menu', () => {
+    const both: Authorities = {
+      tenant: access(['projects.read', 'tenant.manage']),
+      platform: access(['staff.products.manage']),
+    };
+
+    expect(firstEntry(visibleNav(APP_NAV, both))?.to).toBe('/console/products');
+  });
+
   it('falls back to the first entry when Products is not in the menu', () => {
     // Support holds no `staff.products.manage`: Products is not theirs, so they
     // land where their own menu starts.

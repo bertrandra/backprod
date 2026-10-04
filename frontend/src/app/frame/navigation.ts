@@ -56,9 +56,10 @@ export interface NavEntry {
   /**
    * Where signing in lands, when this entry is in the person's menu
    * (2026-10-05) — ahead of the menu's first entry. The operator asked that a
-   * platform administrator arrive on Products: the menu keeps Setup first,
-   * because it is the map of the chain, and the landing is a different
-   * question from the order.
+   * platform administrator arrive on Products and an organisation's
+   * administrator on All subscriptions; the menu keeps its own order, because
+   * the landing is a different question from the order. Somebody offered both
+   * lands on the one the menu shows first — the platform's, which leads.
    */
   readonly landing?: boolean;
 }
@@ -251,7 +252,7 @@ export const APP_NAV: readonly NavSection[] = [
       // conclusion: the operator went looking for it under Subscription,
       // because that is the word for the thing it lists, and did not find it.
       // A person holds one and administers the rest; both are subscriptions.
-      { id: 'held', label: 'All subscriptions', to: '/organisation/subscriptions', scope: 'tenant', permission: 'tenant.manage' },
+      { id: 'held', label: 'All subscriptions', to: '/organisation/subscriptions', scope: 'tenant', permission: 'tenant.manage', landing: true },
       { id: 'invoices', label: 'Invoices', to: '/invoices', scope: 'tenant', permission: 'billing.read' },
       { id: 'payments', label: 'Payments', to: '/payments', scope: 'tenant', permission: 'payments.read', secondary: true },
       { id: 'credit-notes', label: 'Credit notes', to: '/credit-notes', scope: 'tenant', permission: 'billing.read', secondary: true },
@@ -342,7 +343,8 @@ export function bottomBarEntries(
  * first thing in their menu; the operator asked that the two agree.
  *
  * Except an entry marked `landing` (2026-10-05), which wins when the person's
- * menu offers it: a platform administrator lands on Products. Read from the
+ * menu offers it: a platform administrator lands on Products, an
+ * organisation's administrator on All subscriptions. Read from the
  * menu they were given — permissions and the menu setup already applied — so
  * the landing can never be a screen their menu does not offer.
  */
