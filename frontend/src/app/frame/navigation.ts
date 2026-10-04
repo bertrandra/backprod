@@ -53,6 +53,15 @@ export interface NavEntry {
   readonly permission: string;
   /** Kept out of the phone's bottom bar; reachable under "More". */
   readonly secondary?: boolean;
+  /**
+   * Where signing in lands, when this entry is in the person's menu
+   * (2026-10-05) — ahead of the menu's first entry. The operator asked that a
+   * platform administrator arrive on Products and an organisation's
+   * administrator on All subscriptions; the menu keeps its own order, because
+   * the landing is a different question from the order. Somebody offered both
+   * lands on the one the menu shows first — the platform's, which leads.
+   */
+  readonly landing?: boolean;
 }
 
 export interface NavSection {
@@ -120,7 +129,7 @@ export const APP_NAV: readonly NavSection[] = [
       // offers are priced for. `listProducts` resolves through membership, which
       // a platform role never grants, so this is the only screen that can answer
       // "what does this deployment host?".
-      { id: 'products', label: 'Products', to: '/console/products', scope: 'platform', permission: 'staff.products.manage' },
+      { id: 'products', label: 'Products', to: '/console/products', scope: 'platform', permission: 'staff.products.manage', landing: true },
       // Before the catalogue, because an invoice must name its issuer: a product
       // can be priced and advertised and still refuse at the checkout.
       { id: 'invoicing', label: 'Invoicing', to: '/console/invoicing', scope: 'platform', permission: 'staff.products.manage' },
@@ -242,7 +251,7 @@ export const APP_NAV: readonly NavSection[] = [
       // conclusion: the operator went looking for it under Subscription,
       // because that is the word for the thing it lists, and did not find it.
       // A person holds one and administers the rest; both are subscriptions.
-      { id: 'held', label: 'All subscriptions', to: '/organisation/subscriptions', scope: 'tenant', permission: 'tenant.manage' },
+      { id: 'held', label: 'All subscriptions', to: '/organisation/subscriptions', scope: 'tenant', permission: 'tenant.manage', landing: true },
       { id: 'invoices', label: 'Invoices', to: '/invoices', scope: 'tenant', permission: 'billing.read' },
       { id: 'payments', label: 'Payments', to: '/payments', scope: 'tenant', permission: 'payments.read', secondary: true },
       { id: 'credit-notes', label: 'Credit notes', to: '/credit-notes', scope: 'tenant', permission: 'billing.read', secondary: true },
@@ -331,7 +340,15 @@ export function bottomBarEntries(
  * the platform's setup before its customers. The catalogue used to be the
  * landing for a member, which put a screen in front of them that was not the
  * first thing in their menu; the operator asked that the two agree.
+ *
+ * Except an entry marked `landing` (2026-10-05), which wins when the person's
+ * menu offers it: a platform administrator lands on Products, an
+ * organisation's administrator on All subscriptions. Read from the
+ * menu they were given — permissions and the menu setup already applied — so
+ * the landing can never be a screen their menu does not offer.
  */
 export function firstEntry(sections: readonly NavSection[]): NavEntry | undefined {
-  return sections.flatMap((section) => section.entries)[0];
+  const entries = sections.flatMap((section) => section.entries);
+
+  return entries.find((entry) => entry.landing === true) ?? entries[0];
 }
