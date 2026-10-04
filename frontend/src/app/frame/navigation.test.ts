@@ -297,6 +297,22 @@ describe('where signing in lands', () => {
     expect(firstEntry(visibleNav(APP_NAV, both))?.to).toMatch(/^\/console\//);
   });
 
+  it('is Products for a platform administrator, ahead of Setup which the menu keeps first', () => {
+    const admin: Authorities = { tenant: undefined, platform: access(['staff.products.manage', 'staff.tenants.read']) };
+    const sections = visibleNav(APP_NAV, admin);
+
+    expect(sections[0]?.entries[0]?.id).toBe('readiness');
+    expect(firstEntry(sections)?.to).toBe('/console/products');
+  });
+
+  it('falls back to the first entry when Products is not in the menu', () => {
+    // Support holds no `staff.products.manage`: Products is not theirs, so they
+    // land where their own menu starts.
+    const support: Authorities = { tenant: undefined, platform: access(['staff.tenants.read', 'support.read']) };
+
+    expect(firstEntry(visibleNav(APP_NAV, support))?.to).toBe('/console/tenants');
+  });
+
   it('is nowhere for somebody the menu offers nothing to', () => {
     expect(firstEntry(visibleNav(APP_NAV, asTenant([])))).toBeUndefined();
   });
