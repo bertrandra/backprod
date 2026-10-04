@@ -12,7 +12,7 @@ import { readPalette, themeDocument } from './palette';
 const DOCUMENT = themeDocument(readPalette(stylesheet));
 const SAVED_AT = '2026-10-04T09:00:00+00:00';
 
-/** The five palettes and no `default`: where every deployment starts. */
+/** No palette named `default`: where every deployment starts. */
 const NOTHING_SAVED: Stubs = {
   'GET /api/v1/staff/palettes': { data: { palettes: [] } },
 };

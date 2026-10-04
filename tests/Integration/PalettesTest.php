@@ -19,7 +19,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use Psr\Http\Message\ResponseInterface;
 
 /**
- * Palettes (2026-10-04): five to start with, edited by the platform
+ * Palettes (2026-10-04): fifteen to start with, edited by the platform
  * administrator alone; and which one each organisation wears in each product
  * it holds — one row, written from the console's matrix or from the
  * organisation's own screen, and read the same from both.
@@ -27,7 +27,12 @@ use Psr\Http\Message\ResponseInterface;
 #[CoversNothing]
 final class PalettesTest extends DatabaseApiTestCase
 {
-    private const FIVE = ['petrol-classic', 'forest-ledger', 'terracotta-studio', 'midnight-indigo', 'graphite-compact'];
+    /** The fifteen the migrations seed, in the order offered. */
+    private const SEEDED = [
+        'petrol-classic', 'forest-ledger', 'terracotta-studio', 'midnight-indigo', 'graphite-compact',
+        'monochrome', 'psychedelic', 'high-contrast', 'pastel-dream', 'ocean-depth',
+        'sunset-glow', 'neon-night', 'nordic-frost', 'vintage-sepia', 'royal-velvet',
+    ];
 
     /** The pairs text is set in, foreground on ground. */
     private const PAIRS = [
@@ -97,8 +102,8 @@ final class PalettesTest extends DatabaseApiTestCase
     }
 
     /**
-     * The five are reference data, which no reset touches — so what a test
-     * adds is taken back out, or the next test starts with six.
+     * The seeded ones are reference data, which no reset touches — so what a test
+     * adds is taken back out, or the next test starts with sixteen.
      */
     protected function tearDown(): void
     {
@@ -110,10 +115,10 @@ final class PalettesTest extends DatabaseApiTestCase
 
     // --- the palettes ---------------------------------------------------------
 
-    public function testFivePalettesAreOfferedInOrderEachComplete(): void
+    public function testFifteenPalettesAreOfferedInOrderEachComplete(): void
     {
         $palettes = $this->palettes(self::OLA);
-        self::assertSame(self::FIVE, array_keys($palettes));
+        self::assertSame(self::SEEDED, array_keys($palettes));
 
         foreach ($palettes as $document) {
             self::assertSame($document, ThemeDocument::fromArray($document)->toArray());
@@ -121,8 +126,8 @@ final class PalettesTest extends DatabaseApiTestCase
             self::assertIsString($document['description'] ?? null);
         }
 
-        // An organisation is offered the same five.
-        self::assertSame(self::FIVE, array_column($this->list($this->call('GET', '/api/v1/tenant/palettes', null, self::ADA), 'palettes'), 'name'));
+        // An organisation is offered the same ones.
+        self::assertSame(self::SEEDED, array_column($this->list($this->call('GET', '/api/v1/tenant/palettes', null, self::ADA), 'palettes'), 'name'));
     }
 
     /** What an organisation's screens wear has to be readable. */
@@ -157,7 +162,7 @@ final class PalettesTest extends DatabaseApiTestCase
 
         $created = $this->call('PUT', '/api/v1/staff/palettes/test-autumn', ['document' => [...$forest, 'label' => 'Autumn']], self::OLA);
         self::assertSame(200, $created->getStatusCode(), (string) $created->getBody());
-        self::assertSame([...self::FIVE, 'test-autumn'], array_keys($this->palettes(self::OLA)));
+        self::assertSame([...self::SEEDED, 'test-autumn'], array_keys($this->palettes(self::OLA)));
 
         $edited = self::recolour([...$forest, 'label' => 'Autumn'], 'accent', 'light', '#14532d');
         $this->call('PUT', '/api/v1/staff/palettes/test-autumn', ['document' => $edited], self::OLA);
@@ -177,7 +182,7 @@ final class PalettesTest extends DatabaseApiTestCase
         // An organisation has no route to a palette at all, only to its choice.
         self::assertContains($this->call('PUT', '/api/v1/tenant/palettes/test-x', ['document' => $document], self::ADA)->getStatusCode(), [404, 405]);
 
-        self::assertSame(self::FIVE, array_keys($this->palettes(self::OLA)));
+        self::assertSame(self::SEEDED, array_keys($this->palettes(self::OLA)));
     }
 
     public function testADocumentOutOfShapeIsRefusedWhole(): void
@@ -188,7 +193,7 @@ final class PalettesTest extends DatabaseApiTestCase
 
         self::assertSame(400, $response->getStatusCode());
         self::assertSame('VALIDATION_FAILED', $this->errorOf($response)['code'] ?? null);
-        self::assertSame(self::FIVE, array_keys($this->palettes(self::OLA)));
+        self::assertSame(self::SEEDED, array_keys($this->palettes(self::OLA)));
     }
 
     // --- the matrix and the choice -------------------------------------------

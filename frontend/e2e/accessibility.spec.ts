@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
@@ -153,9 +153,14 @@ async function stubbed(page: Page) {
       },
     }),
   );
-  // The five real palettes, one worn, and a matrix with a held and an unheld
+  // The real palettes, one worn, and a matrix with a held and an unheld
   // product — so both palette screens are scanned with everything they show.
-  const palettes = ['petrol-classic', 'forest-ledger', 'terracotta-studio', 'midnight-indigo', 'graphite-compact'].map((name) => ({
+  // Every palette the migrations seed, from its source: a palette whose
+  // swatches or label broke the scan would show up here.
+  const palettes = readdirSync(new URL('../../docs/themes/', import.meta.url))
+    .filter((file) => file.endsWith('.json'))
+    .map((file) => file.replace(/\.json$/, ''))
+    .map((name) => ({
     name,
     updated_at: '2026-10-04T09:00:00+00:00',
     document: JSON.parse(readFileSync(new URL(`../../docs/themes/${name}.json`, import.meta.url), 'utf8')) as unknown,

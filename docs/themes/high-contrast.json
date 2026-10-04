@@ -1,0 +1,291 @@
+{
+  "format": 1,
+  "label": "High contrast",
+  "description": "Pure ink on white and white on near-black, larger type, every pair aiming at AAA: for readers who need it, and screens in sunlight.",
+  "colors": [
+    {
+      "group": "Surfaces, in levels",
+      "tokens": [
+        {
+          "name": "canvas",
+          "variable": "--ds-canvas",
+          "light": "#fcfcfd",
+          "dark": "#040506"
+        },
+        {
+          "name": "surface",
+          "variable": "--ds-surface",
+          "light": "#ffffff",
+          "dark": "#0d0f14"
+        },
+        {
+          "name": "well",
+          "variable": "--ds-well",
+          "light": "#f8f8f9",
+          "dark": "#080a0c"
+        },
+        {
+          "name": "raised",
+          "variable": "--ds-raised",
+          "light": "#ffffff",
+          "dark": "#14181f"
+        }
+      ]
+    },
+    {
+      "group": "Ink, in three weights",
+      "tokens": [
+        {
+          "name": "ink",
+          "variable": "--ds-ink",
+          "light": "#080a0c",
+          "dark": "#fcfcfd"
+        },
+        {
+          "name": "muted",
+          "variable": "--ds-ink-muted",
+          "light": "#42464f",
+          "dark": "#b3b9c7"
+        },
+        {
+          "name": "subtle",
+          "variable": "--ds-ink-subtle",
+          "light": "#51555d",
+          "dark": "#9da3af"
+        }
+      ]
+    },
+    {
+      "group": "Lines",
+      "tokens": [
+        {
+          "name": "line",
+          "variable": "--ds-line",
+          "light": "#e6e7ea",
+          "dark": "#1d212b"
+        },
+        {
+          "name": "line-strong",
+          "variable": "--ds-line-strong",
+          "light": "#cdd0d6",
+          "dark": "#2d3443"
+        }
+      ]
+    },
+    {
+      "group": "Accent",
+      "tokens": [
+        {
+          "name": "accent",
+          "variable": "--ds-accent",
+          "light": "#042fae",
+          "dark": "#88a5fc"
+        },
+        {
+          "name": "accent-strong",
+          "variable": "--ds-accent-strong",
+          "light": "#042b9f",
+          "dark": "#94aefc"
+        },
+        {
+          "name": "accent-wash",
+          "variable": "--ds-accent-wash",
+          "light": "#e2e8f8",
+          "dark": "#0b173d"
+        },
+        {
+          "name": "on-accent",
+          "variable": "--ds-on-accent",
+          "light": "#ffffff",
+          "dark": "#080e21"
+        }
+      ]
+    },
+    {
+      "group": "Inverse",
+      "tokens": [
+        {
+          "name": "inverse",
+          "variable": "--ds-inverse",
+          "light": "#131720",
+          "dark": "#fcfcfd"
+        },
+        {
+          "name": "on-inverse",
+          "variable": "--ds-on-inverse",
+          "light": "#ffffff",
+          "dark": "#040506"
+        }
+      ]
+    },
+    {
+      "group": "Scrim",
+      "tokens": [
+        {
+          "name": "scrim",
+          "variable": "--ds-scrim",
+          "light": "rgb(14 21 32 / 0.4)",
+          "dark": "rgb(0 0 0 / 0.6)"
+        }
+      ]
+    },
+    {
+      "group": "Meaning, not decoration",
+      "tokens": [
+        {
+          "name": "success",
+          "variable": "--ds-success",
+          "light": "#0a5e3f",
+          "dark": "#51ecb3"
+        },
+        {
+          "name": "success-wash",
+          "variable": "--ds-success-wash",
+          "light": "#e1faf0",
+          "dark": "#0b2d21"
+        },
+        {
+          "name": "warning",
+          "variable": "--ds-warning",
+          "light": "#754703",
+          "dark": "#fab142"
+        },
+        {
+          "name": "warning-wash",
+          "variable": "--ds-warning-wash",
+          "light": "#faf0e1",
+          "dark": "#2d1f0b"
+        },
+        {
+          "name": "danger",
+          "variable": "--ds-danger",
+          "light": "#8b1828",
+          "dark": "#ea8693"
+        },
+        {
+          "name": "danger-wash",
+          "variable": "--ds-danger-wash",
+          "light": "#fae1e4",
+          "dark": "#2d0b10"
+        }
+      ]
+    },
+    {
+      "group": "Neither good nor bad",
+      "tokens": [
+        {
+          "name": "info",
+          "variable": "--ds-info",
+          "light": "#184f86",
+          "dark": "#6eaae5"
+        },
+        {
+          "name": "info-wash",
+          "variable": "--ds-info-wash",
+          "light": "#e1edfa",
+          "dark": "#0b1c2d"
+        }
+      ]
+    }
+  ],
+  "fonts": [
+    {
+      "role": "sans",
+      "variable": "--font-sans",
+      "family": "system-ui",
+      "stack": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif"
+    },
+    {
+      "role": "mono",
+      "variable": "--font-mono",
+      "family": "ui-monospace",
+      "stack": "ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
+    }
+  ],
+  "type_scale": [
+    {
+      "name": "2xs",
+      "variable": "--text-2xs",
+      "size": "0.7425rem",
+      "line_height": "1.08rem",
+      "letter_spacing": "0.04em"
+    },
+    {
+      "name": "xs",
+      "variable": "--text-xs",
+      "size": "0.81rem",
+      "line_height": "1.215rem",
+      "letter_spacing": null
+    },
+    {
+      "name": "sm",
+      "variable": "--text-sm",
+      "size": "0.8775rem",
+      "line_height": "1.4175rem",
+      "letter_spacing": null
+    },
+    {
+      "name": "base",
+      "variable": "--text-base",
+      "size": "0.945rem",
+      "line_height": "1.5525rem",
+      "letter_spacing": null
+    },
+    {
+      "name": "lg",
+      "variable": "--text-lg",
+      "size": "1.08rem",
+      "line_height": "1.62rem",
+      "letter_spacing": null
+    },
+    {
+      "name": "xl",
+      "variable": "--text-xl",
+      "size": "1.35rem",
+      "line_height": "1.782rem",
+      "letter_spacing": "-0.012em"
+    },
+    {
+      "name": "2xl",
+      "variable": "--text-2xl",
+      "size": "1.62rem",
+      "line_height": "1.998rem",
+      "letter_spacing": "-0.018em"
+    },
+    {
+      "name": "3xl",
+      "variable": "--text-3xl",
+      "size": "2.025rem",
+      "line_height": "2.322rem",
+      "letter_spacing": "-0.022em"
+    },
+    {
+      "name": "display-sm",
+      "variable": "--text-display-sm",
+      "size": "1.89rem",
+      "line_height": "2.268rem",
+      "letter_spacing": "-0.02em"
+    },
+    {
+      "name": "display-md",
+      "variable": "--text-display-md",
+      "size": "2.7rem",
+      "line_height": "3.024rem",
+      "letter_spacing": "-0.025em"
+    },
+    {
+      "name": "display-lg",
+      "variable": "--text-display-lg",
+      "size": "3.78rem",
+      "line_height": "3.996rem",
+      "letter_spacing": "-0.03em"
+    },
+    {
+      "name": "display-xl",
+      "variable": "--text-display-xl",
+      "size": "4.86rem",
+      "line_height": "4.968rem",
+      "letter_spacing": "-0.035em"
+    }
+  ]
+}

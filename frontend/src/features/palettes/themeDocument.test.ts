@@ -54,7 +54,7 @@ describe('themeProperties', () => {
   });
 });
 
-describe('the five palettes', () => {
+describe('every seeded palette', () => {
   it.each(PALETTE_NAMES)('%s clears AA on every pair, in both modes', (name) => {
     expect(failingPairs(template(name))).toEqual([]);
   });
