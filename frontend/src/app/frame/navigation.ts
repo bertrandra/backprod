@@ -168,6 +168,10 @@ export const APP_NAV: readonly NavSection[] = [
       { id: 'menus', label: 'Menus', to: '/console/menus', scope: 'platform', permission: 'staff.navigation.manage' },
       // The words the platform's mails say, and a test of the mail host (2026-09-19).
       { id: 'mail', label: 'Mail', to: '/console/mail', scope: 'platform', permission: 'staff.mail.manage' },
+      // The design system's colours, read from `index.css` (2026-10-04). A
+      // developer's view of the shell's appearance, so it sits with the rest of
+      // setting the platform up, behind the permission the setup map uses.
+      { id: 'palette', label: 'Palette', to: '/console/palette', scope: 'platform', permission: 'staff.products.manage', secondary: true },
     ],
   },
   {

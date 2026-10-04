@@ -290,6 +290,7 @@ const CONSOLE_ROUTES = [
   '/console/menus',
   '/console/mail',
   '/console/demo',
+  '/console/palette',
 ] as const;
 
 async function scan(page: Page) {

@@ -42,6 +42,12 @@
  * runs axe over every route in both themes; a token pair that fails WCAG AA fails
  * the suite, which is why `--ds-ink-subtle` is darker than it looks like it needs
  * to be — it has to clear 4.5:1 against `--ds-canvas`, not only against white.
+ *
+ * **And the console reads this file.** `/console/palette` imports it as text
+ * and draws its groups from the `--color-*` runs below — each run titled by the
+ * first sentence of the comment above it — and its values from the two `:root`
+ * blocks. So a token added, renamed or recoloured here is on that screen at the
+ * next build, and a comment written here is the explanation it shows.
  */
 
 @theme {
@@ -110,16 +116,18 @@
   --color-muted: var(--ds-ink-muted);
   --color-subtle: var(--ds-ink-subtle);
 
+  /* Lines. A hairline between things, and a stronger one around what can be
+     pressed or typed into. */
   --color-line: var(--ds-line);
   --color-line-strong: var(--ds-line-strong);
 
-  /* The product's own colour, and a tenant's if their plan includes one. */
+  /* Accent. The product's own colour, and a tenant's if their plan includes one. */
   --color-accent: var(--ds-accent);
   --color-accent-strong: var(--ds-accent-strong);
   --color-accent-wash: var(--ds-accent-wash);
   --color-on-accent: var(--ds-on-accent);
 
-  /* The monochrome the primary button has always used, named rather than
+  /* Inverse. The monochrome the primary button has always used, named rather than
      spelled `bg-neutral-900 dark:bg-neutral-100 dark:text-neutral-900` in
      five places. */
   --color-inverse: var(--ds-inverse);
