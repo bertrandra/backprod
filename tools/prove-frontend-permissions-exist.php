@@ -402,7 +402,8 @@ printf(
 //
 // The same hole, one level over. A capability is not a permission — it says what
 // the tenant's plan includes rather than what a role may do — and until U4 the
-// frontend used exactly one (`white_label`), so nothing checked them.
+// frontend used exactly one (`white_label`, gone with the skin on 2026-10-05),
+// so nothing checked them.
 //
 // A second one made that worth closing: a capability *looks* like a permission,
 // contains a dot, and is not one. A misspelt capability hides a screen just as

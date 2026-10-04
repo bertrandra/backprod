@@ -1,13 +1,17 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useRef } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
 import { can } from '@/app/access/access';
 import {
+  LOGO_TYPES,
   useOrganisation,
+  useRemoveOrganisationLogo,
   useRenameOrganisation,
   useTenantUsage,
   useUpdateOrganisation,
+  useUploadOrganisationLogo,
   type JoinPolicy,
 } from '@/queries/organisation';
 import { useMyProducts } from '@/queries/catalogue';
@@ -20,7 +24,14 @@ import { SkeletonRows } from '@/ui/Skeleton';
 import { t } from '@/i18n';
 import { tx } from '@/i18n/react';
 
-/** `tenant.organisation` — the company, and its usage against quota. */
+/**
+ * `tenant.organisation` — the company: its name, its logo, how people join,
+ * the product it opens on, and its usage against quota.
+ *
+ * The logo is here since 2026-10-05, and not on a branding screen of its own:
+ * it is part of what the organisation *is*, like its name — one for the
+ * organisation in every product, set by its administrator, sold by no offer.
+ */
 const schema = z.object({
   name: z.string().trim().min(1, 'An organisation needs a name.').max(200),
 });
@@ -72,6 +83,9 @@ export function OrganisationScreen() {
   const joining = useUpdateOrganisation();
   const opening = useUpdateOrganisation();
   const usage = useTenantUsage();
+  const uploadLogo = useUploadOrganisationLogo();
+  const removeLogo = useRemoveOrganisationLogo();
+  const logoInput = useRef<HTMLInputElement>(null);
   // What this organisation may choose between: the products it holds, which
   // is what `GET /products` answers for the person asking — and a member of
   // one organisation holds exactly what it holds.
@@ -134,6 +148,56 @@ export function OrganisationScreen() {
               {t("Save")}</Button>
           )}
         </form>
+      </section>
+
+      <section className="space-y-3" data-testid="organisation-logo">
+        <h2 className="text-xl font-semibold">{t("Logo")}</h2>
+        <p className="text-sm text-muted" data-testid="organisation-logo-state">
+          {organisation.data.logo_asset_id === null
+            ? t("No logo yet.")
+            : t("A logo is set. It is your organisation’s in every product.")}
+        </p>
+
+        {uploadLogo.error !== null && <ErrorSurface error={uploadLogo.error} />}
+        {removeLogo.error !== null && <ErrorSurface error={removeLogo.error} />}
+
+        {mayManage && (
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              ref={logoInput}
+              type="file"
+              // The contract's own list. SVG is deliberately absent — ADR-028
+              // refuses it for the stored-scripting reason.
+              accept={LOGO_TYPES.join(',')}
+              aria-label={t("Choose a logo image")}
+              className="text-sm"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+
+                if (file !== undefined) {
+                  uploadLogo.mutate(file, {
+                    // Cleared either way, so a failed upload can be retried with
+                    // the same file — a file input that keeps its value will not
+                    // fire change again for it.
+                    onSettled: () => {
+                      if (logoInput.current !== null) {
+                        logoInput.current.value = '';
+                      }
+                    },
+                  });
+                }
+              }}
+            />
+
+            {uploadLogo.isPending && <span role="status">{t("Uploading…")}</span>}
+
+            {organisation.data.logo_asset_id !== null && (
+              <Button type="button" variant="danger" pending={removeLogo.isPending} onClick={() => removeLogo.mutate()}>
+                {t("Remove logo")}
+              </Button>
+            )}
+          </div>
+        )}
       </section>
 
       {/* How people arrive by themselves (2026-09-17). Somebody who signs

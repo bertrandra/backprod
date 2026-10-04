@@ -62,7 +62,7 @@ final class DemoWorld
      * `app_url` is where a product deployed beside the platform lives
      * (ADR-051 §3) — null for one inside this shell. `meters` are the
      * features a product's own server reports usage on (ADR-051 §4),
-     * beside the four every catalogue has: Starter's and Pro's limits, Scale
+     * beside the three every catalogue has: Starter's and Pro's limits, Scale
      * unlimited.
      *
      * A product may also declare `capabilities`: BOOLEAN features of its own,
@@ -222,14 +222,16 @@ final class DemoWorld
     public const FREEMIUM_DAYS = 5;
 
     /**
-     * The four features every catalogue grants, by the codes the platform
+     * The three features every catalogue grants, by the codes the platform
      * enforces: `max_projects` is what the workspace asks before it stores a
      * project ({@see \App\Project\Service\ProjectWorkspace::QUOTA}), `users`
      * what bounds a subscription's people. Until 2026-09-22 the first was
      * seeded as `projects`, which nothing reads — so the demo's subscribers
-     * held a quota of projects and could create none.
+     * held a quota of projects and could create none. `white_label` stood
+     * here until 2026-10-05: the logo is the organisation's now, under no
+     * offer, and the feature is retired.
      *
-     * @var array<string, array{name: string, kind: 'QUOTA'|'BOOLEAN', unit: ?string, starter: ?int, pro: ?int}>
+     * @var array<string, array{name: string, kind: 'QUOTA', unit: string, starter: int, pro: int}>
      */
     public const FEATURES = [
         'max_projects' => ['name' => 'Projects', 'kind' => 'QUOTA', 'unit' => 'projects', 'starter' => 3, 'pro' => 25],
@@ -237,13 +239,12 @@ final class DemoWorld
         // `users` (2026-09-19) is what bounds a subscription's people: Starter
         // covers its buyer, Pro three, Scale everybody.
         'users' => ['name' => 'Users', 'kind' => 'QUOTA', 'unit' => 'users', 'starter' => 1, 'pro' => 3],
-        'white_label' => ['name' => 'White label', 'kind' => 'BOOLEAN', 'unit' => null, 'starter' => null, 'pro' => null],
     ];
 
     /**
      * What a feature says beside its name, in English (2026-09-24).
      *
-     * Only the four every catalogue grants: they are what a customer reads
+     * Only the three every catalogue grants: they are what a customer reads
      * on a pricing page, so they are where a description earns its place. A
      * product's own capabilities are named and not explained here — what
      * `plan.terrasse` *does* is Plan's documentation, not the platform's.
@@ -254,7 +255,6 @@ final class DemoWorld
         'max_projects' => 'How many plans you may keep at once.',
         'exports' => 'How many files you may export each month.',
         'users' => 'How many colleagues the subscription covers.',
-        'white_label' => 'Your own logo and colours instead of ours.',
     ];
 
     /**
@@ -293,12 +293,6 @@ final class DemoWorld
             'es' => ['name' => 'Usuarios', 'description' => 'A cuántos compañeros cubre la suscripción.'],
             'de' => ['name' => 'Nutzer', 'description' => 'Wie viele Kollegen das Abonnement abdeckt.'],
             'it' => ['name' => 'Utenti', 'description' => 'Quanti colleghi copre l’abbonamento.'],
-        ],
-        'white_label' => [
-            'fr' => ['name' => 'Marque blanche', 'description' => 'Votre logo et vos couleurs à la place des nôtres.'],
-            'es' => ['name' => 'Marca blanca', 'description' => 'Su logotipo y sus colores en lugar de los nuestros.'],
-            'de' => ['name' => 'White Label', 'description' => 'Ihr Logo und Ihre Farben statt unserer.'],
-            'it' => ['name' => 'Marchio bianco', 'description' => 'Il vostro logo e i vostri colori al posto dei nostri.'],
         ],
 
         // Plan's own words. The codes are the product's and the platform

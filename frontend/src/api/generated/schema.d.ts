@@ -2745,62 +2745,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tenant/skin": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The tenant's colours and logo
-         * @description Needs nothing but membership. A client has to know how to render itself before it knows what the tenant bought, and a tenant that has never set a skin gets one with every field null rather than a 404 — which would make every client write a branch to mean what null already means.
-         */
-        get: operations["showSkin"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Set or clear the colours
-         * @description A PATCH, so a field the body does not mention keeps its value. **Omitting a field and sending it as `null` are different instructions**: the first leaves it alone, the second clears it — so a caller who wants to drop one colour without knowing the other can say so.
-         *
-         *     The logo is not settable here; it is bytes, and it has its own endpoint.
-         */
-        patch: operations["updateSkin"];
-        trace?: never;
-    };
-    "/api/v1/tenant/skin/logo": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Upload a logo
-         * @description **The raw bytes are the request**, as with an asset upload: a base64 field inside JSON would inflate the payload by a third and would put an image inside a document this platform elsewhere refuses to let images into (non-negotiable #9).
-         *
-         *     The type is sniffed from the bytes and checked **before anything is stored**, so a refused logo leaves no file behind and no orphaned row. Only PNG, JPEG, GIF and WebP are accepted — SVG is refused here as everywhere, being an image to a user and a script container to a browser.
-         *
-         *     `X-Filename` is a label for humans and decides nothing.
-         */
-        post: operations["uploadSkinLogo"];
-        /**
-         * Stop using the logo
-         * @description Clears it from the skin. **The asset itself stays**: this says "this is no longer our logo", which is not the same instruction as "destroy this file" — the file may be on a page somebody has open or inside a document already generated, and `/assets` is where a file is deleted deliberately.
-         *
-         *     200 with the skin rather than 204, because the caller asked for a change and the useful answer is what the skin now is.
-         */
-        delete: operations["deleteSkinLogo"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/tenant/palettes": {
         parameters: {
             query?: never;
@@ -2867,6 +2811,38 @@ export interface paths {
          * @description Partial: each field is touched only when sent. Switching `join_policy` to `DOMAIN` needs at least one domain, in the same body or already stored; `400 JOIN_DOMAINS_REQUIRED` otherwise, and `400 VALIDATION_FAILED` for a policy outside the three or a domain that is not one.
          */
         patch: operations["updateCurrentTenant"];
+        trace?: never;
+    };
+    "/api/v1/tenants/current/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set the organisation's logo
+         * @description One logo for the organisation, in whatever product it is seen (2026-10-05), set by its administrator under `tenant.manage` and tied to no offer.
+         *
+         *     **The raw bytes are the request**, as with an asset upload: a base64 field inside JSON would inflate the payload by a third and put an image inside a document (non-negotiable #9).
+         *
+         *     The type is sniffed from the bytes and checked **before anything is stored**, so a refused logo leaves no file behind and no orphaned row. Only PNG, JPEG, GIF and WebP are accepted — SVG is refused here as everywhere (ADR-028).
+         *
+         *     The previous logo's file stays in `/assets`: it may be on a page somebody has open. `X-Filename` is a label for humans and decides nothing.
+         */
+        post: operations["uploadTenantLogo"];
+        /**
+         * Stop showing a logo
+         * @description Clears the organisation's logo. **The asset itself stays**: "this is no longer our logo" is not "destroy this file", and `/assets` is where a file is deleted deliberately.
+         *
+         *     200 with the organisation rather than 204: the useful answer is what it now is.
+         */
+        delete: operations["deleteTenantLogo"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/tenants/current/members": {
@@ -5356,6 +5332,11 @@ export interface components {
              *     A courtesy and never an authority: it settles where a screen opens and nothing about what anybody may reach there. The order is `?product=`, then what the browser remembers, then the person's own default, then this.
              */
             default_product: string | null;
+            /**
+             * Format: uuid
+             * @description The organisation's logo (2026-10-05): an asset, fetched through the usual signed-link route, so it went through the same sniffing and the same SVG refusal as every other upload. One for the organisation, in whatever product it is seen — part of what it is, like its name, and tied to no offer. Null for none.
+             */
+            logo_asset_id: string | null;
         };
         /** @description One sentence the operator wrote about their own business, with every translation it has (2026-09-26). A row per *field*, not per record: a feature carries a name and a description, a band of a product's story carries as many sentences as it has fields, and one whose name is translated and whose description is not is one sentence missing, not none. */
         TranslatableText: {
@@ -5716,24 +5697,6 @@ export interface components {
             failed_at?: string | null;
             /** Format: date-time */
             created_at?: string;
-        };
-        /**
-         * @description How a tenant wants this product to look. Every field is present and null when unset, rather than absent — a client reading this to decide how to render needs one shape, and null means "use the product's defaults".
-         *
-         *     Kept per (tenant, product): §12.1 lets one tenant use several products, and a company white-labelling two of them has no reason to want the same shade in both.
-         */
-        Skin: {
-            /**
-             * @description Lower-case hex. The database refuses anything else: these values end up in a stylesheet, and a colour column accepting arbitrary text is a stylesheet injection with extra steps.
-             * @example #1f4b99
-             */
-            primary_color: string | null;
-            accent_color: string | null;
-            /**
-             * Format: uuid
-             * @description An asset, fetched through the usual signed-link route. Storing the logo as an asset means it goes through the same sniffing and the same SVG refusal as every other upload.
-             */
-            logo_asset_id: string | null;
         };
         /**
          * @description **A checkout session is an order.** There is no `checkout_sessions` table and no separate lifecycle: `id` is the order's id, and everything a session would hold — is it paid, what was invoiced, did the subscription start — already lives on the order, the invoice and the payment. A second row tracking the same thing is a second answer that can disagree with the first, and the first is the one the money is attached to.
@@ -12985,197 +12948,6 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    showSkin: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The skin, set or not. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        skin: components["schemas"]["Skin"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    updateSkin: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    primary_color?: string | null;
-                    accent_color?: string | null;
-                };
-            };
-        };
-        responses: {
-            /** @description The skin as it now is. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        skin: components["schemas"]["Skin"];
-                    };
-                };
-            };
-            /** @description A value that is not a `#rrggbb` colour, and not null. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            /** @description `PERMISSION_DENIED` — the caller may not configure the tenant. Or `ENTITLEMENT_REQUIRED` — the tenant's plan does not include `white_label`. The two are separate checks and neither implies the other. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    uploadSkinLogo: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-                /** @description A label. The stored type comes from the bytes, never from this. */
-                "X-Filename"?: string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "image/png": string;
-                "image/jpeg": string;
-                "image/gif": string;
-                "image/webp": string;
-            };
-        };
-        responses: {
-            /** @description The skin, now pointing at the new logo. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        skin: components["schemas"]["Skin"];
-                    };
-                };
-            };
-            /** @description `UPLOAD_EMPTY` — the body is the file, and there was none. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            /** @description `PERMISSION_DENIED` — the caller may not configure the tenant. Or `ENTITLEMENT_REQUIRED` — the tenant's plan does not include `white_label`. The two are separate checks and neither implies the other. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description `LOGO_NOT_AN_IMAGE` — the bytes sniffed as something else. Or the upload policy refused them outright. */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    deleteSkinLogo: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The skin, with no logo. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        skin: components["schemas"]["Skin"];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            /** @description `PERMISSION_DENIED` — the caller may not configure the tenant. Or `ENTITLEMENT_REQUIRED` — the tenant's plan does not include `white_label`. The two are separate checks and neither implies the other. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
     listTenantPalettes: {
         parameters: {
             query?: never;
@@ -13392,6 +13164,111 @@ export interface operations {
             403: components["responses"]["PermissionDenied"];
             /** @description A name that is not acceptable. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    uploadTenantLogo: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+                /** @description A label. The stored type comes from the bytes, never from this. */
+                "X-Filename"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "image/png": string;
+                "image/jpeg": string;
+                "image/gif": string;
+                "image/webp": string;
+            };
+        };
+        responses: {
+            /** @description The organisation, now pointing at its new logo. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tenant: components["schemas"]["Tenant"];
+                    };
+                };
+            };
+            /** @description `UPLOAD_EMPTY` — the body is the file, and there was none. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `PERMISSION_DENIED` — the caller may not configure the organisation (`tenant.manage`). No entitlement is asked: a logo is part of who the organisation is, not something an offer sells. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `LOGO_NOT_AN_IMAGE` — the bytes sniffed as something else. Or the upload policy refused them outright. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    deleteTenantLogo: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The organisation, with no logo. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tenant: components["schemas"]["Tenant"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `PERMISSION_DENIED` — the caller may not configure the organisation (`tenant.manage`). No entitlement is asked: a logo is part of who the organisation is, not something an offer sells. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -180,8 +180,6 @@ use App\Shared\Http\MiddlewarePipeline;
 use App\Shared\Http\Router;
 use App\Shared\Logging\ErrorLogLogger;
 use App\Shared\Throttle\RateLimitMiddleware;
-use App\Skin\Domain\SkinRepository;
-use App\Skin\Infrastructure\PostgresSkinRepository;
 use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffRepository;
 use App\Staff\Domain\StaffRoster;
@@ -636,7 +634,6 @@ return static function (array $overrides = []): ContainerInterface {
 
         AssetRepository::class => autowire(PostgresAssetRepository::class),
 
-        SkinRepository::class => autowire(PostgresSkinRepository::class),
 
 
         // Fail-closed, like the payment and PDP secrets: with no key nothing

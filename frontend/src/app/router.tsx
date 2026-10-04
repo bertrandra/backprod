@@ -11,7 +11,6 @@ import { useStringParam } from '@/app/frame/routeParams';
 import { parseViewState, type ViewState } from '@/app/frame/viewState';
 import { ProfileScreen } from '@/features/account/ProfileScreen';
 import { ConfirmWhileSignedIn } from '@/features/auth/ConfirmYourAddress';
-import { BrandingScreen } from '@/features/branding/BrandingScreen';
 import { BillingProfileScreen } from '@/features/billing/BillingProfileScreen';
 import { CreditNotesScreen } from '@/features/billing/CreditNotesScreen';
 import { InvoiceScreen } from '@/features/billing/InvoiceScreen';
@@ -87,7 +86,6 @@ const SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element
   { path: '/profile', component: ProfileScreen },
   { path: '/organisation', component: OrganisationScreen },
   { path: '/members', component: MembersScreen },
-  { path: '/branding', component: BrandingScreen },
   { path: '/palette', component: PaletteChoiceScreen },
   // U3
   { path: '/notifications', component: NotificationsScreen },

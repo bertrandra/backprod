@@ -184,9 +184,8 @@ describe('every semantic class', () => {
     //   - an arbitrary value, `bg-[#0b6e99]`, which is the hex with extra steps;
     //   - a colour literal handed to `style`, the same thing again.
     //
-    // A brand colour a tenant typed is data, not style, and reaches the page
-    // through `--ds-accent`; the branding screen's preview of what is being
-    // typed is the one place a literal is the subject rather than the styling.
+    // A palette an organisation chose is data, not style, and reaches the page
+    // through the `--ds-*` variables it redefines.
     const palette =
       'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
     const forbidden = [
@@ -194,7 +193,7 @@ describe('every semantic class', () => {
       /\b(?:bg|text|border|ring|outline|fill|stroke|divide|from|via|to|decoration|caret|placeholder)-\[(?:#|rgb|hsl|oklch|color)[^\]]*\]/g,
       /['"`]#[0-9a-fA-F]{3,8}['"`]|\b(?:rgba?|hsla?|oklch)\(/g,
     ];
-    const allowed = ['src/features/branding/BrandingScreen.tsx'];
+    const allowed: string[] = [];
     const offenders: string[] = [];
 
     for (const path of sources(SRC)) {

@@ -29,4 +29,7 @@ interface TenantRepository
      * @return bool false when the code names no product this tenant holds
      */
     public function chooseDefaultProduct(string $tenantId, ?string $productCode): bool;
+
+    /** Points the organisation at its logo, or at none (2026-10-05). */
+    public function chooseLogo(string $tenantId, ?string $assetId): void;
 }

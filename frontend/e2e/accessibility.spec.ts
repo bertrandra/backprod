@@ -52,7 +52,7 @@ const SESSION = {
     'tax.manage',
     'tenant.read',
   ],
-  capabilities: ['white_label'],
+  capabilities: ['plan.terrasse'],
 };
 
 const STAFF = {
@@ -292,7 +292,6 @@ const TENANT_ROUTES = [
   '/profile',
   '/organisation',
   '/members',
-  '/branding',
   '/palette',
   '/notifications',
   '/notification-settings',

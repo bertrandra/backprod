@@ -24,7 +24,6 @@ export const RESERVED: ReadonlySet<string> = new Set([
   'api',
   'assets',
   'billing-profile',
-  'branding',
   'catalogue',
   'checkout',
   'console',

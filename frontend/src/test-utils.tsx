@@ -252,7 +252,7 @@ export const SESSION = {
   tenant_id: 't-1',
   roles: ['TENANT_ADMIN'],
   permissions: ['skin.manage', 'members.manage', 'members.read', 'tenant.manage', 'tenant.read'],
-  capabilities: ['white_label'],
+  capabilities: ['plan.terrasse'],
 };
 
 /**

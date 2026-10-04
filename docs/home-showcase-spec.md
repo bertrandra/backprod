@@ -150,7 +150,7 @@ for edges. `--ds-accent` appears on the call to action and on a link, and
 nowhere else at size.
 
 This is not timidity, it is a constraint the palette already has:
-`--ds-accent` is **a tenant's to override** (`tenant.branding`, U2). A hero
+`--ds-accent` is **a tenant's to override** (the palette it chooses on `/palette`). A hero
 washed in the accent would repaint one company's product story in another
 company's brand colour the moment a reader opened `/globex/`. Keeping the
 accent on the button is what makes the page safe under any brand — and the

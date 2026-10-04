@@ -274,7 +274,6 @@ export const APP_NAV: readonly NavSection[] = [
       { id: 'organisation', label: 'Organisation', to: '/organisation', scope: 'tenant', permission: 'tenant.manage', secondary: true },
       { id: 'members', label: 'Members', to: '/members', scope: 'tenant', permission: 'members.manage', secondary: true },
       { id: 'profile', label: 'Your profile', to: '/profile', scope: 'tenant', permission: 'account.read', secondary: true },
-      { id: 'branding', label: 'Branding', to: '/branding', scope: 'tenant', permission: 'skin.manage', secondary: true },
       // Which palette the organisation's screens wear (2026-10-04): it chooses
       // among the platform's, it never edits one. `skin.manage`, and only that.
       { id: 'palette', label: 'Palette', to: '/palette', scope: 'tenant', permission: 'skin.manage', secondary: true },

@@ -33,6 +33,12 @@ final class Tenant
          * has to remember to check.
          */
         public readonly ?string $defaultProductCode = null,
+        /**
+         * The organisation's logo (2026-10-05): an asset, part of what the
+         * organisation *is*, like its name — one for the organisation, in
+         * whatever product it is seen. Null for none.
+         */
+        public readonly ?string $logoAssetId = null,
     ) {
     }
 }

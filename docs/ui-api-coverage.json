@@ -538,21 +538,9 @@
         "showVatPeriod"
       ]
     },
-    "tenant.branding": {
-      "authority": "tenant",
-      "routes": [
-        "/branding"
-      ],
-      "operations": [
-        "deleteSkinLogo",
-        "showSkin",
-        "updateSkin",
-        "uploadSkinLogo"
-      ]
-    },
     "tenant.palette": {
       "authority": "tenant",
-      "$comment": "Which palette the organisation's screens wear in this product (2026-10-04). It chooses among the platform's palettes and never edits one — palettes are the platform administrator's. The same row the console's matrix writes, so each side sees what the other chose. Behind skin.manage alone: the operator chose not to gate it on white_label. Reading what the screens wear is bootstrap, because every member's shell reads it to paint itself.",
+      "$comment": "Which palette the organisation's screens wear in this product (2026-10-04). It chooses among the platform's palettes and never edits one — palettes are the platform administrator's. The same row the console's matrix writes, so each side sees what the other chose. Behind skin.manage alone, tied to no offer. Reading what the screens wear is bootstrap, because every member's shell reads it to paint itself.",
       "routes": [
         "/palette"
       ],
@@ -582,9 +570,11 @@
         "/organisation"
       ],
       "operations": [
+        "deleteTenantLogo",
         "showCurrentTenant",
         "showTenantUsage",
-        "updateCurrentTenant"
+        "updateCurrentTenant",
+        "uploadTenantLogo"
       ]
     },
     "organisation.subscriptions": {

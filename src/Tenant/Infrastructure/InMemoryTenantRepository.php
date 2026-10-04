@@ -53,6 +53,7 @@ final class InMemoryTenantRepository implements TenantRepository
                 $tenant->slug,
                 $tenant->mayAuthorOffers,
                 $tenant->defaultProductCode,
+                $tenant->logoAssetId,
             );
         }
     }
@@ -77,8 +78,25 @@ final class InMemoryTenantRepository implements TenantRepository
             $tenant->slug,
             $tenant->mayAuthorOffers,
             $productCode,
+            $tenant->logoAssetId,
         );
 
         return true;
+    }
+
+    public function chooseLogo(string $tenantId, ?string $assetId): void
+    {
+        $tenant = $this->byId[$tenantId] ?? null;
+
+        if ($tenant !== null) {
+            $this->byId[$tenantId] = new Tenant(
+                $tenant->id,
+                $tenant->name,
+                $tenant->slug,
+                $tenant->mayAuthorOffers,
+                $tenant->defaultProductCode,
+                $assetId,
+            );
+        }
     }
 }

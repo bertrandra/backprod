@@ -31,7 +31,7 @@ export function isEntitled(access: Access | undefined, capability: string): bool
 /**
  * Both, for the surfaces that need both and where the two refusals are
  * answered by different people: an administrator grants a permission, an
- * upgrade grants a capability (see `tenant.branding` in ui-spec.md §3.4).
+ * upgrade grants a capability.
  */
 export function canAndEntitled(
   access: Access | undefined,

@@ -101,7 +101,8 @@ jobs).
 `skin.manage`, `catalog.manage`.
 
 **Ne peut pas** voir un autre tenant, même du même produit ; écrire une offre
-par défaut ; changer l'habillage sans la capacité `white_label`.
+par défaut ; modifier une palette — il en choisit une, l'administrateur de la
+plateforme les écrit.
 
 ### Membre d'un tenant — `USER`
 
@@ -235,7 +236,7 @@ accordée au rôle puis retirée à la résolution.
 | `tax.manage` | oui | non | régler le profil, clore une période |
 | `jobs.read` | oui | oui | travaux de fond |
 | `jobs.manage` | oui | non | lancer, annuler |
-| `skin.manage` | oui | non | habillage — **+ capacité `white_label`** pour les couleurs et le logo du skin ; **seule** pour choisir la palette de l'organisation, jamais la modifier (2026-10-04) |
+| `skin.manage` | oui | non | choisir la palette de l'organisation, jamais la modifier (2026-10-04). Liée à aucune offre : la marque blanche (couleurs et logo par produit, capacité `white_label`) a disparu le 2026-10-05, et le logo est celui de l'organisation, sous `tenant.manage` |
 
 ## La matrice, côté plateforme
 
@@ -351,11 +352,12 @@ appartenance la retire par un `LEFT JOIN` conditionnel tant que
 si la plateforme le lui a explicitement prêté — cas du revendeur qui maintient
 sa propre grille tarifaire (ADR-040).
 
-**Une permission n'est pas un droit.** `skin.manage` dit « cette personne peut
-configurer le tenant ». La capacité `white_label` dit « l'offre souscrite inclut
-la fonctionnalité ». Les deux sont nécessaires et aucune n'implique l'autre : un
-administrateur sur une offre sans marque blanche est refusé, et un membre
-ordinaire sur une offre qui l'inclut aussi.
+**Une permission n'est pas un droit.** `tenant.manage` dit « cette personne peut
+configurer l'organisation » ; une capacité dit « l'offre souscrite inclut la
+fonctionnalité ». Les deux ne s'impliquent pas. L'exemple qui illustrait cette
+phrase — la marque blanche, `skin.manage` **et** `white_label` — a disparu le
+2026-10-05 : le logo fait partie de ce qu'est l'organisation, comme son nom, et
+aucune offre ne le vend. La capacité est retirée, jamais supprimée (ADR-052).
 
 **Une lecture staff chez un client laisse une trace motivée.** Ouvrir un tenant
 ou une conversation depuis la console exige un motif structuré et une référence,

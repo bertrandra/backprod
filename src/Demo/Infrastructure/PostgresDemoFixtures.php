@@ -61,7 +61,7 @@ final class PostgresDemoFixtures implements DemoFixtures
         'staff_access_log', 'platform_staff',
         'erasure_requests', 'audit_log', 'financial_events',
         'revenue_periods', 'offer_revenue_periods', 'renewal_periods',
-        'tenant_skins', 'tenant_member_roles', 'tenant_members', 'tenant_products', 'tenants',
+        'tenant_member_roles', 'tenant_members', 'tenant_products', 'tenants',
         'users', 'products',
         // Both cascade from `users`, so a reset that truncated users would take
         // them anyway — named here so the list stays a readable inventory of
@@ -651,7 +651,7 @@ final class PostgresDemoFixtures implements DemoFixtures
     }
 
     /**
-     * Three plans, the four features every catalogue has plus what this
+     * Three plans, the three features every catalogue has plus what this
      * product meters, three offers — published and advertised.
      *
      * The feature codes are the platform's, not the demo's: `max_projects`
@@ -697,20 +697,15 @@ final class PostgresDemoFixtures implements DemoFixtures
         foreach (DemoWorld::FEATURES as $code => $feature) {
             $features[$code] = $this->feature($code, $feature['name'], $feature['kind'], $feature['unit']);
 
-            // A BOOLEAN feature is Pro's and Scale's; a quota is everybody's
-            // with its limit, and Scale's without one.
-            if ($feature['kind'] === 'QUOTA') {
-                $starter[$code] = $feature['starter'];
-                $pro[$code] = $feature['pro'];
-            } else {
-                $pro[$code] = null;
-            }
-
+            // Every one is a quota since `white_label` was retired
+            // (2026-10-05): everybody's with its limit, and Scale's without.
+            $starter[$code] = $feature['starter'];
+            $pro[$code] = $feature['pro'];
             $scale[$code] = null;
         }
 
         // A product's own BOOLEAN capabilities, each included from its plan
-        // upward. Unlike the four every catalogue has, these are not "Pro and
+        // upward. Unlike the three every catalogue has, these are not "Pro and
         // above" by default: a product must still work on its lowest plan, so
         // where each one starts is said explicitly, product by product.
         $rangs = ['starter' => 0, 'pro' => 1, 'scale' => 2];
