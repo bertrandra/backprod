@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { t } from '@/i18n';
 import { ErrorSurface } from '@/ui/ErrorSurface';
@@ -49,6 +49,44 @@ const MODES: readonly ThemeMode[] = ['light', 'dark'];
 
 type TabId = 'palette' | 'fonts' | 'css' | 'contrast';
 
+const TAB_IDS: readonly TabId[] = ['palette', 'fonts', 'css', 'contrast'];
+
+/** The tab an address names (`#contrast`), or the first. */
+export function tabFromHash(hash: string): TabId {
+  const named = hash.replace(/^#/, '');
+
+  return (TAB_IDS as readonly string[]).includes(named) ? (named as TabId) : 'palette';
+}
+
+/**
+ * The open tab, kept in the address (2026-10-05, after Plan's palette
+ * screen): `#contrast` opens on Contrast, a reload with the editor open keeps
+ * the tab, and the address can be sent to somebody. Replaced rather than
+ * pushed — moving between tabs is not somewhere Back should step through —
+ * and the router's own history state is kept as it is. The first tab writes
+ * no hash; closing the editor removes it.
+ */
+function useTabInAddress(): [TabId, (tab: TabId) => void] {
+  const [tab, setTab] = useState<TabId>(() => (typeof window === 'undefined' ? 'palette' : tabFromHash(window.location.hash)));
+
+  useEffect(() => {
+    const { pathname, search } = window.location;
+
+    window.history.replaceState(window.history.state, '', `${pathname}${search}${tab === 'palette' ? '' : `#${tab}`}`);
+  }, [tab]);
+
+  useEffect(
+    () => () => {
+      if (TAB_IDS.includes(tabFromHash(window.location.hash)) && window.location.hash !== '') {
+        window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`);
+      }
+    },
+    [],
+  );
+
+  return [tab, setTab];
+}
+
 function modeLabel(mode: ThemeMode): string {
   return mode === 'light' ? t('Light') : t('Dark');
 }
@@ -76,7 +114,8 @@ export function PaletteEditor({
 }) {
   const [name, setName] = useState(initial.name);
   const [document, setDocument] = useState(initial.document);
-  const [tab, setTab] = useState<TabId>('palette');
+  const [tab, setTab] = useTabInAddress();
+  const [onlyFailing, setOnlyFailing] = useState(false);
   const [previewMode, setPreviewMode] = useState<ThemeMode>('light');
 
   const validName = NAME.test(name);
@@ -138,7 +177,7 @@ export function PaletteEditor({
             {tab === 'palette' && <ColoursTab document={document} saved={initial.document} origin={origin} onChange={setDocument} />}
             {tab === 'fonts' && <FontsTab document={document} palettes={palettes} onChange={setDocument} />}
             {tab === 'css' && <CssTab document={document} />}
-            {tab === 'contrast' && <ContrastTab document={document} />}
+            {tab === 'contrast' && <ContrastTab document={document} onlyFailing={onlyFailing} onOnlyFailing={setOnlyFailing} />}
           </Tabs>
 
           {/* The preview stays whichever tab is open, and follows the draft as
@@ -178,7 +217,22 @@ export function PaletteEditor({
               </p>
             ) : (
               <div className={notice('warning')} data-testid="palette-contrast" role="status">
-                <p className="font-medium">{t('Some text would be hard to read. WCAG AA asks 4.5:1:')}</p>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="font-medium">{t('Some text would be hard to read. WCAG AA asks 4.5:1:')}</p>
+                  {/* After Plan's palette screen: the warning leads to the
+                      pairs, the table already narrowed to the failing ones. */}
+                  <button
+                    type="button"
+                    className="text-xs font-medium underline underline-offset-2"
+                    data-testid="show-failing-pairs"
+                    onClick={() => {
+                      setOnlyFailing(true);
+                      setTab('contrast');
+                    }}
+                  >
+                    {t('Show the failing pairs')}
+                  </button>
+                </div>
                 <ul className="mt-1 list-disc pl-5">
                   {failing.map((pair) => (
                     <li key={`${pair.mode}-${pair.foreground}-${pair.background}`} className="font-mono text-xs">
@@ -511,7 +565,18 @@ function CssTab({ document }: { document: ThemeDocument }) {
   );
 }
 
-function ContrastTab({ document }: { document: ThemeDocument }) {
+function ContrastTab({
+  document,
+  onlyFailing,
+  onOnlyFailing,
+}: {
+  document: ThemeDocument;
+  /** Narrow the table to the pairs under 4.5:1 in either mode. */
+  onlyFailing: boolean;
+  onOnlyFailing: (only: boolean) => void;
+}) {
+  const failing = new Set(failingPairs(document).map((pair) => `${pair.foreground}/${pair.background}`));
+  const rows = PAIRS.filter(([foreground, background]) => !onlyFailing || failing.has(`${foreground}/${background}`));
   const names = document.colors.flatMap((group) => group.tokens.map((token) => token.name));
   const [fg, setFg] = useState(names.includes('ink') ? 'ink' : (names[0] ?? ''));
   const [bg, setBg] = useState(names.includes('canvas') ? 'canvas' : (names[1] ?? ''));
@@ -567,35 +632,46 @@ function ContrastTab({ document }: { document: ThemeDocument }) {
         <p className="text-xs text-muted">{t('WCAG asks 4.5:1 for text (AA), 3:1 for large text, and 7:1 for AAA.')}</p>
       </div>
 
-      <div className="rounded-card border border-line bg-surface">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-line text-left text-xs text-muted">
-              <th scope="col" className="px-3 py-2 font-medium">
-                {t('Text on ground')}
-              </th>
-              {MODES.map((mode) => (
-                <th key={mode} scope="col" className="px-3 py-2 font-medium">
-                  {modeLabel(mode)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {PAIRS.map(([foreground, background]) => (
-              <tr key={`${foreground}/${background}`} className="border-b border-line last:border-b-0" data-pair={`${foreground}/${background}`}>
-                <th scope="row" className="px-3 py-2 text-left font-mono text-xs font-normal">
-                  {foreground} / {background}
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={onlyFailing} onChange={(event) => onOnlyFailing(event.target.checked)} data-testid="only-failing-pairs" />
+          {t('Only the failing pairs')} <span className="tabular-nums text-muted">{failing.size}</span>
+        </label>
+        {onlyFailing && rows.length === 0 && (
+          <p className="text-sm text-muted" data-testid="no-failing-pairs">
+            {t('Every pair clears contrast.')}
+          </p>
+        )}
+        <div className="rounded-card border border-line bg-surface">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line text-left text-xs text-muted">
+                <th scope="col" className="px-3 py-2 font-medium">
+                  {t('Text on ground')}
                 </th>
                 {MODES.map((mode) => (
-                  <td key={mode} className="px-3 py-2">
-                    {sample(foreground, background, mode)}
-                  </td>
+                  <th key={mode} scope="col" className="px-3 py-2 font-medium">
+                    {modeLabel(mode)}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map(([foreground, background]) => (
+                <tr key={`${foreground}/${background}`} className="border-b border-line last:border-b-0" data-pair={`${foreground}/${background}`}>
+                  <th scope="row" className="px-3 py-2 text-left font-mono text-xs font-normal">
+                    {foreground} / {background}
+                  </th>
+                  {MODES.map((mode) => (
+                    <td key={mode} className="px-3 py-2">
+                      {sample(foreground, background, mode)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

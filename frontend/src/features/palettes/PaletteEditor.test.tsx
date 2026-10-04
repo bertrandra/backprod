@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PALETTES } from './fixtures';
-import { PaletteEditor } from './PaletteEditor';
+import { PaletteEditor, tabFromHash } from './PaletteEditor';
 import { themeCss, type ThemeDocument } from './themeDocument';
 
 const PETROL = PALETTES[0]?.document as ThemeDocument;
@@ -166,6 +166,51 @@ describe('PaletteEditor — the colour list', () => {
     expect(row('ink')).toBeTruthy();
     expect(row('canvas')).toBeTruthy();
     expect(row('danger')).toBeNull();
+  });
+});
+
+/**
+ * After Plan's palette screen (2026-10-05): the open tab lives in the
+ * address, and the contrast warning leads to the failing pairs.
+ */
+describe('PaletteEditor — the tab in the address, and the way to the failing pairs', () => {
+  afterEach(() => window.history.replaceState(null, '', '/console/palettes'));
+
+  it('reads a tab from the address, and anything else is the first', () => {
+    expect(tabFromHash('#contrast')).toBe('contrast');
+    expect(tabFromHash('#css')).toBe('css');
+    expect(tabFromHash('')).toBe('palette');
+    expect(tabFromHash('#nowhere')).toBe('palette');
+  });
+
+  it('opens on the tab the address names, and writes the tab chosen', () => {
+    window.history.replaceState(null, '', '/console/palettes#fonts');
+    editor();
+
+    expect(screen.getByRole('tab', { name: 'Fonts' }).getAttribute('aria-selected')).toBe('true');
+
+    fireEvent.click(screen.getByRole('tab', { name: 'CSS' }));
+    expect(window.location.hash).toBe('#css');
+    expect(window.location.pathname).toBe('/console/palettes');
+
+    // The first tab is the address without a hash.
+    fireEvent.click(screen.getByRole('tab', { name: 'Palette' }));
+    expect(window.location.hash).toBe('');
+  });
+
+  it('leads from the warning to the Contrast tab, narrowed to the pairs that fail', () => {
+    editor();
+    fireEvent.change(screen.getByLabelText('ink — Light (value)'), { target: { value: colour(PETROL, 'canvas', 'light') } });
+    fireEvent.click(screen.getByTestId('show-failing-pairs'));
+
+    expect(screen.getByRole('tab', { name: 'Contrast' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByTestId<HTMLInputElement>('only-failing-pairs').checked).toBe(true);
+    expect(document.querySelector('[data-pair="ink/canvas"]')).toBeTruthy();
+    expect(document.querySelector('[data-pair="danger/danger-wash"]')).toBeNull();
+
+    // Unticked, every pair is back.
+    fireEvent.click(screen.getByTestId('only-failing-pairs'));
+    expect(document.querySelector('[data-pair="danger/danger-wash"]')).toBeTruthy();
   });
 });
 
