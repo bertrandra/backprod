@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { t } from '@/i18n';
 import { ErrorSurface } from '@/ui/ErrorSurface';
@@ -6,10 +6,11 @@ import { Button, Field, inputClass } from '@/ui/Field';
 import { MoodBoard } from '@/ui/MoodBoard';
 import { Section } from '@/ui/Page';
 import { Tabs } from '@/ui/Tabs';
-import { notice } from '@/ui/tone';
+import { notice, pill } from '@/ui/tone';
 import { cn } from '@/utils/cn';
 import { isHex } from '@/utils/colour';
 
+import { differences, keeps, tokenState, worstPairs, type ColourFilter, type DesignSystemColours, type TokenState } from './colourList';
 import { ColourField, VerdictPill, type PairInMode } from './ColourField';
 import {
   PAIRS,
@@ -22,6 +23,7 @@ import {
   type ThemeDocument,
   type ThemeMode,
 } from './themeDocument';
+import { roleOf } from './tokenRoles';
 
 /**
  * Designing a palette (2026-10-04) — the platform administrator's alone.
@@ -30,7 +32,10 @@ import {
  *
  *   - **Palette** — every colour in both modes, each with a picker, its code,
  *     RGB and HSL, the colours the palette already uses, the shades of its
- *     hue, and the contrast of every pair it is part of;
+ *     hue, and the contrast of every pair it is part of. Since 2026-10-05,
+ *     after Plan's palette screen, each token also says what it paints, the
+ *     list filters to what changed or what fails contrast and searches by
+ *     name, variable or role, and every row says its state in words;
  *   - **Fonts** — the families, and the type scale step by step;
  *   - **CSS** — the stylesheet the draft amounts to, to read or copy;
  *   - **Contrast** — every pair text is set in, measured in both modes, and a
@@ -44,6 +49,44 @@ const MODES: readonly ThemeMode[] = ['light', 'dark'];
 
 type TabId = 'palette' | 'fonts' | 'css' | 'contrast';
 
+const TAB_IDS: readonly TabId[] = ['palette', 'fonts', 'css', 'contrast'];
+
+/** The tab an address names (`#contrast`), or the first. */
+export function tabFromHash(hash: string): TabId {
+  const named = hash.replace(/^#/, '');
+
+  return (TAB_IDS as readonly string[]).includes(named) ? (named as TabId) : 'palette';
+}
+
+/**
+ * The open tab, kept in the address (2026-10-05, after Plan's palette
+ * screen): `#contrast` opens on Contrast, a reload with the editor open keeps
+ * the tab, and the address can be sent to somebody. Replaced rather than
+ * pushed — moving between tabs is not somewhere Back should step through —
+ * and the router's own history state is kept as it is. The first tab writes
+ * no hash; closing the editor removes it.
+ */
+function useTabInAddress(): [TabId, (tab: TabId) => void] {
+  const [tab, setTab] = useState<TabId>(() => (typeof window === 'undefined' ? 'palette' : tabFromHash(window.location.hash)));
+
+  useEffect(() => {
+    const { pathname, search } = window.location;
+
+    window.history.replaceState(window.history.state, '', `${pathname}${search}${tab === 'palette' ? '' : `#${tab}`}`);
+  }, [tab]);
+
+  useEffect(
+    () => () => {
+      if (TAB_IDS.includes(tabFromHash(window.location.hash)) && window.location.hash !== '') {
+        window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`);
+      }
+    },
+    [],
+  );
+
+  return [tab, setTab];
+}
+
 function modeLabel(mode: ThemeMode): string {
   return mode === 'light' ? t('Light') : t('Dark');
 }
@@ -51,6 +94,7 @@ function modeLabel(mode: ThemeMode): string {
 export function PaletteEditor({
   initial,
   palettes,
+  origin = {},
   saving,
   saved,
   error,
@@ -60,6 +104,8 @@ export function PaletteEditor({
   initial: { readonly name: string; readonly document: ThemeDocument };
   /** Every palette there is: the font families they carry are the ones offered. */
   palettes: readonly { readonly document: ThemeDocument }[];
+  /** The design system's own colours, so a row can say it has moved away from them. */
+  origin?: DesignSystemColours;
   saving: boolean;
   saved: boolean;
   error: unknown;
@@ -68,7 +114,8 @@ export function PaletteEditor({
 }) {
   const [name, setName] = useState(initial.name);
   const [document, setDocument] = useState(initial.document);
-  const [tab, setTab] = useState<TabId>('palette');
+  const [tab, setTab] = useTabInAddress();
+  const [onlyFailing, setOnlyFailing] = useState(false);
   const [previewMode, setPreviewMode] = useState<ThemeMode>('light');
 
   const validName = NAME.test(name);
@@ -127,10 +174,10 @@ export function PaletteEditor({
               { id: 'contrast', label: t('Contrast') },
             ]}
           >
-            {tab === 'palette' && <ColoursTab document={document} onChange={setDocument} />}
+            {tab === 'palette' && <ColoursTab document={document} saved={initial.document} origin={origin} onChange={setDocument} />}
             {tab === 'fonts' && <FontsTab document={document} palettes={palettes} onChange={setDocument} />}
             {tab === 'css' && <CssTab document={document} />}
-            {tab === 'contrast' && <ContrastTab document={document} />}
+            {tab === 'contrast' && <ContrastTab document={document} onlyFailing={onlyFailing} onOnlyFailing={setOnlyFailing} />}
           </Tabs>
 
           {/* The preview stays whichever tab is open, and follows the draft as
@@ -170,7 +217,22 @@ export function PaletteEditor({
               </p>
             ) : (
               <div className={notice('warning')} data-testid="palette-contrast" role="status">
-                <p className="font-medium">{t('Some text would be hard to read. WCAG AA asks 4.5:1:')}</p>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="font-medium">{t('Some text would be hard to read. WCAG AA asks 4.5:1:')}</p>
+                  {/* After Plan's palette screen: the warning leads to the
+                      pairs, the table already narrowed to the failing ones. */}
+                  <button
+                    type="button"
+                    className="text-xs font-medium underline underline-offset-2"
+                    data-testid="show-failing-pairs"
+                    onClick={() => {
+                      setOnlyFailing(true);
+                      setTab('contrast');
+                    }}
+                  >
+                    {t('Show the failing pairs')}
+                  </button>
+                </div>
                 <ul className="mt-1 list-disc pl-5">
                   {failing.map((pair) => (
                     <li key={`${pair.mode}-${pair.foreground}-${pair.background}`} className="font-mono text-xs">
@@ -214,40 +276,143 @@ function pairsOf(document: ThemeDocument, name: string, mode: ThemeMode): readon
   });
 }
 
-function ColoursTab({ document, onChange }: { document: ThemeDocument; onChange: Change }) {
+const FILTERS: readonly { readonly id: ColourFilter; readonly label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'changed', label: 'Changed' },
+  { id: 'contrast', label: 'Failing contrast' },
+];
+
+function stateLabel(state: TokenState): string | undefined {
+  if (state === null) {
+    return undefined;
+  }
+
+  return state.kind === 'contrast'
+    ? t('Contrast {ratio}:1', { ratio: state.pair.ratio.toFixed(2) })
+    : state.kind === 'unsaved' ? t('Not saved') : t('Changed from the design system');
+}
+
+function ColoursTab({
+  document,
+  saved,
+  origin,
+  onChange,
+}: {
+  document: ThemeDocument;
+  /** The palette as it was opened: what "not saved" is measured against. */
+  saved: ThemeDocument;
+  origin: DesignSystemColours;
+  onChange: Change;
+}) {
+  const [filter, setFilter] = useState<ColourFilter>('all');
+  const [search, setSearch] = useState('');
   // Every distinct code the draft already uses, in both modes.
   const used = [...new Set(document.colors.flatMap((group) => group.tokens.flatMap((token) => [token.light, token.dark])).filter(isHex).map((c) => c.toLowerCase()))];
+  const worst = worstPairs(failingPairs(document));
+  const rows = document.colors.flatMap((group) =>
+    group.tokens.map((token) => ({
+      group: group.group,
+      token,
+      role: roleOf(token.name),
+      state: tokenState(token.name, document, saved, origin, worst),
+      facts: { failing: worst.has(token.name), changed: Object.values(differences(token.name, document, saved, origin)).some(Boolean) },
+    })),
+  );
+  const count: Record<ColourFilter, number> = {
+    all: rows.length,
+    changed: rows.filter((row) => row.facts.changed).length,
+    contrast: rows.filter((row) => row.facts.failing).length,
+  };
+  const shown = rows.filter((row) => keeps(filter, search, row.token, row.role, row.facts));
 
   return (
     <div className="space-y-5" data-testid="palette-colours">
-      {document.colors.map((group) => (
-        <div key={group.group} className="space-y-2">
-          <h4 className="text-sm font-medium text-muted">{group.group}</h4>
-          <ul className="space-y-2">
-            {group.tokens.map((token) => (
-              <li key={token.name} className="space-y-2 rounded-control border border-line bg-surface p-3">
-                <p className="font-mono text-xs font-semibold">
-                  {token.name} <span className="font-normal text-muted">{token.variable}</span>
-                </p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {MODES.map((mode) => (
-                    <div key={mode} className="space-y-1">
-                      <p className="text-2xs font-medium uppercase text-muted">{modeLabel(mode)}</p>
-                      <ColourField
-                        label={`${token.name} — ${modeLabel(mode)}`}
-                        value={token[mode]}
-                        onChange={(value) => onChange((current) => recolour(current, token.name, mode, value))}
-                        suggestions={used}
-                        pairs={pairsOf(document, token.name, mode)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </li>
-            ))}
-          </ul>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-1" role="group" aria-label={t('Filter the colours')}>
+          {FILTERS.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={filter === option.id}
+              data-testid={`colour-filter-${option.id}`}
+              onClick={() => setFilter(option.id)}
+              className={cn(
+                'rounded-control border px-2.5 py-1 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2',
+                filter === option.id ? 'border-accent bg-accent-wash text-accent-strong' : 'border-line bg-surface text-muted',
+              )}
+            >
+              {t(option.label)} <span className="tabular-nums">{count[option.id]}</span>
+            </button>
+          ))}
         </div>
-      ))}
+        <input
+          type="search"
+          className={cn(inputClass(), 'min-w-0 flex-1 sm:max-w-xs')}
+          placeholder={t('Search a colour or what it paints')}
+          aria-label={t('Search a colour or what it paints')}
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      </div>
+
+      {shown.length === 0 && (
+        <p className="text-sm text-muted" data-testid="colour-list-empty">
+          {filter === 'changed'
+            ? t('No colour has changed: this is the palette as saved, and as the design system has it.')
+            : filter === 'contrast'
+              ? t('Every pair clears contrast.')
+              : t('No colour matches “{search}”.', { search })}
+        </p>
+      )}
+
+      {document.colors.map((group) => {
+        const lines = shown.filter((row) => row.group === group.group);
+
+        return lines.length === 0 ? null : (
+          <div key={group.group} className="space-y-2">
+            <h4 className="text-sm font-medium text-muted">{group.group}</h4>
+            <ul className="space-y-2">
+              {lines.map(({ token, role, state }) => (
+                <li key={token.name} className="space-y-2 rounded-control border border-line bg-surface p-3" data-token={token.name}>
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="font-mono text-xs font-semibold">
+                      {token.name} <span className="font-normal text-muted">{token.variable}</span>
+                    </p>
+                    {state !== null && (
+                      <span
+                        className={pill(state.kind === 'contrast' ? 'danger' : state.kind === 'unsaved' ? 'warning' : 'info')}
+                        data-testid={`token-state-${token.name}`}
+                        title={
+                          state.kind === 'contrast'
+                            ? `${modeLabel(state.pair.mode)} · ${state.pair.foreground} / ${state.pair.background}`
+                            : undefined
+                        }
+                      >
+                        {stateLabel(state)}
+                      </span>
+                    )}
+                  </div>
+                  {role !== undefined && <p className="text-xs text-muted">{role}</p>}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {MODES.map((mode) => (
+                      <div key={mode} className="space-y-1">
+                        <p className="text-2xs font-medium uppercase text-muted">{modeLabel(mode)}</p>
+                        <ColourField
+                          label={`${token.name} — ${modeLabel(mode)}`}
+                          value={token[mode]}
+                          onChange={(value) => onChange((current) => recolour(current, token.name, mode, value))}
+                          suggestions={used}
+                          pairs={pairsOf(document, token.name, mode)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -400,7 +565,18 @@ function CssTab({ document }: { document: ThemeDocument }) {
   );
 }
 
-function ContrastTab({ document }: { document: ThemeDocument }) {
+function ContrastTab({
+  document,
+  onlyFailing,
+  onOnlyFailing,
+}: {
+  document: ThemeDocument;
+  /** Narrow the table to the pairs under 4.5:1 in either mode. */
+  onlyFailing: boolean;
+  onOnlyFailing: (only: boolean) => void;
+}) {
+  const failing = new Set(failingPairs(document).map((pair) => `${pair.foreground}/${pair.background}`));
+  const rows = PAIRS.filter(([foreground, background]) => !onlyFailing || failing.has(`${foreground}/${background}`));
   const names = document.colors.flatMap((group) => group.tokens.map((token) => token.name));
   const [fg, setFg] = useState(names.includes('ink') ? 'ink' : (names[0] ?? ''));
   const [bg, setBg] = useState(names.includes('canvas') ? 'canvas' : (names[1] ?? ''));
@@ -456,35 +632,46 @@ function ContrastTab({ document }: { document: ThemeDocument }) {
         <p className="text-xs text-muted">{t('WCAG asks 4.5:1 for text (AA), 3:1 for large text, and 7:1 for AAA.')}</p>
       </div>
 
-      <div className="rounded-card border border-line bg-surface">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-line text-left text-xs text-muted">
-              <th scope="col" className="px-3 py-2 font-medium">
-                {t('Text on ground')}
-              </th>
-              {MODES.map((mode) => (
-                <th key={mode} scope="col" className="px-3 py-2 font-medium">
-                  {modeLabel(mode)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {PAIRS.map(([foreground, background]) => (
-              <tr key={`${foreground}/${background}`} className="border-b border-line last:border-b-0" data-pair={`${foreground}/${background}`}>
-                <th scope="row" className="px-3 py-2 text-left font-mono text-xs font-normal">
-                  {foreground} / {background}
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={onlyFailing} onChange={(event) => onOnlyFailing(event.target.checked)} data-testid="only-failing-pairs" />
+          {t('Only the failing pairs')} <span className="tabular-nums text-muted">{failing.size}</span>
+        </label>
+        {onlyFailing && rows.length === 0 && (
+          <p className="text-sm text-muted" data-testid="no-failing-pairs">
+            {t('Every pair clears contrast.')}
+          </p>
+        )}
+        <div className="rounded-card border border-line bg-surface">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line text-left text-xs text-muted">
+                <th scope="col" className="px-3 py-2 font-medium">
+                  {t('Text on ground')}
                 </th>
                 {MODES.map((mode) => (
-                  <td key={mode} className="px-3 py-2">
-                    {sample(foreground, background, mode)}
-                  </td>
+                  <th key={mode} scope="col" className="px-3 py-2 font-medium">
+                    {modeLabel(mode)}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map(([foreground, background]) => (
+                <tr key={`${foreground}/${background}`} className="border-b border-line last:border-b-0" data-pair={`${foreground}/${background}`}>
+                  <th scope="row" className="px-3 py-2 text-left font-mono text-xs font-normal">
+                    {foreground} / {background}
+                  </th>
+                  {MODES.map((mode) => (
+                    <td key={mode} className="px-3 py-2">
+                      {sample(foreground, background, mode)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

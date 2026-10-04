@@ -120,7 +120,7 @@
   --color-line: var(--ds-line);
   --color-line-strong: var(--ds-line-strong);
 
-  /* Accent. The product's own colour, and a tenant's if their plan includes one. */
+  /* Accent. The product's own colour, and the one an organisation's palette chooses. */
   --color-accent: var(--ds-accent);
   --color-accent-strong: var(--ds-accent-strong);
   --color-accent-wash: var(--ds-accent-wash);

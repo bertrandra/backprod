@@ -1,9 +1,11 @@
 import { useState } from 'react';
 
 import { PaletteCard } from '@/features/palettes/PaletteCard';
+import type { DesignSystemColours } from '@/features/palettes/colourList';
 import { PaletteEditor } from '@/features/palettes/PaletteEditor';
 import type { ThemeDocument } from '@/features/palettes/themeDocument';
 import { t } from '@/i18n';
+import stylesheet from '@/index.css?raw';
 import {
   MATRIX_PAGE,
   useAssignPalette,
@@ -17,6 +19,19 @@ import { Button, inputClass } from '@/ui/Field';
 import { PageHeader, Section } from '@/ui/Page';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { cn } from '@/utils/cn';
+
+import { readPalette } from './palette';
+
+/**
+ * The design system's own colours, read out of the stylesheet like
+ * `/console/palette` reads them, so the editor can say which colours a
+ * palette has moved away from (2026-10-05).
+ */
+const DESIGN_SYSTEM: DesignSystemColours = Object.fromEntries(
+  readPalette(stylesheet).groups.flatMap((group) =>
+    group.tokens.map((token) => [token.utility, { light: token.light?.value, dark: token.dark?.value }] as const),
+  ),
+);
 
 /**
  * `/console/palettes` — the palettes, and who wears which (2026-10-04).
@@ -229,6 +244,7 @@ function Library({ palettes }: { palettes: readonly Palette[] }) {
           key={draft.name}
           initial={draft}
           palettes={palettes}
+          origin={DESIGN_SYSTEM}
           saving={save.isPending}
           saved={save.isSuccess}
           error={save.error}
