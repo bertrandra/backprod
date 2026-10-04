@@ -81,6 +81,8 @@ final class CurrentTenantTest extends DatabaseApiTestCase
                 // No answer yet, which is what null means: the deployment's
                 // own default decides (2026-09-26).
                 'default_product' => null,
+                // The organisation's logo, none yet (2026-10-05).
+                'logo_asset_id' => null,
             ]],
             $this->decode($response),
         );
