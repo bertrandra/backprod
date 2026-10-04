@@ -197,3 +197,32 @@ export function usePublicDemo() {
     retry: false,
   });
 }
+/**
+ * The palette a stranger sees on an organisation's public page for a product
+ * (2026-10-04), or null for the platform's own design. The same choice its
+ * members' screens wear.
+ */
+export function usePublicPalette(productCode: string | null, tenant: string | null) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.storefront.palette(productCode ?? '', tenant ?? ''),
+    // Only once the organisation is known. Asked before, it would be asked as
+    // the bare host's — and an organisation's page would flash the default
+    // organisation's palette until its own arrived.
+    enabled: productCode !== null && productCode !== '' && tenant !== null,
+    // Decoration: a failure leaves the platform's design, a correct page.
+    retry: false,
+    queryFn: async (): Promise<Schemas['Palette'] | null> => {
+      const { data, error, response } = await client.GET('/api/v1/public/palette', {
+        params: { query: { product: productCode ?? '', tenant: tenant ?? '' } },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.palette;
+    },
+  });
+}

@@ -36,6 +36,8 @@ export const keys = {
     offer: (product: string, offerId: string, locale: string) =>
       ['storefront', 'offer', product, offerId, locale] as const,
     listing: (product: string) => ['storefront', 'listing', product] as const,
+    /** The palette an organisation's public page wears for a product (2026-10-04). */
+    palette: (product: string, tenant: string) => ['storefront', 'palette', tenant, product] as const,
   },
   organisation: {
     current: ['organisation', 'current'] as const,
@@ -44,6 +46,16 @@ export const keys = {
   members: {
     all: ['members'] as const,
     requests: ['members', 'requests'] as const,
+  },
+  /**
+   * Palettes (2026-10-04). The organisation's side is keyed without the
+   * product, like the skin: switching product starts a fresh cache.
+   */
+  palettes: {
+    /** The organisation's door: the palettes it may choose, and its choice. */
+    choice: ['palettes', 'choice'] as const,
+    /** What its screens wear, read by every member's shell. */
+    worn: ['palettes', 'worn'] as const,
   },
   skin: {
     current: ['skin', 'current'] as const,
@@ -198,6 +210,9 @@ export const keys = {
     /** Whether a new account must prove its address (ADR-063). */
     signUpSettings: ['staff', 'sign-up', 'settings'] as const,
     mailTemplates: (locale: string) => ['staff', 'mail', 'templates', locale] as const,
+    /** The palettes, and the matrix of who wears which (2026-10-04). */
+    palettes: ['staff', 'palettes'] as const,
+    paletteAssignments: (offset: number) => ['staff', 'palettes', 'assignments', offset] as const,
     tenantLists: ['staff', 'tenants'] as const,
     productCredentials: (productId: string) => ['staff', 'products', productId, 'credentials'] as const,
     /** What the platform sent a product beside it, and what became of it (ADR-051 §5). */

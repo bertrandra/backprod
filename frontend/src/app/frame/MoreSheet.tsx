@@ -34,7 +34,7 @@ export function MoreSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-stretch bg-black/40 md:hidden" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-stretch bg-scrim md:hidden" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"

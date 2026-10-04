@@ -48,7 +48,7 @@ export function ProblemBand({
             key={row.id}
             data-problem={row.id}
             data-icon={row.content.icon ?? 'none'}
-            className="rounded-card border border-line/40 bg-white/5 p-6 md:p-7"
+            className="rounded-card border border-line/40 bg-on-inverse/5 p-6 md:p-7"
           >
             {row.content.icon !== null && (
               <svg

@@ -85,7 +85,7 @@ export function SupportConversationsScreen() {
                       className={`w-full rounded border p-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-2 ${
                         selected === conversation.id
                           ? 'border-ink'
-                          : 'border-line hover:bg-canvas dark:hover:bg-inverse'
+                          : 'border-line hover:bg-canvas'
                       }`}
                     >
                       <span className="flex flex-wrap items-center gap-2">

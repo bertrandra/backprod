@@ -42,6 +42,12 @@
  * runs axe over every route in both themes; a token pair that fails WCAG AA fails
  * the suite, which is why `--ds-ink-subtle` is darker than it looks like it needs
  * to be — it has to clear 4.5:1 against `--ds-canvas`, not only against white.
+ *
+ * **And the console reads this file.** `/console/palette` imports it as text
+ * and draws its groups from the `--color-*` runs below — each run titled by the
+ * first sentence of the comment above it — and its values from the two `:root`
+ * blocks. So a token added, renamed or recoloured here is on that screen at the
+ * next build, and a comment written here is the explanation it shows.
  */
 
 @theme {
@@ -110,20 +116,28 @@
   --color-muted: var(--ds-ink-muted);
   --color-subtle: var(--ds-ink-subtle);
 
+  /* Lines. A hairline between things, and a stronger one around what can be
+     pressed or typed into. */
   --color-line: var(--ds-line);
   --color-line-strong: var(--ds-line-strong);
 
-  /* The product's own colour, and a tenant's if their plan includes one. */
+  /* Accent. The product's own colour, and a tenant's if their plan includes one. */
   --color-accent: var(--ds-accent);
   --color-accent-strong: var(--ds-accent-strong);
   --color-accent-wash: var(--ds-accent-wash);
   --color-on-accent: var(--ds-on-accent);
 
-  /* The monochrome the primary button has always used, named rather than
+  /* Inverse. The monochrome the primary button has always used, named rather than
      spelled `bg-neutral-900 dark:bg-neutral-100 dark:text-neutral-900` in
      five places. */
   --color-inverse: var(--ds-inverse);
   --color-on-inverse: var(--ds-on-inverse);
+
+  /* Scrim. What dims the page behind something that floats over it — the
+     command palette, the phone's "More" sheet. Translucent, so the page stays
+     legible as the thing being returned to; darker in the dark theme, where a
+     40% black barely separates anything from a ground that is already black. */
+  --color-scrim: var(--ds-scrim);
 
   /* Meaning, not decoration. Each has an ink for text, a wash for a background
      and a line for a border, so a status never needs three unrelated guesses. */
@@ -183,6 +197,8 @@
   --ds-inverse: #111826;
   --ds-on-inverse: #ffffff;
 
+  --ds-scrim: rgb(14 21 32 / 0.4);
+
   --ds-success: #0b6b4f;
   --ds-success-wash: #e0f2ea;
   --ds-warning: #8a5300;
@@ -216,6 +232,8 @@
 
     --ds-inverse: #e9eef6;
     --ds-on-inverse: #0a0e14;
+
+    --ds-scrim: rgb(0 0 0 / 0.6);
 
     --ds-success: #4bd6a0;
     --ds-success-wash: #0a2b20;

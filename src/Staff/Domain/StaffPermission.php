@@ -104,4 +104,13 @@ final class StaffPermission
      * not thereby trusted to switch off the proof.
      */
     public const SIGN_UP_MANAGE = 'staff.sign_up.manage';
+
+    /**
+     * Editing the palettes, and choosing which one each organisation wears in
+     * each product it holds (2026-10-04). PLATFORM_ADMIN alone: a palette is
+     * shared by every organisation wearing it, so changing one is the
+     * platform's decision. An organisation's administrator may change its own
+     * choice (`skin.manage`), and never a palette.
+     */
+    public const DESIGN_MANAGE = 'staff.design.manage';
 }

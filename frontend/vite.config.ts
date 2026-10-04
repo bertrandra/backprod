@@ -95,5 +95,9 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test-setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
+    // Vitest empties every stylesheet import by default, `?raw` included, so
+    // the palette screen would read a file with nothing in it. It is the one
+    // module that imports CSS as text, and the text is what it is tested on.
+    css: { include: [/\.css\?raw$/] },
   },
 });

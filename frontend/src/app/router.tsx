@@ -32,6 +32,7 @@ import { OrdersScreen } from '@/features/sales/OrdersScreen';
 import { TaxProfileScreen } from '@/features/tax/TaxProfileScreen';
 import { TaxRatesScreen } from '@/features/tax/TaxRatesScreen';
 import { VatReportsScreen } from '@/features/tax/VatReportsScreen';
+import { PaletteChoiceScreen } from '@/features/palettes/PaletteChoiceScreen';
 import { JobsScreen } from '@/features/workspace/JobsScreen';
 import { ProjectScreen } from '@/features/workspace/ProjectScreen';
 import { ProjectsScreen } from '@/features/workspace/ProjectsScreen';
@@ -45,6 +46,8 @@ import { MailScreen } from '@/features/console/MailScreen';
 import { StaffProfileScreen } from '@/features/console/StaffProfileScreen';
 import { MenusScreen } from '@/features/console/MenusScreen';
 import { MetricsScreen } from '@/features/console/MetricsScreen';
+import { PaletteScreen } from '@/features/console/PaletteScreen';
+import { PalettesScreen } from '@/features/console/PalettesScreen';
 import { FeaturesScreen } from '@/features/console/FeaturesScreen';
 import { TranslationsScreen } from '@/features/console/TranslationsScreen';
 import { ProductsScreen } from '@/features/console/ProductsScreen';
@@ -85,6 +88,7 @@ const SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element
   { path: '/organisation', component: OrganisationScreen },
   { path: '/members', component: MembersScreen },
   { path: '/branding', component: BrandingScreen },
+  { path: '/palette', component: PaletteChoiceScreen },
   // U3
   { path: '/notifications', component: NotificationsScreen },
   { path: '/notification-settings', component: NotificationSettingsScreen },
@@ -135,6 +139,8 @@ const PLATFORM_SCREEN_ROUTES: readonly { path: string; component: () => React.JS
   { path: '/console/invoicing', component: InvoicingScreen },
   { path: '/console/menus', component: MenusScreen },
   { path: '/console/mail', component: MailScreen },
+  { path: '/console/palette', component: PaletteScreen },
+  { path: '/console/palettes', component: PalettesScreen },
   { path: '/console/profile', component: StaffProfileScreen },
   { path: '/console/demo', component: DemoScreen },
   { path: '/console/staff', component: StaffMembersScreen },

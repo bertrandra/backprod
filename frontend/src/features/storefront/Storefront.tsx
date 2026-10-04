@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 
 import { useProductContext } from '@/app/frame/useProductContext';
+import { usePaintPalette } from '@/app/frame/useTenantPalette';
 import { withRoot } from '@/app/root';
 import { PaymentElementPanel } from '@/features/commerce/payment/PaymentElementPanel';
 import { useOpenCheckoutSession, type OpenedCheckoutSession } from '@/queries/checkout';
-import { usePublicProducts, usePublicTenant, type PublicOffer } from '@/queries/storefront';
+import { usePublicPalette, usePublicProducts, usePublicTenant, type PublicOffer } from '@/queries/storefront';
 import { useSessionStore } from '@/state/session';
 
 import { SignUpForm } from './SignUpForm';
@@ -50,6 +51,11 @@ export function Storefront({ onSignIn }: { onSignIn: () => void }) {
   }, [slug, tenant.data, root, enterRoot]);
 
   const products = usePublicProducts(tenant.data?.slug ?? null);
+
+  // The organisation's palette for this product, on its public page too
+  // (2026-10-04): a stranger sees what its members see.
+  const palette = usePublicPalette(productCode, tenant.data?.slug ?? null);
+  usePaintPalette(palette.data?.document ?? null);
   // The door: open with the offer they came from, open from the footer with
   // none, or shut.
   const [door, setDoor] = useState<{ offer: PublicOffer | null } | null>(null);

@@ -137,6 +137,7 @@ use App\Skin\Controller\DeleteSkinLogoController;
 use App\Skin\Controller\ShowSkinController;
 use App\Skin\Controller\UpdateSkinController;
 use App\Skin\Controller\UploadSkinLogoController;
+use App\Staff\Controller\AssignPaletteController;
 use App\Staff\Controller\AssignTenantProductController;
 use App\Staff\Controller\CloseSupportConversationController;
 use App\Staff\Controller\CreateFeatureController;
@@ -150,6 +151,8 @@ use App\Staff\Controller\GrantTenantEntitlementController;
 use App\Staff\Controller\IssueProductCredentialController;
 use App\Staff\Controller\IssueWebhookSecretController;
 use App\Staff\Controller\ListAccessLogController;
+use App\Staff\Controller\ListPaletteAssignmentsController;
+use App\Staff\Controller\ListPalettesController;
 use App\Staff\Controller\ListPlatformFeaturesController;
 use App\Staff\Controller\ListPlatformProductsController;
 use App\Staff\Controller\ListProductCredentialsController;
@@ -174,6 +177,7 @@ use App\Staff\Controller\ResetDemoWorldController;
 use App\Staff\Controller\RetryWebhookDeliveryController;
 use App\Staff\Controller\RevokeProductCredentialController;
 use App\Staff\Controller\RevokeStaffRoleController;
+use App\Staff\Controller\SavePaletteController;
 use App\Staff\Controller\SendTestMailController;
 use App\Staff\Controller\SetBillingIdentityController;
 use App\Staff\Controller\SetDemoPageController;
@@ -232,6 +236,10 @@ use App\Tenant\Controller\ListMembersController;
 use App\Tenant\Controller\RemoveMemberController;
 use App\Tenant\Controller\UpdateCurrentTenantController;
 use App\Tenant\Controller\UpdateMemberController;
+use App\Theme\Controller\ListTenantPalettesController;
+use App\Theme\Controller\PublicPaletteController;
+use App\Theme\Controller\SelectTenantPaletteController;
+use App\Theme\Controller\ShowTenantPaletteController;
 use FastRoute\RouteCollector;
 
 /**
@@ -311,6 +319,9 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/public/products/{code}/showcase/assets/{assetId}', PublicShowcaseAssetController::class);
     // The organisation at a URL root (2026-09-17), before any session.
     $routes->addRoute('GET', '/api/v1/public/tenant', PublicTenantController::class);
+    // The palette an organisation's public page wears for a product
+    // (2026-10-04): what that page already shows anyone, so nothing to guard.
+    $routes->addRoute('GET', '/api/v1/public/palette', PublicPaletteController::class);
     // The demonstration page (2026-09-18): 404 until the console switches it on.
     $routes->addRoute('GET', '/api/v1/public/demo', PublicDemoController::class);
 
@@ -584,6 +595,11 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('PATCH', '/api/v1/tenant/skin', UpdateSkinController::class);
     $routes->addRoute('POST', '/api/v1/tenant/skin/logo', UploadSkinLogoController::class);
     $routes->addRoute('DELETE', '/api/v1/tenant/skin/logo', DeleteSkinLogoController::class);
+    // Which palette the organisation's screens wear (2026-10-04): it chooses,
+    // it never edits — the palettes are the platform administrator's.
+    $routes->addRoute('GET', '/api/v1/tenant/palettes', ListTenantPalettesController::class);
+    $routes->addRoute('GET', '/api/v1/tenant/palette', ShowTenantPaletteController::class);
+    $routes->addRoute('PUT', '/api/v1/tenant/palette', SelectTenantPaletteController::class);
 
     // Platform staff (§12.2). Everything under /staff requires a platform
     // role, which no tenant membership grants — and grants nothing on the
@@ -823,6 +839,12 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/staff/mail/templates', ShowMailTemplatesController::class);
     $routes->addRoute('PUT', '/api/v1/staff/mail/templates', SetMailTemplatesController::class);
     $routes->addRoute('POST', '/api/v1/staff/mail/test', SendTestMailController::class);
+    // The palettes, edited by the platform administrator alone, and the matrix
+    // of which organisation wears which in each product (2026-10-04).
+    $routes->addRoute('GET', '/api/v1/staff/palettes', ListPalettesController::class);
+    $routes->addRoute('PUT', '/api/v1/staff/palettes/{name}', SavePaletteController::class);
+    $routes->addRoute('GET', '/api/v1/staff/palette-assignments', ListPaletteAssignmentsController::class);
+    $routes->addRoute('PUT', '/api/v1/staff/tenants/{tenantId}/products/{productId}/palette', AssignPaletteController::class);
 
     $routes->addRoute('GET', '/api/v1/staff/access-log', ListAccessLogController::class);
 

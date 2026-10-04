@@ -51,7 +51,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-start justify-center bg-black/40 p-4 pt-[10vh]"
+      className="fixed inset-0 z-40 flex items-start justify-center bg-scrim p-4 pt-[10vh]"
       onClick={onClose}
     >
       <div

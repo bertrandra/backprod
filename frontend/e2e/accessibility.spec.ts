@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs';
+
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 
@@ -151,6 +153,37 @@ async function stubbed(page: Page) {
       },
     }),
   );
+  // The real palettes, one worn, and a matrix with a held and an unheld
+  // product — so both palette screens are scanned with everything they show.
+  // Every palette the migrations seed, from its source: a palette whose
+  // swatches or label broke the scan would show up here.
+  const palettes = readdirSync(new URL('../../docs/themes/', import.meta.url))
+    .filter((file) => file.endsWith('.json'))
+    .map((file) => file.replace(/\.json$/, ''))
+    .map((name) => ({
+    name,
+    updated_at: '2026-10-04T09:00:00+00:00',
+    document: JSON.parse(readFileSync(new URL(`../../docs/themes/${name}.json`, import.meta.url), 'utf8')) as unknown,
+  }));
+  await page.route(/\/api\/v1\/tenant\/palettes$/, (route) => route.fulfill({ json: { palettes, selected: 'forest-ledger' } }));
+  await page.route(/\/api\/v1\/tenant\/palette$/, (route) => route.fulfill({ json: { palette: null } }));
+  await page.route(/\/api\/v1\/staff\/palettes$/, (route) => route.fulfill({ json: { palettes } }));
+  await page.route(/\/api\/v1\/staff\/palette-assignments(\?.*)?$/, (route) =>
+    route.fulfill({
+      json: {
+        products: [
+          { id: SESSION.product_id, code: 'atlas', name: 'Atlas' },
+          { id: '99999999-9999-4999-8999-999999999999', code: 'beta', name: 'Beta' },
+        ],
+        tenants: [
+          { id: SESSION.tenant_id, name: 'Acme Ltd', slug: 'acme', products: [{ product_id: SESSION.product_id, palette: 'forest-ledger' }] },
+        ],
+        total: 1,
+        limit: 50,
+        offset: 0,
+      },
+    }),
+  );
   await page.route(/\/api\/v1\/staff\/navigation$/, (route) =>
     route.fulfill({ json: { navigation: { platform_admin: EVERY_MENU, tenant_admin: EVERY_MENU, user: EVERY_MENU } } }),
   );
@@ -260,6 +293,7 @@ const TENANT_ROUTES = [
   '/organisation',
   '/members',
   '/branding',
+  '/palette',
   '/notifications',
   '/notification-settings',
   '/conversations',
@@ -290,6 +324,8 @@ const CONSOLE_ROUTES = [
   '/console/menus',
   '/console/mail',
   '/console/demo',
+  '/console/palette',
+  '/console/palettes',
 ] as const;
 
 async function scan(page: Page) {
@@ -330,6 +366,23 @@ for (const route of CONSOLE_ROUTES) {
     expect(describe(results), describe(results)).toBe('');
   });
 }
+
+// The palette editor opens on demand, so the route scan above never sees it:
+// each of its tabs, and a colour's open panel, are scanned here.
+test('the palette editor has no accessibility violations, on any tab', async ({ page }) => {
+  await stubbed(page);
+  await page.goto('/console/palettes');
+  await page.getByTestId('palette-forest-ledger').getByRole('button', { name: 'Edit' }).click();
+  await page.getByRole('button', { name: 'Choose accent — Light' }).click();
+  await expect(page.getByTestId('colour-panel')).toBeVisible();
+
+  for (const tab of ['Palette', 'Fonts', 'CSS', 'Contrast']) {
+    await page.getByRole('tab', { name: tab }).click();
+    const results = await scan(page);
+
+    expect(describe(results), `${tab}: ${describe(results)}`).toBe('');
+  }
+});
 
 test.describe('what axe cannot see', () => {
   test('the keyboard reaches the navigation without a mouse', async ({ page, viewport }) => {

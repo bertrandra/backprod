@@ -168,6 +168,13 @@ export const APP_NAV: readonly NavSection[] = [
       { id: 'menus', label: 'Menus', to: '/console/menus', scope: 'platform', permission: 'staff.navigation.manage' },
       // The words the platform's mails say, and a test of the mail host (2026-09-19).
       { id: 'mail', label: 'Mail', to: '/console/mail', scope: 'platform', permission: 'staff.mail.manage' },
+      // The design system read from `index.css`, and saved as a named theme
+      // (2026-10-04). Its own permission since the save: keeping the record of
+      // how the platform looks is not the same trust as setting up a product.
+      { id: 'design-system', label: 'Design system', to: '/console/palette', scope: 'platform', permission: 'staff.design.manage', secondary: true },
+      // The palettes, edited here and nowhere else, and the matrix of which
+      // organisation wears which in each product (2026-10-04).
+      { id: 'palettes', label: 'Palettes', to: '/console/palettes', scope: 'platform', permission: 'staff.design.manage', secondary: true },
     ],
   },
   {
@@ -268,6 +275,9 @@ export const APP_NAV: readonly NavSection[] = [
       { id: 'members', label: 'Members', to: '/members', scope: 'tenant', permission: 'members.manage', secondary: true },
       { id: 'profile', label: 'Your profile', to: '/profile', scope: 'tenant', permission: 'account.read', secondary: true },
       { id: 'branding', label: 'Branding', to: '/branding', scope: 'tenant', permission: 'skin.manage', secondary: true },
+      // Which palette the organisation's screens wear (2026-10-04): it chooses
+      // among the platform's, it never edits one. `skin.manage`, and only that.
+      { id: 'palette', label: 'Palette', to: '/palette', scope: 'tenant', permission: 'skin.manage', secondary: true },
       { id: 'notification-settings', label: 'Notification settings', to: '/notification-settings', scope: 'tenant', permission: 'notifications.read', secondary: true },
     ],
   },

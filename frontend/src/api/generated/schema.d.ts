@@ -2801,6 +2801,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/palettes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The palettes this organisation may choose from
+         * @description Every palette, with its document, in the order offered, and the one this organisation wears in this product (`selected`, null for the platform's own design). The organisation chooses; it never edits a palette — that is the platform administrator's. `skin.manage`, and only that.
+         */
+        get: operations["listTenantPalettes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/palette": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The palette this organisation's screens wear
+         * @description The palette worn in this product, or `null` for the platform's own design. **Any member**: the shell reads it to paint itself, before it knows what anybody may do. It applies it on the organisation's own screens — never the console's — as the `--ds-*` variables in both modes, and the fonts and type scale as `--font-*` and `--text-*`. One row per tenant and product, written from either door — the console's matrix (`assignPalette`) or the organisation's own screen (`selectTenantPalette`) — so each sees what the other chose.
+         */
+        get: operations["showTenantPalette"];
+        /**
+         * Choose which palette this organisation's screens wear
+         * @description `{palette: name}` chooses one of the platform's palettes for this product, `{palette: null}` goes back to the platform's design. `palette` must be present. One row per tenant and product, written from either door — the console's matrix (`assignPalette`) or the organisation's own screen (`selectTenantPalette`) — so each sees what the other chose. `skin.manage`.
+         */
+        put: operations["selectTenantPalette"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenants/current": {
         parameters: {
             query?: never;
@@ -3121,6 +3165,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/palette": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The palette an organisation's public page wears for a product
+         * @description What a stranger's screen paints itself with on an organisation's public page (2026-10-04): the palette the organisation wears in this product — chosen by its administrator or assigned from the console, the same row. `tenant` is the slug of the URL root; absent, the bare host's, whose organisation is the platform's default. `null` for every way of naming nothing — an unknown organisation or product, one it does not hold, an inactive product, no choice made — so this is not a way to learn which organisations or products exist. Public by construction: how the page looks is already on the page.
+         */
+        get: operations["getPublicPalette"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/demo": {
         parameters: {
             query?: never;
@@ -3271,6 +3335,86 @@ export interface paths {
          * @description `staff.mail.manage` (2026-09-19). One kind of mail, rendered with a sample payload, sent to the caller's own address **inside the request** — the one place a mail is sent outside the job queue, because the point is to see it arrive or fail now, with the mail host's own reason.
          */
         post: operations["sendTestMail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/palettes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every palette
+         * @description Every palette, with its document, in the order organisations are offered them. `staff.design.manage`, which PLATFORM_ADMIN alone holds.
+         */
+        get: operations["listPalettes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/palettes/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Create a palette, or replace one's document
+         * @description Creates the palette at the end of the list, or replaces the whole document of the one with this name, in place. **Only the platform administrator changes a palette**: every organisation wearing it changes with it, at its next page load. Validated whole and refused whole. Leaves a trail row. `staff.design.manage`, which PLATFORM_ADMIN alone holds.
+         */
+        put: operations["savePalette"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/palette-assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Which palette each organisation wears, product by product
+         * @description The matrix: every product, and a page of organisations (by name), each with the palette it wears in each product **it holds** — a product it does not hold has no cell. One row per tenant and product, written from either door — the console's matrix (`assignPalette`) or the organisation's own screen (`selectTenantPalette`) — so each sees what the other chose. No motive header: which palette an organisation wears is configuration the platform shares in, not the organisation's own data. `staff.design.manage`, which PLATFORM_ADMIN alone holds.
+         */
+        get: operations["listPaletteAssignments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/tenants/{tenantId}/products/{productId}/palette": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Choose the palette an organisation wears in a product
+         * @description `{palette: name}` assigns one of the palettes to the organisation in a product it holds, `{palette: null}` gives it back the platform's design. One row per tenant and product, written from either door — the console's matrix (`assignPalette`) or the organisation's own screen (`selectTenantPalette`) — so each sees what the other chose. Leaves a trail row. `staff.design.manage`, which PLATFORM_ADMIN alone holds.
+         */
+        put: operations["assignPalette"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4057,6 +4201,83 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        Palette: {
+            name: string;
+            /** Format: date-time */
+            updated_at: string;
+            document: components["schemas"]["ThemeDocument"];
+        };
+        PaletteAssignments: {
+            /** @description Every product, by code: the columns. */
+            products: {
+                /** Format: uuid */
+                id: string;
+                code: string;
+                name: string;
+            }[];
+            /** @description One page of organisations, by name: the rows. */
+            tenants: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                slug: string;
+                /** @description Only the products the organisation holds — a cell exists nowhere else. */
+                products: {
+                    /** Format: uuid */
+                    product_id: string;
+                    /** @description The palette worn, or null for the platform's design. */
+                    palette: string | null;
+                }[];
+            }[];
+            /** @description Every organisation, not only this page. */
+            total: number;
+            limit: number;
+            offset: number;
+        };
+        /** @description The design system as a document: the colours in their groups and in both themes, the font families and the type scale, as `frontend/src/index.css` defines them. Validated whole and refused whole. The shape of a palette. Its values are held to CSS's own shape, so a stored document can never close a declaration or open markup when the shell reads it into a stylesheet. */
+        ThemeDocument: {
+            /**
+             * @description The shape of this document. 1 is the only one.
+             * @constant
+             */
+            format: 1;
+            /** @description What the theme is called to a person — `Forest ledger`. Optional: what the console reads out of the stylesheet has none. */
+            label?: string;
+            /** @description What the theme is for, in a sentence. Optional. */
+            description?: string;
+            /** @description Groups, in the stylesheet's order — each a run of `--color-*` in `@theme`, titled by the comment above it. */
+            colors: {
+                group: string;
+                tokens: {
+                    /** @description The utility root: `accent-wash`, as in `bg-accent-wash`. Unique within the theme. */
+                    name: string;
+                    /** @description The variable a theme redefines: `--ds-accent-wash`. */
+                    variable: string;
+                    /** @description A CSS value as the stylesheet writes one — no quote, semicolon, brace, angle bracket or backslash. */
+                    light: string;
+                    /** @description A CSS value as the stylesheet writes one — no quote, semicolon, brace, angle bracket or backslash. */
+                    dark: string;
+                }[];
+            }[];
+            fonts: {
+                /** @description `sans`, `mono` — the `--font-*` suffix. */
+                role: string;
+                variable: string;
+                /** @description The first family of the stack: the one the design system ships. */
+                family: string;
+                /** @description The whole fallback stack, as written. */
+                stack: string;
+            }[];
+            type_scale: {
+                /** @description The step: `xs`, `2xl`, `display-lg`. */
+                name: string;
+                variable: string;
+                /** @description A CSS value as the stylesheet writes one — no quote, semicolon, brace, angle bracket or backslash. */
+                size: string;
+                line_height: string | null;
+                letter_spacing: string | null;
+            }[];
+        };
         /** @description The §10.4 envelope. Every failure has this shape, whatever produced it. */
         Error: {
             error: {
@@ -12955,6 +13176,141 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    listTenantPalettes: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The palettes and the current choice. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        palettes: components["schemas"]["Palette"][];
+                        selected: string | null;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `PERMISSION_DENIED` — the caller does not hold `skin.manage`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showTenantPalette: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The palette worn, or null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        palette: components["schemas"]["Palette"] | null;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    selectTenantPalette: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description A palette's name, or null for the platform's own design. */
+                    palette: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The palette now worn, or null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        palette: components["schemas"]["Palette"] | null;
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `palette` is missing, or not a name. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `PERMISSION_DENIED` — the caller does not hold `skin.manage`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `PALETTE_NOT_FOUND` — no palette has that name. Nothing changes. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     showCurrentTenant: {
         parameters: {
             query?: never;
@@ -13702,6 +14058,44 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    getPublicPalette: {
+        parameters: {
+            query: {
+                /** @description The product's code, as the shop window takes it. */
+                product: string;
+                /** @description The slug of the organisation whose URL root the page is on (2026-09-17). Narrows the window to the products that organisation holds; absent, the bare host's — the default tenant's, or the platform's where none is set. A slug nobody has shows nothing, as an unknown product does. */
+                tenant?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The palette, or null for the platform's own design. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        palette: components["schemas"]["Palette"] | null;
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `product` is missing, or a parameter is too long. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     showPublicDemo: {
         parameters: {
             query?: never;
@@ -14107,6 +14501,157 @@ export interface operations {
             403: components["responses"]["PermissionDenied"];
             /** @description `MAIL_NOT_CONFIGURED` — `MAIL_DSN` is empty, nothing leaves; `MAIL_SEND_FAILED` — the host refused or could not be reached, with its sentence (redacted of anything that looks like a credential); `NO_ADDRESS` — the caller has none. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listPalettes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The palettes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        palettes: components["schemas"]["Palette"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    savePalette: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The palette's name. */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    document: components["schemas"]["ThemeDocument"];
+                };
+            };
+        };
+        responses: {
+            /** @description The palette as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        palette: components["schemas"]["Palette"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — the name, or any part of the document, is out of shape; `details.field` names which. Nothing is written. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listPaletteAssignments: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of the matrix. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaletteAssignments"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    assignPalette: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description A palette's name, or null for the platform's own design. */
+                    palette: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The palette now worn, or null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        palette: components["schemas"]["Palette"] | null;
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `palette` is missing, or not a name. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `TENANT_OR_PRODUCT_NOT_FOUND` — the tenant does not hold that product. `PALETTE_NOT_FOUND` — no palette has that name. Nothing changes. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

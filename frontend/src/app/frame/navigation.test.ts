@@ -258,6 +258,8 @@ describe('the navigation is ordered by dependency', () => {
       // Not on the chain — after it.
       'menus',
       'mail',
+      'design-system',
+      'palettes',
     ]);
   });
 

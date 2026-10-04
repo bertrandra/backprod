@@ -125,7 +125,7 @@ export function OfferAuthoringScreen() {
                   className={
                     selected === offer.id
                       ? 'block rounded border border-accent bg-accent-wash p-3'
-                      : 'block rounded-card border border-line bg-surface p-4 shadow-raise hover:bg-canvas dark:hover:bg-inverse'
+                      : 'block rounded-card border border-line bg-surface p-4 shadow-raise hover:bg-canvas'
                   }
                 >
                   <span className="block font-medium">{offer.name}</span>

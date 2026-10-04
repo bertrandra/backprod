@@ -30,7 +30,7 @@ final class CreateTenantController implements RouteHandler
         'api', 'assets', 'billing-profile', 'branding', 'catalogue', 'checkout', 'console', 'demo',
         'conversations', 'credit-notes', 'invoices', 'jobs', 'members', 'notification-settings',
         'notifications', 'offers', 'orders', 'organisation', 'payments', 'profile', 'projects',
-        'quotes', 'sign-in', 'sign-up', 'subscription', 'tax',
+        'quotes', 'sign-in', 'sign-up', 'palette', 'subscription', 'tax',
     ];
 
     public function __construct(

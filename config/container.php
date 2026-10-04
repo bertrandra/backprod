@@ -217,6 +217,10 @@ use App\Tenant\Infrastructure\PostgresJoinRequests;
 use App\Tenant\Infrastructure\PostgresTenantMemberRepository;
 use App\Tenant\Infrastructure\PostgresTenantMembershipRepository;
 use App\Tenant\Infrastructure\PostgresTenantRepository;
+use App\Theme\Domain\PaletteRepository;
+use App\Theme\Domain\TenantPaletteRepository;
+use App\Theme\Infrastructure\PostgresPaletteRepository;
+use App\Theme\Infrastructure\PostgresTenantPaletteRepository;
 use App\Throttle\Domain\RateLimiter;
 use App\Throttle\Infrastructure\PostgresRateLimiter;
 use App\User\Domain\UserDirectory;
@@ -708,6 +712,8 @@ return static function (array $overrides = []): ContainerInterface {
                 );
         }),
         MailTemplates::class => autowire(PostgresMailTemplates::class),
+        PaletteRepository::class => autowire(PostgresPaletteRepository::class),
+        TenantPaletteRepository::class => autowire(PostgresTenantPaletteRepository::class),
         MailTester::class => autowire(MailTester::class)
             ->constructorParameter('email', get('notification.email'))
             ->constructorParameter('appUrl', $env('APP_URL')),
