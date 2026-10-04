@@ -19,9 +19,9 @@ use Doctrine\Migrations\AbstractMigration;
  * `position` is the order they are offered in, and UNIQUE so that two
  * palettes created at once cannot take the same place.
  *
- * **No foreign key to anybody**, deliberately: the five palettes the next
- * migration seeds are reference data, like roles and permissions, and nothing
- * a test empties may reach them. Who changed one is in `staff_access_log`.
+ * **No foreign key to anybody**, deliberately: the palettes the migrations
+ * after this one seed are reference data, like roles and permissions, and
+ * nothing a test empties may reach them. Who changed one is in `staff_access_log`.
  */
 final class Version20261004090000 extends AbstractMigration
 {
