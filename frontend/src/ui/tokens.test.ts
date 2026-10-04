@@ -62,6 +62,18 @@ function sources(dir: string): string[] {
   });
 }
 
+/**
+ * A source file without its comments. Several of them quote the classes they
+ * replaced — `tone.ts` explains itself with `bg-emerald-100` — and a history
+ * lesson is not a use.
+ */
+function code(path: string): string {
+  return readFileSync(path, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
+}
+
 /** `bg-accent-wash/40` → `accent-wash`; the opacity suffix is Tailwind's, not ours. */
 const CLASSES =
   /\b(?:bg|text|border|ring|outline|fill|stroke|divide|shadow|rounded)-([a-z][a-z0-9-]*)(?:\/\d+)?\b/g;
@@ -106,20 +118,13 @@ describe('every semantic class', () => {
     // axe has no opinion about that. Nor does the type checker, nor eslint —
     // `bg-white` is a perfectly real class. So it is checked here.
     //
-    // A scrim is the honest exception: `bg-black/40` behind a dialog is a
-    // shadow, not a surface, and it is the same shadow in both themes.
+    // A scrim used to be the exception — `bg-black/40` behind a dialog — and
+    // is not any more: it is `bg-scrim`, because a 40% black over a ground that
+    // is already black separates nothing, and only a token can differ by theme.
     const offenders: string[] = [];
 
     for (const path of sources(SRC)) {
-      const text = readFileSync(path, 'utf8');
-
-      for (const [whole = ''] of text.matchAll(
-        /\b(?:bg|text|border)-(?:white|black)(?:\/\d+)?\b/g,
-      )) {
-        if (/\/\d+$/.test(whole)) {
-          continue;
-        }
-
+      for (const [whole = ''] of code(path).matchAll(/\b(?:bg|text|border)-(?:white|black)(?:\/\d+)?\b/g)) {
         offenders.push(`${path.replace(SRC, 'src')}: ${whole}`);
       }
     }
@@ -164,6 +169,62 @@ describe('every semantic class', () => {
         }
 
         offenders.push(`${path.replace(SRC, 'src')}: ${whole.replace(/\s+/g, ' ').slice(0, 70)}`);
+      }
+    }
+
+    expect([...new Set(offenders)]).toEqual([]);
+  });
+
+  it('is always a token, never a colour written in a component', () => {
+    // Every colour on screen comes from `index.css`, so that one file is the
+    // whole palette — what `/console/palette` shows and what a developer
+    // edits. Three ways around that, each of which renders fine and drifts:
+    //
+    //   - a Tailwind palette step, `bg-emerald-100`, which no theme redefines;
+    //   - an arbitrary value, `bg-[#0b6e99]`, which is the hex with extra steps;
+    //   - a colour literal handed to `style`, the same thing again.
+    //
+    // A brand colour a tenant typed is data, not style, and reaches the page
+    // through `--ds-accent`; the branding screen's preview of what is being
+    // typed is the one place a literal is the subject rather than the styling.
+    const palette =
+      'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
+    const forbidden = [
+      new RegExp(String.raw`\b(?:bg|text|border|ring|outline|fill|stroke|divide|from|via|to|decoration|caret|accent|placeholder)-(?:${palette})-\d{2,3}\b`, 'g'),
+      /\b(?:bg|text|border|ring|outline|fill|stroke|divide|from|via|to|decoration|caret|placeholder)-\[(?:#|rgb|hsl|oklch|color)[^\]]*\]/g,
+      /['"`]#[0-9a-fA-F]{3,8}['"`]|\b(?:rgba?|hsla?|oklch)\(/g,
+    ];
+    const allowed = ['src/features/branding/BrandingScreen.tsx'];
+    const offenders: string[] = [];
+
+    for (const path of sources(SRC)) {
+      const name = path.replace(SRC, 'src');
+
+      if (allowed.includes(name)) {
+        continue;
+      }
+
+      for (const pattern of forbidden) {
+        for (const [whole = ''] of code(path).matchAll(pattern)) {
+          offenders.push(`${name}: ${whole}`);
+        }
+      }
+    }
+
+    expect([...new Set(offenders)]).toEqual([]);
+  });
+
+  it('never picks a different token for the dark theme', () => {
+    // A token already carries both themes; that is what it is for. Choosing
+    // another one under `dark:` is choosing from outside the palette, and it is
+    // how four lists came to hover on `bg-inverse` — the *light* ground in the
+    // dark theme — leaving light ink on a near-white row: a row that vanished
+    // under the pointer, in a migration that read `neutral-900` as "inverse".
+    const offenders: string[] = [];
+
+    for (const path of sources(SRC)) {
+      for (const [whole = ''] of code(path).matchAll(/\bdark:(?:[a-z-]+:)*(?:bg|text|border|ring|outline|fill|stroke|divide)-[a-z]/g)) {
+        offenders.push(`${path.replace(SRC, 'src')}: ${whole}`);
       }
     }
 

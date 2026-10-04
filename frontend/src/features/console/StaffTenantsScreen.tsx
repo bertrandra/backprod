@@ -102,7 +102,7 @@ export function StaffTenantsScreen() {
                       className={`w-full rounded border p-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-2 ${
                         selected === tenant.id
                           ? 'border-ink'
-                          : 'border-line hover:bg-canvas dark:hover:bg-inverse'
+                          : 'border-line hover:bg-canvas'
                       }`}
                     >
                       <span className="block font-medium">

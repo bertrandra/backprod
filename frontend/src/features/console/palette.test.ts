@@ -25,6 +25,7 @@ describe('readPalette', () => {
       'Lines',
       'Accent',
       'Inverse',
+      'Scrim',
       'Meaning, not decoration',
       'Neither good nor bad',
     ]);

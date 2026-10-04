@@ -133,6 +133,12 @@
   --color-inverse: var(--ds-inverse);
   --color-on-inverse: var(--ds-on-inverse);
 
+  /* Scrim. What dims the page behind something that floats over it — the
+     command palette, the phone's "More" sheet. Translucent, so the page stays
+     legible as the thing being returned to; darker in the dark theme, where a
+     40% black barely separates anything from a ground that is already black. */
+  --color-scrim: var(--ds-scrim);
+
   /* Meaning, not decoration. Each has an ink for text, a wash for a background
      and a line for a border, so a status never needs three unrelated guesses. */
   --color-success: var(--ds-success);
@@ -191,6 +197,8 @@
   --ds-inverse: #111826;
   --ds-on-inverse: #ffffff;
 
+  --ds-scrim: rgb(14 21 32 / 0.4);
+
   --ds-success: #0b6b4f;
   --ds-success-wash: #e0f2ea;
   --ds-warning: #8a5300;
@@ -224,6 +232,8 @@
 
     --ds-inverse: #e9eef6;
     --ds-on-inverse: #0a0e14;
+
+    --ds-scrim: rgb(0 0 0 / 0.6);
 
     --ds-success: #4bd6a0;
     --ds-success-wash: #0a2b20;
