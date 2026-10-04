@@ -1,5 +1,6 @@
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { useState, type CSSProperties } from 'react';
 
+import { PAIRS } from '@/features/themes/themeDocument';
 import { t } from '@/i18n';
 import stylesheet from '@/index.css?raw';
 import { DEFAULT_THEME, useSaveTheme, useTheme, useThemes } from '@/queries/themes';
@@ -8,6 +9,7 @@ import { Button, Field, inputClass } from '@/ui/Field';
 import { PageHeader, Section } from '@/ui/Page';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
+import { MoodBoard } from '@/ui/MoodBoard';
 import { When } from '@/ui/When';
 import { cn } from '@/utils/cn';
 
@@ -57,27 +59,7 @@ function themeLabel(theme: Theme): string {
   return theme === 'light' ? t('Light') : t('Dark');
 }
 
-/**
- * The pairs the application actually sets text in, foreground on background.
- * Which pairs are *meant* is a design decision and lives here; what they
- * measure is read from the stylesheet, so a recolour shows its verdict at once.
- */
-const PAIRS: readonly (readonly [string, string])[] = [
-  ['ink', 'canvas'],
-  ['ink', 'surface'],
-  ['muted', 'canvas'],
-  ['subtle', 'canvas'],
-  ['subtle', 'surface'],
-  ['muted', 'well'],
-  ['accent', 'surface'],
-  ['on-accent', 'accent'],
-  ['accent-strong', 'accent-wash'],
-  ['on-inverse', 'inverse'],
-  ['success', 'success-wash'],
-  ['warning', 'warning-wash'],
-  ['danger', 'danger-wash'],
-  ['info', 'info-wash'],
-];
+const STRIPE = PALETTE.groups.flatMap((group) => group.tokens.map((token) => token.utility));
 
 const TOKENS = new Map(PALETTE.groups.flatMap((group) => group.tokens.map((token) => [token.utility, token] as const)));
 
@@ -104,7 +86,14 @@ export function PaletteScreen() {
       >
         <div className="grid gap-6 xl:grid-cols-2">
           {THEMES.map((theme) => (
-            <MoodBoard key={theme} theme={theme} />
+            <MoodBoard
+              key={theme}
+              mode={theme}
+              label={themeLabel(theme)}
+              scope={scoped(theme)}
+              stripe={STRIPE}
+              testId={`mood-board-${theme}`}
+            />
           ))}
         </div>
       </Section>
@@ -191,108 +180,6 @@ export function PaletteScreen() {
         <SaveTheme />
       </Section>
     </div>
-  );
-}
-
-/** A caption naming the tokens a tile is made of, in the tile's own ink. */
-function Tokens({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cn('font-mono text-2xs', className ?? 'text-muted')}>{children}</p>;
-}
-
-function Tile({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cn('flex flex-col justify-between gap-4 rounded-card p-4', className)}>{children}</div>;
-}
-
-function MoodBoard({ theme }: { theme: Theme }) {
-  const stripe = PALETTE.groups.flatMap((group) => group.tokens);
-
-  return (
-    <figure
-      data-testid={`mood-board-${theme}`}
-      style={scoped(theme)}
-      className="space-y-3 rounded-card border border-line bg-canvas p-4 text-ink"
-    >
-      <figcaption className="flex items-baseline justify-between gap-3">
-        <span className="text-sm font-semibold">{themeLabel(theme)}</span>
-        <span className="font-mono text-2xs text-muted">prefers-color-scheme: {theme}</span>
-      </figcaption>
-
-      {/* Every colour once, in the file's order: the board's swatch strip. */}
-      <div className="flex h-8 overflow-hidden rounded-control border border-line" aria-hidden="true">
-        {stripe.map((token) => (
-          <span
-            key={token.utility}
-            title={token.utility}
-            className="flex-1"
-            style={{ backgroundColor: `var(--color-${token.utility})` }}
-          />
-        ))}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
-        <Tile className="col-span-2 row-span-2 border border-line bg-canvas sm:col-span-4">
-          <div className="space-y-3 rounded-card border border-line bg-surface p-4 shadow-float">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-mono text-2xs uppercase text-subtle">{t('Invoice')}</p>
-                <p className="text-xl font-semibold">2026-000142</p>
-                <p className="text-sm text-muted">{t('One seat, billed monthly')}</p>
-              </div>
-              <span className={pill('success')}>{t('Paid')}</span>
-            </div>
-            <div className="flex items-baseline justify-between rounded-control border border-line bg-well px-3 py-2">
-              <span className="text-sm text-muted">{t('Total')}</span>
-              <span className="font-mono text-lg font-semibold">€ 24.00</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-control bg-inverse px-3 py-1.5 text-sm font-medium text-on-inverse">
-                {t('Download')}
-              </span>
-              <span className="rounded-control border border-line-strong bg-raised px-3 py-1.5 text-sm font-medium shadow-raise">
-                {t('Send again')}
-              </span>
-              <span className="text-sm font-medium text-accent underline">{t('Open the subscription')}</span>
-            </div>
-          </div>
-          <Tokens>canvas · surface · well · raised · line · line-strong · shadow-float</Tokens>
-        </Tile>
-
-        <Tile className="col-span-1 bg-accent text-on-accent sm:col-span-2">
-          <p className="text-display-sm font-semibold">Aa</p>
-          <Tokens className="text-on-accent">accent · on-accent</Tokens>
-        </Tile>
-
-        <Tile className="col-span-1 border border-line bg-accent-wash text-accent-strong sm:col-span-2">
-          <p className="text-lg font-semibold">{t('Selected')}</p>
-          <Tokens className="text-accent-strong">accent-wash · accent-strong</Tokens>
-        </Tile>
-
-        <Tile className="col-span-1 bg-inverse text-on-inverse sm:col-span-2">
-          <p className="text-lg font-semibold">{t('Primary action')}</p>
-          <Tokens className="text-on-inverse">inverse · on-inverse</Tokens>
-        </Tile>
-
-        <Tile className="col-span-1 border border-line bg-surface sm:col-span-2">
-          <div className="space-y-0.5">
-            <p className="text-lg font-semibold text-ink">{t('What is read')}</p>
-            <p className="text-sm text-muted">{t('What explains it')}</p>
-            <p className="text-sm text-subtle">{t('What is there when looked for')}</p>
-          </div>
-          <Tokens>ink · muted · subtle</Tokens>
-        </Tile>
-
-        <Tile className="col-span-2 border border-line bg-surface sm:col-span-2">
-          <div className="flex flex-wrap gap-1.5">
-            {(['success', 'warning', 'danger', 'info', 'neutral'] as const satisfies readonly Tone[]).map((tone) => (
-              <span key={tone} className={pill(tone)}>
-                {tone}
-              </span>
-            ))}
-          </div>
-          <Tokens>success · warning · danger · info (+ -wash)</Tokens>
-        </Tile>
-      </div>
-    </figure>
   );
 }
 

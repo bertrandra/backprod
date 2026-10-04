@@ -235,6 +235,12 @@ use App\Tenant\Controller\ListMembersController;
 use App\Tenant\Controller\RemoveMemberController;
 use App\Tenant\Controller\UpdateCurrentTenantController;
 use App\Tenant\Controller\UpdateMemberController;
+use App\Theme\Controller\ListTenantThemesController;
+use App\Theme\Controller\ListThemeTemplatesController;
+use App\Theme\Controller\SaveTenantThemeController;
+use App\Theme\Controller\SetActiveTenantThemeController;
+use App\Theme\Controller\ShowActiveTenantThemeController;
+use App\Theme\Controller\ShowTenantThemeController;
 use FastRoute\RouteCollector;
 
 /**
@@ -587,6 +593,14 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('PATCH', '/api/v1/tenant/skin', UpdateSkinController::class);
     $routes->addRoute('POST', '/api/v1/tenant/skin/logo', UploadSkinLogoController::class);
     $routes->addRoute('DELETE', '/api/v1/tenant/skin/logo', DeleteSkinLogoController::class);
+    // An organisation's themes (2026-10-04): five templates to start from,
+    // its own copies, and the one its members' screens wear.
+    $routes->addRoute('GET', '/api/v1/tenant/theme-templates', ListThemeTemplatesController::class);
+    $routes->addRoute('GET', '/api/v1/tenant/themes', ListTenantThemesController::class);
+    $routes->addRoute('GET', '/api/v1/tenant/themes/{name}', ShowTenantThemeController::class);
+    $routes->addRoute('PUT', '/api/v1/tenant/themes/{name}', SaveTenantThemeController::class);
+    $routes->addRoute('GET', '/api/v1/tenant/theme', ShowActiveTenantThemeController::class);
+    $routes->addRoute('PUT', '/api/v1/tenant/theme', SetActiveTenantThemeController::class);
 
     // Platform staff (§12.2). Everything under /staff requires a platform
     // role, which no tenant membership grants — and grants nothing on the

@@ -272,6 +272,9 @@ export const APP_NAV: readonly NavSection[] = [
       { id: 'members', label: 'Members', to: '/members', scope: 'tenant', permission: 'members.manage', secondary: true },
       { id: 'profile', label: 'Your profile', to: '/profile', scope: 'tenant', permission: 'account.read', secondary: true },
       { id: 'branding', label: 'Branding', to: '/branding', scope: 'tenant', permission: 'skin.manage', secondary: true },
+      // The organisation's themes (2026-10-04): templates, its own copies, and
+      // the one its members' screens wear. `skin.manage`, and only that.
+      { id: 'themes', label: 'Themes', to: '/themes', scope: 'tenant', permission: 'skin.manage', secondary: true },
       { id: 'notification-settings', label: 'Notification settings', to: '/notification-settings', scope: 'tenant', permission: 'notifications.read', secondary: true },
     ],
   },

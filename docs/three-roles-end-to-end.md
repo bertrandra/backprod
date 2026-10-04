@@ -317,8 +317,9 @@ non par un paramètre.
 `resendEmailVerification`, `forgotPassword`, `resetPassword` —
 l'authentification elle-même. `showMe`, `listProducts`,
 `showProduct`, `showProductCatalogue`, `listProductFeatures`,
-`showProductConfiguration`, `showSkin` — ce qu'un membre voit du simple fait
-d'être membre. Tout le reste passe par une permission.
+`showProductConfiguration`, `showSkin`, `showActiveTenantTheme` — ce qu'un
+membre voit du simple fait d'être membre : l'écran doit savoir comment se
+peindre avant de savoir ce que quiconque peut y faire. Tout le reste passe par une permission.
 
 `showProductConfiguration` mérite une ligne : la `schema_version` d'un projet en
 sort, **jamais d'une constante**. Coder en dur le fait d'un produit dans un
@@ -395,7 +396,7 @@ démonstration l'affirme à voix haute pour cette raison.
 
 ## Toutes ses actions, et ce qu'elles changent
 
-### L'organisation — `tenant.manage`, `skin.manage`
+### L'organisation, sa marque et son thème — `tenant.manage`, `skin.manage`
 
 | Action | Ce que ça change |
 |---|---|
@@ -405,6 +406,9 @@ démonstration l'affirme à voix haute pour cette raison.
 | `joinSubscription`, `leaveSubscription` | Se met et se retire **lui-même** d'une souscription de son organisation (2026-09-30). Aucun corps : la seule personne que ça nomme est l'appelant. Qui d'autre elle couvre reste la décision de son titulaire, et ça ne dépense aucune place. |
 | `updateSkin` | Couleurs et libellés de la marque. |
 | `uploadSkinLogo`, `deleteSkinLogo` | Pose ou retire le logo. |
+| `listThemeTemplates`, `listTenantThemes`, `showTenantTheme` | Rien. Les cinq modèles de la plateforme, et les thèmes que l'organisation a enregistrés. |
+| `saveTenantTheme` | Enregistre un thème **dans l'organisation**, sous son propre nom — en général un modèle retouché. Un modèle n'est jamais modifié sur place : le changement d'un client repeindrait les écrans de tous les autres. `skin.manage` **seule**, sans la capacité `white_label` que demandent les couleurs du skin : choix de l'opérateur (2026-10-04). |
+| `setActiveTenantTheme` | Choisit le thème que portent les écrans de ses membres, ou aucun (`null`) pour revenir au design de la plateforme. Un seul actif par organisation et produit — un index unique partiel, pas une vérification. |
 
 ### Les gens — `members.manage`
 
@@ -707,21 +711,21 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
 ```text
                                           opérations
   atteignables par un USER seul                    7    billing.pay
-  atteignables par un TENANT_ADMIN seul           36
+  atteignables par un TENANT_ADMIN seul           41
   partagées par les deux                          70
-  sans permission, tout membre                    17
+  sans permission, tout membre                    18
   ─────────────────────────────────────────────────
-  surface locataire                              130
+  surface locataire                              136
 
   PLATFORM_ADMIN                                  85
   publiques, sans compte                           7
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          233
+  total                                          239
 ```
 
-Dont **112 lectures** et **121 écritures**. Chaque écriture a sa ligne dans les
+Dont **116 lectures** et **123 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

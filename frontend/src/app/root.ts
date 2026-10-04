@@ -47,6 +47,7 @@ export const RESERVED: ReadonlySet<string> = new Set([
   'sign-up',
   'subscription',
   'tax',
+  'themes',
 ]);
 
 export interface Root {

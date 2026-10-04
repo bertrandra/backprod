@@ -547,6 +547,20 @@
         "uploadSkinLogo"
       ]
     },
+    "tenant.themes": {
+      "authority": "tenant",
+      "$comment": "An organisation's themes (2026-10-04): five platform templates to start from, edited and saved as the organisation's own copies, and the one its members' screens wear. Behind skin.manage alone — the operator chose not to gate it on white_label. A template is never edited in place: one customer's change would repaint every other's screens. Reading the active theme is bootstrap, because every member's shell reads it to paint itself.",
+      "routes": [
+        "/themes"
+      ],
+      "operations": [
+        "listThemeTemplates",
+        "listTenantThemes",
+        "saveTenantTheme",
+        "setActiveTenantTheme",
+        "showTenantTheme"
+      ]
+    },
     "tenant.members": {
       "authority": "tenant",
       "routes": [
@@ -666,6 +680,7 @@
       "showMyEntitlements": "tenant",
       "showMyNavigation": "tenant",
       "showMyPermissions": "tenant",
+      "showActiveTenantTheme": "tenant",
       "showStaffIdentity": "platform",
       "showStaffNavigation": "platform"
     }

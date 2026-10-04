@@ -235,7 +235,7 @@ accordée au rôle puis retirée à la résolution.
 | `tax.manage` | oui | non | régler le profil, clore une période |
 | `jobs.read` | oui | oui | travaux de fond |
 | `jobs.manage` | oui | non | lancer, annuler |
-| `skin.manage` | oui | non | habillage — **+ capacité `white_label`** |
+| `skin.manage` | oui | non | habillage — **+ capacité `white_label`** pour les couleurs et le logo du skin ; **seule** pour les thèmes de l'organisation (2026-10-04) |
 
 ## La matrice, côté plateforme
 

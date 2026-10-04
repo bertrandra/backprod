@@ -32,6 +32,7 @@ import { OrdersScreen } from '@/features/sales/OrdersScreen';
 import { TaxProfileScreen } from '@/features/tax/TaxProfileScreen';
 import { TaxRatesScreen } from '@/features/tax/TaxRatesScreen';
 import { VatReportsScreen } from '@/features/tax/VatReportsScreen';
+import { ThemesScreen } from '@/features/themes/ThemesScreen';
 import { JobsScreen } from '@/features/workspace/JobsScreen';
 import { ProjectScreen } from '@/features/workspace/ProjectScreen';
 import { ProjectsScreen } from '@/features/workspace/ProjectsScreen';
@@ -86,6 +87,7 @@ const SCREEN_ROUTES: readonly { path: string; component: () => React.JSX.Element
   { path: '/organisation', component: OrganisationScreen },
   { path: '/members', component: MembersScreen },
   { path: '/branding', component: BrandingScreen },
+  { path: '/themes', component: ThemesScreen },
   // U3
   { path: '/notifications', component: NotificationsScreen },
   { path: '/notification-settings', component: NotificationSettingsScreen },

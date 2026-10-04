@@ -2801,6 +2801,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenant/theme-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The five themes an organisation starts from
+         * @description The platform's theme templates, with their documents, in the order they are offered (2026-10-04). Read-only: an organisation edits a copy, saved under its own name, so that one customer's change never repaints another's screens. Every template clears WCAG AA on every pair text is set in, in both themes. `skin.manage`.
+         */
+        get: operations["listThemeTemplates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/themes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The organisation's own themes
+         * @description The themes this organisation has saved, by name, each saying whether it is the one its members' screens wear. Scoped to the caller's tenant and product, like the skin; a name another organisation saved is not found. `skin.manage`.
+         */
+        get: operations["listTenantThemes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/themes/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One of the organisation's themes, with its document
+         * @description One saved theme. Scoped to the caller's tenant and product, like the skin; a name another organisation saved is not found. `skin.manage`.
+         */
+        get: operations["showTenantTheme"];
+        /**
+         * Save a theme in the organisation
+         * @description Creates the organisation's theme under this name, or replaces its whole document — usually a template, edited. Saving under a template's own name saves a copy here; the template does not move. Saving the active theme changes its members' screens at their next load. Validated whole and refused whole, every value held to CSS's own shape. Scoped to the caller's tenant and product, like the skin; a name another organisation saved is not found. `skin.manage`.
+         */
+        put: operations["saveTenantTheme"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant/theme": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The theme this organisation's screens wear
+         * @description The active theme, or `null` for the platform's own design. **Any member**: the shell reads it to paint itself, before it knows what anybody may do — the skin's reasoning. The shell applies it on the organisation's own screens — never the console's — as the `--ds-*` variables in both modes, and the fonts and type scale as `--font-*` and `--text-*`.
+         */
+        get: operations["showActiveTenantTheme"];
+        /**
+         * Choose which theme the organisation's screens wear
+         * @description `{name}` makes one of the organisation's themes the active one, and `{name: null}` goes back to the platform's own design. `name` must be present: a body that forgot it is refused, not read as switching theming off. At most one theme is active per tenant and product — a partial unique index, not a check. Scoped to the caller's tenant and product, like the skin; a name another organisation saved is not found. `skin.manage`.
+         */
+        put: operations["setActiveTenantTheme"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenants/current": {
         parameters: {
             query?: never;
@@ -4101,6 +4189,24 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ThemeTemplate: {
+            name: string;
+            document: components["schemas"]["ThemeDocument"];
+        };
+        TenantThemeSummary: {
+            name: string;
+            /** Format: date-time */
+            updated_at: string;
+            /** @description Whether this is the theme the organisation's screens wear. At most one is. */
+            active: boolean;
+        };
+        TenantTheme: {
+            name: string;
+            /** Format: date-time */
+            updated_at: string;
+            active: boolean;
+            document: components["schemas"]["ThemeDocument"];
+        };
         /** @description The design system as a document: the colours in their groups and in both themes, the font families and the type scale, as `frontend/src/index.css` defines them. Validated whole and refused whole. Stored, not applied — the stylesheet stays the design system — and its values are held to CSS's own shape so that a document already stored can never close a declaration or open markup the day something reads it into a stylesheet. */
         ThemeDocument: {
             /**
@@ -4108,6 +4214,10 @@ export interface components {
              * @constant
              */
             format: 1;
+            /** @description What the theme is called to a person — `Forest ledger`. Optional: what the console reads out of the stylesheet has none. */
+            label?: string;
+            /** @description What the theme is for, in a sentence. Optional. */
+            description?: string;
             /** @description Groups, in the stylesheet's order — each a run of `--color-*` in `@theme`, titled by the comment above it. */
             colors: {
                 group: string;
@@ -13039,6 +13149,295 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             /** @description `PERMISSION_DENIED` — the caller may not configure the tenant. Or `ENTITLEMENT_REQUIRED` — the tenant's plan does not include `white_label`. The two are separate checks and neither implies the other. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listThemeTemplates: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The templates. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        templates: components["schemas"]["ThemeTemplate"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listTenantThemes: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The organisation's themes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        themes: components["schemas"]["TenantThemeSummary"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showTenantTheme: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                /** @description The theme's name in this organisation — lower-case letters, digits and hyphens. */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The theme. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        theme: components["schemas"]["TenantTheme"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — the name is not in the shape a name has. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `THEME_NOT_FOUND` — this organisation has saved nothing under that name. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    saveTenantTheme: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path: {
+                /** @description The theme's name in this organisation — lower-case letters, digits and hyphens. */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    document: components["schemas"]["ThemeDocument"];
+                };
+            };
+        };
+        responses: {
+            /** @description The theme as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        theme: components["schemas"]["TenantTheme"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — the name, or any part of the document, is out of shape; `details.field` names which. Nothing is written. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showActiveTenantTheme: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The active theme, or null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        theme: components["schemas"]["TenantTheme"] | null;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setActiveTenantTheme: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
+                "X-Product": components["parameters"]["ProductHeader"];
+                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
+                "X-Tenant"?: components["parameters"]["TenantHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The active theme as it now stands, or null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        theme: components["schemas"]["TenantTheme"] | null;
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `name` is missing, or not a name. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `THEME_NOT_FOUND` — this organisation has saved nothing under that name. Nothing changes. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

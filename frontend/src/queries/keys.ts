@@ -45,6 +45,16 @@ export const keys = {
     all: ['members'] as const,
     requests: ['members', 'requests'] as const,
   },
+  /**
+   * An organisation's themes (2026-10-04). Like the skin, keyed without the
+   * product: switching product starts a fresh cache.
+   */
+  themes: {
+    templates: ['themes', 'templates'] as const,
+    mine: ['themes', 'mine'] as const,
+    one: (name: string) => ['themes', 'mine', name] as const,
+    active: ['themes', 'active'] as const,
+  },
   skin: {
     current: ['skin', 'current'] as const,
   },

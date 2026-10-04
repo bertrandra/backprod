@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 
@@ -151,6 +153,22 @@ async function stubbed(page: Page) {
       },
     }),
   );
+  // The five real templates, and one organisation theme in use, so the
+  // themes screen is scanned with everything it can show.
+  await page.route(/\/api\/v1\/tenant\/theme-templates$/, (route) =>
+    route.fulfill({
+      json: {
+        templates: ['petrol-classic', 'forest-ledger', 'terracotta-studio', 'midnight-indigo', 'graphite-compact'].map((name) => ({
+          name,
+          document: JSON.parse(readFileSync(new URL(`../../docs/themes/${name}.json`, import.meta.url), 'utf8')) as unknown,
+        })),
+      },
+    }),
+  );
+  await page.route(/\/api\/v1\/tenant\/themes$/, (route) =>
+    route.fulfill({ json: { themes: [{ name: 'acme-forest', updated_at: '2026-10-04T09:00:00+00:00', active: true }] } }),
+  );
+  await page.route(/\/api\/v1\/tenant\/theme$/, (route) => route.fulfill({ json: { theme: null } }));
   // A saved `default`, so the palette's save panel is scanned in the state
   // with the most on it: a saved theme, its time, and the list.
   await page.route(/\/api\/v1\/staff\/themes$/, (route) =>
@@ -276,6 +294,7 @@ const TENANT_ROUTES = [
   '/organisation',
   '/members',
   '/branding',
+  '/themes',
   '/notifications',
   '/notification-settings',
   '/conversations',

@@ -308,6 +308,72 @@
       }
     },
     "schemas": {
+      "ThemeTemplate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "document"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+          },
+          "document": {
+            "$ref": "#/components/schemas/ThemeDocument"
+          }
+        }
+      },
+      "TenantThemeSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "updated_at",
+          "active"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Whether this is the theme the organisation's screens wear. At most one is."
+          }
+        }
+      },
+      "TenantTheme": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "updated_at",
+          "active",
+          "document"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "document": {
+            "$ref": "#/components/schemas/ThemeDocument"
+          }
+        }
+      },
       "ThemeDocument": {
         "type": "object",
         "additionalProperties": false,
@@ -323,6 +389,18 @@
             "type": "integer",
             "const": 1,
             "description": "The shape of this document. 1 is the only one."
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "What the theme is called to a person — `Forest ledger`. Optional: what the console reads out of the stylesheet has none."
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "What the theme is for, in a sentence. Optional."
           },
           "colors": {
             "type": "array",
@@ -358,7 +436,7 @@
                     "properties": {
                       "name": {
                         "type": "string",
-                        "pattern": "^[a-z][a-z0-9-]{0,63}$",
+                        "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
                         "description": "The utility root: `accent-wash`, as in `bg-accent-wash`. Unique within the theme."
                       },
                       "variable": {
@@ -397,7 +475,7 @@
               "properties": {
                 "role": {
                   "type": "string",
-                  "pattern": "^[a-z][a-z0-9-]{0,63}$",
+                  "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
                   "description": "`sans`, `mono` — the `--font-*` suffix."
                 },
                 "variable": {
@@ -433,7 +511,7 @@
               "properties": {
                 "name": {
                   "type": "string",
-                  "pattern": "^[a-z][a-z0-9-]{0,63}$",
+                  "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
                   "description": "The step: `xs`, `2xl`, `display-lg`."
                 },
                 "variable": {
@@ -17778,6 +17856,473 @@
           },
           "403": {
             "description": "`PERMISSION_DENIED` — the caller may not configure the tenant. Or `ENTITLEMENT_REQUIRED` — the tenant's plan does not include `white_label`. The two are separate checks and neither implies the other.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tenant/theme-templates": {
+      "get": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "listThemeTemplates",
+        "summary": "The five themes an organisation starts from",
+        "description": "The platform's theme templates, with their documents, in the order they are offered (2026-10-04). Read-only: an organisation edits a copy, saved under its own name, so that one customer's change never repaints another's screens. Every template clears WCAG AA on every pair text is set in, in both themes. `skin.manage`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The templates.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "templates"
+                  ],
+                  "properties": {
+                    "templates": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ThemeTemplate"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tenant/themes": {
+      "get": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "listTenantThemes",
+        "summary": "The organisation's own themes",
+        "description": "The themes this organisation has saved, by name, each saying whether it is the one its members' screens wear. Scoped to the caller's tenant and product, like the skin; a name another organisation saved is not found. `skin.manage`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The organisation's themes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "themes"
+                  ],
+                  "properties": {
+                    "themes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TenantThemeSummary"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tenant/themes/{name}": {
+      "get": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "showTenantTheme",
+        "summary": "One of the organisation's themes, with its document",
+        "description": "One saved theme. Scoped to the caller's tenant and product, like the skin; a name another organisation saved is not found. `skin.manage`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "The theme's name in this organisation — lower-case letters, digits and hyphens.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The theme.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "theme"
+                  ],
+                  "properties": {
+                    "theme": {
+                      "$ref": "#/components/schemas/TenantTheme"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — the name is not in the shape a name has.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`THEME_NOT_FOUND` — this organisation has saved nothing under that name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "saveTenantTheme",
+        "summary": "Save a theme in the organisation",
+        "description": "Creates the organisation's theme under this name, or replaces its whole document — usually a template, edited. Saving under a template's own name saves a copy here; the template does not move. Saving the active theme changes its members' screens at their next load. Validated whole and refused whole, every value held to CSS's own shape. Scoped to the caller's tenant and product, like the skin; a name another organisation saved is not found. `skin.manage`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "The theme's name in this organisation — lower-case letters, digits and hyphens.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "document"
+                ],
+                "properties": {
+                  "document": {
+                    "$ref": "#/components/schemas/ThemeDocument"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The theme as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "theme"
+                  ],
+                  "properties": {
+                    "theme": {
+                      "$ref": "#/components/schemas/TenantTheme"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — the name, or any part of the document, is out of shape; `details.field` names which. Nothing is written.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tenant/theme": {
+      "get": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "showActiveTenantTheme",
+        "summary": "The theme this organisation's screens wear",
+        "description": "The active theme, or `null` for the platform's own design. **Any member**: the shell reads it to paint itself, before it knows what anybody may do — the skin's reasoning. The shell applies it on the organisation's own screens — never the console's — as the `--ds-*` variables in both modes, and the fonts and type scale as `--font-*` and `--text-*`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The active theme, or null.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "theme"
+                  ],
+                  "properties": {
+                    "theme": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/TenantTheme"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "setActiveTenantTheme",
+        "summary": "Choose which theme the organisation's screens wear",
+        "description": "`{name}` makes one of the organisation's themes the active one, and `{name: null}` goes back to the platform's own design. `name` must be present: a body that forgot it is refused, not read as switching theming off. At most one theme is active per tenant and product — a partial unique index, not a check. Scoped to the caller's tenant and product, like the skin; a name another organisation saved is not found. `skin.manage`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The active theme as it now stands, or null.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "theme"
+                  ],
+                  "properties": {
+                    "theme": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/TenantTheme"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — `name` is missing, or not a name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`THEME_NOT_FOUND` — this organisation has saved nothing under that name. Nothing changes.",
             "content": {
               "application/json": {
                 "schema": {

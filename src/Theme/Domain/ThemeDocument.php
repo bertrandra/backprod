@@ -13,6 +13,8 @@ use App\Shared\Exceptions\BadRequestException;
  * ```json
  * {
  *   "format": 1,
+ *   "label": "Forest ledger",
+ *   "description": "Deep green on warm paper…",
  *   "colors": [
  *     {"group": "Surfaces, in levels", "tokens": [
  *       {"name": "canvas", "variable": "--ds-canvas", "light": "#f5f7f9", "dark": "#0a0e14"}
@@ -39,12 +41,17 @@ use App\Shared\Exceptions\BadRequestException;
  *
  * Validated as a whole and refused as a whole: a theme half-saved is a theme
  * nobody chose.
+ *
+ * `label` and `description` are optional (2026-10-04): what a template is
+ * called to a person, and what it is for. A document without them — what the
+ * console reads out of the stylesheet — reads back without them, rather than
+ * with an empty one nobody wrote.
  */
 final class ThemeDocument
 {
     public const FORMAT = 1;
 
-    private const NAME = '/^[a-z][a-z0-9-]{0,63}$/';
+    private const NAME = '/^[a-z0-9][a-z0-9-]{0,63}$/';
     private const VARIABLE = '/^--[a-z][a-z0-9-]{0,63}$/';
 
     /**
@@ -132,7 +139,17 @@ final class ThemeDocument
             ];
         }
 
-        return new self(['format' => self::FORMAT, 'colors' => $groups, 'fonts' => $fonts, 'type_scale' => $scale]);
+        $words = [];
+
+        if (($raw['label'] ?? null) !== null) {
+            $words['label'] = self::text($raw, 'label', 60, 'document');
+        }
+
+        if (($raw['description'] ?? null) !== null) {
+            $words['description'] = self::text($raw, 'description', 300, 'document');
+        }
+
+        return new self(['format' => self::FORMAT, ...$words, 'colors' => $groups, 'fonts' => $fonts, 'type_scale' => $scale]);
     }
 
     /**
