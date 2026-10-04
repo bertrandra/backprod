@@ -19419,6 +19419,81 @@
         }
       }
     },
+    "/api/v1/public/palette": {
+      "get": {
+        "tags": [
+          "Storefront"
+        ],
+        "operationId": "getPublicPalette",
+        "summary": "The palette an organisation's public page wears for a product",
+        "description": "What a stranger's screen paints itself with on an organisation's public page (2026-10-04): the palette the organisation wears in this product — chosen by its administrator or assigned from the console, the same row. `tenant` is the slug of the URL root; absent, the bare host's, whose organisation is the platform's default. `null` for every way of naming nothing — an unknown organisation or product, one it does not hold, an inactive product, no choice made — so this is not a way to learn which organisations or products exist. Public by construction: how the page looks is already on the page.",
+        "parameters": [
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "description": "The product's code, as the shop window takes it."
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "description": "The slug of the organisation whose URL root the page is on (2026-09-17). Narrows the window to the products that organisation holds; absent, the bare host's — the default tenant's, or the platform's where none is set. A slug nobody has shows nothing, as an unknown product does."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The palette, or null for the platform's own design.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "palette"
+                  ],
+                  "properties": {
+                    "palette": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/Palette"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — `product` is missing, or a parameter is too long.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/public/demo": {
       "get": {
         "tags": [

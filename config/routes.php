@@ -237,6 +237,7 @@ use App\Tenant\Controller\RemoveMemberController;
 use App\Tenant\Controller\UpdateCurrentTenantController;
 use App\Tenant\Controller\UpdateMemberController;
 use App\Theme\Controller\ListTenantPalettesController;
+use App\Theme\Controller\PublicPaletteController;
 use App\Theme\Controller\SelectTenantPaletteController;
 use App\Theme\Controller\ShowTenantPaletteController;
 use FastRoute\RouteCollector;
@@ -318,6 +319,9 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/public/products/{code}/showcase/assets/{assetId}', PublicShowcaseAssetController::class);
     // The organisation at a URL root (2026-09-17), before any session.
     $routes->addRoute('GET', '/api/v1/public/tenant', PublicTenantController::class);
+    // The palette an organisation's public page wears for a product
+    // (2026-10-04): what that page already shows anyone, so nothing to guard.
+    $routes->addRoute('GET', '/api/v1/public/palette', PublicPaletteController::class);
     // The demonstration page (2026-09-18): 404 until the console switches it on.
     $routes->addRoute('GET', '/api/v1/public/demo', PublicDemoController::class);
 

@@ -605,3 +605,47 @@ describe('after the sign-up, by the platform’s choice', () => {
     expect(requests.some((r) => r.path === '/api/v1/checkout/sessions')).toBe(false);
   });
 });
+
+describe('the public page wears the organisation’s palette', () => {
+  afterEach(() => document.head.querySelectorAll('style[data-tenant-theme]').forEach((element) => element.remove()));
+
+  const PALETTE = {
+    name: 'vintage-sepia',
+    updated_at: '2026-10-04T09:00:00+00:00',
+    document: {
+      format: 1,
+      colors: [{ group: 'Accent', tokens: [{ name: 'accent', variable: '--ds-accent', light: '#b82e45', dark: '#dc7284' }] }],
+      fonts: [],
+      type_scale: [],
+    },
+  };
+
+  it('asks for the palette of this organisation and product, and paints it', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/public/tenant': { data: { tenant: ACME } },
+      'GET /api/v1/public/products': { data: { products: [ATLAS] } },
+      'GET /api/v1/public/offers': { data: WINDOW },
+      'GET /api/v1/public/palette': { data: { palette: PALETTE } },
+    });
+    renderWith(<Storefront onSignIn={() => undefined} />, client);
+
+    await waitFor(() => expect(document.head.querySelector('style[data-tenant-theme]')).not.toBeNull());
+    const rule = document.head.querySelector<HTMLStyleElement>('style[data-tenant-theme]')?.sheet?.cssRules[0];
+
+    expect(rule instanceof CSSStyleRule ? rule.style.getPropertyValue('--ds-accent') : null).toBe('#b82e45');
+    expect(requests.find((r) => r.path === '/api/v1/public/palette')?.query).toEqual({ product: 'atlas', tenant: 'acme' });
+  });
+
+  it('paints nothing where the organisation has chosen none', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/public/tenant': { data: { tenant: ACME } },
+      'GET /api/v1/public/products': { data: { products: [ATLAS] } },
+      'GET /api/v1/public/offers': { data: WINDOW },
+      'GET /api/v1/public/palette': { data: { palette: null } },
+    });
+    renderWith(<Storefront onSignIn={() => undefined} />, client);
+
+    await waitFor(() => expect(requests.some((r) => r.path === '/api/v1/public/palette')).toBe(true));
+    expect(document.head.querySelector('style[data-tenant-theme]')).toBeNull();
+  });
+});

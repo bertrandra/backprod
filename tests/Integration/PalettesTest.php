@@ -10,6 +10,7 @@ use App\Entitlement\Infrastructure\InMemoryEntitlementRepository;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRepository;
+use App\Tenant\Domain\DefaultTenant;
 use App\Tenant\Domain\TenantMembership;
 use App\Tenant\Domain\TenantMembershipRepository;
 use App\Tenant\Infrastructure\InMemoryTenantMembershipRepository;
@@ -278,6 +279,54 @@ final class PalettesTest extends DatabaseApiTestCase
                  WHERE p.code = 'staff.design.manage'
                 SQL,
         ));
+    }
+
+    // --- the public page ------------------------------------------------------
+
+    /**
+     * A stranger sees the palette the organisation chose for that product, at
+     * its root — and the default organisation's at the bare host. No session,
+     * no header: a public read, of what the public page already shows.
+     */
+    public function testAStrangerSeesTheOrganisationsPaletteOnItsPublicPage(): void
+    {
+        $this->call('PUT', '/api/v1/tenant/palette', ['palette' => 'vintage-sepia'], self::ADA);
+        $this->call('PUT', $this->cell($this->acme, $this->beta), ['palette' => 'neon-night'], self::OLA);
+
+        $atlas = $this->request('GET', '/api/v1/public/palette?product=atlas&tenant=acme');
+        self::assertSame(200, $atlas->getStatusCode(), (string) $atlas->getBody());
+        self::assertSame('vintage-sepia', $this->at($atlas, 'palette', 'name'));
+        self::assertIsArray($this->at($atlas, 'palette', 'document', 'colors'));
+
+        // One palette per product: the same organisation wears another in Beta.
+        self::assertSame('neon-night', $this->at($this->request('GET', '/api/v1/public/palette?product=beta&tenant=acme'), 'palette', 'name'));
+
+        // The bare host is the default organisation's page.
+        $default = $this->container()->get(DefaultTenant::class);
+        self::assertInstanceOf(DefaultTenant::class, $default);
+        $default->set($this->acme);
+        self::assertSame('vintage-sepia', $this->at($this->request('GET', '/api/v1/public/palette?product=atlas'), 'palette', 'name'));
+    }
+
+    /** Every way of naming nothing answers the same nothing. */
+    public function testThePublicReadNamesNothingItShouldNot(): void
+    {
+        $this->call('PUT', $this->cell($this->acme, $this->atlas), ['palette' => 'forest-ledger'], self::OLA);
+        $this->connection->executeStatement("UPDATE products SET active = false WHERE code = 'beta'");
+
+        foreach ([
+            '/api/v1/public/palette?product=atlas&tenant=nobody',   // no such organisation
+            '/api/v1/public/palette?product=nothing&tenant=acme',   // no such product
+            '/api/v1/public/palette?product=atlas&tenant=basic',    // nothing chosen
+            '/api/v1/public/palette?product=beta&tenant=basic',     // not held
+            '/api/v1/public/palette?product=atlas',                 // no default organisation
+        ] as $path) {
+            $response = $this->request('GET', $path);
+            self::assertSame(200, $response->getStatusCode(), $path);
+            self::assertSame(['palette' => null], $this->decode($response), $path);
+        }
+
+        self::assertSame(400, $this->request('GET', '/api/v1/public/palette?tenant=acme')->getStatusCode());
     }
 
     // --- helpers -------------------------------------------------------------

@@ -3165,6 +3165,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/palette": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The palette an organisation's public page wears for a product
+         * @description What a stranger's screen paints itself with on an organisation's public page (2026-10-04): the palette the organisation wears in this product — chosen by its administrator or assigned from the console, the same row. `tenant` is the slug of the URL root; absent, the bare host's, whose organisation is the platform's default. `null` for every way of naming nothing — an unknown organisation or product, one it does not hold, an inactive product, no choice made — so this is not a way to learn which organisations or products exist. Public by construction: how the page looks is already on the page.
+         */
+        get: operations["getPublicPalette"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/demo": {
         parameters: {
             query?: never;
@@ -14027,6 +14047,44 @@ export interface operations {
             };
             /** @description `TENANT_NOT_FOUND` — no organisation has this slug; or `NO_DEFAULT_TENANT` — nothing is set for the bare host. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPublicPalette: {
+        parameters: {
+            query: {
+                /** @description The product's code, as the shop window takes it. */
+                product: string;
+                /** @description The slug of the organisation whose URL root the page is on (2026-09-17). Narrows the window to the products that organisation holds; absent, the bare host's — the default tenant's, or the platform's where none is set. A slug nobody has shows nothing, as an unknown product does. */
+                tenant?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The palette, or null for the platform's own design. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        palette: components["schemas"]["Palette"] | null;
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `product` is missing, or a parameter is too long. */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

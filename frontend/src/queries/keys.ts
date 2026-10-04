@@ -36,6 +36,8 @@ export const keys = {
     offer: (product: string, offerId: string, locale: string) =>
       ['storefront', 'offer', product, offerId, locale] as const,
     listing: (product: string) => ['storefront', 'listing', product] as const,
+    /** The palette an organisation's public page wears for a product (2026-10-04). */
+    palette: (product: string, tenant: string) => ['storefront', 'palette', tenant, product] as const,
   },
   organisation: {
     current: ['organisation', 'current'] as const,

@@ -88,6 +88,10 @@ final class RouteSurfaceTest extends ApiTestCase
         // page is published, 404 the moment it is not.
         'GET /api/v1/public/products/{code}/showcase/assets/{assetId}',
         'GET /api/v1/public/tenant',
+        // How an organisation's public page looks for a product (2026-10-04):
+        // already on that page for anyone, and null for anything that names
+        // nothing, so it enumerates nothing.
+        'GET /api/v1/public/palette',
         // The demonstration page: a 404 until switched on, so the route itself
         // reveals nothing.
         'GET /api/v1/public/demo',

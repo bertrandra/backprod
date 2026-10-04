@@ -23,8 +23,16 @@ import { useWornPalette } from '@/queries/palettes';
  */
 export function useTenantPalette(enabled: boolean): void {
   const worn = useWornPalette(enabled);
-  const document = enabled ? (worn.data?.document ?? null) : null;
 
+  usePaintPalette(enabled ? (worn.data?.document ?? null) : null);
+}
+
+/**
+ * Paints a palette onto the page while the caller is mounted, and takes it
+ * off when it is not — the one door both the shell (a member's screens) and
+ * the public page (a stranger's) paint through.
+ */
+export function usePaintPalette(document: ThemeDocument | null): void {
   useEffect(() => applyTheme(document), [document]);
 }
 

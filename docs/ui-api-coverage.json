@@ -479,13 +479,14 @@
     },
     "public.storefront": {
       "authority": "public",
-      "$comment": "The landing page and the account it creates. The product is chosen from listPublicProducts — only products with something advertised, so the list says nothing the windows do not (ADR-047) — or named by ?product=, never taken from a membership; and only offers marked publicly_listed appear — being on sale and being advertised are two different decisions. Choosing an offer opens the sign-up form; the checkout that follows runs on the session that creates and is therefore commerce.checkout's openCheckoutSession, not a second anonymous purchase flow with rules of its own.",
+      "$comment": "The landing page and the account it creates. The product is chosen from listPublicProducts — only products with something advertised, so the list says nothing the windows do not (ADR-047) — or named by ?product=, never taken from a membership; and only offers marked publicly_listed appear — being on sale and being advertised are two different decisions. Choosing an offer opens the sign-up form; the checkout that follows runs on the session that creates and is therefore commerce.checkout's openCheckoutSession, not a second anonymous purchase flow with rules of its own. Since 2026-10-04 the page wears the palette the organisation chose for the product (getPublicPalette) — the same one its members see.",
       "routes": [
         "/"
       ],
       "operations": [
         "listPublicProducts",
         "showPublicTenant",
+        "getPublicPalette",
         "getPublicOffers",
         "getPublicOffer",
         "getPublicShowcase",

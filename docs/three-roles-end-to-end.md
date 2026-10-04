@@ -683,10 +683,12 @@ clients.
 
 # Ce qu'aucun des trois n'atteint à la main
 
-### Publiques — sept opérations, aucun compte
+### Publiques — huit opérations, aucun compte
 
 `signUp`, `getPublicOffers`, `getPublicOffer`, `listPublicProducts`,
-`getPublicShowcase`, `showPublicTenant`, `showPublicDemo`. La vitrine vend à des
+`getPublicShowcase`, `showPublicTenant`, `showPublicDemo`, `getPublicPalette` —
+la palette que l'organisation porte pour ce produit, celle que voient ses
+membres, puisque la page la montre déjà à n'importe qui. La vitrine vend à des
 inconnus (ADR-041) ; ce que la plateforme *fait tourner* reste privé, seuls les
 produits qui annoncent quelque chose de vendable sont listés.
 
@@ -719,14 +721,14 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
   surface locataire                              133
 
   PLATFORM_ADMIN                                  86
-  publiques, sans compte                           7
+  publiques, sans compte                           8
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          237
+  total                                          238
 ```
 
-Dont **114 lectures** et **123 écritures**. Chaque écriture a sa ligne dans les
+Dont **115 lectures** et **123 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

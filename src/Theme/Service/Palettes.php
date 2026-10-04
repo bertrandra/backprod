@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Theme\Service;
 
+use App\Product\Domain\ProductRepository;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Validation\Uuid;
 use App\Staff\Domain\StaffAccess;
 use App\Staff\Domain\StaffAccessLog;
 use App\Staff\Domain\StaffIdentity;
 use App\Staff\Domain\StaffPermission;
+use App\Tenant\Domain\DefaultTenant;
+use App\Tenant\Domain\TenantRepository;
 use App\Theme\Domain\Palette;
 use App\Theme\Domain\PaletteAssignments;
 use App\Theme\Domain\PaletteName;
@@ -36,6 +39,9 @@ final class Palettes
         private readonly PaletteRepository $palettes,
         private readonly TenantPaletteRepository $tenants,
         private readonly StaffAccessLog $trail,
+        private readonly TenantRepository $organisations,
+        private readonly DefaultTenant $default,
+        private readonly ProductRepository $products,
     ) {
     }
 
@@ -94,6 +100,29 @@ final class Palettes
     public function selected(string $tenantId, string $productId): ?Palette
     {
         return $this->tenants->selected($tenantId, $productId);
+    }
+
+    /**
+     * The palette a stranger sees at an organisation's root for a product
+     * (2026-10-04): the organisation the slug names, or the platform's
+     * default one on the bare host — the same root the shop window resolves.
+     *
+     * Null for every way of naming nothing — an unknown slug, an unknown or
+     * inactive product, a product the organisation does not hold, no choice
+     * made — and that sameness is the point: a public read that answered
+     * differently for each would be a way to learn which organisations and
+     * products exist.
+     */
+    public function publicFor(string $productCode, ?string $slug): ?Palette
+    {
+        $tenantId = $slug === null ? $this->default->id() : $this->organisations->findBySlug($slug)?->id;
+        $product = $this->products->findByCode($productCode);
+
+        if ($tenantId === null || $product === null || !$product->active) {
+            return null;
+        }
+
+        return $this->tenants->selected($tenantId, $product->id);
     }
 
     private function choose(string $tenantId, string $productId, ?string $name, string $by): ?Palette
