@@ -133,11 +133,28 @@ final class PasswordAndPeopleTest extends DatabaseApiTestCase
         self::assertSame(3, $people['quota'] ?? null);
         self::assertTrue($people['owner'] ?? null);
         self::assertSame([], $people['members'] ?? null);
+        // The server's count (2026-10-05): the owner alone, who administers nothing.
+        self::assertSame(1, $people['places_used'] ?? null);
+        self::assertFalse($people['owner_administrator'] ?? null);
 
         // An existing member of the organisation, by id.
         $added = $this->request('POST', '/api/v1/subscription/people', $uma, $this->json(['seat' => true, 'user_id' => $this->ann]));
         self::assertSame(201, $added->getStatusCode());
         self::assertFalse($this->decode($added)['invited'] ?? null);
+        // Ann administers the organisation, and the answer says so.
+        $member = $this->decode($added)['member'] ?? null;
+        self::assertIsArray($member);
+        self::assertTrue($member['administrator'] ?? null);
+
+        // And the list counts what the refusal counts: Ann is on it, and the
+        // places taken are still the owner's one.
+        $people = $this->decode($this->request('GET', '/api/v1/subscription/people?seat=1', $uma));
+        self::assertSame(1, $people['places_used'] ?? null);
+        $listed = $people['members'] ?? null;
+        self::assertIsArray($listed);
+        $first = $listed[0] ?? null;
+        self::assertIsArray($first);
+        self::assertTrue($first['administrator'] ?? null);
 
         // Ann is now entitled by Uma's seat — the feature the offer grants.
         self::assertContains('users', $this->capabilitiesOf($this->as('ann@acme.test')));
@@ -194,6 +211,11 @@ final class PasswordAndPeopleTest extends DatabaseApiTestCase
         $details = $this->errorOf($after)['details'] ?? null;
         self::assertIsArray($details);
         self::assertSame(3, $details['used'] ?? null);
+
+        // Full, and an administrator still gets in — free, as the screen says.
+        $back = $this->request('POST', '/api/v1/subscription/people', $uma, $this->json(['seat' => true, 'user_id' => $this->ann]));
+        self::assertSame(201, $back->getStatusCode(), (string) $back->getBody());
+        self::assertSame(3, $this->decode($this->request('GET', '/api/v1/subscription/people?seat=1', $uma))['places_used'] ?? null);
 
         // And removing somebody who did take one gives it back.
         self::assertSame(204, $this->request('DELETE', '/api/v1/subscription/people/' . $this->userId('zed@elsewhere.test') . '?seat=1', $uma)->getStatusCode());

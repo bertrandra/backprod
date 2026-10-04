@@ -5656,7 +5656,8 @@
           "user_id",
           "email",
           "display_name",
-          "added_at"
+          "added_at",
+          "administrator"
         ],
         "properties": {
           "user_id": {
@@ -5678,6 +5679,10 @@
           "added_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "administrator": {
+            "type": "boolean",
+            "description": "Whether this person administers the organisation on this product (TENANT_ADMIN) — and so takes no place (2026-09-30): covered for free, not counted against `quota`."
           }
         },
         "description": "A person a subscription covers beside its owner (2026-09-19). Entitlement resolution counts them: a member of Ada’s seat is entitled by it."
@@ -5689,6 +5694,8 @@
           "owner_user_id",
           "owner",
           "quota",
+          "places_used",
+          "owner_administrator",
           "members"
         ],
         "description": "Who a subscription covers and how many it may (2026-09-19). The quota is the offer’s `users` feature, counting the owner; 1 when the offer sold none — a seat is one person’s unless it says otherwise; null for unlimited.",
@@ -5713,6 +5720,15 @@
               "integer",
               "null"
             ]
+          },
+          "places_used": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "How many places are taken (2026-10-05): the owner and the people added, **administrators excluded** — anybody holding TENANT_ADMIN on this subscription's tenant and product takes no place. The same count the server refuses an addition by (`PEOPLE_QUOTA_REACHED`), so a screen never counts on its own."
+          },
+          "owner_administrator": {
+            "type": "boolean",
+            "description": "Whether the owner administers the organisation on this product, and so takes no place either."
           },
           "members": {
             "type": "array",
@@ -16449,7 +16465,7 @@
         ],
         "operationId": "addSubscriptionPerson",
         "summary": "The owner adds somebody to the subscription",
-        "description": "`subscription.manage`, and the owner alone — whoever activated it (2026-09-19). A member of the organisation by `user_id`, or anybody by `email`: an address with no account gets one, a live USER membership of the organisation on every product it holds, and an invitation link (seven days) to set a password; an address with an account is added, and made a member if it was not one. Within the offer's `users` quota, which counts the owner.",
+        "description": "`subscription.manage`, and the owner alone — whoever activated it (2026-09-19). A member of the organisation by `user_id`, or anybody by `email`: an address with no account gets one, a live USER membership of the organisation on every product it holds, and an invitation link (seven days) to set a password; an address with an account is added, and made a member if it was not one. Within the offer's `users` quota, which counts the owner — and never an administrator: somebody holding TENANT_ADMIN on this tenant and product takes no place, so naming one by `user_id` is accepted even when every place is taken (2026-09-30).",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
@@ -16540,7 +16556,7 @@
             }
           },
           "409": {
-            "description": "`PEOPLE_QUOTA_REACHED` — every place the offer sold is taken; `ALREADY_THE_OWNER`.",
+            "description": "`PEOPLE_QUOTA_REACHED` — every place the offer sold is taken (administrators not counted); `ALREADY_THE_OWNER`.",
             "content": {
               "application/json": {
                 "schema": {

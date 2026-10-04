@@ -42,7 +42,7 @@ final class AddPersonController implements RouteHandler
         );
 
         return new JsonResponse([
-            'member' => PeoplePresenter::member($added['member']),
+            'member' => PeoplePresenter::member($added['member'], $added['administrator']),
             'invited' => $added['invited'],
         ], 201);
     }

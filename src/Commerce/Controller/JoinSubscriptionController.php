@@ -51,6 +51,6 @@ final class JoinSubscriptionController implements RouteHandler
             SubscriptionRoute::subscriptionId($request),
         );
 
-        return new JsonResponse(['member' => PeoplePresenter::member($joined['member'])], 201);
+        return new JsonResponse(['member' => PeoplePresenter::member($joined['member'], $joined['administrator'])], 201);
     }
 }

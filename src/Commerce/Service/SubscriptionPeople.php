@@ -50,17 +50,42 @@ final class SubscriptionPeople
     }
 
     /**
-     * @return array{subscription: Subscription, members: list<SubscriptionMember>, quota: int|null, owner: bool}
+     * Who the subscription covers, how many places it sold, and how many are
+     * taken (2026-10-05).
+     *
+     * `places_used` is the server's count — the same SQL the check in
+     * {@see assertAPlaceIsFree()} refuses by, so the screen and the refusal
+     * cannot disagree — and `administrators` names the people on the row who
+     * take no place, because they administer the organisation on this product.
+     * The screen used to count `members + 1` itself, which knew nothing of
+     * that rule: with an administrator on the subscription it showed the
+     * subscription full while the server would still add somebody.
+     *
+     * @return array{subscription: Subscription, members: list<SubscriptionMember>, quota: int|null, owner: bool, places_used: int, administrators: list<string>}
      */
     public function of(string $tenantId, string $productId, string $callerId, bool $seat): array
     {
         $subscription = $this->managed($tenantId, $productId, $callerId, $seat);
+        $members = $this->subscriptions->membersOf($subscription->id);
+
+        $people = array_map(static fn (SubscriptionMember $member): string => $member->userId, $members);
+
+        if ($subscription->ownerUserId !== null) {
+            $people[] = $subscription->ownerUserId;
+        }
+
+        $administrators = array_values(array_filter(
+            $people,
+            fn (string $userId): bool => $this->subscriptions->administersSubscription($subscription->id, $userId),
+        ));
 
         return [
             'subscription' => $subscription,
-            'members' => $this->subscriptions->membersOf($subscription->id),
+            'members' => $members,
             'quota' => self::quotaOf($subscription),
             'owner' => $subscription->ownerUserId === $callerId,
+            'places_used' => $this->subscriptions->placesUsedBy($subscription->id),
+            'administrators' => $administrators,
         ];
     }
 
@@ -68,7 +93,7 @@ final class SubscriptionPeople
      * Adds a person: an existing member of the organisation by id, or
      * anybody by address.
      *
-     * @return array{member: SubscriptionMember, invited: bool}
+     * @return array{member: SubscriptionMember, invited: bool, administrator: bool}
      */
     public function add(string $tenantId, string $productId, string $callerId, bool $seat, ?string $userId, ?string $email): array
     {
@@ -102,7 +127,11 @@ final class SubscriptionPeople
 
         foreach ($this->subscriptions->membersOf($subscription->id) as $member) {
             if ($member->userId === $userId) {
-                return ['member' => $member, 'invited' => $invited];
+                return [
+                    'member' => $member,
+                    'invited' => $invited,
+                    'administrator' => $this->subscriptions->administersSubscription($subscription->id, $userId),
+                ];
             }
         }
 
@@ -140,7 +169,7 @@ final class SubscriptionPeople
      * that rule this one would spend a seat the customer paid for every time
      * an administrator went to help.
      *
-     * @return array{member: SubscriptionMember, invited: bool}
+     * @return array{member: SubscriptionMember, invited: bool, administrator: bool}
      */
     public function joinAsAdministrator(
         string $tenantId,
@@ -160,7 +189,11 @@ final class SubscriptionPeople
             if ($member->userId === $callerId) {
                 // Never invited: an administrator has an account already,
                 // which is how they came to be administering anything.
-                return ['member' => $member, 'invited' => false];
+                return [
+                    'member' => $member,
+                    'invited' => false,
+                    'administrator' => $this->subscriptions->administersSubscription($subscription->id, $callerId),
+                ];
             }
         }
 
