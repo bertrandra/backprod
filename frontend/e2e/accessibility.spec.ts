@@ -362,6 +362,23 @@ for (const route of CONSOLE_ROUTES) {
   });
 }
 
+// The palette editor opens on demand, so the route scan above never sees it:
+// each of its tabs, and a colour's open panel, are scanned here.
+test('the palette editor has no accessibility violations, on any tab', async ({ page }) => {
+  await stubbed(page);
+  await page.goto('/console/palettes');
+  await page.getByTestId('palette-forest-ledger').getByRole('button', { name: 'Edit' }).click();
+  await page.getByRole('button', { name: 'Choose accent — Light' }).click();
+  await expect(page.getByTestId('colour-panel')).toBeVisible();
+
+  for (const tab of ['Palette', 'Fonts', 'CSS', 'Contrast']) {
+    await page.getByRole('tab', { name: tab }).click();
+    const results = await scan(page);
+
+    expect(describe(results), `${tab}: ${describe(results)}`).toBe('');
+  }
+});
+
 test.describe('what axe cannot see', () => {
   test('the keyboard reaches the navigation without a mouse', async ({ page, viewport }) => {
     test.skip((viewport?.width ?? 1280) < 768, 'The primary nav is the bottom bar at this width.');

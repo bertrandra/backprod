@@ -74,3 +74,14 @@ describe('failingPairs and recolour', () => {
     expect(recolour(petrol, 'muted', 'light', canvas).fonts).toBe(petrol.fonts);
   });
 });
+
+describe('verdict', () => {
+  it('is WCAG’s level for text', async () => {
+    const { verdict } = await import('./themeDocument');
+
+    expect(verdict(7)).toBe('AAA');
+    expect(verdict(4.5)).toBe('AA');
+    expect(verdict(3)).toBe('AA large');
+    expect(verdict(2.9)).toBe('fail');
+  });
+});

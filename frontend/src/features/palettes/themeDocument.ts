@@ -140,3 +140,50 @@ export function recolour(document: ThemeDocument, name: string, mode: ThemeMode,
 export function isCssValue(value: string): boolean {
   return VALUE.test(value);
 }
+
+export type Verdict = 'AAA' | 'AA' | 'AA large' | 'fail';
+
+/**
+ * WCAG's levels for text: 7:1 is AAA, 4.5:1 AA, 3:1 AA for large text only.
+ * Every pair this platform sets body text in has to reach AA.
+ */
+export function verdict(ratio: number): Verdict {
+  return ratio >= 7 ? 'AAA' : ratio >= 4.5 ? 'AA' : ratio >= 3 ? 'AA large' : 'fail';
+}
+
+/** The ratio of two of the document's colours in one mode, if both are readable. */
+export function pairRatio(document: ThemeDocument, foreground: string, background: string, mode: ThemeMode): number | undefined {
+  const tokens = document.colors.flatMap((group) => group.tokens);
+  const fg = tokens.find((token) => token.name === foreground)?.[mode];
+  const bg = tokens.find((token) => token.name === background)?.[mode];
+
+  return fg === undefined || bg === undefined ? undefined : contrast(fg, bg);
+}
+
+/**
+ * The stylesheet a document amounts to: what the shell sets, written out —
+ * `:root` with the light values, the fonts and the type scale, and the dark
+ * values inside the colour-scheme query. For a developer to read or paste;
+ * the shell itself sets properties one by one and never parses this text.
+ */
+export function themeCss(document: ThemeDocument): string {
+  const block = (properties: Record<string, string>, indent: string) =>
+    Object.entries(properties)
+      .map(([name, value]) => `${indent}${name}: ${value};`)
+      .join('\n');
+
+  const light = themeProperties(document, 'light');
+  const dark: Record<string, string> = {};
+
+  for (const group of document.colors) {
+    for (const token of group.tokens) {
+      const value = themeProperties(document, 'dark')[token.variable];
+
+      if (value !== undefined) {
+        dark[token.variable] = value;
+      }
+    }
+  }
+
+  return `:root {\n${block(light, '  ')}\n}\n\n@media (prefers-color-scheme: dark) {\n  :root {\n${block(dark, '    ')}\n  }\n}\n`;
+}
