@@ -73,13 +73,17 @@ describe('a page load with a session the server still honours', () => {
       client,
     );
 
+    // The refresh alone: the palette a signed-out page wears is asked for
+    // beside it (2026-10-05), and is not what this is about.
+    const refreshes = () => requests.filter((request) => request.path === '/api/v1/auth/refresh');
+
     await waitFor(() => {
-      expect(requests).toHaveLength(1);
+      expect(refreshes()).toHaveLength(1);
     });
     // A body field here would mean a script had read the refresh token, which is
     // exactly what `HttpOnly` exists to prevent — so accepting one would quietly
     // reopen the hole the cookie closes.
-    expect(requests[0]?.body).toBeUndefined();
+    expect(refreshes()[0]?.body).toBeUndefined();
   });
 
   it('asks once even when React mounts the page twice', async () => {
@@ -328,5 +332,91 @@ describe('the landing page, before and after', () => {
     useSessionStore.setState({ token: null, status: 'anonymous', expiresAt: null });
     await waitFor(() => expect(screen.getByTestId('visitor-menu')).toBeDefined());
     expect(screen.queryByLabelText('Email')).toBeNull();
+  });
+});
+
+/**
+ * Every signed-out page wears the organisation's palette for the product
+ * (2026-10-05). It was the storefront's alone, so "Sign in" stepped out of the
+ * organisation's colours into the platform's; the gate paints it now, for the
+ * storefront and the form alike.
+ */
+describe('the palette a signed-out page wears', () => {
+  afterEach(() => document.head.querySelectorAll('style[data-tenant-theme]').forEach((element) => element.remove()));
+
+  const ACME = { slug: 'acme', name: 'Acme Ltd', is_default: true, join_policy: 'OPEN', after_sign_up: 'PAY' };
+  const PALETTE = {
+    name: 'vintage-sepia',
+    updated_at: '2026-10-04T09:00:00+00:00',
+    document: {
+      format: 1,
+      colors: [{ group: 'Accent', tokens: [{ name: 'accent', variable: '--ds-accent', light: '#b82e45', dark: '#dc7284' }] }],
+      fonts: [],
+      type_scale: [],
+    },
+  };
+
+  const painted = () => {
+    const rule = document.head.querySelector<HTMLStyleElement>('style[data-tenant-theme]')?.sheet?.cssRules[0];
+
+    return rule instanceof CSSStyleRule ? rule.style.getPropertyValue('--ds-accent') : null;
+  };
+
+  function visit(path: string, palette: unknown = PALETTE) {
+    window.history.replaceState(null, '', path);
+    useSessionStore.setState({ token: null, status: 'anonymous', expiresAt: null, productCode: 'atlas', root: '/acme', tenantSlug: 'acme' });
+
+    const recorded = recordingClient({
+      'GET /api/v1/public/tenant': { data: { tenant: ACME } },
+      'GET /api/v1/public/products': { data: { products: [{ code: 'atlas', name: 'Atlas' }] } },
+      'GET /api/v1/public/offers': { data: { product: { code: 'atlas', name: 'Atlas' }, offers: [] } },
+      'GET /api/v1/public/palette': { data: { palette } },
+    });
+
+    renderWith(
+      <SignInGate>
+        <p>The application</p>
+      </SignInGate>,
+      recorded.client,
+    );
+
+    return recorded.requests;
+  }
+
+  afterEach(() => window.history.replaceState(null, '', '/'));
+
+  it('paints the sign-in form in the palette of this organisation and product', async () => {
+    const requests = visit('/acme/invoices');
+
+    await waitFor(() => expect(screen.getByLabelText('Email')).toBeDefined());
+    await waitFor(() => expect(painted()).toBe('#b82e45'));
+    expect(requests.find((r) => r.path === '/api/v1/public/palette')?.query).toEqual({ product: 'atlas', tenant: 'acme' });
+  });
+
+  it('paints the storefront, and keeps the palette when "Sign in" opens the form', async () => {
+    visit('/acme/');
+
+    await waitFor(() => expect(painted()).toBe('#b82e45'));
+
+    (await screen.findByTestId('visitor-menu')).click();
+    (await screen.findByTestId('sign-in-link')).click();
+    await waitFor(() => expect(screen.getByLabelText('Email')).toBeDefined());
+    expect(painted()).toBe('#b82e45');
+  });
+
+  it('paints nothing where the organisation has chosen none', async () => {
+    const requests = visit('/acme/invoices', null);
+
+    await waitFor(() => expect(requests.some((r) => r.path === '/api/v1/public/palette')).toBe(true));
+    expect(document.head.querySelector('style[data-tenant-theme]')).toBeNull();
+  });
+
+  it('takes it off once signed in, where the shell paints what the members wear', async () => {
+    visit('/acme/invoices');
+    await waitFor(() => expect(painted()).toBe('#b82e45'));
+
+    useSessionStore.setState({ token: 'access', status: 'signed-in', expiresAt: null });
+    await waitFor(() => expect(screen.getByText('The application')).toBeDefined());
+    expect(document.head.querySelector('style[data-tenant-theme]')).toBeNull();
   });
 });

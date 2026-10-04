@@ -1,7 +1,10 @@
 import { useEffect } from 'react';
 
+import { useProductContext } from '@/app/frame/useProductContext';
 import { themeProperties, type ThemeDocument } from '@/features/palettes/themeDocument';
 import { useWornPalette } from '@/queries/palettes';
+import { usePublicPalette, usePublicTenant } from '@/queries/storefront';
+import { useSessionStore } from '@/state/session';
 
 /**
  * Paints the page in the palette the organisation wears (2026-10-04).
@@ -25,6 +28,26 @@ export function useTenantPalette(enabled: boolean): void {
   const worn = useWornPalette(enabled);
 
   usePaintPalette(enabled ? (worn.data?.document ?? null) : null);
+}
+
+/**
+ * Paints the palette a visitor who is not signed in sees (2026-10-05): the
+ * organisation the address names — or the bare host's default — in the
+ * product the page is about. The same row its members' screens wear.
+ *
+ * Called once, by the gate every signed-out page passes through, so the
+ * storefront, the sign-in form and the pages between (restoring a session,
+ * the server out of reach) wear one palette and keep it from one to the
+ * next: it was the storefront's alone, and "Sign in" stepped out of the
+ * organisation's colours into the platform's.
+ */
+export function useVisitorPalette(enabled: boolean): void {
+  const { productCode } = useProductContext();
+  const slug = useSessionStore((state) => state.tenantSlug);
+  const tenant = usePublicTenant(slug, enabled);
+  const palette = usePublicPalette(enabled ? productCode : null, enabled ? (tenant.data?.slug ?? null) : null);
+
+  usePaintPalette(enabled ? (palette.data?.document ?? null) : null);
 }
 
 /**
