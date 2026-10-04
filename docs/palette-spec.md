@@ -7,6 +7,9 @@
 produit hébergé n'est concerné : chacun garde ses propres couleurs.
 **S'appuie sur :** `frontend/src/index.css` (les jetons `--ds-*`), `src/Skin/*` (l'habillage),
 `src/Staff/*` et `features/console/*` (la console), `docs/identities-and-permissions.md`.
+**Annexes :** `docs/palette-spec-annexes.md` — la revue de cette proposition (4 octobre 2026) :
+objections, contrastes calculés, cas limites, portes de qualité et décisions à trancher. À lire
+avant de coder.
 
 ---
 
