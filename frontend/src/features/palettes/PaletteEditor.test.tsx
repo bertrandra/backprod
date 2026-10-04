@@ -7,11 +7,12 @@ import { themeCss, type ThemeDocument } from './themeDocument';
 
 const PETROL = PALETTES[0]?.document as ThemeDocument;
 
-function editor(onSave = vi.fn()) {
+function editor(onSave = vi.fn(), origin = {}) {
   render(
     <PaletteEditor
       initial={{ name: 'petrol-classic', document: PETROL }}
       palettes={PALETTES}
+      origin={origin}
       saving={false}
       saved={false}
       error={null}
@@ -105,6 +106,66 @@ describe('PaletteEditor — choosing a colour', () => {
 
     expect(within(screen.getByTestId('colour-panel')).getByText(/edited as text/)).toBeTruthy();
     expect(within(screen.getByTestId('colour-panel')).queryByText('Shades of this hue')).toBeNull();
+  });
+});
+
+/**
+ * The colour list (2026-10-05), after Plan's palette screen: a role on every
+ * token, filters, a search, and each row's state in words.
+ */
+describe('PaletteEditor — the colour list', () => {
+  const row = (name: string) => document.querySelector(`[data-token="${name}"]`);
+
+  it('says what each colour paints', () => {
+    editor();
+
+    expect(within(row('well') as HTMLElement).getByText(/A recess inside a card/)).toBeTruthy();
+  });
+
+  it('searches by name or by what a colour paints', () => {
+    editor();
+    fireEvent.change(screen.getByLabelText('Search a colour or what it paints'), { target: { value: 'dims the page' } });
+
+    expect(row('scrim')).toBeTruthy();
+    expect(row('accent')).toBeNull();
+
+    fireEvent.change(screen.getByLabelText('Search a colour or what it paints'), { target: { value: 'nothing-like-this' } });
+    expect(screen.getByTestId('colour-list-empty').textContent).toContain('nothing-like-this');
+  });
+
+  it('marks a colour not saved, and keeps it under Changed', () => {
+    editor();
+    fireEvent.click(screen.getByTestId('colour-filter-changed'));
+    expect(screen.getByTestId('colour-list-empty')).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('colour-filter-all'));
+    // Dark enough to keep every pair it is in readable, so the row's state is
+    // the edit and not a contrast failure.
+    fireEvent.change(screen.getByLabelText('accent — Light (value)'), { target: { value: '#0a4a66' } });
+    expect(screen.getByTestId('token-state-accent').textContent).toBe('Not saved');
+
+    fireEvent.click(screen.getByTestId('colour-filter-changed'));
+    expect(screen.getByTestId('colour-filter-changed').textContent).toContain('1');
+    expect(row('accent')).toBeTruthy();
+    expect(row('ink')).toBeNull();
+  });
+
+  it('says a colour has moved away from the design system', () => {
+    editor(vi.fn(), { accent: { light: '#000001', dark: colour(PETROL, 'accent', 'dark') } });
+
+    expect(screen.getByTestId('token-state-accent').textContent).toBe('Changed from the design system');
+  });
+
+  it('puts a failing pair first, and filters to it', () => {
+    editor();
+    fireEvent.change(screen.getByLabelText('ink — Light (value)'), { target: { value: colour(PETROL, 'canvas', 'light') } });
+
+    expect(screen.getByTestId('token-state-ink').textContent).toMatch(/^Contrast \d\.\d\d:1$/);
+
+    fireEvent.click(screen.getByTestId('colour-filter-contrast'));
+    expect(row('ink')).toBeTruthy();
+    expect(row('canvas')).toBeTruthy();
+    expect(row('danger')).toBeNull();
   });
 });
 
