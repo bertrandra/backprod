@@ -457,3 +457,35 @@ describe('the project allowance', () => {
     expect(screen.queryByTestId('project-quota')).toBeNull();
   });
 });
+describe('somebody no subscription covers', () => {
+  const refused: Stub = {
+    error: {
+      error: { code: 'SUBSCRIPTION_REQUIRED', message: 'not covered', details: {}, request_id: 'r-not-covered' },
+    },
+    status: 403,
+  };
+
+  it('is told there is nothing here yet, not shown a failure', async () => {
+    const member = { ...SESSION_WITH_PROJECTS, permissions: SESSION_WITH_PROJECTS.permissions.filter((code) => code !== 'tenant.manage') };
+    render(clientFor({ 'GET /api/v1/me': { data: member }, 'GET /api/v1/projects': refused }));
+
+    await waitFor(() => expect(screen.getByText(/no projects to show yet/i)).toBeTruthy());
+    // Nothing failed: no retry, no request id to quote.
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
+    expect(screen.queryByText(/r-not-covered/)).toBeNull();
+    expect(screen.getByTestId('not-covered-action').getAttribute('href')).toBe('/subscription');
+  });
+
+  it('points an administrator at the subscriptions they can join', async () => {
+    render(
+      stubClient({
+        'GET /api/v1/me': { data: { ...SESSION_WITH_PROJECTS, permissions: [...SESSION_WITH_PROJECTS.permissions, 'tenant.manage'] } },
+        'GET /api/v1/projects': refused,
+        'GET /api/v1/products': { data: { products: [ATLAS, PLAN], default: null, memberships: [], pending: [] } },
+        'GET /api/v1/products/{productId}/configuration': configuration([7, 9]),
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('not-covered-action').getAttribute('href')).toBe('/organisation/subscriptions'));
+  });
+});
