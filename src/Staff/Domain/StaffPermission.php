@@ -104,4 +104,13 @@ final class StaffPermission
      * not thereby trusted to switch off the proof.
      */
     public const SIGN_UP_MANAGE = 'staff.sign_up.manage';
+
+    /**
+     * Saving the design system — the palette, the fonts and the type scale
+     * the console reads from `index.css` — as a named theme (2026-10-04).
+     * PLATFORM_ADMIN alone, and its own permission rather than a side of
+     * `staff.products.manage`: setting up a product and keeping the record
+     * of how the platform looks are not one trust.
+     */
+    public const DESIGN_MANAGE = 'staff.design.manage';
 }

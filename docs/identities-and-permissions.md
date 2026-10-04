@@ -259,6 +259,7 @@ ont été retirées.)
 | `staff.access_log.read` | oui | non | non | non |
 | `staff.navigation.manage` (choisir les entrées de menu par public) | oui | non | non | non |
 | `staff.mail.manage` (modifier les gabarits de mail, envoyer un test) | oui | non | non | non |
+| `staff.design.manage` (enregistrer le design system — palette, polices, échelle typographique — comme thème nommé) | oui | non | non | non |
 | `staff.demo.reset` (vider et réensemencer le monde de démonstration) | oui | non | non | non |
 | `staff.demo.publish` (afficher ou masquer la page publique `/demo`) | oui | non | non | non |
 | `admin.directory.read` | oui | non | non | non |

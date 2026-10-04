@@ -308,6 +308,212 @@
       }
     },
     "schemas": {
+      "ThemeDocument": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The design system as a document: the colours in their groups and in both themes, the font families and the type scale, as `frontend/src/index.css` defines them. Validated whole and refused whole. Stored, not applied — the stylesheet stays the design system — and its values are held to CSS's own shape so that a document already stored can never close a declaration or open markup the day something reads it into a stylesheet.",
+        "required": [
+          "format",
+          "colors",
+          "fonts",
+          "type_scale"
+        ],
+        "properties": {
+          "format": {
+            "type": "integer",
+            "const": 1,
+            "description": "The shape of this document. 1 is the only one."
+          },
+          "colors": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "description": "Groups, in the stylesheet's order — each a run of `--color-*` in `@theme`, titled by the comment above it.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "group",
+                "tokens"
+              ],
+              "properties": {
+                "group": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "tokens": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 100,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "name",
+                      "variable",
+                      "light",
+                      "dark"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9-]{0,63}$",
+                        "description": "The utility root: `accent-wash`, as in `bg-accent-wash`. Unique within the theme."
+                      },
+                      "variable": {
+                        "type": "string",
+                        "pattern": "^--[a-z][a-z0-9-]{0,63}$",
+                        "description": "The variable a theme redefines: `--ds-accent-wash`."
+                      },
+                      "light": {
+                        "type": "string",
+                        "pattern": "^[#a-zA-Z0-9(),.%/ +-]{1,100}$",
+                        "description": "A CSS value as the stylesheet writes one — no quote, semicolon, brace, angle bracket or backslash."
+                      },
+                      "dark": {
+                        "type": "string",
+                        "pattern": "^[#a-zA-Z0-9(),.%/ +-]{1,100}$",
+                        "description": "A CSS value as the stylesheet writes one — no quote, semicolon, brace, angle bracket or backslash."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "fonts": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "role",
+                "variable",
+                "family",
+                "stack"
+              ],
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]{0,63}$",
+                  "description": "`sans`, `mono` — the `--font-*` suffix."
+                },
+                "variable": {
+                  "type": "string",
+                  "pattern": "^--[a-z][a-z0-9-]{0,63}$"
+                },
+                "family": {
+                  "type": "string",
+                  "pattern": "^[a-zA-Z0-9 ,'\"._-]{1,500}$",
+                  "description": "The first family of the stack: the one the design system ships."
+                },
+                "stack": {
+                  "type": "string",
+                  "pattern": "^[a-zA-Z0-9 ,'\"._-]{1,500}$",
+                  "description": "The whole fallback stack, as written."
+                }
+              }
+            }
+          },
+          "type_scale": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "variable",
+                "size",
+                "line_height",
+                "letter_spacing"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]{0,63}$",
+                  "description": "The step: `xs`, `2xl`, `display-lg`."
+                },
+                "variable": {
+                  "type": "string",
+                  "pattern": "^--[a-z][a-z0-9-]{0,63}$"
+                },
+                "size": {
+                  "type": "string",
+                  "pattern": "^[#a-zA-Z0-9(),.%/ +-]{1,100}$",
+                  "description": "A CSS value as the stylesheet writes one — no quote, semicolon, brace, angle bracket or backslash."
+                },
+                "line_height": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[#a-zA-Z0-9(),.%/ +-]{1,100}$",
+                      "description": "A CSS value as the stylesheet writes one — no quote, semicolon, brace, angle bracket or backslash."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "letter_spacing": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[#a-zA-Z0-9(),.%/ +-]{1,100}$",
+                      "description": "A CSS value as the stylesheet writes one — no quote, semicolon, brace, angle bracket or backslash."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "ThemeSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "updated_at"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Theme": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "updated_at",
+          "document"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "document": {
+            "$ref": "#/components/schemas/ThemeDocument"
+          }
+        }
+      },
       "Error": {
         "type": "object",
         "description": "The §10.4 envelope. Every failure has this shape, whatever produced it.",
@@ -19622,6 +19828,212 @@
           },
           "409": {
             "description": "`MAIL_NOT_CONFIGURED` — `MAIL_DSN` is empty, nothing leaves; `MAIL_SEND_FAILED` — the host refused or could not be reached, with its sentence (redacted of anything that looks like a credential); `NO_ADDRESS` — the caller has none.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/themes": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "listThemes",
+        "summary": "The themes the platform has saved",
+        "description": "Every saved theme by name, without its document. Empty until somebody saves one — nothing is seeded, not even `default`, because a seeded document would be the stylesheet as it stood the day the migration was written. `staff.design.manage`, which PLATFORM_ADMIN alone holds.",
+        "responses": {
+          "200": {
+            "description": "The saved themes, by name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "themes"
+                  ],
+                  "properties": {
+                    "themes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ThemeSummary"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/themes/{name}": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "showTheme",
+        "summary": "One saved theme, with its document",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "The theme's name. `default` is the one the console saves under unless told otherwise.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+              "examples": [
+                "default"
+              ]
+            }
+          }
+        ],
+        "description": "The theme saved under this name. `staff.design.manage`, which PLATFORM_ADMIN alone holds.",
+        "responses": {
+          "200": {
+            "description": "The theme.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "theme"
+                  ],
+                  "properties": {
+                    "theme": {
+                      "$ref": "#/components/schemas/Theme"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — the name is not lower-case letters, digits and hyphens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`THEME_NOT_FOUND` — nothing is saved under that name. Where `default` starts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "saveTheme",
+        "summary": "Save the design system under a name",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "The theme's name. `default` is the one the console saves under unless told otherwise.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+              "examples": [
+                "default"
+              ]
+            }
+          }
+        ],
+        "description": "Creates the theme, or replaces the whole document saved under the name. The console builds the document from `frontend/src/index.css` — palette, fonts, type scale — and saves it as `default` unless told otherwise. Stored, not applied: nothing on the platform paints itself from a stored theme. `staff.design.manage`, which PLATFORM_ADMIN alone holds.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "document"
+                ],
+                "properties": {
+                  "document": {
+                    "$ref": "#/components/schemas/ThemeDocument"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The theme as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "theme"
+                  ],
+                  "properties": {
+                    "theme": {
+                      "$ref": "#/components/schemas/Theme"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — the name, or any part of the document, is not in the shape `ThemeDocument` describes; `details.field` names which. Nothing is written.",
             "content": {
               "application/json": {
                 "schema": {

@@ -3277,6 +3277,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/themes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The themes the platform has saved
+         * @description Every saved theme by name, without its document. Empty until somebody saves one — nothing is seeded, not even `default`, because a seeded document would be the stylesheet as it stood the day the migration was written. `staff.design.manage`, which PLATFORM_ADMIN alone holds.
+         */
+        get: operations["listThemes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/themes/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One saved theme, with its document
+         * @description The theme saved under this name. `staff.design.manage`, which PLATFORM_ADMIN alone holds.
+         */
+        get: operations["showTheme"];
+        /**
+         * Save the design system under a name
+         * @description Creates the theme, or replaces the whole document saved under the name. The console builds the document from `frontend/src/index.css` — palette, fonts, type scale — and saves it as `default` unless told otherwise. Stored, not applied: nothing on the platform paints itself from a stored theme. `staff.design.manage`, which PLATFORM_ADMIN alone holds.
+         */
+        put: operations["saveTheme"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/sign-up": {
         parameters: {
             query?: never;
@@ -4057,6 +4101,57 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description The design system as a document: the colours in their groups and in both themes, the font families and the type scale, as `frontend/src/index.css` defines them. Validated whole and refused whole. Stored, not applied — the stylesheet stays the design system — and its values are held to CSS's own shape so that a document already stored can never close a declaration or open markup the day something reads it into a stylesheet. */
+        ThemeDocument: {
+            /**
+             * @description The shape of this document. 1 is the only one.
+             * @constant
+             */
+            format: 1;
+            /** @description Groups, in the stylesheet's order — each a run of `--color-*` in `@theme`, titled by the comment above it. */
+            colors: {
+                group: string;
+                tokens: {
+                    /** @description The utility root: `accent-wash`, as in `bg-accent-wash`. Unique within the theme. */
+                    name: string;
+                    /** @description The variable a theme redefines: `--ds-accent-wash`. */
+                    variable: string;
+                    /** @description A CSS value as the stylesheet writes one — no quote, semicolon, brace, angle bracket or backslash. */
+                    light: string;
+                    /** @description A CSS value as the stylesheet writes one — no quote, semicolon, brace, angle bracket or backslash. */
+                    dark: string;
+                }[];
+            }[];
+            fonts: {
+                /** @description `sans`, `mono` — the `--font-*` suffix. */
+                role: string;
+                variable: string;
+                /** @description The first family of the stack: the one the design system ships. */
+                family: string;
+                /** @description The whole fallback stack, as written. */
+                stack: string;
+            }[];
+            type_scale: {
+                /** @description The step: `xs`, `2xl`, `display-lg`. */
+                name: string;
+                variable: string;
+                /** @description A CSS value as the stylesheet writes one — no quote, semicolon, brace, angle bracket or backslash. */
+                size: string;
+                line_height: string | null;
+                letter_spacing: string | null;
+            }[];
+        };
+        ThemeSummary: {
+            name: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        Theme: {
+            name: string;
+            /** Format: date-time */
+            updated_at: string;
+            document: components["schemas"]["ThemeDocument"];
+        };
         /** @description The §10.4 envelope. Every failure has this shape, whatever produced it. */
         Error: {
             error: {
@@ -14114,6 +14209,123 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listThemes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The saved themes, by name. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        themes: components["schemas"]["ThemeSummary"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showTheme: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The theme's name. `default` is the one the console saves under unless told otherwise. */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The theme. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        theme: components["schemas"]["Theme"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — the name is not lower-case letters, digits and hyphens. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `THEME_NOT_FOUND` — nothing is saved under that name. Where `default` starts. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    saveTheme: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The theme's name. `default` is the one the console saves under unless told otherwise. */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    document: components["schemas"]["ThemeDocument"];
+                };
+            };
+        };
+        responses: {
+            /** @description The theme as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        theme: components["schemas"]["Theme"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — the name, or any part of the document, is not in the shape `ThemeDocument` describes; `details.field` names which. Nothing is written. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

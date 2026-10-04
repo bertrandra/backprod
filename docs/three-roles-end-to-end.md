@@ -662,13 +662,15 @@ clients.
 | `showQueue`, `listAdminJobs` | `admin.health.read` | Rien. La santé de la file. |
 | `eraseUser` | `admin.privacy.erase` | **Efface une personne** (§26) : nom et adresse vidés, les lignes qui la nomment conservées. Ce que la loi impose de garder — les factures — reste. La seule opération vraiment destructive de la console. |
 
-### Les menus, le courrier, la démonstration
+### Les menus, le courrier, le thème, la démonstration
 
 | Action | Permission | Ce que ça change |
 |---|---|---|
 | `showNavigationSetup`, `setNavigationSetup` | `staff.navigation.manage` | Un **second** filtre du menu, appliqué après les permissions et jamais à leur place. |
 | `showMailTemplates`, `setMailTemplates` | `staff.mail.manage` | Les gabarits d'e-mail. |
 | `sendTestMail` | `staff.mail.manage` | Envoie un message de test. Refusé si aucun serveur n'est configuré, plutôt que mis en file en silence. |
+| `listThemes`, `showTheme` | `staff.design.manage` | Rien. Les thèmes enregistrés, et le document de l'un d'eux. |
+| `saveTheme` | `staff.design.manage` | Enregistre sous un nom — `default` par défaut — le design system lu dans `index.css` : palette dans les deux thèmes, polices, échelle typographique. **Stocké, pas appliqué** : la feuille de style reste le design system, et rien ne se peint encore depuis un thème enregistré. |
 | `resetDemoWorld` | `staff.demo.reset` | **Détruit et reconstruit** le monde de démonstration. |
 | `showDemoPage`, `setDemoPage` | `staff.demo.publish` | La page publique qui présente les comptes de démonstration. |
 
@@ -711,15 +713,15 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
   ─────────────────────────────────────────────────
   surface locataire                              130
 
-  PLATFORM_ADMIN                                  82
+  PLATFORM_ADMIN                                  85
   publiques, sans compte                           7
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          230
+  total                                          233
 ```
 
-Dont **110 lectures** et **120 écritures**. Chaque écriture a sa ligne dans les
+Dont **112 lectures** et **121 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

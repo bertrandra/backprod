@@ -35,6 +35,7 @@ const STAFF = {
       'staff.access_log.read',
       'admin.privacy.erase',
       'staff.mail.manage',
+      'staff.design.manage',
     ],
   },
 };

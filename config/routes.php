@@ -163,6 +163,7 @@ use App\Staff\Controller\ListTenantPaymentsController;
 use App\Staff\Controller\ListTenantProjectsController;
 use App\Staff\Controller\ListTenantQuotesController;
 use App\Staff\Controller\ListTenantsController;
+use App\Staff\Controller\ListThemesController;
 use App\Staff\Controller\ListTranslationsController;
 use App\Staff\Controller\ListWebhookDeliveriesController;
 use App\Staff\Controller\PostSupportMessageController;
@@ -174,6 +175,7 @@ use App\Staff\Controller\ResetDemoWorldController;
 use App\Staff\Controller\RetryWebhookDeliveryController;
 use App\Staff\Controller\RevokeProductCredentialController;
 use App\Staff\Controller\RevokeStaffRoleController;
+use App\Staff\Controller\SaveThemeController;
 use App\Staff\Controller\SendTestMailController;
 use App\Staff\Controller\SetBillingIdentityController;
 use App\Staff\Controller\SetDemoPageController;
@@ -200,6 +202,7 @@ use App\Staff\Controller\ShowSupportConversationController;
 use App\Staff\Controller\ShowTenantController;
 use App\Staff\Controller\ShowTenantEntitlementController;
 use App\Staff\Controller\ShowTenantTaxProfileController;
+use App\Staff\Controller\ShowThemeController;
 use App\Staff\Controller\StaffIdentityController;
 use App\Staff\Controller\UnassignTenantProductController;
 use App\Staff\Controller\UpdatePlanController;
@@ -823,6 +826,10 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/staff/mail/templates', ShowMailTemplatesController::class);
     $routes->addRoute('PUT', '/api/v1/staff/mail/templates', SetMailTemplatesController::class);
     $routes->addRoute('POST', '/api/v1/staff/mail/test', SendTestMailController::class);
+    // The design system saved under a name — `default` unless told otherwise (2026-10-04).
+    $routes->addRoute('GET', '/api/v1/staff/themes', ListThemesController::class);
+    $routes->addRoute('GET', '/api/v1/staff/themes/{name}', ShowThemeController::class);
+    $routes->addRoute('PUT', '/api/v1/staff/themes/{name}', SaveThemeController::class);
 
     $routes->addRoute('GET', '/api/v1/staff/access-log', ListAccessLogController::class);
 

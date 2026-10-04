@@ -11,7 +11,9 @@
  *     first sentence of the comment above it and explained by the rest;
  *   - **values** are the `--ds-*` declarations of the light `:root` and of the
  *     dark one inside `prefers-color-scheme`, with the line each sits on;
- *   - **notes** are the comment written directly above a `--ds-*` value.
+ *   - **notes** are the comment written directly above a `--ds-*` value;
+ *   - **fonts** are the `--font-*` stacks of `@theme`, and the **type scale**
+ *     its `--text-*` steps with their line heights and tracking.
  *
  * Adding a token is therefore one edit, in the CSS, and the screen follows.
  */
@@ -42,8 +44,30 @@ export interface PaletteGroup {
   readonly tokens: readonly PaletteToken[];
 }
 
+export interface PaletteFont {
+  /** `sans`, `mono`: the `--font-*` suffix, used as `font-sans`. */
+  readonly role: string;
+  readonly variable: string;
+  /** The first family of the stack, unquoted — the one the design system ships. */
+  readonly family: string;
+  readonly stack: string;
+  readonly line: number;
+}
+
+export interface PaletteTextStep {
+  /** `xs`, `2xl`, `display-lg`: used as `text-xs`. */
+  readonly name: string;
+  readonly variable: string;
+  readonly size: string;
+  readonly lineHeight: string | undefined;
+  readonly letterSpacing: string | undefined;
+  readonly line: number;
+}
+
 export interface Palette {
   readonly groups: readonly PaletteGroup[];
+  readonly fonts: readonly PaletteFont[];
+  readonly typeScale: readonly PaletteTextStep[];
   /** `--ds-*` values no utility maps — defined, and unreachable from a class. */
   readonly unmapped: readonly { readonly variable: string; readonly light: PaletteValue | undefined; readonly dark: PaletteValue | undefined }[];
   /** Every custom property each theme sets, for scoping a preview to it. */
@@ -147,14 +171,37 @@ export function readPalette(css: string): Palette {
   const groups: { title: string; description: string; tokens: PaletteToken[] }[] = [];
   const mapped = new Set<string>();
   const themeScope: Record<string, string> = {};
+  const fonts: PaletteFont[] = [];
+  const steps = new Map<string, { size?: string; lineHeight?: string; letterSpacing?: string; line: number }>();
   let previousWasColour = false;
 
   for (const declaration of theme === undefined ? [] : declarations(theme)) {
     const colour = /^color-(.+)$/.exec(declaration.name);
     const variable = /^var\(--(ds-[a-z0-9-]+)\)$/.exec(declaration.value);
+    const font = /^font-([a-z0-9-]+)$/.exec(declaration.name);
+    const text = /^text-([a-z0-9]+(?:-[a-z0-9]+)*?)(?:--(line-height|letter-spacing))?$/.exec(declaration.name);
 
     if (declaration.name.startsWith('shadow-')) {
       themeScope[`--${declaration.name}`] = declaration.value;
+    }
+
+    if (font?.[1] !== undefined) {
+      const first = declaration.value.split(',')[0]?.trim().replace(/^['"]|['"]$/g, '') ?? '';
+      fonts.push({ role: font[1], variable: `--${declaration.name}`, family: first, stack: declaration.value, line: declaration.line });
+    }
+
+    if (text?.[1] !== undefined) {
+      const step = steps.get(text[1]) ?? { line: declaration.line };
+
+      if (text[2] === 'line-height') {
+        step.lineHeight = declaration.value;
+      } else if (text[2] === 'letter-spacing') {
+        step.letterSpacing = declaration.value;
+      } else {
+        step.size = declaration.value;
+      }
+
+      steps.set(text[1], step);
     }
 
     if (colour?.[1] === undefined) {
@@ -213,8 +260,18 @@ export function readPalette(css: string): Palette {
     .filter((name) => name.startsWith('ds-') && !mapped.has(name))
     .map((name) => ({ variable: `--${name}`, light: light.get(name), dark: dark.get(name) ?? light.get(name) }));
 
+  // A step is its size; a line height or tracking with no size beside it is
+  // not a step anybody can set text in.
+  const typeScale = [...steps].flatMap(([name, step]) =>
+    step.size === undefined
+      ? []
+      : [{ name, variable: `--text-${name}`, size: step.size, lineHeight: step.lineHeight, letterSpacing: step.letterSpacing, line: step.line }],
+  );
+
   return {
     groups,
+    fonts,
+    typeScale,
     unmapped,
     scope: { light: scope(light, new Map()), dark: scope(dark, light) },
   };
@@ -252,4 +309,34 @@ export function contrast(foreground: string, background: string): number | undef
   }
 
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
+/**
+ * The palette as the document the platform saves (`ThemeDocument` in the
+ * contract): colours in their groups with both themes' values, fonts, type
+ * scale. A colour with no value in a theme is left out rather than sent empty
+ * — the server would refuse the whole document for it, and rightly.
+ */
+export function themeDocument(palette: Palette) {
+  return {
+    format: 1 as const,
+    colors: palette.groups
+      .map((group) => ({
+        group: group.title,
+        tokens: group.tokens.flatMap((token) =>
+          token.light === undefined || token.dark === undefined
+            ? []
+            : [{ name: token.utility, variable: token.variable, light: token.light.value, dark: token.dark.value }],
+        ),
+      }))
+      .filter((group) => group.tokens.length > 0),
+    fonts: palette.fonts.map(({ role, variable, family, stack }) => ({ role, variable, family, stack })),
+    type_scale: palette.typeScale.map((step) => ({
+      name: step.name,
+      variable: step.variable,
+      size: step.size,
+      line_height: step.lineHeight ?? null,
+      letter_spacing: step.letterSpacing ?? null,
+    })),
+  };
 }

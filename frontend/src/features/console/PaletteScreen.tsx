@@ -1,12 +1,27 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 
 import { t } from '@/i18n';
 import stylesheet from '@/index.css?raw';
+import { DEFAULT_THEME, useSaveTheme, useTheme, useThemes } from '@/queries/themes';
+import { ErrorSurface } from '@/ui/ErrorSurface';
+import { Button, Field, inputClass } from '@/ui/Field';
 import { PageHeader, Section } from '@/ui/Page';
+import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
+import { When } from '@/ui/When';
 import { cn } from '@/utils/cn';
 
-import { contrast, readPalette, type Palette, type PaletteToken, type PaletteValue, type Theme } from './palette';
+import {
+  contrast,
+  readPalette,
+  themeDocument,
+  type Palette,
+  type PaletteFont,
+  type PaletteTextStep,
+  type PaletteToken,
+  type PaletteValue,
+  type Theme,
+} from './palette';
 
 /**
  * `/console/palette` — the design system's colours, as `src/index.css` writes
@@ -23,9 +38,17 @@ import { contrast, readPalette, type Palette, type PaletteToken, type PaletteVal
  *
  * **Both themes at once**, whichever the browser prefers, because a value is
  * only half-chosen until its dark counterpart is seen beside it.
+ *
+ * **And it saves what it read** (2026-10-04): the colours, the fonts and the
+ * type scale as one JSON document, under `default` unless told otherwise,
+ * through `saveTheme`. Stored, not applied — the stylesheet stays the design
+ * system, and the record is what the platform keeps of it.
  */
 
 const PALETTE: Palette = readPalette(stylesheet);
+
+/** What this build's stylesheet says, in the shape the platform stores. */
+const DOCUMENT = themeDocument(PALETTE);
 
 const THEMES: readonly Theme[] = ['light', 'dark'];
 
@@ -130,12 +153,42 @@ export function PaletteScreen() {
       </Section>
 
       <Section
+        title={t('Typography')}
+        description={t(
+          'The families and the type scale @theme defines, each set in its own values. A screen picks a step; it never writes a size.',
+        )}
+      >
+        <div className="space-y-6">
+          <ul className="grid gap-3 md:grid-cols-2">
+            {PALETTE.fonts.map((font) => (
+              <FontCard key={font.role} font={font} />
+            ))}
+          </ul>
+
+          <ul className="divide-y divide-line rounded-card border border-line bg-surface">
+            {PALETTE.typeScale.map((step) => (
+              <TextStepRow key={step.name} step={step} />
+            ))}
+          </ul>
+        </div>
+      </Section>
+
+      <Section
         title={t('Pairings')}
         description={t(
           'Ink on the grounds it is set on, measured from the values above. WCAG AA asks 4.5:1 for text and 3:1 for large text; the accessibility scan enforces it on every screen.',
         )}
       >
         <Pairings />
+      </Section>
+
+      <Section
+        title={t('Saved themes')}
+        description={t(
+          'What this screen read from the stylesheet, saved on the platform as one JSON document under a name. Stored, not applied: index.css stays the design system.',
+        )}
+      >
+        <SaveTheme />
       </Section>
     </div>
   );
@@ -360,6 +413,148 @@ function Pairings() {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function FontCard({ font }: { font: PaletteFont }) {
+  return (
+    <li className="space-y-3 rounded-card border border-line bg-surface p-4 shadow-raise" data-testid={`font-${font.role}`}>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-mono text-sm font-semibold">font-{font.role}</span>
+        <span className="font-mono text-2xs text-muted">
+          {font.variable} · index.css:{font.line}
+        </span>
+      </div>
+
+      {/* Set in the stack the file gives, not in a class: the specimen is the
+          value being shown. */}
+      <div style={{ fontFamily: font.stack }} className="space-y-1">
+        <p className="text-display-sm font-semibold">{font.family}</p>
+        <p className="text-lg break-words">Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj Kk Ll Mm</p>
+        <p className="text-lg break-words">0123456789 € % — ’ « »</p>
+      </div>
+
+      <p className="font-mono text-2xs break-words text-muted">{font.stack}</p>
+    </li>
+  );
+}
+
+function TextStepRow({ step }: { step: PaletteTextStep }) {
+  return (
+    <li className="grid gap-2 p-3 sm:grid-cols-[10rem_1fr] sm:items-baseline" data-testid={`text-${step.name}`}>
+      <div className="font-mono text-xs">
+        <p className="font-semibold">text-{step.name}</p>
+        <p className="text-muted">
+          {step.size}
+          {step.lineHeight !== undefined && ` / ${step.lineHeight}`}
+          {step.letterSpacing !== undefined && ` · ${step.letterSpacing}`}
+        </p>
+        <p className="text-muted">index.css:{step.line}</p>
+      </div>
+      <p
+        className="overflow-hidden break-words font-semibold"
+        style={{
+          fontSize: step.size,
+          ...(step.lineHeight !== undefined && { lineHeight: step.lineHeight }),
+          ...(step.letterSpacing !== undefined && { letterSpacing: step.letterSpacing }),
+        }}
+      >
+        {t('One seat, billed monthly')}
+      </p>
+    </li>
+  );
+}
+
+/**
+ * Saving what the screen read, under a name — `default` until somebody types
+ * another. Says whether the copy already saved under that name is the
+ * stylesheet as this build has it, so a save that would change nothing reads
+ * as one.
+ */
+function SaveTheme() {
+  const [name, setName] = useState(DEFAULT_THEME);
+  const themes = useThemes();
+  const saved = useTheme(name);
+  const save = useSaveTheme();
+  const valid = /^[a-z0-9][a-z0-9-]{0,62}$/.test(name);
+
+  // Both are the same shape in the same key order — the server returns a
+  // document in the order it was written — so their text is comparable.
+  const current = saved.data !== undefined && saved.data !== null && JSON.stringify(saved.data.document) === JSON.stringify(DOCUMENT);
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-3 rounded-card border border-line bg-surface p-4">
+        <Field
+          id="theme-name"
+          label={t('Name')}
+          hint={t('Lower-case letters, digits and hyphens. default is the theme the platform keeps.')}
+          error={valid ? undefined : t('Use lower-case letters, digits and hyphens.')}
+        >
+          <input
+            id="theme-name"
+            className={cn(inputClass(!valid), 'max-w-xs font-mono')}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            spellCheck={false}
+            autoComplete="off"
+          />
+        </Field>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            data-testid="save-theme"
+            pending={save.isPending}
+            disabled={!valid}
+            onClick={() => save.mutate({ name, document: DOCUMENT })}
+          >
+            {t('Save as {name}', { name })}
+          </Button>
+
+          <span className="text-xs text-muted" data-testid="theme-state" role="status">
+            {!valid || saved.isPending ? null : saved.data === null || saved.data === undefined ? (
+              t('Nothing is saved under this name yet.')
+            ) : (
+              <>
+                {current ? t('Saved, and the same as the stylesheet.') : t('Saved, and different from the stylesheet.')}{' '}
+                <When at={saved.data.updated_at} />
+              </>
+            )}
+          </span>
+        </div>
+
+        {save.error !== null && <ErrorSurface error={save.error} />}
+
+        <details className="rounded-control border border-line bg-well">
+          <summary className="cursor-pointer px-3 py-2 text-sm font-medium">{t('The JSON that is saved')}</summary>
+          <pre className="max-h-96 overflow-auto px-3 pb-3 font-mono text-2xs text-muted" tabIndex={0} data-testid="theme-json">
+            {JSON.stringify(DOCUMENT, null, 2)}
+          </pre>
+        </details>
+      </div>
+
+      {themes.isPending ? (
+        <SkeletonRows rows={2} />
+      ) : themes.error !== null ? (
+        <ErrorSurface error={themes.error} onRetry={() => void themes.refetch()} />
+      ) : themes.data.length === 0 ? (
+        <p className="text-sm text-muted">{t('No theme is saved on the platform yet.')}</p>
+      ) : (
+        <ul className="divide-y divide-line rounded-card border border-line bg-surface" data-testid="saved-themes">
+          {themes.data.map((theme) => (
+            <li key={theme.name} className="flex flex-wrap items-baseline justify-between gap-2 px-3 py-2 text-sm">
+              <button type="button" className="font-mono font-semibold text-accent underline" onClick={() => setName(theme.name)}>
+                {theme.name}
+              </button>
+              <span className="text-xs text-muted">
+                <When at={theme.updated_at} />
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

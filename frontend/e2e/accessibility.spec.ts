@@ -151,6 +151,22 @@ async function stubbed(page: Page) {
       },
     }),
   );
+  // A saved `default`, so the palette's save panel is scanned in the state
+  // with the most on it: a saved theme, its time, and the list.
+  await page.route(/\/api\/v1\/staff\/themes$/, (route) =>
+    route.fulfill({ json: { themes: [{ name: 'default', updated_at: '2026-10-04T09:00:00+00:00' }] } }),
+  );
+  await page.route(/\/api\/v1\/staff\/themes\/default$/, (route) =>
+    route.fulfill({
+      json: {
+        theme: {
+          name: 'default',
+          updated_at: '2026-10-04T09:00:00+00:00',
+          document: { format: 1, colors: [], fonts: [], type_scale: [] },
+        },
+      },
+    }),
+  );
   await page.route(/\/api\/v1\/staff\/navigation$/, (route) =>
     route.fulfill({ json: { navigation: { platform_admin: EVERY_MENU, tenant_admin: EVERY_MENU, user: EVERY_MENU } } }),
   );

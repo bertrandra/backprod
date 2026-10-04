@@ -198,6 +198,9 @@ export const keys = {
     /** Whether a new account must prove its address (ADR-063). */
     signUpSettings: ['staff', 'sign-up', 'settings'] as const,
     mailTemplates: (locale: string) => ['staff', 'mail', 'templates', locale] as const,
+    /** The design system saved under a name (2026-10-04). */
+    themes: ['staff', 'themes'] as const,
+    theme: (name: string) => ['staff', 'themes', name] as const,
     tenantLists: ['staff', 'tenants'] as const,
     productCredentials: (productId: string) => ['staff', 'products', productId, 'credentials'] as const,
     /** What the platform sent a product beside it, and what became of it (ADR-051 §5). */

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { contrast, readPalette } from './palette';
+import { contrast, readPalette, themeDocument } from './palette';
 
 const CSS = readFileSync(join(__dirname, '..', '..', 'index.css'), 'utf8');
 
@@ -69,6 +69,75 @@ describe('readPalette', () => {
     expect(scope.light['--color-canvas']).not.toBe(scope.dark['--color-canvas']);
     expect(scope.dark['--shadow-float']).toMatch(/rgb\(0 0 0/);
     expect(scope.light['--shadow-float']).toMatch(/rgb\(13 20 32/);
+  });
+});
+
+describe('fonts and type scale', () => {
+  it('reads every --font-* of @theme, with the family the stack ships first', () => {
+    const { fonts } = readPalette(CSS);
+
+    expect(fonts.map((font) => font.role)).toEqual(['sans', 'mono']);
+    expect(fonts[0]?.family).toBe('Geist Variable');
+    expect(fonts[1]?.family).toBe('Geist Mono Variable');
+    expect(fonts[0]?.stack).toMatch(/sans-serif$/);
+  });
+
+  it('reads every --text-* step with its line height and tracking, and nothing else as a step', () => {
+    const { typeScale } = readPalette(CSS);
+    const theme = /@theme \{([\s\S]*?)\n\}/.exec(CSS)?.[1] ?? '';
+    const sizes = [...theme.matchAll(/--text-([a-z0-9-]+?):/g)].map((m) => m[1]).filter((name) => !name?.includes('--'));
+
+    expect(typeScale.map((step) => step.name)).toEqual(sizes);
+    expect(typeScale.find((step) => step.name === 'xl')).toMatchObject({
+      size: '1.25rem',
+      lineHeight: '1.65rem',
+      letterSpacing: '-0.012em',
+    });
+    expect(typeScale.find((step) => step.name === 'base')?.letterSpacing).toBeUndefined();
+    expect(typeScale.find((step) => step.name === 'display-xl')?.size).toBe('4.5rem');
+  });
+});
+
+describe('themeDocument', () => {
+  it('is the palette in the contract’s shape, every value read from the stylesheet', () => {
+    const palette = readPalette(CSS);
+    const document = themeDocument(palette);
+
+    expect(document.format).toBe(1);
+    expect(document.colors.map((group) => group.group)).toEqual(palette.groups.map((group) => group.title));
+    expect(document.colors[0]?.tokens[0]).toEqual({
+      name: 'canvas',
+      variable: '--ds-canvas',
+      light: palette.scope.light['--ds-canvas'],
+      dark: palette.scope.dark['--ds-canvas'],
+    });
+    expect(document.fonts[0]).toEqual({
+      role: 'sans',
+      variable: '--font-sans',
+      family: 'Geist Variable',
+      stack: palette.fonts[0]?.stack,
+    });
+    expect(document.type_scale.find((step) => step.name === 'base')).toEqual({
+      name: 'base',
+      variable: '--text-base',
+      size: '0.875rem',
+      line_height: '1.4375rem',
+      letter_spacing: null,
+    });
+  });
+
+  it('holds only values the server accepts: no quote, semicolon, brace or angle bracket', () => {
+    const document = themeDocument(readPalette(CSS));
+    const value = /^[#a-zA-Z0-9(),.%/ +-]{1,100}$/;
+
+    for (const token of document.colors.flatMap((group) => group.tokens)) {
+      expect(token.light, token.name).toMatch(value);
+      expect(token.dark, token.name).toMatch(value);
+    }
+
+    for (const step of document.type_scale) {
+      expect(step.size).toMatch(value);
+    }
   });
 });
 

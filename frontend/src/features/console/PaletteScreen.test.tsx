@@ -1,12 +1,100 @@
-import { render, screen, within } from '@testing-library/react';
+import type { ReactElement } from 'react';
+
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import stylesheet from '@/index.css?raw';
+import { recordingClient, renderWith, stubClient, type Stubs } from '@/test-utils';
 
 import { PaletteScreen } from './PaletteScreen';
-import { readPalette } from './palette';
+import { readPalette, themeDocument } from './palette';
+
+const DOCUMENT = themeDocument(readPalette(stylesheet));
+const SAVED_AT = '2026-10-04T09:00:00+00:00';
+
+/** Nothing saved yet: where every deployment starts. */
+const NOTHING_SAVED: Stubs = {
+  'GET /api/v1/staff/themes': { data: { themes: [] } },
+  'GET /api/v1/staff/themes/{name}': {
+    status: 404,
+    error: { error: { code: 'THEME_NOT_FOUND', message: 'No theme is stored under that name.', details: {}, request_id: 'r' } },
+  },
+};
+
+function render(ui: ReactElement, stubs: Stubs = NOTHING_SAVED) {
+  return renderWith(ui, stubClient(stubs), { product: null });
+}
 
 describe('PaletteScreen', () => {
+  it('shows every font family and every step of the type scale the stylesheet defines', () => {
+    render(<PaletteScreen />);
+    const palette = readPalette(stylesheet);
+
+    for (const font of palette.fonts) {
+      const card = screen.getByTestId(`font-${font.role}`);
+
+      expect(within(card).getByText(font.family)).toBeTruthy();
+      expect(within(card).getByText(font.stack)).toBeTruthy();
+    }
+
+    for (const step of palette.typeScale) {
+      const row = screen.getByTestId(`text-${step.name}`);
+      const sample = within(row).getByText('One seat, billed monthly');
+
+      expect(sample.style.fontSize).toBe(step.size);
+    }
+  });
+
+  it('saves the document it read under default, and says nothing was saved before', async () => {
+    const { client, requests } = recordingClient({
+      ...NOTHING_SAVED,
+      'PUT /api/v1/staff/themes/{name}': { data: { theme: { name: 'default', updated_at: SAVED_AT, document: DOCUMENT } } },
+    });
+    renderWith(<PaletteScreen />, client, { product: null });
+
+    await waitFor(() => expect(screen.getByTestId('theme-state').textContent).toBe('Nothing is saved under this name yet.'));
+    fireEvent.click(screen.getByTestId('save-theme'));
+
+    await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
+    const put = requests.find((r) => r.method === 'PUT');
+
+    expect(put?.pathParams).toEqual({ name: 'default' });
+    expect(put?.body).toEqual({ document: DOCUMENT });
+    await waitFor(() =>
+      expect(screen.getByTestId('theme-state').textContent).toContain('Saved, and the same as the stylesheet.'),
+    );
+  });
+
+  it('says when the copy saved under the name is not the stylesheet any more', async () => {
+    render(<PaletteScreen />, {
+      'GET /api/v1/staff/themes': { data: { themes: [{ name: 'default', updated_at: SAVED_AT }] } },
+      'GET /api/v1/staff/themes/{name}': {
+        data: { theme: { name: 'default', updated_at: SAVED_AT, document: { ...DOCUMENT, fonts: [] } } },
+      },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId('theme-state').textContent).toContain('Saved, and different from the stylesheet.'),
+    );
+    expect(within(screen.getByTestId('saved-themes')).getByText('default')).toBeTruthy();
+  });
+
+  it('saves under another name when one is typed, and refuses one the path cannot carry', async () => {
+    const { client, requests } = recordingClient({
+      ...NOTHING_SAVED,
+      'PUT /api/v1/staff/themes/{name}': { data: { theme: { name: 'winter', updated_at: SAVED_AT, document: DOCUMENT } } },
+    });
+    renderWith(<PaletteScreen />, client, { product: null });
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Winter Theme' } });
+    expect(screen.getByTestId<HTMLButtonElement>('save-theme').disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'winter' } });
+    fireEvent.click(screen.getByTestId('save-theme'));
+
+    await waitFor(() => expect(requests.find((r) => r.method === 'PUT')?.pathParams).toEqual({ name: 'winter' }));
+  });
+
   it('draws a card for every colour the stylesheet defines', () => {
     render(<PaletteScreen />);
 
