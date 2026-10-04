@@ -18,7 +18,7 @@ final class PostgresTenantRepository implements TenantRepository
      * be the same lookup written four times.
      */
     private const SELECT = <<<'SQL'
-        SELECT t.id, t.name, t.slug, t.may_author_offers, p.code AS default_product
+        SELECT t.id, t.name, t.slug, t.may_author_offers, p.code AS default_product, t.logo_asset_id
           FROM tenants t
           LEFT JOIN products p ON p.id = t.default_product_id
         SQL;
@@ -60,6 +60,7 @@ final class PostgresTenantRepository implements TenantRepository
         }
 
         $default = $row['default_product'] ?? null;
+        $logo = $row['logo_asset_id'] ?? null;
 
         // Read rather than left to the constructor's default: a tenant that
         // reports `false` while the platform has delegated the catalogue to it
@@ -70,6 +71,7 @@ final class PostgresTenantRepository implements TenantRepository
             $slug,
             $row['may_author_offers'] === true,
             is_string($default) ? $default : null,
+            is_string($logo) ? $logo : null,
         );
     }
 
@@ -122,6 +124,14 @@ final class PostgresTenantRepository implements TenantRepository
         $this->connection->executeStatement(
             'UPDATE tenants SET name = :name, updated_at = now() WHERE id = :id',
             ['name' => $name, 'id' => $tenantId],
+        );
+    }
+
+    public function chooseLogo(string $tenantId, ?string $assetId): void
+    {
+        $this->connection->executeStatement(
+            'UPDATE tenants SET logo_asset_id = :asset, updated_at = now() WHERE id = :id',
+            ['id' => $tenantId, 'asset' => $assetId],
         );
     }
 }

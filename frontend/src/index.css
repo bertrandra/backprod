@@ -33,10 +33,9 @@
  * themes in one class, and the pair that used to be written twice is written
  * once. A future palette change is this file.
  *
- * **A tenant can still override two of them.** `primary_color` and
- * `accent_color` on `tenant.branding` (U2) set `--ds-accent` and
- * `--ds-accent-strong` at runtime, which is why nothing below hard-codes an
- * accent into a component: the one place a brand colour lands is a variable.
+ * **An organisation can wear a palette.** The one it chose on `/palette`
+ * redefines these variables at runtime, which is why nothing below hard-codes
+ * a colour into a component: the one place a colour lands is a variable.
  *
  * **Every value here is answerable to the contrast scan.** `accessibility.spec.ts`
  * runs axe over every route in both themes; a token pair that fails WCAG AA fails

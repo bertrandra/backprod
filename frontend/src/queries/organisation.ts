@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { ambientParams, type Schemas } from '@/api/client';
+import { ambientParams, binaryBody, type Schemas } from '@/api/client';
 import { useApiClient } from '@/app/providers/ApiProvider';
 import { sessionSnapshot } from '@/state/session';
 
@@ -128,4 +128,74 @@ export function useRenameOrganisation() {
   const update = useUpdateOrganisation();
 
   return { ...update, mutate: (name: string, options?: Parameters<typeof update.mutate>[1]) => update.mutate({ name }, options) };
+}
+/**
+ * The organisation's logo (2026-10-05): one for the organisation, in every
+ * product, set by its administrator and tied to no offer.
+ *
+ * The types the API accepts, from the contract's own list. SVG is
+ * deliberately absent — ADR-028 refuses it for the stored-scripting reason.
+ */
+export const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
+export type LogoType = (typeof LOGO_TYPES)[number];
+
+export function isLogoType(value: string): value is LogoType {
+  return (LOGO_TYPES as readonly string[]).includes(value);
+}
+
+/**
+ * Uploading the logo.
+ *
+ * The body is the bytes and the content type is the real one, because the API
+ * sniffs the bytes rather than trusting the header (ADR-028). The answer is the
+ * organisation as it now is, so it is written into the cache.
+ */
+export function useUploadOrganisationLogo() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (file: File): Promise<Tenant> => {
+      if (!isLogoType(file.type)) {
+        // Refused here as well as by the API — not a substitute for the
+        // server's check, but it turns the common mistake into an immediate
+        // answer instead of an upload that fails after the wait.
+        throw new Error(`A logo must be one of: ${LOGO_TYPES.join(', ')}.`);
+      }
+
+      const { data, error, response } = await client.POST('/api/v1/tenants/current/logo', {
+        ...ambientParams(sessionSnapshot),
+        ...binaryBody(file),
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.tenant;
+    },
+    onSuccess: (tenant) => queryClient.setQueryData(keys.organisation.current, tenant),
+  });
+}
+
+/** The organisation stops showing a logo; the file stays in its assets. */
+export function useRemoveOrganisationLogo() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (): Promise<Tenant> => {
+      const { data, error, response } = await client.DELETE(
+        '/api/v1/tenants/current/logo',
+        ambientParams(sessionSnapshot),
+      );
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data.tenant;
+    },
+    onSuccess: (tenant) => queryClient.setQueryData(keys.organisation.current, tenant),
+  });
 }

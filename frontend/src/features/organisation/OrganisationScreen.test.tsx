@@ -18,6 +18,7 @@ const ACME = {
   join_policy: 'APPROVAL',
   join_domains: [],
   default_product: null as string | null,
+  logo_asset_id: null as string | null,
 };
 
 const HELD = [
@@ -35,6 +36,13 @@ function clientFor(me = SESSION, tenant = ACME) {
     },
     'PATCH /api/v1/tenants/current': (): Stub => ({
       data: { tenant: { ...tenant, join_policy: 'DOMAIN', join_domains: ['acme.test'] } },
+    }),
+    'POST /api/v1/tenants/current/logo': (): Stub => ({
+      status: 201,
+      data: { tenant: { ...tenant, logo_asset_id: 'a-1' } },
+    }),
+    'DELETE /api/v1/tenants/current/logo': (): Stub => ({
+      data: { tenant: { ...tenant, logo_asset_id: null } },
     }),
   });
 }
@@ -192,5 +200,49 @@ describe('usage', () => {
 
     await waitFor(() => expect(screen.getByText('Nothing metered yet')).toBeTruthy());
     expect(screen.queryByTestId('quota-meters')).toBeNull();
+  });
+});
+/**
+ * The organisation's logo (2026-10-05): part of what it is, like its name —
+ * one in every product, set by its administrator, sold by no offer. It used to
+ * be on a branding screen behind the `white_label` capability.
+ */
+describe('the logo', () => {
+  it('uploads the file itself, and shows what the server answered', async () => {
+    const { client, requests } = clientFor();
+    renderWith(<OrganisationScreen />, client);
+
+    await waitFor(() => expect(screen.getByTestId('organisation-logo-state').textContent).toContain('No logo yet'));
+
+    const file = new File([new Uint8Array([137, 80, 78, 71])], 'acme.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('Choose a logo image'), { target: { files: [file] } });
+
+    await waitFor(() => expect(screen.getByTestId('organisation-logo-state').textContent).toContain('A logo is set'));
+    expect(requests.some((r) => r.method === 'POST' && r.path === '/api/v1/tenants/current/logo')).toBe(true);
+  });
+
+  it('needs no capability, only the permission', async () => {
+    renderWith(<OrganisationScreen />, clientFor({ ...SESSION, capabilities: [] }).client);
+
+    await waitFor(() => expect(screen.getByLabelText('Choose a logo image')).toBeTruthy());
+  });
+
+  it('removes it', async () => {
+    const { client, requests } = clientFor(SESSION, { ...ACME, logo_asset_id: 'a-1' });
+    renderWith(<OrganisationScreen />, client);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Remove logo' })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Remove logo' }));
+
+    await waitFor(() => expect(screen.getByTestId('organisation-logo-state').textContent).toContain('No logo yet'));
+    expect(requests.some((r) => r.method === 'DELETE')).toBe(true);
+  });
+
+  it('is shown, and not offered, to somebody who may not manage the organisation', async () => {
+    renderWith(<OrganisationScreen />, clientFor({ ...SESSION, permissions: ['tenant.read'] }, { ...ACME, logo_asset_id: 'a-1' }).client);
+
+    await waitFor(() => expect(screen.getByTestId('organisation-logo-state').textContent).toContain('A logo is set'));
+    expect(screen.queryByLabelText('Choose a logo image')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Remove logo' })).toBeNull();
   });
 });

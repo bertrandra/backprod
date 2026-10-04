@@ -49,16 +49,13 @@ export const keys = {
   },
   /**
    * Palettes (2026-10-04). The organisation's side is keyed without the
-   * product, like the skin: switching product starts a fresh cache.
+   * product: switching product starts a fresh cache.
    */
   palettes: {
     /** The organisation's door: the palettes it may choose, and its choice. */
     choice: ['palettes', 'choice'] as const,
     /** What its screens wear, read by every member's shell. */
     worn: ['palettes', 'worn'] as const,
-  },
-  skin: {
-    current: ['skin', 'current'] as const,
   },
   notifications: {
     // `lists` is the prefix every paged list shares, so invalidating it catches

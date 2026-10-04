@@ -102,11 +102,11 @@ describe('what a grant says', () => {
   it('says a boolean feature and nothing else', () => {
     render(
       <OfferCard
-        offer={offer({ grants: [{ feature: 'white_label', name: 'White label', kind: 'BOOLEAN', unit: null, limit: null, unlimited: false }] })}
+        offer={offer({ grants: [{ feature: 'plan.terrasse', name: 'Terrace engine', kind: 'BOOLEAN', unit: null, limit: null, unlimited: false }] })}
       />,
     );
 
-    expect(screen.getByTestId('grants-offer-1').textContent).toContain('White label');
+    expect(screen.getByTestId('grants-offer-1').textContent).toContain('Terrace engine');
   });
 });
 

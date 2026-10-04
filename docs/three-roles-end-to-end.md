@@ -317,7 +317,7 @@ non par un paramètre.
 `resendEmailVerification`, `forgotPassword`, `resetPassword` —
 l'authentification elle-même. `showMe`, `listProducts`,
 `showProduct`, `showProductCatalogue`, `listProductFeatures`,
-`showProductConfiguration`, `showSkin`, `showTenantPalette` — ce qu'un
+`showProductConfiguration`, `showTenantPalette` — ce qu'un
 membre voit du simple fait d'être membre : l'écran doit savoir comment se
 peindre avant de savoir ce que quiconque peut y faire. Tout le reste passe par une permission.
 
@@ -396,7 +396,7 @@ démonstration l'affirme à voix haute pour cette raison.
 
 ## Toutes ses actions, et ce qu'elles changent
 
-### L'organisation, sa marque et sa palette — `tenant.manage`, `skin.manage`
+### L'organisation, son logo et sa palette — `tenant.manage`, `skin.manage`
 
 | Action | Ce que ça change |
 |---|---|
@@ -404,10 +404,9 @@ démonstration l'affirme à voix haute pour cette raison.
 | `updateCurrentTenant` | Le nom, la politique d'adhésion et ses domaines, le **produit d'ouverture**. Le `slug` n'est pas modifiable : il figure peut-être déjà dans des références stockées. Un produit que l'organisation ne détient pas est refusé **400**. |
 | `listOrganisationSubscriptions` | Rien. Le registre de ce que ses gens tiennent, paginé, les vivants d'abord. `tenant.manage` et non `subscription.manage` — ce dernier, un USER le tient aussi. |
 | `joinSubscription`, `leaveSubscription` | Se met et se retire **lui-même** d'une souscription de son organisation (2026-09-30). Aucun corps : la seule personne que ça nomme est l'appelant. Qui d'autre elle couvre reste la décision de son titulaire, et ça ne dépense aucune place. |
-| `updateSkin` | Couleurs et libellés de la marque. |
-| `uploadSkinLogo`, `deleteSkinLogo` | Pose ou retire le logo. |
+| `uploadTenantLogo`, `deleteTenantLogo` | Pose ou retire **le logo de l'organisation** (2026-10-05) : un seul, quel que soit le produit, comme son nom. `tenant.manage`, lié à aucune offre — la marque blanche et ses couleurs ont disparu, la palette répond à cette question. Une image PNG, JPEG, GIF ou WebP, reniflée avant tout stockage ; le fichier précédent reste dans les assets. |
 | `listTenantPalettes` | Rien. Les palettes de la plateforme, et celle que porte l'organisation dans ce produit. |
-| `selectTenantPalette` | Choisit la palette que portent les écrans de ses membres dans ce produit, ou aucune (`null`) pour le design de la plateforme. **Choisir, jamais modifier** : une palette est à l'administrateur de la plateforme. La même ligne que la matrice de la console écrit — chacun voit ce que l'autre a choisi. `skin.manage` **seule**, sans la capacité `white_label` (choix de l'opérateur, 2026-10-04). |
+| `selectTenantPalette` | Choisit la palette que portent les écrans de ses membres dans ce produit, ou aucune (`null`) pour le design de la plateforme. **Choisir, jamais modifier** : une palette est à l'administrateur de la plateforme. La même ligne que la matrice de la console écrit — chacun voit ce que l'autre a choisi. `skin.manage` **seule**, liée à aucune offre (choix de l'opérateur, 2026-10-04). |
 
 ### Les gens — `members.manage`
 
@@ -714,21 +713,21 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
 ```text
                                           opérations
   atteignables par un USER seul                    7    billing.pay
-  atteignables par un TENANT_ADMIN seul           38
+  atteignables par un TENANT_ADMIN seul           37
   partagées par les deux                          70
-  sans permission, tout membre                    18
+  sans permission, tout membre                    17
   ─────────────────────────────────────────────────
-  surface locataire                              133
+  surface locataire                              131
 
   PLATFORM_ADMIN                                  86
   publiques, sans compte                           8
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          238
+  total                                          236
 ```
 
-Dont **115 lectures** et **123 écritures**. Chaque écriture a sa ligne dans les
+Dont **114 lectures** et **122 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

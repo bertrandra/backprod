@@ -133,10 +133,6 @@ use App\Sales\Controller\FulfilOrderController;
 use App\Sales\Controller\ListOrdersController;
 use App\Sales\Controller\PlaceOrderController;
 use App\Sales\Controller\ShowOrderController;
-use App\Skin\Controller\DeleteSkinLogoController;
-use App\Skin\Controller\ShowSkinController;
-use App\Skin\Controller\UpdateSkinController;
-use App\Skin\Controller\UploadSkinLogoController;
 use App\Staff\Controller\AssignPaletteController;
 use App\Staff\Controller\AssignTenantProductController;
 use App\Staff\Controller\CloseSupportConversationController;
@@ -231,11 +227,13 @@ use App\Tenant\Controller\AcceptJoinRequestController;
 use App\Tenant\Controller\AddMemberController;
 use App\Tenant\Controller\CurrentTenantController;
 use App\Tenant\Controller\DeclineJoinRequestController;
+use App\Tenant\Controller\DeleteTenantLogoController;
 use App\Tenant\Controller\ListJoinRequestsController;
 use App\Tenant\Controller\ListMembersController;
 use App\Tenant\Controller\RemoveMemberController;
 use App\Tenant\Controller\UpdateCurrentTenantController;
 use App\Tenant\Controller\UpdateMemberController;
+use App\Tenant\Controller\UploadTenantLogoController;
 use App\Theme\Controller\ListTenantPalettesController;
 use App\Theme\Controller\PublicPaletteController;
 use App\Theme\Controller\SelectTenantPaletteController;
@@ -582,19 +580,16 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/tenants/current', CurrentTenantController::class);
     $routes->addRoute('PATCH', '/api/v1/tenants/current', UpdateCurrentTenantController::class);
 
+    // The organisation's logo (2026-10-05): one for the organisation, like
+    // its name, set by its administrator and tied to no offer. It replaced the
+    // per-product white-label skin, whose colours nothing ever painted. The
+    // logo is bytes, so it takes the raw body like an asset upload, and its
+    // type is sniffed before anything is stored.
+    $routes->addRoute('POST', '/api/v1/tenants/current/logo', UploadTenantLogoController::class);
+    $routes->addRoute('DELETE', '/api/v1/tenants/current/logo', DeleteTenantLogoController::class);
+
     $routes->addRoute('GET', '/api/v1/tenants/current/usage', TenantUsageController::class);
 
-    // White label (§7). Reading needs only membership — a client has to know
-    // how to render itself before it knows what the tenant bought — while
-    // writing needs both the skin.manage permission and the `white_label`
-    // entitlement, which do not imply each other.
-    //
-    // The logo is bytes, so it takes the raw body like an asset upload, and
-    // its type is sniffed before anything is stored.
-    $routes->addRoute('GET', '/api/v1/tenant/skin', ShowSkinController::class);
-    $routes->addRoute('PATCH', '/api/v1/tenant/skin', UpdateSkinController::class);
-    $routes->addRoute('POST', '/api/v1/tenant/skin/logo', UploadSkinLogoController::class);
-    $routes->addRoute('DELETE', '/api/v1/tenant/skin/logo', DeleteSkinLogoController::class);
     // Which palette the organisation's screens wear (2026-10-04): it chooses,
     // it never edits — the palettes are the platform administrator's.
     $routes->addRoute('GET', '/api/v1/tenant/palettes', ListTenantPalettesController::class);
