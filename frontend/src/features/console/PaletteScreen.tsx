@@ -1,13 +1,12 @@
 import { useState, type CSSProperties } from 'react';
 
-import { PAIRS } from '@/features/themes/themeDocument';
+import { PAIRS } from '@/features/palettes/themeDocument';
 import { t } from '@/i18n';
 import stylesheet from '@/index.css?raw';
-import { DEFAULT_THEME, useSaveTheme, useTheme, useThemes } from '@/queries/themes';
+import { usePalettes, useSavePalette } from '@/queries/palettes';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
 import { PageHeader, Section } from '@/ui/Page';
-import { SkeletonRows } from '@/ui/Skeleton';
 import { pill, type Tone } from '@/ui/tone';
 import { MoodBoard } from '@/ui/MoodBoard';
 import { When } from '@/ui/When';
@@ -41,16 +40,19 @@ import {
  * **Both themes at once**, whichever the browser prefers, because a value is
  * only half-chosen until its dark counterpart is seen beside it.
  *
- * **And it saves what it read** (2026-10-04): the colours, the fonts and the
- * type scale as one JSON document, under `default` unless told otherwise,
- * through `saveTheme`. Stored, not applied — the stylesheet stays the design
- * system, and the record is what the platform keeps of it.
+ * **And it saves what it read as a palette** (2026-10-04): the colours, the
+ * fonts and the type scale as one JSON document, under `default` unless told
+ * otherwise, through `savePalette`. Organisations can then wear it like any
+ * other palette; `/console/palettes` assigns and edits it.
  */
 
 const PALETTE: Palette = readPalette(stylesheet);
 
 /** What this build's stylesheet says, in the shape the platform stores. */
 const DOCUMENT = themeDocument(PALETTE);
+
+/** The name the stylesheet is saved under unless somebody types another. */
+const DEFAULT_NAME = 'default';
 
 const THEMES: readonly Theme[] = ['light', 'dark'];
 
@@ -172,12 +174,12 @@ export function PaletteScreen() {
       </Section>
 
       <Section
-        title={t('Saved themes')}
+        title={t('Save as a palette')}
         description={t(
-          'What this screen read from the stylesheet, saved on the platform as one JSON document under a name. Stored, not applied: index.css stays the design system.',
+          'What this screen read from the stylesheet, saved as a palette — default unless you type another name. Organisations can then wear it: assign it and edit it on the Palettes screen.',
         )}
       >
-        <SaveTheme />
+        <SaveAsPalette />
       </Section>
     </div>
   );
@@ -359,89 +361,67 @@ function TextStepRow({ step }: { step: PaletteTextStep }) {
  * stylesheet as this build has it, so a save that would change nothing reads
  * as one.
  */
-function SaveTheme() {
-  const [name, setName] = useState(DEFAULT_THEME);
-  const themes = useThemes();
-  const saved = useTheme(name);
-  const save = useSaveTheme();
+function SaveAsPalette() {
+  const [name, setName] = useState(DEFAULT_NAME);
+  const palettes = usePalettes();
+  const save = useSavePalette();
   const valid = /^[a-z0-9][a-z0-9-]{0,62}$/.test(name);
+  const saved = palettes.data?.find((palette) => palette.name === name);
 
   // Both are the same shape in the same key order — the server returns a
   // document in the order it was written — so their text is comparable.
-  const current = saved.data !== undefined && saved.data !== null && JSON.stringify(saved.data.document) === JSON.stringify(DOCUMENT);
+  const current = saved !== undefined && JSON.stringify(saved.document) === JSON.stringify(DOCUMENT);
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-3 rounded-card border border-line bg-surface p-4">
-        <Field
-          id="theme-name"
-          label={t('Name')}
-          hint={t('Lower-case letters, digits and hyphens. default is the theme the platform keeps.')}
-          error={valid ? undefined : t('Use lower-case letters, digits and hyphens.')}
+    <div className="space-y-3 rounded-card border border-line bg-surface p-4">
+      <Field
+        id="palette-name"
+        label={t('Name')}
+        hint={t('Lower-case letters, digits and hyphens. Saving under an existing palette’s name replaces it for everyone wearing it.')}
+        error={valid ? undefined : t('Use lower-case letters, digits and hyphens.')}
+      >
+        <input
+          id="palette-name"
+          className={cn(inputClass(!valid), 'max-w-xs font-mono')}
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          spellCheck={false}
+          autoComplete="off"
+        />
+      </Field>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          data-testid="save-as-palette"
+          pending={save.isPending}
+          disabled={!valid || palettes.isPending}
+          onClick={() => save.mutate({ name, document: DOCUMENT })}
         >
-          <input
-            id="theme-name"
-            className={cn(inputClass(!valid), 'max-w-xs font-mono')}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            spellCheck={false}
-            autoComplete="off"
-          />
-        </Field>
+          {t('Save as {name}', { name })}
+        </Button>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            type="button"
-            data-testid="save-theme"
-            pending={save.isPending}
-            disabled={!valid}
-            onClick={() => save.mutate({ name, document: DOCUMENT })}
-          >
-            {t('Save as {name}', { name })}
-          </Button>
-
-          <span className="text-xs text-muted" data-testid="theme-state" role="status">
-            {!valid || saved.isPending ? null : saved.data === null || saved.data === undefined ? (
-              t('Nothing is saved under this name yet.')
-            ) : (
-              <>
-                {current ? t('Saved, and the same as the stylesheet.') : t('Saved, and different from the stylesheet.')}{' '}
-                <When at={saved.data.updated_at} />
-              </>
-            )}
-          </span>
-        </div>
-
-        {save.error !== null && <ErrorSurface error={save.error} />}
-
-        <details className="rounded-control border border-line bg-well">
-          <summary className="cursor-pointer px-3 py-2 text-sm font-medium">{t('The JSON that is saved')}</summary>
-          <pre className="max-h-96 overflow-auto px-3 pb-3 font-mono text-2xs text-muted" tabIndex={0} data-testid="theme-json">
-            {JSON.stringify(DOCUMENT, null, 2)}
-          </pre>
-        </details>
+        <span className="text-xs text-muted" data-testid="palette-state" role="status">
+          {!valid || palettes.isPending ? null : saved === undefined ? (
+            t('No palette has this name yet.')
+          ) : (
+            <>
+              {current ? t('Saved, and the same as the stylesheet.') : t('Saved, and different from the stylesheet.')}{' '}
+              <When at={saved.updated_at} />
+            </>
+          )}
+        </span>
       </div>
 
-      {themes.isPending ? (
-        <SkeletonRows rows={2} />
-      ) : themes.error !== null ? (
-        <ErrorSurface error={themes.error} onRetry={() => void themes.refetch()} />
-      ) : themes.data.length === 0 ? (
-        <p className="text-sm text-muted">{t('No theme is saved on the platform yet.')}</p>
-      ) : (
-        <ul className="divide-y divide-line rounded-card border border-line bg-surface" data-testid="saved-themes">
-          {themes.data.map((theme) => (
-            <li key={theme.name} className="flex flex-wrap items-baseline justify-between gap-2 px-3 py-2 text-sm">
-              <button type="button" className="font-mono font-semibold text-accent underline" onClick={() => setName(theme.name)}>
-                {theme.name}
-              </button>
-              <span className="text-xs text-muted">
-                <When at={theme.updated_at} />
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+      {save.error !== null && <ErrorSurface error={save.error} />}
+      {palettes.error !== null && <ErrorSurface error={palettes.error} onRetry={() => void palettes.refetch()} />}
+
+      <details className="rounded-control border border-line bg-well">
+        <summary className="cursor-pointer px-3 py-2 text-sm font-medium">{t('The JSON that is saved')}</summary>
+        <pre className="max-h-96 overflow-auto px-3 pb-3 font-mono text-2xs text-muted" tabIndex={0} data-testid="palette-json">
+          {JSON.stringify(DOCUMENT, null, 2)}
+        </pre>
+      </details>
     </div>
   );
 }

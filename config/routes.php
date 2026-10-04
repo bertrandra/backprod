@@ -137,6 +137,7 @@ use App\Skin\Controller\DeleteSkinLogoController;
 use App\Skin\Controller\ShowSkinController;
 use App\Skin\Controller\UpdateSkinController;
 use App\Skin\Controller\UploadSkinLogoController;
+use App\Staff\Controller\AssignPaletteController;
 use App\Staff\Controller\AssignTenantProductController;
 use App\Staff\Controller\CloseSupportConversationController;
 use App\Staff\Controller\CreateFeatureController;
@@ -150,6 +151,8 @@ use App\Staff\Controller\GrantTenantEntitlementController;
 use App\Staff\Controller\IssueProductCredentialController;
 use App\Staff\Controller\IssueWebhookSecretController;
 use App\Staff\Controller\ListAccessLogController;
+use App\Staff\Controller\ListPaletteAssignmentsController;
+use App\Staff\Controller\ListPalettesController;
 use App\Staff\Controller\ListPlatformFeaturesController;
 use App\Staff\Controller\ListPlatformProductsController;
 use App\Staff\Controller\ListProductCredentialsController;
@@ -163,7 +166,6 @@ use App\Staff\Controller\ListTenantPaymentsController;
 use App\Staff\Controller\ListTenantProjectsController;
 use App\Staff\Controller\ListTenantQuotesController;
 use App\Staff\Controller\ListTenantsController;
-use App\Staff\Controller\ListThemesController;
 use App\Staff\Controller\ListTranslationsController;
 use App\Staff\Controller\ListWebhookDeliveriesController;
 use App\Staff\Controller\PostSupportMessageController;
@@ -175,7 +177,7 @@ use App\Staff\Controller\ResetDemoWorldController;
 use App\Staff\Controller\RetryWebhookDeliveryController;
 use App\Staff\Controller\RevokeProductCredentialController;
 use App\Staff\Controller\RevokeStaffRoleController;
-use App\Staff\Controller\SaveThemeController;
+use App\Staff\Controller\SavePaletteController;
 use App\Staff\Controller\SendTestMailController;
 use App\Staff\Controller\SetBillingIdentityController;
 use App\Staff\Controller\SetDemoPageController;
@@ -202,7 +204,6 @@ use App\Staff\Controller\ShowSupportConversationController;
 use App\Staff\Controller\ShowTenantController;
 use App\Staff\Controller\ShowTenantEntitlementController;
 use App\Staff\Controller\ShowTenantTaxProfileController;
-use App\Staff\Controller\ShowThemeController;
 use App\Staff\Controller\StaffIdentityController;
 use App\Staff\Controller\UnassignTenantProductController;
 use App\Staff\Controller\UpdatePlanController;
@@ -235,12 +236,9 @@ use App\Tenant\Controller\ListMembersController;
 use App\Tenant\Controller\RemoveMemberController;
 use App\Tenant\Controller\UpdateCurrentTenantController;
 use App\Tenant\Controller\UpdateMemberController;
-use App\Theme\Controller\ListTenantThemesController;
-use App\Theme\Controller\ListThemeTemplatesController;
-use App\Theme\Controller\SaveTenantThemeController;
-use App\Theme\Controller\SetActiveTenantThemeController;
-use App\Theme\Controller\ShowActiveTenantThemeController;
-use App\Theme\Controller\ShowTenantThemeController;
+use App\Theme\Controller\ListTenantPalettesController;
+use App\Theme\Controller\SelectTenantPaletteController;
+use App\Theme\Controller\ShowTenantPaletteController;
 use FastRoute\RouteCollector;
 
 /**
@@ -593,14 +591,11 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('PATCH', '/api/v1/tenant/skin', UpdateSkinController::class);
     $routes->addRoute('POST', '/api/v1/tenant/skin/logo', UploadSkinLogoController::class);
     $routes->addRoute('DELETE', '/api/v1/tenant/skin/logo', DeleteSkinLogoController::class);
-    // An organisation's themes (2026-10-04): five templates to start from,
-    // its own copies, and the one its members' screens wear.
-    $routes->addRoute('GET', '/api/v1/tenant/theme-templates', ListThemeTemplatesController::class);
-    $routes->addRoute('GET', '/api/v1/tenant/themes', ListTenantThemesController::class);
-    $routes->addRoute('GET', '/api/v1/tenant/themes/{name}', ShowTenantThemeController::class);
-    $routes->addRoute('PUT', '/api/v1/tenant/themes/{name}', SaveTenantThemeController::class);
-    $routes->addRoute('GET', '/api/v1/tenant/theme', ShowActiveTenantThemeController::class);
-    $routes->addRoute('PUT', '/api/v1/tenant/theme', SetActiveTenantThemeController::class);
+    // Which palette the organisation's screens wear (2026-10-04): it chooses,
+    // it never edits — the palettes are the platform administrator's.
+    $routes->addRoute('GET', '/api/v1/tenant/palettes', ListTenantPalettesController::class);
+    $routes->addRoute('GET', '/api/v1/tenant/palette', ShowTenantPaletteController::class);
+    $routes->addRoute('PUT', '/api/v1/tenant/palette', SelectTenantPaletteController::class);
 
     // Platform staff (§12.2). Everything under /staff requires a platform
     // role, which no tenant membership grants — and grants nothing on the
@@ -840,10 +835,12 @@ return static function (RouteCollector $routes): void {
     $routes->addRoute('GET', '/api/v1/staff/mail/templates', ShowMailTemplatesController::class);
     $routes->addRoute('PUT', '/api/v1/staff/mail/templates', SetMailTemplatesController::class);
     $routes->addRoute('POST', '/api/v1/staff/mail/test', SendTestMailController::class);
-    // The design system saved under a name — `default` unless told otherwise (2026-10-04).
-    $routes->addRoute('GET', '/api/v1/staff/themes', ListThemesController::class);
-    $routes->addRoute('GET', '/api/v1/staff/themes/{name}', ShowThemeController::class);
-    $routes->addRoute('PUT', '/api/v1/staff/themes/{name}', SaveThemeController::class);
+    // The palettes, edited by the platform administrator alone, and the matrix
+    // of which organisation wears which in each product (2026-10-04).
+    $routes->addRoute('GET', '/api/v1/staff/palettes', ListPalettesController::class);
+    $routes->addRoute('PUT', '/api/v1/staff/palettes/{name}', SavePaletteController::class);
+    $routes->addRoute('GET', '/api/v1/staff/palette-assignments', ListPaletteAssignmentsController::class);
+    $routes->addRoute('PUT', '/api/v1/staff/tenants/{tenantId}/products/{productId}/palette', AssignPaletteController::class);
 
     $routes->addRoute('GET', '/api/v1/staff/access-log', ListAccessLogController::class);
 

@@ -350,14 +350,16 @@
     },
     "console.admin.palette": {
       "authority": "platform",
-      "$comment": "The design system as index.css defines it (2026-10-04): a mood board in both themes, the colour groups, the fonts and the type scale, all read from the stylesheet at build time. Behind staff.design.manage, which also saves what it read as a named theme — `default` unless told otherwise. Stored, not applied: the stylesheet stays the design system.",
+      "$comment": "The design system and its palettes (2026-10-04), behind staff.design.manage, which PLATFORM_ADMIN alone holds. /console/palette is index.css read at build time — mood board in both themes, colour groups, fonts, type scale, contrast — and can save what it read as a palette. /console/palettes edits the palettes, and holds the matrix: organisations by product, each cell the palette worn where the organisation holds the product. Only the platform administrator changes a palette; the assignment is one row, also written by the organisation's own screen (tenant.palette).",
       "routes": [
-        "/console/palette"
+        "/console/palette",
+        "/console/palettes"
       ],
       "operations": [
-        "listThemes",
-        "showTheme",
-        "saveTheme"
+        "assignPalette",
+        "listPaletteAssignments",
+        "listPalettes",
+        "savePalette"
       ]
     },
     "console.admin.storefront": {
@@ -547,18 +549,15 @@
         "uploadSkinLogo"
       ]
     },
-    "tenant.themes": {
+    "tenant.palette": {
       "authority": "tenant",
-      "$comment": "An organisation's themes (2026-10-04): five platform templates to start from, edited and saved as the organisation's own copies, and the one its members' screens wear. Behind skin.manage alone — the operator chose not to gate it on white_label. A template is never edited in place: one customer's change would repaint every other's screens. Reading the active theme is bootstrap, because every member's shell reads it to paint itself.",
+      "$comment": "Which palette the organisation's screens wear in this product (2026-10-04). It chooses among the platform's palettes and never edits one — palettes are the platform administrator's. The same row the console's matrix writes, so each side sees what the other chose. Behind skin.manage alone: the operator chose not to gate it on white_label. Reading what the screens wear is bootstrap, because every member's shell reads it to paint itself.",
       "routes": [
-        "/themes"
+        "/palette"
       ],
       "operations": [
-        "listThemeTemplates",
-        "listTenantThemes",
-        "saveTenantTheme",
-        "setActiveTenantTheme",
-        "showTenantTheme"
+        "listTenantPalettes",
+        "selectTenantPalette"
       ]
     },
     "tenant.members": {
@@ -680,7 +679,7 @@
       "showMyEntitlements": "tenant",
       "showMyNavigation": "tenant",
       "showMyPermissions": "tenant",
-      "showActiveTenantTheme": "tenant",
+      "showTenantPalette": "tenant",
       "showStaffIdentity": "platform",
       "showStaffNavigation": "platform"
     }

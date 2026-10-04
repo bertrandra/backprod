@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
 
-import { themeProperties, type ThemeDocument } from '@/features/themes/themeDocument';
-import { useActiveTenantTheme } from '@/queries/tenantThemes';
+import { themeProperties, type ThemeDocument } from '@/features/palettes/themeDocument';
+import { useWornPalette } from '@/queries/palettes';
 
 /**
- * Paints the page in the organisation's active theme (2026-10-04).
+ * Paints the page in the palette the organisation wears (2026-10-04).
  *
  * One `<style>` element after the stylesheet, holding two rules: `:root` with
  * the light values, the fonts and the type scale, and the same `:root` inside
@@ -19,11 +19,11 @@ import { useActiveTenantTheme } from '@/queries/tenantThemes';
  * member's screen.
  *
  * **Not on the console.** A platform screen answers to the platform, and wears
- * its design: an organisation's theme stops at the organisation's screens.
+ * its design: an organisation's palette stops at the organisation's screens.
  */
-export function useTenantTheme(enabled: boolean): void {
-  const active = useActiveTenantTheme(enabled);
-  const document = enabled ? (active.data?.document ?? null) : null;
+export function useTenantPalette(enabled: boolean): void {
+  const worn = useWornPalette(enabled);
+  const document = enabled ? (worn.data?.document ?? null) : null;
 
   useEffect(() => applyTheme(document), [document]);
 }

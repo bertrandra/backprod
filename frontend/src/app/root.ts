@@ -39,6 +39,7 @@ export const RESERVED: ReadonlySet<string> = new Set([
   'offers',
   'orders',
   'organisation',
+  'palette',
   'payments',
   'profile',
   'projects',
@@ -47,7 +48,6 @@ export const RESERVED: ReadonlySet<string> = new Set([
   'sign-up',
   'subscription',
   'tax',
-  'themes',
 ]);
 
 export interface Root {

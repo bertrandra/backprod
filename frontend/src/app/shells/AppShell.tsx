@@ -14,7 +14,7 @@ import {
 import { BottomNav, ContextBar, PrimaryNav } from '@/app/frame/regions';
 import { StatusStrip } from '@/app/frame/StatusStrip';
 import { useProductContext } from '@/app/frame/useProductContext';
-import { useTenantTheme } from '@/app/frame/useTenantTheme';
+import { useTenantPalette } from '@/app/frame/useTenantPalette';
 import { useMyNavigation, useStaffNavigation } from '@/queries/navigation';
 import { useMyProducts } from '@/queries/catalogue';
 import { ApiError, useSession } from '@/queries/session';
@@ -97,9 +97,9 @@ export function AppShell() {
 
   const sections = visibleNav(APP_NAV, authorities, hidden);
 
-  // The organisation's theme, on its own screens only (2026-10-04): the
+  // The organisation's palette, on its own screens only (2026-10-04): the
   // console answers to the platform and wears the platform's design.
-  useTenantTheme(session.data !== undefined && !onPlatformScreen);
+  useTenantPalette(session.data !== undefined && !onPlatformScreen);
 
   // The landing address, signed in: the person's root, their product, and
   // the first screen in their menu (`landing.ts`, 2026-09-18).

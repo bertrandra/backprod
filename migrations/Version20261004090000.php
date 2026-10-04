@@ -8,43 +8,35 @@ use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
 
 /**
- * The design system, saved under a name (2026-10-04).
+ * Palettes, and the permission to change them (2026-10-04).
  *
- * The console's palette screen reads `frontend/src/index.css` — colours in
- * both themes, font families, type scale — and saves what it read as a JSON
- * document here, under `default` unless told otherwise. Stored, not applied:
- * the stylesheet stays the design system.
+ * A palette is the design system as a document — colours in both modes, font
+ * families, type scale — under a name. **Only the platform administrator
+ * changes one** (`staff.design.manage`, PLATFORM_ADMIN alone): a palette is
+ * shared by every organisation wearing it, so editing it is the platform's
+ * decision and never one organisation's.
  *
- * **A table and not a `platform_settings` key**, because these are records
- * with names and there may be several; one key holding a map of themes
- * would make every save a read-modify-write of all of them.
+ * `position` is the order they are offered in, and UNIQUE so that two
+ * palettes created at once cannot take the same place.
  *
- * **No row is seeded.** A seeded `default` would be the stylesheet as it
- * stood on the day this file was written, and a migration cannot follow the
- * stylesheet afterwards (ADR-016). `default` starts absent and is written the
- * first time somebody saves it.
- *
- * The name is checked here as well as in `ThemeName`, because it travels in
- * a path and a row the API could never address would be a row nobody can
- * replace. The document's shape is the application's to check — a CHECK
- * that understood it would be a second copy of `ThemeDocument`.
- *
- * `staff.design.manage`, PLATFORM_ADMIN alone.
+ * **No foreign key to anybody**, deliberately: the five palettes the next
+ * migration seeds are reference data, like roles and permissions, and nothing
+ * a test empties may reach them. Who changed one is in `staff_access_log`.
  */
 final class Version20261004090000 extends AbstractMigration
 {
     public function getDescription(): string
     {
-        return 'themes: the design system saved under a name; staff.design.manage';
+        return 'palettes, edited by the platform administrator alone; staff.design.manage';
     }
 
     public function up(Schema $schema): void
     {
         $this->addSql(<<<'SQL'
-            CREATE TABLE themes (
+            CREATE TABLE palettes (
                 name text PRIMARY KEY CHECK (name ~ '^[a-z0-9][a-z0-9-]{0,62}$'),
+                position integer NOT NULL UNIQUE,
                 document jsonb NOT NULL CHECK (jsonb_typeof(document) = 'object'),
-                updated_by uuid REFERENCES users (id) ON DELETE SET NULL,
                 created_at timestamptz NOT NULL DEFAULT now(),
                 updated_at timestamptz NOT NULL DEFAULT now()
             )
@@ -52,7 +44,7 @@ final class Version20261004090000 extends AbstractMigration
 
         $this->addSql(<<<'SQL'
             INSERT INTO platform_permissions (code, description) VALUES
-                ('staff.design.manage', 'Save the design system — palette, fonts and type scale — as a named theme')
+                ('staff.design.manage', 'Edit the palettes, and choose which one each organisation wears in each product')
             SQL);
 
         $this->addSql(<<<'SQL'
@@ -74,6 +66,6 @@ final class Version20261004090000 extends AbstractMigration
                    )
             SQL);
         $this->addSql("DELETE FROM platform_permissions WHERE code = 'staff.design.manage'");
-        $this->addSql('DROP TABLE themes');
+        $this->addSql('DROP TABLE palettes');
     }
 }

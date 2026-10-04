@@ -308,53 +308,12 @@
       }
     },
     "schemas": {
-      "ThemeTemplate": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "name",
-          "document"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
-          },
-          "document": {
-            "$ref": "#/components/schemas/ThemeDocument"
-          }
-        }
-      },
-      "TenantThemeSummary": {
+      "Palette": {
         "type": "object",
         "additionalProperties": false,
         "required": [
           "name",
           "updated_at",
-          "active"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "active": {
-            "type": "boolean",
-            "description": "Whether this is the theme the organisation's screens wear. At most one is."
-          }
-        }
-      },
-      "TenantTheme": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "name",
-          "updated_at",
-          "active",
           "document"
         ],
         "properties": {
@@ -366,18 +325,119 @@
             "type": "string",
             "format": "date-time"
           },
-          "active": {
-            "type": "boolean"
-          },
           "document": {
             "$ref": "#/components/schemas/ThemeDocument"
+          }
+        }
+      },
+      "PaletteAssignments": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "products",
+          "tenants",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "products": {
+            "type": "array",
+            "description": "Every product, by code: the columns.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "code",
+                "name"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "tenants": {
+            "type": "array",
+            "description": "One page of organisations, by name: the rows.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "name",
+                "slug",
+                "products"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "products": {
+                  "type": "array",
+                  "description": "Only the products the organisation holds — a cell exists nowhere else.",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "product_id",
+                      "palette"
+                    ],
+                    "properties": {
+                      "product_id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "palette": {
+                        "oneOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The palette worn, or null for the platform's design."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Every organisation, not only this page."
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
           }
         }
       },
       "ThemeDocument": {
         "type": "object",
         "additionalProperties": false,
-        "description": "The design system as a document: the colours in their groups and in both themes, the font families and the type scale, as `frontend/src/index.css` defines them. Validated whole and refused whole. Stored, not applied — the stylesheet stays the design system — and its values are held to CSS's own shape so that a document already stored can never close a declaration or open markup the day something reads it into a stylesheet.",
+        "description": "The design system as a document: the colours in their groups and in both themes, the font families and the type scale, as `frontend/src/index.css` defines them. Validated whole and refused whole. The shape of a palette. Its values are held to CSS's own shape, so a stored document can never close a declaration or open markup when the shell reads it into a stylesheet.",
         "required": [
           "format",
           "colors",
@@ -549,46 +609,6 @@
                 }
               }
             }
-          }
-        }
-      },
-      "ThemeSummary": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "name",
-          "updated_at"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "Theme": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "name",
-          "updated_at",
-          "document"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "document": {
-            "$ref": "#/components/schemas/ThemeDocument"
           }
         }
       },
@@ -17876,14 +17896,14 @@
         }
       }
     },
-    "/api/v1/tenant/theme-templates": {
+    "/api/v1/tenant/palettes": {
       "get": {
         "tags": [
           "Tenants"
         ],
-        "operationId": "listThemeTemplates",
-        "summary": "The five themes an organisation starts from",
-        "description": "The platform's theme templates, with their documents, in the order they are offered (2026-10-04). Read-only: an organisation edits a copy, saved under its own name, so that one customer's change never repaints another's screens. Every template clears WCAG AA on every pair text is set in, in both themes. `skin.manage`.",
+        "operationId": "listTenantPalettes",
+        "summary": "The palettes this organisation may choose from",
+        "description": "Every palette, with its document, in the order offered, and the one this organisation wears in this product (`selected`, null for the platform's own design). The organisation chooses; it never edits a palette — that is the platform administrator's. `skin.manage`, and only that.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
@@ -17894,320 +17914,91 @@
         ],
         "responses": {
           "200": {
-            "description": "The templates.",
+            "description": "The palettes and the current choice.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "required": [
-                    "templates"
+                    "palettes",
+                    "selected"
                   ],
                   "properties": {
-                    "templates": {
+                    "palettes": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/ThemeTemplate"
+                        "$ref": "#/components/schemas/Palette"
                       }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "`PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthenticated"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          }
-        }
-      }
-    },
-    "/api/v1/tenant/themes": {
-      "get": {
-        "tags": [
-          "Tenants"
-        ],
-        "operationId": "listTenantThemes",
-        "summary": "The organisation's own themes",
-        "description": "The themes this organisation has saved, by name, each saying whether it is the one its members' screens wear. Scoped to the caller's tenant and product, like the skin; a name another organisation saved is not found. `skin.manage`.",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/ProductHeader"
-          },
-          {
-            "$ref": "#/components/parameters/TenantHeader"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The organisation's themes.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "themes"
-                  ],
-                  "properties": {
-                    "themes": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/TenantThemeSummary"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "`PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthenticated"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          }
-        }
-      }
-    },
-    "/api/v1/tenant/themes/{name}": {
-      "get": {
-        "tags": [
-          "Tenants"
-        ],
-        "operationId": "showTenantTheme",
-        "summary": "One of the organisation's themes, with its document",
-        "description": "One saved theme. Scoped to the caller's tenant and product, like the skin; a name another organisation saved is not found. `skin.manage`.",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/ProductHeader"
-          },
-          {
-            "$ref": "#/components/parameters/TenantHeader"
-          },
-          {
-            "name": "name",
-            "in": "path",
-            "required": true,
-            "description": "The theme's name in this organisation — lower-case letters, digits and hyphens.",
-            "schema": {
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The theme.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "theme"
-                  ],
-                  "properties": {
-                    "theme": {
-                      "$ref": "#/components/schemas/TenantTheme"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "`VALIDATION_FAILED` — the name is not in the shape a name has.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "`PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "`THEME_NOT_FOUND` — this organisation has saved nothing under that name.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthenticated"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "Tenants"
-        ],
-        "operationId": "saveTenantTheme",
-        "summary": "Save a theme in the organisation",
-        "description": "Creates the organisation's theme under this name, or replaces its whole document — usually a template, edited. Saving under a template's own name saves a copy here; the template does not move. Saving the active theme changes its members' screens at their next load. Validated whole and refused whole, every value held to CSS's own shape. Scoped to the caller's tenant and product, like the skin; a name another organisation saved is not found. `skin.manage`.",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/ProductHeader"
-          },
-          {
-            "$ref": "#/components/parameters/TenantHeader"
-          },
-          {
-            "name": "name",
-            "in": "path",
-            "required": true,
-            "description": "The theme's name in this organisation — lower-case letters, digits and hyphens.",
-            "schema": {
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "document"
-                ],
-                "properties": {
-                  "document": {
-                    "$ref": "#/components/schemas/ThemeDocument"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The theme as it now stands.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "theme"
-                  ],
-                  "properties": {
-                    "theme": {
-                      "$ref": "#/components/schemas/TenantTheme"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "`VALIDATION_FAILED` — the name, or any part of the document, is out of shape; `details.field` names which. Nothing is written.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "`PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthenticated"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          }
-        }
-      }
-    },
-    "/api/v1/tenant/theme": {
-      "get": {
-        "tags": [
-          "Tenants"
-        ],
-        "operationId": "showActiveTenantTheme",
-        "summary": "The theme this organisation's screens wear",
-        "description": "The active theme, or `null` for the platform's own design. **Any member**: the shell reads it to paint itself, before it knows what anybody may do — the skin's reasoning. The shell applies it on the organisation's own screens — never the console's — as the `--ds-*` variables in both modes, and the fonts and type scale as `--font-*` and `--text-*`.",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/ProductHeader"
-          },
-          {
-            "$ref": "#/components/parameters/TenantHeader"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The active theme, or null.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "theme"
-                  ],
-                  "properties": {
-                    "theme": {
+                    },
+                    "selected": {
                       "oneOf": [
                         {
-                          "$ref": "#/components/schemas/TenantTheme"
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`PERMISSION_DENIED` — the caller does not hold `skin.manage`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tenant/palette": {
+      "get": {
+        "tags": [
+          "Tenants"
+        ],
+        "operationId": "showTenantPalette",
+        "summary": "The palette this organisation's screens wear",
+        "description": "The palette worn in this product, or `null` for the platform's own design. **Any member**: the shell reads it to paint itself, before it knows what anybody may do. It applies it on the organisation's own screens — never the console's — as the `--ds-*` variables in both modes, and the fonts and type scale as `--font-*` and `--text-*`. One row per tenant and product, written from either door — the console's matrix (`assignPalette`) or the organisation's own screen (`selectTenantPalette`) — so each sees what the other chose.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProductHeader"
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The palette worn, or null.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "palette"
+                  ],
+                  "properties": {
+                    "palette": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/Palette"
                         },
                         {
                           "type": "null"
@@ -18237,9 +18028,9 @@
         "tags": [
           "Tenants"
         ],
-        "operationId": "setActiveTenantTheme",
-        "summary": "Choose which theme the organisation's screens wear",
-        "description": "`{name}` makes one of the organisation's themes the active one, and `{name: null}` goes back to the platform's own design. `name` must be present: a body that forgot it is refused, not read as switching theming off. At most one theme is active per tenant and product — a partial unique index, not a check. Scoped to the caller's tenant and product, like the skin; a name another organisation saved is not found. `skin.manage`.",
+        "operationId": "selectTenantPalette",
+        "summary": "Choose which palette this organisation's screens wear",
+        "description": "`{palette: name}` chooses one of the platform's palettes for this product, `{palette: null}` goes back to the platform's design. `palette` must be present. One row per tenant and product, written from either door — the console's matrix (`assignPalette`) or the organisation's own screen (`selectTenantPalette`) — so each sees what the other chose. `skin.manage`.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProductHeader"
@@ -18256,10 +18047,10 @@
                 "type": "object",
                 "additionalProperties": false,
                 "required": [
-                  "name"
+                  "palette"
                 ],
                 "properties": {
-                  "name": {
+                  "palette": {
                     "oneOf": [
                       {
                         "type": "string",
@@ -18268,7 +18059,8 @@
                       {
                         "type": "null"
                       }
-                    ]
+                    ],
+                    "description": "A palette's name, or null for the platform's own design."
                   }
                 }
               }
@@ -18277,19 +18069,19 @@
         },
         "responses": {
           "200": {
-            "description": "The active theme as it now stands, or null.",
+            "description": "The palette now worn, or null.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "required": [
-                    "theme"
+                    "palette"
                   ],
                   "properties": {
-                    "theme": {
+                    "palette": {
                       "oneOf": [
                         {
-                          "$ref": "#/components/schemas/TenantTheme"
+                          "$ref": "#/components/schemas/Palette"
                         },
                         {
                           "type": "null"
@@ -18302,7 +18094,7 @@
             }
           },
           "400": {
-            "description": "`VALIDATION_FAILED` — `name` is missing, or not a name.",
+            "description": "`VALIDATION_FAILED` — `palette` is missing, or not a name.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18312,7 +18104,7 @@
             }
           },
           "403": {
-            "description": "`PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for.",
+            "description": "`PERMISSION_DENIED` — the caller does not hold `skin.manage`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18322,7 +18114,7 @@
             }
           },
           "404": {
-            "description": "`THEME_NOT_FOUND` — this organisation has saved nothing under that name. Nothing changes.",
+            "description": "`PALETTE_NOT_FOUND` — no palette has that name. Nothing changes.",
             "content": {
               "application/json": {
                 "schema": {
@@ -20396,29 +20188,29 @@
         }
       }
     },
-    "/api/v1/staff/themes": {
+    "/api/v1/staff/palettes": {
       "get": {
         "tags": [
           "Staff"
         ],
-        "operationId": "listThemes",
-        "summary": "The themes the platform has saved",
-        "description": "Every saved theme by name, without its document. Empty until somebody saves one — nothing is seeded, not even `default`, because a seeded document would be the stylesheet as it stood the day the migration was written. `staff.design.manage`, which PLATFORM_ADMIN alone holds.",
+        "operationId": "listPalettes",
+        "summary": "Every palette",
+        "description": "Every palette, with its document, in the order organisations are offered them. `staff.design.manage`, which PLATFORM_ADMIN alone holds.",
         "responses": {
           "200": {
-            "description": "The saved themes, by name.",
+            "description": "The palettes.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "required": [
-                    "themes"
+                    "palettes"
                   ],
                   "properties": {
-                    "themes": {
+                    "palettes": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/ThemeSummary"
+                        "$ref": "#/components/schemas/Palette"
                       }
                     }
                   }
@@ -20441,104 +20233,26 @@
         }
       }
     },
-    "/api/v1/staff/themes/{name}": {
-      "get": {
-        "tags": [
-          "Staff"
-        ],
-        "operationId": "showTheme",
-        "summary": "One saved theme, with its document",
-        "parameters": [
-          {
-            "name": "name",
-            "in": "path",
-            "required": true,
-            "description": "The theme's name. `default` is the one the console saves under unless told otherwise.",
-            "schema": {
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
-              "examples": [
-                "default"
-              ]
-            }
-          }
-        ],
-        "description": "The theme saved under this name. `staff.design.manage`, which PLATFORM_ADMIN alone holds.",
-        "responses": {
-          "200": {
-            "description": "The theme.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "theme"
-                  ],
-                  "properties": {
-                    "theme": {
-                      "$ref": "#/components/schemas/Theme"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "`VALIDATION_FAILED` — the name is not lower-case letters, digits and hyphens.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "`THEME_NOT_FOUND` — nothing is saved under that name. Where `default` starts.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthenticated"
-          },
-          "403": {
-            "$ref": "#/components/responses/PermissionDenied"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          }
-        }
-      },
+    "/api/v1/staff/palettes/{name}": {
       "put": {
         "tags": [
           "Staff"
         ],
-        "operationId": "saveTheme",
-        "summary": "Save the design system under a name",
+        "operationId": "savePalette",
+        "summary": "Create a palette, or replace one's document",
+        "description": "Creates the palette at the end of the list, or replaces the whole document of the one with this name, in place. **Only the platform administrator changes a palette**: every organisation wearing it changes with it, at its next page load. Validated whole and refused whole. Leaves a trail row. `staff.design.manage`, which PLATFORM_ADMIN alone holds.",
         "parameters": [
           {
             "name": "name",
             "in": "path",
             "required": true,
-            "description": "The theme's name. `default` is the one the console saves under unless told otherwise.",
+            "description": "The palette's name.",
             "schema": {
               "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
-              "examples": [
-                "default"
-              ]
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
             }
           }
         ],
-        "description": "Creates the theme, or replaces the whole document saved under the name. The console builds the document from `frontend/src/index.css` — palette, fonts, type scale — and saves it as `default` unless told otherwise. Stored, not applied: nothing on the platform paints itself from a stored theme. `staff.design.manage`, which PLATFORM_ADMIN alone holds.",
         "requestBody": {
           "required": true,
           "content": {
@@ -20560,17 +20274,17 @@
         },
         "responses": {
           "200": {
-            "description": "The theme as it now stands.",
+            "description": "The palette as it now stands.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "required": [
-                    "theme"
+                    "palette"
                   ],
                   "properties": {
-                    "theme": {
-                      "$ref": "#/components/schemas/Theme"
+                    "palette": {
+                      "$ref": "#/components/schemas/Palette"
                     }
                   }
                 }
@@ -20578,7 +20292,181 @@
             }
           },
           "400": {
-            "description": "`VALIDATION_FAILED` — the name, or any part of the document, is not in the shape `ThemeDocument` describes; `details.field` names which. Nothing is written.",
+            "description": "`VALIDATION_FAILED` — the name, or any part of the document, is out of shape; `details.field` names which. Nothing is written.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/palette-assignments": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "listPaletteAssignments",
+        "summary": "Which palette each organisation wears, product by product",
+        "description": "The matrix: every product, and a page of organisations (by name), each with the palette it wears in each product **it holds** — a product it does not hold has no cell. One row per tenant and product, written from either door — the console's matrix (`assignPalette`) or the organisation's own screen (`selectTenantPalette`) — so each sees what the other chose. No motive header: which palette an organisation wears is configuration the platform shares in, not the organisation's own data. `staff.design.manage`, which PLATFORM_ADMIN alone holds.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of the matrix.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaletteAssignments"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/tenants/{tenantId}/products/{productId}/palette": {
+      "put": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "assignPalette",
+        "summary": "Choose the palette an organisation wears in a product",
+        "description": "`{palette: name}` assigns one of the palettes to the organisation in a product it holds, `{palette: null}` gives it back the platform's design. One row per tenant and product, written from either door — the console's matrix (`assignPalette`) or the organisation's own screen (`selectTenantPalette`) — so each sees what the other chose. Leaves a trail row. `staff.design.manage`, which PLATFORM_ADMIN alone holds.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "palette"
+                ],
+                "properties": {
+                  "palette": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "A palette's name, or null for the platform's own design."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The palette now worn, or null.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "palette"
+                  ],
+                  "properties": {
+                    "palette": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/Palette"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — `palette` is missing, or not a name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`TENANT_OR_PRODUCT_NOT_FOUND` — the tenant does not hold that product. `PALETTE_NOT_FOUND` — no palette has that name. Nothing changes.",
             "content": {
               "application/json": {
                 "schema": {

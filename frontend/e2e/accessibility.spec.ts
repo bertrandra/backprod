@@ -153,35 +153,29 @@ async function stubbed(page: Page) {
       },
     }),
   );
-  // The five real templates, and one organisation theme in use, so the
-  // themes screen is scanned with everything it can show.
-  await page.route(/\/api\/v1\/tenant\/theme-templates$/, (route) =>
+  // The five real palettes, one worn, and a matrix with a held and an unheld
+  // product — so both palette screens are scanned with everything they show.
+  const palettes = ['petrol-classic', 'forest-ledger', 'terracotta-studio', 'midnight-indigo', 'graphite-compact'].map((name) => ({
+    name,
+    updated_at: '2026-10-04T09:00:00+00:00',
+    document: JSON.parse(readFileSync(new URL(`../../docs/themes/${name}.json`, import.meta.url), 'utf8')) as unknown,
+  }));
+  await page.route(/\/api\/v1\/tenant\/palettes$/, (route) => route.fulfill({ json: { palettes, selected: 'forest-ledger' } }));
+  await page.route(/\/api\/v1\/tenant\/palette$/, (route) => route.fulfill({ json: { palette: null } }));
+  await page.route(/\/api\/v1\/staff\/palettes$/, (route) => route.fulfill({ json: { palettes } }));
+  await page.route(/\/api\/v1\/staff\/palette-assignments(\?.*)?$/, (route) =>
     route.fulfill({
       json: {
-        templates: ['petrol-classic', 'forest-ledger', 'terracotta-studio', 'midnight-indigo', 'graphite-compact'].map((name) => ({
-          name,
-          document: JSON.parse(readFileSync(new URL(`../../docs/themes/${name}.json`, import.meta.url), 'utf8')) as unknown,
-        })),
-      },
-    }),
-  );
-  await page.route(/\/api\/v1\/tenant\/themes$/, (route) =>
-    route.fulfill({ json: { themes: [{ name: 'acme-forest', updated_at: '2026-10-04T09:00:00+00:00', active: true }] } }),
-  );
-  await page.route(/\/api\/v1\/tenant\/theme$/, (route) => route.fulfill({ json: { theme: null } }));
-  // A saved `default`, so the palette's save panel is scanned in the state
-  // with the most on it: a saved theme, its time, and the list.
-  await page.route(/\/api\/v1\/staff\/themes$/, (route) =>
-    route.fulfill({ json: { themes: [{ name: 'default', updated_at: '2026-10-04T09:00:00+00:00' }] } }),
-  );
-  await page.route(/\/api\/v1\/staff\/themes\/default$/, (route) =>
-    route.fulfill({
-      json: {
-        theme: {
-          name: 'default',
-          updated_at: '2026-10-04T09:00:00+00:00',
-          document: { format: 1, colors: [], fonts: [], type_scale: [] },
-        },
+        products: [
+          { id: SESSION.product_id, code: 'atlas', name: 'Atlas' },
+          { id: '99999999-9999-4999-8999-999999999999', code: 'beta', name: 'Beta' },
+        ],
+        tenants: [
+          { id: SESSION.tenant_id, name: 'Acme Ltd', slug: 'acme', products: [{ product_id: SESSION.product_id, palette: 'forest-ledger' }] },
+        ],
+        total: 1,
+        limit: 50,
+        offset: 0,
       },
     }),
   );
@@ -294,7 +288,7 @@ const TENANT_ROUTES = [
   '/organisation',
   '/members',
   '/branding',
-  '/themes',
+  '/palette',
   '/notifications',
   '/notification-settings',
   '/conversations',
@@ -326,6 +320,7 @@ const CONSOLE_ROUTES = [
   '/console/mail',
   '/console/demo',
   '/console/palette',
+  '/console/palettes',
 ] as const;
 
 async function scan(page: Page) {

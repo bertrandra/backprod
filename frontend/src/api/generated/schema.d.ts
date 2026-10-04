@@ -2801,7 +2801,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tenant/theme-templates": {
+    "/api/v1/tenant/palettes": {
         parameters: {
             query?: never;
             header?: never;
@@ -2809,10 +2809,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The five themes an organisation starts from
-         * @description The platform's theme templates, with their documents, in the order they are offered (2026-10-04). Read-only: an organisation edits a copy, saved under its own name, so that one customer's change never repaints another's screens. Every template clears WCAG AA on every pair text is set in, in both themes. `skin.manage`.
+         * The palettes this organisation may choose from
+         * @description Every palette, with its document, in the order offered, and the one this organisation wears in this product (`selected`, null for the platform's own design). The organisation chooses; it never edits a palette — that is the platform administrator's. `skin.manage`, and only that.
          */
-        get: operations["listThemeTemplates"];
+        get: operations["listTenantPalettes"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2821,7 +2821,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tenant/themes": {
+    "/api/v1/tenant/palette": {
         parameters: {
             query?: never;
             header?: never;
@@ -2829,59 +2829,15 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The organisation's own themes
-         * @description The themes this organisation has saved, by name, each saying whether it is the one its members' screens wear. Scoped to the caller's tenant and product, like the skin; a name another organisation saved is not found. `skin.manage`.
+         * The palette this organisation's screens wear
+         * @description The palette worn in this product, or `null` for the platform's own design. **Any member**: the shell reads it to paint itself, before it knows what anybody may do. It applies it on the organisation's own screens — never the console's — as the `--ds-*` variables in both modes, and the fonts and type scale as `--font-*` and `--text-*`. One row per tenant and product, written from either door — the console's matrix (`assignPalette`) or the organisation's own screen (`selectTenantPalette`) — so each sees what the other chose.
          */
-        get: operations["listTenantThemes"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/themes/{name}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
+        get: operations["showTenantPalette"];
         /**
-         * One of the organisation's themes, with its document
-         * @description One saved theme. Scoped to the caller's tenant and product, like the skin; a name another organisation saved is not found. `skin.manage`.
+         * Choose which palette this organisation's screens wear
+         * @description `{palette: name}` chooses one of the platform's palettes for this product, `{palette: null}` goes back to the platform's design. `palette` must be present. One row per tenant and product, written from either door — the console's matrix (`assignPalette`) or the organisation's own screen (`selectTenantPalette`) — so each sees what the other chose. `skin.manage`.
          */
-        get: operations["showTenantTheme"];
-        /**
-         * Save a theme in the organisation
-         * @description Creates the organisation's theme under this name, or replaces its whole document — usually a template, edited. Saving under a template's own name saves a copy here; the template does not move. Saving the active theme changes its members' screens at their next load. Validated whole and refused whole, every value held to CSS's own shape. Scoped to the caller's tenant and product, like the skin; a name another organisation saved is not found. `skin.manage`.
-         */
-        put: operations["saveTenantTheme"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenant/theme": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The theme this organisation's screens wear
-         * @description The active theme, or `null` for the platform's own design. **Any member**: the shell reads it to paint itself, before it knows what anybody may do — the skin's reasoning. The shell applies it on the organisation's own screens — never the console's — as the `--ds-*` variables in both modes, and the fonts and type scale as `--font-*` and `--text-*`.
-         */
-        get: operations["showActiveTenantTheme"];
-        /**
-         * Choose which theme the organisation's screens wear
-         * @description `{name}` makes one of the organisation's themes the active one, and `{name: null}` goes back to the platform's own design. `name` must be present: a body that forgot it is refused, not read as switching theming off. At most one theme is active per tenant and product — a partial unique index, not a check. Scoped to the caller's tenant and product, like the skin; a name another organisation saved is not found. `skin.manage`.
-         */
-        put: operations["setActiveTenantTheme"];
+        put: operations["selectTenantPalette"];
         post?: never;
         delete?: never;
         options?: never;
@@ -3365,7 +3321,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/staff/themes": {
+    "/api/v1/staff/palettes": {
         parameters: {
             query?: never;
             header?: never;
@@ -3373,10 +3329,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The themes the platform has saved
-         * @description Every saved theme by name, without its document. Empty until somebody saves one — nothing is seeded, not even `default`, because a seeded document would be the stylesheet as it stood the day the migration was written. `staff.design.manage`, which PLATFORM_ADMIN alone holds.
+         * Every palette
+         * @description Every palette, with its document, in the order organisations are offered them. `staff.design.manage`, which PLATFORM_ADMIN alone holds.
          */
-        get: operations["listThemes"];
+        get: operations["listPalettes"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3385,7 +3341,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/staff/themes/{name}": {
+    "/api/v1/staff/palettes/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Create a palette, or replace one's document
+         * @description Creates the palette at the end of the list, or replaces the whole document of the one with this name, in place. **Only the platform administrator changes a palette**: every organisation wearing it changes with it, at its next page load. Validated whole and refused whole. Leaves a trail row. `staff.design.manage`, which PLATFORM_ADMIN alone holds.
+         */
+        put: operations["savePalette"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/palette-assignments": {
         parameters: {
             query?: never;
             header?: never;
@@ -3393,15 +3369,31 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * One saved theme, with its document
-         * @description The theme saved under this name. `staff.design.manage`, which PLATFORM_ADMIN alone holds.
+         * Which palette each organisation wears, product by product
+         * @description The matrix: every product, and a page of organisations (by name), each with the palette it wears in each product **it holds** — a product it does not hold has no cell. One row per tenant and product, written from either door — the console's matrix (`assignPalette`) or the organisation's own screen (`selectTenantPalette`) — so each sees what the other chose. No motive header: which palette an organisation wears is configuration the platform shares in, not the organisation's own data. `staff.design.manage`, which PLATFORM_ADMIN alone holds.
          */
-        get: operations["showTheme"];
+        get: operations["listPaletteAssignments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff/tenants/{tenantId}/products/{productId}/palette": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
         /**
-         * Save the design system under a name
-         * @description Creates the theme, or replaces the whole document saved under the name. The console builds the document from `frontend/src/index.css` — palette, fonts, type scale — and saves it as `default` unless told otherwise. Stored, not applied: nothing on the platform paints itself from a stored theme. `staff.design.manage`, which PLATFORM_ADMIN alone holds.
+         * Choose the palette an organisation wears in a product
+         * @description `{palette: name}` assigns one of the palettes to the organisation in a product it holds, `{palette: null}` gives it back the platform's design. One row per tenant and product, written from either door — the console's matrix (`assignPalette`) or the organisation's own screen (`selectTenantPalette`) — so each sees what the other chose. Leaves a trail row. `staff.design.manage`, which PLATFORM_ADMIN alone holds.
          */
-        put: operations["saveTheme"];
+        put: operations["assignPalette"];
         post?: never;
         delete?: never;
         options?: never;
@@ -4189,25 +4181,40 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        ThemeTemplate: {
-            name: string;
-            document: components["schemas"]["ThemeDocument"];
-        };
-        TenantThemeSummary: {
+        Palette: {
             name: string;
             /** Format: date-time */
             updated_at: string;
-            /** @description Whether this is the theme the organisation's screens wear. At most one is. */
-            active: boolean;
-        };
-        TenantTheme: {
-            name: string;
-            /** Format: date-time */
-            updated_at: string;
-            active: boolean;
             document: components["schemas"]["ThemeDocument"];
         };
-        /** @description The design system as a document: the colours in their groups and in both themes, the font families and the type scale, as `frontend/src/index.css` defines them. Validated whole and refused whole. Stored, not applied — the stylesheet stays the design system — and its values are held to CSS's own shape so that a document already stored can never close a declaration or open markup the day something reads it into a stylesheet. */
+        PaletteAssignments: {
+            /** @description Every product, by code: the columns. */
+            products: {
+                /** Format: uuid */
+                id: string;
+                code: string;
+                name: string;
+            }[];
+            /** @description One page of organisations, by name: the rows. */
+            tenants: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                slug: string;
+                /** @description Only the products the organisation holds — a cell exists nowhere else. */
+                products: {
+                    /** Format: uuid */
+                    product_id: string;
+                    /** @description The palette worn, or null for the platform's design. */
+                    palette: string | null;
+                }[];
+            }[];
+            /** @description Every organisation, not only this page. */
+            total: number;
+            limit: number;
+            offset: number;
+        };
+        /** @description The design system as a document: the colours in their groups and in both themes, the font families and the type scale, as `frontend/src/index.css` defines them. Validated whole and refused whole. The shape of a palette. Its values are held to CSS's own shape, so a stored document can never close a declaration or open markup when the shell reads it into a stylesheet. */
         ThemeDocument: {
             /**
              * @description The shape of this document. 1 is the only one.
@@ -4250,17 +4257,6 @@ export interface components {
                 line_height: string | null;
                 letter_spacing: string | null;
             }[];
-        };
-        ThemeSummary: {
-            name: string;
-            /** Format: date-time */
-            updated_at: string;
-        };
-        Theme: {
-            name: string;
-            /** Format: date-time */
-            updated_at: string;
-            document: components["schemas"]["ThemeDocument"];
         };
         /** @description The §10.4 envelope. Every failure has this shape, whatever produced it. */
         Error: {
@@ -13160,7 +13156,7 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    listThemeTemplates: {
+    listTenantPalettes: {
         parameters: {
             query?: never;
             header: {
@@ -13174,19 +13170,20 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The templates. */
+            /** @description The palettes and the current choice. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        templates: components["schemas"]["ThemeTemplate"][];
+                        palettes: components["schemas"]["Palette"][];
+                        selected: string | null;
                     };
                 };
             };
             401: components["responses"]["Unauthenticated"];
-            /** @description `PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for. */
+            /** @description `PERMISSION_DENIED` — the caller does not hold `skin.manage`. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13199,7 +13196,7 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    listTenantThemes: {
+    showTenantPalette: {
         parameters: {
             query?: never;
             header: {
@@ -13213,170 +13210,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The organisation's themes. */
+            /** @description The palette worn, or null. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        themes: components["schemas"]["TenantThemeSummary"][];
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            /** @description `PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showTenantTheme: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                /** @description The theme's name in this organisation — lower-case letters, digits and hyphens. */
-                name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The theme. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        theme: components["schemas"]["TenantTheme"];
-                    };
-                };
-            };
-            /** @description `VALIDATION_FAILED` — the name is not in the shape a name has. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            /** @description `PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description `THEME_NOT_FOUND` — this organisation has saved nothing under that name. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    saveTenantTheme: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path: {
-                /** @description The theme's name in this organisation — lower-case letters, digits and hyphens. */
-                name: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    document: components["schemas"]["ThemeDocument"];
-                };
-            };
-        };
-        responses: {
-            /** @description The theme as it now stands. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        theme: components["schemas"]["TenantTheme"];
-                    };
-                };
-            };
-            /** @description `VALIDATION_FAILED` — the name, or any part of the document, is out of shape; `details.field` names which. Nothing is written. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            /** @description `PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    showActiveTenantTheme: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Which product this request is about. Required on everything except discovery and the public surface — a resource endpoint without it is refused rather than guessed at (§12.1). */
-                "X-Product": components["parameters"]["ProductHeader"];
-                /** @description Which tenant, when the caller belongs to more than one. Checked against membership, never believed on its own. */
-                "X-Tenant"?: components["parameters"]["TenantHeader"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The active theme, or null. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        theme: components["schemas"]["TenantTheme"] | null;
+                        palette: components["schemas"]["Palette"] | null;
                     };
                 };
             };
@@ -13386,7 +13227,7 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    setActiveTenantTheme: {
+    selectTenantPalette: {
         parameters: {
             query?: never;
             header: {
@@ -13401,23 +13242,24 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    name: string | null;
+                    /** @description A palette's name, or null for the platform's own design. */
+                    palette: string | null;
                 };
             };
         };
         responses: {
-            /** @description The active theme as it now stands, or null. */
+            /** @description The palette now worn, or null. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        theme: components["schemas"]["TenantTheme"] | null;
+                        palette: components["schemas"]["Palette"] | null;
                     };
                 };
             };
-            /** @description `VALIDATION_FAILED` — `name` is missing, or not a name. */
+            /** @description `VALIDATION_FAILED` — `palette` is missing, or not a name. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13427,7 +13269,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
-            /** @description `PERMISSION_DENIED` — the caller does not hold `skin.manage`. The permission alone: theming is not gated on the `white_label` capability the skin's colours ask for. */
+            /** @description `PERMISSION_DENIED` — the caller does not hold `skin.manage`. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13436,7 +13278,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `THEME_NOT_FOUND` — this organisation has saved nothing under that name. Nothing changes. */
+            /** @description `PALETTE_NOT_FOUND` — no palette has that name. Nothing changes. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -14612,7 +14454,7 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    listThemes: {
+    listPalettes: {
         parameters: {
             query?: never;
             header?: never;
@@ -14621,14 +14463,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The saved themes, by name. */
+            /** @description The palettes. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        themes: components["schemas"]["ThemeSummary"][];
+                        palettes: components["schemas"]["Palette"][];
                     };
                 };
             };
@@ -14638,59 +14480,12 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
-    showTheme: {
+    savePalette: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                /** @description The theme's name. `default` is the one the console saves under unless told otherwise. */
-                name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The theme. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        theme: components["schemas"]["Theme"];
-                    };
-                };
-            };
-            /** @description `VALIDATION_FAILED` — the name is not lower-case letters, digits and hyphens. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["PermissionDenied"];
-            /** @description `THEME_NOT_FOUND` — nothing is saved under that name. Where `default` starts. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            429: components["responses"]["TooManyRequests"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    saveTheme: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The theme's name. `default` is the one the console saves under unless told otherwise. */
+                /** @description The palette's name. */
                 name: string;
             };
             cookie?: never;
@@ -14703,18 +14498,18 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The theme as it now stands. */
+            /** @description The palette as it now stands. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        theme: components["schemas"]["Theme"];
+                        palette: components["schemas"]["Palette"];
                     };
                 };
             };
-            /** @description `VALIDATION_FAILED` — the name, or any part of the document, is not in the shape `ThemeDocument` describes; `details.field` names which. Nothing is written. */
+            /** @description `VALIDATION_FAILED` — the name, or any part of the document, is out of shape; `details.field` names which. Nothing is written. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14725,6 +14520,87 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listPaletteAssignments: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of the matrix. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaletteAssignments"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    assignPalette: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description A palette's name, or null for the platform's own design. */
+                    palette: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The palette now worn, or null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        palette: components["schemas"]["Palette"] | null;
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `palette` is missing, or not a name. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            /** @description `TENANT_OR_PRODUCT_NOT_FOUND` — the tenant does not hold that product. `PALETTE_NOT_FOUND` — no palette has that name. Nothing changes. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
         };

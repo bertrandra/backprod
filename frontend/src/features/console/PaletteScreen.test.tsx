@@ -12,13 +12,9 @@ import { readPalette, themeDocument } from './palette';
 const DOCUMENT = themeDocument(readPalette(stylesheet));
 const SAVED_AT = '2026-10-04T09:00:00+00:00';
 
-/** Nothing saved yet: where every deployment starts. */
+/** The five palettes and no `default`: where every deployment starts. */
 const NOTHING_SAVED: Stubs = {
-  'GET /api/v1/staff/themes': { data: { themes: [] } },
-  'GET /api/v1/staff/themes/{name}': {
-    status: 404,
-    error: { error: { code: 'THEME_NOT_FOUND', message: 'No theme is stored under that name.', details: {}, request_id: 'r' } },
-  },
+  'GET /api/v1/staff/palettes': { data: { palettes: [] } },
 };
 
 function render(ui: ReactElement, stubs: Stubs = NOTHING_SAVED) {
@@ -45,15 +41,24 @@ describe('PaletteScreen', () => {
     }
   });
 
-  it('saves the document it read under default, and says nothing was saved before', async () => {
+  it('saves the document it read as the palette default, and says none had that name before', async () => {
+    let saved = false;
     const { client, requests } = recordingClient({
-      ...NOTHING_SAVED,
-      'PUT /api/v1/staff/themes/{name}': { data: { theme: { name: 'default', updated_at: SAVED_AT, document: DOCUMENT } } },
+      // The list answers what the server holds: nothing named default, then
+      // the palette the save wrote.
+      'GET /api/v1/staff/palettes': () => ({
+        data: { palettes: saved ? [{ name: 'default', updated_at: SAVED_AT, document: DOCUMENT }] : [] },
+      }),
+      'PUT /api/v1/staff/palettes/{name}': () => {
+        saved = true;
+
+        return { data: { palette: { name: 'default', updated_at: SAVED_AT, document: DOCUMENT } } };
+      },
     });
     renderWith(<PaletteScreen />, client, { product: null });
 
-    await waitFor(() => expect(screen.getByTestId('theme-state').textContent).toBe('Nothing is saved under this name yet.'));
-    fireEvent.click(screen.getByTestId('save-theme'));
+    await waitFor(() => expect(screen.getByTestId('palette-state').textContent).toBe('No palette has this name yet.'));
+    fireEvent.click(screen.getByTestId('save-as-palette'));
 
     await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
     const put = requests.find((r) => r.method === 'PUT');
@@ -61,36 +66,35 @@ describe('PaletteScreen', () => {
     expect(put?.pathParams).toEqual({ name: 'default' });
     expect(put?.body).toEqual({ document: DOCUMENT });
     await waitFor(() =>
-      expect(screen.getByTestId('theme-state').textContent).toContain('Saved, and the same as the stylesheet.'),
+      expect(screen.getByTestId('palette-state').textContent).toContain('Saved, and the same as the stylesheet.'),
     );
   });
 
-  it('says when the copy saved under the name is not the stylesheet any more', async () => {
+  it('says when the palette saved under the name is not the stylesheet any more', async () => {
     render(<PaletteScreen />, {
-      'GET /api/v1/staff/themes': { data: { themes: [{ name: 'default', updated_at: SAVED_AT }] } },
-      'GET /api/v1/staff/themes/{name}': {
-        data: { theme: { name: 'default', updated_at: SAVED_AT, document: { ...DOCUMENT, fonts: [] } } },
+      'GET /api/v1/staff/palettes': {
+        data: { palettes: [{ name: 'default', updated_at: SAVED_AT, document: { ...DOCUMENT, fonts: [] } }] },
       },
     });
 
     await waitFor(() =>
-      expect(screen.getByTestId('theme-state').textContent).toContain('Saved, and different from the stylesheet.'),
+      expect(screen.getByTestId('palette-state').textContent).toContain('Saved, and different from the stylesheet.'),
     );
-    expect(within(screen.getByTestId('saved-themes')).getByText('default')).toBeTruthy();
   });
 
   it('saves under another name when one is typed, and refuses one the path cannot carry', async () => {
     const { client, requests } = recordingClient({
       ...NOTHING_SAVED,
-      'PUT /api/v1/staff/themes/{name}': { data: { theme: { name: 'winter', updated_at: SAVED_AT, document: DOCUMENT } } },
+      'PUT /api/v1/staff/palettes/{name}': { data: { palette: { name: 'winter', updated_at: SAVED_AT, document: DOCUMENT } } },
     });
     renderWith(<PaletteScreen />, client, { product: null });
 
+    await waitFor(() => expect(screen.getByTestId('palette-state').textContent).not.toBe(''));
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Winter Theme' } });
-    expect(screen.getByTestId<HTMLButtonElement>('save-theme').disabled).toBe(true);
+    expect(screen.getByTestId<HTMLButtonElement>('save-as-palette').disabled).toBe(true);
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'winter' } });
-    fireEvent.click(screen.getByTestId('save-theme'));
+    fireEvent.click(screen.getByTestId('save-as-palette'));
 
     await waitFor(() => expect(requests.find((r) => r.method === 'PUT')?.pathParams).toEqual({ name: 'winter' }));
   });

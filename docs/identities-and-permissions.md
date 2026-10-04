@@ -235,7 +235,7 @@ accordée au rôle puis retirée à la résolution.
 | `tax.manage` | oui | non | régler le profil, clore une période |
 | `jobs.read` | oui | oui | travaux de fond |
 | `jobs.manage` | oui | non | lancer, annuler |
-| `skin.manage` | oui | non | habillage — **+ capacité `white_label`** pour les couleurs et le logo du skin ; **seule** pour les thèmes de l'organisation (2026-10-04) |
+| `skin.manage` | oui | non | habillage — **+ capacité `white_label`** pour les couleurs et le logo du skin ; **seule** pour choisir la palette de l'organisation, jamais la modifier (2026-10-04) |
 
 ## La matrice, côté plateforme
 
@@ -259,7 +259,7 @@ ont été retirées.)
 | `staff.access_log.read` | oui | non | non | non |
 | `staff.navigation.manage` (choisir les entrées de menu par public) | oui | non | non | non |
 | `staff.mail.manage` (modifier les gabarits de mail, envoyer un test) | oui | non | non | non |
-| `staff.design.manage` (enregistrer le design system — palette, polices, échelle typographique — comme thème nommé) | oui | non | non | non |
+| `staff.design.manage` (modifier les palettes, et choisir celle que porte chaque organisation dans chaque produit) | oui | non | non | non |
 | `staff.demo.reset` (vider et réensemencer le monde de démonstration) | oui | non | non | non |
 | `staff.demo.publish` (afficher ou masquer la page publique `/demo`) | oui | non | non | non |
 | `admin.directory.read` | oui | non | non | non |

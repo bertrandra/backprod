@@ -317,7 +317,7 @@ non par un paramètre.
 `resendEmailVerification`, `forgotPassword`, `resetPassword` —
 l'authentification elle-même. `showMe`, `listProducts`,
 `showProduct`, `showProductCatalogue`, `listProductFeatures`,
-`showProductConfiguration`, `showSkin`, `showActiveTenantTheme` — ce qu'un
+`showProductConfiguration`, `showSkin`, `showTenantPalette` — ce qu'un
 membre voit du simple fait d'être membre : l'écran doit savoir comment se
 peindre avant de savoir ce que quiconque peut y faire. Tout le reste passe par une permission.
 
@@ -396,7 +396,7 @@ démonstration l'affirme à voix haute pour cette raison.
 
 ## Toutes ses actions, et ce qu'elles changent
 
-### L'organisation, sa marque et son thème — `tenant.manage`, `skin.manage`
+### L'organisation, sa marque et sa palette — `tenant.manage`, `skin.manage`
 
 | Action | Ce que ça change |
 |---|---|
@@ -406,9 +406,8 @@ démonstration l'affirme à voix haute pour cette raison.
 | `joinSubscription`, `leaveSubscription` | Se met et se retire **lui-même** d'une souscription de son organisation (2026-09-30). Aucun corps : la seule personne que ça nomme est l'appelant. Qui d'autre elle couvre reste la décision de son titulaire, et ça ne dépense aucune place. |
 | `updateSkin` | Couleurs et libellés de la marque. |
 | `uploadSkinLogo`, `deleteSkinLogo` | Pose ou retire le logo. |
-| `listThemeTemplates`, `listTenantThemes`, `showTenantTheme` | Rien. Les cinq modèles de la plateforme, et les thèmes que l'organisation a enregistrés. |
-| `saveTenantTheme` | Enregistre un thème **dans l'organisation**, sous son propre nom — en général un modèle retouché. Un modèle n'est jamais modifié sur place : le changement d'un client repeindrait les écrans de tous les autres. `skin.manage` **seule**, sans la capacité `white_label` que demandent les couleurs du skin : choix de l'opérateur (2026-10-04). |
-| `setActiveTenantTheme` | Choisit le thème que portent les écrans de ses membres, ou aucun (`null`) pour revenir au design de la plateforme. Un seul actif par organisation et produit — un index unique partiel, pas une vérification. |
+| `listTenantPalettes` | Rien. Les palettes de la plateforme, et celle que porte l'organisation dans ce produit. |
+| `selectTenantPalette` | Choisit la palette que portent les écrans de ses membres dans ce produit, ou aucune (`null`) pour le design de la plateforme. **Choisir, jamais modifier** : une palette est à l'administrateur de la plateforme. La même ligne que la matrice de la console écrit — chacun voit ce que l'autre a choisi. `skin.manage` **seule**, sans la capacité `white_label` (choix de l'opérateur, 2026-10-04). |
 
 ### Les gens — `members.manage`
 
@@ -666,15 +665,17 @@ clients.
 | `showQueue`, `listAdminJobs` | `admin.health.read` | Rien. La santé de la file. |
 | `eraseUser` | `admin.privacy.erase` | **Efface une personne** (§26) : nom et adresse vidés, les lignes qui la nomment conservées. Ce que la loi impose de garder — les factures — reste. La seule opération vraiment destructive de la console. |
 
-### Les menus, le courrier, le thème, la démonstration
+### Les menus, le courrier, les palettes, la démonstration
 
 | Action | Permission | Ce que ça change |
 |---|---|---|
 | `showNavigationSetup`, `setNavigationSetup` | `staff.navigation.manage` | Un **second** filtre du menu, appliqué après les permissions et jamais à leur place. |
 | `showMailTemplates`, `setMailTemplates` | `staff.mail.manage` | Les gabarits d'e-mail. |
 | `sendTestMail` | `staff.mail.manage` | Envoie un message de test. Refusé si aucun serveur n'est configuré, plutôt que mis en file en silence. |
-| `listThemes`, `showTheme` | `staff.design.manage` | Rien. Les thèmes enregistrés, et le document de l'un d'eux. |
-| `saveTheme` | `staff.design.manage` | Enregistre sous un nom — `default` par défaut — le design system lu dans `index.css` : palette dans les deux thèmes, polices, échelle typographique. **Stocké, pas appliqué** : la feuille de style reste le design system, et rien ne se peint encore depuis un thème enregistré. |
+| `listPalettes` | `staff.design.manage` | Rien. Les palettes, avec leurs documents. |
+| `savePalette` | `staff.design.manage` | Crée une palette, ou remplace son document. **Seul l'administrateur de la plateforme modifie une palette** : toutes les organisations qui la portent changent avec elle. Une ligne de piste. |
+| `listPaletteAssignments` | `staff.design.manage` | Rien. La matrice : chaque produit, et une page d'organisations, avec la palette portée dans chaque produit **détenu** — un produit non détenu n'a pas de case. |
+| `assignPalette` | `staff.design.manage` | Choisit la palette d'une organisation dans un produit qu'elle détient, ou aucune. La même ligne que `selectTenantPalette` : une seule source. Une ligne de piste. |
 | `resetDemoWorld` | `staff.demo.reset` | **Détruit et reconstruit** le monde de démonstration. |
 | `showDemoPage`, `setDemoPage` | `staff.demo.publish` | La page publique qui présente les comptes de démonstration. |
 
@@ -711,21 +712,21 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
 ```text
                                           opérations
   atteignables par un USER seul                    7    billing.pay
-  atteignables par un TENANT_ADMIN seul           41
+  atteignables par un TENANT_ADMIN seul           38
   partagées par les deux                          70
   sans permission, tout membre                    18
   ─────────────────────────────────────────────────
-  surface locataire                              136
+  surface locataire                              133
 
-  PLATFORM_ADMIN                                  85
+  PLATFORM_ADMIN                                  86
   publiques, sans compte                           7
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          239
+  total                                          237
 ```
 
-Dont **116 lectures** et **123 écritures**. Chaque écriture a sa ligne dans les
+Dont **114 lectures** et **123 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

@@ -1,14 +1,16 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { describe, expect, it } from 'vitest';
 
+import { PALETTE_NAMES, PALETTES } from './fixtures';
 import { failingPairs, recolour, themeProperties, type ThemeDocument } from './themeDocument';
 
-const TEMPLATES = ['petrol-classic', 'forest-ledger', 'terracotta-studio', 'midnight-indigo', 'graphite-compact'];
-
 function template(name: string): ThemeDocument {
-  return JSON.parse(readFileSync(join(__dirname, '..', '..', '..', '..', 'docs', 'themes', `${name}.json`), 'utf8')) as ThemeDocument;
+  const found = PALETTES.find((palette) => palette.name === name);
+
+  if (found === undefined) {
+    throw new Error(`No palette ${name}.`);
+  }
+
+  return found.document;
 }
 
 describe('themeProperties', () => {
@@ -52,8 +54,8 @@ describe('themeProperties', () => {
   });
 });
 
-describe('the five templates', () => {
-  it.each(TEMPLATES)('%s clears AA on every pair, in both modes', (name) => {
+describe('the five palettes', () => {
+  it.each(PALETTE_NAMES)('%s clears AA on every pair, in both modes', (name) => {
     expect(failingPairs(template(name))).toEqual([]);
   });
 });

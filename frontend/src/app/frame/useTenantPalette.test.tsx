@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { renderWith, stubClient } from '@/test-utils';
 
-import { useTenantTheme } from './useTenantTheme';
+import { useTenantPalette } from './useTenantPalette';
 
 const DOCUMENT = {
   format: 1,
@@ -13,7 +13,7 @@ const DOCUMENT = {
 };
 
 function Painted({ enabled }: { enabled: boolean }) {
-  useTenantTheme(enabled);
+  useTenantPalette(enabled);
 
   return null;
 }
@@ -32,11 +32,11 @@ function themeRules(): { light: CSSStyleRule | undefined; dark: CSSStyleRule | u
 
 afterEach(() => document.head.querySelectorAll('style[data-tenant-theme]').forEach((element) => element.remove()));
 
-describe('useTenantTheme', () => {
+describe('useTenantPalette', () => {
   it('paints :root with the light values, and the dark ones inside the colour-scheme query', async () => {
     renderWith(
       <Painted enabled />,
-      stubClient({ 'GET /api/v1/tenant/theme': { data: { theme: { name: 'forest', updated_at: '2026-10-04T09:00:00+00:00', active: true, document: DOCUMENT } } } }),
+      stubClient({ 'GET /api/v1/tenant/palette': { data: { palette: { name: 'forest-ledger', updated_at: '2026-10-04T09:00:00+00:00', document: DOCUMENT } } } }),
     );
 
     await waitFor(() => expect(themeRules().light).toBeDefined());
@@ -49,8 +49,8 @@ describe('useTenantTheme', () => {
     expect(dark?.style.getPropertyValue('--ds-accent')).toBe('#51d698');
   });
 
-  it('paints nothing when the organisation has chosen none', async () => {
-    const client = stubClient({ 'GET /api/v1/tenant/theme': { data: { theme: null } } });
+  it('paints nothing when the organisation wears the platform’s design', async () => {
+    const client = stubClient({ 'GET /api/v1/tenant/palette': { data: { palette: null } } });
     renderWith(<Painted enabled />, client);
 
     await new Promise((resolve) => setTimeout(resolve, 50));

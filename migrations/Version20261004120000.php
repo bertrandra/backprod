@@ -8,32 +8,27 @@ use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
 
 /**
- * Five themes to start from, and an organisation's own (2026-10-04).
+ * Five palettes, and which one each organisation wears (2026-10-04).
  *
- * **`theme_templates`** are the platform's: five designed starting points,
- * each a complete `ThemeDocument` — colours in both themes, fonts, type
- * scale — whose every text-on-ground pair clears WCAG AA (`ThemeTemplatesTest`
- * measures them). Seeded here, unlike the console's `default`, and the
- * difference is the reason: `default` would have been a copy of a stylesheet
- * that keeps moving, while these are designs in their own right, fixed on the
- * day they were drawn. Their source is `docs/themes/*.json`, and what is
- * applied is this file (ADR-016): editing a JSON there changes nothing until a
- * migration says so.
+ * **The five** are designed starting points, each a complete `ThemeDocument`
+ * whose every text-on-ground pair clears WCAG AA in both modes
+ * (`PalettesTest` measures them). Their source is `docs/themes/*.json`; what
+ * is applied is this file (ADR-016), so editing a JSON there changes nothing
+ * until a migration says so. The platform administrator edits them afterwards.
  *
- * A separate table from `themes` and with no foreign key to anybody, for the
- * reason `TestDatabase` gives about reference data: nothing a test empties
- * reaches it, the way roles and permissions survive every reset.
+ * **`tenant_palettes`** is one fact with two doors: the console's matrix
+ * assigns it, and the organisation's administrator changes it on their own
+ * screen. Both write this row, so each sees what the other chose. No row is
+ * the platform's own design.
  *
- * **`tenant_themes`** are an organisation's copies, keyed like its skin by
- * `(tenant, product)`: a template is never edited in place, because one
- * customer's change would repaint every other customer's screens. At most one
- * is **active** — the one its members' screens wear — and that is a partial
- * unique index, never an application check, which two administrators
- * pressing the button at once would race straight through.
+ * Keyed by `(tenant, product)` and referencing `tenant_products`, so a palette
+ * can only be worn in a product the tenant holds — and goes with the product
+ * when it is unassigned. A palette being worn cannot be dropped from under
+ * the organisations wearing it (`ON DELETE RESTRICT`).
  */
 final class Version20261004120000 extends AbstractMigration
 {
-    /** @var array<string, array{int, string}> name => [position, document] */
+    /** @var array<string, array{int, string}> name => [position, document], from docs/themes */
     private const TEMPLATES = [
         'petrol-classic' => [1, <<<'JSON'
             {"format": 1, "label": "Petrol classic", "description": "The platform’s own design system: petrol blue on cool greys, Geist, the standard scale. The safe starting point.", "colors": [{"group": "Surfaces, in levels", "tokens": [{"name": "canvas", "variable": "--ds-canvas", "light": "#f5f7f9", "dark": "#0a0e14"}, {"name": "surface", "variable": "--ds-surface", "light": "#ffffff", "dark": "#111823"}, {"name": "well", "variable": "--ds-well", "light": "#f1f4f7", "dark": "#0d141d"}, {"name": "raised", "variable": "--ds-raised", "light": "#ffffff", "dark": "#18202c"}]}, {"group": "Ink, in three weights", "tokens": [{"name": "ink", "variable": "--ds-ink", "light": "#0e1520", "dark": "#e9eef6"}, {"name": "muted", "variable": "--ds-ink-muted", "light": "#495566", "dark": "#9ca8ba"}, {"name": "subtle", "variable": "--ds-ink-subtle", "light": "#64707f", "dark": "#838e9f"}]}, {"group": "Lines", "tokens": [{"name": "line", "variable": "--ds-line", "light": "#e2e6ec", "dark": "#1f2836"}, {"name": "line-strong", "variable": "--ds-line-strong", "light": "#c8d0da", "dark": "#303c4c"}]}, {"group": "Accent", "tokens": [{"name": "accent", "variable": "--ds-accent", "light": "#0b6e99", "dark": "#4cc2ee"}, {"name": "accent-strong", "variable": "--ds-accent-strong", "light": "#075274", "dark": "#8ad9f5"}, {"name": "accent-wash", "variable": "--ds-accent-wash", "light": "#e4f1f8", "dark": "#0a2b39"}, {"name": "on-accent", "variable": "--ds-on-accent", "light": "#ffffff", "dark": "#04202c"}]}, {"group": "Inverse", "tokens": [{"name": "inverse", "variable": "--ds-inverse", "light": "#111826", "dark": "#e9eef6"}, {"name": "on-inverse", "variable": "--ds-on-inverse", "light": "#ffffff", "dark": "#0a0e14"}]}, {"group": "Scrim", "tokens": [{"name": "scrim", "variable": "--ds-scrim", "light": "rgb(14 21 32 / 0.4)", "dark": "rgb(0 0 0 / 0.6)"}]}, {"group": "Meaning, not decoration", "tokens": [{"name": "success", "variable": "--ds-success", "light": "#0b6b4f", "dark": "#4bd6a0"}, {"name": "success-wash", "variable": "--ds-success-wash", "light": "#e0f2ea", "dark": "#0a2b20"}, {"name": "warning", "variable": "--ds-warning", "light": "#8a5300", "dark": "#f0b355"}, {"name": "warning-wash", "variable": "--ds-warning-wash", "light": "#fdefd9", "dark": "#2e2008"}, {"name": "danger", "variable": "--ds-danger", "light": "#a52131", "dark": "#ff8794"}, {"name": "danger-wash", "variable": "--ds-danger-wash", "light": "#fbe6e8", "dark": "#35151b"}]}, {"group": "Neither good nor bad", "tokens": [{"name": "info", "variable": "--ds-info", "light": "#17548c", "dark": "#79c0f7"}, {"name": "info-wash", "variable": "--ds-info-wash", "light": "#e4eefa", "dark": "#0c2438"}]}], "fonts": [{"role": "sans", "variable": "--font-sans", "family": "Geist Variable", "stack": "'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"}, {"role": "mono", "variable": "--font-mono", "family": "Geist Mono Variable", "stack": "'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace"}], "type_scale": [{"name": "2xs", "variable": "--text-2xs", "size": "0.6875rem", "line_height": "1rem", "letter_spacing": "0.04em"}, {"name": "xs", "variable": "--text-xs", "size": "0.75rem", "line_height": "1.125rem", "letter_spacing": null}, {"name": "sm", "variable": "--text-sm", "size": "0.8125rem", "line_height": "1.3125rem", "letter_spacing": null}, {"name": "base", "variable": "--text-base", "size": "0.875rem", "line_height": "1.4375rem", "letter_spacing": null}, {"name": "lg", "variable": "--text-lg", "size": "1rem", "line_height": "1.5rem", "letter_spacing": null}, {"name": "xl", "variable": "--text-xl", "size": "1.25rem", "line_height": "1.65rem", "letter_spacing": "-0.012em"}, {"name": "2xl", "variable": "--text-2xl", "size": "1.5rem", "line_height": "1.85rem", "letter_spacing": "-0.018em"}, {"name": "3xl", "variable": "--text-3xl", "size": "1.875rem", "line_height": "2.15rem", "letter_spacing": "-0.022em"}, {"name": "display-sm", "variable": "--text-display-sm", "size": "1.75rem", "line_height": "2.1rem", "letter_spacing": "-0.02em"}, {"name": "display-md", "variable": "--text-display-md", "size": "2.5rem", "line_height": "2.8rem", "letter_spacing": "-0.025em"}, {"name": "display-lg", "variable": "--text-display-lg", "size": "3.5rem", "line_height": "3.7rem", "letter_spacing": "-0.03em"}, {"name": "display-xl", "variable": "--text-display-xl", "size": "4.5rem", "line_height": "4.6rem", "letter_spacing": "-0.035em"}]}
@@ -54,48 +49,34 @@ final class Version20261004120000 extends AbstractMigration
 
     public function getDescription(): string
     {
-        return 'theme_templates (five seeded) and tenant_themes, with one active theme per tenant and product';
+        return 'Five palettes seeded, and tenant_palettes: which one each organisation wears in each product';
     }
 
     public function up(Schema $schema): void
     {
-        $this->addSql(<<<'SQL'
-            CREATE TABLE theme_templates (
-                name text PRIMARY KEY CHECK (name ~ '^[a-z0-9][a-z0-9-]{0,62}$'),
-                position integer NOT NULL UNIQUE,
-                document jsonb NOT NULL CHECK (jsonb_typeof(document) = 'object')
-            )
-            SQL);
-
         foreach (self::TEMPLATES as $name => [$position, $document]) {
             $this->addSql(
-                'INSERT INTO theme_templates (name, position, document) VALUES (:name, :position, CAST(:document AS jsonb))',
+                'INSERT INTO palettes (name, position, document) VALUES (:name, :position, CAST(:document AS jsonb))',
                 ['name' => $name, 'position' => $position, 'document' => $document],
             );
         }
 
         $this->addSql(<<<'SQL'
-            CREATE TABLE tenant_themes (
-                tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
-                product_id uuid NOT NULL REFERENCES products (id) ON DELETE CASCADE,
-                name text NOT NULL CHECK (name ~ '^[a-z0-9][a-z0-9-]{0,62}$'),
-                document jsonb NOT NULL CHECK (jsonb_typeof(document) = 'object'),
-                active boolean NOT NULL DEFAULT false,
-                updated_by uuid REFERENCES users (id) ON DELETE SET NULL,
-                created_at timestamptz NOT NULL DEFAULT now(),
-                updated_at timestamptz NOT NULL DEFAULT now(),
-                PRIMARY KEY (tenant_id, product_id, name)
+            CREATE TABLE tenant_palettes (
+                tenant_id uuid NOT NULL,
+                product_id uuid NOT NULL,
+                palette text NOT NULL REFERENCES palettes (name) ON DELETE RESTRICT,
+                chosen_by uuid REFERENCES users (id) ON DELETE SET NULL,
+                chosen_at timestamptz NOT NULL DEFAULT now(),
+                PRIMARY KEY (tenant_id, product_id),
+                FOREIGN KEY (tenant_id, product_id) REFERENCES tenant_products (tenant_id, product_id) ON DELETE CASCADE
             )
-            SQL);
-
-        $this->addSql(<<<'SQL'
-            CREATE UNIQUE INDEX tenant_themes_one_active ON tenant_themes (tenant_id, product_id) WHERE active
             SQL);
     }
 
     public function down(Schema $schema): void
     {
-        $this->addSql('DROP TABLE tenant_themes');
-        $this->addSql('DROP TABLE theme_templates');
+        $this->addSql('DROP TABLE tenant_palettes');
+        $this->addSql("DELETE FROM palettes WHERE name IN ('petrol-classic', 'forest-ledger', 'terracotta-studio', 'midnight-indigo', 'graphite-compact')");
     }
 }
