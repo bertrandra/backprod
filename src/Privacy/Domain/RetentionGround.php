@@ -39,8 +39,7 @@ final class RetentionGround
     public const FISCAL = 'fiscal_record';
 
     /**
-     * §30's trail, and non-negotiable #21: staff access to a tenant's data is
-     * never silent. The entry survives with its actor forgotten — what
+     * §30's trail. The entry survives with its actor forgotten — what
      * happened is kept, who did it is not.
      */
     public const AUDIT = 'audit_trail';

@@ -11,7 +11,6 @@ import { PageHeader } from '@/ui/Page';
 import { SkeletonRows } from '@/ui/Skeleton';
 import { cn } from '@/utils/cn';
 
-import { AccessMotiveGate, MotiveInEffect } from './AccessMotiveGate';
 import { ConversationsTab, JobsTab, PaymentsTab, SalesTab, TaxTab, WorkspaceTab } from './tenantTabs';
 import { currentLocale, t } from '@/i18n';
 import { tx } from '@/i18n/react';
@@ -24,15 +23,10 @@ import { tx } from '@/i18n/react';
  * may author offers — stays on the Tenants list, beside the row, so that
  * the two kinds of act are not on one screen where a read-only tab could
  * grow a button. A platform role never edits a membership (#22); it may see
- * them, with a reason, on the record (R14).
+ * them.
  *
- * **The motive gates the whole workspace.** It is asked once when the
- * customer is opened, kept per tenant (`useConsoleStore`), attached to every
- * read of this tenant, and asked again for the next customer. Two of the
- * tabs — subscriptions and invoices — read the platform's own finance
- * listings, which the Directory already opens without a motive; they are
- * behind the gate here anyway, because the gate is about *why this
- * customer*, and the person answered that once for all of it.
+ * **Opened directly.** No reason is asked and nothing is recorded (ADR-069,
+ * 2026-10-05): the platform role is what lets somebody open a customer.
  *
  * **The product picker in the bar narrows every tab.** Members on that
  * product, subscriptions to it, invoices for it; "every product it holds"
@@ -64,17 +58,10 @@ export function TenantWorkspaceScreen({ tenantId }: { tenantId: string }) {
   const { tab } = useViewState();
   const current: Tab = isTab(tab) ? tab : 'overview';
 
-  const motive = useConsoleStore((state) => state.motives[tenantId] ?? null);
-  const giveMotive = useConsoleStore((state) => state.giveMotive);
-  const withdrawMotive = useConsoleStore((state) => state.withdrawMotive);
   const productCode = useConsoleStore((state) => state.productCode);
 
-  const tenant = useStaffTenant(tenantId, motive);
+  const tenant = useStaffTenant(tenantId);
   const me = useStaffIdentity();
-
-  if (motive === null) {
-    return <AccessMotiveGate what="this customer" onGiven={(given) => giveMotive(tenantId, given)} />;
-  }
 
   if (tenant.isPending) {
     return <SkeletonRows rows={4} />;
@@ -107,8 +94,6 @@ export function TenantWorkspaceScreen({ tenantId }: { tenantId: string }) {
         }
       />
 
-      <MotiveInEffect motive={motive} onChange={() => withdrawMotive(tenantId)} />
-
       <nav aria-label={t("Customer sections")} className="flex flex-wrap gap-1 border-b border-line">
         {TABS.map((name) => (
           <button
@@ -131,7 +116,7 @@ export function TenantWorkspaceScreen({ tenantId }: { tenantId: string }) {
       </nav>
 
       {current === 'overview' && <Overview tenant={tenant.data} />}
-      {current === 'members' && <Members tenantId={tenantId} productCode={narrowed?.code ?? null} motive={motive} />}
+      {current === 'members' && <Members tenantId={tenantId} productCode={narrowed?.code ?? null} />}
       {current === 'subscriptions' &&
         (mayReadFinance ? (
           <Subscriptions tenantId={tenantId} productId={narrowed?.id ?? null} />
@@ -144,17 +129,17 @@ export function TenantWorkspaceScreen({ tenantId }: { tenantId: string }) {
         ) : (
           <NotYours what="invoices" />
         ))}
-      {current === 'payments' && <PaymentsTab tenantId={tenantId} productCode={narrowed?.code ?? null} motive={motive} />}
-      {current === 'sales' && <SalesTab tenantId={tenantId} productCode={narrowed?.code ?? null} motive={motive} />}
-      {current === 'tax' && <TaxTab tenantId={tenantId} motive={motive} />}
+      {current === 'payments' && <PaymentsTab tenantId={tenantId} productCode={narrowed?.code ?? null} />}
+      {current === 'sales' && <SalesTab tenantId={tenantId} productCode={narrowed?.code ?? null} />}
+      {current === 'tax' && <TaxTab tenantId={tenantId} />}
       {current === 'conversations' &&
         (me.data?.permissions.includes('support.read') ?? false ? (
           <ConversationsTab tenantId={tenantId} />
         ) : (
           <EmptyState title={t("Not yours to read")} description={t("Support threads need support.read, which your role does not hold.")} />
         ))}
-      {current === 'workspace' && <WorkspaceTab tenantId={tenantId} productCode={narrowed?.code ?? null} motive={motive} />}
-      {current === 'jobs' && <JobsTab tenantId={tenantId} productCode={narrowed?.code ?? null} motive={motive} />}
+      {current === 'workspace' && <WorkspaceTab tenantId={tenantId} productCode={narrowed?.code ?? null} />}
+      {current === 'jobs' && <JobsTab tenantId={tenantId} productCode={narrowed?.code ?? null} />}
     </div>
   );
 }
@@ -209,8 +194,8 @@ function Overview({ tenant }: { tenant: { id: string; name: string; slug: string
   );
 }
 
-function Members({ tenantId, productCode, motive }: { tenantId: string; productCode: string | null; motive: NonNullable<ReturnType<typeof useConsoleStore.getState>['motives'][string]> }) {
-  const members = useStaffTenantMembers(tenantId, productCode, motive);
+function Members({ tenantId, productCode }: { tenantId: string; productCode: string | null }) {
+  const members = useStaffTenantMembers(tenantId, productCode);
 
   if (members.isPending) {
     return <SkeletonRows rows={4} />;

@@ -15,7 +15,7 @@ use Psr\Http\Message\ServerRequestInterface;
  * GET /api/v1/admin/users — people, across every tenant.
  *
  * The only admin surface that returns personal data, which is why
- * PLATFORM_ADMIN alone may call it: support has an audited per-tenant read
+ * PLATFORM_ADMIN alone may call it: support has a per-tenant read
  * already, and a list of everyone answers no support question.
  *
  * An erased person still appears. The row survives erasure by design

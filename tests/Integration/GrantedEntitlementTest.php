@@ -127,16 +127,6 @@ final class GrantedEntitlementTest extends DatabaseApiTestCase
         }
         self::assertSame(['GRANT', 10], $sources['max_projects'] ?? null);
         self::assertSame(['GRANT', 5], $sources['exports'] ?? null);
-
-        // Traced with what was given — a commercial decision somebody can
-        // read back.
-        $detail = $this->connection->fetchOne(
-            "SELECT detail FROM staff_access_log WHERE action = 'GRANT_ENTITLEMENT' AND tenant_id = :tenant",
-            ['tenant' => $this->tenant],
-        );
-        self::assertIsString($detail);
-        self::assertStringContainsString('"exports": 5', $detail);
-        self::assertStringContainsString('"plan": "pro"', $detail);
     }
 
     public function testExplicitFeaturesWinOverThePlansAndAGrantReplacesTheLast(): void

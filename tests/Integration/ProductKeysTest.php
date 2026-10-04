@@ -92,9 +92,6 @@ final class ProductKeysTest extends DatabaseApiTestCase
         $keyId = $first['key_id'] ?? null;
         self::assertIsString($keyId);
         self::assertStringContainsString($keyId, $bearer);
-
-        // And the trail says who issued it.
-        self::assertSame(1, $this->connection->fetchOne("SELECT count(*) FROM staff_access_log WHERE action = 'ISSUE_PRODUCT_KEY'"));
     }
 
     public function testIssuingNeedsTheProductsManagePermissionAndKnownScopes(): void
@@ -215,9 +212,6 @@ final class ProductKeysTest extends DatabaseApiTestCase
         self::assertCount(1, $listed);
         // Another product's key cannot be revoked through this one's address.
         self::assertSame(404, $this->request('DELETE', '/api/v1/staff/products/' . $this->atlas . '/credentials/' . $id, $this->staff())->getStatusCode());
-        // Both revocations are on the trail: the second changed nothing, but
-        // somebody asked, and the trail says who.
-        self::assertSame(2, $this->connection->fetchOne("SELECT count(*) FROM staff_access_log WHERE action = 'REVOKE_PRODUCT_KEY'"));
     }
 
     public function testAnExpiredKeyIsToldSo(): void

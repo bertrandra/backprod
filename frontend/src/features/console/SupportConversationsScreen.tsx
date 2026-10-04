@@ -10,11 +10,9 @@ import {
   useStaffIdentity,
   useSupportConversation,
   useSupportConversations,
-  type AccessMotive,
   type Message,
 } from '@/queries/staff';
 
-import { AccessMotiveGate, MotiveInEffect } from './AccessMotiveGate';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
@@ -29,7 +27,7 @@ import { currentLocale, t } from '@/i18n';
  * U3 established is that optimism is safe where nothing binding is created, and
  * a member writing in their own thread qualifies. This does not: an answer here
  * is written by somebody acting with platform authority into a company's thread
- * and logged as such, so showing it as sent before the server took it would be
+ * and stored as such, so showing it as sent before the server took it would be
  * showing an official reply that may not exist.
  *
  * **Only SUPPORT threads are reachable**, and that is enforced in the database
@@ -57,7 +55,7 @@ export function SupportConversationsScreen() {
     <div className="space-y-6">
       <PageHeader
         title={t("Support conversations")}
-        description={t("Threads a customer opened with the platform. Opening one reveals which company is asking, and that read is recorded.")}
+        description={t("Threads a customer opened with the platform. Opening one shows which company is asking.")}
       />
 
       <div className="grid gap-8 lg:grid-cols-[22rem_1fr]">
@@ -131,17 +129,15 @@ export function SupportConversationsScreen() {
 }
 
 /**
- * A thread, once somebody has said why they are opening it (R14).
+ * A thread, opened directly: no reason is asked (ADR-069).
  *
  * The contract puts a conversation's `tenant_id` on this detail and not on the
- * list, which is exactly where the boundary is crossed — skimming the queue
- * reveals no customer, opening a thread reveals which company is asking and what
- * about. So the motive is required here and on no listing.
+ * list — skimming the queue reveals no customer, opening a thread reveals which
+ * company is asking and what about.
  */
 function Thread({ conversationId }: { conversationId: string }) {
-  const [motive, setMotive] = useState<AccessMotive | null>(null);
   const { data: identity } = useStaffIdentity();
-  const thread = useSupportConversation(conversationId, motive);
+  const thread = useSupportConversation(conversationId);
   const post = usePostSupportMessage(conversationId);
   const close = useCloseSupportConversation(conversationId);
 
@@ -149,10 +145,6 @@ function Thread({ conversationId }: { conversationId: string }) {
   const [confirmingClose, setConfirmingClose] = useState(false);
 
   const mayRespond = can(staffAccess(identity), 'support.respond');
-
-  if (motive === null) {
-    return <AccessMotiveGate what="this thread" onGiven={setMotive} />;
-  }
 
   if (thread.isPending) {
     return <SkeletonRows rows={6} />;
@@ -173,8 +165,6 @@ function Thread({ conversationId }: { conversationId: string }) {
           {t("tenant")}{' '}<code data-testid="thread-tenant">{conversation.tenant_id}</code> {t("· opened")}{' '}
           {new Date(conversation.created_at).toLocaleDateString(currentLocale())}
         </p>
-
-        <MotiveInEffect motive={motive} onChange={() => setMotive(null)} />
       </header>
 
       {conversation.messages.length === 0 ? (
@@ -208,7 +198,7 @@ function Thread({ conversationId }: { conversationId: string }) {
           <Field
             id="reply"
             label={t("Reply")}
-            hint={t("Written as the platform, into a customer's thread, and recorded as such.")}
+            hint={t("Written as the platform, into a customer's thread.")}
           >
             <textarea
               id="reply"

@@ -215,23 +215,17 @@ export const keys = {
     /** What the platform sent a product beside it, and what became of it (ADR-051 §5). */
     webhookDeliveries: (productId: string) => ['staff', 'products', productId, 'webhook-deliveries'] as const,
     tenants: (limit: number, offset: number) => ['staff', 'tenants', limit, offset] as const,
-    // The motive is part of a read's key, so a read made for one reason is never
-    // served from the cache to a read made for another: an access this platform
-    // records has to actually happen (R14). `*Reads` is the prefix an
-    // invalidation uses, because it must match every motive.
+    // Every read of one customer sits under this prefix, so one invalidation
+    // refreshes the customer and every tab of it.
     tenantReads: (id: string) => ['staff', 'tenant', id] as const,
     // What the platform gave on one product (2026-09-17): under the tenant's
     // prefix, so assigning or withdrawing a product refreshes it too.
     tenantEntitlement: (id: string, productId: string) => ['staff', 'tenant', id, 'entitlement', productId] as const,
-    tenant: (id: string, purpose: string, reference: string) =>
-      ['staff', 'tenant', id, purpose, reference] as const,
-    tenantMembers: (id: string, product: string, purpose: string, reference: string) =>
-      ['staff', 'tenant', id, 'members', product, purpose, reference] as const,
+    tenant: (id: string) => ['staff', 'tenant', id] as const,
+    tenantMembers: (id: string, product: string) => ['staff', 'tenant', id, 'members', product] as const,
     // One read per tab of the customer workspace; `what` names the tab.
-    tenantRead: (id: string, what: string, product: string, purpose: string, reference: string) =>
-      ['staff', 'tenant', id, what, product, purpose, reference] as const,
+    tenantRead: (id: string, what: string, product: string) => ['staff', 'tenant', id, what, product] as const,
     tenantConversations: (id: string) => ['staff', 'conversations', 'tenant', id] as const,
-    accessLog: (limit: number, offset: number) => ['staff', 'access-log', limit, offset] as const,
     // No arguments, because the roster is unpaged: platform staff is a handful
     // of people, and a list that needed pages would be the finding rather than
     // the feature.
@@ -284,8 +278,7 @@ export const keys = {
     conversations: (limit: number, offset: number) =>
       ['staff', 'conversations', limit, offset] as const,
     conversationReads: (id: string) => ['staff', 'conversation', id] as const,
-    conversation: (id: string, purpose: string, reference: string) =>
-      ['staff', 'conversation', id, purpose, reference] as const,
+    conversation: (id: string) => ['staff', 'conversation', id] as const,
   },
   admin: {
     metrics: (productId: string, months: number, month: string) =>

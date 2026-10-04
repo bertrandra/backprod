@@ -249,9 +249,8 @@ export function useAdminPayments(status: string, limit = 25, offset = 0) {
  * workspace — the same listings the Directory pages through, narrowed to a
  * tenant and, when the product picker says so, to one of its products.
  *
- * Behind `admin.finance.read` like the Directory, and with no motive: these
- * are the platform's own finance listings, which the Directory already opens
- * without one. What the tenant's *members* are is a different question with a
+ * Behind `admin.finance.read` like the Directory: these are the platform's
+ * own finance listings. What the tenant's *members* are is a different question with a
  * different door (`useStaffTenantMembers`).
  */
 export function useAdminTenantSubscriptions(tenantId: string | null, productId: string | null, limit = 50) {

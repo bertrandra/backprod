@@ -20,11 +20,6 @@ use Psr\Http\Message\ServerRequestInterface;
  * sending `true` twice is the state that was asked for both times, and a
  * console whose toggle is clicked twice on a slow connection should not have
  * to reason about that.
- *
- * No motive header, unlike the tenant *read* beside it. R14 asks for a reason
- * where a staff member reveals a customer's own data; this reveals none and
- * changes what that customer may do. The trail records who decided it, which
- * is the question worth answering here.
  */
 final class SetOfferAuthoringController implements RouteHandler
 {

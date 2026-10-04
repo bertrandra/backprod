@@ -23,8 +23,7 @@ use App\Webhook\Domain\ProductEventType;
  * document, which is a worse answer than keeping it.
  *
  * **The erasure is itself audited.** It is a privileged act performed on
- * somebody else's data, and non-negotiable #21's reasoning applies: it is
- * never silent. The actor recorded is the administrator who carried it out,
+ * somebody else's data, and it is never silent. The actor recorded is the administrator who carried it out,
  * not the person erased — whose actor rows are, in the same transaction,
  * being cleared.
  */

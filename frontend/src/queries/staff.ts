@@ -18,95 +18,17 @@ import { toApiError } from './session';
  * with no product chosen, which is the right shape of failure for the tenant app
  * and simply wrong for this one.
  *
- * **Every read across the boundary is recorded.** The backend writes a
- * `StaffAccessEntry` naming who looked, at what, and *under which permission* —
- * the answer to "on what grounds?" that a log without it can never give. That
- * record is not optional and not something the screen arranges; the screen's job
- * is to make sure nobody is surprised by it, which is why the access log is a
- * screen of its own and why the reads that produce entries say so.
+ * **No reason is asked and nothing is recorded** (ADR-069, 2026-10-05). The
+ * platform role authorises every read here, and that is all a read needs. Until
+ * then each read of a customer's own data carried a purpose and a reference
+ * (R14) and was written to an access log; the operator, who consults their
+ * customers directly, removed both.
  */
-
-/**
- * Why a staff member is crossing a tenant boundary (R14).
- *
- * The platform requires this on the two reads that reveal one tenant's own data
- * — opening a customer, opening a support thread — and on neither listing.
- * Non-negotiable #21 wants the reason recorded *with* the access rather than
- * beside it, so it travels as headers on the request itself: there is no second
- * call to forget to make.
- *
- * `purpose` is what makes the log countable; `reference` is what makes any one
- * row mean something. R14 said a free-text box alone *"collects 'support' a
- * thousand times and proves nothing"* and a structured field alone *"is only as
- * good as the system it points at"* — so it is both, and neither is optional.
- */
-export const ACCESS_PURPOSES = [
-  'SUPPORT_REQUEST',
-  'BILLING_INVESTIGATION',
-  'INCIDENT',
-  'SECURITY_REVIEW',
-  'LEGAL_REQUEST',
-] as const;
-
-export type AccessPurpose = (typeof ACCESS_PURPOSES)[number];
-
-export interface AccessMotive {
-  readonly purpose: AccessPurpose;
-  readonly reference: string;
-}
-
-/** What a person reads, rather than the enum's spelling. */
-export const PURPOSE_LABELS: Record<AccessPurpose, string> = {
-  SUPPORT_REQUEST: 'A support request',
-  BILLING_INVESTIGATION: 'A billing investigation',
-  INCIDENT: 'An incident',
-  SECURITY_REVIEW: 'A security review',
-  LEGAL_REQUEST: 'A legal request',
-};
-
-/** The platform's floor, mirrored so the form can refuse before the request. */
-export const MINIMUM_REFERENCE = 8;
-
-export function isMotiveComplete(motive: Partial<AccessMotive> | null): motive is AccessMotive {
-  return (
-    motive !== null &&
-    motive.purpose !== undefined &&
-    (motive.reference ?? '').trim().length >= MINIMUM_REFERENCE
-  );
-}
-
-/** The headers the contract names, built in one place. */
-function motiveHeaders(motive: AccessMotive): {
-  'X-Access-Purpose': AccessPurpose;
-  'X-Access-Reason': string;
-} {
-  return {
-    'X-Access-Purpose': motive.purpose,
-    'X-Access-Reason': motive.reference.trim(),
-  };
-}
-
-/**
- * The invariant `enabled` already guarantees, said out loud.
- *
- * The two reads below are disabled until there is a motive, so their query
- * functions never run without one. TypeScript cannot see that, and the honest
- * options are a cast or a throw — a cast would be a claim, and this is a
- * programmer error that should be loud if the guard is ever removed.
- */
-function required(motive: AccessMotive | null): AccessMotive {
-  if (motive === null) {
-    throw new Error('A staff read reached its query function without a motive.');
-  }
-
-  return motive;
-}
 
 // The staff shape: a tenant and the products the platform gave it (ADR-047).
 // `Schemas['Tenant']` is what a tenant reads about itself and has no
 // `products`; every staff read answers with this one.
 export type Tenant = Schemas['StaffTenant'];
-export type StaffAccessEntry = Schemas['StaffAccessEntry'];
 export type Conversation = Schemas['Conversation'];
 export type Message = Schemas['Message'];
 
@@ -238,33 +160,17 @@ export function useStaffTenants(limit = 25, offset = 0) {
  *
  * The one place this platform lets a client name a tenant — ADR-015 forbids it
  * everywhere else, and this is not the exception it looks like: the path names
- * the tenant, the *platform role* authorises the read, and the read is recorded
- * either way.
+ * the tenant, and the *platform role* authorises the read.
  */
-export function useStaffTenant(tenantId: string | null, motive: AccessMotive | null) {
+export function useStaffTenant(tenantId: string | null) {
   const client = useApiClient();
 
   return useQuery({
-    // The motive is part of the key, so a read for one reason is not served
-    // from the cache to a read for another. An access this platform records has
-    // to actually happen.
-    queryKey: keys.staff.tenant(tenantId ?? '', motive?.purpose ?? '', motive?.reference ?? ''),
-    // **Disabled until there is a reason.** The read does not go out and then
-    // fail — it does not go out. R14's requirement is that the reason is
-    // collected *as part of the read*, and a request fired without one would be
-    // a 422 the screen then apologised for.
-    //
-    // This is the *second* guard, and deliberately so. The load-bearing one is
-    // the screen: `StaffTenantsScreen` renders the motive gate instead of the
-    // detail, so this hook is never mounted without one — removing this line
-    // alone changes no test, because `required()` below throws before a request
-    // is built. Three guards for one rule is not redundancy here: the screen
-    // decides what a person sees, this decides what the cache does, and the
-    // throw makes a future mistake loud instead of silent.
-    enabled: tenantId !== null && motive !== null,
+    queryKey: keys.staff.tenant(tenantId ?? ''),
+    enabled: tenantId !== null,
     queryFn: async (): Promise<Tenant> => {
       const { data, error, response } = await client.GET('/api/v1/staff/tenants/{tenantId}', {
-        params: { path: { tenantId: tenantId ?? '' }, header: motiveHeaders(required(motive)) },
+        params: { path: { tenantId: tenantId ?? '' } },
       });
 
       if (error !== undefined || data === undefined) {
@@ -282,14 +188,12 @@ export type StaffTenantMember = Schemas['StaffTenantMember'];
  * Who belongs to a tenant, read from the console — across the products it
  * holds, or on one of them.
  *
- * Same discipline as `useStaffTenant`: the motive is part of the key and the
- * read is disabled until there is one. Read-only by construction: nothing
- * here writes, because a platform role never edits a membership (#22).
+ * Read-only by construction: nothing here writes, because a platform role
+ * never edits a membership (#22).
  */
 export function useStaffTenantMembers(
   tenantId: string | null,
   productCode: string | null,
-  motive: AccessMotive | null,
 ) {
   const client = useApiClient();
 
@@ -297,15 +201,12 @@ export function useStaffTenantMembers(
     queryKey: keys.staff.tenantMembers(
       tenantId ?? '',
       productCode ?? '',
-      motive?.purpose ?? '',
-      motive?.reference ?? '',
     ),
-    enabled: tenantId !== null && motive !== null,
+    enabled: tenantId !== null,
     queryFn: async (): Promise<StaffTenantMember[]> => {
       const { data, error, response } = await client.GET('/api/v1/staff/tenants/{tenantId}/members', {
         params: {
           path: { tenantId: tenantId ?? '' },
-          header: motiveHeaders(required(motive)),
           query: productCode === null ? {} : { product: productCode },
         },
       });
@@ -328,9 +229,8 @@ export type StaffTenantTaxProfile = Schemas['TaxProfile'];
 
 /**
  * The rest of what a customer has, read from the console — the same shapes
- * the customer's own screens read, one read per tab, each disabled until
- * there is a motive and keyed on it (R14), each narrowed by the product the
- * bar picked. Read-only by construction: no mutation lives beside any of
+ * the customer's own screens read, one read per tab, each narrowed by the
+ * product the bar picked. Read-only by construction: no mutation lives beside any of
  * these.
  *
  * Five near-identical functions rather than one factory, on purpose: the
@@ -339,17 +239,16 @@ export type StaffTenantTaxProfile = Schemas['TaxProfile'];
  * a template is a call the gate cannot see — the gate would pass a factory
  * that called nothing.
  */
-export function useStaffTenantPayments(tenantId: string | null, productCode: string | null, motive: AccessMotive | null) {
+export function useStaffTenantPayments(tenantId: string | null, productCode: string | null) {
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.staff.tenantRead(tenantId ?? '', 'payments', productCode ?? '', motive?.purpose ?? '', motive?.reference ?? ''),
-    enabled: tenantId !== null && motive !== null,
+    queryKey: keys.staff.tenantRead(tenantId ?? '', 'payments', productCode ?? ''),
+    enabled: tenantId !== null,
     queryFn: async (): Promise<StaffTenantPayment[]> => {
       const { data, error, response } = await client.GET('/api/v1/staff/tenants/{tenantId}/payments', {
         params: {
           path: { tenantId: tenantId ?? '' },
-          header: motiveHeaders(required(motive)),
           query: productCode === null ? {} : { product: productCode },
         },
       });
@@ -363,17 +262,16 @@ export function useStaffTenantPayments(tenantId: string | null, productCode: str
   });
 }
 
-export function useStaffTenantOrders(tenantId: string | null, productCode: string | null, motive: AccessMotive | null) {
+export function useStaffTenantOrders(tenantId: string | null, productCode: string | null) {
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.staff.tenantRead(tenantId ?? '', 'orders', productCode ?? '', motive?.purpose ?? '', motive?.reference ?? ''),
-    enabled: tenantId !== null && motive !== null,
+    queryKey: keys.staff.tenantRead(tenantId ?? '', 'orders', productCode ?? ''),
+    enabled: tenantId !== null,
     queryFn: async (): Promise<StaffTenantOrder[]> => {
       const { data, error, response } = await client.GET('/api/v1/staff/tenants/{tenantId}/orders', {
         params: {
           path: { tenantId: tenantId ?? '' },
-          header: motiveHeaders(required(motive)),
           query: productCode === null ? {} : { product: productCode },
         },
       });
@@ -387,17 +285,16 @@ export function useStaffTenantOrders(tenantId: string | null, productCode: strin
   });
 }
 
-export function useStaffTenantQuotes(tenantId: string | null, productCode: string | null, motive: AccessMotive | null) {
+export function useStaffTenantQuotes(tenantId: string | null, productCode: string | null) {
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.staff.tenantRead(tenantId ?? '', 'quotes', productCode ?? '', motive?.purpose ?? '', motive?.reference ?? ''),
-    enabled: tenantId !== null && motive !== null,
+    queryKey: keys.staff.tenantRead(tenantId ?? '', 'quotes', productCode ?? ''),
+    enabled: tenantId !== null,
     queryFn: async (): Promise<StaffTenantQuote[]> => {
       const { data, error, response } = await client.GET('/api/v1/staff/tenants/{tenantId}/quotes', {
         params: {
           path: { tenantId: tenantId ?? '' },
-          header: motiveHeaders(required(motive)),
           query: productCode === null ? {} : { product: productCode },
         },
       });
@@ -411,17 +308,16 @@ export function useStaffTenantQuotes(tenantId: string | null, productCode: strin
   });
 }
 
-export function useStaffTenantProjects(tenantId: string | null, productCode: string | null, motive: AccessMotive | null) {
+export function useStaffTenantProjects(tenantId: string | null, productCode: string | null) {
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.staff.tenantRead(tenantId ?? '', 'projects', productCode ?? '', motive?.purpose ?? '', motive?.reference ?? ''),
-    enabled: tenantId !== null && motive !== null,
+    queryKey: keys.staff.tenantRead(tenantId ?? '', 'projects', productCode ?? ''),
+    enabled: tenantId !== null,
     queryFn: async (): Promise<StaffTenantProject[]> => {
       const { data, error, response } = await client.GET('/api/v1/staff/tenants/{tenantId}/projects', {
         params: {
           path: { tenantId: tenantId ?? '' },
-          header: motiveHeaders(required(motive)),
           query: productCode === null ? {} : { product: productCode },
         },
       });
@@ -435,17 +331,16 @@ export function useStaffTenantProjects(tenantId: string | null, productCode: str
   });
 }
 
-export function useStaffTenantJobs(tenantId: string | null, productCode: string | null, motive: AccessMotive | null) {
+export function useStaffTenantJobs(tenantId: string | null, productCode: string | null) {
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.staff.tenantRead(tenantId ?? '', 'jobs', productCode ?? '', motive?.purpose ?? '', motive?.reference ?? ''),
-    enabled: tenantId !== null && motive !== null,
+    queryKey: keys.staff.tenantRead(tenantId ?? '', 'jobs', productCode ?? ''),
+    enabled: tenantId !== null,
     queryFn: async (): Promise<StaffTenantJob[]> => {
       const { data, error, response } = await client.GET('/api/v1/staff/tenants/{tenantId}/jobs', {
         params: {
           path: { tenantId: tenantId ?? '' },
-          header: motiveHeaders(required(motive)),
           query: productCode === null ? {} : { product: productCode },
         },
       });
@@ -460,15 +355,15 @@ export function useStaffTenantJobs(tenantId: string | null, productCode: string 
 }
 
 /** The customer's one fiscal identity — not per product, so no product argument. */
-export function useStaffTenantTaxProfile(tenantId: string | null, motive: AccessMotive | null) {
+export function useStaffTenantTaxProfile(tenantId: string | null) {
   const client = useApiClient();
 
   return useQuery({
-    queryKey: keys.staff.tenantRead(tenantId ?? '', 'tax-profile', '', motive?.purpose ?? '', motive?.reference ?? ''),
-    enabled: tenantId !== null && motive !== null,
+    queryKey: keys.staff.tenantRead(tenantId ?? '', 'tax-profile', ''),
+    enabled: tenantId !== null,
     queryFn: async (): Promise<StaffTenantTaxProfile> => {
       const { data, error, response } = await client.GET('/api/v1/staff/tenants/{tenantId}/tax-profile', {
-        params: { path: { tenantId: tenantId ?? '' }, header: motiveHeaders(required(motive)) },
+        params: { path: { tenantId: tenantId ?? '' } },
       });
 
       if (error !== undefined || data === undefined) {
@@ -505,32 +400,6 @@ export function useStaffTenantConversations(tenantId: string | null) {
   });
 }
 
-/**
- * What staff looked at.
- *
- * The record that makes the rest of this shell acceptable. It is a first-class
- * screen rather than a debugging endpoint, because an audit nobody can read is
- * an audit nobody is accountable to.
- */
-export function useAccessLog(limit = 50, offset = 0) {
-  const client = useApiClient();
-
-  return useQuery({
-    queryKey: keys.staff.accessLog(limit, offset),
-    queryFn: async () => {
-      const { data, error, response } = await client.GET('/api/v1/staff/access-log', {
-        params: { query: { limit, offset } },
-      });
-
-      if (error !== undefined || data === undefined) {
-        throw toApiError(response.status, error);
-      }
-
-      return data;
-    },
-  });
-}
-
 export function useSupportConversations(limit = 25, offset = 0) {
   const client = useApiClient();
 
@@ -558,24 +427,21 @@ export function useSupportConversations(limit = 25, offset = 0) {
  * of the boundary, and it happens when a thread is opened rather than when a
  * queue is skimmed.
  */
-export function useSupportConversation(conversationId: string | null, motive: AccessMotive | null) {
+export function useSupportConversation(conversationId: string | null) {
   const client = useApiClient();
 
   return useQuery({
     queryKey: keys.staff.conversation(
       conversationId ?? '',
-      motive?.purpose ?? '',
-      motive?.reference ?? '',
     ),
-    enabled: conversationId !== null && motive !== null,
+    enabled: conversationId !== null,
     queryFn: async () => {
       const { data, error, response } = await client.GET(
         '/api/v1/staff/conversations/{conversationId}',
         {
           params: {
             path: { conversationId: conversationId ?? '' },
-            header: motiveHeaders(required(motive)),
-          },
+            },
         },
       );
 
@@ -734,8 +600,6 @@ export function useRevokePlatformRole() {
 /**
  * Lending the platform's catalogue to a tenant, or taking it back.
  *
- * A write on a tenant rather than a read of one, so it carries no motive: R14
- * asks why somebody is looking at a customer's data, and this looks at none.
  * The invalidation is wide on purpose — `catalog.manage` is resolved from this
  * flag, so the person whose tenant just changed has a different set of
  * permissions than the one their browser is holding.
@@ -770,7 +634,7 @@ export function useSetTenantOfferAuthoring(tenantId: string) {
  * Give a tenant a product, or take one back (ADR-047).
  *
  * Two mutations with one shape, mirroring the offer-authoring toggle above:
- * a write on the tenant, no motive header, the tenant as it now stands in
+ * a write on the tenant, the tenant as it now stands in
  * the answer. The invalidation reaches the tenant's reads and the list, where
  * the product chips live. Nothing optimistic — the server may refuse (a
  * retired product, a subscription still owed service) and a checkbox that
@@ -821,8 +685,7 @@ export interface GrantInput {
 
 /**
  * What the platform gave a tenant on a product it holds, without a sale
- * (docs/tenant-roots.md §2.8). Null when nothing was granted. No motive: a
- * grant is the platform's own decision, not the customer's data.
+ * (docs/tenant-roots.md §2.8). Null when nothing was granted.
  */
 export function useTenantEntitlement(tenantId: string, productId: string, enabled = true) {
   const client = useApiClient();

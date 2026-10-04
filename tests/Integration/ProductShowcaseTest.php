@@ -599,40 +599,6 @@ final class ProductShowcaseTest extends DatabaseApiTestCase
         self::assertSame(403, $this->upload(self::png(), 'terrace.png', 'sam-token')->getStatusCode());
     }
 
-    // --- The trail --------------------------------------------------------------
-
-    public function testWritingAndPublishingAreDifferentActsInTheTrail(): void
-    {
-        $this->write([self::headline()]);
-        $this->publish(true);
-        $this->publish(false);
-
-        self::assertSame(
-            ['WRITE', 'PUBLISH', 'WITHDRAW'],
-            $this->connection->fetchFirstColumn(
-                "SELECT action FROM staff_access_log WHERE resource_type = 'showcase' ORDER BY occurred_at, id",
-            ),
-        );
-
-        $row = $this->connection->fetchAssociative(
-            "SELECT tenant_id, product_id, permission FROM staff_access_log WHERE resource_type = 'showcase' LIMIT 1",
-        );
-
-        self::assertIsArray($row);
-        // A product's own shop window is nobody's tenant.
-        self::assertNull($row['tenant_id']);
-        self::assertSame($this->plan, $row['product_id']);
-        self::assertSame('staff.products.manage', $row['permission']);
-    }
-
-    public function testMerelyReadingTheStoryIsNotRecorded(): void
-    {
-        $this->read();
-        $this->public();
-
-        self::assertSame(0, $this->connection->fetchOne('SELECT count(*) FROM staff_access_log'));
-    }
-
     // --- The band that shows the product working -----------------------------
 
     public function testADemoRowTakesEveryFieldTheConsoleOffers(): void

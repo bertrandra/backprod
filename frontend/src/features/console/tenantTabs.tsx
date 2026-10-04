@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 
 import {
-  type AccessMotive,
   useStaffTenantConversations,
   useStaffTenantJobs,
   useStaffTenantOrders,
@@ -29,7 +28,7 @@ import { currentLocale, t } from '@/i18n';
  * Every list is the product picker's: the props carry the code the bar
  * narrowed to, or null for every product the customer holds.
  */
-type TabProps = { tenantId: string; productCode: string | null; motive: AccessMotive };
+type TabProps = { tenantId: string; productCode: string | null };
 
 function Row({ id, children, note, testId }: { id: string; children: ReactNode; note?: ReactNode; testId: string }) {
   return (
@@ -48,8 +47,8 @@ function day(value: string | null | undefined): string {
   return value === null || value === undefined ? '—' : new Date(value).toLocaleDateString(currentLocale());
 }
 
-export function PaymentsTab({ tenantId, productCode, motive }: TabProps) {
-  const payments = useStaffTenantPayments(tenantId, productCode, motive);
+export function PaymentsTab({ tenantId, productCode }: TabProps) {
+  const payments = useStaffTenantPayments(tenantId, productCode);
 
   if (payments.isPending) return <SkeletonRows rows={4} />;
   if (payments.error !== null) return <ErrorSurface error={payments.error} onRetry={() => void payments.refetch()} />;
@@ -83,9 +82,9 @@ export function PaymentsTab({ tenantId, productCode, motive }: TabProps) {
   );
 }
 
-export function SalesTab({ tenantId, productCode, motive }: TabProps) {
-  const orders = useStaffTenantOrders(tenantId, productCode, motive);
-  const quotes = useStaffTenantQuotes(tenantId, productCode, motive);
+export function SalesTab({ tenantId, productCode }: TabProps) {
+  const orders = useStaffTenantOrders(tenantId, productCode);
+  const quotes = useStaffTenantQuotes(tenantId, productCode);
 
   if (orders.isPending || quotes.isPending) return <SkeletonRows rows={4} />;
   if (orders.error !== null) return <ErrorSurface error={orders.error} onRetry={() => void orders.refetch()} />;
@@ -133,8 +132,8 @@ export function SalesTab({ tenantId, productCode, motive }: TabProps) {
   );
 }
 
-export function TaxTab({ tenantId, motive }: { tenantId: string; motive: AccessMotive }) {
-  const profile = useStaffTenantTaxProfile(tenantId, motive);
+export function TaxTab({ tenantId }: { tenantId: string }) {
+  const profile = useStaffTenantTaxProfile(tenantId);
 
   if (profile.isPending) return <SkeletonRows rows={3} />;
   if (profile.error !== null) return <ErrorSurface error={profile.error} onRetry={() => void profile.refetch()} />;
@@ -190,8 +189,8 @@ export function ConversationsTab({ tenantId }: { tenantId: string }) {
   );
 }
 
-export function WorkspaceTab({ tenantId, productCode, motive }: TabProps) {
-  const projects = useStaffTenantProjects(tenantId, productCode, motive);
+export function WorkspaceTab({ tenantId, productCode }: TabProps) {
+  const projects = useStaffTenantProjects(tenantId, productCode);
 
   if (projects.isPending) return <SkeletonRows rows={4} />;
   if (projects.error !== null) return <ErrorSurface error={projects.error} onRetry={() => void projects.refetch()} />;
@@ -213,8 +212,8 @@ export function WorkspaceTab({ tenantId, productCode, motive }: TabProps) {
   );
 }
 
-export function JobsTab({ tenantId, productCode, motive }: TabProps) {
-  const jobs = useStaffTenantJobs(tenantId, productCode, motive);
+export function JobsTab({ tenantId, productCode }: TabProps) {
+  const jobs = useStaffTenantJobs(tenantId, productCode);
 
   if (jobs.isPending) return <SkeletonRows rows={4} />;
   if (jobs.error !== null) return <ErrorSurface error={jobs.error} onRetry={() => void jobs.refetch()} />;

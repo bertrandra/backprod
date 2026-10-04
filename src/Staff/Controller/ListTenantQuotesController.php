@@ -13,8 +13,8 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
- * GET /api/v1/staff/tenants/{tenantId}/quotes[?product=code] — read-only,
- * with a motive, on the record (R14). See {@see TenantReads}.
+ * GET /api/v1/staff/tenants/{tenantId}/quotes[?product=code] — read-only.
+ * See {@see TenantReads}.
  *
  * The same shape the customer's own screen reads, presented by the same
  * presenter: the console sees what the customer sees, no more and no less.
@@ -35,7 +35,6 @@ final class ListTenantQuotesController implements RouteHandler
             $context->identity,
             StaffRoute::id($request, 'tenantId'),
             is_string($product) && trim($product) !== '' ? strtolower(trim($product)) : null,
-            StaffRoute::motive($request),
         );
 
         return new JsonResponse(['quotes' => array_map(SalesPresenter::quote(...), $rows)], 200);

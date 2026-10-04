@@ -62,7 +62,6 @@ const STAFF = {
     permissions: [
       'staff.self.read',
       'staff.tenants.read',
-      'staff.access_log.read',
       'support.read',
       'support.respond',
       'admin.finance.read',
@@ -314,7 +313,6 @@ const TENANT_ROUTES = [
 const CONSOLE_ROUTES = [
   '/console/tenants',
   '/console/conversations',
-  '/console/access-log',
   '/console/metrics',
   '/console/directory',
   '/console/queue',
@@ -358,7 +356,7 @@ for (const route of CONSOLE_ROUTES) {
   test(`the console route ${route} has no accessibility violations`, async ({ page }) => {
     await stubbed(page);
     await page.goto(route);
-    await expect(page.getByTestId('platform-band')).toBeVisible();
+    await expect(page.getByTestId('platform-badge')).toBeVisible();
 
     const results = await scan(page);
 

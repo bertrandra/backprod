@@ -16,9 +16,9 @@ use Psr\Http\Message\ResponseInterface;
  *
  * The claims: each person once, across the products the tenant holds, with
  * the roles the mirrored membership carries; narrowed to one product by
- * code; refused without a motive and recorded with one; and not a door a
- * tenant administrator can open (#22), nor a product the tenant does not
- * hold answered with somebody else's members.
+ * code; answered without a motive and recorded nowhere (ADR-069); and not
+ * a door a tenant administrator can open (#22), nor a product the tenant
+ * does not hold answered with somebody else's members.
  */
 #[CoversNothing]
 final class StaffTenantMembersTest extends DatabaseApiTestCase
@@ -96,26 +96,17 @@ final class StaffTenantMembersTest extends DatabaseApiTestCase
         self::assertSame([], $this->decode($this->members($this->globex, 'boreas'))['members'] ?? null);
     }
 
-    public function testTheReadIsRecordedWithItsMotive(): void
+    public function testTheConsoleReadsWithoutAMotive(): void
     {
-        $this->members($this->acme, 'atlas');
+        // ADR-069: no purpose, no reason, and nothing written down.
+        $bare = $this->request('GET', '/api/v1/staff/tenants/' . $this->acme . '/members', ['Authorization' => 'Bearer sam-token']);
 
-        $row = $this->connection->fetchAssociative(
-            "SELECT tenant_id, product_id, action, purpose, reason FROM staff_access_log WHERE resource_type = 'members'",
-        );
-
-        self::assertIsArray($row);
-        self::assertSame($this->acme, $row['tenant_id'] ?? null);
-        self::assertSame($this->atlas, $row['product_id'] ?? null);
-        self::assertSame('READ', $row['action'] ?? null);
-        self::assertSame('SUPPORT_REQUEST', $row['purpose'] ?? null);
+        self::assertSame(200, $bare->getStatusCode());
+        self::assertIsArray($this->decode($bare)['members'] ?? null);
     }
 
-    public function testRefusedWithoutAMotiveAndToATenantAdministrator(): void
+    public function testRefusedToATenantAdministrator(): void
     {
-        $bare = $this->request('GET', '/api/v1/staff/tenants/' . $this->acme . '/members', ['Authorization' => 'Bearer sam-token']);
-        self::assertSame(422, $bare->getStatusCode());
-
         // Ada administers Acme; that is a tenant role, and it opens no staff door.
         self::assertSame(403, $this->members($this->acme, null, 'ada-token')->getStatusCode());
         self::assertSame(404, $this->members('00000000-0000-0000-0000-000000000000')->getStatusCode());
@@ -125,11 +116,7 @@ final class StaffTenantMembersTest extends DatabaseApiTestCase
     {
         $path = '/api/v1/staff/tenants/' . $tenantId . '/members' . ($product === null ? '' : '?product=' . $product);
 
-        return $this->request('GET', $path, [
-            'Authorization' => 'Bearer ' . $token,
-            'X-Access-Purpose' => 'SUPPORT_REQUEST',
-            'X-Access-Reason' => 'ticket HELP-4182',
-        ]);
+        return $this->request('GET', $path, ['Authorization' => 'Bearer ' . $token]);
     }
 
     private function member(string $tenantId, string $userId, string $productId, string $role): void

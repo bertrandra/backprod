@@ -116,9 +116,8 @@ export interface RecordedRequest {
   /**
    * The ambient and per-call headers.
    *
-   * Added when R14 made a header load-bearing: a staff read carries the reason
-   * for it in `X-Access-Purpose` and `X-Access-Reason`, and no test could see
-   * one until this existed.
+   * Added when R14 made a header load-bearing (a staff read once carried its
+   * reason in headers); kept because a call's headers are part of what it sends.
    */
   readonly header: unknown;
 }

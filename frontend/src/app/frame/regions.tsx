@@ -276,9 +276,8 @@ export function BottomNav({ entries }: { entries: readonly NavEntry[] }) {
 /**
  * The platform roles this person holds, or nothing.
  *
- * Named rather than a generic "staff" chip: an access-log entry carries a user
- * id and a permission, and somebody about to make one should be able to see
- * whose name will be on it. It is read from `GET /staff/me` — the platform's own
+ * Named rather than a generic "staff" chip: whoever acts with platform
+ * authority should see which role they act under. It is read from `GET /staff/me` — the platform's own
  * identity — and never inferred from anything the tenant session says.
  *
  * The query refuses to retry a 401 or a 403 and is cached for minutes, so for

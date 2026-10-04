@@ -9,7 +9,7 @@ namespace App\Staff\Domain;
  *
  * Deliberately narrow: it answers "what does this user hold across the
  * platform" and nothing about tenants. Reading tenant data is a different
- * question, asked of a different repository, and audited.
+ * question, asked of a different repository.
  */
 interface StaffRepository
 {

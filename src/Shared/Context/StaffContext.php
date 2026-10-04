@@ -24,7 +24,7 @@ use RuntimeException;
  * tenant as an explicit parameter, which is the one place this platform lets
  * a client name a tenant — and it is not the exception it looks like, because
  * the parameter only *names* the tenant while the platform role *authorises*
- * the access, and the access is written to the trail either way.
+ * the access.
  *
  * The two axes never meet: holding this grants nothing on a tenant route,
  * and a RequestContext grants nothing here.

@@ -14,7 +14,7 @@ use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * GET /api/v1/staff/tenants/{tenantId}/tax-profile — who the customer is
- * for VAT, read-only, with a motive, on the record (R14).
+ * for VAT, read-only.
  *
  * No `product`: a tenant has one fiscal identity, whatever it holds.
  */
@@ -31,7 +31,6 @@ final class ShowTenantTaxProfileController implements RouteHandler
         $profile = $this->reads->taxProfile(
             $context->identity,
             StaffRoute::id($request, 'tenantId'),
-            StaffRoute::motive($request),
         );
 
         return new JsonResponse(['profile' => TaxPresenter::profile($profile)], 200);

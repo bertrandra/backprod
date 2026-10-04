@@ -1113,6 +1113,12 @@ rien.
 
 > Non-négociable #21 — **tout accès du personnel plateforme à la donnée d'un
 > tenant est tracé, motivé et jamais silencieux.**
+>
+> **Retiré le 2026-10-05 (ADR-069).** Le personnel consulte sans motif et rien
+> n'est enregistré — ni les lectures ni les changements ; `staff_access_log` a
+> été supprimée avec son historique. Ce qui suit décrit la règle telle qu'elle
+> était ; seuls restent vrais le passage par la permission plateforme et
+> l'interdiction de lire les conversations internes.
 
 Concrètement :
 
@@ -3096,8 +3102,8 @@ précisément la question qu'un préavis de reconduction doit pouvoir trancher.
 **La catégorie `SECURITY` ne se désactive pas.** Changement de mot de passe,
 nouvelle connexion, accès du personnel plateforme à des données du tenant
 (§12.2) : une notification de sécurité que le destinataire peut couper est
-une notification qu'un attaquant peut couper. C'est le pendant du
-non-négociable #21 — un accès staff n'est jamais silencieux.
+une notification qu'un attaquant peut couper. (L'accès du personnel n'en
+déclenche plus depuis l'ADR-069, qui a retiré le non-négociable #21.)
 
 **Jamais de secret ni de donnée de paiement dans une notification.** Ni jeton,
 ni mot de passe, ni numéro de carte, ni trace d'exception (§24, §31). Un canal
@@ -4884,7 +4890,7 @@ c'est ce second contrat qui dérivera.
 18. **Les données financières et commerciales sont historisées et auditables.**
 19. **Le reporting financier admin est séparé des données visibles par un tenant.**
 20. **La chaîne devis → vente → abonnement/commande → facture → paiement doit être traçable.**
-21. **Tout accès du personnel plateforme à la donnée d'un tenant est tracé, motivé et jamais silencieux.**
+21. ~~**Tout accès du personnel plateforme à la donnée d'un tenant est tracé, motivé et jamais silencieux.**~~ Retiré le 2026-10-05 (ADR-069) : l'opérateur consulte sans motif, et rien n'est enregistré. L'autorisation par le rôle plateforme reste.
 22. **Un rôle plateforme n'accorde jamais une appartenance à un tenant, et réciproquement.**
 23. **La périodicité de paiement d'un abonnement n'est pas sa durée d'engagement.**
 24. **Aucun envoi SMS ou WhatsApp sans consentement prouvable et révocable, et aucune notification de sécurité désactivable.**

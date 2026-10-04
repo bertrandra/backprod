@@ -42,7 +42,7 @@ interface ErasureRepository
      * The audit record of the erasure is written **inside** the same
      * transaction. Written afterwards it could be lost while the erasure
      * stood, and an erasure nobody can attribute is the one thing this
-     * operation must never become (#21's reasoning, applied to itself).
+     * operation must never become.
      */
     public function erase(
         string $subjectUserId,

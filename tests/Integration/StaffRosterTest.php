@@ -237,44 +237,12 @@ final class StaffRosterTest extends DatabaseApiTestCase
         // pass straight through — an earlier draft of the trigger checked only
         // "does an administrator exist", which refused this whenever none did
         // and made the rule a trap for every database it was never true of.
-        // The no-administrator-at-all case is the fixture StaffAccessTest
-        // uses, and its own deletion test is what holds that line.
         $removed = $this->connection->executeStatement(
             'DELETE FROM platform_staff WHERE user_id = :user',
             ['user' => $this->support],
         );
 
         self::assertSame(1, $removed);
-    }
-
-    // --- The trail -----------------------------------------------------------
-
-    public function testAppointingAndRemovingAreBothRecorded(): void
-    {
-        // A grant names who did it in `platform_staff.granted_by`, but that
-        // dies with the row. The trail is what survives a revoke — which is
-        // exactly the history somebody investigating would want.
-        $this->postJson(
-            '/api/v1/staff/members',
-            ['user_id' => $this->outsider, 'role' => 'SUPPORT_ADMIN'],
-            'ada-token',
-        );
-
-        $this->delete(
-            sprintf('/api/v1/staff/members/%s/roles/SUPPORT_ADMIN', $this->outsider),
-            'ada-token',
-        );
-
-        $actions = $this->connection->fetchFirstColumn(
-            <<<'SQL'
-                SELECT action FROM staff_access_log
-                 WHERE resource_type = 'platform_staff' AND resource_id = :target
-                 ORDER BY occurred_at
-                SQL,
-            ['target' => $this->outsider],
-        );
-
-        self::assertSame(['GRANT', 'REVOKE'], $actions);
     }
 
     // --- Helpers -------------------------------------------------------------

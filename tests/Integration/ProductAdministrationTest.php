@@ -227,12 +227,9 @@ final class ProductAdministrationTest extends DatabaseApiTestCase
             self::assertSame(400, $refused->getStatusCode(), $bad);
             self::assertSame('VALIDATION_FAILED', $this->errorOf($refused)['code'] ?? null, $bad);
         }
-
-        // And the trail says where people will be sent.
-        self::assertSame(1, $this->connection->fetchOne("SELECT count(*) FROM staff_access_log WHERE action = 'SET_APP_URL' AND detail->>'app_url' = 'https://plan.example.test'"));
     }
 
-    public function testAProductIsMovedInEveryListAndTheMoveIsRecorded(): void
+    public function testAProductIsMovedInEveryList(): void
     {
         // The console lists by the number, ties broken by code, so moving one
         // product moves it for the switcher and the public list too — they
@@ -258,9 +255,6 @@ final class ProductAdministrationTest extends DatabaseApiTestCase
             self::assertSame(400, $refused->getStatusCode(), var_export($bad, true));
             self::assertSame('VALIDATION_FAILED', $this->errorOf($refused)['code'] ?? null, var_export($bad, true));
         }
-
-        // Who moved it to the top, and where to.
-        self::assertSame(1, $this->connection->fetchOne("SELECT count(*) FROM staff_access_log WHERE action = 'SET_DISPLAY_ORDER' AND detail->>'display_order' = '5'"));
     }
 
     /** @return list<string> */
@@ -374,53 +368,6 @@ final class ProductAdministrationTest extends DatabaseApiTestCase
         $response = $this->patch('00000000-0000-0000-0000-000000000000', ['name' => 'Ghost'], 'ola-token');
 
         self::assertSame(404, $response->getStatusCode());
-    }
-
-    // --- The trail ------------------------------------------------------------
-
-    public function testEveryDecisionIsRecordedAgainstWhoMadeIt(): void
-    {
-        $this->create(['code' => 'orbit', 'name' => 'Orbit'], 'ola-token');
-        $this->patch($this->atlas, ['name' => 'Atlas Pro'], 'ola-token');
-        $this->patch($this->atlas, ['active' => false], 'ola-token');
-        $this->patch($this->atlas, ['active' => true], 'ola-token');
-
-        $actions = $this->connection->fetchFirstColumn(
-            <<<'SQL'
-                SELECT action FROM staff_access_log
-                 WHERE resource_type = 'product' AND staff_user_id = :user
-                SQL,
-            ['user' => $this->admin],
-        );
-
-        // Distinct actions rather than one UPDATE with a payload: "who
-        // switched this off?" is the question somebody asks at a bad moment,
-        // and a row saying only that it was edited cannot answer it.
-        self::assertContains('CREATE', $actions);
-        self::assertContains('RENAME', $actions);
-        self::assertContains('RETIRE', $actions);
-        self::assertContains('REINSTATE', $actions);
-    }
-
-    public function testTheTrailNamesThePermissionTheDecisionWasMadeUnder(): void
-    {
-        $this->patch($this->atlas, ['active' => false], 'ola-token');
-
-        self::assertSame('staff.products.manage', $this->connection->fetchOne(
-            "SELECT permission FROM staff_access_log WHERE action = 'RETIRE'",
-        ));
-    }
-
-    public function testMerelyLookingIsNotRecorded(): void
-    {
-        $this->get('/api/v1/staff/products', 'ola-token');
-
-        // #21 traces staff crossing into a *tenant's* data. The platform's own
-        // product list is not that, and a row per look would bury the
-        // decisions among them.
-        self::assertSame(0, $this->connection->fetchOne(
-            "SELECT count(*) FROM staff_access_log WHERE resource_type = 'product'",
-        ));
     }
 
     // --- Helpers ---------------------------------------------------------------

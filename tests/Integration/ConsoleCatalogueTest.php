@@ -135,15 +135,16 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
         self::assertSame(201, $elsewhere->getStatusCode());
     }
 
-    public function testReorderingAPlanIsRecordedAsItsOwnAct(): void
+    public function testAPlanIsReordered(): void
     {
         $planId = $this->planId($this->createPlan(['code' => 'pro', 'name' => 'Pro', 'rank' => 10]));
 
         self::assertSame(200, $this->patch('/api/v1/staff/catalogue/plans/' . $planId, ['rank' => 30])->getStatusCode());
 
-        // Which plan sits above which is what an upgrade is measured by, so
-        // moving one is a commercial decision and reads as one in the trail.
-        self::assertContains('REORDER', $this->actionsOn('plan'));
+        self::assertSame(30, $this->connection->fetchOne(
+            'SELECT rank FROM plans WHERE id = :id',
+            ['id' => $planId],
+        ));
     }
 
     public function testRenamingAPlanDoesNotMoveItByOmission(): void
@@ -347,54 +348,6 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
 
         self::assertSame(404, $response->getStatusCode());
         self::assertSame(0, $this->connection->fetchOne('SELECT count(*) FROM offers'));
-    }
-
-    // --- The trail ---------------------------------------------------------------
-
-    public function testEveryActThatChangesWhatCanBeSoldIsRecorded(): void
-    {
-        $planId = $this->planId($this->createPlan(['code' => 'pro', 'name' => 'Pro', 'rank' => 10]));
-        $offerId = $this->offerId($this->createOffer($planId));
-        $this->postJson('/api/v1/staff/catalogue/offers/' . $offerId . '/publish', ['version' => 1]);
-
-        $rows = $this->connection->fetchAllAssociative(
-            <<<'SQL'
-                SELECT resource_type, action, permission FROM staff_access_log
-                 WHERE staff_user_id = :user
-                SQL,
-            ['user' => $this->admin],
-        );
-
-        $acts = [];
-        $permissions = [];
-
-        foreach ($rows as $row) {
-            self::assertIsString($row['resource_type']);
-            self::assertIsString($row['action']);
-            self::assertIsString($row['permission']);
-
-            $acts[] = $row['resource_type'] . ':' . $row['action'];
-            $permissions[$row['permission']] = true;
-        }
-
-        self::assertContains('plan:CREATE', $acts);
-        self::assertContains('offer:CREATE', $acts);
-        // The one an auditor comes for: who put this price on sale.
-        self::assertContains('offer:PUBLISH', $acts);
-
-        // One permission, because this desk answers for one thing. Creating
-        // a *feature* is recorded too, under `staff.features.manage` and by
-        // a desk of its own — see ConsolePlatformFeaturesTest.
-        self::assertSame(['staff.catalog.manage'], array_keys($permissions));
-    }
-
-    public function testMerelyReadingTheCatalogueIsNotRecorded(): void
-    {
-        $this->get('/api/v1/staff/catalogue?product=atlas', 'ola-token');
-
-        // #21 traces staff crossing into a tenant's data. A price list is the
-        // platform's own.
-        self::assertSame(0, $this->connection->fetchOne('SELECT count(*) FROM staff_access_log'));
     }
 
     // --- What an offer grants ------------------------------------------------
@@ -720,25 +673,6 @@ final class ConsoleCatalogueTest extends DatabaseApiTestCase
         return $this->request('GET', $path, ['Authorization' => 'Bearer ' . $token]);
     }
 
-    /**
-     * @return list<string>
-     */
-    private function actionsOn(string $resourceType): array
-    {
-        $actions = $this->connection->fetchFirstColumn(
-            'SELECT action FROM staff_access_log WHERE resource_type = :type',
-            ['type' => $resourceType],
-        );
-
-        $strings = [];
-
-        foreach ($actions as $action) {
-            self::assertIsString($action);
-            $strings[] = $action;
-        }
-
-        return $strings;
-    }
 
     private function planId(ResponseInterface $response): string
     {

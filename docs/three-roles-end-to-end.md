@@ -624,11 +624,11 @@ l'adresse est la seule preuve que l'organisation ait demandée.
 
 ### Les clients — `staff.tenants.read`, `staff.tenants.manage`, `staff.grant`
 
-Chacune de ces opérations écrit une ligne dans `staff_access_log`.
+Aucune ne demande de motif, et aucune n'est enregistrée (ADR-069, 2026-10-05) : la permission plateforme suffit.
 
 | Action | Ce que ça change |
 |---|---|
-| `listTenantsForStaff`, `showTenantForStaff` | Rien, sauf la ligne d'audit. |
+| `listTenantsForStaff`, `showTenantForStaff` | Rien. |
 | `createTenantForStaff` | Crée une organisation. |
 | `updateTenantForStaff` | Son nom. |
 | `setTenantOfferAuthoring` | **Prête** ou reprend l'édition du catalogue (ADR-040). |
@@ -637,7 +637,7 @@ Chacune de ces opérations écrit une ligne dans `staff_access_log`.
 | `showTenantEntitlement` | Rien. Ce que la plateforme a donné sans vente. |
 | `grantTenantEntitlement` | Écrit un octroi — des fonctionnalités, des limites, une échéance ou aucune — et dit s'il **couvre les gens** de l'organisation. Sans ce drapeau, les fonctionnalités s'allument et chaque atelier refuse : c'est une exception de support. Avec, c'est un essai. Faux par défaut : la réponse la plus large se choisit. |
 | `withdrawTenantEntitlement` | Retire l'octroi. L'atelier se referme le cas échéant. |
-| `listTenantMembersForStaff`, `listTenantPaymentsForStaff`, `listTenantOrdersForStaff`, `listTenantQuotesForStaff`, `listTenantProjectsForStaff`, `listTenantJobsForStaff`, `showTenantTaxProfileForStaff` | Rien, sauf la ligne d'audit. Le dossier d'un client, en lecture. |
+| `listTenantMembersForStaff`, `listTenantPaymentsForStaff`, `listTenantOrdersForStaff`, `listTenantQuotesForStaff`, `listTenantProjectsForStaff`, `listTenantJobsForStaff`, `showTenantTaxProfileForStaff` | Rien. Le dossier d'un client, en lecture. |
 
 ### Le personnel — `staff.grant`
 
@@ -645,13 +645,13 @@ Chacune de ces opérations écrit une ligne dans `staff_access_log`.
 donnent ou retirent un rôle plateforme. **Ni l'un ni l'autre ne touche une
 appartenance à un tenant** — c'est la frontière, et elle est dans deux tables.
 
-### Le support — `support.read`, `support.respond`, `staff.access_log.read`
+### Le support — `support.read`, `support.respond`
 
 `listSupportConversations` et `showSupportConversation` lisent les fils
 `SUPPORT` — et **jamais un `INTERNAL`**, que la base interdit au personnel.
-`postSupportMessage` répond, `closeSupportConversation` ferme.
-`listAccessLog` lit le journal de ce que le personnel a consulté chez les
-clients.
+`postSupportMessage` répond, `closeSupportConversation` ferme. Le journal
+de ce que le personnel consultait a été retiré avec
+l'ADR-069.
 
 ### La plateforme — `admin.*`
 
@@ -719,15 +719,15 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
   ─────────────────────────────────────────────────
   surface locataire                              131
 
-  PLATFORM_ADMIN                                  86
+  PLATFORM_ADMIN                                  85
   publiques, sans compte                           8
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          236
+  total                                          235
 ```
 
-Dont **114 lectures** et **122 écritures**. Chaque écriture a sa ligne dans les
+Dont **113 lectures** et **122 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

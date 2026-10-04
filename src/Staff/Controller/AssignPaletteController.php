@@ -19,7 +19,7 @@ use Psr\Http\Message\ServerRequestInterface;
  * the palette an organisation wears in a product it holds (2026-10-04):
  * `{palette: "…"}`, or `{palette: null}` for the platform's design. The same
  * row the organisation's administrator changes on their own screen, so the
- * last of the two to choose is what both see. Leaves a trail row.
+ * last of the two to choose is what both see.
  * `staff.design.manage`.
  */
 final class AssignPaletteController implements RouteHandler

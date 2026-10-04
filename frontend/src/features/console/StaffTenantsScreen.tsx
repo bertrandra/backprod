@@ -16,14 +16,12 @@ import {
   useStaffTenants,
   useUnassignTenantProduct,
   useUpdateTenant,
-  type AccessMotive,
   type PlatformProduct,
 } from '@/queries/staff';
 import { Field, inputClass } from '@/ui/Field';
 import { SearchPicker } from '@/ui/pickers/SearchPicker';
 import { type Person } from '@/ui/pickers/Select';
 
-import { AccessMotiveGate, MotiveInEffect } from './AccessMotiveGate';
 import { TenantEntitlements } from './TenantEntitlement';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
@@ -36,16 +34,13 @@ import { tx } from '@/i18n/react';
 /**
  * `console.support.tenants` — a customer as support sees them.
  *
- * **Opening one is a recorded act.** The read writes a `StaffAccessEntry`
- * naming who looked, at what, and under which permission, and the screen says
- * so *before* the click rather than in a footnote afterwards. Non-negotiable
- * #21 makes the trace mandatory; making it visible is what stops it being a
- * surveillance mechanism the surveilled party alone knows about.
+ * **Opened directly** (ADR-069, 2026-10-05): no reason is asked and nothing is
+ * recorded. The platform role is what lets somebody open a customer.
  *
  * **The tenant is named in the path** — the one place this platform allows it.
  * ADR-015 forbids a client naming a tenant everywhere else, and this is not the
- * exception it looks like: the path names the tenant, the *platform role*
- * authorises the read, and the read is recorded either way.
+ * exception it looks like: the path names the tenant, and the *platform role*
+ * authorises the read.
  *
  * What is *read* here is deliberately thin: name, slug and id. A support agent
  * needs to confirm they have the right company, not to read its data. Anything
@@ -73,7 +68,7 @@ export function StaffTenantsScreen() {
     <div className="space-y-6">
       <PageHeader
         title={t("Tenants")}
-        description={t("Opening a tenant records an entry against your name, with the permission you used. That record is the reason this access is allowed at all.")}
+        description={t("Your customers. Open one to see who it is, what it holds and what the platform has granted it.")}
       />
 
       <div className="grid gap-8 lg:grid-cols-[22rem_1fr]">
@@ -141,7 +136,7 @@ export function StaffTenantsScreen() {
           {selected === undefined ? (
             <EmptyState
               title={t("No tenant open")}
-              description={t("Choosing one performs a recorded read across the tenant boundary.")}
+              description={t("Choose one in the list to open it.")}
             />
           ) : (
             <TenantDetail key={selected} tenantId={selected} />
@@ -152,21 +147,9 @@ export function StaffTenantsScreen() {
   );
 }
 
-/**
- * A customer, once somebody has said why (R14).
- *
- * The motive is asked for *before* the read, and the read is disabled until it
- * arrives — so this screen never fetches a tenant and then explains that it
- * should not have. Changing the selected tenant resets it: a reason given for
- * opening one customer is not a reason for opening the next.
- */
+/** A customer, opened directly: no reason is asked (ADR-069). */
 function TenantDetail({ tenantId }: { tenantId: string }) {
-  const [motive, setMotive] = useState<AccessMotive | null>(null);
-  const tenant = useStaffTenant(tenantId, motive);
-
-  if (motive === null) {
-    return <AccessMotiveGate what="this customer" onGiven={setMotive} />;
-  }
+  const tenant = useStaffTenant(tenantId);
 
   if (tenant.isPending) {
     return <SkeletonRows rows={4} />;
@@ -182,8 +165,6 @@ function TenantDetail({ tenantId }: { tenantId: string }) {
       className="space-y-4 rounded-card border border-line bg-surface p-4 shadow-raise text-sm"
     >
       <h2 className="text-xl font-semibold">{tenant.data.name}</h2>
-
-      <MotiveInEffect motive={motive} onChange={() => setMotive(null)} />
 
       <dl className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -208,10 +189,6 @@ function TenantDetail({ tenantId }: { tenantId: string }) {
       <TenantEntitlements tenantId={tenantId} held={tenant.data.products} />
 
       <OfferAuthoring tenantId={tenantId} mayAuthor={tenant.data.may_author_offers} />
-
-      <p data-testid="read-recorded" className="border-t border-line pt-3 text-xs text-muted">
-        {tx("This read has been recorded under {permission}, with the reason you gave. It appears in the access log with your user id against it.", { permission: <code>staff.tenants.read</code> })}
-      </p>
     </div>
   );
 }

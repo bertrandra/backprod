@@ -94,7 +94,7 @@ final class NavigationSetupTest extends DatabaseApiTestCase
         ], $this->decode($response));
     }
 
-    public function testTheSetupIsReplacedWholeAndRecorded(): void
+    public function testTheSetupIsReplacedWhole(): void
     {
         $response = $this->put(self::menus(user: ['invoices', 'quotes'], tenantAdmin: [], platformAdmin: ['audit']), 'sam-token');
 
@@ -108,11 +108,6 @@ final class NavigationSetupTest extends DatabaseApiTestCase
                 'user' => ['hidden' => ['invoices', 'quotes'], 'hide_empty' => false],
             ],
         ], $read);
-
-        // Traceable: who decided what every customer's user cannot find.
-        self::assertSame(1, $this->rowsMatching(
-            "SELECT count(*) FROM staff_access_log WHERE action = 'CONFIGURE_NAVIGATION' AND resource_type = 'platform_settings'",
-        ));
     }
 
     public function testAnAudienceLeftOutIsRefusedRatherThanReset(): void
@@ -237,15 +232,6 @@ final class NavigationSetupTest extends DatabaseApiTestCase
     private function headers(string $token): array
     {
         return ['Authorization' => 'Bearer ' . $token];
-    }
-
-    private function rowsMatching(string $sql): int
-    {
-        $count = $this->connection->fetchOne($sql);
-
-        self::assertIsNumeric($count);
-
-        return (int) $count;
     }
 
     /**

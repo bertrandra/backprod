@@ -155,25 +155,7 @@ export function AppShell() {
       }
     >
       {onPlatformScreen ? (
-        <>
-          {/* Said on every platform screen, because non-negotiable #21 is not a
-              footnote: a read that crosses into a customer's data is recorded
-              with who looked, at what, and under which permission. Nobody
-              should be surprised by their own entry in that log. */}
-          <div
-            data-testid="platform-band"
-            // Quiet on purpose. It is standing context, not an alert: two amber
-            // banners stacked on one screen made the page shout and taught
-            // nobody anything. The dot carries the colour; the text does not.
-            className="mb-5 flex items-start gap-2.5 rounded-card border border-line bg-well px-3.5 py-2.5 text-xs text-muted"
-          >
-            <span aria-hidden="true" className="mt-1 size-1.5 shrink-0 rounded-full bg-warning" />
-            <span>
-              {t("You are administering the platform. Every read that crosses into a tenant’s own data is recorded — who looked, at what, and under which permission.")}</span>
-          </div>
-
-          <Outlet />
-        </>
+        <Outlet />
       ) : productCode === null || waitingOnly ? (
         <WithoutAProduct />
       ) : session.error instanceof ApiError && session.error.code === 'EMAIL_UNCONFIRMED' ? (

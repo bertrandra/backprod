@@ -13,9 +13,9 @@ use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * DELETE /api/v1/staff/products/{productId}/credentials/{credentialId} —
- * revokes a key (ADR-051 §4). The row stays, revoked: the access log points
+ * revokes a key (ADR-051 §4). The row stays, revoked: the product access log points
  * at it, and "which key read this" must keep an answer. Idempotent.
- * `staff.products.manage`, and trailed as REVOKE_PRODUCT_KEY.
+ * `staff.products.manage`.
  */
 final class RevokeProductCredentialController implements RouteHandler
 {

@@ -18,10 +18,7 @@ use Psr\Http\Message\ServerRequestInterface;
  * offer publicly, or stop.
  *
  * PUT because it states a desired state rather than an act: a console toggle
- * clicked twice on a slow connection asked for the same thing twice. No
- * motive header, unlike the tenant reads on the same shell — R14 asks why
- * somebody is reading a customer's data, and the platform's own price list is
- * nobody's customer data.
+ * clicked twice on a slow connection asked for the same thing twice.
  *
  * Withdrawing an offer from the public page does not withdraw it from sale.
  * People already subscribed keep their terms, members keep seeing it in the

@@ -377,15 +377,6 @@
         "showStorefrontSettings"
       ]
     },
-    "console.support.access_log": {
-      "authority": "platform",
-      "routes": [
-        "/console/access-log"
-      ],
-      "operations": [
-        "listAccessLog"
-      ]
-    },
     "console.support.conversations": {
       "authority": "platform",
       "routes": [

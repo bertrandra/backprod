@@ -15,8 +15,7 @@ use Psr\Http\Message\ServerRequestInterface;
  * GET /api/v1/admin/tenants — who the customers are, and how they stand.
  *
  * Distinct from `/staff/tenants`, which support uses to answer one
- * customer's question and which writes an access-log row for having
- * looked. This is the operations view: every tenant, with the counts that
+ * customer's question. This is the operations view: every tenant, with the counts that
  * say whether an account is healthy — members, live subscriptions, unpaid
  * invoices — and nothing from inside any of them.
  */

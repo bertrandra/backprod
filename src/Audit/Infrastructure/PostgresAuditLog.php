@@ -18,8 +18,7 @@ use Doctrine\DBAL\Connection;
  * Writing opens no transaction of its own. Where a caller holds one the row
  * joins it, so the act and the record commit together; where there is none —
  * a plain read being recorded — the insert stands alone, which is correct
- * because there is nothing to be atomic with. Same shape as
- * `PostgresStaffAccessLog`.
+ * because there is nothing to be atomic with.
  *
  * A failure here propagates rather than being swallowed. An act nobody can
  * be held to account for is the thing §30 exists to prevent, so refusing the

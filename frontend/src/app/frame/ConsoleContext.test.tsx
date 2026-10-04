@@ -22,7 +22,7 @@ const client = () =>
   });
 
 beforeEach(() => {
-  useConsoleStore.setState({ motives: {}, productCode: null });
+  useConsoleStore.setState({ productCode: null });
 });
 
 describe('the level', () => {

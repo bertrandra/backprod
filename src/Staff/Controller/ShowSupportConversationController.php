@@ -19,7 +19,7 @@ use Psr\Http\Message\ServerRequestInterface;
  *
  * Returns the thread and its messages together, because a support person
  * opening a ticket wants to read it, and two round trips to do that would
- * write two rows into the access trail for one act.
+ * be two requests for one act.
  */
 final class ShowSupportConversationController implements RouteHandler
 {
@@ -43,7 +43,6 @@ final class ShowSupportConversationController implements RouteHandler
         $conversation = $this->support->show(
             $context->identity,
             $conversationId,
-            StaffRoute::motive($request),
         );
         $shape = MessagingPresenter::conversation($conversation);
         $shape['tenant_id'] = $conversation->tenantId;

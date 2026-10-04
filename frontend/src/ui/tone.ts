@@ -81,8 +81,9 @@ export function pill(tone: Tone): string {
  *
  * **Surface and border only, deliberately.** The first version also set the
  * ink, which was right for a paragraph and wrong for everything else: the
- * access-motive gate is a warning panel *containing a form*, and tinting the
- * container repainted its labels, its options and its help text amber. A
+ * console's old access-motive gate was a warning panel *containing a form*, and
+ * tinting the container repainted its labels, its options and its help text
+ * amber. A
  * container states its tone with its edge; what is inside it keeps the ink its
  * own role asks for.
  *

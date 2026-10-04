@@ -14,7 +14,7 @@ use App\Tenant\Domain\Tenant;
  * the repository every tenant-scoped service already injects is an accident
  * waiting to be typed. Here, the only code that can enumerate tenants is code
  * that asked for this interface — and everything that asks for it is behind a
- * staff route and writes to the trail.
+ * staff route.
  */
 interface TenantDirectory
 {
