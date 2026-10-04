@@ -4,13 +4,14 @@ import { useForm } from 'react-hook-form';
 import { useState } from 'react';
 import { z } from 'zod';
 
+import { can } from '@/app/access/access';
 import { addressFor } from '@/app/frame/ProductSwitcher';
 import { useTenantUsage } from '@/queries/organisation';
 import { PROJECTS_QUOTA, useCreateProject, useDeleteProject, useProjects, useUndeleteProject } from '@/queries/projects';
 import { supportedSchemaVersions, useCurrentProduct, useProductConfiguration } from '@/queries/catalogue';
 import type { Product } from '@/queries/catalogue';
 import type { ProjectSummary } from '@/queries/projects';
-import { useSession } from '@/queries/session';
+import { ApiError, useSession } from '@/queries/session';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorSurface } from '@/ui/ErrorSurface';
 import { Button, Field, inputClass } from '@/ui/Field';
@@ -100,6 +101,40 @@ export function ProjectsScreen() {
 
   if (projects.isPending) {
     return <SkeletonRows rows={6} />;
+  }
+
+  // Not being on a subscription is not a fault (2026-10-05): nothing failed,
+  // there is simply no work of theirs to show yet, so it reads like every other
+  // empty screen — no red, no retry, no request id. What answers it is a place
+  // on a subscription; an administrator can take one themselves on All
+  // subscriptions, anybody else is given one by whoever holds it.
+  if (projects.error instanceof ApiError && projects.error.code === 'SUBSCRIPTION_REQUIRED') {
+    const administers = can(session, 'tenant.manage');
+
+    return (
+      <div className="max-w-4xl space-y-6">
+        <PageHeader title={t("Projects")} />
+        <EmptyState
+          title={t("No projects to show yet")}
+          description={
+            administers
+              ? t("Projects live on a subscription, and you are not on one of your organisation's yet. You can put yourself on one.")
+              : t("Projects live on a subscription, and you are not on one of your organisation's yet. Whoever manages it can add you, on Subscription › People.")
+          }
+          action={
+            administers ? (
+              <Link to="/organisation/subscriptions" data-testid="not-covered-action" className="underline decoration-dotted">
+                {t("See all subscriptions")}
+              </Link>
+            ) : (
+              <Link to="/subscription" data-testid="not-covered-action" className="underline decoration-dotted">
+                {t("See the subscription")}
+              </Link>
+            )
+          }
+        />
+      </div>
+    );
   }
 
   if (projects.error !== null) {
