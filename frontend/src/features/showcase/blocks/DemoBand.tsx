@@ -31,7 +31,9 @@ import { BAND_META } from './meta';
  * wide screen. Where the address names no size, the box is 16:9 — a shape,
  * not a claim about what is inside it.
  *
- * **A frame that the Content-Security-Policy refuses shows nothing, silently.**
+ * **A frame that the Content-Security-Policy refuses explains nothing.** Chrome
+ * draws "This content is blocked. Contact the site owner to fix the issue" in
+ * its place — addressed to the visitor, naming neither origin nor directive.
  * `frame-src` is a header written into `.htaccess` at build time, so the
  * origin has to be named to `bin/build-dist.sh --embed`. Nothing here can
  * detect it — a cross-origin frame tells the parent page nothing — so the

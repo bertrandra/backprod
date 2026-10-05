@@ -403,8 +403,12 @@ minute after you typed the line, when signing in to find out would be a detour.
 
 A showcase's **Try it** band embeds the product from the product's own origin,
 and `frame-src` in the deployed `.htaccess` lists `'self'` and the payment
-provider. Anything else is refused — **silently**: nothing on screen, one line
-in a console, and a shop window with a hole in it.
+provider. Anything else is refused, and the refusal says nothing useful: Chrome
+draws a grey box reading *"This content is blocked. Contact the site owner to
+fix the issue"* (*"Ce contenu est bloqué…"* in French) — addressed to the
+visitor, who cannot fix it, and naming neither the origin nor the directive.
+The only precise line is in the console (`Refused to frame '…' because it
+violates … "frame-src …"`). A shop window with a hole in it.
 
 So the origin is named when the bundle is built:
 

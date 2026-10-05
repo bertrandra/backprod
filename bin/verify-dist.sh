@@ -516,9 +516,10 @@ if grep -qi 'content-security-policy' "$SCRATCH/headers"; then
 
     # What it will put in a frame, said out loud (2026-09-30). A showcase's
     # DEMO band embeds a product from that product's own origin, and an origin
-    # missing from `frame-src` produces nothing on screen and one line in a
-    # console nobody reads. So the bundle states it rather than leaving an
-    # operator to find out from an empty box: `--embed https://host` at build
+    # missing from `frame-src` produces a grey "This content is blocked" box
+    # that names neither the origin nor the directive, and one precise line in
+    # a console nobody reads. So the bundle states it rather than leaving an
+    # operator to find out from that box: `--embed https://host` at build
     # time is what puts one here.
     FRAME_ALLOWS="$(sed -n 's/.*frame-src \([^;]*\);.*/\1/p' "$SCRATCH/headers" | head -1)"
     note "frames allowed from: ${FRAME_ALLOWS:-unknown}"
