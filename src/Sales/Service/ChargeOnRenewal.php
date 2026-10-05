@@ -50,12 +50,11 @@ use DateTimeImmutable;
  */
 final class ChargeOnRenewal implements RenewalCharge
 {
-    private const PAYMENT_TERMS = 'Payable on receipt.';
-
     public function __construct(
         private readonly InvoiceRepository $invoices,
         private readonly WhoSellsAndWhoBuys $parties,
         private readonly Taxation $taxation,
+        private readonly RenewalPaymentRequest $request,
     ) {
     }
 
@@ -121,10 +120,16 @@ final class ChargeOnRenewal implements RenewalCharge
             $parties->jurisdiction,
             $periodStart,
             $periodEnd,
-            self::PAYMENT_TERMS,
+            // Due when the period it pays for starts, not when it was raised
+            // (2026-10-05). It is raised `lead_days` early so the customer has
+            // time to pay; "payable on receipt" would have had the collection
+            // schedule chase it the next morning and suspend a subscription
+            // inside a period already paid for.
+            sprintf('Payable by %s.', $periodStart->format('Y-m-d')),
             $actorUserId,
             // Still inside the renewal's transaction, so the period, the
-            // invoice and its fiscal fact commit together or not at all.
+            // invoice, its fiscal fact and the request to pay it commit
+            // together or not at all.
             function (Invoice $issued) use ($subscription, $parties, $supplyType, $now, $facts): void {
                 $this->taxation->recordFor(
                     $subscription->tenantId,
@@ -136,7 +141,10 @@ final class ChargeOnRenewal implements RenewalCharge
                     $now,
                     $facts,
                 );
+
+                $this->request->ask($subscription, $issued);
             },
+            $periodStart,
         );
 
         return $invoice->id;

@@ -175,6 +175,7 @@ final class PostgresInvoiceRepository implements InvoiceRepository
         ?string $paymentTerms,
         ?string $actorUserId,
         ?callable $alsoRecord = null,
+        ?DateTimeImmutable $dueAt = null,
     ): Invoice {
         if ($lines === []) {
             throw new RuntimeException('An invoice must have at least one line.');
@@ -196,12 +197,12 @@ final class PostgresInvoiceRepository implements InvoiceRepository
                 INSERT INTO invoices
                     (tenant_id, product_id, issuer_tenant_id, subscription_id, number, status, currency,
                      net_minor_units, vat_minor_units, gross_minor_units,
-                     issued_at, period_start, period_end, payment_terms,
+                     issued_at, due_at, period_start, period_end, payment_terms,
                      supplier_snapshot, customer_snapshot, locale)
                 VALUES
                     (:tenantId, :productId, CAST(:issuerTenantId AS uuid), :subscriptionId, :number, 'ISSUED', :currency,
                      :net, :vat, :gross,
-                     now(), :periodStart, :periodEnd, :paymentTerms,
+                     now(), :dueAt, :periodStart, :periodEnd, :paymentTerms,
                      CAST(:supplier AS jsonb), CAST(:customer AS jsonb),
                      COALESCE(:locale, (SELECT u.locale FROM users u WHERE u.id = :actor), 'en'))
                 RETURNING id
@@ -224,6 +225,11 @@ final class PostgresInvoiceRepository implements InvoiceRepository
                 'gross' => $net->plus($vat)->minorUnits,
                 'periodStart' => self::moment($periodStart),
                 'periodEnd' => self::moment($periodEnd),
+                // NULL is "payable on receipt", which is what every invoice
+                // said until a renewal was raised days before its period
+                // (2026-10-05): the dunning read counts from
+                // `coalesce(due_at, issued_at)`.
+                'dueAt' => self::moment($dueAt),
                 'paymentTerms' => $paymentTerms,
                 'supplier' => self::encode($supplier),
                 'customer' => self::encode($customer),

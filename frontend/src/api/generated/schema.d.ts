@@ -4107,6 +4107,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/configuration/renewal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set whether this product's subscriptions renew, and how early the customer is asked to pay
+         * @description Whether a subscription rolls into its next paid period by itself, and how many days before the period ends the next period is invoiced and the customer is mailed a request to pay it, with a link to the invoice (2026-10-05). The invoice is **due on the day the period starts**, so the collection schedule counts from then and not from the day it was raised. A period never rolls past a subscription's term: renewing a commitment stays a decision (R11). **Both fields are required** — off is a choice and has to be said, and a lead outside 1–30 days is refused rather than stored, because the renewal pass reads an unusable document as no document at all.
+         */
+        put: operations["setRenewal"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/navigation": {
         parameters: {
             query?: never;
@@ -5911,6 +5931,13 @@ export interface components {
              * @example EUR
              */
             currency: string;
+        };
+        /** @description Whether a product's subscriptions roll into their next paid period by themselves, and how early. Off unless chosen: absent configuration renews nothing. */
+        RenewalSettings: {
+            /** @description True renews each paid period inside its term without anybody acting; false leaves every subscription to end at its period. */
+            automatic: boolean;
+            /** @description How many days before the period ends the next one is invoiced and the customer is mailed a request to pay it. The invoice is due on the day the period starts. */
+            lead_days: number;
         };
         /** @description One link in the chain a product has to complete before it can sell. Carries **facts, not sentences**: `key` names the step and `detail` carries what was counted or found missing, so the words belong to whatever renders it, in whatever language that surface speaks. */
         SetupStep: {
@@ -15965,6 +15992,7 @@ export interface operations {
                         tax: components["schemas"]["TaxSettings"];
                         /** @description Which project document schema versions this product accepts (non-negotiable #10). **Empty means it accepts none**, which is the state of a product nobody has configured — creating one writes no configuration at all — and every project write against it refuses with `UNSUPPORTED_SCHEMA_VERSION`. Read through the same tolerant path a project write uses, so this is what would actually be enforced rather than whatever the stored row holds. */
                         project_schema_versions: number[];
+                        renewal: components["schemas"]["RenewalSettings"];
                         /** @description False while any mandatory mention is missing. A checkout against such a product refuses with `BILLING_NOT_CONFIGURED`. */
                         can_invoice: boolean;
                         /** @description The mandatory mentions that are absent, so the screen can say what to fix rather than only that something is wrong. */
@@ -16055,6 +16083,49 @@ export interface operations {
                 content: {
                     "application/json": {
                         tax: components["schemas"]["TaxSettings"];
+                    };
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setRenewal: {
+        parameters: {
+            query: {
+                /** @description The product code this configuration belongs to. A staff route resolves no product of its own — a platform role grants no membership. */
+                product: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenewalSettings"];
+            };
+        };
+        responses: {
+            /** @description The stored setting. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        renewal: components["schemas"]["RenewalSettings"];
                     };
                 };
             };

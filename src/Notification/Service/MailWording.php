@@ -93,6 +93,18 @@ final class MailWording
                 . "available, so you can pay from the subscription screen.\n\n"
                 . 'If you have already paid, nothing further is needed: access returns as soon as the payment is confirmed.',
         ],
+        // The request to pay for the period about to start (2026-10-05) —
+        // the operator's answer to R11: the customer is asked, with a link,
+        // before the period, and pays by card or any other means from the
+        // invoice screen. Kept as sent, because it is a demand for payment.
+        'subscription.renewal_payment_request' => [
+            'about' => 'A subscription’s next period has been invoiced, a number of days before it starts (the product’s renewal setting). The mail carries the invoice and a link to pay it. Kept as sent because it is a demand for payment.',
+            'placeholders' => ['invoice_number', 'offer', 'due_on', 'period_end', 'link'],
+            'subject' => 'Your subscription renews — invoice {invoice_number} to pay',
+            'body' => "Your subscription to {offer} continues for another period, until {period_end}.\n\n"
+                . "Invoice {invoice_number} is due on {due_on}. You can pay it by card or by another means from here:\n{link}\n\n"
+                . 'If it is still unpaid after that date, access to the product may be suspended until it is settled.',
+        ],
     ];
 
     /**
@@ -142,6 +154,12 @@ final class MailWording
                     . "consultables : vous pouvez payer depuis l'écran d'abonnement.\n\n"
                     . "Si vous avez déjà payé, il n'y a rien à faire : l'accès revient dès que le paiement est confirmé.",
             ],
+            'subscription.renewal_payment_request' => [
+                'subject' => 'Votre abonnement est renouvelé — facture {invoice_number} à régler',
+                'body' => "Votre abonnement à {offer} continue pour une nouvelle période, jusqu'au {period_end}.\n\n"
+                    . "La facture {invoice_number} est à régler avant le {due_on}. Vous pouvez la payer par carte ou par un autre moyen ici :\n{link}\n\n"
+                    . "Si elle reste impayée après cette date, l'accès au produit pourra être suspendu jusqu'à son règlement.",
+            ],
         ],
         'es' => [
             'account.password_reset' => [
@@ -180,6 +198,12 @@ final class MailWording
                     . 'El acceso al producto está suspendido hasta que se liquide. Sus facturas y sus pagos siguen '
                     . "disponibles: puede pagar desde la pantalla de suscripción.\n\n"
                     . 'Si ya ha pagado, no hace falta nada más: el acceso vuelve en cuanto se confirme el pago.',
+            ],
+            'subscription.renewal_payment_request' => [
+                'subject' => 'Su suscripción se renueva: factura {invoice_number} pendiente de pago',
+                'body' => "Su suscripción a {offer} continúa un periodo más, hasta el {period_end}.\n\n"
+                    . "La factura {invoice_number} vence el {due_on}. Puede pagarla con tarjeta o por otro medio aquí:\n{link}\n\n"
+                    . 'Si sigue sin pagar después de esa fecha, el acceso al producto podrá suspenderse hasta que se liquide.',
             ],
         ],
         'de' => [
@@ -220,6 +244,12 @@ final class MailWording
                     . "einsehbar: Sie können über den Abonnement-Bildschirm bezahlen.\n\n"
                     . 'Falls Sie bereits bezahlt haben, ist nichts weiter zu tun: der Zugang kommt zurück, sobald die Zahlung bestätigt ist.',
             ],
+            'subscription.renewal_payment_request' => [
+                'subject' => 'Ihr Abonnement verlängert sich – Rechnung {invoice_number} zu bezahlen',
+                'body' => "Ihr Abonnement für {offer} läuft eine weitere Periode, bis zum {period_end}.\n\n"
+                    . "Die Rechnung {invoice_number} ist am {due_on} fällig. Sie können sie hier per Karte oder auf anderem Weg bezahlen:\n{link}\n\n"
+                    . 'Bleibt sie nach diesem Datum unbezahlt, kann der Zugang zum Produkt bis zur Begleichung gesperrt werden.',
+            ],
         ],
         'it' => [
             'account.password_reset' => [
@@ -258,6 +288,12 @@ final class MailWording
                     . "L'accesso al prodotto è sospeso fino al saldo. Le tue fatture e i tuoi pagamenti restano "
                     . "consultabili: puoi pagare dalla schermata dell'abbonamento.\n\n"
                     . "Se hai già pagato non serve altro: l'accesso torna appena il pagamento è confermato.",
+            ],
+            'subscription.renewal_payment_request' => [
+                'subject' => 'Il tuo abbonamento si rinnova: fattura {invoice_number} da pagare',
+                'body' => "Il tuo abbonamento a {offer} continua per un altro periodo, fino al {period_end}.\n\n"
+                    . "La fattura {invoice_number} scade il {due_on}. Puoi pagarla con carta o con un altro mezzo da qui:\n{link}\n\n"
+                    . "Se risulta ancora non pagata dopo quella data, l'accesso al prodotto potrà essere sospeso fino al saldo.",
             ],
         ],
     ];
@@ -379,6 +415,17 @@ final class MailWording
      */
     public static function sample(string $type, string $email, string $appUrl): array
     {
+        if ($type === 'subscription.renewal_payment_request') {
+            return [
+                'link' => rtrim($appUrl, '/') . '/invoices/SAMPLE',
+                'email' => $email,
+                'invoice_number' => '2026-000001',
+                'offer' => 'Sample offer',
+                'due_on' => '2026-01-08',
+                'period_end' => '2026-02-08',
+            ];
+        }
+
         return [
             'link' => rtrim($appUrl, '/') . '/sign-in?reset=SAMPLE-TOKEN',
             'email' => $email,

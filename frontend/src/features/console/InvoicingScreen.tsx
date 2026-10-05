@@ -6,8 +6,10 @@ import {
   useProductManifest,
   useSetBillingIdentity,
   useSetProjectSchemaVersions,
+  useSetRenewal,
   useSetTaxSettings,
   type BillingSupplier,
+  type RenewalSettings,
   type TaxSettings,
 } from '@/queries/staff';
 import { EmptyState } from '@/ui/EmptyState';
@@ -86,6 +88,7 @@ export function InvoicingScreen() {
     billing_supplier: supplier,
     tax,
     project_schema_versions: schemaVersions,
+    renewal,
     can_invoice: canInvoice,
     missing,
   } = configuration.data;
@@ -118,6 +121,7 @@ export function InvoicingScreen() {
 
       <BillingIdentityForm productCode={productCode} initial={supplier} />
       <TaxForm productCode={productCode} initial={tax} />
+      <RenewalForm productCode={productCode} initial={renewal} />
       <SchemaVersionsForm productCode={productCode} initial={schemaVersions} />
     </div>
   );
@@ -653,6 +657,80 @@ function TaxForm({ productCode, initial }: { productCode: string; initial: TaxSe
         <FormActions>
           <Button type="submit" pending={save.isPending}>
             {t("Save the tax position")}</Button>
+        </FormActions>
+      </FormCard>
+    </Section>
+  );
+}
+
+/**
+ * Whether subscriptions renew by themselves, and how early the customer is asked
+ * to pay (2026-10-05).
+ *
+ * The operator's words: the payment request goes out J-7, or however many days
+ * they choose, as a mail with a link to the invoice, and the customer pays it by
+ * card or any other means. The renewal pass had read this setting since ADR-068
+ * and nothing could write it.
+ *
+ * Said on the form, because it is the part nobody would guess: the invoice is
+ * due on the day the period starts, not the day it is raised, and a period never
+ * rolls past the subscription's term — renewing a commitment stays a decision.
+ */
+function RenewalForm({ productCode, initial }: { productCode: string; initial: RenewalSettings }) {
+  const save = useSetRenewal(productCode);
+
+  const [automatic, setAutomatic] = useState(initial.automatic);
+  const [lead, setLead] = useState(String(initial.lead_days));
+
+  return (
+    <Section
+      className="border-t border-line pt-6"
+      title={t("Renewal and the payment request")}
+      description={t("How a paid period continues. The next period is invoiced a number of days before the current one ends, and the customer is mailed a request to pay it, with a link to the invoice — by card or any other means. The invoice is due on the day the new period starts; unpaid after that, the collection schedule takes over.")}
+    >
+      {save.error !== null && <ErrorSurface error={save.error} />}
+
+      <FormCard
+        onSubmit={(event) => {
+          event.preventDefault();
+
+          save.mutate({ automatic, lead_days: Number(lead) });
+        }}
+      >
+        <label className="flex items-start gap-2.5 rounded-control border border-line bg-well p-3 text-sm">
+          <input
+            type="checkbox"
+            data-testid="renewal-automatic"
+            className="mt-0.5 size-4 shrink-0"
+            checked={automatic}
+            onChange={(event) => setAutomatic(event.target.checked)}
+          />
+          <span>
+            {t("Renew each paid period and ask for payment")}<span className="mt-0.5 block text-xs text-muted">
+              {t("Off, every subscription ends at its period and nothing is invoiced. A period never rolls past the subscription's term: renewing a commitment stays a decision.")}</span>
+          </span>
+        </label>
+
+        <Field
+          id="renewal-lead"
+          label={t("Days before the period ends")}
+          hint={t("When the invoice and the payment request go out. Between 1 and 30; 7 by default.")}
+        >
+          <input
+            id="renewal-lead"
+            type="number"
+            min={1}
+            max={30}
+            required
+            className={inputClass()}
+            value={lead}
+            onChange={(event) => setLead(event.target.value)}
+          />
+        </Field>
+
+        <FormActions>
+          <Button type="submit" pending={save.isPending}>
+            {t("Save the renewal setting")}</Button>
         </FormActions>
       </FormCard>
     </Section>

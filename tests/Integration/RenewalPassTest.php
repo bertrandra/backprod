@@ -164,6 +164,68 @@ final class RenewalPassTest extends DatabaseApiTestCase
         self::assertSame($net + $vat, self::minorUnits($invoice, 'gross_minor_units'));
     }
 
+    /**
+     * The operator's answer to R11 (2026-10-05): the next period is invoiced
+     * ahead of time, and the customer is mailed a request to pay it, with a
+     * link to the invoice they pay from.
+     */
+    public function testTheCustomerIsAskedToPayAndTheInvoiceIsDueWhenThePeriodStarts(): void
+    {
+        $this->chooseRenewal('{"automatic": true, "lead_days": 7}');
+        $this->subscribe();
+        $this->periodEndsIn('6 days');
+
+        $endedAt = $this->currentPeriodEnd();
+
+        self::assertSame(1, $this->pass()['renewed']);
+
+        // Due on the day the period it pays for starts. "Payable on receipt"
+        // would have had the collection schedule chase it the next morning and
+        // suspend a subscription inside a period already paid for.
+        $due = $this->connection->fetchOne("SELECT to_char(due_at, 'YYYY-MM-DD') FROM invoices LIMIT 1");
+        self::assertSame($endedAt->format('Y-m-d'), $due);
+
+        $request = $this->connection->fetchAssociative(
+            'SELECT recipient_user_id, category, legal_effect, payload FROM notifications WHERE type = :type',
+            ['type' => 'subscription.renewal_payment_request'],
+        );
+
+        self::assertIsArray($request);
+        self::assertSame($this->user, $request['recipient_user_id']);
+        self::assertSame('BILLING', $request['category']);
+        self::assertTrue((bool) $request['legal_effect']);
+
+        self::assertIsString($request['payload']);
+        $payload = json_decode($request['payload'], true);
+        self::assertIsArray($payload);
+
+        $invoiceId = $this->connection->fetchOne('SELECT id FROM invoices LIMIT 1');
+        self::assertIsString($invoiceId);
+
+        // The invoice's own screen, under the organisation's root and for its
+        // product — the page the customer pays from.
+        self::assertIsString($payload['link'] ?? null);
+        self::assertStringEndsWith('/acme/invoices/' . $invoiceId . '?product=atlas', $payload['link']);
+        self::assertSame($endedAt->format('Y-m-d'), $payload['due_on'] ?? null);
+    }
+
+    public function testNothingIsChasedBeforeTheDayItIsDue(): void
+    {
+        $this->chooseRenewal('{"automatic": true, "lead_days": 7}');
+        $this->subscribe();
+        $this->periodEndsIn('6 days');
+        $this->pass();
+
+        // A day later the invoice is still not due, so the collection read does
+        // not see it — the subscription is not suspended inside its paid period.
+        $this->connection->executeStatement("UPDATE invoices SET issued_at = issued_at - INTERVAL '1 day'");
+
+        $repository = $this->container()->get(PostgresSubscriptionRepository::class);
+        self::assertInstanceOf(PostgresSubscriptionRepository::class, $repository);
+
+        self::assertSame([], $repository->overdue(50));
+    }
+
     public function testASecondPassBillsNothingMore(): void
     {
         $this->chooseRenewal('{"automatic": true}');

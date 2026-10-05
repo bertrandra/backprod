@@ -169,6 +169,7 @@ use App\Sales\Service\ChargeOnOfferChange;
 use App\Sales\Service\ChargeOnRenewal;
 use App\Sales\Service\CompleteOrderOnPayment;
 use App\Sales\Service\InvoiceThenSubscribe;
+use App\Sales\Service\RenewalPaymentRequest;
 use App\Shared\Context\RequestContextMiddleware;
 use App\Shared\Context\RoutePolicy;
 use App\Shared\Database\ConnectionFactory;
@@ -472,6 +473,10 @@ return static function (array $overrides = []): ContainerInterface {
         // moved the period and the entitlements and raised nothing at all, which
         // was invisible only while nothing called it.
         RenewalCharge::class => autowire(ChargeOnRenewal::class),
+        // …and the mail that asks for it, with the link the customer pays from
+        // (2026-10-05). The address is the deployment's, like a reset link's.
+        RenewalPaymentRequest::class => autowire(RenewalPaymentRequest::class)
+            ->constructorParameter('appUrl', $env('APP_URL')),
 
         // Moving up a plan, and the two halves of what that costs (spec §3).
         // Both are ports for the same reason the one above is: subscriptions

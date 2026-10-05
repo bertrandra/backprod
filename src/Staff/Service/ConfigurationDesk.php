@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Staff\Service;
 
 use App\Billing\Domain\SupplierDetails;
+use App\Commerce\Domain\RenewalPolicy;
 use App\Product\Domain\ManifestAnswer;
 use App\Product\Domain\Product;
 use App\Product\Domain\ProductManifests;
@@ -76,6 +77,7 @@ final class ConfigurationDesk
      *     supplier: SupplierDetails,
      *     tax: SupplierTaxSettings,
      *     schemaVersions: list<int>,
+     *     renewal: RenewalPolicy,
      *     missing: list<string>,
      * }
      */
@@ -102,8 +104,35 @@ final class ConfigurationDesk
                 $configured,
                 $supplier->countryCode() ?? '',
             ),
+            // Read through the policy the renewal pass reads, so the screen
+            // shows what the pass would do rather than what the row holds.
+            'renewal' => RenewalPolicy::fromConfiguration($configured),
             'missing' => $supplier->missing(),
         ];
+    }
+
+    /**
+     * Whether this product's subscriptions renew by themselves, and how many
+     * days before the period ends the customer is asked to pay (2026-10-05).
+     *
+     * A fourth named key, for the reason the first three are named: the renewal
+     * pass reads `renewal` and nothing else, so it is written by a writer that
+     * knows that word.
+     */
+    public function setRenewal(
+        StaffIdentity $staff,
+        string $productCode,
+        RenewalPolicy $policy,
+    ): RenewalPolicy {
+        $product = $this->product($productCode);
+
+        $this->settings->put(
+            $product->id,
+            RenewalPolicy::CONFIGURATION_KEY,
+            $policy->toArray(),
+        );
+
+        return $policy;
     }
 
     /**

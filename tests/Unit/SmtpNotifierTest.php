@@ -133,9 +133,12 @@ final class SmtpNotifierTest extends TestCase
                 // SECURITY, so it cannot be muted — and still editable here.
                 'account.session_revoked',
                 // The formal demand (spec §5.2, 2026-09-27). Editable like the
-                // others, and the one in this list with legal effect — so what
+                // others, and one of the two in this list with legal effect — so what
                 // an administrator wrote is what is kept as sent.
                 'subscription.payment_overdue',
+                // The request to pay the next period, with its link
+                // (2026-10-05). Kept as sent too: it is a demand for payment.
+                'subscription.renewal_payment_request',
             ],
             array_column($catalogue, 'type'),
         );

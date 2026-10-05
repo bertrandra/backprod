@@ -5085,6 +5085,27 @@
           }
         }
       },
+      "RenewalSettings": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "automatic",
+          "lead_days"
+        ],
+        "description": "Whether a product's subscriptions roll into their next paid period by themselves, and how early. Off unless chosen: absent configuration renews nothing.",
+        "properties": {
+          "automatic": {
+            "type": "boolean",
+            "description": "True renews each paid period inside its term without anybody acting; false leaves every subscription to end at its period."
+          },
+          "lead_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30,
+            "description": "How many days before the period ends the next one is invoiced and the customer is mailed a request to pay it. The invoice is due on the day the period starts."
+          }
+        }
+      },
       "SetupStep": {
         "type": "object",
         "description": "One link in the chain a product has to complete before it can sell. Carries **facts, not sentences**: `key` names the step and `detail` carries what was counted or found missing, so the words belong to whatever renders it, in whatever language that surface speaks.",
@@ -22441,6 +22462,7 @@
                     "billing_supplier",
                     "tax",
                     "project_schema_versions",
+                    "renewal",
                     "can_invoice",
                     "missing"
                   ],
@@ -22475,6 +22497,9 @@
                       "type": "array",
                       "items": {"type": "integer", "minimum": 1},
                       "description": "Which project document schema versions this product accepts (non-negotiable #10). **Empty means it accepts none**, which is the state of a product nobody has configured — creating one writes no configuration at all — and every project write against it refuses with `UNSUPPORTED_SCHEMA_VERSION`. Read through the same tolerant path a project write uses, so this is what would actually be enforced rather than whatever the stored row holds."
+                    },
+                    "renewal": {
+                      "$ref": "#/components/schemas/RenewalSettings"
                     },
                     "can_invoice": {
                       "type": "boolean",
@@ -22640,6 +22665,83 @@
                   "properties": {
                     "tax": {
                       "$ref": "#/components/schemas/TaxSettings"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` — `details.field` names the field and `details.requirement` what was expected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PermissionDenied"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/configuration/renewal": {
+      "put": {
+        "tags": [
+          "Staff"
+        ],
+        "operationId": "setRenewal",
+        "summary": "Set whether this product's subscriptions renew, and how early the customer is asked to pay",
+        "description": "Whether a subscription rolls into its next paid period by itself, and how many days before the period ends the next period is invoiced and the customer is mailed a request to pay it, with a link to the invoice (2026-10-05). The invoice is **due on the day the period starts**, so the collection schedule counts from then and not from the day it was raised. A period never rolls past a subscription's term: renewing a commitment stays a decision (R11). **Both fields are required** — off is a choice and has to be said, and a lead outside 1–30 days is refused rather than stored, because the renewal pass reads an unusable document as no document at all.",
+        "parameters": [
+          {
+            "name": "product",
+            "in": "query",
+            "required": true,
+            "description": "The product code this configuration belongs to. A staff route resolves no product of its own — a platform role grants no membership.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenewalSettings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored setting.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "renewal"
+                  ],
+                  "properties": {
+                    "renewal": {
+                      "$ref": "#/components/schemas/RenewalSettings"
                     }
                   }
                 }

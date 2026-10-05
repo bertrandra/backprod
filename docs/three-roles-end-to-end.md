@@ -578,6 +578,7 @@ construire son menu) et `updateStaffProfile` (son nom affiché et sa langue).
 | `showStaffConfiguration` | Rien. |
 | `setBillingIdentity` | Dit **qui vend** ce produit. Sans elle, aucune facture de la plateforme ne peut être levée. |
 | `setTaxSettings` | Pays, OSS, nature de la prestation, devise — et depuis 2026-09-26, assujettissement. |
+| `setRenewal` | Si les abonnements du produit se renouvellent seuls, et **combien de jours avant** la fin de période la facture suivante part avec un e-mail de demande de paiement (J-7 par défaut). La facture est due le jour où la nouvelle période commence ; une période ne dépasse jamais la durée de l'engagement (2026-10-05). |
 | `setProjectSchemaVersions` | Quelles versions de document le produit accepte. Sans elle, un produit créé ici n'en acceptait aucune et refusait tout projet (2026-09-29). |
 | `showProductManifest` | Rien, et c'est la seule lecture du personnel qui **quitte cet hôte** : elle demande au produit, à son propre `app_url`, quelles versions il accepte. Elle n'écrit pas — appliquer reste la ligne au-dessus, parce qu'un fichier distant peut proposer une liste et ne doit pas en décider une. |
 | `showProductReadiness` | Rien. Ce qui manque encore à un produit pour être vendable. |
@@ -719,15 +720,15 @@ côté de la plateforme s'authentifie par une clé et **n'a pas de personne**
   ─────────────────────────────────────────────────
   surface locataire                              131
 
-  PLATFORM_ADMIN                                  85
+  PLATFORM_ADMIN                                  86
   publiques, sans compte                           8
   machines et sondes                               7
   clés produit                                     4
   ─────────────────────────────────────────────────
-  total                                          235
+  total                                          236
 ```
 
-Dont **113 lectures** et **122 écritures**. Chaque écriture a sa ligne dans les
+Dont **113 lectures** et **123 écritures**. Chaque écriture a sa ligne dans les
 tableaux ci-dessus ; les lectures sont nommées dans la zone à laquelle elles
 appartiennent.
 

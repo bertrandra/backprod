@@ -612,6 +612,17 @@ decide whether somebody kept their subscription. One period is billed once by th
 statement that moves it — conditioned on the period it was asked about — never by
 a check two overlapping passes would both pass.
 
+**The customer is asked before the period, with a link** (ADR-070). The operator
+sets it per product in the console (`PUT /staff/configuration/renewal`: on or
+off, and how many days ahead — 7 by default). The next period's invoice is raised
+that many days early and is **due on the day the period starts**, never on
+receipt: an early invoice payable on receipt is overdue the next morning, and the
+collection schedule would suspend a customer inside a period they already paid
+for. The same transaction raises `subscription.renewal_payment_request` to whoever
+can settle it, with a link to the invoice's own screen, where they pay by card or
+any other means. Still periods only: a term is never renewed this way, because an
+invoice for a term nobody agreed to is a debt claimed without consent.
+
 ## Notifications
 
 Full specification in `docs/architecture-v2.md` §27.1.

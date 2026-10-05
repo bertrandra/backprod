@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Staff\Controller;
 
 use App\Billing\Domain\SupplierDetails;
+use App\Commerce\Domain\RenewalPolicy;
 use App\Product\Domain\ManifestAnswer;
 use App\Product\Domain\Product;
 use App\Tax\Domain\SupplierTaxSettings;
@@ -38,6 +39,14 @@ final class ConfigurationPresenter
     }
 
     /**
+     * @return array{automatic: bool, lead_days: int}
+     */
+    public static function renewal(RenewalPolicy $renewal): array
+    {
+        return $renewal->toArray();
+    }
+
+    /**
      * @param list<int>    $schemaVersions
      * @param list<string> $missing
      *
@@ -48,6 +57,7 @@ final class ConfigurationPresenter
         SupplierDetails $supplier,
         SupplierTaxSettings $tax,
         array $schemaVersions,
+        RenewalPolicy $renewal,
         array $missing,
     ): array {
         return [
@@ -63,6 +73,7 @@ final class ConfigurationPresenter
             // rather than omitted, so a screen can tell it from a field it
             // failed to read.
             'project_schema_versions' => $schemaVersions,
+            'renewal' => self::renewal($renewal),
             'can_invoice' => $missing === [],
             'missing' => $missing,
         ];

@@ -117,7 +117,10 @@ Stated plainly, because a readiness document that omits these is worse than none
   the legally required deadlines have never been confirmed against an official
   source, because every `gouv.fr` and `europa.eu` domain is refused by this
   environment's egress proxy — re-confirmed 2026-09-10. A committed subscription
-  must not auto-renew unattended until they are.
+  must not auto-renew unattended until they are. Paid *periods* inside a term do
+  renew, when the operator switches it on in the console: the next one is
+  invoiced `lead_days` ahead (7 by default), due the day it starts, and the
+  customer is mailed a request to pay it with a link (ADR-070).
 
 ## 4. The order these would go in
 

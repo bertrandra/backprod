@@ -1765,6 +1765,7 @@ export function useRenameFeature() {
  */
 export type BillingSupplier = Schemas['BillingSupplier'];
 export type TaxSettings = Schemas['TaxSettings'];
+export type RenewalSettings = Schemas['RenewalSettings'];
 
 export function useProductConfiguration(productCode: string | null) {
   const client = useApiClient();
@@ -1896,6 +1897,28 @@ export function useSetTaxSettings(productCode: string) {
     }
 
     return data.tax;
+  });
+}
+
+/**
+ * Sets whether this product's subscriptions renew by themselves, and how many
+ * days before the period ends the customer is invoiced and asked to pay
+ * (2026-10-05). Both fields every time: off is a choice and has to be said.
+ */
+export function useSetRenewal(productCode: string) {
+  const client = useApiClient();
+
+  return useConfigurationWrite(productCode, async (renewal: RenewalSettings) => {
+    const { data, error, response } = await client.PUT('/api/v1/staff/configuration/renewal', {
+      params: { query: { product: productCode } },
+      body: renewal,
+    });
+
+    if (error !== undefined || data === undefined) {
+      throw toApiError(response.status, error);
+    }
+
+    return data.renewal;
   });
 }
 
