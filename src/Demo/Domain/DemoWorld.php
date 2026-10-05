@@ -718,8 +718,9 @@ final class DemoWorld
                 //
                 // **It needs `--embed https://plan.raillard.org` at build
                 // time**, or `frame-src 'self'` refuses the frame and the band
-                // shows its caption over an empty box. Silently, which is why
-                // the build says what it allowed.
+                // shows its caption over Chrome's "This content is blocked"
+                // box, which names neither the origin nor the directive. That
+                // is why the build says what it allowed.
                 'block' => 'DEMO',
                 'content' => [
                     'caption' => 'The terrace, in three dimensions, in your browser. Nothing to install.',

@@ -80,8 +80,10 @@ esac
 #
 # A product that shows itself on its own page is embedded from its own origin,
 # which is not this one — plan.raillard.org beside the platform (ADR-051) — and
-# `frame-src 'self'` refuses it. **Silently**: nothing on screen, one line in a
-# console nobody reads, and a shop window with a hole in it.
+# `frame-src 'self'` refuses it. **Unhelpfully**: Chrome draws a grey box reading
+# "This content is blocked. Contact the site owner to fix the issue", addressed
+# to a visitor who cannot, naming neither the origin nor the directive. The
+# precise line is in a console nobody reads. A shop window with a hole in it.
 #
 # So it is named here, as the payment provider is, and for the same reason: a
 # header written into `.htaccess` at build time cannot be derived from a
