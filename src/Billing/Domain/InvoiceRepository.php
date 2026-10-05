@@ -97,6 +97,7 @@ interface InvoiceRepository
         ?string $paymentTerms,
         ?string $actorUserId,
         ?callable $alsoRecord = null,
+        ?DateTimeImmutable $dueAt = null,
     ): Invoice;
 
     /**

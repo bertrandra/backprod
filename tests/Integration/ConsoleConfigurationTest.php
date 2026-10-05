@@ -324,6 +324,43 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
         self::assertSame('oss_registered', $this->refusedField($response));
     }
 
+    // --- Renewal and the payment request (2026-10-05) ----------------------
+
+    public function testAProductThatSaidNothingRenewsNothingAndShowsTheDefaultLead(): void
+    {
+        $renewal = $this->itemIn($this->show(), 'renewal');
+
+        self::assertFalse($renewal['automatic'] ?? null);
+        self::assertSame(7, $renewal['lead_days'] ?? null);
+    }
+
+    public function testTheRenewalSettingIsStoredAndReadBack(): void
+    {
+        $this->setRenewal(['automatic' => true, 'lead_days' => 10]);
+
+        $renewal = $this->itemIn($this->show(), 'renewal');
+
+        self::assertTrue($renewal['automatic'] ?? null);
+        self::assertSame(10, $renewal['lead_days'] ?? null);
+    }
+
+    public function testALeadOutsideTheBoundsIsRefusedRatherThanStored(): void
+    {
+        // Stored, the renewal pass would read it as no setting at all and
+        // switch renewal off behind a form that said "saved".
+        $response = $this->setRenewal(['automatic' => true, 'lead_days' => 31], 400);
+
+        self::assertSame('lead_days', $this->refusedField($response));
+        self::assertFalse($this->itemIn($this->show(), 'renewal')['automatic'] ?? null);
+    }
+
+    public function testOffIsAChoiceAndHasToBeSaid(): void
+    {
+        $response = $this->setRenewal(['lead_days' => 7], 400);
+
+        self::assertSame('automatic', $this->refusedField($response));
+    }
+
     // --- The document versions the product accepts ---------------------------
 
     public function testAProductAnAdministratorMadeAcceptsNoDocumentVersion(): void
@@ -846,6 +883,23 @@ final class ConsoleConfigurationTest extends DatabaseApiTestCase
             '/api/v1/staff/configuration/tax?product=atlas',
             ['Authorization' => 'Bearer ola-token'],
             $this->json($tax),
+        );
+
+        self::assertSame($expected, $response->getStatusCode(), (string) $response->getBody());
+
+        return $response;
+    }
+
+    /**
+     * @param array<string, mixed> $renewal
+     */
+    private function setRenewal(array $renewal, int $expected = 200): ResponseInterface
+    {
+        $response = $this->request(
+            'PUT',
+            '/api/v1/staff/configuration/renewal?product=atlas',
+            ['Authorization' => 'Bearer ola-token'],
+            $this->json($renewal),
         );
 
         self::assertSame($expected, $response->getStatusCode(), (string) $response->getBody());

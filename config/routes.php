@@ -181,6 +181,7 @@ use App\Staff\Controller\SetNavigationSetupController;
 use App\Staff\Controller\SetOfferAuthoringController;
 use App\Staff\Controller\SetProjectSchemaVersionsController;
 use App\Staff\Controller\SetPublicListingController;
+use App\Staff\Controller\SetRenewalController;
 use App\Staff\Controller\SetSignUpSettingsController;
 use App\Staff\Controller\SetStorefrontSettingsController;
 use App\Staff\Controller\SetTaxSettingsController;
@@ -774,6 +775,11 @@ return static function (RouteCollector $routes): void {
         SetBillingIdentityController::class,
     );
     $routes->addRoute('PUT', '/api/v1/staff/configuration/tax', SetTaxSettingsController::class);
+
+    // Whether the product's subscriptions renew by themselves, and how early the
+    // customer is invoiced and asked to pay (2026-10-05). Read by the renewal
+    // pass since ADR-068 and, until now, writable by nothing.
+    $routes->addRoute('PUT', '/api/v1/staff/configuration/renewal', SetRenewalController::class);
 
     // The third key, and the same hole one layer down (2026-09-29): creating a
     // product writes a row in `products` and none in `product_configuration`,

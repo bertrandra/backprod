@@ -57,13 +57,17 @@ final class RenewalPolicy
     public const CONFIGURATION_KEY = 'renewal';
 
     /**
-     * How early a period may be rolled, in days.
+     * How early a period may be rolled, in days — which is also how early the
+     * customer is asked to pay for it.
      *
-     * Two: enough that a night of broken cron costs nobody their subscription,
-     * short enough that the invoice is recognisably for the period about to
-     * start. A default and not a rule.
+     * Seven, the operator's figure (2026-10-05): the invoice and the mail
+     * carrying it go out a week before the period starts, so somebody paying by
+     * transfer has the time to, and the invoice is due on the day the period
+     * starts rather than the day it was raised. It was two while the renewal
+     * only had to survive a night of broken cron. A default and not a rule — the
+     * console sets it per product.
      */
-    public const DEFAULT_LEAD_DAYS = 2;
+    public const DEFAULT_LEAD_DAYS = 7;
 
     /**
      * A lead of a year would bill next year's period today, and one of zero
@@ -115,6 +119,21 @@ final class RenewalPolicy
     public static function off(): self
     {
         return new self(false, self::DEFAULT_LEAD_DAYS);
+    }
+
+    /**
+     * A policy an operator chose, or null when the lead is outside the bounds.
+     *
+     * Null rather than an exception so the caller names the field it refuses:
+     * this class knows the bounds, the controller knows the request.
+     */
+    public static function chosen(bool $automatic, int $leadDays): ?self
+    {
+        if ($leadDays < 1 || $leadDays > self::LONGEST_LEAD) {
+            return null;
+        }
+
+        return new self($automatic, $leadDays);
     }
 
     /**

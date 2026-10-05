@@ -86,6 +86,7 @@ function clientFor(extra: Stubs = {}) {
         billing_supplier: EMPTY_SUPPLIER,
         tax: TAX,
         project_schema_versions: [1],
+        renewal: { automatic: false, lead_days: 7 },
         can_invoice: false,
         missing: ['legal_name', 'country_code'],
       },
@@ -141,6 +142,7 @@ describe('a product that can invoice', () => {
             billing_supplier: CONFIGURED_SUPPLIER,
             tax: TAX,
             project_schema_versions: [1],
+            renewal: { automatic: false, lead_days: 7 },
             can_invoice: true,
             missing: [],
           },
@@ -166,6 +168,7 @@ describe('a product that can invoice', () => {
             billing_supplier: CONFIGURED_SUPPLIER,
             tax: TAX,
             project_schema_versions: [1],
+            renewal: { automatic: false, lead_days: 7 },
             can_invoice: true,
             missing: [],
           },
@@ -190,6 +193,7 @@ describe('setting the issuer', () => {
           billing_supplier: EMPTY_SUPPLIER,
           tax: TAX,
           project_schema_versions: [1],
+          renewal: { automatic: false, lead_days: 7 },
           can_invoice: false,
           missing: ['legal_name', 'country_code'],
         },
@@ -242,6 +246,7 @@ describe('setting the issuer', () => {
           billing_supplier: CONFIGURED_SUPPLIER,
           tax: TAX,
           project_schema_versions: [1],
+          renewal: { automatic: false, lead_days: 7 },
           can_invoice: true,
           missing: [],
         },
@@ -277,6 +282,7 @@ describe('the tax position', () => {
           billing_supplier: CONFIGURED_SUPPLIER,
           tax: { country: 'FR', oss_registered: false, supply_type: 'SERVICES', currency: 'EUR' },
           project_schema_versions: [1],
+          renewal: { automatic: false, lead_days: 7 },
           can_invoice: true,
           missing: [],
         },
@@ -316,6 +322,7 @@ describe('the tax position', () => {
           billing_supplier: CONFIGURED_SUPPLIER,
           tax: TAX,
           project_schema_versions: [1],
+          renewal: { automatic: false, lead_days: 7 },
           can_invoice: true,
           missing: [],
         },
@@ -357,6 +364,7 @@ describe('the accepted document versions', () => {
           billing_supplier: CONFIGURED_SUPPLIER,
           tax: TAX,
           project_schema_versions: versions,
+          renewal: { automatic: false, lead_days: 7 },
           can_invoice: true,
           missing: [],
         },
@@ -472,6 +480,7 @@ describe('what the product says about itself', () => {
           billing_supplier: CONFIGURED_SUPPLIER,
           tax: TAX,
           project_schema_versions: versions,
+          renewal: { automatic: false, lead_days: 7 },
           can_invoice: true,
           missing: [],
         },
@@ -592,5 +601,40 @@ describe('what the product says about itself', () => {
     // The address, so it is visible which host answered.
     expect(said.textContent).toMatch(/atlas\.example\.test/);
     expect(said.className).toMatch(/danger/);
+  });
+});
+describe('the renewal setting', () => {
+  it('sends both fields, the lead as a number of days', async () => {
+    const { client, requests } = recordingClient({
+      'GET /api/v1/staff/configuration': {
+        data: {
+          product: PRODUCT,
+          billing_supplier: CONFIGURED_SUPPLIER,
+          tax: TAX,
+          project_schema_versions: [1],
+          renewal: { automatic: false, lead_days: 7 },
+          can_invoice: true,
+          missing: [],
+        },
+      },
+      'PUT /api/v1/staff/configuration/renewal': { data: { renewal: { automatic: true, lead_days: 10 } } },
+      ...NOT_ASKED,
+    });
+
+    renderAtRoute(<InvoicingScreen />, client, ROUTE);
+
+    await waitFor(() => expect(screen.getByLabelText(/Days before the period ends/i)).toBeTruthy());
+    expect(screen.getByLabelText<HTMLInputElement>(/Days before the period ends/i).value).toBe('7');
+
+    fireEvent.click(screen.getByTestId('renewal-automatic'));
+    fireEvent.change(screen.getByLabelText(/Days before the period ends/i), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save the renewal setting/i }));
+
+    await waitFor(() =>
+      expect(requests.some((request) => request.path === '/api/v1/staff/configuration/renewal')).toBe(true),
+    );
+
+    const sent = requests.find((request) => request.path === '/api/v1/staff/configuration/renewal');
+    expect(sent?.body).toEqual({ automatic: true, lead_days: 10 });
   });
 });
