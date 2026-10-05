@@ -172,11 +172,20 @@ function Frame({ row }: { row: ShowcaseRow<DemoRow> }) {
           src={sized(embed, width, ratio)}
           title={row.content.caption}
           loading="lazy"
-          // Neither `allow-same-origin` nor `allow-top-navigation`: the frame
-          // may run its own scripts and nothing else. Without the sandbox an
-          // embedded page can navigate the page that hosts it, which is a
-          // shop window somebody else can redirect.
-          sandbox="allow-scripts allow-forms allow-popups"
+          // Never `allow-top-navigation`: without the sandbox an embedded
+          // page can navigate the page that hosts it, which is a shop window
+          // somebody else can redirect.
+          //
+          // `allow-same-origin` only for another origin (2026-10-05). Without
+          // it the frame runs as the opaque origin `null`, so the embedded
+          // application cannot reach its own server — Plan's demonstration
+          // asked `/admin/vitrine/2` and its palette, and the IGN for the
+          // orthophoto, and CORS refused all three: the page showed an empty
+          // scene instead of plan 2 on its aerial photograph. Another origin
+          // keeps its own: it is not this page's, so it reads nothing here.
+          // The same origin would be this page's, and with scripts it could
+          // lift its own sandbox — so there it stays opaque.
+          sandbox={sandboxFor(embed)}
           referrerPolicy="strict-origin"
           className="block w-full border-0"
           style={{ aspectRatio: String(ratio) }}
@@ -185,6 +194,27 @@ function Frame({ row }: { row: ShowcaseRow<DemoRow> }) {
       )}
     </div>
   );
+}
+
+/**
+ * What the frame may do: run its scripts, submit its forms, open popups — and
+ * keep its own origin when that origin is not this page's.
+ *
+ * An address that cannot be parsed, or that points back at this page, stays
+ * opaque: `allow-scripts` with `allow-same-origin` on this page's own origin
+ * would let the frame remove its own sandbox.
+ */
+export function sandboxFor(url: string, here: string = window.location.origin): string {
+  const base = 'allow-scripts allow-forms allow-popups';
+  let origin: string;
+
+  try {
+    origin = new URL(url).origin;
+  } catch {
+    return base;
+  }
+
+  return origin === 'null' || origin === here ? base : `${base} allow-same-origin`;
 }
 
 /**
