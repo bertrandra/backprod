@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { DEMO_RATIOS, DemoBand, sized } from './DemoBand';
+import { DEMO_RATIOS, DemoBand, sandboxFor, sized } from './DemoBand';
 import type { DemoRow, ShowcaseRow } from './content';
 
 /**
@@ -58,17 +58,27 @@ describe('the address it asks for', () => {
 });
 
 describe('the frame', () => {
-  it('is sandboxed, and never with same-origin', () => {
+  it('is sandboxed, keeps another origin its own, and never navigates the page', () => {
     render(<DemoBand rows={[row()]} />);
 
     const frame = screen.getByTestId('demo-frame');
     const sandbox = frame.getAttribute('sandbox') ?? '';
 
     expect(sandbox).toContain('allow-scripts');
-    // With `allow-same-origin` beside `allow-scripts` the sandbox is worth
-    // nothing, and the embedded page can reach the page that hosts it.
-    expect(sandbox).not.toContain('allow-same-origin');
+    // Another origin keeps its own (2026-10-05). Without it the frame ran as
+    // `null`, and Plan could reach neither its own server nor the IGN's
+    // tiles: the live demonstration showed an empty scene.
+    expect(sandbox).toContain('allow-same-origin');
     expect(sandbox).not.toContain('allow-top-navigation');
+  });
+
+  it('stays opaque for this page’s own origin, or an address it cannot read', () => {
+    // On this page's own origin, scripts plus same-origin could lift the
+    // sandbox — that is the case the old rule was about.
+    expect(sandboxFor('https://www.example.test/demo', 'https://www.example.test')).not.toContain('allow-same-origin');
+    expect(sandboxFor('not an address', 'https://www.example.test')).not.toContain('allow-same-origin');
+    expect(sandboxFor('data:text/html,hi', 'https://www.example.test')).not.toContain('allow-same-origin');
+    expect(sandboxFor('https://plan.example/?mode=demo', 'https://www.example.test')).toContain('allow-same-origin');
   });
 
   it('reserves the shape the operator named', () => {

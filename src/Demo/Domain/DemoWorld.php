@@ -723,7 +723,7 @@ final class DemoWorld
                 'block' => 'DEMO',
                 'content' => [
                     'caption' => 'The terrace, in three dimensions, in your browser. Nothing to install.',
-                    'embed_url' => 'https://plan.raillard.org/?mode=demo&x={width}&y={height}&heureauto=y&hrsstart=7&hrsend=19&duree=10&orthophoto=y',
+                    'embed_url' => 'https://plan.raillard.org/?mode=demo&file=2&x={width}&y={height}&heureauto=y&hrsstart=9&hrsend=19&duree=10&orthophoto=y',
                     'ratio' => '4:3',
                 ],
                 'translations' => [
