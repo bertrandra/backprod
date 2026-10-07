@@ -49,7 +49,8 @@ const SURFACE: Record<BandSurface, string> = {
  *
  * The heading carries `scroll-mt` clearing the sticky context bar, so an
  * anchor from the in-page nav never lands with its own title hidden
- * underneath region A.
+ * underneath region A. Seven rem: the bar (four on the storefront, which
+ * pins its own since 2026-10-07) plus the section nav stuck beneath it.
  */
 export function ShowcaseBand({
   id,
@@ -84,7 +85,7 @@ export function ShowcaseBand({
       data-revealed={revealed ? 'true' : 'false'}
       data-testid={testId}
       className={cn(
-        'scroll-mt-20 px-4 py-14 md:px-8 md:py-28',
+        'scroll-mt-28 px-4 py-14 md:px-8 md:py-28',
         SURFACE[surface],
         'transition-[opacity,transform] duration-[400ms] ease-out-quart motion-reduce:transition-none',
         revealed ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',

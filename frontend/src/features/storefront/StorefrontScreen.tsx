@@ -87,32 +87,43 @@ export function StorefrontScreen({
     <main className="min-h-dvh">
       {/* The page's own chrome, in a measure — whose organisation this is,
           which language it is read in, which window. The story below runs
-          full width: it is a shop window, not a document. */}
-      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-8">
-        {tenant !== null ? (
-          <p data-testid="storefront-tenant" className="text-xs font-semibold uppercase tracking-[0.14em] text-subtle">
-            {tenant.name}
-          </p>
-        ) : (
-          <span />
-        )}
-        <div className="flex items-center gap-2">
-          <LanguageSelect />
-          {/* The way in, where the signed-in shell keeps its account
-              circle. Joining is offered only once there is an organisation
-              to ask, which a bare host with no default lacks. */}
-          <VisitorMenu
-            onSignIn={onSignIn}
-            onSignUp={tenant !== null ? onSignUp : undefined}
-            organisation={tenant?.name}
-          />
+          full width: it is a shop window, not a document.
+
+          **Pinned** (2026-10-07), like the signed-in shell's context bar:
+          the way in is in this bar, and a visitor three bands down who
+          decides to sign in should not have to scroll back to the top to
+          find it. A fixed height from `lg` up, where the showcase's own
+          section nav sticks directly beneath it (`underBar`). */}
+      <div
+        data-testid="storefront-bar"
+        className="sticky top-0 z-30 border-b border-line bg-canvas/85 backdrop-blur"
+      >
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-8 lg:h-16 lg:flex-nowrap lg:py-0">
+          {tenant !== null ? (
+            <p data-testid="storefront-tenant" className="text-xs font-semibold uppercase tracking-[0.14em] text-subtle">
+              {tenant.name}
+            </p>
+          ) : (
+            <span />
+          )}
+          <div className="flex items-center gap-2">
+            <LanguageSelect />
+            {/* The way in, where the signed-in shell keeps its account
+                circle. Joining is offered only once there is an organisation
+                to ask, which a bare host with no default lacks. */}
+            <VisitorMenu
+              onSignIn={onSignIn}
+              onSignUp={tenant !== null ? onSignUp : undefined}
+              organisation={tenant?.name}
+            />
+          </div>
         </div>
       </div>
 
       {several && (
         // Only when there is a choice: a dropdown with one option is a
         // question with one answer, and the container has already given it.
-        <div className="mx-auto w-full max-w-6xl px-4 pb-2 md:px-8">
+        <div className="mx-auto w-full max-w-6xl px-4 pt-3 pb-2 md:px-8">
           <div className="max-w-xs">
             <Field id="storefront-product" label={t("Product")}>
               <select
@@ -174,6 +185,7 @@ export function StorefrontScreen({
           offersLoading={storefront.isPending}
           onChooseOffer={onChoose}
           retired={isRetired(story.data)}
+          underBar
           action={
             <a href={`#${BAND_META.PRICING.anchor}`} data-testid="see-the-offers" className={buttonClass()}>
               {t("See the offers")}</a>

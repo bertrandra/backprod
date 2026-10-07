@@ -57,7 +57,7 @@ export function HeadlineBand({
       data-band={BAND_META.HEADLINE.anchor}
       data-revealed={revealed ? 'true' : 'false'}
       data-testid="showcase-hero"
-      className="scroll-mt-20 bg-canvas px-4 pt-10 pb-16 md:px-8 md:pt-16 md:pb-28"
+      className="scroll-mt-28 bg-canvas px-4 pt-10 pb-16 md:px-8 md:pt-16 md:pb-28"
     >
       <div className="mx-auto grid w-full max-w-6xl gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-center lg:gap-16">
         <div
