@@ -254,7 +254,11 @@ final class ProjectEndpointsTest extends ApiTestCase
         $chunk = str_repeat('x', 60_000);
         $document = [];
 
-        for ($i = 0; $i < 20; ++$i) {
+        // Derived from the limit, so raising it cannot quietly turn this into
+        // a test of a document that fits.
+        $chunks = intdiv(DocumentPolicy::MAX_DOCUMENT_BYTES, strlen($chunk)) + 1;
+
+        for ($i = 0; $i < $chunks; ++$i) {
             $document['chunk' . $i] = $chunk;
         }
 

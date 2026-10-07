@@ -27,11 +27,18 @@ use App\Shared\Exceptions\UnprocessableEntityException;
 final class DocumentPolicy
 {
     /**
-     * 1 MiB of structured document. A project's geometry, layers and settings
-     * fit comfortably; anything larger is either an asset or a serialised
-     * mesh, and both belong in object storage.
+     * 4 MiB of structured document. A project's geometry, layers and settings
+     * fit; anything larger is either an asset or a serialised mesh, and both
+     * belong in object storage.
+     *
+     * It was 1 MiB until 2026-10-07, when Plan's schema 4 outgrew it and every
+     * save was refused `PAYLOAD_TOO_LARGE`: a real site is structured data
+     * well past a megabyte. The operator chose to raise it for every product
+     * rather than per product. The other rules are unchanged — no `data:` URI,
+     * no string over 64 KiB — so it still refuses an asset, only not a large
+     * drawing.
      */
-    public const MAX_DOCUMENT_BYTES = 1_048_576;
+    public const MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
 
     /**
      * A single string this long is not a label, an id or a note — it is a
