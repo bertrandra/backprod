@@ -61,7 +61,7 @@ final class PostgresDemoFixtures implements DemoFixtures
         'platform_staff',
         'erasure_requests', 'audit_log', 'financial_events',
         'revenue_periods', 'offer_revenue_periods', 'renewal_periods',
-        'tenant_member_roles', 'tenant_members', 'tenant_products', 'tenants',
+        'tenant_member_roles', 'tenant_members', 'tenant_palettes', 'tenant_products', 'tenants',
         'users', 'products',
         // Both cascade from `users`, so a reset that truncated users would take
         // them anyway — named here so the list stays a readable inventory of
@@ -595,8 +595,37 @@ final class PostgresDemoFixtures implements DemoFixtures
                     'INSERT INTO tenant_products (tenant_id, product_id, assigned_by) VALUES (:tenant, :product, :user)',
                     ['tenant' => $tenants[$key], 'product' => $products[$code], 'user' => $assignedBy],
                 );
+
+                $this->palette($tenants[$key], $products[$code], $assignedBy);
             }
         }
+    }
+
+    /**
+     * A palette for each organisation in each product, drawn at random from
+     * the platform's list (2026-10-07), so the demonstration shows what the
+     * palettes are for — Acme in Plan and Globex in Plan looking like two
+     * companies — rather than every screen in the platform's default.
+     *
+     * Drawn from `palettes` as it stands, never from a list in this file:
+     * those are the operator's, edited on the console and kept across a
+     * reset, and a name written here would be refused the day one was
+     * renamed. None at all assigns nothing, and the screens wear the
+     * default — the same answer an organisation that never chose gets.
+     *
+     * A different draw on every reset is the point: somebody resetting to
+     * look again sees the matrix change, and nothing in the demonstration
+     * depends on which colour came out.
+     */
+    private function palette(string $tenant, string $product, string $chosenBy): void
+    {
+        $this->connection->executeStatement(
+            <<<'SQL'
+                INSERT INTO tenant_palettes (tenant_id, product_id, palette, chosen_by)
+                SELECT :tenant, :product, name, :user FROM palettes ORDER BY random() LIMIT 1
+                SQL,
+            ['tenant' => $tenant, 'product' => $product, 'user' => $chosenBy],
+        );
     }
 
     /**
