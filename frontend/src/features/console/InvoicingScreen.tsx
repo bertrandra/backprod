@@ -25,6 +25,13 @@ import { t } from '@/i18n';
 import { tx } from '@/i18n/react';
 
 /**
+ * The anchor of the accepted document versions, which the Products screen
+ * links to: that list is where a product's saves are refused when a release
+ * writes a version nobody added, and an operator looks for it on the product.
+ */
+export const DOCUMENT_VERSIONS = 'document-versions';
+
+/**
  * `console.admin.invoicing` — what a product needs configured before it can take
  * money, and the screen that was missing under the last two.
  *
@@ -54,13 +61,6 @@ import { tx } from '@/i18n/react';
  * version — so every product created here refused every project, and nothing on
  * the platform could change it. Exactly what ADR-042 found about the issuer.
  */
-/**
- * The anchor of the accepted document versions, which the Products screen
- * links to: that list is where a product's saves are refused when a release
- * writes a version nobody added, and an operator looks for it on the product.
- */
-export const DOCUMENT_VERSIONS = 'document-versions';
-
 export function InvoicingScreen() {
   const productCode = useSessionStore((state) => state.productCode);
 
