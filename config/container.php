@@ -156,7 +156,9 @@ use App\Product\Infrastructure\PostgresProductSettings;
 use App\Product\Infrastructure\PostgresProductShowcase;
 use App\Product\Infrastructure\PostgresProductUsage;
 use App\Product\Infrastructure\PostgresTenantHoldings;
+use App\Project\Domain\DocumentLimit;
 use App\Project\Domain\ProjectRepository;
+use App\Project\Infrastructure\PostgresDocumentLimit;
 use App\Project\Infrastructure\PostgresProjectRepository;
 use App\Project\Infrastructure\ProjectUsageSource;
 use App\Project\Service\ExportProject;
@@ -567,6 +569,7 @@ return static function (array $overrides = []): ContainerInterface {
             return new EInvoiceProviders($secret === '' ? [] : [new StubEInvoiceProvider($secret)]);
         }),
         ProjectRepository::class => autowire(PostgresProjectRepository::class),
+        DocumentLimit::class => autowire(PostgresDocumentLimit::class),
         TenantRepository::class => autowire(PostgresTenantRepository::class),
         // Which organisation the bare host addresses (2026-09-17).
         DefaultTenant::class => autowire(PostgresDefaultTenant::class),

@@ -55,6 +55,7 @@ import { StaffMembersScreen } from '@/features/console/StaffMembersScreen';
 import { StaffTenantsScreen } from '@/features/console/StaffTenantsScreen';
 import { TenantWorkspaceScreen } from '@/features/console/TenantWorkspaceScreen';
 import { StorefrontScreen } from '@/features/console/StorefrontScreen';
+import { ProjectSettingsScreen } from '@/features/console/ProjectSettingsScreen';
 import { SupportConversationsScreen } from '@/features/console/SupportConversationsScreen';
 import { DemoScreen } from '@/features/console/DemoScreen';
 import { DemoPage } from '@/features/demo/DemoPage';
@@ -141,6 +142,7 @@ const PLATFORM_SCREEN_ROUTES: readonly { path: string; component: () => React.JS
   { path: '/console/demo', component: DemoScreen },
   { path: '/console/staff', component: StaffMembersScreen },
   { path: '/console/storefront', component: StorefrontScreen },
+  { path: '/console/projects', component: ProjectSettingsScreen },
   { path: '/console/queue', component: QueueScreen },
   { path: '/console/audit', component: AuditScreen },
   { path: '/console/erasure', component: ErasureScreen },

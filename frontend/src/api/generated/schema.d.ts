@@ -3253,6 +3253,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff/projects/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How large a project document may be
+         * @description The project document limit (2026-10-07), platform-wide and the same for every product. `staff.products.manage`.
+         */
+        get: operations["showProjectSettings"];
+        /**
+         * Set how large a project document may be
+         * @description The operator's choice from the setup menu, rather than a constant changed by a release (2026-10-07). Platform-wide: one limit for every product. **Absent means the default**, 4 MiB, never "no limit".
+         *
+         *     It applies from the next save. Raising it admits what was refused; lowering it refuses no document already stored — a stored document is measured again only when somebody saves it, and is then refused with the new limit named. `staff.products.manage`.
+         */
+        put: operations["setProjectSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff/mail/templates": {
         parameters: {
             query?: never;
@@ -5208,6 +5234,8 @@ export interface components {
              * @description Whose subscription pays for this project, and therefore who reaches it: that person, whoever is on their subscription today, and the organisation's administrator. Not the same person as `created_by` when a colleague works on somebody's seat — the work stays with the seat when the colleague is removed. Null where the holder's account was erased (§30), which leaves the project reachable by the administrator alone.
              */
             holder_user_id: string | null;
+            /** @description How large the document is, in bytes, measured exactly as the storage limit measures it (`PAYLOAD_TOO_LARGE`; 4 MiB unless the platform administrator set another, `setProjectSettings`) — so it says how close the next save is to being refused. Listings carry this rather than the document. Null only where the stored document could not be measured, which a stored document always can. */
+            document_bytes: number | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -5221,6 +5249,20 @@ export interface components {
         /** @description The JSONB document. Key order is preserved and insignificant whitespace is gone — what is stored is what comes back, which is the guarantee snapshot and restore rest on. Large assets are refused here and belong in storage (non-negotiable #9). */
         ProjectDocument: {
             [key: string]: unknown;
+        };
+        ProjectSettings: {
+            /** @description The limit in force, in whole mebibytes. A save whose document measures more is refused `PAYLOAD_TOO_LARGE`, naming this limit in bytes. */
+            max_document_mib: number;
+            /** @description What the limit is while nobody has set it: 4. */
+            default_mib: number;
+            /** @description The smallest limit the platform accepts: 1. */
+            minimum_mib: number;
+            /** @description The largest limit the platform accepts: 64. Above that a document is an asset whatever it is called (non-negotiable #9). */
+            maximum_mib: number;
+            /** @description The host's own ceiling on a request body (PHP `post_max_size`), or null where it sets none. A save above it never reaches this platform — PHP drops the body — so a limit set near or above it is one the host quietly overrules, and the screen says so. */
+            host_upload_bytes: number | null;
+            /** @description Whether the host's ceiling is at or below the limit, so a document near the limit would be dropped by PHP before this platform could refuse it by name. Decided by the server so the screen compares nothing. */
+            host_overrules: boolean;
         };
         Project: components["schemas"]["ProjectSummary"] & {
             document: components["schemas"]["ProjectDocument"];
@@ -14002,6 +14044,69 @@ export interface operations {
                 };
             };
             /** @description `VALIDATION_FAILED` — `confirm_email` is missing or is not a boolean. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    showProjectSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The setting, with the bounds a new value must respect. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSettings"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PermissionDenied"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setProjectSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    max_document_mib: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The setting as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSettings"];
+                };
+            };
+            /** @description `VALIDATION_FAILED` — `max_document_mib` is missing, not a whole number, or outside 1–64. */
             400: {
                 headers: {
                     [name: string]: unknown;

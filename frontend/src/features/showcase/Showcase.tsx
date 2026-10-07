@@ -37,6 +37,7 @@ export function Showcase({
   buyLabel,
   retired = false,
   sections,
+  underBar = false,
 }: {
   productName: string;
   content?: ShowcaseContent | undefined;
@@ -55,6 +56,12 @@ export function Showcase({
   onChooseOffer?: ((offer: Offer) => void) | undefined;
   buyLabel?: string | undefined;
   retired?: boolean | undefined;
+  /**
+   * The page above has a pinned bar of its own (the public storefront), so
+   * the section nav sticks beneath it rather than behind it. Inside the
+   * shell the nav's scroll container already starts below the context bar.
+   */
+  underBar?: boolean | undefined;
 }) {
   const props: BandProps = {
     productName,
@@ -76,7 +83,7 @@ export function Showcase({
   // one of the two places.
   return (
     <div data-testid="showcase">
-      <ShowcaseNav present={present} />
+      <ShowcaseNav present={present} underBar={underBar} />
 
       {present.map((kind) => (
         <Fragment key={kind}>{BAND_VIEWS[kind].view(props)}</Fragment>

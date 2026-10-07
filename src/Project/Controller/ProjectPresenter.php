@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Project\Controller;
 
+use App\Project\Domain\DocumentPolicy;
 use App\Project\Domain\Project;
 use App\Project\Domain\ProjectVersion;
 use DateTimeImmutable;
@@ -28,6 +29,7 @@ final class ProjectPresenter
      * @return array{
      *     id: string, name: string, description: string|null, schema_version: int,
      *     created_by: string|null, holder_user_id: string|null,
+     *     document_bytes: int|null,
      *     created_at: string, updated_at: string, deleted_at: string|null
      * }
      */
@@ -48,6 +50,11 @@ final class ProjectPresenter
             // holds — needs the list to say whose each one is or it is a
             // jumble. Null where the holder's account was erased (Â§30).
             'holder_user_id' => $project->holderUserId,
+            // How close it is to the limit (2026-10-07). Measured by the
+            // policy that enforces the limit, so the figure on screen is the
+            // one the next save is judged by. The list carries the size and
+            // not the document, which is the point of a summary.
+            'document_bytes' => DocumentPolicy::sizeOf($project->document),
             'created_at' => self::moment($project->createdAt),
             'updated_at' => self::moment($project->updatedAt),
             // Null on every live project, which is every project a client sees

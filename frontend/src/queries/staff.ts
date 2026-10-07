@@ -1245,6 +1245,57 @@ export function useSetSignUpSettings() {
   });
 }
 
+export type ProjectSettings = Schemas['ProjectSettings'];
+
+/**
+ * How large a project document may be (2026-10-07): the operator's choice,
+ * platform-wide, behind `staff.products.manage`. The answer carries the
+ * bounds the server enforces and whether the host's own upload ceiling
+ * overrules the limit — decided there, so the screen compares nothing.
+ *
+ * The answer is written into the cache, since the API returns the setting it
+ * wrote.
+ */
+export function useProjectSettings(enabled = true) {
+  const client = useApiClient();
+
+  return useQuery({
+    queryKey: keys.staff.projectSettings,
+    enabled,
+    queryFn: async (): Promise<ProjectSettings> => {
+      const { data, error, response } = await client.GET('/api/v1/staff/projects/settings', {});
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+  });
+}
+
+export function useSetProjectSettings() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (maxDocumentMib: number): Promise<ProjectSettings> => {
+      const { data, error, response } = await client.PUT('/api/v1/staff/projects/settings', {
+        body: { max_document_mib: maxDocumentMib },
+      });
+
+      if (error !== undefined || data === undefined) {
+        throw toApiError(response.status, error);
+      }
+
+      return data;
+    },
+    onSuccess: (settings) => {
+      queryClient.setQueryData(keys.staff.projectSettings, settings);
+    },
+  });
+}
+
 export type MailTemplate = Schemas['MailTemplate'];
 export type MailLocale = 'en' | 'fr' | 'es' | 'de' | 'it';
 export type MailTemplates = {

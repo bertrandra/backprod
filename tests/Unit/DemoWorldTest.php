@@ -8,6 +8,7 @@ use App\Commerce\Service\SubscriptionPeople;
 use App\Demo\Domain\DemoWorld;
 use App\Payment\Infrastructure\StubPaymentProvider;
 use App\Project\Domain\DocumentPolicy;
+use App\Project\Infrastructure\InMemoryDocumentLimit;
 use App\Project\Service\ProjectWorkspace;
 use App\Project\Service\SchemaVersionPolicy;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -176,7 +177,7 @@ final class DemoWorldTest extends TestCase
 
             // The policy the workspace applies, applied here: size, depth, and
             // no asset smuggled in as a data: URI or a very long string.
-            (new DocumentPolicy())->assertStorable($fixture->document);
+            (new DocumentPolicy(new InMemoryDocumentLimit()))->assertStorable($fixture->document);
 
             // And it names nothing this world decides. A re-export is how a
             // second copy of the name would come back, and it would come back

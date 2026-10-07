@@ -150,6 +150,27 @@ test.describe('the shop window', () => {
     await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
   });
 
+  test('keeps the way in on screen however far down the visitor reads', async ({ page }) => {
+    await stubStorefront(page);
+    // Short enough that the stubbed page, one offer and no story, still has
+    // somewhere to scroll to on either viewport.
+    const width = page.viewportSize()?.width ?? 1280;
+    await page.setViewportSize({ width, height: 360 });
+
+    await page.goto('/?product=atlas');
+    await expect(page.getByTestId('visitor-menu')).toBeVisible();
+
+    // To the bottom of the page; the bar is pinned (2026-10-07), so the menu
+    // is still at the top of the viewport and still opens.
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+    const bar = await page.getByTestId('storefront-bar').boundingBox();
+    expect(bar?.y).toBe(0);
+    await page.getByTestId('visitor-menu').click();
+    await expect(page.getByTestId('sign-in-link')).toBeVisible();
+  });
+
   test('says nothing about why a window is empty', async ({ page }) => {
     await stubStorefront(page, { product: null, offers: [] });
 

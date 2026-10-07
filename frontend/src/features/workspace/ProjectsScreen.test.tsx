@@ -30,6 +30,7 @@ function project(overrides: Record<string, unknown> = {}) {
     schema_version: 7,
     created_by: 'u-1',
     created_at: '2026-01-01T10:00:00Z',
+    document_bytes: 2_621_440,
     updated_at: '2026-01-02T10:00:00Z',
     ...overrides,
   };
@@ -487,5 +488,22 @@ describe('somebody no subscription covers', () => {
     );
 
     await waitFor(() => expect(screen.getByTestId('not-covered-action').getAttribute('href')).toBe('/organisation/subscriptions'));
+  });
+});
+
+describe('the size', () => {
+  it("stands beside the date, as the server measured it", async () => {
+    // 2.5 MiB: the figure is the server's `document_bytes`, the one the 4 MiB
+    // limit is judged by — this screen only picks a unit for it.
+    render(clientFor());
+
+    await waitFor(() => expect(screen.getByText(/2\.5 MB/)).toBeTruthy());
+  });
+
+  it('is left out rather than invented when the server has none', async () => {
+    render(clientFor({ 'GET /api/v1/projects': listing([project({ document_bytes: null })]) }));
+
+    await waitFor(() => expect(screen.getByText('North wall')).toBeTruthy());
+    expect(screen.queryByText(/MB|NaN/)).toBeNull();
   });
 });

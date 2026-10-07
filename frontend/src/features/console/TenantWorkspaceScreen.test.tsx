@@ -67,7 +67,7 @@ const PROFILE = {
   vat_number: 'FR12345678901', vat_number_status: 'VERIFIED', vat_number_verified_at: '2026-01-01T00:00:00Z', vat_number_country: 'FR', reverse_charge_available: false,
 };
 const THREAD = { id: 'c-1', kind: 'SUPPORT', subject: 'Cannot sign in', status: 'OPEN', created_by: 'u-ada', closed_at: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', unread: 0 };
-const PROJECT = { id: 'proj-1', name: 'Parcel 12', description: null, schema_version: 1, created_by: 'u-ada', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-03T00:00:00Z', deleted_at: null };
+const PROJECT = { id: 'proj-1', name: 'Parcel 12', description: null, schema_version: 1, created_by: 'u-ada', document_bytes: 2_048, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-03T00:00:00Z', deleted_at: null };
 const JOB = { id: 'job-1', type: 'export.project', status: 'DONE', payload: {}, result: null, attempts: 1, max_attempts: 3, run_after: '2026-01-01T00:00:00Z', failure_reason: null, started_at: null, finished_at: '2026-01-01T00:01:00Z', created_at: '2026-01-01T00:00:00Z' };
 
 function stubs(extra: Stubs = {}): Stubs {

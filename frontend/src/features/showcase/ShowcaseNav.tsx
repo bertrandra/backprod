@@ -37,7 +37,7 @@ const KIND_BY_ANCHOR: Readonly<Record<string, BandKind>> = Object.fromEntries(
  * anchors actually in the document, so a product with no use cases has no
  * dead link to one.
  */
-export function ShowcaseNav({ present }: { present: readonly BandKind[] }) {
+export function ShowcaseNav({ present, underBar = false }: { present: readonly BandKind[]; underBar?: boolean }) {
   const current = useCurrentBand(present);
 
   // Three, not two. A product that has written nothing has exactly a hero
@@ -52,7 +52,9 @@ export function ShowcaseNav({ present }: { present: readonly BandKind[] }) {
     <nav
       aria-label={t("On this page")}
       data-testid="showcase-nav"
-      className="sticky top-0 z-10 hidden border-b border-line bg-canvas/85 backdrop-blur lg:block"
+      // `lg:top-16` under the storefront's pinned bar, which is `lg:h-16`:
+      // the nav only shows from `lg`, where that height is fixed.
+      className={`sticky ${underBar ? 'lg:top-16' : 'top-0'} z-10 hidden border-b border-line bg-canvas/85 backdrop-blur lg:block`}
     >
       <ul className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-8 py-2 text-sm">
         {present.map((kind) => {

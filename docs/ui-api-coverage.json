@@ -378,6 +378,17 @@
         "showStorefrontSettings"
       ]
     },
+    "console.admin.projects": {
+      "authority": "platform",
+      "$comment": "How large a project document may be (2026-10-07): a constant until the operator asked to set it from the setup menu. One limit for every product, so it is setting the platform up and answers to staff.products.manage. The screen offers the bounds the server answered and shows whether the host's upload ceiling overrules the choice, which the server decides.",
+      "routes": [
+        "/console/projects"
+      ],
+      "operations": [
+        "setProjectSettings",
+        "showProjectSettings"
+      ]
+    },
     "console.support.conversations": {
       "authority": "platform",
       "routes": [

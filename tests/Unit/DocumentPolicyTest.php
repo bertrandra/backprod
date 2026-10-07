@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit;
 
 use App\Project\Domain\DocumentPolicy;
+use App\Project\Infrastructure\InMemoryDocumentLimit;
 use App\Shared\Exceptions\HttpException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
@@ -26,14 +27,14 @@ final class DocumentPolicyTest extends TestCase
 
         $this->expectNotToPerformAssertions();
 
-        (new DocumentPolicy())->assertStorable($document);
+        (new DocumentPolicy(new InMemoryDocumentLimit()))->assertStorable($document);
     }
 
     public function testAnEmptyDocumentIsAccepted(): void
     {
         $this->expectNotToPerformAssertions();
 
-        (new DocumentPolicy())->assertStorable(self::decode('{}'));
+        (new DocumentPolicy(new InMemoryDocumentLimit()))->assertStorable(self::decode('{}'));
     }
 
     /**
@@ -61,7 +62,7 @@ final class DocumentPolicyTest extends TestCase
 
         $this->expectNotToPerformAssertions();
 
-        (new DocumentPolicy())->assertStorable(self::decode($json));
+        (new DocumentPolicy(new InMemoryDocumentLimit()))->assertStorable(self::decode($json));
     }
 
     /**
@@ -86,7 +87,7 @@ final class DocumentPolicyTest extends TestCase
     {
         $this->expectNotToPerformAssertions();
 
-        (new DocumentPolicy())->assertStorable(
+        (new DocumentPolicy(new InMemoryDocumentLimit()))->assertStorable(
             self::decode('{"texture": "https://assets.example.test/a.png"}'),
         );
     }
@@ -99,13 +100,13 @@ final class DocumentPolicyTest extends TestCase
     {
         $this->expectNotToPerformAssertions();
 
-        (new DocumentPolicy())->assertStorable(self::decode('{"note": "data about the site"}'));
+        (new DocumentPolicy(new InMemoryDocumentLimit()))->assertStorable(self::decode('{"note": "data about the site"}'));
     }
 
     private static function refusalFor(string $json): HttpException
     {
         try {
-            (new DocumentPolicy())->assertStorable(self::decode($json));
+            (new DocumentPolicy(new InMemoryDocumentLimit()))->assertStorable(self::decode($json));
         } catch (HttpException $error) {
             return $error;
         }

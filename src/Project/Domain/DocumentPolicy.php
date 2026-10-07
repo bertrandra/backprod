@@ -27,20 +27,6 @@ use App\Shared\Exceptions\UnprocessableEntityException;
 final class DocumentPolicy
 {
     /**
-     * 4 MiB of structured document. A project's geometry, layers and settings
-     * fit; anything larger is either an asset or a serialised mesh, and both
-     * belong in object storage.
-     *
-     * It was 1 MiB until 2026-10-07, when Plan's schema 4 outgrew it and every
-     * save was refused `PAYLOAD_TOO_LARGE`: a real site is structured data
-     * well past a megabyte. The operator chose to raise it for every product
-     * rather than per product. The other rules are unchanged — no `data:` URI,
-     * no string over 64 KiB — so it still refuses an asset, only not a large
-     * drawing.
-     */
-    public const MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
-
-    /**
      * A single string this long is not a label, an id or a note — it is a
      * payload someone encoded.
      */
@@ -51,6 +37,29 @@ final class DocumentPolicy
      * validation cannot be turned into a stack overflow by a crafted body.
      */
     public const MAX_DEPTH = 64;
+
+    public function __construct(private readonly DocumentLimit $limit)
+    {
+    }
+
+    /**
+     * How large a document is, measured the way the limit measures it.
+     *
+     * One measure, in one place: a screen showing "3.9 MB" beside a project
+     * is only useful if it is the number the limit will be compared against
+     * on the next save. PostgreSQL's `octet_length(document::text)`
+     * would answer something else — JSONB prints a space after every colon
+     * and comma — and two sizes for one document is one too many.
+     *
+     * Null where the document cannot be encoded, which a stored one always
+     * can: it was encoded to be stored.
+     */
+    public static function sizeOf(object $document): ?int
+    {
+        $encoded = json_encode($document);
+
+        return $encoded === false ? null : strlen($encoded);
+    }
 
     public function assertStorable(object $document): void
     {
@@ -65,10 +74,16 @@ final class DocumentPolicy
 
         $size = strlen($encoded);
 
-        if ($size > self::MAX_DOCUMENT_BYTES) {
+        // Read on every save rather than held: the operator sets it in the
+        // console (2026-10-07), and a change applies from the next save on.
+        // A larger limit admits what was refused; a smaller one refuses no
+        // document already stored until somebody saves it again.
+        $limit = $this->limit->maxDocumentMib() * DocumentLimit::BYTES_PER_MIB;
+
+        if ($size > $limit) {
             throw new PayloadTooLargeException(
                 'The project document is larger than the platform stores inline.',
-                ['limit_bytes' => self::MAX_DOCUMENT_BYTES, 'size_bytes' => $size],
+                ['limit_bytes' => $limit, 'size_bytes' => $size],
             );
         }
 

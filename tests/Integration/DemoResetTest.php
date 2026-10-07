@@ -193,6 +193,28 @@ final class DemoResetTest extends DatabaseApiTestCase
      * through the API by the person whose seat they belong to, carrying the
      * invoice number and the customer `CollectedPayment` promises.
      */
+    /**
+     * Every organisation wears a palette in every product it holds, drawn
+     * from the platform's own list (2026-10-07) — which palette is chance,
+     * that there is one is not.
+     */
+    public function testEveryOrganisationWearsAPaletteInEachProductItHolds(): void
+    {
+        self::assertSame(200, $this->reset('ola-token')->getStatusCode());
+
+        self::assertGreaterThan(0, $this->connection->fetchOne('SELECT count(*) FROM tenant_products'));
+        self::assertSame(0, $this->connection->fetchOne(
+            <<<'SQL'
+                SELECT count(*) FROM tenant_products tp
+                 WHERE NOT EXISTS (
+                    SELECT 1 FROM tenant_palettes p
+                     JOIN palettes l ON l.name = p.palette
+                     WHERE p.tenant_id = tp.tenant_id AND p.product_id = tp.product_id
+                 )
+                SQL,
+        ), 'a holding without a palette');
+    }
+
     public function testTheWorldHasMoneyInItAndThePaymentsScreenCanReadIt(): void
     {
         self::assertSame(200, $this->reset('ola-token')->getStatusCode());

@@ -206,6 +206,7 @@ export const keys = {
     storefrontSettings: ['staff', 'storefront', 'settings'] as const,
     /** Whether a new account must prove its address (ADR-063). */
     signUpSettings: ['staff', 'sign-up', 'settings'] as const,
+    projectSettings: ['staff', 'projects', 'settings'] as const,
     mailTemplates: (locale: string) => ['staff', 'mail', 'templates', locale] as const,
     /** The palettes, and the matrix of who wears which (2026-10-04). */
     palettes: ['staff', 'palettes'] as const,

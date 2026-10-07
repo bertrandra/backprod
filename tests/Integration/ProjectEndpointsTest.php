@@ -12,10 +12,12 @@ use App\Product\Domain\ProductRegistry;
 use App\Product\Domain\ProductRepository;
 use App\Product\Infrastructure\InMemoryProductRegistry;
 use App\Product\Infrastructure\InMemoryProductRepository;
+use App\Project\Domain\DocumentLimit;
 use App\Project\Domain\DocumentPolicy;
 use App\Project\Domain\Project;
 use App\Project\Domain\ProjectDraft;
 use App\Project\Domain\ProjectRepository;
+use App\Project\Infrastructure\InMemoryDocumentLimit;
 use App\Project\Infrastructure\InMemoryProjectRepository;
 use App\Project\Service\ProjectWorkspace;
 use App\Tenant\Domain\TenantMembership;
@@ -110,6 +112,10 @@ final class ProjectEndpointsTest extends ApiTestCase
             ]),
 
             ProjectRepository::class => new InMemoryProjectRepository(),
+
+            // The platform's default, as an unset setting reads: this test
+            // has no database to keep the setting in.
+            DocumentLimit::class => new InMemoryDocumentLimit(),
 
             // A tenant with no subscription may hold no projects, so these
             // tests grant the entitlement that says they may. How *many* is
@@ -256,7 +262,7 @@ final class ProjectEndpointsTest extends ApiTestCase
 
         // Derived from the limit, so raising it cannot quietly turn this into
         // a test of a document that fits.
-        $chunks = intdiv(DocumentPolicy::MAX_DOCUMENT_BYTES, strlen($chunk)) + 1;
+        $chunks = intdiv(DocumentLimit::DEFAULT_MIB * DocumentLimit::BYTES_PER_MIB, strlen($chunk)) + 1;
 
         for ($i = 0; $i < $chunks; ++$i) {
             $document['chunk' . $i] = $chunk;
@@ -275,7 +281,7 @@ final class ProjectEndpointsTest extends ApiTestCase
 
         $details = $error['details'] ?? null;
         self::assertIsArray($details);
-        self::assertSame(DocumentPolicy::MAX_DOCUMENT_BYTES, $details['limit_bytes'] ?? null);
+        self::assertSame(DocumentLimit::DEFAULT_MIB * DocumentLimit::BYTES_PER_MIB, $details['limit_bytes'] ?? null);
     }
 
     // --- The document is the Core's, and comes back unchanged ---------------
@@ -854,6 +860,31 @@ final class ProjectEndpointsTest extends ApiTestCase
         // The administrator sees everybody's work in one list, so the list
         // has to say whose each one is or it is a jumble.
         self::assertSame(self::CAROL, $shown['holder_user_id'] ?? null);
+    }
+
+    public function testAProjectSaysHowLargeItIsInTheListAndOnItsOwn(): void
+    {
+        $created = $this->decode($this->create([
+            'name' => 'Garden',
+            'schema_version' => 1,
+            'document' => ['walls' => ['north', 'south'], 'scale' => 100],
+        ]));
+
+        // Measured as the 4 MiB limit measures it, so the figure on screen is
+        // the one the next save is judged by - not PostgreSQL's rendering of
+        // the JSONB, which puts a space after every colon and comma.
+        $expected = strlen('{"walls":["north","south"],"scale":100}');
+        self::assertSame($expected, $created['document_bytes'] ?? null);
+
+        $listed = $this->decode($this->request('GET', '/api/v1/projects', $this->aliceHeaders()));
+        $projects = $listed['projects'] ?? null;
+        self::assertIsArray($projects);
+        self::assertIsArray($projects[0]);
+
+        // The list carries the size and not the document: that is what lets a
+        // list say how large each one is without becoming a bulk download.
+        self::assertSame($expected, $projects[0]['document_bytes'] ?? null);
+        self::assertArrayNotHasKey('document', $projects[0]);
     }
 
     /**
