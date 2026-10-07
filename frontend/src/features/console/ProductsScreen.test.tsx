@@ -378,4 +378,19 @@ describe('changing one', () => {
     expect(view.location()).not.toContain('selected=');
     expect(useSessionStore.getState().productCode).toBe('atlas');
   });
+
+  it('takes somebody from a product straight to the document versions it accepts', async () => {
+    const view = renderAtRoute(<ProductsScreen />, clientFor(), {
+      path: '/console/products',
+      product: 'orbit',
+    });
+
+    await waitFor(() => expect(screen.getByTestId('product-list')).toBeTruthy());
+    fireEvent.click(screen.getAllByTestId('document-versions')[0] as HTMLElement);
+
+    // Where a release's new version is added: the invoicing screen's section,
+    // for the product on the row, and not a second copy of the list here.
+    await waitFor(() => expect(view.location()).toContain('/console/invoicing#document-versions'));
+    expect(useSessionStore.getState().productCode).toBe('atlas');
+  });
 });

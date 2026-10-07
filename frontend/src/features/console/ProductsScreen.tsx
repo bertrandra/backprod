@@ -16,6 +16,7 @@ import { PageHeader } from '@/ui/Page';
 import { t } from '@/i18n';
 import { tx } from '@/i18n/react';
 
+import { DOCUMENT_VERSIONS } from './InvoicingScreen';
 import { ProductCredentials } from './ProductCredentials';
 import { ProductWebhook } from './ProductWebhook';
 import { StoryScreen } from './StoryScreen';
@@ -60,9 +61,10 @@ export function ProductsScreen() {
   const handTo = (
     to: '/console/storefront' | '/console/catalogue' | '/console/invoicing',
     productCode: string,
+    hash?: string,
   ) => {
     chooseProduct(productCode);
-    return navigate({ to });
+    return navigate(hash === undefined ? { to } : { to, hash });
   };
 
   const [code, setCode] = useState('');
@@ -118,6 +120,9 @@ export function ProductsScreen() {
                 }
                 onInvoicing={() =>
                   void handTo('/console/invoicing', product.code)
+                }
+                onDocumentVersions={() =>
+                  void handTo('/console/invoicing', product.code, DOCUMENT_VERSIONS)
                 }
               />
             ))}
@@ -197,6 +202,7 @@ function ProductRow({
   onStorefront,
   onCatalogue,
   onInvoicing,
+  onDocumentVersions,
 }: {
   product: PlatformProduct;
   pending: boolean;
@@ -208,6 +214,7 @@ function ProductRow({
   onStorefront: () => void;
   onCatalogue: () => void;
   onInvoicing: () => void;
+  onDocumentVersions: () => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(product.name);
@@ -390,6 +397,13 @@ function ProductRow({
               because the issuer its documents must name is configuration. */}
           <Button type="button" variant="secondary" onClick={onInvoicing}>
             {t("Invoicing")}</Button>
+          {/* The other refusal a new product meets, and the one a release of
+              it meets again: a save in a document version the platform does
+              not accept. The list lives on the invoicing screen, with the
+              rest of the product's configuration (one screen reads it), so
+              this goes straight to it rather than drawing a second copy. */}
+          <Button type="button" variant="secondary" data-testid="document-versions" onClick={onDocumentVersions}>
+            {t("Document versions")}</Button>
           <Button type="button" variant="secondary" onClick={() => setRenaming(true)}>
             {t("Rename")}</Button>
           <Button type="button" variant="secondary" onClick={() => setAddressing(true)}>
